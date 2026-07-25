@@ -567,7 +567,9 @@ function KahootHost() {
         {(game.status === "podium" || game.status === "ended") && (
           <div className="w-full max-w-2xl space-y-6 text-center">
             <h2 className="text-4xl font-black flex items-center justify-center gap-2">
-              <Crown className="h-9 w-9 text-amber-500" /> {t("kahoot.podium")}
+              {/* Trofeo en el header: la CORONA queda reservada para marcar SOLO
+                  al ganador sobre su barra (antes había dos coronas = redundante). */}
+              <Trophy className="h-9 w-9 text-amber-500" /> {t("kahoot.podium")}
             </h2>
             <Podium ranked={ranked} />
             {game.status === "podium" ? (
@@ -676,11 +678,15 @@ function Podium({ ranked }: { ranked: { id: string; nickname: string; score: num
   // Entrada escalonada + dramática: 3º entra primero, luego 2º, y el 1º de
   // último (con zoom + corona). Delays por PUESTO (índice), no por orden visual.
   const delay = ["delay-500", "delay-200", "delay-0"];
+  // Gradientes tipo medalla (oro / plata / bronce) en vez de un color plano —
+  // le da profundidad y "vida" al podio y baja el amarillo saturado del 1º.
   const barColor = [
-    "bg-amber-400 text-amber-950",
-    "bg-slate-300 text-slate-900",
-    "bg-orange-400 text-orange-950",
+    "bg-gradient-to-b from-yellow-300 via-amber-400 to-amber-500 text-amber-950",
+    "bg-gradient-to-b from-slate-100 via-slate-300 to-slate-400 text-slate-900",
+    "bg-gradient-to-b from-orange-300 via-orange-500 to-orange-700 text-orange-950",
   ];
+  // Medalla por puesto (más vívido + universal que solo el número).
+  const medal = ["🥇", "🥈", "🥉"];
   return (
     <>
       <div className="flex items-end justify-center gap-3 sm:gap-4">
@@ -692,17 +698,24 @@ function Podium({ ranked }: { ranked: { id: string; nickname: string; score: num
               key={p.id}
               className={`flex flex-col items-center gap-2 w-28 sm:w-32 animate-in slide-in-from-bottom-10 fade-in fill-mode-both duration-700 ${idx === 0 ? "zoom-in-95" : ""} ${delay[idx]}`}
             >
-              {idx === 0 && <Crown className="h-7 w-7 text-amber-400 animate-bounce" />}
+              {/* Corona SOLO sobre el ganador (único uso de la corona en el podio). */}
+              {idx === 0 && (
+                <Crown className="h-7 w-7 text-amber-400 animate-bounce drop-shadow-[0_2px_4px_rgba(245,158,11,0.5)]" />
+              )}
               {/* Nombre COMPLETO (sin truncar): puede envolver en 2-3 líneas; el
                   min-h alinea las barras aunque los nombres tengan distinto largo. */}
               <span className="flex min-h-[2.75rem] items-end justify-center text-center text-xs sm:text-sm font-semibold leading-tight break-words">
                 {p.nickname}
               </span>
               <div
-                className={`w-full ${heights[idx]} rounded-t-lg flex flex-col items-center justify-start pt-2 shadow-lg ${barColor[idx]}`}
+                className={`w-full ${heights[idx]} rounded-t-lg flex flex-col items-center justify-start pt-2 shadow-lg ${barColor[idx]} ${
+                  idx === 0 ? "ring-2 ring-amber-300/70 shadow-xl shadow-amber-400/30" : ""
+                }`}
               >
-                <span className="text-3xl font-black">{idx + 1}</span>
-                <span className="text-sm font-bold tabular-nums">{p.score}</span>
+                <span className="text-3xl leading-none" aria-hidden>
+                  {medal[idx]}
+                </span>
+                <span className="mt-1 text-sm font-bold tabular-nums">{p.score}</span>
               </div>
             </div>
           );
