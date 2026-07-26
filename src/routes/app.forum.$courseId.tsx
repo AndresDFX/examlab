@@ -27,6 +27,7 @@ import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
@@ -54,7 +55,6 @@ import { toast } from "sonner";
 import {
   MessageSquareText,
   Plus,
-  Search,
   Lock,
   CalendarClock,
   ArrowRight,
@@ -439,24 +439,11 @@ function ForumsList() {
       {!loading && !loadError && forums.length > 0 && (
         <Card>
           <CardContent className="p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="relative flex-1 min-w-[180px] sm:min-w-48">
-                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  placeholder={t("forum.searchPlaceholder", {
-                    defaultValue: "Buscar por título o descripción…",
-                  })}
-                  className="pl-8"
-                />
-              </div>
-              {search.trim() && (
-                <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
-                  {t("common.clear", { defaultValue: "Limpiar" })}
-                </Button>
-              )}
-            </div>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={t("forum.searchPlaceholder")}
+            />
           </CardContent>
         </Card>
       )}

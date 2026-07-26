@@ -608,7 +608,7 @@ function Inner() {
         <CardContent className="p-4 space-y-3">
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (
-              <TableSkeleton cols={5} rows={5} />
+              <TableSkeleton cols={6} rows={5} />
             ) : loadError ? (
               <ErrorState
                 message={t("adminReportTemplates.loadError")}

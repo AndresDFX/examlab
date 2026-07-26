@@ -505,7 +505,7 @@ function TeacherPolls() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_polls",
-    resetKey: `${search}|${courseFilter}|${pollStatusFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter}|${pollStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats compactas — mismo patrón que proyectos / talleres / exámenes.

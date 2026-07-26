@@ -1373,7 +1373,9 @@
     "generateSessionsHolidayInclude": "Include holidays",
     "generateSessionsClassTitle": "Class {{number}}",
     "generateSessionsSubtitleBoard": "The course's sessions will be scheduled with their time slots. You'll be able to edit each date before creating them.",
-    "bulkExtraWarning": "The selected content will be moved to trash and its files will no longer be available to students."
+    "bulkExtraWarning": "The selected content will be moved to trash and its files will no longer be available to students.",
+    "bulkEntitySingular": "content item",
+    "bulkEntityPlural": "content items"
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -1819,7 +1821,8 @@
     "confirmDeleteLabel": "Delete",
     "reopenFutureDate": "The new close date must be in the future.",
     "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash).",
-    "searchPlaceholder": "Search by title or description…"
+    "searchPlaceholder": "Search by title or description…",
+    "paginationEntity": "forums"
   },
   "forumThreads": {
     "defaultTitle": "Forum",
@@ -1853,7 +1856,8 @@
     "formTags": "Tags (comma-separated)",
     "cancel": "Cancel",
     "publish": "Publish",
-    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
+    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash).",
+    "paginationEntity": "threads"
   },
   "forumThread": {
     "loading": "Loading…",
@@ -2070,7 +2074,9 @@
     "removeConfirmDesc": "Projects that reference it will stop showing the video (they won't break — the field becomes null). This action cannot be undone.",
     "badgeUploaded": "Uploaded",
     "courseGlobalBadge": "Global",
-    "bulkExtraWarning": "The selected videos (and any uploaded files) will be deleted. Projects and workshops referencing them will stop showing them."
+    "bulkExtraWarning": "The selected videos (and any uploaded files) will be deleted. Projects and workshops referencing them will stop showing them.",
+    "bulkEntitySingular": "video",
+    "bulkEntityPlural": "videos"
   },
   "support": {
     "statusOpen": "Open",
@@ -2170,7 +2176,10 @@
       "toastCreated": "Program created",
       "toastDeleted": "Program deleted",
       "searchPlaceholder": "Search by name, code or area…",
-      "entityPlural": "programs"
+      "entityPlural": "programs",
+      "filterAll": "All",
+      "filterActive": "Active only",
+      "filterInactive": "Inactive only"
     },
     "subjects": {
       "title": "Subjects / Courses",
@@ -4224,7 +4233,9 @@
     "aiPrepareError": "Could not prepare the AI generation.",
     "saveError": "Could not save the template",
     "copyNameSuffix": "{{name}} (copy)",
-    "entityPlural": "templates"
+    "entityPlural": "templates",
+    "colUpdated": "Updated",
+    "filterAllScopes": "All types"
   },
   "workshopQuestions": {
     "tabList": "Questions ({{count}})",
@@ -4342,7 +4353,8 @@
     "createError": "Error creating the ticket",
     "deleteFailed": "Could not delete the ticket",
     "removeAttachmentAria": "Remove attachment {{name}}",
-    "searchPlaceholder": "Search by subject or category…"
+    "searchPlaceholder": "Search by subject or category…",
+    "entityPlural": "tickets"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — PNG capture",
@@ -4781,7 +4793,8 @@
     "deleteConfirmDesc": "The ticket and its conversation will be removed from the inbox. This action cannot be undone.",
     "deleteConfirmLabel": "Delete",
     "ticketDeleted": "Ticket deleted",
-    "loadError": "Could not load the inbox"
+    "loadError": "Could not load the inbox",
+    "entityPlural": "tickets"
   },
   "verifyCertificate": {
     "pageTitle": "Certificate verification · {{code}}",
@@ -8614,7 +8627,8 @@
     "genEmptyHint": "Generate one from a template (Templates tab → Generate).",
     "genDeleteTitle": "Delete generated report",
     "genDeleteDesc": "It will be removed from the history. This action cannot be undone.",
-    "entityPlural": "templates"
+    "entityPlural": "templates",
+    "colUpdated": "Updated"
   },
   "hc_routesAppTeacherWhiteboardsId": {
     "couldNotLoad": "We couldn't load the whiteboard.",
@@ -9431,6 +9445,10 @@
   },
   "actasManager": {
     "searchPlaceholder": "Search by course, term or teacher…",
-    "noMatches": "No matches for your search."
+    "noMatches": "No matches for your search.",
+    "entityNamePlural": "records"
+  },
+  "dbBackups": {
+    "entityNamePlural": "backups"
   }
 }

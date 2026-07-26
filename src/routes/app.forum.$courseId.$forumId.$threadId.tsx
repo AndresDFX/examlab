@@ -34,7 +34,6 @@ import {
   Trash2,
   Send,
   Crown,
-  Edit2,
   X,
   Save,
   Pencil,

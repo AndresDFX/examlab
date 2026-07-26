@@ -29,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { AlertTriangle, Camera, Info, RotateCcw, Terminal, X } from "lucide-react";
+import { AlertTriangle, Camera, Info, RefreshCw, Terminal, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -381,7 +381,7 @@ export function PythonGuiRunner({
               {running ? (
                 <Spinner size="xs" className="mr-1" />
               ) : (
-                <RotateCcw className="h-3 w-3 mr-1" />
+                <RefreshCw className="h-3 w-3 mr-1" />
               )}
               {t("pythonGuiRunner.btnRegenerate")}
             </Button>

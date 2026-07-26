@@ -43,7 +43,7 @@ import {
   AlertTriangle,
   Terminal,
   Maximize2,
-  RotateCcw,
+  RefreshCw,
   Info,
   Camera,
   X,
@@ -873,7 +873,7 @@ export function JavaGuiRunner({
               {running || loadingCJ ? (
                 <Spinner size="xs" className="mr-1" />
               ) : (
-                <RotateCcw className="h-3 w-3 mr-1" />
+                <RefreshCw className="h-3 w-3 mr-1" />
               )}
               {mode === "aws_screenshot" ? t("javaGuiRunner.btnRegenCapture") : t("javaGuiRunner.btnRerun")}
             </Button>

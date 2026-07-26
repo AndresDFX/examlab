@@ -1373,7 +1373,9 @@
     "generateSessionsHolidayInclude": "Incluir festivos",
     "generateSessionsClassTitle": "Clase {{number}}",
     "generateSessionsSubtitleBoard": "Se programarán las sesiones del curso con su horario. Podrás editar cada fecha antes de crearlas.",
-    "bulkExtraWarning": "Los contenidos seleccionados se moverán a la papelera y sus archivos dejarán de estar disponibles para los estudiantes."
+    "bulkExtraWarning": "Los contenidos seleccionados se moverán a la papelera y sus archivos dejarán de estar disponibles para los estudiantes.",
+    "bulkEntitySingular": "contenido",
+    "bulkEntityPlural": "contenidos"
   },
   "courseBoard": {
     "indexSubtitle": "Selecciona un curso para ver el tablero de sesiones, contenido y entregas.",
@@ -1819,7 +1821,8 @@
     "confirmDeleteLabel": "Eliminar",
     "reopenFutureDate": "El nuevo cierre debe ser una fecha futura.",
     "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera).",
-    "searchPlaceholder": "Buscar por título o descripción…"
+    "searchPlaceholder": "Buscar por título o descripción…",
+    "paginationEntity": "foros"
   },
   "forumThreads": {
     "defaultTitle": "Foro",
@@ -1853,7 +1856,8 @@
     "formTags": "Tags (separados por coma)",
     "cancel": "Cancelar",
     "publish": "Publicar",
-    "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera)."
+    "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera).",
+    "paginationEntity": "hilos"
   },
   "forumThread": {
     "loading": "Cargando…",
@@ -2070,7 +2074,9 @@
     "removeConfirmDesc": "Los proyectos que lo referencian dejarán de mostrar el video (no rompen — el field queda null). Esta acción no se puede deshacer.",
     "badgeUploaded": "Subido",
     "courseGlobalBadge": "Global",
-    "bulkExtraWarning": "Se eliminarán los videos seleccionados (y los archivos subidos que tengan). Los proyectos y talleres que los referencian dejarán de mostrarlos."
+    "bulkExtraWarning": "Se eliminarán los videos seleccionados (y los archivos subidos que tengan). Los proyectos y talleres que los referencian dejarán de mostrarlos.",
+    "bulkEntitySingular": "video",
+    "bulkEntityPlural": "videos"
   },
   "support": {
     "statusOpen": "Abierto",
@@ -2170,7 +2176,10 @@
       "toastCreated": "Programa creado",
       "toastDeleted": "Programa eliminado",
       "searchPlaceholder": "Buscar por nombre, código o área…",
-      "entityPlural": "programas"
+      "entityPlural": "programas",
+      "filterAll": "Todos",
+      "filterActive": "Solo activos",
+      "filterInactive": "Solo inactivos"
     },
     "subjects": {
       "title": "Asignaturas / Materias",
@@ -4224,7 +4233,9 @@
     "aiPrepareError": "No se pudo preparar la generación con IA.",
     "saveError": "No se pudo guardar la plantilla",
     "copyNameSuffix": "{{name}} (copia)",
-    "entityPlural": "plantillas"
+    "entityPlural": "plantillas",
+    "colUpdated": "Actualizada",
+    "filterAllScopes": "Todos los tipos"
   },
   "workshopQuestions": {
     "tabList": "Preguntas ({{count}})",
@@ -4342,7 +4353,8 @@
     "createError": "Error creando el ticket",
     "deleteFailed": "No se pudo eliminar el ticket",
     "removeAttachmentAria": "Quitar adjunto {{name}}",
-    "searchPlaceholder": "Buscar por asunto o categoría…"
+    "searchPlaceholder": "Buscar por asunto o categoría…",
+    "entityPlural": "tickets"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — captura PNG",
@@ -4781,7 +4793,8 @@
     "deleteConfirmDesc": "El ticket y su conversación se eliminarán de la bandeja. Esta acción no se puede deshacer.",
     "deleteConfirmLabel": "Eliminar",
     "ticketDeleted": "Ticket eliminado",
-    "loadError": "No pudimos cargar la bandeja"
+    "loadError": "No pudimos cargar la bandeja",
+    "entityPlural": "tickets"
   },
   "verifyCertificate": {
     "pageTitle": "Verificación de certificado · {{code}}",
@@ -8614,7 +8627,8 @@
     "genEmptyHint": "Generá uno desde una plantilla (tab “Plantillas” → Generar).",
     "genDeleteTitle": "Eliminar informe generado",
     "genDeleteDesc": "Se quitará del historial. Esta acción no se puede deshacer.",
-    "entityPlural": "plantillas"
+    "entityPlural": "plantillas",
+    "colUpdated": "Actualizada"
   },
   "hc_routesAppTeacherWhiteboardsId": {
     "couldNotLoad": "No pudimos cargar la pizarra.",
@@ -9431,6 +9445,10 @@
   },
   "actasManager": {
     "searchPlaceholder": "Buscar por curso, período o docente…",
-    "noMatches": "Sin coincidencias con la búsqueda."
+    "noMatches": "Sin coincidencias con la búsqueda.",
+    "entityNamePlural": "actas"
+  },
+  "dbBackups": {
+    "entityNamePlural": "backups"
   }
 }
