@@ -1983,6 +1983,9 @@
     "loadErrorFallback": "No pudimos cargar tus notas en este momento."
   },
   "studentPolls": {
+    "sortRecent": "Más recientes primero",
+    "sortClosesAsc": "Cierran primero",
+    "sortTitleAsc": "Título (A–Z)",
     "title": "Encuestas",
     "subtitle": "Tus encuestas activas y las que ya cerraron.",
     "refresh": "Actualizar",
@@ -2470,6 +2473,9 @@
     "fraudEmpty": "Sin alertas de integridad. Ejecuta 'Detectar copias' por actividad para poblar pares."
   },
   "studentWhiteboards": {
+    "sortUpdatedDesc": "Última edición",
+    "sortNameAsc": "Nombre (A–Z)",
+    "sortCourseAsc": "Curso (A–Z)",
     "title": "Pizarras",
     "subtitleStatic": "Las pizarras que tus docentes compartan con tus cursos aparecerán acá.",
     "subtitle_one": "{{count}} pizarra compartida por tus docentes",

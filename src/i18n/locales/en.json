@@ -1983,6 +1983,9 @@
     "loadErrorFallback": "We couldn't load your grades right now."
   },
   "studentPolls": {
+    "sortRecent": "Most recent first",
+    "sortClosesAsc": "Closing soonest",
+    "sortTitleAsc": "Title (A–Z)",
     "title": "Polls",
     "subtitle": "Your active polls and those that have already closed.",
     "refresh": "Refresh",
@@ -2470,6 +2473,9 @@
     "fraudEmpty": "No integrity alerts. Run 'Detect copies' per activity to populate pairs."
   },
   "studentWhiteboards": {
+    "sortUpdatedDesc": "Last edited",
+    "sortNameAsc": "Name (A–Z)",
+    "sortCourseAsc": "Course (A–Z)",
     "title": "Whiteboards",
     "subtitleStatic": "Whiteboards your teachers share with your courses will appear here.",
     "subtitle_one": "{{count}} whiteboard shared by your teachers",
