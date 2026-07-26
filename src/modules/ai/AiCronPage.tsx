@@ -1301,7 +1301,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 hidden sm:flex"
+                            className="h-8 w-8 hidden sm:flex"
                             onClick={() =>
                               navigate({
                                 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1391,7 +1391,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                           <Button
                             size="icon"
                             variant="ghost"
-                            className="h-7 w-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
+                            className="h-8 w-8 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-500/10 dark:text-emerald-400 dark:hover:text-emerald-300"
                             onClick={() => void acknowledgeReject(j.id)}
                             title={t("aiCronPage.closeConversation")}
                           >

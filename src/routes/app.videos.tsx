@@ -75,6 +75,13 @@ import { formatFileSize } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
 import {
   matchesMaterialStatus,
@@ -345,6 +352,16 @@ function VideoLibrary() {
     storageKey: "examlab_pag:videos",
     resetKey: `${search}|${filterCourseId ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
+
+  // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
+  // items filtrados+ordenados, NO los paginados) para que "seleccionar
+  // todos" abarque todas las páginas del filtro activo.
+  const sel = useMultiSelect(sort.sorted);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const selectedVideoItems = useMemo(
+    () => sort.sorted.filter((r) => sel.isSelected(r.id)).map((r) => ({ id: r.id, label: r.title })),
+    [sort.sorted, sel],
+  );
 
   const openNew = () => {
     setEditing(null);
@@ -671,6 +688,47 @@ function VideoLibrary() {
     void load();
   };
 
+  /**
+   * Bulk delete FÍSICO (los videos NO están en el set de 8 entidades
+   * soft-delete de la Papelera — se eliminan de verdad, igual que el
+   * borrado por fila). Primero el DELETE de las filas; después la
+   * limpieza de los blobs de Storage de los que fueron subidos, que es
+   * best-effort: si Storage falla el video ya desapareció de la
+   * biblioteca y solo queda un objeto huérfano (no rompe nada).
+   */
+  const handleBulkDelete = async (ids: string[]) => {
+    const idSet = new Set(ids);
+    const storagePaths = rows
+      .filter((r) => idSet.has(r.id) && r.storage_path)
+      .map((r) => r.storage_path as string);
+    const { error } = await db.from("videos").delete().in("id", ids);
+    if (error) throw new Error(error.message);
+    let orphanError: string | null = null;
+    if (storagePaths.length > 0) {
+      const { error: stErr } = await supabase.storage.from("videos").remove(storagePaths);
+      if (stErr) orphanError = friendlyError(stErr);
+    }
+    if (orphanError) {
+      toast.warning(
+        i18n.t("toast.routes_app_videos.bulkDeletedOrphanFiles", {
+          defaultValue:
+            "{{count}} video(s) eliminado(s), pero quedaron archivos huérfanos en Storage ({{error}})",
+          count: ids.length,
+          error: orphanError,
+        }),
+      );
+    } else {
+      toast.success(
+        i18n.t("toast.routes_app_videos.bulkDeleted", {
+          defaultValue: "{{count}} video(s) eliminado(s)",
+          count: ids.length,
+        }),
+      );
+    }
+    sel.clear();
+    await load();
+  };
+
   // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
   if (authLoading) return <PageLoader />;
   if (!isStaff) {
@@ -753,10 +811,18 @@ function VideoLibrary() {
         )}
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular={t("videosPage.bulkEntitySingular", { defaultValue: "video" })}
+        entityNamePlural={t("videosPage.bulkEntityPlural", { defaultValue: "videos" })}
+      />
+
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
-            <TableSkeleton rows={5} cols={5} />
+            <TableSkeleton rows={5} cols={6} />
           ) : loadError ? (
             <ErrorState
               message={t("videosPage.loadError")}
@@ -767,6 +833,9 @@ function VideoLibrary() {
             <Table resizable>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <MultiSelectHeaderCheckbox state={sel} />
+                  </TableHead>
                   <SortableHead sortKey="title" sort={sort} className="max-w-[320px]">
                     {t("videosPage.colTitle")}
                   </SortableHead>
@@ -796,7 +865,7 @@ function VideoLibrary() {
                       const noMatch = filterActive && rows.length > 0;
                       return (
                         <TableEmpty
-                          colSpan={5}
+                          colSpan={6}
                           text={noMatch ? t("videosPage.noResults") : t("videosPage.emptyTitle")}
                           hint={
                             noMatch ? t("common.tryClearFilter") : t("videosPage.emptySubtitle")
@@ -820,7 +889,11 @@ function VideoLibrary() {
                             el.scrollIntoView({ behavior: "smooth", block: "center" });
                         }}
                         className={v.id === highlightId ? "bg-primary/10" : undefined}
+                        data-state={sel.isSelected(v.id) ? "selected" : undefined}
                       >
+                        <TableCell className="w-10">
+                          <MultiSelectCheckbox id={v.id} state={sel} />
+                        </TableCell>
                         <TableCell className="max-w-md">
                           <div className="flex items-start gap-3">
                             <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
@@ -1125,6 +1198,19 @@ function VideoLibrary() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedVideoItems}
+        entityNameSingular={t("videosPage.bulkEntitySingular", { defaultValue: "video" })}
+        entityNamePlural={t("videosPage.bulkEntityPlural", { defaultValue: "videos" })}
+        extraWarning={t("videosPage.bulkExtraWarning", {
+          defaultValue:
+            "Se eliminarán los videos seleccionados (y los archivos subidos que tengan). Los proyectos y talleres que los referencian dejarán de mostrarlos.",
+        })}
+        onConfirm={handleBulkDelete}
+      />
     </div>
   );
 }

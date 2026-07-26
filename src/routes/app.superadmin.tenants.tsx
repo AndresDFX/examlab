@@ -41,6 +41,13 @@ import {
   SortableHead,
 } from "@/components/ui/table";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -207,20 +214,29 @@ function SuperAdminTenantsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, isSuper]);
 
-  // Búsqueda (nombre / slug / dominio de email) — patrón estándar de los
-  // grids de la app (SearchInput). Flujo obligatorio: filtrar → ORDENAR →
-  // paginar (sort y pagination operan sobre `filtered`).
+  // Búsqueda (nombre / slug / dominio de email) + filtro de estado
+  // (activa / pausada) — patrón estándar de los grids de la app
+  // (SearchInput + Select). Flujo obligatorio: filtrar → ORDENAR → paginar
+  // (sort y pagination operan sobre `filtered`).
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return tenants;
-    return tenants.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.slug.toLowerCase().includes(q) ||
-        (t.email_domain ?? "").toLowerCase().includes(q),
-    );
-  }, [tenants, search]);
+    let result = tenants;
+    if (statusFilter !== "all") {
+      const wantActive = statusFilter === "active";
+      result = result.filter((t) => !!t.is_active === wantActive);
+    }
+    if (q) {
+      result = result.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.slug.toLowerCase().includes(q) ||
+          (t.email_domain ?? "").toLowerCase().includes(q),
+      );
+    }
+    return result;
+  }, [tenants, search, statusFilter]);
 
   // Orden por columna (click en el encabezado alterna asc/desc). Va ENTRE
   // el listado filtrado y la paginación: cargar → filtrar → ordenar → paginar.
@@ -236,11 +252,12 @@ function SuperAdminTenantsPage() {
   });
 
   // Paginación client-side sobre el listado filtrado + ordenado. El resetKey
-  // incluye la búsqueda para volver a la página 1 al cambiar el filtro.
+  // incluye la búsqueda y el filtro de estado para volver a la página 1 al
+  // cambiar cualquiera de los dos.
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:superadmin_tenants",
-    resetKey: `${search}|${sort.resetKey}`,
+    resetKey: `${search}|${statusFilter}|${sort.resetKey}`,
   });
 
   // Gate de rol — los no-SuperAdmin redirigen al dashboard.
@@ -799,12 +816,38 @@ function SuperAdminTenantsPage() {
         }
       />
 
+      {/* Buscador + filtro de estado. El estado (activa / pausada) es la
+          dimensión operativa más consultada del grid: al pausar una
+          institución sigue listada, y sin filtro había que barrer todas las
+          páginas para ver cuáles están fuera de servicio. */}
       {tenants.length > 0 && (
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder={tl("superadminTenants.searchPlaceholder")}
-        />
+        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={tl("superadminTenants.searchPlaceholder")}
+            className="flex-1 min-w-0"
+          />
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(v as "all" | "active" | "inactive")}
+          >
+            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {tl("superadminTenants.statusFilterAll", { defaultValue: "Todos los estados" })}
+              </SelectItem>
+              <SelectItem value="active">
+                {tl("superadminTenants.statusFilterActive", { defaultValue: "Solo activas" })}
+              </SelectItem>
+              <SelectItem value="inactive">
+                {tl("superadminTenants.statusFilterInactive", { defaultValue: "Solo pausadas" })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       )}
 
       <Card>
@@ -824,7 +867,10 @@ function SuperAdminTenantsPage() {
               }
             />
           ) : pagination.totalItems === 0 ? (
-            <TableEmpty text={tl("superadminTenants.noMatches")} />
+            <TableEmpty
+              text={tl("superadminTenants.noMatches")}
+              hint={tl("common.tryClearFilter")}
+            />
           ) : (
             <Table fixed resizable>
               <TableHeader>

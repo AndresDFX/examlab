@@ -28,7 +28,6 @@ import {
   FileText,
   Hammer,
   FolderKanban,
-  Calendar,
   Clock,
   AlertTriangle,
   ArrowRight,
@@ -39,7 +38,7 @@ import {
   Inbox,
   CalendarClock,
   Bot,
-  CircleCheck,
+  ShieldEllipsis,
   Search,
   ListOrdered,
   RefreshCw,
@@ -641,7 +640,7 @@ function AdminDashboard() {
         <Card className="flex flex-col min-h-0">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <CircleCheck className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
+              <ShieldEllipsis className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
               {t("hc_routesAppIndex.recentActivity")}
             </CardTitle>
           </CardHeader>
@@ -1225,7 +1224,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         <Card className="flex flex-col min-h-0 lg:flex-1">
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
-              <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
+              <FileText className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
               {t("dashboard.upcomingExams")}
             </CardTitle>
           </CardHeader>
@@ -1647,7 +1646,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           <Card className="flex flex-col min-h-0 lg:flex-1">
             <CardHeader className="pb-2">
               <CardTitle className="text-base flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
+                <FileText className="h-4 w-4 text-violet-500 dark:text-violet-400" />{" "}
                 {t("dashboard.upcomingExams")}
               </CardTitle>
             </CardHeader>

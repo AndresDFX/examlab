@@ -1372,7 +1372,8 @@
     "generateSessionsHolidayMove": "Move to the next business day",
     "generateSessionsHolidayInclude": "Include holidays",
     "generateSessionsClassTitle": "Class {{number}}",
-    "generateSessionsSubtitleBoard": "The course's sessions will be scheduled with their time slots. You'll be able to edit each date before creating them."
+    "generateSessionsSubtitleBoard": "The course's sessions will be scheduled with their time slots. You'll be able to edit each date before creating them.",
+    "bulkExtraWarning": "The selected content will be moved to trash and its files will no longer be available to students."
   },
   "courseBoard": {
     "indexSubtitle": "Select a course to see its sessions, content and deliverables board.",
@@ -1817,7 +1818,8 @@
     "confirmDeleteDesc": "\"{{title}}\" and ALL its threads and replies ({{count}} threads) will be deleted. This action cannot be undone.",
     "confirmDeleteLabel": "Delete",
     "reopenFutureDate": "The new close date must be in the future.",
-    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
+    "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash).",
+    "searchPlaceholder": "Search by title or description…"
   },
   "forumThreads": {
     "defaultTitle": "Forum",
@@ -2067,7 +2069,8 @@
     "removeConfirmDescWithFile": "The uploaded file will also be deleted. Projects that reference it will stop showing the video (they won't break — the field becomes null). This action cannot be undone.",
     "removeConfirmDesc": "Projects that reference it will stop showing the video (they won't break — the field becomes null). This action cannot be undone.",
     "badgeUploaded": "Uploaded",
-    "courseGlobalBadge": "Global"
+    "courseGlobalBadge": "Global",
+    "bulkExtraWarning": "The selected videos (and any uploaded files) will be deleted. Projects and workshops referencing them will stop showing them."
   },
   "support": {
     "statusOpen": "Open",
@@ -2165,7 +2168,9 @@
       "toastNameRequired": "Name is required",
       "toastUpdated": "Program updated",
       "toastCreated": "Program created",
-      "toastDeleted": "Program deleted"
+      "toastDeleted": "Program deleted",
+      "searchPlaceholder": "Search by name, code or area…",
+      "entityPlural": "programs"
     },
     "subjects": {
       "title": "Subjects / Courses",
@@ -2278,7 +2283,9 @@
       "labelName": "Name",
       "labelStart": "Start",
       "labelEnd": "End",
-      "labelStatus": "Status"
+      "labelStatus": "Status",
+      "searchPlaceholder": "Search by code or name…",
+      "entityPlural": "periods"
     }
   },
   "feedbackThread": {
@@ -3235,7 +3242,8 @@
       "published": "Content published. Students in the course will be notified.",
       "unpublished": "Content unpublished. Students can no longer see it.",
       "duplicatePartialFiles": "Copy created, but {{count}} file(s) failed: {{names}}",
-      "duplicated": "Content duplicated as a draft: \"Copy of {{name}}\""
+      "duplicated": "Content duplicated as a draft: \"Copy of {{name}}\"",
+      "bulkMovedToTrash": "{{count}} content item(s) moved to trash"
     },
     "routes_app_teacher_exams_examId": {
       "createQuestionBeforeTimeEval": "Create at least one question before evaluating the time.",
@@ -3490,7 +3498,9 @@
       "videoArchived": "Video archived",
       "videoRestored": "Video restored",
       "videoDeletedOrphanFile": "Video deleted, but the file was left orphaned in Storage ({{error}})",
-      "videoDeleted": "Video deleted"
+      "videoDeleted": "Video deleted",
+      "bulkDeletedOrphanFiles": "{{count}} video(s) deleted, but orphan files remain in Storage ({{error}})",
+      "bulkDeleted": "{{count}} video(s) deleted"
     },
     "shared_components_AssessmentTemplateMenu": {
       "templateApplied": "Template \"{{name}}\" applied",
@@ -4213,7 +4223,8 @@
     "docxImportError": "Could not import the document.",
     "aiPrepareError": "Could not prepare the AI generation.",
     "saveError": "Could not save the template",
-    "copyNameSuffix": "{{name}} (copy)"
+    "copyNameSuffix": "{{name}} (copy)",
+    "entityPlural": "templates"
   },
   "workshopQuestions": {
     "tabList": "Questions ({{count}})",
@@ -4330,7 +4341,8 @@
     "createFailed": "Could not create the ticket",
     "createError": "Error creating the ticket",
     "deleteFailed": "Could not delete the ticket",
-    "removeAttachmentAria": "Remove attachment {{name}}"
+    "removeAttachmentAria": "Remove attachment {{name}}",
+    "searchPlaceholder": "Search by subject or category…"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — PNG capture",
@@ -8601,7 +8613,8 @@
     "genEmptyTitle": "No reports generated yet",
     "genEmptyHint": "Generate one from a template (Templates tab → Generate).",
     "genDeleteTitle": "Delete generated report",
-    "genDeleteDesc": "It will be removed from the history. This action cannot be undone."
+    "genDeleteDesc": "It will be removed from the history. This action cannot be undone.",
+    "entityPlural": "templates"
   },
   "hc_routesAppTeacherWhiteboardsId": {
     "couldNotLoad": "We couldn't load the whiteboard.",
@@ -9415,5 +9428,9 @@
     "success": "Attendance recorded!",
     "successHint": "You can close this screen now.",
     "title": "Mark attendance"
+  },
+  "actasManager": {
+    "searchPlaceholder": "Search by course, term or teacher…",
+    "noMatches": "No matches for your search."
   }
 }

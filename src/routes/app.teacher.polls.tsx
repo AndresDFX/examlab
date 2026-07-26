@@ -3318,7 +3318,7 @@ function ResultsDialog({
                                 {isClearing ? (
                                   <Spinner size="xs" />
                                 ) : (
-                                  <Trash2 className="h-2.5 w-2.5" />
+                                  <Trash2 className="h-4 w-4" />
                                 )}
                               </Button>
                             )}
@@ -3571,7 +3571,7 @@ function MixedResultsDialog({
                                         {clearing.has(key) ? (
                                           <Spinner size="xs" />
                                         ) : (
-                                          <Trash2 className="h-2.5 w-2.5" />
+                                          <Trash2 className="h-4 w-4" />
                                         )}
                                       </Button>
                                     </span>

@@ -29,6 +29,10 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
+import { SearchInput } from "@/components/ui/search-input";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Select,
   SelectContent,
@@ -37,6 +41,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -95,6 +100,7 @@ export function ActasManager({ onPrintActa }: Props) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [search, setSearch] = useState("");
 
   // Dialog para generar acta nueva.
   const [genOpen, setGenOpen] = useState(false);
@@ -133,6 +139,44 @@ export function ActasManager({ onPrintActa }: Props) {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, retryNonce]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  // Un docente/Admin con muchos cursos acumula un acta por curso y por
+  // periodo, así que el listado crece sin techo.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return actas;
+    return actas.filter(
+      (a) =>
+        a.curso_nombre.toLowerCase().includes(q) ||
+        (a.periodo_codigo ?? "").toLowerCase().includes(q) ||
+        a.docente_nombre.toLowerCase().includes(q),
+    );
+  }, [actas, search]);
+
+  const sort = useTableSort(filtered, {
+    columns: {
+      curso: (a) => a.curso_nombre,
+      periodo: (a) => a.periodo_codigo,
+      docente: (a) => a.docente_nombre,
+      estudiantes: (a) => a.total_estudiantes,
+      // Tasa de aprobación como fracción — ordena por el % que muestra la
+      // celda, no por el conteo bruto de aprobados.
+      aprobacion: (a) =>
+        a.total_estudiantes > 0 ? a.total_aprobados / a.total_estudiantes : null,
+      generado: (a) => a.generated_at,
+    },
+    // Mismo orden que trae la query (generated_at DESC): lo más reciente
+    // arriba.
+    defaultSort: { key: "generado", dir: "desc" },
+    storageKey: "examlab_sort:reports_actas",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:reports_actas",
+    resetKey: `${search}|${sort.resetKey}`,
+  });
 
   // Cursos que aún NO tienen acta — opciones del Select.
   const coursesWithoutActa = useMemo(() => {
@@ -262,88 +306,115 @@ export function ActasManager({ onPrintActa }: Props) {
             onRetry={() => setRetryNonce((n) => n + 1)}
           />
         ) : (
-          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
-            <Table fixed resizable>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="max-w-[260px]">{t("hc_modulesReportsActasManager.colCourse")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">{t("hc_modulesReportsActasManager.colPeriod")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("hc_modulesReportsActasManager.colTeacher")}</TableHead>
-                  <TableHead className="w-24 text-center">{t("hc_modulesReportsActasManager.colStudents")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24 text-center">{t("hc_modulesReportsActasManager.colPassRate")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-32">{t("hc_modulesReportsActasManager.colGenerated")}</TableHead>
-                  <TableHead className="w-10" />
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {actas.length === 0 ? (
-                  <TableEmpty
-                    colSpan={7}
-                    text={t("hc_modulesReportsActasManager.emptyText")}
-                    hint={t("hc_modulesReportsActasManager.emptyHint")}
-                  />
-                ) : (
-                  actas.map((a) => (
-                    <TableRow key={a.id}>
-                      <TableCell className="font-medium">
-                        <div className="truncate" title={a.curso_nombre}>
-                          {a.curso_nombre}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate">
-                          {a.integrity_hash.slice(0, 16)}…
-                        </div>
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <Badge variant="outline" className="text-xs tabular-nums">
-                          {a.periodo_codigo ?? "—"}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={a.docente_nombre}>
-                        {a.docente_nombre}
-                      </TableCell>
-                      <TableCell className="text-center tabular-nums">
-                        {a.total_estudiantes}
-                      </TableCell>
-                      <TableCell className="text-center hidden sm:table-cell">
-                        {a.total_estudiantes > 0 ? (
-                          <div className="flex flex-col items-center gap-0.5">
-                            <span className="text-xs font-medium tabular-nums">
-                              {Math.round((a.total_aprobados / a.total_estudiantes) * 100)}%
-                            </span>
-                            <span className="text-[10px] text-muted-foreground tabular-nums">
-                              {a.total_aprobados}/{a.total_estudiantes}
-                            </span>
+          <div className="space-y-3">
+            {/* Buscador por curso / período / docente. Solo cuando hay algo
+                que buscar — con 0 actas el empty state ya explica el módulo. */}
+            {actas.length > 0 && (
+              <SearchInput
+                value={search}
+                onChange={setSearch}
+                placeholder={t("actasManager.searchPlaceholder", {
+                  defaultValue: "Buscar por curso, período o docente…",
+                })}
+              />
+            )}
+            <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+              <Table fixed resizable>
+                <TableHeader>
+                  <TableRow>
+                    <SortableHead sortKey="curso" sort={sort} className="max-w-[260px]">{t("hc_modulesReportsActasManager.colCourse")}</SortableHead>
+                    <SortableHead sortKey="periodo" sort={sort} className="hidden sm:table-cell w-28">{t("hc_modulesReportsActasManager.colPeriod")}</SortableHead>
+                    <SortableHead sortKey="docente" sort={sort} className="hidden md:table-cell">{t("hc_modulesReportsActasManager.colTeacher")}</SortableHead>
+                    <SortableHead sortKey="estudiantes" sort={sort} className="w-24 text-center">{t("hc_modulesReportsActasManager.colStudents")}</SortableHead>
+                    <SortableHead sortKey="aprobacion" sort={sort} className="hidden sm:table-cell w-24 text-center">{t("hc_modulesReportsActasManager.colPassRate")}</SortableHead>
+                    <SortableHead sortKey="generado" sort={sort} className="hidden sm:table-cell w-32">{t("hc_modulesReportsActasManager.colGenerated")}</SortableHead>
+                    <TableHead className="w-10" />
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sort.sorted.length === 0 ? (
+                    actas.length > 0 ? (
+                      <TableEmpty
+                        colSpan={7}
+                        text={t("actasManager.noMatches", {
+                          defaultValue: "Sin coincidencias con la búsqueda.",
+                        })}
+                        hint={t("common.tryClearFilter")}
+                      />
+                    ) : (
+                      <TableEmpty
+                        colSpan={7}
+                        text={t("hc_modulesReportsActasManager.emptyText")}
+                        hint={t("hc_modulesReportsActasManager.emptyHint")}
+                      />
+                    )
+                  ) : (
+                    pagination.paginatedItems.map((a) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="font-medium">
+                          <div className="truncate" title={a.curso_nombre}>
+                            {a.curso_nombre}
                           </div>
-                        ) : (
-                          <span className="text-xs text-muted-foreground">—</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="hidden sm:table-cell">
-                        <DateCell value={a.generated_at} variant="datetime" />
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <RowActionsMenu
-                          actions={[
-                            {
-                              label: t("hc_modulesReportsActasManager.printActa"),
-                              icon: FileText,
-                              onClick: () => onPrintActa(a),
-                            },
-                            {
-                              label: t("hc_modulesReportsActasManager.deleteActa"),
-                              icon: Trash2,
-                              tone: "destructive",
-                              separatorBefore: true,
-                              onClick: () => void handleDelete(a),
-                            },
-                          ]}
-                        />
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
+                          <div className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate">
+                            {a.integrity_hash.slice(0, 16)}…
+                          </div>
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <Badge variant="outline" className="text-xs tabular-nums">
+                            {a.periodo_codigo ?? "—"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={a.docente_nombre}>
+                          {a.docente_nombre}
+                        </TableCell>
+                        <TableCell className="text-center tabular-nums">
+                          {a.total_estudiantes}
+                        </TableCell>
+                        <TableCell className="text-center hidden sm:table-cell">
+                          {a.total_estudiantes > 0 ? (
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span className="text-xs font-medium tabular-nums">
+                                {Math.round((a.total_aprobados / a.total_estudiantes) * 100)}%
+                              </span>
+                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                                {a.total_aprobados}/{a.total_estudiantes}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="hidden sm:table-cell">
+                          <DateCell value={a.generated_at} variant="datetime" />
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <RowActionsMenu
+                            actions={[
+                              {
+                                label: t("hc_modulesReportsActasManager.printActa"),
+                                icon: FileText,
+                                onClick: () => onPrintActa(a),
+                              },
+                              {
+                                label: t("hc_modulesReportsActasManager.deleteActa"),
+                                icon: Trash2,
+                                tone: "destructive",
+                                separatorBefore: true,
+                                onClick: () => void handleDelete(a),
+                              },
+                            ]}
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("actasManager.entityNamePlural", { defaultValue: "actas" })}
+            />
           </div>
         )}
       </CardContent>

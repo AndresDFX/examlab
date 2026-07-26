@@ -9,10 +9,12 @@
  * Toggle `active`: programas inactivos no aparecen en el dropdown del
  * form de curso, pero NO se borran (preservan los cursos viejos).
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,7 +24,17 @@ import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { SearchInput } from "@/components/ui/search-input";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -73,6 +85,10 @@ const EMPTY_DRAFT: Draft = {
   active: true,
 };
 
+/** Filtro por vigencia del programa. Default 'all' para no cambiar el
+ *  comportamiento previo del panel (mostraba activos e inactivos juntos). */
+type ActiveFilter = "all" | "active" | "inactive";
+
 export function AdminAcademicProgramsPanel() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -81,6 +97,8 @@ export function AdminAcademicProgramsPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [search, setSearch] = useState("");
+  const [activeFilter, setActiveFilter] = useState<ActiveFilter>("all");
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
@@ -109,6 +127,45 @@ export function AdminAcademicProgramsPanel() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  const filtered = useMemo(() => {
+    let result = rows;
+    if (activeFilter !== "all") {
+      const wantActive = activeFilter === "active";
+      result = result.filter((r) => r.active === wantActive);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      result = result.filter(
+        (r) =>
+          r.name.toLowerCase().includes(q) ||
+          (r.code?.toLowerCase().includes(q) ?? false) ||
+          (r.faculty?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return result;
+  }, [rows, search, activeFilter]);
+
+  const sort = useTableSort(filtered, {
+    columns: {
+      name: (r) => r.name,
+      code: (r) => r.code,
+      faculty: (r) => r.faculty,
+      // Boolean: el comparador del hook pone false antes que true en asc, así
+      // que "asc" agrupa los inactivos arriba y "desc" los activos.
+      active: (r) => r.active,
+    },
+    // Preserva el orden que traía la query (`.order("name")`).
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:admin_academic_programs",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_academic_programs",
+    resetKey: `${search}|${activeFilter}|${sort.resetKey}`,
+  });
 
   const openNew = () => {
     setDraft(EMPTY_DRAFT);
@@ -250,6 +307,37 @@ export function AdminAcademicProgramsPanel() {
           {t("academic.programs.description")}
         </p>
 
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="flex-1">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={t("academic.programs.searchPlaceholder", {
+                defaultValue: "Buscar por nombre, código o área…",
+              })}
+            />
+          </div>
+          <Select
+            value={activeFilter}
+            onValueChange={(v) => setActiveFilter(v as ActiveFilter)}
+          >
+            <SelectTrigger className="w-full sm:w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                {t("academic.programs.filterAll", { defaultValue: "Todos" })}
+              </SelectItem>
+              <SelectItem value="active">
+                {t("academic.programs.filterActive", { defaultValue: "Solo activos" })}
+              </SelectItem>
+              <SelectItem value="inactive">
+                {t("academic.programs.filterInactive", { defaultValue: "Solo inactivos" })}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
             <Spinner size="sm" /> {t("academic.programs.loading")}
@@ -265,22 +353,34 @@ export function AdminAcademicProgramsPanel() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[260px]">{t("academic.programs.colName")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24">{t("academic.programs.colCode")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("academic.programs.colFaculty")}</TableHead>
-                  <TableHead className="w-24">{t("academic.programs.colActive")}</TableHead>
+                  <SortableHead sortKey="name" sort={sort} className="max-w-[260px]">{t("academic.programs.colName")}</SortableHead>
+                  <SortableHead sortKey="code" sort={sort} className="hidden sm:table-cell w-24">{t("academic.programs.colCode")}</SortableHead>
+                  <SortableHead sortKey="faculty" sort={sort} className="hidden md:table-cell">{t("academic.programs.colFaculty")}</SortableHead>
+                  <SortableHead sortKey="active" sort={sort} className="w-24">{t("academic.programs.colActive")}</SortableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
-                  <TableEmpty
-                    colSpan={5}
-                    text={t("academic.programs.empty")}
-                    hint={t("academic.programs.emptyHint")}
-                  />
+                {sort.sorted.length === 0 ? (
+                  (() => {
+                    // Distinguir "no hay programas" de "los filtros no matchean":
+                    // sin esto el admin cree que se le borraron los datos.
+                    const noMatch =
+                      rows.length > 0 && (!!search.trim() || activeFilter !== "all");
+                    return (
+                      <TableEmpty
+                        colSpan={5}
+                        text={noMatch ? t("common.noResults") : t("academic.programs.empty")}
+                        hint={
+                          noMatch
+                            ? t("common.tryClearFilter")
+                            : t("academic.programs.emptyHint")
+                        }
+                      />
+                    );
+                  })()
                 ) : (
-                  rows.map((r) => (
+                  pagination.paginatedItems.map((r) => (
                     <TableRow key={r.id}>
                       <TableCell className="font-medium">
                         <div className="truncate" title={r.name}>
@@ -328,6 +428,15 @@ export function AdminAcademicProgramsPanel() {
               </TableBody>
             </Table>
           </div>
+        )}
+
+        {!loading && !loadError && sort.sorted.length > 0 && (
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("academic.programs.entityPlural", {
+              defaultValue: "programas",
+            })}
+          />
         )}
       </CardContent>
 

@@ -9,6 +9,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +29,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -187,6 +191,27 @@ function SuperAdminSupportPage() {
     return out;
   }, [tickets, statusFilter, tenantFilter, search]);
 
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  // La columna "Admin · Institución" ordena por INSTITUCIÓN: agrupa los
+  // tickets del mismo tenant y, dentro del grupo, el orden estable del
+  // hook preserva el `created_at DESC` que trae la query.
+  const sort = useTableSort(filtered, {
+    columns: {
+      subject: (row) => row.subject,
+      tenant: (row) => row.tenant_name ?? "",
+      status: (row) => STATUS_LABEL[row.status],
+      created_at: (row) => row.created_at,
+    },
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:superadmin_support",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:superadmin_support",
+    resetKey: `${search}|${tenantFilter}|${statusFilter}|${sort.resetKey}`,
+  });
+
   const stats = useMemo(() => {
     let openSet = 0;
     let inProgress = 0;
@@ -326,7 +351,7 @@ function SuperAdminSupportPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
               <Spinner size="sm" /> {t("superadminSupport.loading")}
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sort.sorted.length === 0 ? (
             <TableEmpty
               icon={LifeBuoy}
               title={t("superadminSupport.emptyTitle")}
@@ -336,28 +361,40 @@ function SuperAdminSupportPage() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("superadminSupport.colSubject")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-48">
+                  <SortableHead sortKey="subject" sort={sort}>
+                    {t("superadminSupport.colSubject")}
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="tenant"
+                    sort={sort}
+                    className="hidden sm:table-cell w-48"
+                  >
                     {t("superadminSupport.colAdminInstitution")}
-                  </TableHead>
+                  </SortableHead>
                   <TableHead className="hidden sm:table-cell w-28">
                     {t("superadminSupport.colCategory")}
                   </TableHead>
                   <TableHead className="hidden md:table-cell w-24">
                     {t("superadminSupport.colPriority")}
                   </TableHead>
-                  <TableHead className="w-32">{t("superadminSupport.colStatus")}</TableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-32">
+                    {t("superadminSupport.colStatus")}
+                  </SortableHead>
                   <TableHead className="hidden lg:table-cell w-36">
                     {t("superadminSupport.colAssigned")}
                   </TableHead>
-                  <TableHead className="hidden md:table-cell w-40">
+                  <SortableHead
+                    sortKey="created_at"
+                    sort={sort}
+                    className="hidden md:table-cell w-40"
+                  >
                     {t("superadminSupport.colCreated")}
-                  </TableHead>
+                  </SortableHead>
                   <TableHead className="w-12 text-right">{t("superadminSupport.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((t) => (
+                {pagination.paginatedItems.map((t) => (
                   <TableRow
                     key={t.id}
                     className="cursor-pointer hover:bg-muted/40"
@@ -414,6 +451,10 @@ function SuperAdminSupportPage() {
               </TableBody>
             </Table>
           )}
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("superadminSupport.entityPlural", { defaultValue: "tickets" })}
+          />
         </CardContent>
       </Card>
 

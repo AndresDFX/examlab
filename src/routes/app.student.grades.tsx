@@ -49,7 +49,7 @@ import {
 import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
-import { ErrorState } from "@/components/ui/empty-state";
+import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -654,9 +654,8 @@ function StudentGrades() {
 
       {courses.length === 0 ? (
         <Card>
-          <CardContent className="p-4 sm:p-10 text-center text-muted-foreground text-sm">
-            <ClipboardList className="h-10 w-10 mx-auto text-muted-foreground/60 mb-2" />
-            {t("studentGrades.notEnrolled")}
+          <CardContent className="p-0">
+            <EmptyState icon={ClipboardList} text={t("studentGrades.notEnrolled")} />
           </CardContent>
         </Card>
       ) : !course ? null : (

@@ -33,6 +33,8 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   Dialog,
@@ -52,6 +54,7 @@ import { toast } from "sonner";
 import {
   MessageSquareText,
   Plus,
+  Search,
   Lock,
   CalendarClock,
   ArrowRight,
@@ -132,6 +135,9 @@ function ForumsList() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Buscador de la lista de FOROS (no confundir con el de hilos, que vive en
+  // la vista hija). Filtra por título y descripción del foro.
+  const [search, setSearch] = useState("");
 
   // Form de creación (solo docente/admin)
   const [createOpen, setCreateOpen] = useState(false);
@@ -378,16 +384,38 @@ function ForumsList() {
     await load();
   };
 
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  const filteredForums = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return forums;
+    return forums.filter(
+      (f) =>
+        f.title.toLowerCase().includes(q) ||
+        (f.description?.toLowerCase().includes(q) ?? false),
+    );
+  }, [forums, search]);
+
   const sortedForums = useMemo(() => {
-    // Foros abiertos arriba, luego programados, luego cerrados.
+    // Orden BASE fijo (no configurable por el usuario): foros abiertos arriba,
+    // luego programados, luego cerrados; dentro de cada grupo, más recientes
+    // primero. Se aplica sobre lo YA filtrado y la paginación va encima.
     const order = { open: 0, scheduled: 1, closed_auto: 2, closed_manual: 2 } as const;
-    return forums.slice().sort((a, b) => {
+    return filteredForums.slice().sort((a, b) => {
       const sa = computeForumState(a).kind;
       const sb = computeForumState(b).kind;
       if (order[sa] !== order[sb]) return order[sa] - order[sb];
       return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
     });
-  }, [forums]);
+  }, [filteredForums]);
+
+  // Cards grandes → defaultPageSize 12 (mismo patrón que las vistas de cards
+  // del estudiante). El resetKey es el buscador: filtrar vuelve a página 1.
+  const pagination = usePagination(sortedForums, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:forum_forums",
+    resetKey: search,
+  });
 
   return (
     <div className="container mx-auto space-y-5 p-4 sm:p-6">
@@ -406,6 +434,33 @@ function ForumsList() {
         }
       />
 
+      {/* Buscador de foros. Solo tiene sentido cuando ya hay foros cargados —
+          sobre un empty state sería ruido. */}
+      {!loading && !loadError && forums.length > 0 && (
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative flex-1 min-w-[180px] sm:min-w-48">
+                <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("forum.searchPlaceholder", {
+                    defaultValue: "Buscar por título o descripción…",
+                  })}
+                  className="pl-8"
+                />
+              </div>
+              {search.trim() && (
+                <Button variant="ghost" size="sm" onClick={() => setSearch("")}>
+                  {t("common.clear", { defaultValue: "Limpiar" })}
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {loading ? (
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
@@ -419,36 +474,59 @@ function ForumsList() {
           onRetry={() => void load()}
         />
       ) : sortedForums.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <TableEmpty
-              icon={MessageSquareText}
-              title={t("forum.emptyTitle")}
-              description={isStaff ? t("forum.emptySubtitleStaff") : t("forum.emptySubtitleStudent")}
-              action={
-                isStaff ? (
-                  <Button size="sm" onClick={() => setCreateOpen(true)}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {t("forum.createFirst")}
-                  </Button>
-                ) : undefined
-              }
-            />
-          </CardContent>
-        </Card>
+        (() => {
+          // Distinguir "aún no hay foros" de "el buscador no encontró nada":
+          // sin esto el docente creía que sus foros desaparecieron.
+          const noMatch = !!search.trim() && forums.length > 0;
+          return (
+            <Card>
+              <CardContent className="p-0">
+                <TableEmpty
+                  icon={MessageSquareText}
+                  title={noMatch ? t("common.noResults") : t("forum.emptyTitle")}
+                  description={
+                    noMatch
+                      ? t("common.tryClearFilter")
+                      : isStaff
+                        ? t("forum.emptySubtitleStaff")
+                        : t("forum.emptySubtitleStudent")
+                  }
+                  action={
+                    !noMatch && isStaff ? (
+                      <Button size="sm" onClick={() => setCreateOpen(true)}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("forum.createFirst")}
+                      </Button>
+                    ) : undefined
+                  }
+                />
+              </CardContent>
+            </Card>
+          );
+        })()
       ) : (
-        <div className="space-y-2">
-          {sortedForums.map((forum) => (
-            <ForumRow
-              key={forum.id}
-              forum={forum}
-              courseId={courseId}
-              isStaff={isStaff}
-              onToggleClosed={() => void toggleClosed(forum)}
-              onDelete={() => void deleteForum(forum)}
+        <>
+          <div className="space-y-2">
+            {pagination.paginatedItems.map((forum) => (
+              <ForumRow
+                key={forum.id}
+                forum={forum}
+                courseId={courseId}
+                isStaff={isStaff}
+                onToggleClosed={() => void toggleClosed(forum)}
+                onDelete={() => void deleteForum(forum)}
+              />
+            ))}
+          </div>
+          {/* Pagination fuera de la lista de cards (el patrón de `<Card>` +
+              `CardContent p-0` es para tablas; acá cada foro es su propia card). */}
+          <div className="px-1">
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("forum.paginationEntity", { defaultValue: "foros" })}
             />
-          ))}
-        </div>
+          </div>
+        </>
       )}
 
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>

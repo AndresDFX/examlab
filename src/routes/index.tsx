@@ -21,7 +21,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
-import { GraduationCap, ShieldCheck, Sparkles, Eye, Code, Wifi, Clock } from "lucide-react";
+import { GraduationCap, ShieldCheck, Sparkles, Eye, Code2, Wifi, Clock } from "lucide-react";
 
 /** Año actual leído post-mount. Antes era `{new Date().getFullYear()}`
  *  inline en el footer — eso difería entre el SSR de Lovable (fecha
@@ -77,7 +77,7 @@ function Home() {
       descKey: "hc_routesIndex.featureProctoringDesc",
     },
     {
-      icon: Code,
+      icon: Code2,
       titleKey: "hc_routesIndex.featureCompilerTitle",
       descKey: "hc_routesIndex.featureCompilerDesc",
     },

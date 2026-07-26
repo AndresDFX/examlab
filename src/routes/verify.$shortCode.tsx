@@ -21,7 +21,7 @@ import {
   XCircle,
   AlertTriangle,
   GraduationCap,
-  Calendar,
+  CalendarDays,
   User,
   School,
   Hash,
@@ -220,11 +220,11 @@ function SnapshotDetails({ data }: { data: VerifyResult }) {
         }
       />
       <Detail
-        icon={Calendar}
+        icon={CalendarDays}
         label={t("verifyCertificate.labelIssued")}
         value={data.issued_at ? formatDateLong(new Date(data.issued_at)) : "—"}
       />
-      {data.course_period && <Detail icon={Calendar} label={t("verifyCertificate.labelPeriod")} value={data.course_period} />}
+      {data.course_period && <Detail icon={CalendarDays} label={t("verifyCertificate.labelPeriod")} value={data.course_period} />}
       {data.teacher_names && data.teacher_names.length > 0 && (
         <Detail
           icon={User}

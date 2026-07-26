@@ -39,7 +39,11 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -119,6 +123,7 @@ type Template = {
   owner_id: string | null;
   course_id: string | null;
   parent_id: string | null;
+  updated_at: string | null;
 };
 
 type Course = { id: string; name: string };
@@ -252,7 +257,7 @@ function Inner() {
       db
         .from("report_templates")
         .select(
-          "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id",
+          "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id, updated_at",
         )
         .order("name"),
       db.from("courses").select("id, name").is("deleted_at", null).order("name"),
@@ -314,6 +319,35 @@ function Inner() {
     }
     return result;
   }, [templates, search, originFilter]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  // Los accessors de `origin` y `scope` devuelven las etiquetas traducidas
+  // para que el orden coincida con lo que muestran los badges de la columna.
+  const sort = useTableSort(filtered, {
+    columns: {
+      name: (tpl) => tpl.name,
+      origin: (tpl) => {
+        const o = originOf(tpl);
+        if (o === "global") return t("hc_routesAppTeacherReports.filterGlobal");
+        if (o === "override") return t("hc_routesAppTeacherReports.filterCustom");
+        return t("hc_routesAppTeacherReports.filterPrivate");
+      },
+      scope: (tpl) =>
+        tpl.scope === "curso"
+          ? t("hc_routesAppTeacherReports.scopeCourse")
+          : t("hc_routesAppTeacherReports.scopeStudent"),
+      description: (tpl) => tpl.description ?? "",
+      updated_at: (tpl) => tpl.updated_at,
+    },
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:teacher_reports_templates",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_reports_templates",
+    resetKey: `${search}|${originFilter}|${sort.resetKey}`,
+  });
 
   // Stats compactas — patrón 4-card compartido con el resto de los
   // módulos. Distinguen los tres orígenes de plantilla:
@@ -1043,7 +1077,7 @@ function Inner() {
 
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (
-              <TableSkeleton cols={4} rows={5} />
+              <TableSkeleton cols={5} rows={5} />
             ) : loadError ? (
               <ErrorState
                 message={t("hc_routesAppTeacherReports.loadErrorMessage")}
@@ -1054,22 +1088,61 @@ function Inner() {
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-[180px]">{t("hc_routesAppTeacherReports.colName")}</TableHead>
-                    <TableHead className="hidden sm:table-cell w-40">{t("hc_routesAppTeacherReports.colOrigin")}</TableHead>
-                    <TableHead className="w-28">{t("hc_routesAppTeacherReports.colType")}</TableHead>
-                    <TableHead className="hidden md:table-cell w-[280px]">{t("hc_routesAppTeacherReports.colDescription")}</TableHead>
+                    <SortableHead sortKey="name" sort={sort} className="min-w-[180px]">
+                      {t("hc_routesAppTeacherReports.colName")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="origin"
+                      sort={sort}
+                      className="hidden sm:table-cell w-40"
+                    >
+                      {t("hc_routesAppTeacherReports.colOrigin")}
+                    </SortableHead>
+                    <SortableHead sortKey="scope" sort={sort} className="w-28">
+                      {t("hc_routesAppTeacherReports.colType")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="description"
+                      sort={sort}
+                      className="hidden md:table-cell w-[280px]"
+                    >
+                      {t("hc_routesAppTeacherReports.colDescription")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="updated_at"
+                      sort={sort}
+                      className="hidden lg:table-cell w-40"
+                    >
+                      {t("hc_routesAppTeacherReports.colUpdated", { defaultValue: "Actualizada" })}
+                    </SortableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableEmpty
-                      colSpan={5}
-                      text={t("hc_routesAppTeacherReports.emptyTitle")}
-                      hint={t("hc_routesAppTeacherReports.emptyHint")}
-                    />
+                  {sort.sorted.length === 0 ? (
+                    (() => {
+                      // Distinguir "aún no hay plantillas" de "los filtros no
+                      // dejan pasar ninguna".
+                      const noMatch =
+                        (!!search.trim() || originFilter !== "all") && templates.length > 0;
+                      return (
+                        <TableEmpty
+                          colSpan={6}
+                          text={
+                            noMatch
+                              ? t("common.noResults")
+                              : t("hc_routesAppTeacherReports.emptyTitle")
+                          }
+                          hint={
+                            noMatch
+                              ? t("common.tryClearFilter")
+                              : t("hc_routesAppTeacherReports.emptyHint")
+                          }
+                        />
+                      );
+                    })()
                   ) : (
-                    filtered.map((tpl) => {
+                    pagination.paginatedItems.map((tpl) => {
                       const origin = originOf(tpl);
                       return (
                         <TableRow key={tpl.id}>
@@ -1093,6 +1166,9 @@ function Inner() {
                             <div className="truncate" title={tpl.description ?? undefined}>
                               {tpl.description ?? "—"}
                             </div>
+                          </TableCell>
+                          <TableCell className="hidden lg:table-cell">
+                            <DateCell value={tpl.updated_at} variant="datetime" />
                           </TableCell>
                           <TableCell className="text-right">
                             <RowActionsMenu
@@ -1137,6 +1213,14 @@ function Inner() {
               </Table>
             )}
           </div>
+          {!loading && !loadError && sort.sorted.length > 0 && (
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("hc_routesAppTeacherReports.entityPlural", {
+                defaultValue: "plantillas",
+              })}
+            />
+          )}
         </CardContent>
       </Card>
         </TabsContent>

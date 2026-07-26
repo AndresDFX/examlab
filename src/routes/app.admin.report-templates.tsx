@@ -32,12 +32,17 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
+import { DateCell } from "@/components/ui/date-cell";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { buildAiReportPrompt, reportCatalogForScope } from "@/modules/reports/template-engine";
 import { buildReportContext } from "@/modules/reports/report-context";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -100,6 +105,10 @@ function Inner() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  // Filtro por TIPO de plantilla (scope). Esta pantalla lista SOLO plantillas
+  // globales (la query fija owner_id IS NULL AND course_id IS NULL), así que
+  // el eje que de verdad discrimina filas acá es el scope, no el origen.
+  const [scopeFilter, setScopeFilter] = useState<"all" | "estudiante" | "curso">("all");
 
   // Dialog state
   const [editing, setEditing] = useState<Template | null>(null);
@@ -313,13 +322,44 @@ function Inner() {
   };
 
   const filtered = useMemo(() => {
-    if (!search.trim()) return templates;
-    const q = search.toLowerCase();
-    return templates.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) || (t.description?.toLowerCase().includes(q) ?? false),
-    );
-  }, [templates, search]);
+    let result = templates;
+    if (scopeFilter !== "all") {
+      result = result.filter((tpl) => tpl.scope === scopeFilter);
+    }
+    if (search.trim()) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (tpl) =>
+          tpl.name.toLowerCase().includes(q) ||
+          (tpl.description?.toLowerCase().includes(q) ?? false),
+      );
+    }
+    return result;
+  }, [templates, search, scopeFilter]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  // El accessor de `scope` devuelve la etiqueta traducida para que el orden
+  // coincida con lo que muestra el badge de la columna.
+  const sort = useTableSort(filtered, {
+    columns: {
+      name: (tpl) => tpl.name,
+      description: (tpl) => tpl.description ?? "",
+      scope: (tpl) =>
+        tpl.scope === "curso"
+          ? t("adminReportTemplates.scopeCourse")
+          : t("adminReportTemplates.scopeStudent"),
+      page: (tpl) => `${tpl.page_size} ${tpl.page_orientation}`,
+      updated_at: (tpl) => tpl.updated_at,
+    },
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:admin_report_templates",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_report_templates",
+    resetKey: `${search}|${scopeFilter}|${sort.resetKey}`,
+  });
 
   const openNew = () => {
     const d = emptyDraft();
@@ -537,17 +577,38 @@ function Inner() {
         }}
       />
 
-      <SearchInput
-        value={search}
-        onChange={setSearch}
-        placeholder={t("adminReportTemplates.searchPlaceholder")}
-      />
+      {/* Búsqueda + filtro por tipo, mismo layout que la vista par del
+          Docente (/app/teacher/reports → tab "Plantillas"). */}
+      <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex-1">
+          <SearchInput
+            value={search}
+            onChange={setSearch}
+            placeholder={t("adminReportTemplates.searchPlaceholder")}
+          />
+        </div>
+        <Select
+          value={scopeFilter}
+          onValueChange={(v) => setScopeFilter(v as typeof scopeFilter)}
+        >
+          <SelectTrigger className="w-full sm:w-44">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">
+              {t("adminReportTemplates.filterAllScopes", { defaultValue: "Todos los tipos" })}
+            </SelectItem>
+            <SelectItem value="estudiante">{t("adminReportTemplates.scopeStudent")}</SelectItem>
+            <SelectItem value="curso">{t("adminReportTemplates.scopeCourse")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
 
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (
-              <TableSkeleton cols={4} rows={5} />
+              <TableSkeleton cols={5} rows={5} />
             ) : loadError ? (
               <ErrorState
                 message={t("adminReportTemplates.loadError")}
@@ -558,26 +619,62 @@ function Inner() {
               <Table fixed resizable>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-56">{t("adminReportTemplates.colName")}</TableHead>
-                    <TableHead className="hidden md:table-cell">
+                    <SortableHead sortKey="name" sort={sort} className="w-56">
+                      {t("adminReportTemplates.colName")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="description"
+                      sort={sort}
+                      className="hidden md:table-cell"
+                    >
                       {t("adminReportTemplates.colDescription")}
-                    </TableHead>
-                    <TableHead className="w-28">{t("adminReportTemplates.colType")}</TableHead>
-                    <TableHead className="hidden sm:table-cell w-36">
+                    </SortableHead>
+                    <SortableHead sortKey="scope" sort={sort} className="w-28">
+                      {t("adminReportTemplates.colType")}
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="page"
+                      sort={sort}
+                      className="hidden sm:table-cell w-36"
+                    >
                       {t("adminReportTemplates.colPage")}
-                    </TableHead>
+                    </SortableHead>
+                    <SortableHead
+                      sortKey="updated_at"
+                      sort={sort}
+                      className="hidden lg:table-cell w-40"
+                    >
+                      {t("adminReportTemplates.colUpdated", { defaultValue: "Actualizada" })}
+                    </SortableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 ? (
-                    <TableEmpty
-                      colSpan={5}
-                      text={t("adminReportTemplates.emptyText")}
-                      hint={t("adminReportTemplates.emptyHint")}
-                    />
+                  {sort.sorted.length === 0 ? (
+                    (() => {
+                      // Distinguir "no hay plantillas" de "los filtros no dejan
+                      // pasar ninguna" — sin esto el admin no sabe si crear una
+                      // o limpiar el buscador.
+                      const noMatch =
+                        (!!search.trim() || scopeFilter !== "all") && templates.length > 0;
+                      return (
+                        <TableEmpty
+                          colSpan={6}
+                          text={
+                            noMatch
+                              ? t("common.noResults")
+                              : t("adminReportTemplates.emptyText")
+                          }
+                          hint={
+                            noMatch
+                              ? t("common.tryClearFilter")
+                              : t("adminReportTemplates.emptyHint")
+                          }
+                        />
+                      );
+                    })()
                   ) : (
-                    filtered.map((tmpl) => (
+                    pagination.paginatedItems.map((tmpl) => (
                       <TableRow key={tmpl.id}>
                         <TableCell className="font-medium">
                           <div className="truncate" title={tmpl.name}>
@@ -597,6 +694,9 @@ function Inner() {
                         <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
                           {tmpl.page_size}{" "}
                           {tmpl.page_orientation === "portrait" ? t("adminReportTemplates.orientationPortrait") : t("adminReportTemplates.orientationLandscape")}
+                        </TableCell>
+                        <TableCell className="hidden lg:table-cell">
+                          <DateCell value={tmpl.updated_at} variant="datetime" />
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
@@ -624,6 +724,14 @@ function Inner() {
               </Table>
             )}
           </div>
+          {!loading && !loadError && sort.sorted.length > 0 && (
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("adminReportTemplates.entityPlural", {
+                defaultValue: "plantillas",
+              })}
+            />
+          )}
         </CardContent>
       </Card>
 

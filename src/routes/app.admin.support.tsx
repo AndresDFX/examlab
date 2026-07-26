@@ -9,11 +9,15 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
@@ -36,6 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -79,6 +84,7 @@ function AdminSupportPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [statusFilter, setStatusFilter] = useState<TicketStatus | "active" | "all">("active");
+  const [search, setSearch] = useState("");
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
   const [createOpen, setCreateOpen] = useState(false);
@@ -151,15 +157,48 @@ function AdminSupportPage() {
     };
   }, [user?.id, load]);
 
+  // Filtro: estado + búsqueda libre. La búsqueda matchea asunto y
+  // categoría — contra la etiqueta humana (`CATEGORY_LABEL`, que es lo
+  // que el admin ve en el grid) y también contra la clave cruda, para
+  // que escribir "peticion" sin tilde también encuentre "Petición".
   const filtered = useMemo(() => {
-    if (statusFilter === "all") return tickets;
+    let out = tickets;
     if (statusFilter === "active") {
-      return tickets.filter(
-        (t) => t.status === "open" || t.status === "in_progress" || t.status === "waiting_admin",
+      out = out.filter(
+        (row) =>
+          row.status === "open" || row.status === "in_progress" || row.status === "waiting_admin",
+      );
+    } else if (statusFilter !== "all") {
+      out = out.filter((row) => row.status === statusFilter);
+    }
+    const q = search.trim().toLowerCase();
+    if (q) {
+      out = out.filter(
+        (row) =>
+          row.subject.toLowerCase().includes(q) ||
+          CATEGORY_LABEL[row.category].toLowerCase().includes(q) ||
+          row.category.toLowerCase().includes(q),
       );
     }
-    return tickets.filter((t) => t.status === statusFilter);
-  }, [tickets, statusFilter]);
+    return out;
+  }, [tickets, statusFilter, search]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  const sort = useTableSort(filtered, {
+    columns: {
+      subject: (row) => row.subject,
+      status: (row) => STATUS_LABEL[row.status],
+      created_at: (row) => row.created_at,
+    },
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_support",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_support",
+    resetKey: `${search}|${statusFilter}|${sort.resetKey}`,
+  });
 
   const stats = useMemo(() => {
     let open = 0;
@@ -464,10 +503,19 @@ function AdminSupportPage() {
         />
       </div>
 
-      <div className="flex items-center gap-2 flex-wrap">
+      <div className="flex flex-col sm:flex-row sm:items-center gap-2 flex-wrap">
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={t("adminSupport.searchPlaceholder", {
+            defaultValue: "Buscar por asunto o categoría…",
+          })}
+          className="flex-1 min-w-0"
+          maxWidthClass="sm:max-w-sm"
+        />
         <Label className="text-xs text-muted-foreground">{t("adminSupport.filterStatusLabel")}</Label>
         <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v as typeof statusFilter)}>
-          <SelectTrigger className="h-8 w-44 text-xs">
+          <SelectTrigger className="h-9 w-full sm:w-44 text-xs">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -488,39 +536,57 @@ function AdminSupportPage() {
             <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
               <Spinner size="sm" /> {t("adminSupport.loading")}
             </div>
-          ) : filtered.length === 0 ? (
-            <TableEmpty
-              icon={LifeBuoy}
-              title={tickets.length === 0 ? t("adminSupport.emptyAll") : t("adminSupport.emptyFiltered")}
-              description={
-                tickets.length === 0
-                  ? t("adminSupport.emptyAllDesc")
-                  : t("adminSupport.emptyFilteredDesc")
-              }
-              action={
-                tickets.length === 0 ? (
-                  <Button onClick={openCreate}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    {t("adminSupport.createFirstBtn")}
-                  </Button>
-                ) : undefined
-              }
-            />
+          ) : sort.sorted.length === 0 ? (
+            // `noMatch` distingue "no hay tickets" de "hay tickets pero
+            // ninguno pasa los filtros activos" (estado + búsqueda) — sin
+            // esto, buscar algo inexistente decía "No has abierto tickets
+            // todavía" y ofrecía crear el primero.
+            (() => {
+              const filterActive = !!search.trim() || statusFilter !== "all";
+              const noMatch = filterActive && tickets.length > 0;
+              return (
+                <TableEmpty
+                  icon={LifeBuoy}
+                  title={noMatch ? t("adminSupport.emptyFiltered") : t("adminSupport.emptyAll")}
+                  description={
+                    noMatch
+                      ? t("adminSupport.emptyFilteredDesc")
+                      : t("adminSupport.emptyAllDesc")
+                  }
+                  action={
+                    noMatch ? undefined : (
+                      <Button onClick={openCreate}>
+                        <Plus className="h-4 w-4 mr-1" />
+                        {t("adminSupport.createFirstBtn")}
+                      </Button>
+                    )
+                  }
+                />
+              );
+            })()
           ) : (
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("adminSupport.colSubject")}</TableHead>
+                  <SortableHead sortKey="subject" sort={sort}>
+                    {t("adminSupport.colSubject")}
+                  </SortableHead>
                   <TableHead className="hidden sm:table-cell w-28">
                     {t("adminSupport.colCategory")}
                   </TableHead>
                   <TableHead className="hidden sm:table-cell w-24">
                     {t("adminSupport.colPriority")}
                   </TableHead>
-                  <TableHead className="w-32">{t("adminSupport.colStatus")}</TableHead>
-                  <TableHead className="hidden md:table-cell w-40">
+                  <SortableHead sortKey="status" sort={sort} className="w-32">
+                    {t("adminSupport.colStatus")}
+                  </SortableHead>
+                  <SortableHead
+                    sortKey="created_at"
+                    sort={sort}
+                    className="hidden md:table-cell w-40"
+                  >
                     {t("adminSupport.colCreated")}
-                  </TableHead>
+                  </SortableHead>
                   <TableHead className="hidden lg:table-cell w-40">
                     {t("adminSupport.colResolved")}
                   </TableHead>
@@ -528,7 +594,7 @@ function AdminSupportPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.map((t) => (
+                {pagination.paginatedItems.map((t) => (
                   <TableRow
                     key={t.id}
                     className="cursor-pointer hover:bg-muted/40"
@@ -577,6 +643,10 @@ function AdminSupportPage() {
               </TableBody>
             </Table>
           )}
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("adminSupport.entityPlural", { defaultValue: "tickets" })}
+          />
         </CardContent>
       </Card>
 

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/shared/lib/utils";
-import { Eye, Code, RotateCcw, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
+import { Eye, Code2, RotateCcw, ZoomIn, ZoomOut, AlertTriangle } from "lucide-react";
 
 const TEMPLATES: Record<string, { labelKey: string; code: string }> = {
   classDiagram: {
@@ -226,7 +226,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
       <Tabs value={tab} onValueChange={(v) => setTab(v as "edit" | "preview")}>
         <TabsList className="h-8">
           <TabsTrigger value="edit" className="text-xs gap-1 h-7" disabled={readOnly}>
-            <Code className="h-3 w-3" /> {t("diagramEditor.tabCode")}
+            <Code2 className="h-3 w-3" /> {t("diagramEditor.tabCode")}
           </TabsTrigger>
           <TabsTrigger value="preview" className="text-xs gap-1 h-7">
             <Eye className="h-3 w-3" /> {t("diagramEditor.tabPreview")}

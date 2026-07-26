@@ -12,10 +12,12 @@
  * cursos asociados quedan con period_id NULL (ON DELETE SET NULL).
  * Se conserva `courses.period` (text) como respaldo de display.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { SearchInput } from "@/components/ui/search-input";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { DateCell } from "@/components/ui/date-cell";
 import { DatePicker } from "@/components/ui/date-picker";
 import {
@@ -34,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -96,6 +101,15 @@ const STATUS_BADGE_CLS: Record<Status, string> = {
   cerrado: "border-amber-400 text-amber-700 dark:border-amber-500/50 dark:text-amber-300",
 };
 
+/** Orden del estado al ordenar por esa columna: por vigencia (lo que está
+ *  en curso primero), NO alfabético — alfabético daría
+ *  activo/cerrado/planificado, que mezcla lo vigente con lo archivado. */
+const STATUS_RANK: Record<Status, number> = {
+  activo: 0,
+  planificado: 1,
+  cerrado: 2,
+};
+
 export function AdminAcademicPeriodsPanel() {
   const { t } = useTranslation();
   const { user } = useAuth();
@@ -104,6 +118,7 @@ export function AdminAcademicPeriodsPanel() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
@@ -131,6 +146,39 @@ export function AdminAcademicPeriodsPanel() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
+
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter(
+      (r) =>
+        r.code.toLowerCase().includes(q) ||
+        (r.name?.toLowerCase().includes(q) ?? false),
+    );
+  }, [rows, search]);
+
+  const sort = useTableSort(filtered, {
+    columns: {
+      code: (r) => r.code,
+      name: (r) => r.name,
+      // Las fechas llegan como 'YYYY-MM-DD' (columna DATE) → el orden
+      // lexicográfico coincide con el cronológico; no hace falta parsear.
+      start_date: (r) => r.start_date,
+      end_date: (r) => r.end_date,
+      status: (r) => STATUS_RANK[r.status],
+    },
+    // Preserva el orden que traía la query (`.order("code", desc)`): el
+    // periodo más reciente arriba.
+    defaultSort: { key: "code", dir: "desc" },
+    storageKey: "examlab_sort:admin_academic_periods",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_academic_periods",
+    resetKey: `${search}|${sort.resetKey}`,
+  });
 
   const openNew = () => {
     setDraft(EMPTY_DRAFT);
@@ -317,6 +365,15 @@ export function AdminAcademicPeriodsPanel() {
           {t("academic.periods.description")}
         </p>
 
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder={t("academic.periods.searchPlaceholder", {
+            defaultValue: "Buscar por código o nombre…",
+          })}
+          maxWidthClass="sm:max-w-sm"
+        />
+
         {loading ? (
           <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
             <Spinner size="sm" /> {t("academic.periods.loading")}
@@ -332,23 +389,34 @@ export function AdminAcademicPeriodsPanel() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-28">{t("academic.periods.colCode")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("academic.periods.colName")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">{t("academic.periods.colStart")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-28">{t("academic.periods.colEnd")}</TableHead>
-                  <TableHead className="w-28">{t("academic.periods.colStatus")}</TableHead>
+                  <SortableHead sortKey="code" sort={sort} className="w-28">{t("academic.periods.colCode")}</SortableHead>
+                  <SortableHead sortKey="name" sort={sort} className="hidden md:table-cell">{t("academic.periods.colName")}</SortableHead>
+                  <SortableHead sortKey="start_date" sort={sort} className="hidden sm:table-cell w-28">{t("academic.periods.colStart")}</SortableHead>
+                  <SortableHead sortKey="end_date" sort={sort} className="hidden sm:table-cell w-28">{t("academic.periods.colEnd")}</SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-28">{t("academic.periods.colStatus")}</SortableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.length === 0 ? (
-                  <TableEmpty
-                    colSpan={6}
-                    text={t("academic.periods.empty")}
-                    hint={t("academic.periods.emptyHint")}
-                  />
+                {sort.sorted.length === 0 ? (
+                  (() => {
+                    // Distinguir "no hay periodos" de "el buscador no matchea":
+                    // sin esto el admin cree que se le borraron los datos.
+                    const noMatch = rows.length > 0 && !!search.trim();
+                    return (
+                      <TableEmpty
+                        colSpan={6}
+                        text={noMatch ? t("common.noResults") : t("academic.periods.empty")}
+                        hint={
+                          noMatch
+                            ? t("common.tryClearFilter")
+                            : t("academic.periods.emptyHint")
+                        }
+                      />
+                    );
+                  })()
                 ) : (
-                  rows.map((r) => {
+                  pagination.paginatedItems.map((r) => {
                     const statusLabel = t(`academic.periods.status${r.status.charAt(0).toUpperCase()}${r.status.slice(1)}`);
                     return (
                       <TableRow key={r.id}>
@@ -395,6 +463,15 @@ export function AdminAcademicPeriodsPanel() {
               </TableBody>
             </Table>
           </div>
+        )}
+
+        {!loading && !loadError && sort.sorted.length > 0 && (
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("academic.periods.entityPlural", {
+              defaultValue: "periodos",
+            })}
+          />
         )}
       </CardContent>
 

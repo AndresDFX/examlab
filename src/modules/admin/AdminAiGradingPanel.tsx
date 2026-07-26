@@ -38,7 +38,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Cpu, Plus, Copy, Trash2, Zap, Clock } from "lucide-react";
+import { Cpu, Plus, Copy, Trash2, Zap, Ban, Clock } from "lucide-react";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -582,7 +582,7 @@ export function AdminAiGradingPanel() {
                             {!revoked && (
                               <RowAction
                                 label={t("adminAiGradingPanel.actionRevoke")}
-                                icon={Zap}
+                                icon={Ban}
                                 onClick={() => void revokeCode(c)}
                               />
                             )}

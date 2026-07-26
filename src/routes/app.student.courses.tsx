@@ -10,7 +10,7 @@ import { groupCohortWeights, type CohortWeightGroup } from "@/modules/courses/co
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Calendar,
+  CalendarDays,
   ChevronLeft,
   Clock,
   Download,
@@ -372,7 +372,7 @@ function StudentCourses() {
               ? t("hc_routesAppStudentCourses.noMatchesHint")
               : undefined
           }
-          icon={Calendar}
+          icon={CalendarDays}
         />
       ) : (
         <>
@@ -904,7 +904,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       )}
 
       {sessions.length === 0 ? (
-        <EmptyState text={t("courseBoard.noSessions")} icon={Calendar} />
+        <EmptyState text={t("courseBoard.noSessions")} icon={CalendarDays} />
       ) : (
         <>
           {upcomingSessions.length > 0 && (

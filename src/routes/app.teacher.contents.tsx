@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { softDelete } from "@/modules/trash/soft-delete";
+import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -114,6 +114,13 @@ import { parseDurationInput } from "@/modules/contents/upload-external-helpers";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
+import {
+  useMultiSelect,
+  MultiSelectHeaderCheckbox,
+  MultiSelectCheckbox,
+  MultiSelectToolbar,
+  BulkDeleteDialog,
+} from "@/components/ui/multi-select";
 import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
 import {
   matchesMaterialStatus,
@@ -346,6 +353,19 @@ function TeacherContents() {
     storageKey: "examlab_pag:teacher_contents",
     resetKey: `${search}|${courseFilter ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
+
+  // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
+  // items filtrados+ordenados, NO los paginados) para que "seleccionar
+  // todos" abarque todas las páginas del filtro activo.
+  const sel = useMultiSelect(sort.sorted);
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const selectedContentItems = useMemo(
+    () =>
+      sort.sorted
+        .filter((it) => sel.isSelected(it.id))
+        .map((it) => ({ id: it.id, label: it.display_name ?? it.topic })),
+    [sort.sorted, sel],
+  );
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
   // talleres / exámenes. Para contenidos los estados son:
@@ -859,6 +879,27 @@ function TeacherContents() {
     toast.success(t("contents.deletedToast"));
   };
 
+  /**
+   * Bulk delete: mismo SOFT-delete que el borrado por fila
+   * (`generated_contents` es una de las 8 entidades de la Papelera), en
+   * un solo UPDATE vía `softDeleteMany`. Los archivos de Storage NO se
+   * tocan — quedan disponibles hasta que el cron de purga (30 días)
+   * ejecute el hard-delete, igual que en el borrado individual.
+   */
+  const handleBulkDelete = async (ids: string[]) => {
+    const { error } = await softDeleteMany("generated_contents", ids);
+    if (error) throw new Error(error.message);
+    const idSet = new Set(ids);
+    setItems((prev) => prev.filter((i) => !idSet.has(i.id)));
+    toast.success(
+      i18n.t("toast.routes_app_teacher_contents.bulkMovedToTrash", {
+        defaultValue: "{{count}} contenido(s) enviado(s) a papelera",
+        count: ids.length,
+      }),
+    );
+    sel.clear();
+  };
+
   /** Duplica un contenido: nueva fila (mía, borrador) + opcionalmente copia
    *  los archivos de Storage a la carpeta del nuevo contenido + opcionalmente
    *  las asociaciones a cursos. Lanza si falla la creación de la fila (el
@@ -1272,16 +1313,27 @@ function TeacherContents() {
         )}
       </div>
 
+      <MultiSelectToolbar
+        count={sel.count}
+        onClear={sel.clear}
+        onDelete={() => setBulkDeleteOpen(true)}
+        entityNameSingular={t("contents.bulkEntitySingular", { defaultValue: "contenido" })}
+        entityNamePlural={t("contents.bulkEntityPlural", { defaultValue: "contenidos" })}
+      />
+
       <Card>
         <CardContent className="p-0">
           {loading ? (
-            <TableSkeleton rows={5} cols={5} />
+            <TableSkeleton rows={5} cols={8} />
           ) : (
             // table-fixed: el topic/display_name puede ser largo —
             // trunca en su cell sin expandir la tabla.
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
+                  <TableHead className="w-10">
+                    <MultiSelectHeaderCheckbox state={sel} />
+                  </TableHead>
                   <SortableHead sortKey="name" sort={sort} className="max-w-[320px]">
                     {t("contents.topicColumn")}
                   </SortableHead>
@@ -1317,7 +1369,7 @@ function TeacherContents() {
                     const noMatch = filterActive && items.length > 0;
                     return (
                       <TableEmpty
-                        colSpan={7}
+                        colSpan={8}
                         text={
                           noMatch
                             ? t("hc_routesAppTeacherContents.noMatchTitle")
@@ -1347,7 +1399,11 @@ function TeacherContents() {
                         el.scrollIntoView({ behavior: "smooth", block: "center" });
                     }}
                     className={it.id === highlightId ? "bg-primary/10" : undefined}
+                    data-state={sel.isSelected(it.id) ? "selected" : undefined}
                   >
+                    <TableCell className="w-10">
+                      <MultiSelectCheckbox id={it.id} state={sel} />
+                    </TableCell>
                     <TableCell className="max-w-xs">
                       {/* Altura de fila UNIFORME: el contenido del Tema
                           (nombre + dropdown de estado + subtítulo + badges
@@ -2136,6 +2192,19 @@ function TeacherContents() {
               copyCourses: flags.copyCourses !== false,
             });
         }}
+      />
+
+      <BulkDeleteDialog
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        items={selectedContentItems}
+        entityNameSingular={t("contents.bulkEntitySingular", { defaultValue: "contenido" })}
+        entityNamePlural={t("contents.bulkEntityPlural", { defaultValue: "contenidos" })}
+        extraWarning={t("contents.bulkExtraWarning", {
+          defaultValue:
+            "Los contenidos seleccionados se moverán a la papelera y sus archivos dejarán de estar disponibles para los estudiantes.",
+        })}
+        onConfirm={handleBulkDelete}
       />
 
       <aiGate.GateDialog />

@@ -26,7 +26,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
-import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableEmpty, EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import {
   Table,
@@ -718,12 +718,12 @@ function QuestionBankPage() {
     return (
       <div className="container mx-auto p-6">
         <Card>
-          <CardContent className="p-4 sm:p-8 text-center space-y-2">
-            <Library className="h-10 w-10 text-muted-foreground mx-auto" />
-            <h2 className="text-base font-semibold">{t("questionBank.disabledTitle")}</h2>
-            <p className="text-sm text-muted-foreground">
-              {t("questionBank.disabledDescription")}
-            </p>
+          <CardContent className="p-0">
+            <EmptyState
+              icon={Library}
+              text={t("questionBank.disabledTitle")}
+              hint={t("questionBank.disabledDescription")}
+            />
           </CardContent>
         </Card>
       </div>

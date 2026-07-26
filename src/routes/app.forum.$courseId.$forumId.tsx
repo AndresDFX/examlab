@@ -29,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import {
   Dialog,
@@ -225,6 +227,17 @@ function ForumThreads() {
     return arr;
   }, [threads, search, sortMode]);
 
+  // Cards grandes → defaultPageSize 12 (mismo patrón que las vistas de cards
+  // del estudiante). El orden lo maneja el `<Select>` de `sortMode` (no
+  // useTableSort — esto no es una tabla), así que entra al resetKey junto con
+  // el buscador: cambiar cualquiera de los dos vuelve a página 1.
+  const pagination = usePagination(filtered, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:forum_threads",
+    resetKey: `${search}|${sortMode}`,
+  });
+
   const createThread = async () => {
     if (!user || !forum) return;
     const title = newTitle.trim();
@@ -392,11 +405,21 @@ function ForumThreads() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2">
-          {filtered.map((t) => (
-            <ThreadCard key={t.id} thread={t} courseId={courseId} forumId={forumId} />
-          ))}
-        </div>
+        <>
+          <div className="space-y-2">
+            {pagination.paginatedItems.map((th) => (
+              <ThreadCard key={th.id} thread={th} courseId={courseId} forumId={forumId} />
+            ))}
+          </div>
+          {/* Pagination fuera de la lista de cards (cada hilo es su propia card,
+              así que no hay un `CardContent` que la envuelva). */}
+          <div className="px-1">
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("forumThreads.paginationEntity", { defaultValue: "hilos" })}
+            />
+          </div>
+        </>
       )}
 
       <Dialog open={newOpen} onOpenChange={setNewOpen}>

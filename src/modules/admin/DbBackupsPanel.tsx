@@ -32,7 +32,11 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowAction } from "@/components/ui/row-action";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -155,6 +159,32 @@ export function DbBackupsPanel() {
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActive]);
+
+  // ─── Orden + paginación del histórico ───────────────────────────────
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar (acá
+  // no hay filtros: el histórico crece con cada backup manual + el cron
+  // semanal, así que renderizarlo entero era la única opción y el listado
+  // se hacía interminable).
+  const sort = useTableSort(backups, {
+    columns: {
+      created_at: (b) => b.created_at,
+      label: (b) => b.label,
+      source: (b) => b.source,
+      tables: (b) => b.tables.length,
+      rows: (b) => b.row_count,
+      size: (b) => b.size_bytes,
+      status: (b) => b.status,
+    },
+    // Mismo orden que trae la query (created_at DESC): lo más reciente arriba.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_db_backups",
+  });
+
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:admin_db_backups",
+    resetKey: sort.resetKey,
+  });
 
   // ─── Stats ──────────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -431,13 +461,13 @@ export function DbBackupsPanel() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-44">{t("hc_modulesAdminDbBackupsPanel.colDate")}</TableHead>
-                  <TableHead>{t("hc_modulesAdminDbBackupsPanel.colLabel")}</TableHead>
-                  <TableHead className="hidden sm:table-cell w-24">{t("hc_modulesAdminDbBackupsPanel.colSource")}</TableHead>
-                  <TableHead className="hidden md:table-cell text-right w-20">{t("hc_modulesAdminDbBackupsPanel.colTables")}</TableHead>
-                  <TableHead className="hidden md:table-cell text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colRows")}</TableHead>
-                  <TableHead className="text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colSize")}</TableHead>
-                  <TableHead className="w-28">{t("hc_modulesAdminDbBackupsPanel.colStatus")}</TableHead>
+                  <SortableHead sortKey="created_at" sort={sort} className="w-44">{t("hc_modulesAdminDbBackupsPanel.colDate")}</SortableHead>
+                  <SortableHead sortKey="label" sort={sort}>{t("hc_modulesAdminDbBackupsPanel.colLabel")}</SortableHead>
+                  <SortableHead sortKey="source" sort={sort} className="hidden sm:table-cell w-24">{t("hc_modulesAdminDbBackupsPanel.colSource")}</SortableHead>
+                  <SortableHead sortKey="tables" sort={sort} className="hidden md:table-cell text-right w-20">{t("hc_modulesAdminDbBackupsPanel.colTables")}</SortableHead>
+                  <SortableHead sortKey="rows" sort={sort} className="hidden md:table-cell text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colRows")}</SortableHead>
+                  <SortableHead sortKey="size" sort={sort} className="text-right w-24">{t("hc_modulesAdminDbBackupsPanel.colSize")}</SortableHead>
+                  <SortableHead sortKey="status" sort={sort} className="w-28">{t("hc_modulesAdminDbBackupsPanel.colStatus")}</SortableHead>
                   <TableHead className="text-right w-32">{t("hc_modulesAdminDbBackupsPanel.colActions")}</TableHead>
                 </TableRow>
               </TableHeader>
@@ -450,7 +480,7 @@ export function DbBackupsPanel() {
                     hint={t("hc_modulesAdminDbBackupsPanel.emptyHint")}
                   />
                 ) : (
-                  backups.map((b) => (
+                  pagination.paginatedItems.map((b) => (
                     <TableRow key={b.id}>
                       <TableCell className="text-xs tabular-nums whitespace-nowrap">
                         {formatDateTime(b.created_at)}
@@ -512,6 +542,12 @@ export function DbBackupsPanel() {
                 )}
               </TableBody>
             </Table>
+          )}
+          {!loading && (
+            <DataPagination
+              state={pagination}
+              entityNamePlural={t("dbBackups.entityNamePlural", { defaultValue: "backups" })}
+            />
           )}
         </CardContent>
       </Card>

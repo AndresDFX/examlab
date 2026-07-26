@@ -69,7 +69,7 @@ import {
   Ban,
   XCircle,
   RefreshCw,
-  RotateCw,
+  RotateCcw,
   ChevronDown,
   ChevronRight,
   Search,
@@ -872,7 +872,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                           {isRequeueing ? (
                             <Spinner size="sm" />
                           ) : (
-                            <RotateCw className="h-3.5 w-3.5" />
+                            <RotateCcw className="h-3.5 w-3.5" />
                           )}
                         </Button>
                       )}
