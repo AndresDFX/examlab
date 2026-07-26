@@ -62,6 +62,7 @@ import {
   Clock,
   Cpu,
   Info,
+  Zap,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -487,7 +488,7 @@ export function DbBackupsPanel() {
                           {b.status === "queued" && (
                             <RowAction
                               label={t("hc_modulesAdminDbBackupsPanel.actionProcessNow")}
-                              icon={Cpu}
+                              icon={Zap}
                               onClick={() => void processQueued(b.id)}
                             />
                           )}

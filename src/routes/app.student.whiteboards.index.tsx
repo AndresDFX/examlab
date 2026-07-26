@@ -22,6 +22,13 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { ListFilters } from "@/components/ui/list-filters";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { StatTile } from "@/components/ui/stat-tile";
 import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
@@ -58,6 +65,10 @@ function StudentWhiteboards() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string>("all");
+  // Orden elegible — paridad con las demás vistas de cards del estudiante.
+  const [sortMode, setSortMode] = useState<"updated_desc" | "name_asc" | "course_asc">(
+    "updated_desc",
+  );
 
   const load = useCallback(async () => {
     if (!user) return;
@@ -139,6 +150,25 @@ function StudentWhiteboards() {
     );
   }, [items, search, courseFilter]);
 
+  // Orden aplicado sobre lo filtrado (flujo filtrar → ordenar → paginar).
+  const sorted = useMemo(() => {
+    const arr = filtered.slice();
+    const col = (a: string, b: string) => a.localeCompare(b, "es-CO", { sensitivity: "base" });
+    switch (sortMode) {
+      case "name_asc":
+        arr.sort((a, b) => col(a.name, b.name));
+        break;
+      case "course_asc":
+        arr.sort((a, b) => col(a.course_name ?? "", b.course_name ?? ""));
+        break;
+      case "updated_desc":
+      default:
+        arr.sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+        break;
+    }
+    return arr;
+  }, [filtered, sortMode]);
+
   // Stats — mismo patrón que el resto. Las pizarras del alumno NO
   // tienen estados (siempre son shared+published para que aparezcan),
   // así que las tiles son agregados visualmente útiles: total + por
@@ -150,11 +180,11 @@ function StudentWhiteboards() {
 
   // Cards grandes → defaultPageSize 12 (mismo patrón que cursos /
   // exámenes / talleres del estudiante).
-  const pagination = usePagination(filtered, {
+  const pagination = usePagination(sorted, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_whiteboards",
-    resetKey: `${search}|${courseFilter}`,
+    resetKey: `${search}|${courseFilter}|${sortMode}`,
   });
 
   if (loadError) {
@@ -213,6 +243,24 @@ function StudentWhiteboards() {
             onCourseChange={(v) => setCourseFilter(v ?? "all")}
             courses={courses}
             allLabel={t("studentWhiteboards.allCourses")}
+            extra={
+              <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>
+                <SelectTrigger className="w-full sm:w-56">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="updated_desc">
+                    {t("studentWhiteboards.sortUpdatedDesc", { defaultValue: "Última edición" })}
+                  </SelectItem>
+                  <SelectItem value="name_asc">
+                    {t("studentWhiteboards.sortNameAsc", { defaultValue: "Nombre (A–Z)" })}
+                  </SelectItem>
+                  <SelectItem value="course_asc">
+                    {t("studentWhiteboards.sortCourseAsc", { defaultValue: "Curso (A–Z)" })}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            }
           />
 
           {loading ? (

@@ -17,7 +17,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, RefreshCw } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -1969,7 +1969,7 @@ function Gradebook() {
                                   />
                                   <RowAction
                                     label={t("hc_routesAppTeacherGradebook.regenerateRowAction")}
-                                    icon={RotateCcw}
+                                    icon={RefreshCw}
                                     onClick={() =>
                                       void regenerateCertForStudent(row.student.id, row.finalGrade)
                                     }

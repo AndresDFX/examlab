@@ -48,6 +48,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import {
   Dialog,
@@ -496,6 +498,14 @@ function TeacherPolls() {
       status: (p) => (pollIsOpen(p) ? "abierta" : "cerrada"),
     },
     storageKey: "examlab_sort:teacher_polls",
+  });
+
+  // Paginación (flujo filtrar → ordenar → paginar). Era el único grid de
+  // actividades del docente que renderizaba todas las filas sin paginar.
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_polls",
+    resetKey: `${search}|${courseFilter}|${pollStatusFilter}|${sort.resetKey}`,
   });
 
   // Stats compactas — mismo patrón que proyectos / talleres / exámenes.
@@ -968,7 +978,7 @@ function TeacherPolls() {
                     }
                   />
                 ) : (
-                  sort.sorted.map((p) => {
+                  pagination.paginatedItems.map((p) => {
                     const open = pollIsOpen(p);
                     const Icon = POLL_TYPE_ICONS[p.poll_type];
                     return (
@@ -1112,6 +1122,9 @@ function TeacherPolls() {
                 )}
               </TableBody>
             </Table>
+            {sort.sorted.length > 0 && (
+              <DataPagination state={pagination} entityNamePlural={t("nav.polls")} />
+            )}
           </CardContent>
         </Card>
       )}

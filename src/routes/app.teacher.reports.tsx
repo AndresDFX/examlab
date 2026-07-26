@@ -962,7 +962,7 @@ function Inner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<FileBarChart className="h-5 w-5 text-pink-500" />}
+        icon={<FileBarChart className="h-6 w-6 text-pink-500" />}
         title={t("hc_routesAppTeacherReports.pageTitle")}
         subtitle={loading ? undefined : t("hc_routesAppTeacherReports.templatesAvailable", { count: templates.length })}
         actions={

@@ -2,6 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTableSort } from "@/hooks/use-table-sort";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import { Card, CardContent } from "@/components/ui/card";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -12,6 +15,7 @@ import { ListFilters } from "@/components/ui/list-filters";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
+  SortableHead,
   Table,
   TableBody,
   TableCell,
@@ -179,9 +183,29 @@ function TeacherStudentsInner() {
     return result;
   }, [students, search, courseFilter, courses]);
 
+  // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
+  const sort = useTableSort(filtered, {
+    columns: {
+      name: (s) => s.full_name,
+      codigo: (s) => s.codigo ?? "",
+      email: (s) => s.institutional_email,
+    },
+    defaultSort: { key: "name", dir: "asc" },
+    storageKey: "examlab_sort:teacher_students",
+  });
+
   // Multi-selección para acciones en bloque (cambio masivo de contraseña).
-  // Opera sobre la lista filtrada visible.
-  const sel = useMultiSelect(filtered);
+  // Opera sobre TODA la lista filtrada+ordenada (no solo la página visible),
+  // para que "seleccionar todos" abarque todas las páginas del filtro activo.
+  const sel = useMultiSelect(sort.sorted);
+
+  // Paginación: un docente con cientos de matriculados renderizaba TODAS las
+  // filas de una sola vez.
+  const pagination = usePagination(sort.sorted, {
+    defaultPageSize: 25,
+    storageKey: "examlab_pag:teacher_students",
+    resetKey: `${search}|${courseFilter}|${sort.resetKey}`,
+  });
 
   const handleImpersonate = async (s: Student) => {
     const ok = await confirm({
@@ -205,7 +229,7 @@ function TeacherStudentsInner() {
       <PageHeader
         title={t("teacherStudents.title")}
         subtitle={loading ? undefined : t("teacherStudents.subtitle", { count: students.length })}
-        icon={<Users className="h-5 w-5 text-violet-500" />}
+        icon={<Users className="h-6 w-6 text-violet-500" />}
       />
 
       {/* Filtros: búsqueda + curso estandarizados (ListFilters), igual que los
@@ -273,18 +297,18 @@ function TeacherStudentsInner() {
                     <TableHead className="w-10">
                       <MultiSelectHeaderCheckbox state={sel} />
                     </TableHead>
-                    <TableHead className="min-w-[180px]">{t("teacherStudents.colName")}</TableHead>
-                    <TableHead className="hidden sm:table-cell w-32">{t("teacherStudents.colCode")}</TableHead>
-                    <TableHead className="hidden sm:table-cell w-[260px]">{t("teacherStudents.colEmail")}</TableHead>
+                    <SortableHead sortKey="name" sort={sort} className="min-w-[180px]">{t("teacherStudents.colName")}</SortableHead>
+                    <SortableHead sortKey="codigo" sort={sort} className="hidden sm:table-cell w-32">{t("teacherStudents.colCode")}</SortableHead>
+                    <SortableHead sortKey="email" sort={sort} className="hidden sm:table-cell w-[260px]">{t("teacherStudents.colEmail")}</SortableHead>
                     <TableHead className="hidden md:table-cell w-[240px]">{t("teacherStudents.colCourses")}</TableHead>
                     <TableHead className="w-10" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filtered.length === 0 ? (
+                  {sort.sorted.length === 0 ? (
                     <TableEmpty colSpan={6} text={t("teacherStudents.empty")} />
                   ) : (
-                    filtered.map((s) => (
+                    pagination.paginatedItems.map((s) => (
                       <TableRow key={s.id} data-state={sel.isSelected(s.id) ? "selected" : undefined}>
                         <TableCell className="w-10">
                           <MultiSelectCheckbox id={s.id} state={sel} />
@@ -365,6 +389,9 @@ function TeacherStudentsInner() {
               </Table>
             )}
           </div>
+          {!loading && !loadError && sort.sorted.length > 0 && (
+            <DataPagination state={pagination} entityNamePlural={t("teacherStudents.title")} />
+          )}
         </CardContent>
       </Card>
     </div>

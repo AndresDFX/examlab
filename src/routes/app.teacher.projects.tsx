@@ -82,6 +82,7 @@ import {
   Copy,
   ChevronUp,
   ChevronDown,
+  ListChecks,
 } from "lucide-react";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -2554,7 +2555,7 @@ function TeacherProjects() {
                       actions={[
                         {
                           label: t("hc_routesAppTeacherProjects.actionProjectQuestions"),
-                          icon: FileText,
+                          icon: ListChecks,
                           onClick: () => openFilesDialog(p),
                         },
                         {

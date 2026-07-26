@@ -149,7 +149,7 @@ export function ImportExportMenu({
           )}
           {onExport && (
             <DropdownMenuItem onClick={handleExport}>
-              <Upload className="h-4 w-4 mr-2 rotate-180" />
+              <Download className="h-4 w-4 mr-2" />
               {i18n.t("importExportMenu.exportToCsv", { defaultValue: "Exportar a CSV" })}
             </DropdownMenuItem>
           )}

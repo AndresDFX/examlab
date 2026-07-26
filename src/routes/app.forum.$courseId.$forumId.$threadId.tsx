@@ -37,6 +37,7 @@ import {
   Edit2,
   X,
   Save,
+  Pencil,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -508,7 +509,7 @@ function ThreadDetail() {
             {(isMyThread || canModerate) && !editingThread && (
               <>
                 <Button size="sm" variant="ghost" onClick={startEditThread}>
-                  <Edit2 className="h-3.5 w-3.5 mr-1" />
+                  <Pencil className="h-3.5 w-3.5 mr-1" />
                   {t("forumThread.actionEdit")}
                 </Button>
                 <Button
@@ -659,7 +660,7 @@ function ThreadDetail() {
                             className="h-7 text-[11px]"
                             onClick={() => startEditReply(r)}
                           >
-                            <Edit2 className="h-3 w-3 mr-1" />
+                            <Pencil className="h-3 w-3 mr-1" />
                             {t("forumThread.actionEdit")}
                           </Button>
                           <Button

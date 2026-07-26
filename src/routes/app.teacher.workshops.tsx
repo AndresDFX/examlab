@@ -90,6 +90,7 @@ import {
   ChevronDown,
   Check,
   Eye,
+  ClipboardList,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatPercent } from "@/shared/lib/format";
@@ -2928,7 +2929,7 @@ function TeacherWorkshops() {
                             setQuestionsOpen(true);
                           },
                         },
-                        { label: t("teacherWorkshops.actionGrade"), icon: CheckCircle2, onClick: () => openGrading(ws) },
+                        { label: t("teacherWorkshops.actionGrade"), icon: ClipboardList, onClick: () => openGrading(ws) },
                         {
                           label: t("teacherWorkshops.actionEdit"),
                           icon: Pencil,

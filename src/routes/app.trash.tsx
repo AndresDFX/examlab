@@ -735,7 +735,7 @@ function TrashPage() {
                           />
                           <RowAction
                             label={t("trash.actionHardDelete")}
-                            icon={X}
+                            icon={Trash2}
                             onClick={() => void handleHardDelete(item)}
                             disabled={isBusyItem || bulkBusy}
                             tone="destructive"
