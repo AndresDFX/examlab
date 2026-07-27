@@ -55,6 +55,27 @@ if (existsSync(faqDir)) {
   }
 }
 
+// ALIAS PÚBLICOS de los CORREOS. Los correos de docs/demos/correos/ (y el índice
+// _ENLACES-demos.md) embeben nombres CORTOS y en español que NO coinciden con los
+// que genera el pipeline (`serie-teacher-completa.mp4` ≠ `serie-docente.mp4`).
+// Antes esos nombres se subían A MANO, así que correr este script NO refrescaba
+// los links de los correos y quedaban sirviendo videos viejos (verificado:
+// remotos del 23-jul contra locales del 25-jul). Se suben acá los MISMOS bytes
+// bajo el nombre que leen los correos, para que un solo `node upload-all-videos`
+// deje todo al día. Si agregás un enlace nuevo a un correo, registralo también acá.
+const ALIASES = [
+  { local: `${DEMOS}/admin/serie-admin-completa.mp4`, path: "serie-admin.mp4" },
+  { local: `${DEMOS}/teacher/serie-teacher-completa.mp4`, path: "serie-docente.mp4" },
+  { local: `${DEMOS}/student/serie-student-completa.mp4`, path: "serie-estudiante.mp4" },
+  { local: `${DEMOS}/superadmin/serie-superadmin-completa.mp4`, path: "serie-superadmin.mp4" },
+  { local: `${DEMOS}/presentacion/output/modulo-overview.mp4`, path: "general.mp4" },
+  { local: `${DEMOS}/login.mp4`, path: "login.mp4" },
+];
+for (const a of ALIASES) {
+  if (existsSync(a.local)) jobs.push(a);
+  else console.warn(`  ⚠ alias sin fuente local: ${a.path} (esperaba ${a.local})`);
+}
+
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Subida con reintentos: el uplink es lento/flaky y falla con "fetch failed"

@@ -33,3 +33,28 @@ cruda). La **presentación general** es la que se comparte siempre por ahora.
 
 > Los `.mp4` locales (`docs/demos/.../*.mp4`) son los archivos fuente; los
 > enlaces de arriba (Supabase Storage / Google Slides) son los que se comparten en los correos.
+
+## Cómo refrescar estos enlaces (OBLIGATORIO tras re-grabar o editar un archivo)
+
+Los nombres de arriba son **cortos y en español** y NO coinciden con los que produce
+el pipeline (`serie-teacher-completa.mp4` ≠ `serie-docente.mp4`). Antes se subían a
+mano, así que era fácil corregir un video/presentación en el repo y dejar el correo
+sirviendo la versión vieja — pasó: en jul-2026 los enlaces servían videos del 23-jul
+y presentaciones del 18-jul mientras el repo ya tenía los arreglados. Ahora está
+automatizado:
+
+```bash
+node docs/demos/admin/pipeline/upload-all-videos.mjs   # videos → help-videos (incluye los alias de los correos)
+node docs/demos/admin/pipeline/upload-help-docs.mjs    # presentaciones + manuales → help-docs
+```
+
+- `upload-all-videos.mjs` sube los `modulo-*.mp4` y las series, **y además** los
+  alias que leen los correos: `serie-admin.mp4`, `serie-docente.mp4`,
+  `serie-estudiante.mp4`, `serie-superadmin.mp4`, `general.mp4`, `login.mp4`.
+- `upload-help-docs.mjs` sube las 6 presentaciones y los 4 manuales con el nombre
+  canónico. `presentacion-comercial.pptx` apunta a la **v3** (la vigente); si sale
+  una v4, cambiá el mapeo en el script, NO el nombre del enlace.
+- **Si agregás un enlace nuevo a un correo**, registralo en la tabla de arriba Y en
+  el `ALIASES`/`JOBS` del script correspondiente, o volverá a desincronizarse.
+- Verificación rápida de que el remoto está al día (compara bytes):
+  `curl -sI <url> | grep -i content-length` contra `stat -c %s <archivo local>`.
