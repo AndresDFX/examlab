@@ -883,7 +883,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // Cuenta de jobs pendientes en la cola IA visible para el docente.
       // RLS filtra automáticamente: el docente ve los jobs de sus cursos.
       // Reemplaza al antiguo "errores IA (1h)" — los errores quedan en
-      // el módulo Cron → tab IA con su filtro `failed`.
+      // el módulo Cola → tab IA con su filtro `failed`.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { count: pendingAiCount } = await (supabase as any)
         .from("ai_grading_queue")
@@ -1149,8 +1149,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         />
       </div>
 
-      {/* Cron IA + IA inmediata se trasladaron al módulo Cron → tab IA.
-          El stat "Cron IA (pendientes)" de arriba reemplaza el glance
+      {/* La cola de IA + IA inmediata se trasladaron al módulo Cola → tab IA.
+          El stat "Cola IA (pendientes)" de arriba reemplaza el glance
           que daba el AiGradingQueueWidget; click en él lleva al módulo
           completo donde el docente activa también el código override
           si necesita IA sincrónica YA. */}

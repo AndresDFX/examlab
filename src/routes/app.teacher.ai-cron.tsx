@@ -1,5 +1,5 @@
 /**
- * Ruta Docente del módulo "Cron IA".
+ * Ruta Docente del módulo "Cola".
  * Gestiona la cola IA limitada al alcance del docente (vía RLS de
  * ai_grading_queue: el docente solo ve jobs de sus cursos). El docente
  * NO tiene el botón "Procesar ahora" global — eso es admin-only — pero

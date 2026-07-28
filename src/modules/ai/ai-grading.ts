@@ -165,17 +165,146 @@ export interface AiGradeResult {
 }
 
 /**
- * Decide entre sync/async según processing_mode + override activo.
+ * Encola el job en `ai_grading_queue` y devuelve su id.
+ *
+ * Extraído para que los DOS caminos (inmediato y diferido) compartan el mismo
+ * registro durable: el job es la única evidencia de que el trabajo existe.
+ */
+async function enqueueGradingJob(
+  req: AiGradeRequest,
+  invokeTarget: string,
+): Promise<{ jobId?: string; error?: string }> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any).rpc("enqueue_ai_grading", {
+    _kind: req.kind,
+    _invoke_target: invokeTarget,
+    _body: req.body,
+    _target_table: req.target.table,
+    _target_row_id: req.target.rowId,
+    _field_grade: req.target.fieldGrade ?? "ai_grade",
+    _field_feedback: req.target.fieldFeedback ?? "ai_feedback",
+    _field_likelihood: req.target.fieldLikelihood ?? null,
+    _field_reasons: req.target.fieldReasons ?? null,
+    _course_id: req.target.courseId ?? null,
+  });
+  if (error) return { error: error.message };
+
+  // Audit log fire-and-forget: deja trazo de cada job encolado. El
+  // ciclo de vida posterior (claim/complete/fail/cancel) se loguea
+  // desde el worker y desde el módulo Cola — así el admin puede armar
+  // un timeline completo del job en `audit_logs`.
+  const jobId = data as string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  void (supabase as any)
+    .rpc("log_audit_event", {
+      p_action: "ai_grading.job_enqueued",
+      p_category: "grading",
+      p_severity: "info",
+      p_entity_type: "ai_grading_queue",
+      p_entity_id: jobId,
+      p_entity_name: req.kind,
+      p_course_id: req.target.courseId ?? null,
+      p_metadata: {
+        kind: req.kind,
+        invoke_target: invokeTarget,
+        target_table: req.target.table,
+        target_row_id: req.target.rowId,
+      },
+    })
+    .then(() => {})
+    .catch(() => {});
+  return { jobId };
+}
+
+/**
+ * Camino INMEDIATO con registro durable: encola PRIMERO y despacha al toque.
+ *
+ * WHY (bug de campo, tenant FESNA 2026-07): el camino sync llamaba al edge
+ * directo, SIN dejar rastro en la cola. Si esa llamada moría —red, timeout,
+ * el docente navegando a otra pantalla— el trabajo se perdía sin dejar nada
+ * que reintentar: en `audit_logs` quedaban 4 `ai.grading_started` sin ningún
+ * evento de cierre, y en la cola no había fila. Un batch entero podía
+ * evaporarse en silencio.
+ *
+ * Ahora el job SIEMPRE existe antes de trabajar, y el DESPACHO va por el
+ * worker (`ai-grading-worker` con `{ jobId }`) en vez de llamar al edge
+ * directo. WHY por el worker y no invocando el edge acá: el worker corre con
+ * `service_role`, así que él reclama el job, persiste la nota y lo CIERRA con
+ * `complete_ai_grading` — una RPC que está revocada para `authenticated`
+ * (mig 20261000000000), de modo que el cliente no puede cerrar nada por su
+ * cuenta. Cerrarlo desde acá dejaría un job "pendiente" por cada calificación
+ * ya hecha.
+ *
+ * Estados resultantes:
+ *   - éxito                → el worker lo deja `done`
+ *   - error del edge       → `failed` con el motivo real; si el error es
+ *     TRANSITORIO (429/5xx/timeout) la propia RPC lo re-encola a `pending`
+ *     (mig 20260601001000)
+ *   - la llamada nunca vuelve (crash / navegación / cierre del navegador) →
+ *     el job queda `pending` o `processing`, visible en el panel y
+ *     reprocesable con "Procesar ahora". El rescate de huérfanos del worker
+ *     devuelve a `pending` los `processing` colgados >3 min.
+ *
+ * Se mantiene `ranSync: true` a propósito: los callers usan ese flag para
+ * decidir si avisarle al alumno "quedó en cola". El trabajo SÍ se procesó de
+ * inmediato; la cola es solo la red de seguridad.
+ */
+async function runImmediateWithDurableJob(
+  req: AiGradeRequest,
+  invokeTarget: string,
+): Promise<AiGradeResult> {
+  const { jobId, error: enqueueError } = await enqueueGradingJob(req, invokeTarget);
+
+  if (!jobId) {
+    // Sin registro durable no hay worker al que pedirle nada: caemos al
+    // camino viejo (edge directo). Quedarse sin respaldo es malo; no
+    // calificar es peor.
+    console.warn("[ai-grading] no se pudo encolar el respaldo del job:", enqueueError);
+    const { data, error } = await supabase.functions.invoke(invokeTarget, { body: req.body });
+    if (error || data?.error) {
+      const detail = await extractEdgeError(error, data);
+      return { ranSync: true, error: detail || "Error IA" };
+    }
+    return { ranSync: true, aiData: data };
+  }
+
+  const { data, error } = await supabase.functions.invoke("ai-grading-worker", {
+    body: { jobId },
+  });
+  if (error || data?.ok === false) {
+    // El worker no llegó a procesar: el job sigue vivo en la cola.
+    const detail = await extractEdgeError(error, data);
+    return { ranSync: true, jobId, error: detail || "Error IA" };
+  }
+
+  // El worker responde `{processed, succeeded, failed, skipped}` sin el detalle
+  // del error — ese queda en `last_error` del job. Lo leemos para poder
+  // mostrarle al docente el motivo real y no un "falló" pelado.
+  if ((data as { failed?: number } | null)?.failed) {
+    const { data: row } = await supabase
+      .from("ai_grading_queue")
+      .select("last_error")
+      .eq("id", jobId)
+      .maybeSingle();
+    const detail = (row as { last_error?: string } | null)?.last_error;
+    return { ranSync: true, jobId, error: detail || "Error IA" };
+  }
+
+  return { ranSync: true, jobId };
+}
+
+/**
+ * Decide entre procesar YA o dejar en cola, según processing_mode + override.
  *
  * Modo SYNC (override activo O processing_mode='sync'):
- *   Llama directo a `supabase.functions.invoke(invokeTarget, { body })`
- *   y devuelve la respuesta. El caller persiste como hoy.
+ *   Encola el job Y lo despacha de inmediato (ver
+ *   `runImmediateWithDurableJob`). Devuelve `{ranSync: true, jobId}`. El
+ *   edge persiste la nota server-side, igual que antes.
  *
  * Modo ASYNC:
- *   Encola via RPC `enqueue_ai_grading` y devuelve {ranSync: false,
- *   jobId}. El caller DEBE haber insertado el row destino antes con
- *   `ai_grade=NULL` y `ai_feedback='Pendiente IA…'` para que el alumno
- *   vea el estado en la UI.
+ *   Solo encola y devuelve {ranSync: false, jobId}. El caller DEBE haber
+ *   insertado el row destino antes con `ai_grade=NULL` y
+ *   `ai_feedback='Pendiente IA…'` para que el alumno vea el estado en la UI.
  */
 export async function aiGradeOrEnqueue(
   req: AiGradeRequest,
@@ -198,14 +327,7 @@ export async function aiGradeOrEnqueue(
   // existe para entornos de prueba o instituciones que prefieren
   // pagar IA siempre on-demand.
   if (mode === "sync") {
-    const { data, error } = await supabase.functions.invoke(invokeTarget, {
-      body: req.body,
-    });
-    if (error || data?.error) {
-      const detail = await extractEdgeError(error, data);
-      return { ranSync: true, error: detail || "Error IA" };
-    }
-    return { ranSync: true, aiData: data };
+    return runImmediateWithDurableJob(req, invokeTarget);
   }
 
   // Path OVERRIDE (mode=async pero el docente tiene una activación
@@ -219,14 +341,9 @@ export async function aiGradeOrEnqueue(
     const { data: claimData } = await (supabase as any).rpc("claim_ai_override_message");
     const claimed = (claimData as { ok?: boolean; reason?: string } | null)?.ok === true;
     if (claimed) {
-      const { data, error } = await supabase.functions.invoke(invokeTarget, {
-        body: req.body,
-      });
-      if (error || data?.error) {
-        const detail = await extractEdgeError(error, data);
-        return { ranSync: true, error: detail || "Error IA" };
-      }
-      return { ranSync: true, aiData: data };
+      // Mismo tratamiento que el sync explícito: el cupo del override ya se
+      // consumió, así que perder este trabajo cuesta doble (gasto + reintento).
+      return runImmediateWithDurableJob(req, invokeTarget);
     }
     // Si el claim falló por cap_reached o expiración, limpiamos el
     // localStorage para que el resto de la UI deje de mostrar el
@@ -240,47 +357,9 @@ export async function aiGradeOrEnqueue(
     // Cae al path async abajo.
   }
 
-  // Async: encolar.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const { data, error } = await (supabase as any).rpc("enqueue_ai_grading", {
-    _kind: req.kind,
-    _invoke_target: invokeTarget,
-    _body: req.body,
-    _target_table: req.target.table,
-    _target_row_id: req.target.rowId,
-    _field_grade: req.target.fieldGrade ?? "ai_grade",
-    _field_feedback: req.target.fieldFeedback ?? "ai_feedback",
-    _field_likelihood: req.target.fieldLikelihood ?? null,
-    _field_reasons: req.target.fieldReasons ?? null,
-    _course_id: req.target.courseId ?? null,
-  });
-  if (error) {
-    return { ranSync: false, error: error.message };
-  }
-  // Audit log fire-and-forget: deja trazo de cada job encolado. El
-  // ciclo de vida posterior (claim/complete/fail/cancel) se loguea
-  // desde el worker y desde el módulo Cron — así el admin puede armar
-  // un timeline completo del job en `audit_logs`.
-  const jobId = data as string;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  void (supabase as any)
-    .rpc("log_audit_event", {
-      p_action: "ai_grading.job_enqueued",
-      p_category: "grading",
-      p_severity: "info",
-      p_entity_type: "ai_grading_queue",
-      p_entity_id: jobId,
-      p_entity_name: req.kind,
-      p_course_id: req.target.courseId ?? null,
-      p_metadata: {
-        kind: req.kind,
-        invoke_target: invokeTarget,
-        target_table: req.target.table,
-        target_row_id: req.target.rowId,
-      },
-    })
-    .then(() => {})
-    .catch(() => {});
+  // Async: solo encolar; la drena el worker (cron o "Procesar ahora").
+  const { jobId, error } = await enqueueGradingJob(req, invokeTarget);
+  if (error) return { ranSync: false, error };
   return { ranSync: false, jobId };
 }
 

@@ -3768,9 +3768,9 @@
   },
   "aiCronPage": {
     "refresh": "Refresh",
-    "title": "AI Cron",
-    "subtitleAdmin": "AI grading and generation queue · Configuration · Supabase scheduled tasks",
-    "subtitleTeacher": "AI grading and generation queue · History",
+    "title": "Queue",
+    "subtitleAdmin": "AI grading and generation · Configuration · Supabase scheduled tasks",
+    "subtitleTeacher": "AI grading and generation · History",
     "tabJobs": "Jobs",
     "tabHistory": "History",
     "tabConfig": "Configuration",

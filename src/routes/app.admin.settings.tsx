@@ -170,7 +170,7 @@ function AdminSettings() {
             {t("hc_routesAppAdminSettings.tabAiModel")}
           </TabsTrigger>
           {/* La tab 'Cola IA' (sync/async + códigos override) se movió al
-              módulo Cron del sidebar. Ahí se centralizan todas las colas
+              módulo Cola del sidebar. Ahí se centralizan todas las colas
               (IA + procesamiento de mensajes) en un solo lugar. */}
           <TabsTrigger value="audit" className="gap-1.5">
             <ScrollText className="h-3.5 w-3.5" />

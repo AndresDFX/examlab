@@ -1,5 +1,5 @@
 /**
- * AiCronPage — vista dedicada del módulo "Cron IA".
+ * AiCronPage — vista dedicada del módulo "Cola".
  *
  * Disponible para Admin (/app/admin/ai-cron) y Docente (/app/teacher/ai-cron).
  * Reemplaza la experiencia condensada del AiGradingQueueWidget en el

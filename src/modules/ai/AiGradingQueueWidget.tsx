@@ -15,7 +15,7 @@
  * Versiones previas tenían la lista expandida con acciones por fila
  * inline; consumían >400px de alto y empujaban el resto de cards del
  * dashboard fuera del viewport. Ese código se trasladó íntegro al
- * módulo Cron (AiQueuePanel en AiCronPage.tsx) — acá solo dejamos
+ * módulo Cola (AiQueuePanel en AiCronPage.tsx) — acá solo dejamos
  * el counter glance + el link.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -101,12 +101,12 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
   });
   /** Rechazos sin acusar dirigidos al usuario actual (created_by = me y
    *  acknowledged_at IS NULL). El docente debe cerrar la conversación
-   *  desde el módulo Cron para que el job pase a historial. Aquí solo
+   *  desde el módulo Cola para que el job pase a historial. Aquí solo
    *  mostramos el contador como banner discreto. */
   const [myRejectedPending, setMyRejectedPending] = useState(0);
   // Lista compacta de jobs activos para llenar el alto del card cuando
   // el dashboard lo estira a viewport-fill. Sin acciones por fila (esas
-  // viven en el módulo Cron); solo un glance de "qué hay pendiente".
+  // viven en el módulo Cola); solo un glance de "qué hay pendiente".
   const [jobs, setJobs] = useState<RecentJob[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -237,7 +237,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
           <>
             {/* Banner de rechazos sin acusar — solo visible para el
                 docente que tiene jobs rechazados pendientes de cerrar.
-                Linkea directo al módulo Cron donde está el banner full
+                Linkea directo al módulo Cola donde está el banner full
                 con razón + botón "Cerrar conversación". */}
             {myRejectedPending > 0 && (
               <Link to={cronModulePath} className="block">
@@ -285,7 +285,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
             {/* Lista compacta de jobs activos — UNA línea por job para
                 máxima densidad. Llena el alto disponible del card
                 (flex-1 + overflow-y-auto). Sin acciones por fila — esas
-                viven en el módulo Cron, accesible vía el link de abajo.
+                viven en el módulo Cola, accesible vía el link de abajo.
                 Si no hay jobs activos, mostramos un mensaje sutil para
                 que el card no se vea vacío. */}
             <div className="flex-1 min-h-0 flex flex-col gap-1 border-t pt-2">

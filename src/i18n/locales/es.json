@@ -3768,9 +3768,9 @@
   },
   "aiCronPage": {
     "refresh": "Refrescar",
-    "title": "Cron IA",
-    "subtitleAdmin": "Cola de calificación y generación IA · Configuración · Tareas programadas Supabase",
-    "subtitleTeacher": "Cola de calificación y generación IA · Historial",
+    "title": "Cola",
+    "subtitleAdmin": "Calificación y generación con IA · Configuración · Tareas programadas Supabase",
+    "subtitleTeacher": "Calificación y generación con IA · Historial",
     "tabJobs": "Jobs",
     "tabHistory": "Historial",
     "tabConfig": "Configuración",
