@@ -24,7 +24,7 @@
  * Page size 0 / null: deshabilita paginación (devuelve todo). Útil para
  * "Ver todo" sin tener que cambiar la API del componente.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 /** Tamaños estándar disponibles en el selector. Usar estos por defecto
  *  para no fragmentar UX entre grids — si un grid necesita un set
@@ -105,17 +105,33 @@ function writePersisted(storageKey: string | undefined, state: PersistedState) {
 export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): PaginationState<T> {
   const { defaultPageSize = 25, pageSizes = DEFAULT_PAGE_SIZES, storageKey, resetKey } = opts;
 
-  // Estado inicial: leer persistido o usar default. Solo lee localStorage
-  // dentro del initializer para no causar mismatches SSR/cliente.
-  const initial = useMemo<PersistedState>(() => {
+  // Estado inicial DETERMINISTA (página 1 + default): NO se lee localStorage
+  // acá. Leerlo en el primer render (initializer o useMemo) hace que el árbol
+  // del cliente difiera del HTML pre-renderizado (que no tiene localStorage) →
+  // `Minified React error #418` (hydration mismatch). Se observó en producción
+  // en /app/student/workshops, una lista paginada con storageKey.
+  // El valor persistido se aplica POST-MOUNT en el efecto de hidratación.
+  const [currentPage, setCurrentPageRaw] = useState<number>(1);
+  const [pageSize, setPageSizeRaw] = useState<number>(defaultPageSize);
+
+  // Bandera de hidratación en ESTADO (no en ref) a propósito: el efecto de
+  // escritura la mira para no correr en el primer commit. Con un ref, la
+  // escritura del primer commit veía page=1/default y pisaba en localStorage el
+  // valor que el usuario tenía guardado (aunque después se re-escribiera el
+  // correcto, un unmount inmediato dejaba el default). React 18 agrupa este
+  // setState con los de abajo → un solo re-render con todo aplicado.
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
     const persisted = readPersisted(storageKey);
-    if (persisted) return persisted;
-    return { page: 1, pageSize: defaultPageSize };
+    if (persisted) {
+      setCurrentPageRaw(persisted.page);
+      setPageSizeRaw(persisted.pageSize);
+    }
+    setHydrated(true);
+    // Solo al montar / si cambia la clave (cambio de vista).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
-
-  const [currentPage, setCurrentPageRaw] = useState<number>(initial.page);
-  const [pageSize, setPageSizeRaw] = useState<number>(initial.pageSize);
 
   const totalItems = items.length;
   const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
@@ -137,10 +153,13 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
 
-  // Persistencia: cada vez que page o pageSize cambia, escribimos.
+  // Persistencia: cada vez que page o pageSize cambia, escribimos. Se salta
+  // hasta que `hydrated` es true para no pisar el valor guardado con el default
+  // del primer render (ver el efecto de hidratación arriba).
   useEffect(() => {
+    if (!hydrated) return;
     writePersisted(storageKey, { page: currentPage, pageSize });
-  }, [storageKey, currentPage, pageSize]);
+  }, [hydrated, storageKey, currentPage, pageSize]);
 
   const setCurrentPage = useCallback(
     (page: number) => {

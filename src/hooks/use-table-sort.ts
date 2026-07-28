@@ -112,17 +112,27 @@ function compareNonEmpty(a: SortValue, b: SortValue): number {
 export function useTableSort<T>(items: T[], opts: UseTableSortOptions<T>): UseTableSortResult<T> {
   const { columns, defaultSort, storageKey } = opts;
 
-  // Estado inicial: persistido o default. Solo se lee localStorage en el
-  // initializer (mismo patrón que usePagination) para no fragmentar UX.
-  const initial = useMemo<PersistedSort>(() => {
+  // Estado inicial DETERMINISTA (el default del grid): NO se lee localStorage
+  // en el primer render. Hacerlo (initializer o useMemo) hace que el árbol del
+  // cliente difiera del HTML pre-renderizado, que no tiene localStorage →
+  // `Minified React error #418`. El orden guardado se aplica POST-MOUNT.
+  // Mismo patrón que usePagination.
+  const [sortKey, setSortKey] = useState<string | null>(defaultSort?.key ?? null);
+  const [sortDir, setSortDir] = useState<SortDir>(defaultSort?.dir ?? "asc");
+
+  // Ver usePagination: la bandera va en ESTADO para que la escritura no corra en
+  // el primer commit y pise el orden guardado con el default.
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
     const persisted = readPersisted(storageKey);
-    if (persisted) return persisted;
-    return { key: defaultSort?.key ?? null, dir: defaultSort?.dir ?? "asc" };
+    if (persisted) {
+      setSortKey(persisted.key);
+      setSortDir(persisted.dir);
+    }
+    setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
-
-  const [sortKey, setSortKey] = useState<string | null>(initial.key);
-  const [sortDir, setSortDir] = useState<SortDir>(initial.dir);
 
   // `columns` se recrea en cada render (objeto literal). Lo guardamos en un
   // ref para no meterlo en las deps del useMemo de orden (evita re-sort por
@@ -143,13 +153,14 @@ export function useTableSort<T>(items: T[], opts: UseTableSortOptions<T>): UseTa
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return; // ver el efecto de hidratación: no pisar lo guardado
     if (!storageKey || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({ key: sortKey, dir: sortDir }));
     } catch {
       /* quota / private mode — ignorar */
     }
-  }, [storageKey, sortKey, sortDir]);
+  }, [hydrated, storageKey, sortKey, sortDir]);
 
   const sorted = useMemo(() => {
     const accessor = sortKey ? columnsRef.current[sortKey] : undefined;

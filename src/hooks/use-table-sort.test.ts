@@ -106,4 +106,39 @@ describe("useTableSort", () => {
     act(() => result.current.toggleSort("name"));
     expect(result.current.resetKey).toBe("name:desc");
   });
+
+  // REGRESIÓN (hidratación / React #418): igual que usePagination — el PRIMER
+  // render debe usar el defaultSort, sin leer localStorage; el orden guardado
+  // se aplica después del mount.
+  it("primer render usa el defaultSort; el orden guardado llega post-mount", () => {
+    const key = "test_sort_hydration";
+    window.localStorage.setItem(key, JSON.stringify({ key: "count", dir: "desc" }));
+
+    const seen: Array<string | null> = [];
+    const { result } = renderHook(() => {
+      const s = useTableSort(ROWS, {
+        columns: COLUMNS,
+        defaultSort: { key: "name", dir: "asc" },
+        storageKey: key,
+      });
+      seen.push(`${s.sortKey}:${s.sortDir}`);
+      return s;
+    });
+
+    expect(seen[0]).toBe("name:asc"); // default determinista
+    expect(`${result.current.sortKey}:${result.current.sortDir}`).toBe("count:desc"); // persistido
+  });
+
+  it("no pisa el orden guardado durante el primer commit", () => {
+    const key = "test_sort_no_clobber";
+    window.localStorage.setItem(key, JSON.stringify({ key: "count", dir: "desc" }));
+    renderHook(() =>
+      useTableSort(ROWS, {
+        columns: COLUMNS,
+        defaultSort: { key: "name", dir: "asc" },
+        storageKey: key,
+      }),
+    );
+    expect(JSON.parse(window.localStorage.getItem(key)!)).toEqual({ key: "count", dir: "desc" });
+  });
 });

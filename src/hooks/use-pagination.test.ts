@@ -117,4 +117,35 @@ describe("usePagination", () => {
     expect(result2.current.currentPage).toBe(1);
     expect(result2.current.paginatedItems).toContain(31);
   });
+
+  // REGRESIÓN (hidratación / React #418): el PRIMER render NO debe leer
+  // localStorage. Si lo hace, el árbol del cliente difiere del HTML
+  // pre-renderizado (que no tiene localStorage) y React tira
+  // "Minified React error #418". Se observó en producción en
+  // /app/student/workshops (lista paginada con storageKey). El valor
+  // persistido debe aplicarse recién DESPUÉS del mount.
+  it("primer render usa el default determinista; el persistido llega post-mount", () => {
+    const key = "test_pag_hydration";
+    window.localStorage.setItem(key, JSON.stringify({ page: 3, pageSize: 50 }));
+
+    const seen: Array<{ page: number; size: number }> = [];
+    const { result } = renderHook(() => {
+      const p = usePagination(seq(200), { defaultPageSize: 10, storageKey: key });
+      seen.push({ page: p.currentPage, size: p.pageSize });
+      return p;
+    });
+
+    // Primer render: default puro, SIN mirar localStorage.
+    expect(seen[0]).toEqual({ page: 1, size: 10 });
+    // Tras los efectos: el pageSize guardado ya está aplicado.
+    expect(result.current.pageSize).toBe(50);
+  });
+
+  it("no pisa el valor guardado durante el primer commit", () => {
+    const key = "test_pag_no_clobber";
+    window.localStorage.setItem(key, JSON.stringify({ page: 2, pageSize: 100 }));
+    renderHook(() => usePagination(seq(500), { defaultPageSize: 10, storageKey: key }));
+    // El pageSize persistido sobrevive (no quedó sobreescrito por el default 10).
+    expect(JSON.parse(window.localStorage.getItem(key)!).pageSize).toBe(100);
+  });
 });
