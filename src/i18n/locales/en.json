@@ -3603,6 +3603,9 @@
       "sharedDisabled": "Code hidden from students",
       "loadSharedError": "We couldn't load the shared status.",
       "toggleSharedError": "The shared mode couldn't be changed"
+    },
+    "modules_ai_grade_submission": {
+      "nothingToGrade": "This submission has nothing the AI can grade (it is empty or only has closed-ended questions). Grade it manually."
     }
   },
   "systemDiagnosticsPanel": {

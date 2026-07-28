@@ -18,6 +18,7 @@
  * Las funciones de armado de `items` son PURAS (sin DB) para poder testearlas
  * sin mocks; `enqueueAiGradeForSubmission` hace las queries y delega en ellas.
  */
+import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
 import { parseV86Answer } from "@/modules/serverconsole/v86-answer";
@@ -262,7 +263,23 @@ export async function enqueueAiGradeForSubmission(opts: {
         (qs ?? []) as WorkshopQuestionRow[],
         (ans ?? []) as WorkshopAnswerRow[],
       );
-      if (items.length === 0) return { ok: true, enqueued: 0 };
+      // Entrega sin nada que calificar (todas las respuestas vacías, o solo
+      // preguntas cerradas que no pasan por IA). Antes devolvía
+      // `{ok:true, enqueued:0}`: un ÉXITO que no hacía nada, así que en
+      // "Calificar todos con IA" la entrega quedaba igual y el docente no tenía
+      // forma de saber por qué. Se reporta como fallo con el motivo para que la
+      // pantalla lo muestre — no es un error del sistema, pero SÍ es algo que
+      // el docente necesita saber (esa entrega hay que calificarla a mano).
+      if (items.length === 0) {
+        return {
+          ok: false,
+          enqueued: 0,
+          error: i18n.t("toast.modules_ai_grade_submission.nothingToGrade", {
+            defaultValue:
+              "La entrega no tiene respuestas que la IA pueda calificar (está vacía o solo trae preguntas cerradas). Califícala manualmente.",
+          }),
+        };
+      }
       const r = await aiGradeOrEnqueue(
         {
           kind: "workshop_full",

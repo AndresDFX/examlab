@@ -578,15 +578,21 @@ Deno.serve(async (req) => {
       courseId: (body as { courseId?: string | null }).courseId ?? null,
       authHeader: req.headers.get("Authorization"),
     });
+    // OJO: esta cadena debe cubrir TODAS las banderas que el handler entiende.
+    // `workshopFullGrading` y `projectFullGrading` faltaban, así que caían al
+    // fallback y se auditaban como `exam_full`: en `audit_logs` una
+    // calificación de TALLER aparecía como si fuera de examen. Costó una
+    // investigación entera creer que el edge moría cuando en realidad estaba
+    // trabajando bien. Si agregás una bandera nueva al handler, agregala acá.
     auditMode = body.batchGrading
       ? "batch"
-      : body.workshopGrading
+      : body.workshopGrading || body.workshopFullGrading
         ? "workshop_full"
         : body.workshopQuestionGrading
           ? "workshop_question"
           : body.workshopCodeZipGrading
             ? "workshop_code_zip"
-            : body.projectGrading
+            : body.projectGrading || body.projectFullGrading
               ? "project_full"
               : body.projectFileGrading
                 ? "project_file"
@@ -879,12 +885,108 @@ Deno.serve(async (req) => {
         throw new Error(`No se pudo persistir ningún resultado: ${persistErrors[0].error}`);
       }
 
+      // ── Consolidar en la CABECERA de la entrega ────────────────────────
+      // WHY: hasta acá solo se escribieron las notas POR PREGUNTA
+      // (`workshop_submission_answers`). Sin consolidar, la fila de
+      // `workshop_submissions` queda con `ai_grade` y `status` intactos, así
+      // que TODA pantalla que mira la entrega —diagnóstico del curso,
+      // gradebook, lista del docente— la sigue mostrando "Entregado · sin
+      // calificar" aunque la IA ya calificó todo.
+      //
+      // Bug reportado (FESNA, taller "Primera interfaz del router"): el docente
+      // daba "Calificar todos con IA", la IA corría BIEN (6 corridas exitosas
+      // en un día, cero fallos en audit_logs) y la pantalla no cambiaba nunca.
+      // Indistinguible de "no hizo nada", y cada reintento volvía a gastar IA.
+      // Solo la pantalla manual del docente consolidaba (client-side, en
+      // app.teacher.workshops.tsx); el diagnóstico, el gradebook y el camino
+      // por cola no. Se hace acá para que valga para TODOS los callers.
+      //
+      // Fórmula idéntica a la de esa pantalla: proporción de puntos ganados
+      // sobre el TOTAL de puntos del taller (las preguntas sin responder
+      // cuentan 0), escalada a `workshops.max_score`.
+      let aggregateError: string | null = null;
+      let aggregatedGrade: number | null = null;
+      try {
+        const { data: subRow } = await adminClient
+          .from("workshop_submissions")
+          .select("workshop_id, status")
+          .eq("id", submissionId)
+          .maybeSingle();
+        const workshopId = (subRow as { workshop_id?: string } | null)?.workshop_id ?? null;
+        const currentStatus = (subRow as { status?: string } | null)?.status ?? null;
+
+        if (workshopId) {
+          const [{ data: qRows }, { data: wsRow }, { data: aRows }] = await Promise.all([
+            adminClient
+              .from("workshop_questions")
+              .select("id, points")
+              .eq("workshop_id", workshopId),
+            adminClient.from("workshops").select("max_score").eq("id", workshopId).maybeSingle(),
+            adminClient
+              .from("workshop_submission_answers")
+              .select("question_id, ai_grade")
+              .eq("submission_id", submissionId),
+          ]);
+
+          const earnedByQid = new Map<string, number>();
+          for (const a of (aRows ?? []) as Array<{ question_id: string; ai_grade: number | null }>) {
+            if (a.ai_grade !== null && a.ai_grade !== undefined) {
+              earnedByQid.set(a.question_id, Number(a.ai_grade) || 0);
+            }
+          }
+
+          let totalPoints = 0;
+          let totalEarned = 0;
+          const questions = (qRows ?? []) as Array<{ id: string; points: number | null }>;
+          for (const q of questions) {
+            const pts = Number(q.points) || 0;
+            totalPoints += pts;
+            totalEarned += Math.max(0, Math.min(pts, earnedByQid.get(q.id) ?? 0));
+          }
+
+          // Si el taller no define escala usable, la escala son los propios
+          // puntos — así no escribimos un 0 espurio.
+          const rawMax = Number((wsRow as { max_score?: number } | null)?.max_score) || 0;
+          const scale = rawMax > 0 ? rawMax : totalPoints;
+          const finalGrade =
+            totalPoints > 0 ? Number(((totalEarned / totalPoints) * scale).toFixed(2)) : 0;
+
+          const summary =
+            wfLang === "en"
+              ? `AI graded ${persisted} of ${questions.length} question(s).`
+              : `La IA calificó ${persisted} de ${questions.length} pregunta(s).`;
+
+          // NUNCA degradar una decisión humana: si el docente ya cerró la
+          // entrega (`calificado`) o la IA la marcó para revisión manual
+          // (`requiere_revision`), se actualiza la nota de IA pero se respeta
+          // el estado. `final_grade` no se toca nunca — es del docente.
+          const patch: Record<string, unknown> = { ai_grade: finalGrade, ai_feedback: summary };
+          if (currentStatus !== "calificado" && currentStatus !== "requiere_revision") {
+            patch.status = "ai_revisado";
+          }
+
+          const { error: aggErr } = await adminClient
+            .from("workshop_submissions")
+            .update(patch)
+            .eq("id", submissionId);
+          if (aggErr) aggregateError = aggErr.message;
+          else aggregatedGrade = finalGrade;
+        }
+      } catch (e) {
+        // Un fallo acá NO invalida la calificación: las notas por pregunta ya
+        // están escritas. Se reporta para que el caller lo vea en vez de que
+        // quede como un silencio más.
+        aggregateError = e instanceof Error ? e.message : String(e);
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
           persistedInternally: true,
           processed: persisted,
+          grade: aggregatedGrade,
           partial_errors: persistErrors.length > 0 ? persistErrors : undefined,
+          aggregate_error: aggregateError ?? undefined,
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );

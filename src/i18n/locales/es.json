@@ -3603,6 +3603,9 @@
       "sharedDisabled": "Código oculto para los alumnos",
       "loadSharedError": "No pudimos cargar el estado de compartido.",
       "toggleSharedError": "No se pudo cambiar el modo compartido"
+    },
+    "modules_ai_grade_submission": {
+      "nothingToGrade": "La entrega no tiene respuestas que la IA pueda calificar (está vacía o solo trae preguntas cerradas). Califícala manualmente."
     }
   },
   "systemDiagnosticsPanel": {
