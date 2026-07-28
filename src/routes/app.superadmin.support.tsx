@@ -17,8 +17,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
-import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
 import {
@@ -77,6 +77,10 @@ function SuperAdminSupportPage() {
   const [tenants, setTenants] = useState<Array<{ id: string; name: string }>>([]);
   const [detailOpen, setDetailOpen] = useState(false);
   const [activeTicket, setActiveTicket] = useState<SupportTicket | null>(null);
+  /** Id del ticket que se está eliminando. El menú de tres puntos se cierra
+   *  al hacer click, así que sin este flag el SA no tenía señal de que el
+   *  RPC estaba corriendo y podía volver a disparar el borrado. */
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   // `silent` evita togglear `loading` durante refrescos por realtime —
   // sin esto el SA veía "Cargando…" en cada update remoto sobre su lista.
@@ -141,8 +145,26 @@ function SuperAdminSupportPage() {
   useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const { data } = await db.from("tenants").select("id, name").is("deleted_at", null).order("name");
+      const { data, error } = await db
+        .from("tenants")
+        .select("id, name")
+        .is("deleted_at", null)
+        .order("name");
       if (cancelled) return;
+      // El error se descartaba: si esta query falla, el filtro por
+      // institución queda vacío sin explicación. No bloquea la bandeja
+      // (los tickets ya cargaron), así que solo avisamos por toast.
+      if (error) {
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("superadminSupport.tenantsLoadFailed", {
+              defaultValue: "No se pudo cargar el filtro de instituciones",
+            }),
+          ),
+        );
+        return;
+      }
       setTenants((data ?? []) as Array<{ id: string; name: string }>);
     })();
     return () => {
@@ -246,17 +268,42 @@ function SuperAdminSupportPage() {
       }),
     });
     if (!ok) return;
-    const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
-    if (error) {
-      toast.error(friendlyError(error, "No se pudo eliminar el ticket"));
-      return;
+    // Guard DESPUÉS del confirm (anti doble-submit del propio borrado): puesto
+    // antes, con otro ticket en vuelo el diálogo no se abría siquiera. Como
+    // corta ante CUALQUIER fila en vuelo, el `disabled` del menú es global.
+    if (deletingId) return;
+    setDeletingId(t.id);
+    try {
+      const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
+      if (error) {
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("superadminSupport.deleteFailed", {
+              defaultValue: "No se pudo eliminar el ticket",
+            }),
+          ),
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("superadminSupport.ticketDeleted", {
+          defaultValue: "Ticket eliminado",
+        }),
+      );
+      await load(true); // silent: la fila ya sale de la lista, sin flicker de skeleton
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("superadminSupport.deleteFailed", {
+            defaultValue: "No se pudo eliminar el ticket",
+          }),
+        ),
+      );
+    } finally {
+      setDeletingId(null);
     }
-    toast.success(
-      i18n.t("superadminSupport.ticketDeleted", {
-        defaultValue: "Ticket eliminado",
-      }),
-    );
-    await load();
   };
 
   if (loadError) {
@@ -348,9 +395,13 @@ function SuperAdminSupportPage() {
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> {t("superadminSupport.loading")}
-            </div>
+            // Skeleton con el shape de la tabla en lugar de un "Cargando…"
+            // suelto: el SA ve de una que viene un listado y no un vacío.
+            <Table fixed>
+              <TableBody>
+                <TableSkeleton cols={6} rows={5} />
+              </TableBody>
+            </Table>
           ) : sort.sorted.length === 0 ? (
             <TableEmpty
               icon={LifeBuoy}
@@ -397,7 +448,12 @@ function SuperAdminSupportPage() {
                 {pagination.paginatedItems.map((t) => (
                   <TableRow
                     key={t.id}
-                    className="cursor-pointer hover:bg-muted/40"
+                    // Fila atenuada mientras su borrado está en vuelo — pista
+                    // visual de que ya se está procesando.
+                    className={`cursor-pointer hover:bg-muted/40 ${
+                      deletingId === t.id ? "opacity-50" : ""
+                    }`}
+                    aria-busy={deletingId === t.id}
                     onClick={() => openDetail(t)}
                   >
                     <TableCell className="font-medium">
@@ -442,6 +498,15 @@ function SuperAdminSupportPage() {
                             icon: Trash2,
                             tone: "destructive",
                             onClick: () => void deleteTicket(t),
+                            // Global: `deleteTicket` serializa (corta ante
+                            // cualquier borrado en vuelo). Con `=== t.id` las
+                            // otras filas quedaban habilitadas y el click no
+                            // hacía nada ni avisaba.
+                            disabled: deletingId !== null,
+                            hint:
+                              deletingId !== null
+                                ? i18n.t("common.processing", { defaultValue: "Procesando…" })
+                                : undefined,
                           },
                         ]}
                       />

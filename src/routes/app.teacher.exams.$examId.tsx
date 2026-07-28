@@ -52,6 +52,7 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
+import { PageLoader } from "@/components/ui/loaders";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -96,6 +97,16 @@ function ExamEditor() {
   const [exam, setExam] = useState<Exam | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Feedback de acciones asíncronas del editor. `savingExam` cubre el
+  // guardado (update + re-asignación + notificación push, varios segundos),
+  // `savingQuestion` el submit del form de pregunta, `movingQuestionId` el
+  // swap de posiciones (3 UPDATEs secuenciales) y `deletingQuestionId` el
+  // borrado. Sin ellos el docente podía disparar el mismo POST N veces.
+  const [savingExam, setSavingExam] = useState(false);
+  const [savingQuestion, setSavingQuestion] = useState(false);
+  const [movingQuestionId, setMovingQuestionId] = useState<string | null>(null);
+  const [deletingQuestionId, setDeletingQuestionId] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
   const [cuts, setCuts] = useState<
     Array<{
       id: string;
@@ -382,6 +393,7 @@ function ExamEditor() {
   }, [examId, retryNonce]);
 
   const saveExam = async () => {
+    if (savingExam) return; // anti doble-submit
     const rawAttempts = (exam as any).max_attempts;
     const normalizedAttempts =
       rawAttempts === null || rawAttempts === "" || rawAttempts === undefined
@@ -479,45 +491,68 @@ function ExamEditor() {
       // comportamiento histórico (notas de apoyo permitidas).
       payload.allow_exam_notes = (exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true;
     }
-    const { error } = await supabase
-      .from("exams")
-      .update(payload as any)
-      .eq("id", examId);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-    if (courseChanged) {
-      // Limpia asignaciones del curso anterior y re-asigna todos los
-      // matriculados del nuevo curso. Idempotente: si vuelves a guardar
-      // sin cambiar curso, no pasa nada (originalCourseId se actualiza
-      // tras el reload).
-      await supabase.from("exam_assignments").delete().eq("exam_id", examId);
-      const { data: enr } = await supabase
-        .from("course_enrollments")
-        .select("user_id")
-        .eq("course_id", newCourseId);
-      const rows = (enr ?? []).map((r: any) => ({ exam_id: examId, user_id: r.user_id }));
-      if (rows.length) await supabase.from("exam_assignments").insert(rows);
+    setSavingExam(true);
+    try {
+      const { error } = await supabase
+        .from("exams")
+        .update(payload as any)
+        .eq("id", examId);
+      if (error) {
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+        return;
+      }
+      if (courseChanged) {
+        // Limpia asignaciones del curso anterior y re-asigna todos los
+        // matriculados del nuevo curso. Idempotente: si vuelves a guardar
+        // sin cambiar curso, no pasa nada (originalCourseId se actualiza
+        // tras el reload).
+        await supabase.from("exam_assignments").delete().eq("exam_id", examId);
+        const { data: enr } = await supabase
+          .from("course_enrollments")
+          .select("user_id")
+          .eq("course_id", newCourseId);
+        const rows = (enr ?? []).map((r: any) => ({ exam_id: examId, user_id: r.user_id }));
+        if (rows.length) {
+          const { error: asgErr } = await supabase.from("exam_assignments").insert(rows);
+          // El examen ya se movió; si la re-asignación falla el docente DEBE
+          // enterarse (sin assignments los alumnos del curso nuevo no lo ven).
+          if (asgErr) {
+            toast.error(
+              t("hc_routesAppTeacherExamsExamId.reassignFailed", {
+                defaultValue: "No se pudieron reasignar los estudiantes: {{error}}",
+                error: friendlyError(asgErr),
+              }),
+            );
+          }
+        }
+      }
+      // Notificar a los estudiantes del curso (nuevo). Para externos no aplica.
+      if (!isExternal) {
+        await supabase.rpc("notify_course_students", {
+          _course_id: newCourseId,
+          _title: courseChanged
+            ? t("hc_routesAppTeacherExamsExamId.notifyMovedTitle")
+            : t("hc_routesAppTeacherExamsExamId.notifyUpdatedTitle"),
+          _body: t("hc_routesAppTeacherExamsExamId.notifyUpdatedBody", { title: exam.title }),
+          _kind: "exam",
+          _link: "/app/student/exams",
+        });
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.examUpdated", {
+          defaultValue: "Examen actualizado correctamente",
+        }),
+      );
+      navigate({ to: "/app/teacher/exams" });
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingExam(false);
     }
-    // Notificar a los estudiantes del curso (nuevo). Para externos no aplica.
-    if (!isExternal) {
-      await supabase.rpc("notify_course_students", {
-        _course_id: newCourseId,
-        _title: courseChanged
-          ? t("hc_routesAppTeacherExamsExamId.notifyMovedTitle")
-          : t("hc_routesAppTeacherExamsExamId.notifyUpdatedTitle"),
-        _body: t("hc_routesAppTeacherExamsExamId.notifyUpdatedBody", { title: exam.title }),
-        _kind: "exam",
-        _link: "/app/student/exams",
-      });
-    }
-    toast.success(
-      i18n.t("toast.routes_app_teacher_exams_examId.examUpdated", {
-        defaultValue: "Examen actualizado correctamente",
-      }),
-    );
-    navigate({ to: "/app/teacher/exams" });
   };
 
   const submitQuestion = async () => {
+    if (savingQuestion) return; // anti doble-submit
     if (!qContent.trim())
       return toast.error(
         i18n.t("toast.routes_app_teacher_exams_examId.contentRequired", {
@@ -604,97 +639,130 @@ function ExamEditor() {
             ? "python"
             : null;
 
-    if (editingId) {
-      // UPDATE: no tocamos position ni starter_code para no clobberar lo que
-      // se haya personalizado. EXCEPCIÓN: si type=java_gui y starter_code
-      // coincide EXACTO con el default del otro framework, asumimos
-      // "template sin tocar" y refrescamos al default del framework
-      // actual. Sin esto, cambiar Swing→JavaFX dejaba `extends JFrame`
-      // con framework=javafx.
-      const existing = questions.find((q) => q.id === editingId);
-      const starterUpdate =
-        qType === "java_gui" && existing
-          ? (() => {
-              const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
-              const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
-              if (existing.starter_code === other) return { starter_code: desired };
-              return null;
-            })()
-          : null;
-      const { error } = await supabase
-        .from("questions")
-        .update({
+    setSavingQuestion(true);
+    try {
+      if (editingId) {
+        // UPDATE: no tocamos position ni starter_code para no clobberar lo que
+        // se haya personalizado. EXCEPCIÓN: si type=java_gui y starter_code
+        // coincide EXACTO con el default del otro framework, asumimos
+        // "template sin tocar" y refrescamos al default del framework
+        // actual. Sin esto, cambiar Swing→JavaFX dejaba `extends JFrame`
+        // con framework=javafx.
+        const existing = questions.find((q) => q.id === editingId);
+        const starterUpdate =
+          qType === "java_gui" && existing
+            ? (() => {
+                const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+                const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
+                if (existing.starter_code === other) return { starter_code: desired };
+                return null;
+              })()
+            : null;
+        const { error } = await supabase
+          .from("questions")
+          .update({
+            type: qType,
+            content: qContent,
+            expected_rubric: qRubric || null,
+            options,
+            points: qPoints,
+            language,
+            ...(starterUpdate ?? {}),
+          })
+          .eq("id", editingId);
+        if (error) {
+          toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.questionUpdated", {
+            defaultValue: "Pregunta actualizada correctamente",
+          }),
+        );
+      } else {
+        const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
+        const { error } = await supabase.from("questions").insert({
+          exam_id: examId,
           type: qType,
           content: qContent,
           expected_rubric: qRubric || null,
           options,
           points: qPoints,
+          position: pos,
           language,
-          ...(starterUpdate ?? {}),
-        })
-        .eq("id", editingId);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-      toast.success(
-        i18n.t("toast.routes_app_teacher_exams_examId.questionUpdated", {
-          defaultValue: "Pregunta actualizada correctamente",
-        }),
-      );
-    } else {
-      const pos = (questions[questions.length - 1]?.position ?? -1) + 1;
-      const { error } = await supabase.from("questions").insert({
-        exam_id: examId,
-        type: qType,
-        content: qContent,
-        expected_rubric: qRubric || null,
-        options,
-        points: qPoints,
-        position: pos,
-        language,
-        starter_code:
-          qType === "java_gui"
-            ? qJavaFramework === "javafx"
-              ? JAVAFX_STARTER
-              : JAVA_GUI_STARTER
-            : qType === "python_gui"
-              ? PYTHON_GUI_STARTER
-              : qType === "codigo"
-                ? getStarterCode(language) || null
-                : null,
-      });
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-      toast.success(
-        i18n.t("toast.routes_app_teacher_exams_examId.questionAdded", {
-          defaultValue: "Pregunta agregada correctamente",
-        }),
-      );
+          starter_code:
+            qType === "java_gui"
+              ? qJavaFramework === "javafx"
+                ? JAVAFX_STARTER
+                : JAVA_GUI_STARTER
+              : qType === "python_gui"
+                ? PYTHON_GUI_STARTER
+                : qType === "codigo"
+                  ? getStarterCode(language) || null
+                  : null,
+        });
+        if (error) {
+          toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.questionAdded", {
+            defaultValue: "Pregunta agregada correctamente",
+          }),
+        );
+      }
+      resetQForm();
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingQuestion(false);
     }
-    resetQForm();
-    load();
   };
 
   const moveQuestion = async (id: string, direction: "up" | "down") => {
+    // El swap son 3 UPDATEs secuenciales con una posición centinela (-1):
+    // dos clicks solapados dejarían dos preguntas en -1 y el orden roto.
+    if (movingQuestionId) return;
     const sorted = [...questions].sort((a, b) => a.position - b.position);
     const idx = sorted.findIndex((q) => q.id === id);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (idx < 0 || target < 0 || target >= sorted.length) return;
     const a = sorted[idx];
     const b = sorted[target];
-    const { error: e1 } = await supabase.from("questions").update({ position: -1 }).eq("id", a.id);
-    if (e1) return toast.error(friendlyError(e1));
-    const { error: e2 } = await supabase
-      .from("questions")
-      .update({ position: a.position })
-      .eq("id", b.id);
-    if (e2) return toast.error(friendlyError(e2));
-    const { error: e3 } = await supabase
-      .from("questions")
-      .update({ position: b.position })
-      .eq("id", a.id);
-    if (e3) return toast.error(friendlyError(e3));
-    load();
+    setMovingQuestionId(id);
+    try {
+      const { error: e1 } = await supabase.from("questions").update({ position: -1 }).eq("id", a.id);
+      if (e1) {
+        toast.error(friendlyError(e1));
+        return;
+      }
+      const { error: e2 } = await supabase
+        .from("questions")
+        .update({ position: a.position })
+        .eq("id", b.id);
+      if (e2) {
+        toast.error(friendlyError(e2));
+        return;
+      }
+      const { error: e3 } = await supabase
+        .from("questions")
+        .update({ position: b.position })
+        .eq("id", a.id);
+      if (e3) {
+        toast.error(friendlyError(e3));
+        return;
+      }
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setMovingQuestionId(null);
+    }
   };
 
   const removeQuestion = async (id: string) => {
+    if (deletingQuestionId) return;
     const ok = await confirm({
       title: t("exam.deleteQuestionTitle"),
       description: t("exam.deleteQuestionBody"),
@@ -702,12 +770,23 @@ function ExamEditor() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await supabase.from("questions").delete().eq("id", id);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-    load();
+    setDeletingQuestionId(id);
+    try {
+      const { error } = await supabase.from("questions").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+        return;
+      }
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingQuestionId(null);
+    }
   };
 
   const generateAI = async () => {
+    if (aiLoading) return; // anti doble-submit del generador IA
     if (!aiTopics.trim())
       return toast.error(
         i18n.t("toast.routes_app_teacher_exams_examId.enterTopics", {
@@ -875,91 +954,164 @@ function ExamEditor() {
           metadata: { total: totalInserted, types: aiTargetRows.map((r) => r.type) },
         });
       }
-      load();
+      await load();
+    } catch (e) {
+      // Un throw del invoke (red caída, timeout del gateway) dejaba el
+      // overlay abierto sin decir qué pasó — el docente esperaba 30-90s
+      // creyendo que seguía generando.
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_exams_examId.unknownError", {
+            defaultValue: "Error desconocido",
+          }),
+        ),
+      );
     } finally {
       setAiLoading(false);
     }
   };
 
   const toggleAssign = async (uid: string, checked: boolean) => {
-    if (checked) {
-      const { error } = await supabase
-        .from("exam_assignments")
-        .insert({ exam_id: examId, user_id: uid });
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-      await supabase.from("notifications").insert({
-        user_id: uid,
-        title: "Examen asignado",
-        body: `Se te ha asignado el examen "${exam.title}"`,
-        kind: "exam",
-        link: "/app/student/exams",
-      });
-      setAssigned(new Set([...assigned, uid]));
-      toast.success(
-        i18n.t("toast.routes_app_teacher_exams_examId.studentAssigned", {
-          defaultValue: "Estudiante asignado correctamente",
-        }),
-      );
-    } else {
-      const { error } = await supabase
-        .from("exam_assignments")
-        .delete()
-        .eq("exam_id", examId)
-        .eq("user_id", uid);
-      if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-      const ns = new Set(assigned);
-      ns.delete(uid);
-      setAssigned(ns);
-      toast.success(
-        i18n.t("toast.routes_app_teacher_exams_examId.assignmentRemoved", {
-          defaultValue: "Asignación removida correctamente",
-        }),
-      );
+    if (assignBusy) return;
+    setAssignBusy(true);
+    try {
+      if (checked) {
+        const { error } = await supabase
+          .from("exam_assignments")
+          .insert({ exam_id: examId, user_id: uid });
+        if (error) {
+          toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+          return;
+        }
+        await supabase.from("notifications").insert({
+          user_id: uid,
+          title: "Examen asignado",
+          body: `Se te ha asignado el examen "${exam.title}"`,
+          kind: "exam",
+          link: "/app/student/exams",
+        });
+        setAssigned(new Set([...assigned, uid]));
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.studentAssigned", {
+            defaultValue: "Estudiante asignado correctamente",
+          }),
+        );
+      } else {
+        const { error } = await supabase
+          .from("exam_assignments")
+          .delete()
+          .eq("exam_id", examId)
+          .eq("user_id", uid);
+        if (error) {
+          toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+          return;
+        }
+        const ns = new Set(assigned);
+        ns.delete(uid);
+        setAssigned(ns);
+        toast.success(
+          i18n.t("toast.routes_app_teacher_exams_examId.assignmentRemoved", {
+            defaultValue: "Asignación removida correctamente",
+          }),
+        );
+      }
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
   };
 
   const assignMany = async (visibleIds: string[]) => {
+    if (assignBusy) return;
     const toAdd = visibleIds.filter((id) => !assigned.has(id));
     if (!toAdd.length) return;
-    const { error } = await supabase
-      .from("exam_assignments")
-      .insert(toAdd.map((id) => ({ exam_id: examId, user_id: id })));
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-    for (const id of toAdd) {
-      await supabase.from("notifications").insert({
-        user_id: id,
-        title: "Examen asignado",
-        body: `Se te ha asignado el examen "${exam.title}"`,
-        kind: "exam",
-        link: "/app/student/exams",
-      });
+    setAssignBusy(true);
+    try {
+      const { error } = await supabase
+        .from("exam_assignments")
+        .insert(toAdd.map((id) => ({ exam_id: examId, user_id: id })));
+      if (error) {
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+        return;
+      }
+      for (const id of toAdd) {
+        await supabase.from("notifications").insert({
+          user_id: id,
+          title: "Examen asignado",
+          body: `Se te ha asignado el examen "${exam.title}"`,
+          kind: "exam",
+          link: "/app/student/exams",
+        });
+      }
+      setAssigned((prev) => new Set([...prev, ...toAdd]));
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.studentsAssigned", {
+          defaultValue: "{{count}} estudiante(s) asignados correctamente",
+          count: toAdd.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
-    setAssigned((prev) => new Set([...prev, ...toAdd]));
-    toast.success(
-      i18n.t("toast.routes_app_teacher_exams_examId.studentsAssigned", {
-        defaultValue: "{{count}} estudiante(s) asignados correctamente",
-        count: toAdd.length,
-      }),
-    );
   };
 
   const unassignMany = async (visibleIds: string[]) => {
+    if (assignBusy) return;
     const toRemove = visibleIds.filter((id) => assigned.has(id));
     if (!toRemove.length) return;
-    for (const id of toRemove) {
-      await supabase.from("exam_assignments").delete().eq("exam_id", examId).eq("user_id", id);
+    setAssignBusy(true);
+    try {
+      // El loop de DELETEs ignoraba por completo los errores: la RLS podía
+      // rechazar todo y el docente veía "N asignaciones removidas" igual.
+      // Ahora quitamos del set SOLO los que realmente se borraron y
+      // mostramos el primer error real (convención de bulk ops).
+      const removed: string[] = [];
+      let firstError: string | null = null;
+      for (const id of toRemove) {
+        const { error } = await supabase
+          .from("exam_assignments")
+          .delete()
+          .eq("exam_id", examId)
+          .eq("user_id", id);
+        if (error) {
+          if (!firstError) firstError = friendlyError(error);
+          continue;
+        }
+        removed.push(id);
+      }
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (firstError) {
+        toast.error(
+          t("hc_routesAppTeacherExamsExamId.unassignPartialError", {
+            defaultValue:
+              "{{removed}} removidas, {{failed}} con error. Primero: {{error}}",
+            removed: removed.length,
+            failed: toRemove.length - removed.length,
+            error: firstError,
+          }),
+          { duration: 12000 },
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_exams_examId.assignmentsRemoved", {
+          defaultValue: "{{count}} asignación(es) removidas correctamente",
+          count: removed.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
-    setAssigned((prev) => {
-      const next = new Set(prev);
-      toRemove.forEach((id) => next.delete(id));
-      return next;
-    });
-    toast.success(
-      i18n.t("toast.routes_app_teacher_exams_examId.assignmentsRemoved", {
-        defaultValue: "{{count}} asignación(es) removidas correctamente",
-        count: toRemove.length,
-      }),
-    );
   };
 
   if (loadError) {
@@ -972,7 +1124,10 @@ function ExamEditor() {
     );
   }
 
-  if (!exam) return <p className="text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.loading")}</p>;
+  // Carga inicial: el editor completo (examen + preguntas + cursos +
+  // matriculados + cortes) tarda varias queries. Un `<p>Cargando…</p>` pelado
+  // deja la pantalla en blanco; PageLoader da el spinner del design system.
+  if (!exam) return <PageLoader text={t("hc_routesAppTeacherExamsExamId.loading")} />;
 
   return (
     <div className="space-y-5">
@@ -1470,7 +1625,14 @@ function ExamEditor() {
                   );
                 })()}
               </div>
-              <Button onClick={saveExam}>{t("hc_routesAppTeacherExamsExamId.saveChanges")}</Button>
+              <Button onClick={saveExam} disabled={savingExam}>
+                {savingExam ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                {t("hc_routesAppTeacherExamsExamId.saveChanges")}
+              </Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1832,8 +1994,15 @@ function ExamEditor() {
                 </div>
               )}
               <div className="flex flex-wrap gap-2">
-                <Button onClick={submitQuestion}>
-                  {editingId ? (
+                <Button onClick={submitQuestion} disabled={savingQuestion}>
+                  {savingQuestion ? (
+                    <>
+                      <Spinner size="sm" className="mr-2" />{" "}
+                      {editingId
+                        ? t("hc_routesAppTeacherExamsExamId.saveChanges")
+                        : t("hc_routesAppTeacherExamsExamId.addQuestion")}
+                    </>
+                  ) : editingId ? (
                     <>
                       <Save className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.saveChanges")}
                     </>
@@ -1844,12 +2013,16 @@ function ExamEditor() {
                   )}
                 </Button>
                 {!editingId && exam?.course_id && (
-                  <Button variant="outline" onClick={() => setBankDialogOpen(true)}>
+                  <Button
+                    variant="outline"
+                    onClick={() => setBankDialogOpen(true)}
+                    disabled={savingQuestion}
+                  >
                     <Library className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.importFromBank")}
                   </Button>
                 )}
                 {editingId && (
-                  <Button variant="outline" onClick={resetQForm}>
+                  <Button variant="outline" onClick={resetQForm} disabled={savingQuestion}>
                     <X className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.cancelEdit")}
                   </Button>
                 )}
@@ -1902,13 +2075,13 @@ function ExamEditor() {
                     <RowAction
                       label={t("hc_routesAppTeacherExamsExamId.actionMoveUp")}
                       icon={ChevronUp}
-                      disabled={i === 0}
+                      disabled={i === 0 || movingQuestionId != null}
                       onClick={() => moveQuestion(q.id, "up")}
                     />
                     <RowAction
                       label={t("hc_routesAppTeacherExamsExamId.actionMoveDown")}
                       icon={ChevronDown}
-                      disabled={i === questions.length - 1}
+                      disabled={i === questions.length - 1 || movingQuestionId != null}
                       onClick={() => moveQuestion(q.id, "down")}
                     />
                     <RowAction
@@ -1920,6 +2093,7 @@ function ExamEditor() {
                       label={t("hc_routesAppTeacherExamsExamId.actionDeleteQuestion")}
                       icon={Trash2}
                       tone="destructive"
+                      disabled={deletingQuestionId != null}
                       onClick={() => removeQuestion(q.id)}
                     />
                   </div>
@@ -1941,6 +2115,10 @@ function ExamEditor() {
                 onToggle={toggleAssign}
                 onSelectAll={assignMany}
                 onDeselectAll={unassignMany}
+                // Los tres handlers arrancan con `if (assignBusy) return`; sin
+                // reflejarlo acá los clics durante el INSERT se descartaban sin
+                // aviso y el alumno quedaba sin el examen asignado.
+                disabled={assignBusy}
                 emptyText={t("hc_routesAppTeacherExamsExamId.noEnrolledStudents")}
                 countNoun={t("hc_routesAppTeacherExamsExamId.assignedNoun")}
               />

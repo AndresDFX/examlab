@@ -226,6 +226,17 @@ function TeacherProjects() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByProject, setAiErrorsByProject] = useState<Record<string, number>>({});
+  // ── Estados de "acción en curso" ──────────────────────────────────────
+  // Anti doble-submit + spinner/disabled mientras la acción corre. Los
+  // `*Id` marcan la fila/entrega concreta; los booleanos, acciones globales.
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openingGroupsId, setOpeningGroupsId] = useState<string | null>(null);
+  const [openingEditId, setOpeningEditId] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
+  const [bulkDeletingSubs, setBulkDeletingSubs] = useState(false);
   // Per-course cut+weight for the project being created/edited.
   // Record<courseId, { cut_id, weight }>
   const [courseCuts, setCourseCuts] = useState<
@@ -339,7 +350,10 @@ function TeacherProjects() {
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await softDeleteMany("projects", ids);
-    if (error) throw new Error(error.message);
+    // `friendlyError` acá y no en el catch del BulkDeleteDialog: envolver el
+    // objeto de Supabase en un Error crudo perdía el SQLSTATE y con él la
+    // traducción, así que el docente veía el mensaje técnico en inglés.
+    if (error) throw new Error(friendlyError(error));
     toast.success(
       i18n.t("toast.routes_app_teacher_projects.bulkSentToTrash", {
         defaultValue: "{{n}} proyecto(s) enviado(s) a papelera",
@@ -423,23 +437,31 @@ function TeacherProjects() {
    * sea de un click — espejo del comportamiento en talleres.
    */
   const openGroupsForProject = async (p: Project) => {
+    if (openingGroupsId) return;
     const mode = (p as any).group_mode ?? "individual";
-    let updated = p;
-    if (mode === "individual") {
-      const { error } = await db
-        .from("projects")
-        .update({ group_mode: "teacher_assigned" })
-        .eq("id", p.id);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
+    setOpeningGroupsId(p.id);
+    try {
+      let updated = p;
+      if (mode === "individual") {
+        const { error } = await db
+          .from("projects")
+          .update({ group_mode: "teacher_assigned" })
+          .eq("id", p.id);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        updated = { ...p, group_mode: "teacher_assigned" } as Project;
+        setProjects((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
+        toast.success(t("project.groupActivated"));
       }
-      updated = { ...p, group_mode: "teacher_assigned" } as Project;
-      setProjects((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
-      toast.success(t("project.groupActivated"));
+      setGroupsProject(updated);
+      setGroupsOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setOpeningGroupsId(null);
     }
-    setGroupsProject(updated);
-    setGroupsOpen(true);
   };
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -855,6 +877,11 @@ function TeacherProjects() {
   };
 
   const openEdit = async (p: Project) => {
+    // El dialog se abre tras cargar los videos introductorios: sin busy el
+    // click quedaba mudo y un doble-click abría el form dos veces.
+    if (openingEditId) return;
+    setOpeningEditId(p.id);
+    try {
     setEditing(p);
     const linked = p.linked_course_ids?.length
       ? p.linked_course_ids
@@ -902,6 +929,11 @@ function TeacherProjects() {
     }
     setCourseCuts(cc);
     setOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setOpeningEditId(null);
+    }
   };
 
   const toggleFormCourse = (courseId: string) => {
@@ -933,6 +965,7 @@ function TeacherProjects() {
   };
 
   const save = async () => {
+    if (saving) return; // anti doble-submit: crea/actualiza + vincula cursos
     const linked = form.linked_course_ids ?? [];
     if (!form.title || linked.length === 0 || !user) {
       toast.error(
@@ -1039,6 +1072,11 @@ function TeacherProjects() {
       if (cid === primaryCourse) payload.weight = requested;
     }
 
+    // A partir de acá empiezan las escrituras (update/insert + vínculos de
+    // curso + videos + auto-assign + notificaciones): varios segundos. El
+    // wrap sin re-indentar sigue el estilo de `load()` en este repo.
+    setSaving(true);
+    try {
     let projectId: string | null = null;
     if (editing) {
       const { error } = await db.from("projects").update(payload).eq("id", editing.id);
@@ -1233,6 +1271,11 @@ function TeacherProjects() {
 
     setOpen(false);
     await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   /**
@@ -1296,6 +1339,7 @@ function TeacherProjects() {
   };
 
   const remove = async (p: Project) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: t("project.deleteTitle", { title: p.title }),
       description: t("project.deleteBody"),
@@ -1303,20 +1347,30 @@ function TeacherProjects() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await softDelete("projects", p.id);
-    if (error) return toast.error(friendlyError(error));
-    toast.success(t("project.deletedToast"));
-    void logEvent({
-      action: "project.deleted",
-      category: "project",
-      actorRole: roles[0],
-      entityType: "project",
-      entityId: p.id,
-      entityName: p.title,
-      courseId: p.course_id,
-      courseName: courses.find((c) => c.id === p.course_id)?.name,
-    });
-    await load();
+    setDeletingId(p.id);
+    try {
+      const { error } = await softDelete("projects", p.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(t("project.deletedToast"));
+      void logEvent({
+        action: "project.deleted",
+        category: "project",
+        actorRole: roles[0],
+        entityType: "project",
+        entityId: p.id,
+        entityName: p.title,
+        courseId: p.course_id,
+        courseName: courses.find((c) => c.id === p.course_id)?.name,
+      });
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const openFilesDialog = (p: Project) => {
@@ -1389,7 +1443,7 @@ function TeacherProjects() {
   })();
 
   const assignByCourse = async (courseId: string) => {
-    if (!assignProject) return;
+    if (!assignProject || assignBusy) return;
     const courseStudents = studentsByCourse.get(courseId);
     if (!courseStudents || !courseStudents.size) {
       toast.info(
@@ -1409,82 +1463,125 @@ function TeacherProjects() {
       return;
     }
     const rows = toAdd.map((uid) => ({ project_id: assignProject.id, user_id: uid }));
-    const { error } = await db.from("project_assignments").insert(rows);
-    if (error) return toast.error(friendlyError(error));
-    setAssigned((prev) => {
-      const next = new Set(prev);
-      for (const uid of toAdd) next.add(uid);
-      return next;
-    });
-    toast.success(
-      i18n.t("toast.routes_app_teacher_projects.studentsAssignedFromCourse", {
-        defaultValue: "{{n}} estudiante(s) asignados del curso",
-        n: toAdd.length,
-      }),
-    );
+    setAssignBusy(true);
+    try {
+      const { error } = await db.from("project_assignments").insert(rows);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        for (const uid of toAdd) next.add(uid);
+        return next;
+      });
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.studentsAssignedFromCourse", {
+          defaultValue: "{{n}} estudiante(s) asignados del curso",
+          n: toAdd.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
+    }
   };
 
   const toggleAssign = async (uid: string) => {
-    if (!assignProject) return;
+    if (!assignProject || assignBusy) return;
     const has = assigned.has(uid);
-    if (has) {
-      const { error } = await db
-        .from("project_assignments")
-        .delete()
-        .eq("project_id", assignProject.id)
-        .eq("user_id", uid);
-      if (error) return toast.error(friendlyError(error));
-      setAssigned((prev) => {
-        const next = new Set(prev);
-        next.delete(uid);
-        return next;
-      });
-    } else {
-      const { error } = await db
-        .from("project_assignments")
-        .insert({ project_id: assignProject.id, user_id: uid });
-      if (error) return toast.error(friendlyError(error));
-      setAssigned((prev) => new Set(prev).add(uid));
+    setAssignBusy(true);
+    try {
+      if (has) {
+        const { error } = await db
+          .from("project_assignments")
+          .delete()
+          .eq("project_id", assignProject.id)
+          .eq("user_id", uid);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        setAssigned((prev) => {
+          const next = new Set(prev);
+          next.delete(uid);
+          return next;
+        });
+      } else {
+        const { error } = await db
+          .from("project_assignments")
+          .insert({ project_id: assignProject.id, user_id: uid });
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        setAssigned((prev) => new Set(prev).add(uid));
+      }
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
   };
 
   const assignMany = async (visibleIds: string[]) => {
-    if (!assignProject) return;
+    if (!assignProject || assignBusy) return;
     const toAdd = visibleIds.filter((id) => !assigned.has(id));
     if (!toAdd.length) return;
     const rows = toAdd.map((id) => ({ project_id: assignProject.id, user_id: id }));
-    const { error } = await db.from("project_assignments").insert(rows);
-    if (error) return toast.error(friendlyError(error));
-    setAssigned((prev) => new Set([...prev, ...toAdd]));
-    toast.success(
-      i18n.t("toast.routes_app_teacher_projects.studentsAssigned", {
-        defaultValue: "{{n}} estudiantes asignados",
-        n: toAdd.length,
-      }),
-    );
+    setAssignBusy(true);
+    try {
+      const { error } = await db.from("project_assignments").insert(rows);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setAssigned((prev) => new Set([...prev, ...toAdd]));
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.studentsAssigned", {
+          defaultValue: "{{n}} estudiantes asignados",
+          n: toAdd.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
+    }
   };
 
   const unassignMany = async (visibleIds: string[]) => {
-    if (!assignProject) return;
+    if (!assignProject || assignBusy) return;
     const toRemove = visibleIds.filter((id) => assigned.has(id));
     if (!toRemove.length) return;
-    const { error } = await db
-      .from("project_assignments")
-      .delete()
-      .eq("project_id", assignProject.id)
-      .in("user_id", toRemove);
-    if (error) return toast.error(friendlyError(error));
-    setAssigned((prev) => {
-      const next = new Set(prev);
-      toRemove.forEach((id) => next.delete(id));
-      return next;
-    });
-    toast.success(
-      i18n.t("toast.routes_app_teacher_projects.assignmentsRemoved", {
-        defaultValue: "{{n}} asignación(es) removidas",
-        n: toRemove.length,
-      }),
-    );
+    setAssignBusy(true);
+    try {
+      const { error } = await db
+        .from("project_assignments")
+        .delete()
+        .eq("project_id", assignProject.id)
+        .in("user_id", toRemove);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setAssigned((prev) => {
+        const next = new Set(prev);
+        toRemove.forEach((id) => next.delete(id));
+        return next;
+      });
+      toast.success(
+        i18n.t("toast.routes_app_teacher_projects.assignmentsRemoved", {
+          defaultValue: "{{n}} asignación(es) removidas",
+          n: toRemove.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
+    }
   };
 
   // ===== Grading dialog =====
@@ -1777,7 +1874,7 @@ function TeacherProjects() {
    */
   const reopenProjectSubmission = async (subId: string) => {
     const sub = gradingSubs.find((s) => s.id === subId);
-    if (!sub) return;
+    if (!sub || reopeningId) return;
     const ok = await confirm({
       title: t("hc_routesAppTeacherProjects.reopenSubmissionTitle"),
       description: t("hc_routesAppTeacherProjects.reopenSubmissionBody"),
@@ -1785,6 +1882,8 @@ function TeacherProjects() {
       tone: "warning",
     });
     if (!ok) return;
+    setReopeningId(subId);
+    try {
     const { error } = await db
       .from("project_submissions")
       .update({
@@ -1837,6 +1936,11 @@ function TeacherProjects() {
         defaultValue: "Entrega reabierta. El estudiante puede reenviar.",
       }),
     );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setReopeningId(null);
+    }
   };
 
   /**
@@ -2236,8 +2340,11 @@ function TeacherProjects() {
     const total = targets.length * gradingFiles.length;
     setBulkProgress({ done: 0, total });
     setBulkRegrading(true);
+    // `done` vive FUERA del try a propósito: el catch reporta "se detuvo en
+    // {{done}} de {{total}}", así que necesita el avance real al momento del
+    // fallo. Declarado adentro quedaba fuera de alcance del catch.
+    let done = 0;
     try {
-      let done = 0;
       for (const sub of targets) {
         for (const f of gradingFiles) {
           // aiRegradeSubFile saltea entregas sin contenido (`Sin contenido
@@ -2257,12 +2364,27 @@ function TeacherProjects() {
         }),
       );
       if (isSubset) gradingSel.clear();
+    } catch (e) {
+      // Cada `aiRegradeSubFile` tostea sus propios errores, pero un throw
+      // (red caída a mitad del lote) cortaba el loop en silencio: el banner
+      // desaparecía y el docente no sabía cuántas quedaron sin recalificar.
+      toast.error(
+        i18n.t("toast.routes_app_teacher_projects.batchRegradePartialError", {
+          defaultValue:
+            "La recalificación se detuvo en {{done}} de {{total}}: {{error}}",
+          done,
+          total,
+          error: friendlyError(e),
+        }),
+        { duration: 12000 },
+      );
     } finally {
       setBulkRegrading(false);
     }
   };
 
   const deleteSubmission = async (sub: Submission) => {
+    if (deletingSubId) return;
     const name = sub.profile?.full_name ?? t("common.empty");
     const ok = await confirm({
       title: t("project.deleteSubmissionTitle", { name }),
@@ -2271,15 +2393,25 @@ function TeacherProjects() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("project_submissions").delete().eq("id", sub.id);
-    if (error) return toast.error(friendlyError(error));
-    setGradingSubs((prev) => prev.filter((s) => s.id !== sub.id));
-    setGradingAnsBySub((prev) => {
-      const next = { ...prev };
-      delete next[sub.id];
-      return next;
-    });
-    toast.success(t("project.submissionDeleted"));
+    setDeletingSubId(sub.id);
+    try {
+      const { error } = await db.from("project_submissions").delete().eq("id", sub.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setGradingSubs((prev) => prev.filter((s) => s.id !== sub.id));
+      setGradingAnsBySub((prev) => {
+        const next = { ...prev };
+        delete next[sub.id];
+        return next;
+      });
+      toast.success(t("project.submissionDeleted"));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingSubId(null);
+    }
   };
 
   /**
@@ -2290,6 +2422,7 @@ function TeacherProjects() {
    * Una sola query `.in("id", ids)` — atómica, una sola RT vs N gets.
    */
   const bulkDeleteSelectedSubmissions = async () => {
+    if (bulkDeletingSubs) return;
     const ids = filteredGradingSubs.filter((s) => gradingSel.isSelected(s.id)).map((s) => s.id);
     if (ids.length === 0) return;
     const ok = await confirm({
@@ -2307,24 +2440,34 @@ function TeacherProjects() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("project_submissions").delete().in("id", ids);
-    if (error) return toast.error(friendlyError(error));
-    const removed = new Set(ids);
-    setGradingSubs((prev) => prev.filter((s) => !removed.has(s.id)));
-    setGradingAnsBySub((prev) => {
-      const next = { ...prev };
-      for (const id of ids) delete next[id];
-      return next;
-    });
-    gradingSel.clear();
-    toast.success(
-      ids.length === 1
-        ? t("project.submissionDeleted")
-        : i18n.t("toast.routes_app_teacher_projects.submissionsDeleted", {
-            defaultValue: "{{n}} entregas eliminadas",
-            n: ids.length,
-          }),
-    );
+    setBulkDeletingSubs(true);
+    try {
+      const { error } = await db.from("project_submissions").delete().in("id", ids);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      const removed = new Set(ids);
+      setGradingSubs((prev) => prev.filter((s) => !removed.has(s.id)));
+      setGradingAnsBySub((prev) => {
+        const next = { ...prev };
+        for (const id of ids) delete next[id];
+        return next;
+      });
+      gradingSel.clear();
+      toast.success(
+        ids.length === 1
+          ? t("project.submissionDeleted")
+          : i18n.t("toast.routes_app_teacher_projects.submissionsDeleted", {
+              defaultValue: "{{n}} entregas eliminadas",
+              n: ids.length,
+            }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setBulkDeletingSubs(false);
+    }
   };
 
   const courseLanguage = (filesProject?.course?.language === "en" ? "en" : "es") as "es" | "en";
@@ -2368,7 +2511,7 @@ function TeacherProjects() {
               resourceName={t("hc_routesAppTeacherProjects.resourceName")}
               onExport={exportProjectsCsv}
             />
-            <Button onClick={openNew} data-tour-id="create-project">
+            <Button onClick={openNew} data-tour-id="create-project" disabled={saving}>
               <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherProjects.newProject")}
             </Button>
           </>
@@ -2566,6 +2709,7 @@ function TeacherProjects() {
                         !p.is_external && {
                           label: t("hc_routesAppTeacherProjects.actionGroups"),
                           icon: UsersRound,
+                          disabled: openingGroupsId != null,
                           onClick: () => openGroupsForProject(p),
                         },
                         {
@@ -2573,7 +2717,12 @@ function TeacherProjects() {
                           icon: ClipboardList,
                           onClick: () => openGradingDialog(p),
                         },
-                        { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(p) },
+                        {
+                          label: t("common.edit"),
+                          icon: Pencil,
+                          disabled: openingEditId != null,
+                          onClick: () => openEdit(p),
+                        },
                         {
                           label: t("hc_routesAppTeacherProjects.actionDuplicate"),
                           icon: Copy,
@@ -2589,6 +2738,7 @@ function TeacherProjects() {
                           icon: Trash2,
                           tone: "destructive",
                           separatorBefore: true,
+                          disabled: deletingId != null,
                           onClick: () => remove(p),
                         },
                       ]}
@@ -3099,10 +3249,17 @@ function TeacherProjects() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={save}>{t("common.save")}</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? (
+                <Spinner size="sm" className="mr-2" />
+              ) : (
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+              )}
+              {t("common.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3208,6 +3365,11 @@ function TeacherProjects() {
             onSelectAll={assignMany}
             onDeselectAll={unassignMany}
             loading={assignLoading}
+            // `loading` es la carga INICIAL de la lista; `disabled` es la
+            // asignación en vuelo. Los handlers arrancan con
+            // `if (assignBusy) return`, así que sin esto los clics se perdían
+            // en silencio y el alumno quedaba sin el proyecto asignado.
+            disabled={assignBusy}
             errorText={assignError}
             emptyText={t("hc_routesAppTeacherProjects.noEnrolledStudents")}
             countNoun={t("hc_routesAppTeacherProjects.assignedNoun")}
@@ -3302,6 +3464,38 @@ function TeacherProjects() {
               maxScore={Number(gradingProject.max_score) || 100}
             />
           )}
+          {/* Banner de progreso PERSISTENTE de la IA. El contador del botón
+              de bulk se pierde de vista al scrollear un modal con 200
+              entregas; acá el docente ve que el proceso sigue vivo (30-90s
+              por archivo) y por qué no debe cerrar la ventana. */}
+          {!gradingProject?.is_external && (bulkRegrading || aiRegradingId != null) && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-start gap-2 rounded-md border border-primary/40 bg-primary/5 p-3"
+            >
+              <Spinner size="md" className="mt-0.5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {bulkRegrading
+                    ? t("hc_routesAppTeacherProjects.aiBusyBulk", {
+                        defaultValue: "Recalificando con IA… {{done}} de {{total}}",
+                        done: bulkProgress.done,
+                        total: bulkProgress.total,
+                      })
+                    : t("hc_routesAppTeacherProjects.aiBusyOne", {
+                        defaultValue: "Recalificando la respuesta con IA…",
+                      })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("hc_routesAppTeacherProjects.aiBusyHint", {
+                    defaultValue:
+                      "Puede tardar entre 30 y 90 segundos por archivo. No cierres esta ventana.",
+                  })}
+                </p>
+              </div>
+            </div>
+          )}
           {!gradingProject?.is_external && gradingLoading && (
             <ListSkeleton rows={3} rowHeight="h-24" />
           )}
@@ -3393,10 +3587,14 @@ function TeacherProjects() {
                       size="sm"
                       variant="outline"
                       onClick={() => void bulkDeleteSelectedSubmissions()}
-                      disabled={bulkRegrading}
+                      disabled={bulkRegrading || bulkDeletingSubs}
                       className="text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/30"
                     >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      {bulkDeletingSubs ? (
+                        <Spinner size="sm" className="mr-1" />
+                      ) : (
+                        <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      )}
                       {t("hc_routesAppTeacherProjects.deleteWithCount", { count: gradingSel.count })}
                     </Button>
                   )}
@@ -3516,8 +3714,13 @@ function TeacherProjects() {
                               variant="ghost"
                               className="text-destructive"
                               onClick={() => deleteSubmission(sub)}
+                              disabled={deletingSubId === sub.id}
                             >
-                              <Trash2 className="h-3.5 w-3.5 mr-1" />{" "}
+                              {deletingSubId === sub.id ? (
+                                <Spinner size="sm" className="mr-1" />
+                              ) : (
+                                <Trash2 className="h-3.5 w-3.5 mr-1" />
+                              )}{" "}
                               {t("hc_routesAppTeacherProjects.deleteSubmission")}
                             </Button>
                           </div>
@@ -3773,7 +3976,11 @@ function TeacherProjects() {
                                 variant="outline"
                                 className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
                                 onClick={() => reopenProjectSubmission(sub.id)}
+                                disabled={reopeningId === sub.id}
                               >
+                                {reopeningId === sub.id && (
+                                  <Spinner size="sm" className="mr-1" />
+                                )}
                                 {t("hc_routesAppTeacherProjects.reopenSubmissionButton")}
                               </Button>
                             </div>
@@ -3907,6 +4114,10 @@ function DefensePanel({
       }
       setVideoUrl(path);
       toast.success(i18n.t("toast.routes_app_teacher_projects.defenseVideoUploaded"));
+    } catch (e) {
+      // Un throw del upload (red caída, archivo ilegible) se perdía sin
+      // ningún aviso: el spinner paraba y el video no quedaba adjunto.
+      toast.error(friendlyError(e));
     } finally {
       setUploadingVideo(false);
     }
@@ -4080,6 +4291,10 @@ function DefensePanel({
                   videoUrl,
                   subGradeChanged ? subGradeNumRaw : undefined,
                 );
+              } catch (e) {
+                // `saveDefense` toastea los errores de Supabase, pero un
+                // throw (red caída) llegaba acá y se perdía en silencio.
+                toast.error(friendlyError(e));
               } finally {
                 setSaving(false);
               }

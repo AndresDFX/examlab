@@ -62,6 +62,7 @@ import {
   Copy,
   UserX,
   UserCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
@@ -203,7 +204,25 @@ function AdminUsers() {
   const [viewPwLoading, setViewPwLoading] = useState(false);
   const [viewPwReveal, setViewPwReveal] = useState(false);
   const [importing, setImporting] = useState(false);
+  // Progreso del import masivo (filas procesadas / total). Alimenta el
+  // LoadingOverlay con barra + "N de M" — el import de ~90 usuarios tarda
+  // minutos y sin números el admin no distingue "avanzando" de "trabado".
+  const [importProgress, setImportProgress] = useState<{ done: number; total: number } | null>(
+    null,
+  );
+  // Reporte del último import: se muestra en un dialog con el detalle POR
+  // FILA (email + motivo). El toast solo alcanza para los primeros 3.
+  const [importReport, setImportReport] = useState<{
+    ok: number;
+    duplicates: { email: string; reason?: string }[];
+    errors: { email: string; reason?: string }[];
+  } | null>(null);
   const [savingUser, setSavingUser] = useState(false);
+  // Ids con una acción de fila en vuelo — habilitan anti doble-submit +
+  // spinner/disabled en el ítem del menú correspondiente.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingActiveId, setTogglingActiveId] = useState<string | null>(null);
+  const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -247,6 +266,9 @@ function AdminUsers() {
     Array<{ id: string; name: string; period: string | null }>
   >([]);
   const [coursesForBulkImportLoaded, setCoursesForBulkImportLoaded] = useState(false);
+  // Feedback mientras el dropdown trae los cursos: sin esto el Select se abría
+  // vacío durante el fetch y parecía "no hay cursos".
+  const [coursesForBulkImportLoading, setCoursesForBulkImportLoading] = useState(false);
   // El filtro de institución solo debe aparecer cuando el usuario está
   // ACTIVAMENTE actuando como SuperAdmin (no por solo tener el rol). Un
   // usuario con SuperAdmin + Admin que cambia a Admin con el role-switcher
@@ -269,6 +291,16 @@ function AdminUsers() {
   useEffect(() => {
     if (profile?.tenant_id) myTenantIdRef.current = profile.tenant_id;
   }, [profile?.tenant_id]);
+  // El grid se recarga desde muchos handlers (crear/editar/eliminar/importar)
+  // y varios corren largo. Sin este guard, un setState de una respuesta que
+  // llega tarde cae sobre un componente ya desmontado.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
   const confirm = useConfirm();
   // Guard "cambios sin guardar" para el dialog crear/editar usuario.
   // Agrupa los campos editables del form (el objeto `editing` + los
@@ -378,27 +410,75 @@ function AdminUsers() {
     // Sequential (no Promise.all) — la edge ya audita por cada borrado
     // y queremos respetar rate-limit del Admin API de Supabase.
     let okCount = 0;
-    const failed: string[] = [];
-    for (const id of ids) {
-      const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
-        body: { userId: id },
-      });
-      const respError = (data as { error?: string } | null)?.error;
-      if (edgeErr || respError) {
-        failed.push(id);
-        console.warn("[bulk delete] failed for", id, respError ?? edgeErr?.message);
-      } else {
-        okCount += 1;
+    // Guardamos el MOTIVO por fila (no solo el id): el toast de "N con error"
+    // sin causa dejaba al admin sin pista de por qué falló (bug recurrente
+    // documentado en CLAUDE.md — "mostrar el PRIMER error real").
+    const failed: { id: string; label: string; reason: string }[] = [];
+    const labelOf = (id: string) => {
+      const row = rows.find((r) => r.id === id);
+      return row ? `${row.full_name} (${row.institutional_email})` : id;
+    };
+    // El borrado es secuencial: para 30 usuarios son ~30 invokes. El dialog ya
+    // deshabilita su botón, pero sin progreso el admin no sabe si avanza.
+    const progressId = toast.loading(
+      i18n.t("toast.routes_app_admin_users.bulkDeleteProgress", {
+        defaultValue: "Eliminando {{done}}/{{total}}…",
+        done: 0,
+        total: ids.length,
+      }),
+    );
+    try {
+      for (const [idx, id] of ids.entries()) {
+        let reason: string | null = null;
+        try {
+          const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
+            body: { userId: id },
+          });
+          const respError = (data as { error?: string } | null)?.error;
+          if (edgeErr || respError) {
+            reason =
+              respError ??
+              friendlyError(edgeErr, t("hc_routesAppAdminUsers.userDeleteError"));
+          }
+        } catch (e) {
+          // Un throw (red/timeout) NO debe abortar el lote: se registra la
+          // fila como fallida y seguimos con las demás.
+          reason = friendlyError(e, t("hc_routesAppAdminUsers.userDeleteError"));
+        }
+        if (reason) {
+          failed.push({ id, label: labelOf(id), reason });
+        } else {
+          okCount += 1;
+        }
+        toast.loading(
+          i18n.t("toast.routes_app_admin_users.bulkDeleteProgress", {
+            defaultValue: "Eliminando {{done}}/{{total}}…",
+            done: idx + 1,
+            total: ids.length,
+          }),
+          { id: progressId },
+        );
       }
+    } finally {
+      toast.dismiss(progressId);
     }
     if (failed.length === ids.length) {
-      throw new Error(t("hc_routesAppAdminUsers.bulkDeleteNoneError"));
+      // Todo falló: el BulkDeleteDialog espera un throw para dejar el dialog
+      // abierto. Incluimos el motivo real de la primera fila.
+      throw new Error(
+        `${t("hc_routesAppAdminUsers.bulkDeleteNoneError")} — "${failed[0].label}": ${failed[0].reason}`,
+      );
     }
     void logEvent({
       action: "user.bulk_deleted",
       category: "user",
       severity: "warning",
-      metadata: { count: okCount, total: ids.length, failed_count: failed.length },
+      metadata: {
+        count: okCount,
+        total: ids.length,
+        failed_count: failed.length,
+        first_error: failed[0]?.reason ?? null,
+      },
     });
     if (failed.length === 0) {
       toast.success(
@@ -409,12 +489,22 @@ function AdminUsers() {
       );
     } else {
       toast.warning(
-        i18n.t("toast.routes_app_admin_users.bulkDeletePartial", {
-          defaultValue:
-            "{{ok}} usuario(s) eliminados, {{failed}} fallaron — revisá la consola para detalles.",
+        // Clave nueva a propósito: la vieja (`bulkDeletePartial`) decía
+        // "revisá la consola para detalles" y ahora el motivo va en el
+        // `description` del propio toast.
+        i18n.t("toast.routes_app_admin_users.bulkDeletePartialDetailed", {
+          defaultValue: "{{ok}} usuario(s) eliminados, {{failed}} fallaron.",
           ok: okCount,
           failed: failed.length,
         }),
+        {
+          duration: 14000,
+          // Detalle por fila (primeras 3) — la causa real, no un conteo pelado.
+          description: failed
+            .slice(0, 3)
+            .map((f) => `${f.label}: ${f.reason}`)
+            .join(" | "),
+        },
       );
     }
     sel.clear();
@@ -442,18 +532,24 @@ function AdminUsers() {
     setViewPwValue(null);
     setViewPwReveal(false);
     setViewPwLoading(true);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any)
-      .from("admin_visible_passwords")
-      .select("password")
-      .eq("user_id", r.id)
-      .maybeSingle();
-    setViewPwLoading(false);
-    if (error) {
-      toast.error(friendlyError(error, t("hc_routesAppAdminUsers.passwordLoadError")));
-      return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("admin_visible_passwords")
+        .select("password")
+        .eq("user_id", r.id)
+        .maybeSingle();
+      if (error) {
+        toast.error(friendlyError(error, t("hc_routesAppAdminUsers.passwordLoadError")));
+        return;
+      }
+      setViewPwValue((data as { password?: string } | null)?.password ?? null);
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_routesAppAdminUsers.passwordLoadError")));
+    } finally {
+      // Sin el finally, un throw dejaba el dialog congelado en "Cargando…".
+      if (mountedRef.current) setViewPwLoading(false);
     }
-    setViewPwValue((data as { password?: string } | null)?.password ?? null);
   };
 
   const copyViewPassword = async () => {
@@ -474,7 +570,37 @@ function AdminUsers() {
     }
   };
 
+  /** Copia el reporte del import al portapapeles — el admin suele necesitar
+   *  pegarlo en un ticket / hoja para corregir el CSV fila por fila. */
+  const copyImportReport = async () => {
+    if (!importReport) return;
+    const lines: string[] = [
+      `${t("adminUsers.importReportOk", { defaultValue: "Importados" })}: ${importReport.ok}`,
+      `${t("adminUsers.importReportDuplicates", { defaultValue: "Ya existían" })}: ${importReport.duplicates.length}`,
+      `${t("adminUsers.importReportErrors", { defaultValue: "Con error" })}: ${importReport.errors.length}`,
+      "",
+      ...importReport.errors.map((f) => `[error] ${f.email} — ${f.reason ?? ""}`),
+      ...importReport.duplicates.map((d) => `[duplicado] ${d.email}`),
+    ];
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      toast.success(
+        t("adminUsers.importReportCopied", { defaultValue: "Detalle copiado al portapapeles" }),
+      );
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_admin_users.copyFailed", {
+            defaultValue: "No se pudo copiar",
+          }),
+        ),
+      );
+    }
+  };
+
   const handleImpersonate = async (r: Row) => {
+    if (impersonatingId) return; // anti doble-submit
     if (r.roles.includes("Admin")) {
       toast.error(
         i18n.t("toast.routes_app_admin_users.cannotImpersonateAdmin", {
@@ -490,11 +616,16 @@ function AdminUsers() {
       tone: "warning",
     });
     if (!ok) return;
+    setImpersonatingId(r.id);
     try {
       await startImpersonate(r.id);
       // startImpersonate dispara window.location.href → no llegamos aquí.
     } catch (e) {
       toast.error(friendlyError(e, t("hc_routesAppAdminUsers.impersonateStartError")));
+    } finally {
+      // En el camino feliz el navegador ya está redirigiendo; en el de error
+      // hay que devolver la acción al menú.
+      if (mountedRef.current) setImpersonatingId(null);
     }
   };
 
@@ -502,6 +633,7 @@ function AdminUsers() {
   // + espejo is_active + conteo de licencia). La autz fina la re-valida la edge;
   // acá solo confirmamos y mostramos feedback.
   const handleSetActive = async (r: Row, active: boolean) => {
+    if (togglingActiveId) return; // anti doble-submit
     const ok = await confirm({
       title: active
         ? t("adminUsers.reactivateTitle", {
@@ -525,6 +657,7 @@ function AdminUsers() {
       tone: active ? "warning" : "destructive",
     });
     if (!ok) return;
+    setTogglingActiveId(r.id);
     try {
       const { data, error } = await supabase.functions.invoke("admin-set-user-active", {
         body: { userId: r.id, active },
@@ -566,6 +699,8 @@ function AdminUsers() {
           }),
         ),
       );
+    } finally {
+      if (mountedRef.current) setTogglingActiveId(null);
     }
   };
 
@@ -576,65 +711,99 @@ function AdminUsers() {
   const loadEpochRef = useRef(0);
   const load = async () => {
     const myEpoch = ++loadEpochRef.current;
+    // stale = esta corrida ya fue superada por otra (el SA cambió de
+    // institución) o el componente se desmontó. En ambos casos abortamos
+    // sin tocar el state.
+    const stale = () => !mountedRef.current || loadEpochRef.current !== myEpoch;
     setLoading(true);
     setLoadError(null);
-    // SuperAdmin con filtro de institución activo: aplicamos
-    // `.eq('tenant_id', X)` a la query. Antes el filtro era puramente en
-    // memoria — funcionaba pero traía TODO el dataset cross-tenant. Ahora
-    // es funcional: el dataset llega ya filtrado por la institución
-    // elegida. Para "Todas" mantenemos el comportamiento original (sin
-    // restricción adicional; la RLS de SuperAdmin permite cross-tenant).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = supabase.from("profiles").select("*").order("full_name");
-    if (isSuperAdminCaller && tenantFilter !== "all") {
-      // "none" = usuarios huérfanos sin institución asignada (tenant_id IS
-      // NULL). Útil para que el SuperAdmin detecte profiles sueltos antes
-      // de asignarles tenant, o post-SSO sin provisión completa.
-      if (tenantFilter === "none") {
-        q = q.is("tenant_id", null);
-      } else {
-        q = q.eq("tenant_id", tenantFilter);
+    try {
+      // SuperAdmin con filtro de institución activo: aplicamos
+      // `.eq('tenant_id', X)` a la query. Antes el filtro era puramente en
+      // memoria — funcionaba pero traía TODO el dataset cross-tenant. Ahora
+      // es funcional: el dataset llega ya filtrado por la institución
+      // elegida. Para "Todas" mantenemos el comportamiento original (sin
+      // restricción adicional; la RLS de SuperAdmin permite cross-tenant).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = supabase.from("profiles").select("*").order("full_name");
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        // "none" = usuarios huérfanos sin institución asignada (tenant_id IS
+        // NULL). Útil para que el SuperAdmin detecte profiles sueltos antes
+        // de asignarles tenant, o post-SSO sin provisión completa.
+        if (tenantFilter === "none") {
+          q = q.is("tenant_id", null);
+        } else {
+          q = q.eq("tenant_id", tenantFilter);
+        }
       }
+      const { data: profs, error: profsErr } = await q;
+      if (stale()) return;
+      if (profsErr) {
+        setLoadError(friendlyError(profsErr, t("hc_routesAppAdminUsers.usersLoadError")));
+        return;
+      }
+      const { data: rs, error: rsErr } = await supabase
+        .from("user_roles")
+        .select("user_id, role");
+      if (stale()) return;
+      const grouped = new Map<string, AppRole[]>();
+      (rs ?? []).forEach((r: any) => {
+        const arr = grouped.get(r.user_id) ?? [];
+        arr.push(r.role);
+        grouped.set(r.user_id, arr);
+      });
+      // Programas activos (best-effort — si la migración no se aplicó, el
+      // dropdown queda vacío pero el form no se rompe: programa_id es opcional).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: progs, error: progsErr } = await (supabase as any)
+        .from("academic_programs")
+        .select("id, name")
+        .eq("active", true)
+        .order("name");
+      if (stale()) return;
+      // Tenants visibles (RLS-filtrado): Admin ve solo el suyo; SuperAdmin
+      // ve todos. Solo expone el filtro cuando hay >1 institución cargada.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: tens, error: tensErr } = await (supabase as any)
+        .from("tenants")
+        .select("id, slug, name")
+        .is("deleted_at", null)
+        .order("name");
+      if (stale()) return;
+      // Commit final: todos los setStates juntos al cierre, una sola
+      // corrida ganadora.
+      setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
+      setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
+      setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
+      // Las 3 queries secundarias fallaban en SILENCIO: sin roles el grid
+      // pinta a todos "sin rol" y el filtro por rol no matchea nada; sin
+      // tenants el SuperAdmin pierde el filtro y la columna Institución.
+      // Un aviso agregado (no 3 toasts) le dice al admin que lo que ve
+      // está incompleto en vez de dejarlo concluir que se borraron datos.
+      const partial: string[] = [];
+      if (rsErr) partial.push(t("common.roles", { defaultValue: "Roles" }));
+      if (progsErr) partial.push(t("adminUsers.fieldPrograma", { defaultValue: "Programa" }));
+      if (tensErr) partial.push(t("adminUsers.colInstitution", { defaultValue: "Institución" }));
+      if (partial.length > 0) {
+        toast.warning(
+          t("adminUsers.partialLoadWarning", {
+            fields: partial.join(", "),
+            defaultValue:
+              "Los usuarios cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+          }),
+          { duration: 10000 },
+        );
+      }
+    } catch (e) {
+      // Un throw (red caída / sesión inválida) debe terminar en el
+      // ErrorState con "Reintentar", no en un grid vacío sin explicación.
+      if (stale()) return;
+      setLoadError(friendlyError(e, t("hc_routesAppAdminUsers.usersLoadError")));
+    } finally {
+      // Solo la corrida vigente apaga el spinner: si otra la superó, ESA
+      // es la dueña del flag.
+      if (!stale()) setLoading(false);
     }
-    const { data: profs, error: profsErr } = await q;
-    if (loadEpochRef.current !== myEpoch) return; // stale — superado
-    if (profsErr) {
-      setLoadError(friendlyError(profsErr, t("hc_routesAppAdminUsers.usersLoadError")));
-      setLoading(false);
-      return;
-    }
-    const { data: rs } = await supabase.from("user_roles").select("user_id, role");
-    if (loadEpochRef.current !== myEpoch) return;
-    const grouped = new Map<string, AppRole[]>();
-    (rs ?? []).forEach((r: any) => {
-      const arr = grouped.get(r.user_id) ?? [];
-      arr.push(r.role);
-      grouped.set(r.user_id, arr);
-    });
-    // Programas activos (best-effort — si la migración no se aplicó, el
-    // dropdown queda vacío pero el form no se rompe: programa_id es opcional).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: progs } = await (supabase as any)
-      .from("academic_programs")
-      .select("id, name")
-      .eq("active", true)
-      .order("name");
-    if (loadEpochRef.current !== myEpoch) return;
-    // Tenants visibles (RLS-filtrado): Admin ve solo el suyo; SuperAdmin
-    // ve todos. Solo expone el filtro cuando hay >1 institución cargada.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: tens } = await (supabase as any)
-      .from("tenants")
-      .select("id, slug, name")
-      .is("deleted_at", null)
-      .order("name");
-    if (loadEpochRef.current !== myEpoch) return;
-    // Commit final: todos los setStates juntos al cierre, una sola
-    // corrida ganadora.
-    setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
-    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
-    setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -863,6 +1032,7 @@ function AdminUsers() {
 
   const saveProfile = async () => {
     if (!editing) return;
+    if (savingUser) return; // anti doble-submit (Enter + click sobre Guardar)
     if (!editing.full_name.trim() || !editing.institutional_email.trim()) {
       toast.error(
         i18n.t("toast.routes_app_admin_users.nameAndEmailRequired", {
@@ -1216,12 +1386,23 @@ function AdminUsers() {
       setDialogOpen(false);
       setEditing(null);
       load();
+    } catch (e) {
+      // Antes solo había try/finally: cualquier throw (red caída, invoke que
+      // rechaza, RLS que revienta) apagaba el spinner SIN decir nada y el
+      // admin creía que había guardado.
+      toast.error(
+        friendlyError(
+          e,
+          t("adminUsers.saveUserError", { defaultValue: "No se pudo guardar el usuario" }),
+        ),
+      );
     } finally {
-      setSavingUser(false);
+      if (mountedRef.current) setSavingUser(false);
     }
   };
 
   const remove = async (r: Row) => {
+    if (deletingId) return; // anti doble-submit
     const ok = await confirm({
       title: t("users.deleteTitle", { name: r.full_name }),
       description: t("users.deleteBody"),
@@ -1229,34 +1410,45 @@ function AdminUsers() {
       tone: "destructive",
     });
     if (!ok) return;
-    // Delete via edge `admin-delete-user` que usa service_role para
-    // borrar de `auth.users` — eso CASCADEA a `profiles` + `user_roles`
-    // + todas las tablas con FK ON DELETE CASCADE a auth.users(id).
-    // Antes hacíamos `delete from profiles` directo desde el cliente,
-    // pero `auth.users` quedaba huérfana y al re-crear con el mismo
-    // email `check_email_taken` reportaba colisión.
-    const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
-      body: { userId: r.id },
-    });
-    const respError = (data as { error?: string } | null)?.error;
-    if (edgeErr || respError) {
-      // El primer respError es el mensaje friendly que viene de la edge.
-      // Si no llegó, traducimos el error técnico del transport con friendlyError.
-      toast.error(respError ?? friendlyError(edgeErr, t("hc_routesAppAdminUsers.userDeleteError")));
-      return;
+    setDeletingId(r.id);
+    try {
+      // Delete via edge `admin-delete-user` que usa service_role para
+      // borrar de `auth.users` — eso CASCADEA a `profiles` + `user_roles`
+      // + todas las tablas con FK ON DELETE CASCADE a auth.users(id).
+      // Antes hacíamos `delete from profiles` directo desde el cliente,
+      // pero `auth.users` quedaba huérfana y al re-crear con el mismo
+      // email `check_email_taken` reportaba colisión.
+      const { data, error: edgeErr } = await supabase.functions.invoke("admin-delete-user", {
+        body: { userId: r.id },
+      });
+      const respError = (data as { error?: string } | null)?.error;
+      if (edgeErr || respError) {
+        // El primer respError es el mensaje friendly que viene de la edge.
+        // Si no llegó, traducimos el error técnico del transport con friendlyError.
+        toast.error(
+          respError ?? friendlyError(edgeErr, t("hc_routesAppAdminUsers.userDeleteError")),
+        );
+        return;
+      }
+      toast.success(t("users.deletedToast"));
+      void logEvent({
+        action: "user.deleted",
+        category: "user",
+        actorRole: roles[0],
+        severity: "warning",
+        entityType: "user",
+        entityId: r.id,
+        entityName: r.full_name,
+        metadata: { email: r.institutional_email },
+      });
+      load();
+    } catch (e) {
+      // Un throw del invoke (red/timeout) dejaba la fila intacta sin ningún
+      // mensaje — el admin volvía a clickear sin saber qué pasó.
+      toast.error(friendlyError(e, t("hc_routesAppAdminUsers.userDeleteError")));
+    } finally {
+      if (mountedRef.current) setDeletingId(null);
     }
-    toast.success(t("users.deletedToast"));
-    void logEvent({
-      action: "user.deleted",
-      category: "user",
-      actorRole: roles[0],
-      severity: "warning",
-      entityType: "user",
-      entityId: r.id,
-      entityName: r.full_name,
-      metadata: { email: r.institutional_email },
-    });
-    load();
   };
 
   const exportUsersCsv = (): string => {
@@ -1275,36 +1467,63 @@ function AdminUsers() {
   // ve cross-tenant pero ese flujo no aplica acá (el bulk import siempre
   // va al tenant del caller, no cross-tenant).
   const loadCoursesForBulkImport = async () => {
-    // SuperAdmin con filtro de institución activo: ahora amarramos el
-    // selector de "curso por defecto" al `tenantFilter`. Si el SA eligió
-    // un tenant arriba, solo le mostramos los cursos de ESE tenant — no
-    // tiene sentido ofrecer "Programación II" del tenant A cuando el
-    // import va al tenant B. Para Admin normal, RLS ya acota; el filtro
-    // no se renderiza así que tenantFilter queda en "all" y el query
-    // funciona como antes.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    let q: any = (supabase as any)
-      .from("courses")
-      .select("id, name, period")
-      .is("deleted_at", null)
-      .order("created_at", { ascending: false })
-      .limit(500);
-    if (isSuperAdminCaller && tenantFilter !== "all") {
-      if (tenantFilter === "none") {
-        // "Sin institución" — no hay cursos huérfanos de tenant. Vaciamos.
-        setCoursesForBulkImport([]);
-        setCoursesForBulkImportLoaded(true);
+    if (coursesForBulkImportLoading) return;
+    setCoursesForBulkImportLoading(true);
+    try {
+      // SuperAdmin con filtro de institución activo: ahora amarramos el
+      // selector de "curso por defecto" al `tenantFilter`. Si el SA eligió
+      // un tenant arriba, solo le mostramos los cursos de ESE tenant — no
+      // tiene sentido ofrecer "Programación II" del tenant A cuando el
+      // import va al tenant B. Para Admin normal, RLS ya acota; el filtro
+      // no se renderiza así que tenantFilter queda en "all" y el query
+      // funciona como antes.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let q: any = (supabase as any)
+        .from("courses")
+        .select("id, name, period")
+        .is("deleted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(500);
+      if (isSuperAdminCaller && tenantFilter !== "all") {
+        if (tenantFilter === "none") {
+          // "Sin institución" — no hay cursos huérfanos de tenant. Vaciamos.
+          setCoursesForBulkImport([]);
+          setCoursesForBulkImportLoaded(true);
+          return;
+        }
+        q = q.eq("tenant_id", tenantFilter);
+      }
+      const { data, error } = await q;
+      if (!mountedRef.current) return;
+      if (error) {
+        // Antes el error se descartaba en silencio: el dropdown quedaba
+        // "sin cursos" y el admin concluía que el tenant no tenía ninguno.
+        toast.error(
+          friendlyError(
+            error,
+            t("adminUsers.bulkImportCoursesLoadError", {
+              defaultValue: "No se pudieron cargar los cursos para el import",
+            }),
+          ),
+        );
         return;
       }
-      q = q.eq("tenant_id", tenantFilter);
-    }
-    const { data, error } = await q;
-    if (!error) {
       setCoursesForBulkImport(
         (data ?? []) as Array<{ id: string; name: string; period: string | null }>,
       );
+      setCoursesForBulkImportLoaded(true);
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          t("adminUsers.bulkImportCoursesLoadError", {
+            defaultValue: "No se pudieron cargar los cursos para el import",
+          }),
+        ),
+      );
+    } finally {
+      if (mountedRef.current) setCoursesForBulkImportLoading(false);
     }
-    setCoursesForBulkImportLoaded(true);
   };
 
   // Re-load cuando cambia el tenantFilter (SuperAdmin) para que el
@@ -1349,16 +1568,13 @@ function AdminUsers() {
       type ImportResult = { email: string; ok: boolean; reason?: string; duplicate?: boolean };
       const CHUNK_SIZE = 15;
       const results: ImportResult[] = [];
-      const progressId = toast.loading(
-        i18n.t("toast.routes_app_admin_users.importProgress", {
-          defaultValue: "Importando {{done}}/{{total}}…",
-          done: 0,
-          total: rows.length,
-        }),
-      );
-      try {
-        for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
-          const chunk = rows.slice(i, i + CHUNK_SIZE);
+      // El progreso vive en el LoadingOverlay (barra + "N de M"): es el
+      // proceso más largo de la app (~1s por usuario) y el overlay ya bloquea
+      // la pantalla, así que ahí es donde el admin mira.
+      setImportProgress({ done: 0, total: rows.length });
+      for (let i = 0; i < rows.length; i += CHUNK_SIZE) {
+        const chunk = rows.slice(i, i + CHUNK_SIZE);
+        try {
           const { data, error } = await supabase.functions.invoke("bulk-import-users", {
             body: {
               rows: chunk,
@@ -1385,17 +1601,26 @@ function AdminUsers() {
           } else {
             results.push(...((data?.result ?? []) as ImportResult[]));
           }
-          toast.loading(
-            i18n.t("toast.routes_app_admin_users.importProgress", {
-              defaultValue: "Importando {{done}}/{{total}}…",
-              done: Math.min(i + chunk.length, rows.length),
-              total: rows.length,
-            }),
-            { id: progressId },
-          );
+        } catch (e) {
+          // `invoke` puede RECHAZAR (red caída a mitad del lote). Antes el
+          // throw escapaba del loop y se perdían los chunks ya importados de
+          // la vista: el admin veía "Error importando" sin saber cuántos
+          // habían entrado. Ahora la falla se registra por fila y seguimos.
+          const detail = friendlyError(e, t("hc_routesAppAdminUsers.bulkImportError"));
+          for (const r of chunk) {
+            results.push({
+              email: (r.institutional_email as string) ?? "(sin email)",
+              ok: false,
+              reason: detail,
+            });
+          }
         }
-      } finally {
-        toast.dismiss(progressId);
+        if (mountedRef.current) {
+          setImportProgress({
+            done: Math.min(i + chunk.length, rows.length),
+            total: rows.length,
+          });
+        }
       }
       const ok = results.filter((r) => r.ok).length;
       const duplicates = results.filter((r) => !r.ok && r.duplicate);
@@ -1409,6 +1634,14 @@ function AdminUsers() {
           }),
         );
       } else {
+        // Reporte COMPLETO por fila en un dialog — el toast solo cabe 3 y el
+        // caso real (CSV de ~90 alumnos) deja decenas de filas con motivos
+        // distintos que el admin necesita para corregir el archivo.
+        setImportReport({
+          ok,
+          duplicates: duplicates.map((d) => ({ email: d.email, reason: d.reason })),
+          errors: otherFails.map((f) => ({ email: f.email, reason: f.reason })),
+        });
         toast.warning(
           i18n.t("toast.routes_app_admin_users.importPartial", {
             defaultValue:
@@ -1419,23 +1652,9 @@ function AdminUsers() {
           }),
           {
             duration: 12000,
-            description:
-              duplicates.length > 0
-                ? t("hc_routesAppAdminUsers.importAlreadyExisted", {
-                    emails: duplicates
-                      .slice(0, 5)
-                      .map((d) => d.email)
-                      .join(", "),
-                  }) +
-                  (duplicates.length > 5
-                    ? t("hc_routesAppAdminUsers.importAndMore", {
-                        count: duplicates.length - 5,
-                      })
-                    : "")
-                : otherFails
-                    .slice(0, 3)
-                    .map((f) => `${f.email}: ${f.reason}`)
-                    .join(" | "),
+            description: t("adminUsers.importSeeReport", {
+              defaultValue: "Abrí el detalle para ver el motivo de cada fila.",
+            }),
           },
         );
       }
@@ -1443,8 +1662,16 @@ function AdminUsers() {
       // Devolvemos "" para evitar el toast.success genérico de
       // ImportExportMenu — ya tosteamos success/warning con detalle.
       return "";
+    } catch (e) {
+      // Red de seguridad: cualquier throw inesperado se muestra en español
+      // (y devolvemos "" para no duplicar el toast del ImportExportMenu).
+      toast.error(friendlyError(e, t("hc_routesAppAdminUsers.bulkImportError")));
+      return "";
     } finally {
-      setImporting(false);
+      if (mountedRef.current) {
+        setImporting(false);
+        setImportProgress(null);
+      }
     }
   };
 
@@ -1475,7 +1702,21 @@ function AdminUsers() {
       {importing && (
         <LoadingOverlay
           title={t("adminUsers.importingTitle")}
-          subtitle={t("adminUsers.importingSubtitle")}
+          subtitle={
+            importProgress && importProgress.total > 0
+              ? t("adminUsers.importingProgressSubtitle", {
+                  done: importProgress.done,
+                  total: importProgress.total,
+                  defaultValue:
+                    "Procesando {{done}} de {{total}}. Puede tomar varios minutos: no cierres esta pestaña.",
+                })
+              : t("adminUsers.importingSubtitle")
+          }
+          progress={
+            importProgress && importProgress.total > 0
+              ? importProgress.done / importProgress.total
+              : undefined
+          }
         />
       )}
       <PageHeader
@@ -1514,11 +1755,20 @@ function AdminUsers() {
                     {c.period ? ` · ${c.period}` : ""}
                   </SelectItem>
                 ))}
-                {coursesForBulkImportLoaded && coursesForBulkImport.length === 0 && (
-                  <div className="px-2 py-1.5 text-xs text-muted-foreground">
-                    {t("adminUsers.bulkImportNoCourses")}
+                {/* Carga lazy: sin este estado el dropdown se abría vacío
+                    durante el fetch y parecía "no hay cursos". */}
+                {coursesForBulkImportLoading && (
+                  <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-center gap-2">
+                    <Spinner size="xs" /> {t("common.loading", { defaultValue: "Cargando…" })}
                   </div>
                 )}
+                {!coursesForBulkImportLoading &&
+                  coursesForBulkImportLoaded &&
+                  coursesForBulkImport.length === 0 && (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">
+                      {t("adminUsers.bulkImportNoCourses")}
+                    </div>
+                  )}
               </SelectContent>
             </Select>
             <ImportExportMenu
@@ -1641,12 +1891,10 @@ function AdminUsers() {
 
       <Card>
         <CardContent className="p-0">
-          {loading ? (
-            <div className="p-4">
-              <TableSkeleton rows={6} cols={5} />
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
+          {/* El skeleton de carga va DENTRO del <TableBody> (antes estaba en
+              un <div>, lo que anida <tr> fuera de una tabla) para que el
+              encabezado quede visible y el shape no salte al llegar la data. */}
+          <div className="overflow-x-auto">
               {/* table-fixed: emails y nombres largos truncan. */}
               <Table fixed resizable>
                 <TableHeader>
@@ -1708,7 +1956,10 @@ function AdminUsers() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredRows.length === 0 && (
+                  {loading && (
+                    <TableSkeleton rows={6} cols={showTenantUI ? 9 : 8} />
+                  )}
+                  {!loading && filteredRows.length === 0 && (
                     <TableEmpty
                       colSpan={showTenantUI ? 9 : 8}
                       icon={UsersIcon}
@@ -1732,7 +1983,7 @@ function AdminUsers() {
                       }
                     />
                   )}
-                  {pagination.paginatedItems.map((r) => (
+                  {!loading && pagination.paginatedItems.map((r) => (
                     <TableRow key={r.id} data-state={sel.isSelected(r.id) ? "selected" : undefined}>
                       <TableCell className="w-10">
                         <MultiSelectCheckbox id={r.id} state={sel} />
@@ -1743,6 +1994,13 @@ function AdminUsers() {
                             <span className="truncate" title={r.full_name}>
                               {r.full_name}
                             </span>
+                            {/* Las acciones de fila (eliminar / activar / iniciar
+                                como) corren desde el menú, que se cierra al
+                                clickear: sin este spinner la fila no daba
+                                ninguna señal de que algo está corriendo. */}
+                            {(deletingId === r.id ||
+                              togglingActiveId === r.id ||
+                              impersonatingId === r.id) && <Spinner size="xs" />}
                             {r.is_active === false && (
                               <Badge variant="destructive" className="text-[10px] shrink-0">
                                 {t("adminUsers.inactiveBadge", { defaultValue: "Inactivo" })}
@@ -1815,7 +2073,11 @@ function AdminUsers() {
                               return {
                                 label: t("adminUsers.actionImpersonate"),
                                 icon: LogIn,
-                                hint: t("adminUsers.actionImpersonateHint", { name: r.full_name }),
+                                disabled: impersonatingId !== null,
+                                hint:
+                                  impersonatingId !== null
+                                    ? t("common.processing", { defaultValue: "Procesando…" })
+                                    : t("adminUsers.actionImpersonateHint", { name: r.full_name }),
                                 onClick: () => void handleImpersonate(r),
                                 // Pinta el ícono con el primary del tenant
                                 // actual (ya aplicado al theme via
@@ -1852,6 +2114,11 @@ function AdminUsers() {
                                   : t("common.deactivate", { defaultValue: "Desactivar" }),
                                 icon: inactive ? UserCheck : UserX,
                                 tone: inactive ? undefined : ("destructive" as const),
+                                disabled: togglingActiveId !== null,
+                                hint:
+                                  togglingActiveId !== null
+                                    ? t("common.processing", { defaultValue: "Procesando…" })
+                                    : undefined,
                                 onClick: () => void handleSetActive(r, inactive),
                               };
                             })(),
@@ -1860,7 +2127,12 @@ function AdminUsers() {
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
-                              onClick: () => remove(r),
+                              disabled: deletingId !== null,
+                              hint:
+                                deletingId !== null
+                                  ? t("common.processing", { defaultValue: "Procesando…" })
+                                  : undefined,
+                              onClick: () => void remove(r),
                             },
                           ]}
                         />
@@ -1869,8 +2141,7 @@ function AdminUsers() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          )}
+          </div>
           <DataPagination state={pagination} entityNamePlural={t("adminUsers.paginationEntity")} />
         </CardContent>
       </Card>
@@ -2211,8 +2482,10 @@ function AdminUsers() {
               {t("common.cancel")}
             </Button>
             <Button onClick={saveProfile} disabled={savingUser}>
-              {savingUser && <Spinner size="md" className="mr-1" />}
-              {t("common.save")}
+              {savingUser && <Spinner size="sm" className="mr-2" />}
+              {savingUser
+                ? t("common.saving", { defaultValue: "Guardando…" })
+                : t("common.save")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -2227,6 +2500,101 @@ function AdminUsers() {
         extraWarning={t("adminUsers.bulkDeleteWarning")}
         onConfirm={handleBulkDelete}
       />
+
+      {/* Detalle del último import masivo: una fila por usuario que NO entró,
+          con el motivo real. El toast solo alcanza para 3 líneas y el caso
+          real (CSV de decenas de alumnos) necesita la lista completa para
+          poder corregir el archivo y reintentar. */}
+      <Dialog open={!!importReport} onOpenChange={(o) => !o && setImportReport(null)}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              {t("adminUsers.importReportTitle", { defaultValue: "Detalle del import" })}
+            </DialogTitle>
+          </DialogHeader>
+          {importReport && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="rounded-md border p-2">
+                  <p className="text-lg font-semibold tabular-nums">{importReport.ok}</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("adminUsers.importReportOk", { defaultValue: "Importados" })}
+                  </p>
+                </div>
+                <div className="rounded-md border p-2">
+                  <p className="text-lg font-semibold tabular-nums">
+                    {importReport.duplicates.length}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("adminUsers.importReportDuplicates", { defaultValue: "Ya existían" })}
+                  </p>
+                </div>
+                <div className="rounded-md border p-2">
+                  <p className="text-lg font-semibold tabular-nums">
+                    {importReport.errors.length}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    {t("adminUsers.importReportErrors", { defaultValue: "Con error" })}
+                  </p>
+                </div>
+              </div>
+              {importReport.errors.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-1">
+                    {t("adminUsers.importReportErrorsTitle", {
+                      defaultValue: "Filas que no se pudieron crear",
+                    })}
+                  </p>
+                  <div className="max-h-64 overflow-y-auto rounded-md border divide-y">
+                    {importReport.errors.map((f, i) => (
+                      <div key={`${f.email}-${i}`} className="px-3 py-1.5 text-xs">
+                        <span className="font-medium break-all">{f.email}</span>
+                        <span className="text-muted-foreground">
+                          {" — "}
+                          {f.reason ?? t("common.unknownError", { defaultValue: "Error desconocido" })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {importReport.duplicates.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-1">
+                    {t("adminUsers.importReportDuplicatesTitle", {
+                      defaultValue: "Correos que ya existían (no se duplicaron)",
+                    })}
+                  </p>
+                  <div className="max-h-40 overflow-y-auto rounded-md border divide-y">
+                    {importReport.duplicates.map((d, i) => (
+                      <div
+                        key={`${d.email}-${i}`}
+                        className="px-3 py-1.5 text-xs break-all text-muted-foreground"
+                      >
+                        {d.email}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => void copyImportReport()}
+              disabled={!importReport}
+            >
+              <Copy className="h-4 w-4 mr-1" />
+              {t("common.copy", { defaultValue: "Copiar" })}
+            </Button>
+            <Button onClick={() => setImportReport(null)}>
+              {t("common.close", { defaultValue: "Cerrar" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Ver contraseña temporal asignada (admin_visible_passwords). */}
       <Dialog

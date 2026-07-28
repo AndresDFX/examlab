@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useCallback, useMemo } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
 import i18n from "@/i18n";
@@ -15,7 +15,8 @@ import { SearchInput } from "@/components/ui/search-input";
 import { RowAction } from "@/components/ui/row-action";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { ErrorState } from "@/components/ui/empty-state";
+import { ErrorState, EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { ClipboardList, RefreshCw } from "lucide-react";
 import {
@@ -216,6 +217,20 @@ function Gradebook() {
   const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
+  // Progreso de "Guardar cambios": el guardado es un loop SECUENCIAL de
+  // updates (puede ser 90+ alumnos × N columnas). Sin contador el docente
+  // no distingue "está trabajando" de "se colgó".
+  const [saveProgress, setSaveProgress] = useState<{ done: number; total: number } | null>(null);
+  // Carga de los datos del curso (grilla + consolidado). Antes NO existía:
+  // mientras `loadCourse` corría (14 queries) la pantalla quedaba vacía sin
+  // spinner, y si una query fallaba quedaba vacía PARA SIEMPRE sin error.
+  const [loadingCourse, setLoadingCourse] = useState(false);
+  // Error de la carga de datos del curso. Separado de `loadError` (que es el
+  // de la LISTA de cursos y pinta la página completa): así el docente
+  // conserva el selector de curso y puede reintentar o cambiar de curso.
+  const [courseDataError, setCourseDataError] = useState<string | null>(null);
+  // Progreso de la emisión masiva de certificados (loop secuencial de RPCs).
+  const [bulkProgress, setBulkProgress] = useState<{ done: number; total: number } | null>(null);
   // Cuál corte tiene abierto el modal de "Ver detalle"
   const [detailCutId, setDetailCutId] = useState<string | null>(null);
   // Cuál estudiante tiene abierto el modal anidado "detalle por estudiante"
@@ -234,11 +249,21 @@ function Gradebook() {
   // Carga certificados activos del curso (refresh tras emitir)
   const reloadCertificates = useCallback(async () => {
     if (!courseId) return;
-    const { data, error } = await db
-      .from("certificates")
-      .select("*")
-      .eq("course_id", courseId)
-      .is("revoked_at", null);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let data: any = null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let error: any = null;
+    try {
+      const res = await db
+        .from("certificates")
+        .select("*")
+        .eq("course_id", courseId)
+        .is("revoked_at", null);
+      data = res.data;
+      error = res.error;
+    } catch (e) {
+      error = e;
+    }
     if (error) {
       toast.error(friendlyError(error));
       return;
@@ -255,20 +280,23 @@ function Gradebook() {
     void reloadCertificates();
   }, [reloadCertificates]);
 
-  // Load courses
+  // Load courses. Guard `cancelled` + catch: antes era un `.then()` suelto,
+  // así que un rechazo de la promesa (red caída, sesión expirada) no entraba
+  // por la rama `error` y la pantalla quedaba sin cursos y sin mensaje.
   useEffect(() => {
-    supabase
-      .from("courses")
-      .select(
-        "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status",
-      )
-      .is("deleted_at", null)
-      .order("name")
-      .then(({ data, error }) => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("courses")
+          .select(
+            "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status",
+          )
+          .is("deleted_at", null)
+          .order("name");
+        if (cancelled) return;
         if (error) {
-          setLoadError(
-            friendlyError(error, t("hc_routesAppTeacherGradebook.couldNotLoadCourses")),
-          );
+          setLoadError(friendlyError(error, t("hc_routesAppTeacherGradebook.couldNotLoadCourses")));
           return;
         }
         setLoadError(null);
@@ -276,21 +304,68 @@ function Gradebook() {
         const rows = (data ?? []) as unknown as Course[];
         setCourses(rows);
         if (rows[0]) setCourseId(rows[0].id);
-      });
+      } catch (e) {
+        if (cancelled) return;
+        setLoadError(friendlyError(e, t("hc_routesAppTeacherGradebook.couldNotLoadCourses")));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
+
+  // Guard de staleness/desmontaje: el docente cambia de curso rápido y
+  // `loadCourse` también se llama imperativamente (tras guardar notas). Sin
+  // el seq/mounted check una carga vieja podía pisar los datos de la nueva
+  // o hacer setState sobre un componente desmontado.
+  const loadSeqRef = useRef(0);
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   // Load data for selected course
   const loadCourse = useCallback(async () => {
     if (!courseId) return;
+    const seq = ++loadSeqRef.current;
+    const stale = () => !mountedRef.current || loadSeqRef.current !== seq;
 
+    // TODA query de esta carga pasa por `must`: si falla, LANZA. Antes cada
+    // una destructuraba solo `{ data }` e IGNORABA `error`, así que un fallo
+    // de RLS / red / columna inexistente dejaba la grilla vacía sin spinner
+    // y sin mensaje ("intentó cargar las calificaciones pero no lo hizo ni
+    // me dio el error"). Ahora sube al catch → ErrorState con el motivo.
+    const must = async <T,>(
+      label: string,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      query: PromiseLike<{ data: T[] | null; error: any }>,
+    ): Promise<T[]> => {
+      const { data, error } = await query;
+      if (error) {
+        throw Object.assign(new Error(`${label}: ${error.message ?? String(error)}`), {
+          code: error.code,
+          details: error.details,
+        });
+      }
+      return data ?? [];
+    };
+
+    setLoadingCourse(true);
+    try {
     // Exams (incluye cut_id para el consolidado de cortes)
-    const { data: examsRaw } = await (supabase as any)
-      .from("exams")
-      .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode, status")
-      .eq("course_id", courseId)
-      .is("deleted_at", null)
-      .order("start_time");
+    const examsRaw = await must<Exam>(
+      "exams",
+      (supabase as any)
+        .from("exams")
+        .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode, status")
+        .eq("course_id", courseId)
+        .is("deleted_at", null)
+        .order("start_time"),
+    );
     // Excluir borradores (status='draft') — igual que app.student.grades.tsx.
     // Un examen en borrador no tiene entregas → score null → computeWeightedGrade
     // lo cuenta como 0 con su peso, arrastrando la nota final HACIA ABAJO. El
@@ -305,12 +380,15 @@ function Gradebook() {
     // proyectos de abajo. Cargar por workshops.course_id (ancla legacy)
     // dejaba un taller compartido invisible (sin columna ni nota) en el
     // curso secundario.
-    const { data: wcData } = await db
-      .from("workshop_courses")
-      .select(
-        "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status)",
-      )
-      .eq("course_id", courseId);
+    const wcData = await must<any>(
+      "workshop_courses",
+      db
+        .from("workshop_courses")
+        .select(
+          "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status)",
+        )
+        .eq("course_id", courseId),
+    );
     const workshops = (wcData ?? [])
       .filter(
         (wc: any) =>
@@ -325,22 +403,28 @@ function Gradebook() {
       }));
 
     // Cortes evaluativos
-    const { data: cutsData } = await db
-      .from("grade_cuts")
-      .select(
-        "id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
-      )
-      .eq("course_id", courseId)
-      .order("position");
+    const cutsData = await must<Cut>(
+      "grade_cuts",
+      db
+        .from("grade_cuts")
+        .select(
+          "id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+        )
+        .eq("course_id", courseId)
+        .order("position"),
+    );
 
     // Proyectos: query via project_courses para incluir secundarios y usar
     // cut_id/weight por curso en vez del global de projects.
-    const { data: pcData } = await db
-      .from("project_courses")
-      .select(
-        "cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at, status)",
-      )
-      .eq("course_id", courseId);
+    const pcData = await must<any>(
+      "project_courses",
+      db
+        .from("project_courses")
+        .select(
+          "cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at, status)",
+        )
+        .eq("course_id", courseId),
+    );
     const projectsData = (pcData ?? [])
       .filter(
         (pc: any) =>
@@ -357,12 +441,16 @@ function Gradebook() {
     // Sesiones de asistencia. cut_id es el FK explícito al corte
     // (migración 20260509020000). Si llega null, la sesión no aporta a
     // ningún corte — comportamiento intencional del docente.
-    const { data: sessions } = await db
-      .from("attendance_sessions")
-      .select("id, session_date, cut_id")
-      .eq("course_id", courseId)
-      .is("deleted_at", null);
+    const sessions = await must<AttSession>(
+      "attendance_sessions",
+      db
+        .from("attendance_sessions")
+        .select("id, session_date, cut_id")
+        .eq("course_id", courseId)
+        .is("deleted_at", null),
+    );
 
+    if (stale()) return;
     setAllExams((exams ?? []) as Exam[]);
     setAllWorkshops((workshops ?? []) as Workshop[]);
     setCuts((cutsData ?? []) as Cut[]);
@@ -404,18 +492,22 @@ function Gradebook() {
     setColumns([...examCols, ...wsCols, ...prjCols]);
 
     // Students
-    const { data: enr } = await supabase
-      .from("course_enrollments")
-      .select("user_id")
-      .eq("course_id", courseId);
+    const enr = await must<any>(
+      "course_enrollments",
+      supabase.from("course_enrollments").select("user_id").eq("course_id", courseId),
+    );
     const userIds = (enr ?? []).map((r: any) => r.user_id);
 
     if (userIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email, personal_email, cohorte")
-        .in("id", userIds)
-        .order("full_name");
+      const profs = await must<any>(
+        "profiles",
+        supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email, personal_email, cohorte")
+          .in("id", userIds)
+          .order("full_name"),
+      );
+      if (stale()) return;
       setStudents((profs ?? []) as Student[]);
     } else {
       setStudents([]);
@@ -424,10 +516,14 @@ function Gradebook() {
     // Exam submissions
     const examIds = (exams ?? []).map((e: any) => e.id);
     if (examIds.length) {
-      const { data: es } = await supabase
-        .from("submissions")
-        .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
-        .in("exam_id", examIds);
+      const es = await must<any>(
+        "submissions",
+        supabase
+          .from("submissions")
+          .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
+          .in("exam_id", examIds),
+      );
+      if (stale()) return;
       setExamSubs((es ?? []) as ExamSub[]);
     } else {
       setExamSubs([]);
@@ -436,28 +532,36 @@ function Gradebook() {
     // Workshop submissions
     const wsIds = (workshops ?? []).map((w: any) => w.id);
     if (wsIds.length) {
-      const { data: ws } = await supabase
-        .from("workshop_submissions")
-        .select("id, workshop_id, user_id, group_id, ai_grade, final_grade, status")
-        .in("workshop_id", wsIds);
+      const ws = await must<any>(
+        "workshop_submissions",
+        supabase
+          .from("workshop_submissions")
+          .select("id, workshop_id, user_id, group_id, ai_grade, final_grade, status")
+          .in("workshop_id", wsIds),
+      );
+      if (stale()) return;
       setWsSubs((ws ?? []) as WsSub[]);
       // Membresía de grupos de estos talleres → userId → set(group_id).
       const wsMap = new Map<string, Set<string>>();
-      const { data: wgroups } = await (supabase as any)
-        .from("workshop_groups")
-        .select("id")
-        .in("workshop_id", wsIds);
+      const wgroups = await must<any>(
+        "workshop_groups",
+        (supabase as any).from("workshop_groups").select("id").in("workshop_id", wsIds),
+      );
       const wgIds = ((wgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
       if (wgIds.length) {
-        const { data: wmembers } = await (supabase as any)
-          .from("workshop_group_members")
-          .select("group_id, user_id")
-          .in("group_id", wgIds);
+        const wmembers = await must<any>(
+          "workshop_group_members",
+          (supabase as any)
+            .from("workshop_group_members")
+            .select("group_id, user_id")
+            .in("group_id", wgIds),
+        );
         for (const m of (wmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
           if (!wsMap.has(m.user_id)) wsMap.set(m.user_id, new Set());
           wsMap.get(m.user_id)!.add(m.group_id);
         }
       }
+      if (stale()) return;
       setWsGroupsByUser(wsMap);
     } else {
       setWsSubs([]);
@@ -467,27 +571,35 @@ function Gradebook() {
     // Project submissions (todos los estudiantes)
     const prjIds = ((projectsData ?? []) as Project[]).map((p) => p.id);
     if (prjIds.length && userIds.length) {
-      const { data: ps } = await db
-        .from("project_submissions")
-        .select("project_id, user_id, group_id, ai_grade, final_grade, status")
-        .in("project_id", prjIds);
+      const ps = await must<ProjectSub>(
+        "project_submissions",
+        db
+          .from("project_submissions")
+          .select("project_id, user_id, group_id, ai_grade, final_grade, status")
+          .in("project_id", prjIds),
+      );
+      if (stale()) return;
       setProjectSubs((ps ?? []) as ProjectSub[]);
       const prjMap = new Map<string, Set<string>>();
-      const { data: pgroups } = await (db as any)
-        .from("project_groups")
-        .select("id")
-        .in("project_id", prjIds);
+      const pgroups = await must<any>(
+        "project_groups",
+        (db as any).from("project_groups").select("id").in("project_id", prjIds),
+      );
       const pgIds = ((pgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
       if (pgIds.length) {
-        const { data: pmembers } = await (db as any)
-          .from("project_group_members")
-          .select("group_id, user_id")
-          .in("group_id", pgIds);
+        const pmembers = await must<any>(
+          "project_group_members",
+          (db as any)
+            .from("project_group_members")
+            .select("group_id, user_id")
+            .in("group_id", pgIds),
+        );
         for (const m of (pmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
           if (!prjMap.has(m.user_id)) prjMap.set(m.user_id, new Set());
           prjMap.get(m.user_id)!.add(m.group_id);
         }
       }
+      if (stale()) return;
       setPrjGroupsByUser(prjMap);
     } else {
       setProjectSubs([]);
@@ -497,20 +609,42 @@ function Gradebook() {
     // Attendance records (todas las sesiones del curso)
     const sessIds = ((sessions ?? []) as AttSession[]).map((s) => s.id);
     if (sessIds.length && userIds.length) {
-      const { data: ar } = await db
-        .from("attendance_records")
-        .select("session_id, user_id, status")
-        .in("session_id", sessIds);
+      const ar = await must<AttRecord>(
+        "attendance_records",
+        db
+          .from("attendance_records")
+          .select("session_id, user_id, status")
+          .in("session_id", sessIds),
+      );
+      if (stale()) return;
       setAttRecords((ar ?? []) as AttRecord[]);
     } else {
       setAttRecords([]);
     }
 
+    if (stale()) return;
+    setCourseDataError(null);
     setEdits({});
-  }, [courseId]);
+    } catch (e) {
+      if (stale()) return;
+      // El motivo real (tabla + mensaje de Postgres) va al `hint` del
+      // ErrorState; el título lleva la traducción amigable. Antes esto no
+      // existía: el fallo se descartaba y el área de notas quedaba en blanco.
+      const friendly = friendlyError(e, t("hc_routesAppTeacherGradebook.loadErrorMessage"));
+      const detail = (e as Error)?.message;
+      setCourseDataError(detail && detail !== friendly ? `${friendly} — ${detail}` : friendly);
+      // Sin datos consistentes es peor mostrar una grilla a medias: el
+      // docente creería que esas SON las notas reales del curso.
+      setColumns([]);
+      setStudents([]);
+    } finally {
+      if (!stale()) setLoadingCourse(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [courseId, retryNonce]);
 
   useEffect(() => {
-    loadCourse();
+    void loadCourse();
   }, [loadCourse]);
 
   // Get the effective grade for a student + column
@@ -603,6 +737,9 @@ function Gradebook() {
 
   // Save all edits
   const saveAll = async () => {
+    // Anti doble-submit: el loop es secuencial y puede tardar; un segundo
+    // click arrancaba una segunda pasada sobre los mismos `edits`.
+    if (saving) return;
     const entries = Object.entries(edits).filter(([, v]) => v !== "");
     if (!entries.length) {
       toast.info(
@@ -614,10 +751,22 @@ function Gradebook() {
     }
 
     setSaving(true);
+    setSaveProgress({ done: 0, total: entries.length });
     let saved = 0;
     let errors = 0;
-
+    // Guardamos el PRIMER error real: antes solo se contaba `errors++` y el
+    // objeto se descartaba, así que el toast atribuía TODO a "solo se pueden
+    // editar entregas existentes" incluso cuando la causa era RLS (42501),
+    // un CHECK o la red.
+    let firstError: unknown = null;
+    let processed = 0;
+    // Distingue "terminó (con o sin errores por fila)" de "lanzó y quedó a
+    // mitad". Solo en el segundo caso conservamos los `edits` y NO recargamos.
+    let threw = false;
+    try {
     for (const [key, value] of entries) {
+      processed++;
+      setSaveProgress({ done: processed, total: entries.length });
       const [studentId, colId] = key.split("::");
       const col = columns.find((c) => c.id === colId);
       if (!col) continue;
@@ -635,8 +784,10 @@ function Gradebook() {
             .from("submissions")
             .update({ final_override_grade: numValue })
             .eq("id", g.subId);
-          if (error) errors++;
-          else {
+          if (error) {
+            errors++;
+            if (!firstError) firstError = error;
+          } else {
             saved++;
             void logEvent({
               action: "grade.manual_override",
@@ -664,8 +815,10 @@ function Gradebook() {
             .from("workshop_submissions")
             .update({ final_grade: numValue, status: "calificado" })
             .eq("id", g.subId);
-          if (error) errors++;
-          else {
+          if (error) {
+            errors++;
+            if (!firstError) firstError = error;
+          } else {
             saved++;
             void logEvent({
               action: "grade.manual_override",
@@ -694,27 +847,75 @@ function Gradebook() {
       }
     }
 
-    setSaving(false);
-    if (saved > 0)
-      toast.success(
-        i18n.t("toast.routes_app_teacher_gradebook.gradesSaved", {
-          defaultValue: "{{count}} calificación(es) guardada(s) correctamente",
-          count: saved,
-        }),
-      );
-    if (errors > 0)
+    } catch (e) {
+      // Un throw a mitad del loop (red caída, sesión expirada) dejaba
+      // `saving=true` PARA SIEMPRE — el botón "Guardar cambios" quedaba
+      // trabado con el spinner y sin ningún mensaje. Ahora se reporta y el
+      // finally libera el botón.
+      threw = true;
       toast.error(
-        i18n.t("toast.routes_app_teacher_gradebook.gradesSaveErrors", {
-          defaultValue: "{{count}} error(es) — solo se pueden editar entregas existentes",
-          count: errors,
-        }),
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_gradebook.gradesSaveFailed", {
+            defaultValue: "No pudimos guardar las calificaciones",
+          }),
+        ),
+        { duration: 12000 },
       );
-    setEdits({});
-    loadCourse();
+    } finally {
+      // Los toasts de resultado van en el `finally`, no al final del `try`: si
+      // el loop lanza en la nota 12 de 20, las 11 que SÍ se guardaron tienen
+      // que reportarse igual. Antes el throw las saltaba y el docente no sabía
+      // cuáles habían quedado.
+      if (saved > 0)
+        toast.success(
+          i18n.t("toast.routes_app_teacher_gradebook.gradesSaved", {
+            defaultValue: "{{count}} calificación(es) guardada(s) correctamente",
+            count: saved,
+          }),
+        );
+      if (errors > 0)
+        toast.error(
+          firstError
+            ? i18n.t("toast.routes_app_teacher_gradebook.gradesSaveErrorsWithCause", {
+                defaultValue: "{{count}} error(es). Primero: {{error}}",
+                count: errors,
+                error: friendlyError(firstError),
+              })
+            : i18n.t("toast.routes_app_teacher_gradebook.gradesSaveErrors", {
+                defaultValue: "{{count}} error(es) — solo se pueden editar entregas existentes",
+                count: errors,
+              }),
+          { duration: 12000 },
+        );
+      // Los valores tipeados se limpian SOLO si el guardado no lanzó. En el
+      // camino de excepción se conservan a propósito: son trabajo del docente
+      // que todavía no está en la base, y limpiarlos lo hace desaparecer de la
+      // pantalla sin forma de recuperarlo.
+      if (!threw) setEdits({});
+      setSaving(false);
+      setSaveProgress(null);
+    }
+    // Recargar SOLO en el camino feliz: `loadCourse` termina llamando
+    // `setEdits({})`, así que en el camino de excepción borraba ~1-2s después
+    // las notas que acabamos de decidir conservar.
+    if (!threw) void loadCourse();
   };
 
-  // Export CSV
+  // Export CSV / Excel. `exportCourse` es el wrapper con manejo de error:
+  // la generación del XLSX (toXLSX) y la descarga pueden lanzar, y sin este
+  // try/catch el click no producía NI archivo NI mensaje.
   const exportCourse = (format: "csv" | "xlsx" = "csv") => {
+    try {
+      buildAndDownloadExport(format);
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.bulkGenerateError")), {
+        duration: 12000,
+      });
+    }
+  };
+
+  const buildAndDownloadExport = (format: "csv" | "xlsx" = "csv") => {
     if (!students.length || !columns.length) {
       toast.info(
         i18n.t("toast.routes_app_teacher_gradebook.noDataToExport", {
@@ -1163,6 +1364,7 @@ function Gradebook() {
         );
         return;
       }
+      if (issuingId) return; // anti doble-submit
       setIssuingId(studentId);
       try {
         const { error } = await db.rpc("issue_certificate", {
@@ -1180,11 +1382,15 @@ function Gradebook() {
           }),
         );
         await reloadCertificates();
+      } catch (e) {
+        // Sin este catch, un throw de la RPC (red / sesión) solo apagaba el
+        // spinner de la fila y no mostraba NADA.
+        toast.error(friendlyError(e));
       } finally {
         setIssuingId(null);
       }
     },
-    [courseId, reloadCertificates, selectedCourse],
+    [courseId, issuingId, reloadCertificates, selectedCourse],
   );
 
   /**
@@ -1267,6 +1473,10 @@ function Gradebook() {
           }),
         );
         await reloadCertificates();
+      } catch (e) {
+        // Idem `issueCertForStudent`: sin catch un throw de la RPC dejaba la
+        // fila sin certificado y sin mensaje de por qué.
+        toast.error(friendlyError(e));
       } finally {
         setIssuingId(null);
       }
@@ -1299,10 +1509,16 @@ function Gradebook() {
       tone: "warning",
     });
     if (!ok) return;
+    if (bulkIssuing) return; // anti doble-submit
     setBulkIssuing(true);
+    setBulkProgress({ done: 0, total: candidates.length });
     try {
       let issued = 0;
       let failed = 0;
+      // El error de cada RPC se DESCARTABA (`failed++` a secas): el docente
+      // veía "Emitidos 0 · 93 fallaron" sin ninguna pista del motivo.
+      let firstError: unknown = null;
+      let done = 0;
       for (const r of candidates) {
         const { error } = await db.rpc("issue_certificate", {
           _user_id: r.student.id,
@@ -1311,28 +1527,58 @@ function Gradebook() {
         });
         if (error) {
           failed++;
+          if (!firstError) firstError = error;
         } else {
           issued++;
         }
+        done++;
+        setBulkProgress({ done, total: candidates.length });
       }
-      toast.success(
-        i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulk", {
-          defaultValue: "Emitidos {{issued}}{{failedSuffix}}",
-          issued,
-          failedSuffix:
-            failed > 0
-              ? i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulkFailedSuffix", {
-                  defaultValue: " · {{count}} fallaron",
-                  count: failed,
+      const summary = i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulk", {
+        defaultValue: "Emitidos {{issued}}{{failedSuffix}}",
+        issued,
+        failedSuffix:
+          failed > 0
+            ? i18n.t("toast.routes_app_teacher_gradebook.certificatesIssuedBulkFailedSuffix", {
+                defaultValue: " · {{count}} fallaron",
+                count: failed,
+              })
+            : "",
+      });
+      // Si TODO falló, un toast.success verde era engañoso.
+      if (failed > 0) {
+        toast.error(
+          `${summary}${
+            firstError
+              ? i18n.t("toast.routes_app_teacher_gradebook.bulkFirstErrorSuffix", {
+                  defaultValue: ". Primero: {{error}}",
+                  error: friendlyError(firstError),
                 })
-              : "",
-        }),
-      );
+              : ""
+          }`,
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(summary);
+      }
       await reloadCertificates();
+    } catch (e) {
+      // Antes solo había `finally`: un throw de la RPC apagaba el spinner y
+      // no decía nada — silencio total sobre 93 alumnos sin certificado.
+      toast.error(friendlyError(e), { duration: 12000 });
     } finally {
       setBulkIssuing(false);
+      setBulkProgress(null);
     }
-  }, [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse]);
+  }, [
+    bulkIssuing,
+    confirm,
+    consolidated,
+    courseId,
+    certByUserId,
+    reloadCertificates,
+    selectedCourse,
+  ]);
 
   /**
    * Genera + descarga TODOS los certificados del curso en un ZIP único.
@@ -1405,7 +1651,9 @@ function Gradebook() {
         tone: "warning",
       });
       if (!ok) return;
+      if (bulkIssuing) return; // anti doble-submit
       setBulkIssuing(true);
+      setBulkProgress({ done: 0, total: targets.length });
       try {
         // 1a) En modo regenerar, revocar todos los vigentes primero. DEBE ir por
         // la RPC SECURITY DEFINER `revoke_certificate` fila por fila: la tabla
@@ -1442,14 +1690,32 @@ function Gradebook() {
         // 1) Emitir los targets.
         let issued = 0;
         let failed = 0;
+        // Primer error real de la emisión: el sufijo " · N falló al emitir"
+        // del toast final no decía POR QUÉ.
+        let firstIssueError: unknown = null;
+        let doneIssuing = 0;
         for (const r of targets) {
           const { error } = await db.rpc("issue_certificate", {
             _user_id: r.student.id,
             _course_id: courseId,
             _final_grade: r.finalGrade,
           });
-          if (error) failed++;
-          else issued++;
+          if (error) {
+            failed++;
+            if (!firstIssueError) firstIssueError = error;
+          } else issued++;
+          doneIssuing++;
+          setBulkProgress({ done: doneIssuing, total: targets.length });
+        }
+        if (firstIssueError) {
+          toast.error(
+            i18n.t("toast.routes_app_teacher_gradebook.bulkIssueFirstError", {
+              defaultValue: "{{count}} certificado(s) no se pudieron emitir. Primero: {{error}}",
+              count: failed,
+              error: friendlyError(firstIssueError),
+            }),
+            { duration: 12000 },
+          );
         }
         // 2) Recargar la lista de certs para incluir los recién emitidos.
         await reloadCertificates();
@@ -1541,12 +1807,23 @@ function Gradebook() {
         );
       } catch (e) {
         console.error("[gradebook] bulkGenerateAndDownload failed", e);
-        toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.bulkGenerateError")));
+        toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.bulkGenerateError")), {
+          duration: 12000,
+        });
       } finally {
         setBulkIssuing(false);
+        setBulkProgress(null);
       }
     },
-    [confirm, consolidated, courseId, certByUserId, reloadCertificates, selectedCourse],
+    [
+      bulkIssuing,
+      confirm,
+      consolidated,
+      courseId,
+      certByUserId,
+      reloadCertificates,
+      selectedCourse,
+    ],
   );
 
   const downloadCertForRow = useCallback(
@@ -1644,13 +1921,20 @@ function Gradebook() {
             triggerClassName="w-full sm:w-56"
           />
           {hasEdits && (
-            <Button size="sm" onClick={saveAll} disabled={saving}>
+            <Button size="sm" onClick={() => void saveAll()} disabled={saving}>
               {saving ? (
                 <Spinner size="md" className="mr-1" />
               ) : (
                 <Save className="h-4 w-4 mr-1" />
               )}
               {t("hc_routesAppTeacherGradebook.saveChanges")}
+              {/* Contador de progreso: el guardado es un loop secuencial de
+                  updates y sin esto el docente no sabe si avanza. */}
+              {saving && saveProgress && (
+                <span className="ml-1.5 tabular-nums text-[11px] opacity-90">
+                  {saveProgress.done}/{saveProgress.total}
+                </span>
+              )}
             </Button>
           )}
           <DropdownMenu>
@@ -1685,6 +1969,14 @@ function Gradebook() {
                     <Award className="h-4 w-4 mr-1" />
                   )}
                   {t("hc_routesAppTeacherGradebook.certificates")}
+                  {/* Progreso de la emisión/regeneración masiva (loop de RPCs
+                      por alumno): sin él el botón solo giraba sin decir cuánto
+                      falta ni si sigue vivo. */}
+                  {bulkIssuing && bulkProgress && (
+                    <span className="ml-1.5 tabular-nums text-[11px] opacity-90">
+                      {bulkProgress.done}/{bulkProgress.total}
+                    </span>
+                  )}
                   <ChevronDown className="h-3.5 w-3.5 ml-1 opacity-70" />
                 </Button>
               </DropdownMenuTrigger>
@@ -1765,8 +2057,77 @@ function Gradebook() {
         />
       )}
 
+      {/* Estado de CARGA del curso. Antes no existía: mientras las ~14
+          queries de `loadCourse` corrían, debajo del header no había nada
+          (ni spinner ni skeleton), así que "no pasaba nada" era
+          indistinguible de "ya cargó y está vacío" o "falló". */}
+      {selectedCourse && loadingCourse && (
+        <Card>
+          <div className="flex items-center gap-2 border-b px-4 py-3">
+            <Spinner size="sm" />
+            <h2 className="text-sm font-semibold">
+              {t("hc_routesAppTeacherGradebook.loadingGrades", {
+                defaultValue: "Cargando calificaciones del curso…",
+              })}
+            </h2>
+          </div>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableBody>
+                <TableSkeleton cols={5} rows={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Fallo al cargar las notas del curso — con el motivo real y
+          Reintentar. Este es el caso que antes quedaba en SILENCIO. */}
+      {selectedCourse && !loadingCourse && courseDataError && (
+        <ErrorState
+          message={t("hc_routesAppTeacherGradebook.loadErrorMessage")}
+          hint={courseDataError}
+          onRetry={() => setRetryNonce((n) => n + 1)}
+        />
+      )}
+
+      {/* Curso sin matriculados: `consolidated` es null y NADA se renderizaba
+          debajo del header — otra pantalla en blanco sin explicación. */}
+      {selectedCourse && !loadingCourse && !courseDataError && students.length === 0 && (
+        <EmptyState
+          icon={ClipboardList}
+          title={t("hc_routesAppTeacherGradebook.noStudentsEnrolledTitle", {
+            defaultValue: "Este curso no tiene estudiantes matriculados",
+          })}
+          description={t("hc_routesAppTeacherGradebook.noStudentsEnrolledHint", {
+            defaultValue:
+              "Matricula estudiantes al curso para poder registrar y consolidar sus notas.",
+          })}
+        />
+      )}
+
+      {/* Curso cargado OK pero sin nada que calificar: mensaje explícito en
+          vez de una pantalla vacía que se confunde con un fallo. */}
+      {selectedCourse &&
+        !loadingCourse &&
+        !courseDataError &&
+        students.length > 0 &&
+        cuts.length === 0 &&
+        uncutColumns.length === 0 && (
+          <EmptyState
+            icon={ClipboardList}
+            title={t("hc_routesAppTeacherGradebook.nothingToGradeTitle", {
+              defaultValue: "Este curso todavía no tiene nada que calificar",
+            })}
+            description={t("hc_routesAppTeacherGradebook.nothingToGradeHint", {
+              defaultValue:
+                "Crea cortes evaluativos y publica exámenes, talleres o proyectos para ver la grilla de notas.",
+            })}
+          />
+        )}
+
       {/* Consolidado por cortes — solo lectura */}
-      {selectedCourse && consolidated && cuts.length > 0 && (
+      {selectedCourse && !loadingCourse && !courseDataError && consolidated && cuts.length > 0 && (
         <Card>
           <div className="flex items-center justify-between border-b px-4 py-3">
             <h2 className="text-sm font-semibold inline-flex items-center gap-1.5">
@@ -2017,7 +2378,7 @@ function Gradebook() {
       {/* Items sin corte asignado — antes formaban parte del grid grande,
           ahora viven en su propia tarjeta. Items con corte se editan
           desde el modal "Ver detalle" del consolidado. */}
-      {uncutColumns.length > 0 && (
+      {!loadingCourse && !courseDataError && uncutColumns.length > 0 && (
         <Card>
           <div className="flex items-center gap-2 border-b px-4 py-3">
             <Inbox className="h-4 w-4 text-muted-foreground" />

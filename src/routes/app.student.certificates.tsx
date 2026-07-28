@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/table-skeleton";
 import {
   Select,
   SelectContent,
@@ -37,6 +38,27 @@ export const Route = createFileRoute("/app/student/certificates")({
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+/**
+ * Cede un frame al navegador para que PINTE el estado "Generando PDF…"
+ * antes de que `buildCertificatePdf` (jspdf, 100% síncrono una vez cargado
+ * el módulo) bloquee el hilo principal. Sin esto el spinner se seteaba en
+ * el state pero nunca llegaba a la pantalla: el usuario veía un congelamiento
+ * sin explicación.
+ *
+ * Duplicado (6 líneas) en `app.certificates.tsx` a propósito: el flujo de
+ * descarga es el mismo, pero no toco otros módulos para meter un helper
+ * compartido.
+ */
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "undefined") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
+}
 
 interface CertificateRow {
   id: string;
@@ -77,6 +99,10 @@ function StudentCertificates() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [sortMode, setSortMode] = useState<CertSortMode>("issued_desc");
+  // Armar el PDF corre en el navegador (jspdf + QR + logo remoto): tarda
+  // segundos y bloquea el hilo. Guardamos el id del certificado en curso
+  // para mostrar Spinner en SU botón y evitar dobles descargas.
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
   // Buscador + filtros (por curso y por estado) — mismo estilo que los grids
   // de la app. Client-side sobre los certificados ya cargados.
   const [search, setSearch] = useState("");
@@ -126,6 +152,7 @@ function StudentCertificates() {
   };
 
   const handleDownload = async (cert: CertificateRow) => {
+    if (downloadingId) return; // anti doble-submit mientras se arma el PDF
     if (!isUnlocked(cert)) {
       toast.error(
         i18n.t("toast.routes_app_student_certificates.downloadLocked", {
@@ -136,7 +163,9 @@ function StudentCertificates() {
       );
       return;
     }
+    setDownloadingId(cert.id);
     try {
+      await yieldToPaint();
       await downloadCertificate({
         shortCode: cert.short_code,
         studentFullName: cert.student_full_name,
@@ -159,17 +188,32 @@ function StudentCertificates() {
       });
     } catch (e) {
       toast.error(friendlyError(e, t("hc_routesAppStudentCertificates.pdfGenerationError")));
+    } finally {
+      setDownloadingId(null);
     }
   };
 
-  const handleCopyLink = (cert: CertificateRow) => {
+  const handleCopyLink = async (cert: CertificateRow) => {
     const url = buildVerifyUrl(cert.short_code);
-    void navigator.clipboard.writeText(url);
-    toast.success(
-      i18n.t("toast.routes_app_student_certificates.verifyLinkCopied", {
-        defaultValue: "Link de verificación copiado",
-      }),
-    );
+    // `writeText` rechaza sin permiso / en contexto no seguro: antes se
+    // llamaba con `void` y el toast de éxito salía igual (mentía).
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(
+        i18n.t("toast.routes_app_student_certificates.verifyLinkCopied", {
+          defaultValue: "Link de verificación copiado",
+        }),
+      );
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_student_certificates.verifyLinkCopyFailed", {
+            defaultValue: "No pudimos copiar el link. Abrí la verificación y copialo de la barra.",
+          }),
+        ),
+      );
+    }
   };
 
   // Cursos distintos (para el filtro por curso). Los certificados guardan
@@ -239,11 +283,9 @@ function StudentCertificates() {
       />
 
       {loading ? (
-        <Card>
-          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> {t("hc_routesAppStudentCertificates.loading")}
-          </CardContent>
-        </Card>
+        /* Skeleton con el shape de las cards en vez de un "Cargando…"
+           centrado: el estudiante ve de una qué está por aparecer. */
+        <ListSkeleton rows={3} rowHeight="h-36" />
       ) : loadError ? (
         <ErrorState
           message={t("hc_routesAppStudentCertificates.loadErrorTitle")}
@@ -441,7 +483,7 @@ function StudentCertificates() {
                   )}
 
                   <div className="flex flex-wrap gap-2 justify-end pt-1">
-                    <Button size="sm" variant="outline" onClick={() => handleCopyLink(cert)}>
+                    <Button size="sm" variant="outline" onClick={() => void handleCopyLink(cert)}>
                       <Copy className="h-3.5 w-3.5 mr-1" />
                       {t("hc_routesAppStudentCertificates.copyVerifyLink")}
                     </Button>
@@ -457,7 +499,11 @@ function StudentCertificates() {
                     </Button>
                     {(() => {
                       const unlocked = isUnlocked(cert);
-                      const disabled = !!cert.revoked_at || !unlocked;
+                      // Bloqueamos TODOS los botones de descarga mientras se
+                      // arma un PDF (el hilo está ocupado igual) y marcamos con
+                      // Spinner el de la card que lo disparó.
+                      const busy = downloadingId === cert.id;
+                      const disabled = !!cert.revoked_at || !unlocked || !!downloadingId;
                       const lockedTooltip =
                         !cert.revoked_at && !unlocked && cert.course?.end_date
                           ? t("hc_routesAppStudentCertificates.availableFromTooltip", {
@@ -471,12 +517,18 @@ function StudentCertificates() {
                           disabled={disabled}
                           title={lockedTooltip}
                         >
-                          {!unlocked && !cert.revoked_at ? (
+                          {busy ? (
+                            <Spinner size="sm" className="mr-1" />
+                          ) : !unlocked && !cert.revoked_at ? (
                             <Lock className="h-3.5 w-3.5 mr-1" />
                           ) : (
                             <Download className="h-3.5 w-3.5 mr-1" />
                           )}
-                          {t("hc_routesAppStudentCertificates.downloadPdf")}
+                          {busy
+                            ? t("hc_routesAppStudentCertificates.generatingPdf", {
+                                defaultValue: "Generando PDF…",
+                              })
+                            : t("hc_routesAppStudentCertificates.downloadPdf")}
                         </Button>
                       );
                     })()}

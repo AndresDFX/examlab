@@ -37,6 +37,9 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { SectionLoader } from "@/components/ui/loaders";
+import { ErrorState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { CodeEditor, getStarterCode, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
@@ -143,6 +146,14 @@ export function TeacherWorkshopQuestionsEditor({
   const aiGate = useAiAuthorizationGate();
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Busy flags de cada acción del docente. Sin ellos un doble click
+  // duplicaba preguntas (insert), corrompía el orden (swap de position) o
+  // disparaba dos borrados.
+  const [savingManual, setSavingManual] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
   // course_id del workshop — necesario para abrir el banco de preguntas
   // (filtrado por curso). Se carga junto con las preguntas.
   const [workshopCourseId, setWorkshopCourseId] = useState<string | null>(null);
@@ -233,24 +244,42 @@ export function TeacherWorkshopQuestionsEditor({
 
   const load = async () => {
     setLoading(true);
-    const [{ data }, { data: ws }] = await Promise.all([
-      supabase
-        .from("workshop_questions")
-        .select("*")
-        .eq("workshop_id", workshopId)
-        .order("position"),
-      supabase.from("workshops").select("course_id").eq("id", workshopId).maybeSingle(),
-    ]);
-    setQuestions((data ?? []) as WorkshopQuestion[]);
-    setWorkshopCourseId((ws as { course_id?: string } | null)?.course_id ?? null);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [{ data, error }, { data: ws }] = await Promise.all([
+        supabase
+          .from("workshop_questions")
+          .select("*")
+          .eq("workshop_id", workshopId)
+          .order("position"),
+        supabase.from("workshops").select("course_id").eq("id", workshopId).maybeSingle(),
+      ]);
+      if (error) throw error;
+      setQuestions((data ?? []) as WorkshopQuestion[]);
+      setWorkshopCourseId((ws as { course_id?: string } | null)?.course_id ?? null);
+    } catch (e) {
+      // Antes un fallo dejaba `loading=false` con lista vacía: el docente
+      // no distinguía "taller sin preguntas" de "la consulta falló".
+      const msg = friendlyError(
+        e,
+        i18n.t("toast.modules_workshops_WorkshopQuestions.loadQuestionsFailed", {
+          defaultValue: "No se pudieron cargar las preguntas del taller.",
+        }),
+      );
+      setLoadError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    load();
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workshopId]);
 
   const submitManual = async () => {
+    if (savingManual) return;
     if (!qContent.trim()) {
       toast.error(
         i18n.t("toast.modules_workshops_WorkshopQuestions.writeStatement", {
@@ -329,110 +358,131 @@ export function TeacherWorkshopQuestionsEditor({
     // 20260607010000 y types.ts se regenera en el próximo publish de Lovable.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbAny = supabase as any;
-    if (editingId) {
-      // UPDATE: no tocamos position ni starter_code para no clobberar lo que
-      // el docente haya personalizado. EXCEPCIÓN: si el tipo es java_gui y
-      // el starter_code persistido coincide EXACTO con el default del otro
-      // framework, asumimos "template sin tocar" y lo refrescamos al
-      // default del framework actual. Sin esto, cambiar la pregunta de
-      // Swing→JavaFX dejaba el `extends JFrame` con framework=javafx, y
-      // el alumno veía código incongruente con el runner.
-      const existing = questions.find((q) => q.id === editingId);
-      const starterUpdate =
-        qType === "java_gui" && existing
-          ? (() => {
-              const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
-              const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
-              if (existing.starter_code === other) return { starter_code: desired };
-              return null; // preservar (custom o ya alineado).
-            })()
-          : null;
-      const { error } = await dbAny
-        .from("workshop_questions")
-        .update({
+    // A partir de acá hay escritura en DB: busy + try/finally para que un
+    // throw (red) no deje el botón "Guardar" habilitado sin ningún aviso.
+    setSavingManual(true);
+    try {
+      if (editingId) {
+        // UPDATE: no tocamos position ni starter_code para no clobberar lo que
+        // el docente haya personalizado. EXCEPCIÓN: si el tipo es java_gui y
+        // el starter_code persistido coincide EXACTO con el default del otro
+        // framework, asumimos "template sin tocar" y lo refrescamos al
+        // default del framework actual. Sin esto, cambiar la pregunta de
+        // Swing→JavaFX dejaba el `extends JFrame` con framework=javafx, y
+        // el alumno veía código incongruente con el runner.
+        const existing = questions.find((q) => q.id === editingId);
+        const starterUpdate =
+          qType === "java_gui" && existing
+            ? (() => {
+                const desired = qJavaFramework === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
+                const other = qJavaFramework === "javafx" ? JAVA_GUI_STARTER : JAVAFX_STARTER;
+                if (existing.starter_code === other) return { starter_code: desired };
+                return null; // preservar (custom o ya alineado).
+              })()
+            : null;
+        const { error } = await dbAny
+          .from("workshop_questions")
+          .update({
+            type: qType,
+            content: qContent,
+            expected_rubric: qRubric || null,
+            options,
+            points: qPoints,
+            language,
+            zip_single: qType === "codigo_zip" ? qZipSingle : false,
+            ...(starterUpdate ?? {}),
+          })
+          .eq("id", editingId);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.questionUpdated", {
+            defaultValue: "Pregunta actualizada",
+          }),
+        );
+      } else {
+        const { error } = await dbAny.from("workshop_questions").insert({
+          workshop_id: workshopId,
           type: qType,
           content: qContent,
           expected_rubric: qRubric || null,
           options,
           points: qPoints,
+          position: questions.length,
           language,
           zip_single: qType === "codigo_zip" ? qZipSingle : false,
-          ...(starterUpdate ?? {}),
-        })
-        .eq("id", editingId);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
+          starter_code:
+            qType === "java_gui"
+              ? qJavaFramework === "javafx"
+                ? JAVAFX_STARTER
+                : JAVA_GUI_STARTER
+              : qType === "python_gui"
+                ? PYTHON_GUI_STARTER
+                : qType === "codigo"
+                  ? getStarterCode(language) || null
+                  : null,
+        });
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.questionAdded", {
+            defaultValue: "Pregunta agregada — puedes continuar añadiendo",
+          }),
+        );
       }
-      toast.success(
-        i18n.t("toast.modules_workshops_WorkshopQuestions.questionUpdated", {
-          defaultValue: "Pregunta actualizada",
-        }),
-      );
-    } else {
-      const { error } = await dbAny.from("workshop_questions").insert({
-        workshop_id: workshopId,
-        type: qType,
-        content: qContent,
-        expected_rubric: qRubric || null,
-        options,
-        points: qPoints,
-        position: questions.length,
-        language,
-        zip_single: qType === "codigo_zip" ? qZipSingle : false,
-        starter_code:
-          qType === "java_gui"
-            ? qJavaFramework === "javafx"
-              ? JAVAFX_STARTER
-              : JAVA_GUI_STARTER
-            : qType === "python_gui"
-              ? PYTHON_GUI_STARTER
-              : qType === "codigo"
-                ? getStarterCode(language) || null
-                : null,
-      });
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-      toast.success(
-        i18n.t("toast.modules_workshops_WorkshopQuestions.questionAdded", {
-          defaultValue: "Pregunta agregada — puedes continuar añadiendo",
-        }),
-      );
+      resetForm();
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingManual(false);
     }
-    resetForm();
-    load();
   };
 
   // Swap de positions con vecino. Usamos -1 como temporal para no chocar
   // con un eventual unique(workshop_id, position).
   const moveQ = async (id: string, direction: "up" | "down") => {
+    // El swap son 3 UPDATE secuenciales: si el docente clickea rápido dos
+    // veces, el segundo arranca a mitad del primero y las positions quedan
+    // inconsistentes (una en -1). El guard serializa.
+    if (movingId) return;
     const sorted = [...questions].sort((a, b) => a.position - b.position);
     const idx = sorted.findIndex((q) => q.id === id);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (idx < 0 || target < 0 || target >= sorted.length) return;
     const a = sorted[idx];
     const b = sorted[target];
-    const { error: e1 } = await supabase
-      .from("workshop_questions")
-      .update({ position: -1 })
-      .eq("id", a.id);
-    if (e1) return toast.error(friendlyError(e1));
-    const { error: e2 } = await supabase
-      .from("workshop_questions")
-      .update({ position: a.position })
-      .eq("id", b.id);
-    if (e2) return toast.error(friendlyError(e2));
-    const { error: e3 } = await supabase
-      .from("workshop_questions")
-      .update({ position: b.position })
-      .eq("id", a.id);
-    if (e3) return toast.error(friendlyError(e3));
-    load();
+    setMovingId(id);
+    try {
+      const { error: e1 } = await supabase
+        .from("workshop_questions")
+        .update({ position: -1 })
+        .eq("id", a.id);
+      if (e1) return toast.error(friendlyError(e1));
+      const { error: e2 } = await supabase
+        .from("workshop_questions")
+        .update({ position: a.position })
+        .eq("id", b.id);
+      if (e2) return toast.error(friendlyError(e2));
+      const { error: e3 } = await supabase
+        .from("workshop_questions")
+        .update({ position: b.position })
+        .eq("id", a.id);
+      if (e3) return toast.error(friendlyError(e3));
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setMovingId(null);
+    }
   };
 
   const removeQ = async (id: string) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: t("hc_modulesWorkshopsWorkshopQuestions.deleteQuestionTitle"),
       description: t("hc_modulesWorkshopsWorkshopQuestions.deleteQuestionDescription"),
@@ -440,20 +490,41 @@ export function TeacherWorkshopQuestionsEditor({
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await supabase.from("workshop_questions").delete().eq("id", id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(id);
+    try {
+      const { error } = await supabase.from("workshop_questions").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_workshops_WorkshopQuestions.questionDeleted", {
+          defaultValue: "Pregunta eliminada",
+        }),
+      );
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
     }
-    toast.success(
-      i18n.t("toast.modules_workshops_WorkshopQuestions.questionDeleted", {
-        defaultValue: "Pregunta eliminada",
-      }),
-    );
-    load();
   };
 
   const generateWithAI = async () => {
+    if (aiBusy) return;
+    setAiBusy(true);
+    try {
+      await generateWithAIInner();
+    } catch (e) {
+      // El camino "encolar" (gate async) no tenía try/catch: un throw en
+      // auth.getUser()/insert dejaba el botón habilitado y NINGÚN mensaje.
+      toast.error(friendlyError(e, t("hc_modulesWorkshopsWorkshopQuestions.aiError")));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const generateWithAIInner = async () => {
     if (!aiTopics.trim()) {
       toast.error(
         i18n.t("toast.modules_workshops_WorkshopQuestions.indicateTopics", {
@@ -651,12 +722,11 @@ export function TeacherWorkshopQuestionsEditor({
         </TabsList>
 
         <TabsContent value="list" className="space-y-2">
-          {loading && (
-            <p className="text-sm text-muted-foreground">
-              <Spinner size="xs" inline className="mr-1" /> {t("workshopQuestions.loadingQuestions")}
-            </p>
+          {loading && <ListSkeleton rows={3} rowHeight="h-16" />}
+          {!loading && loadError && (
+            <ErrorState message={loadError} onRetry={() => void load()} />
           )}
-          {!loading && questions.length === 0 && (
+          {!loading && !loadError && questions.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("workshopQuestions.noQuestions")}</p>
           )}
           {questions.map((q, idx) => (
@@ -680,14 +750,14 @@ export function TeacherWorkshopQuestionsEditor({
                   <RowAction
                     label={t("workshopQuestions.rowActionMoveUp")}
                     icon={ChevronUp}
-                    disabled={idx === 0}
-                    onClick={() => moveQ(q.id, "up")}
+                    disabled={idx === 0 || movingId !== null}
+                    onClick={() => void moveQ(q.id, "up")}
                   />
                   <RowAction
                     label={t("workshopQuestions.rowActionMoveDown")}
                     icon={ChevronDown}
-                    disabled={idx === questions.length - 1}
-                    onClick={() => moveQ(q.id, "down")}
+                    disabled={idx === questions.length - 1 || movingId !== null}
+                    onClick={() => void moveQ(q.id, "down")}
                   />
                   <RowAction
                     label={t("workshopQuestions.rowActionEdit")}
@@ -698,7 +768,8 @@ export function TeacherWorkshopQuestionsEditor({
                     label={t("workshopQuestions.rowActionDelete")}
                     icon={Trash2}
                     tone="destructive"
-                    onClick={() => removeQ(q.id)}
+                    disabled={deletingId !== null}
+                    onClick={() => void removeQ(q.id)}
                   />
                 </div>
               </CardContent>
@@ -995,8 +1066,13 @@ export function TeacherWorkshopQuestionsEditor({
             />
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button onClick={submitManual}>
-              {editingId ? (
+            <Button onClick={() => void submitManual()} disabled={savingManual}>
+              {savingManual ? (
+                <>
+                  <Spinner size="md" className="mr-1" />
+                  {t("common.saving", { defaultValue: "Guardando…" })}
+                </>
+              ) : editingId ? (
                 <>
                   <Save className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnSaveChanges")}
                 </>
@@ -1115,8 +1191,8 @@ export function TeacherWorkshopQuestionsEditor({
             <span className="text-xs text-muted-foreground">
               {t("workshopQuestions.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}
             </span>
-            <Button onClick={generateWithAI} disabled={aiLoading}>
-              {aiLoading ? (
+            <Button onClick={() => void generateWithAI()} disabled={aiLoading || aiBusy}>
+              {aiLoading || aiBusy ? (
                 <Spinner size="md" className="mr-1" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
@@ -1164,7 +1240,12 @@ export function StudentWorkshopTaker({
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // Guard sincrónico anti doble-entrega: `submitting` es state y no está
+  // aplicado durante el `await confirm(...)` previo.
+  const submitBusyRef = useRef(false);
   const [graded, setGraded] = useState<{ grade: number; breakdown: any[] } | null>(null);
   // Gate de videos introductorios obligatorios del taller (lista N en
   // orden estricto). A diferencia de proyectos —donde el gate solo
@@ -1215,20 +1296,31 @@ export function StudentWorkshopTaker({
   const submissionIdRef = useRef<string | null>(null);
 
   // Carga el provider global de ejecución de código (lo configura el Admin).
-  // Fire-and-forget igual que el exam taker: solo setea state simple.
+  // No bloqueante: si falla queda el default local, pero lo logueamos.
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("code_execution_settings")
-      .select("provider")
-      .eq("is_active", true)
-      .maybeSingle()
-      .then(({ data }: { data: { provider: string } | null }) => {
-        if (data?.provider) {
-          codeExecProviderRef.current = data.provider;
-          setDefaultCodeProvider(data.provider);
+    let cancelled = false;
+    void (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("code_execution_settings")
+          .select("provider")
+          .eq("is_active", true)
+          .maybeSingle();
+        if (cancelled) return;
+        const provider = (data as { provider?: string } | null)?.provider;
+        if (provider) {
+          codeExecProviderRef.current = provider;
+          setDefaultCodeProvider(provider);
         }
-      });
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[ExamLab] code_execution_settings load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1241,8 +1333,9 @@ export function StudentWorkshopTaker({
     if (loadedForRef.current === key) return;
     loadedForRef.current = key;
     let cancelled = false;
-    (async () => {
+    const runLoad = async () => {
       setLoading(true);
+      setLoadError(null);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny = supabase as any;
       const [{ data: qs }, { data: videosData }, { data: wsRow }, { data: settingsRow }] =
@@ -1341,11 +1434,26 @@ export function StudentWorkshopTaker({
         }
       }
       if (!cancelled) setLoading(false);
-    })();
+    };
+    // `.catch` obligatorio: sin él un fallo dejaba `loading=true` para
+    // siempre ("Cargando preguntas…" eterno) sin decir qué pasó.
+    void runLoad().catch((e: unknown) => {
+      if (cancelled) return;
+      const msg = friendlyError(
+        e,
+        i18n.t("toast.modules_workshops_WorkshopQuestions.loadWorkshopFailed", {
+          defaultValue: "No se pudo cargar el taller.",
+        }),
+      );
+      setLoadError(msg);
+      setLoading(false);
+      toast.error(msg);
+    });
     return () => {
       cancelled = true;
     };
-  }, [workshopId, user?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workshopId, user?.id, retryNonce]);
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
@@ -1483,6 +1591,9 @@ export function StudentWorkshopTaker({
         ...prev,
         [questionId]: t("hc_modulesWorkshopsWorkshopQuestions.errorPrefix", { msg }),
       }));
+      // Además del panel de salida (que puede quedar fuera de vista si el
+      // alumno hizo scroll) mostramos toast.
+      toast.error(friendlyError(msg), { duration: 8000 });
       void logEvent({
         action: "code_execution_error",
         category: "workshop",
@@ -1567,6 +1678,7 @@ export function StudentWorkshopTaker({
 
   const submit = async () => {
     if (!user) return;
+    if (submitBusyRef.current || submitting) return;
     if (!questions.length) {
       toast.error(
         i18n.t("toast.modules_workshops_WorkshopQuestions.workshopHasNoQuestions", {
@@ -1612,6 +1724,7 @@ export function StudentWorkshopTaker({
       });
       if (!ok) return;
     }
+    submitBusyRef.current = true;
     setSubmitting(true);
     try {
       // Upsert submission. Si es grupal, filtramos/insertamos por
@@ -1657,7 +1770,10 @@ export function StudentWorkshopTaker({
       }
       if (existingRow?.id) {
         submissionId = existingRow.id;
-        await dbAny2
+        // El error de este UPDATE se ignoraba: si fallaba (RLS/red), la
+        // entrega NO quedaba marcada como `entregado` y el alumno igual veía
+        // la pantalla de éxito. Abortamos con el motivo visible.
+        const { error: updErr } = await dbAny2
           .from("workshop_submissions")
           .update({
             status: "entregado",
@@ -1666,6 +1782,12 @@ export function StudentWorkshopTaker({
             attempt_count: nextAttemptCount,
           })
           .eq("id", submissionId);
+        if (updErr) {
+          toast.error(
+            friendlyError(updErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotCreateSubmission")),
+          );
+          return;
+        }
       } else {
         const { data: created, error } = await dbAny2
           .from("workshop_submissions")
@@ -2345,10 +2467,29 @@ export function StudentWorkshopTaker({
       const gradeAsync = useAsyncAi || fellBackToQueue;
 
       // ── Persistencia: upsert por qid ──
+      // El error de cada upsert se descartaba: una respuesta podía NO
+      // guardarse y el alumno veía "Calificación: X" igual. Recolectamos los
+      // fallos y los mostramos (sin abortar: lo ya guardado debe quedar).
+      const upsertErrors: Array<{ qid: string; error: unknown }> = [];
       for (const qid of Object.keys(payloadsByQid)) {
-        await supabase
+        const { error: upsertErr } = await supabase
           .from("workshop_submission_answers")
           .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
+        if (upsertErr) {
+          console.error("[workshop-submit] upsert failed", qid, upsertErr);
+          upsertErrors.push({ qid, error: upsertErr });
+        }
+      }
+      if (upsertErrors.length > 0) {
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.answersSaveFailed", {
+            defaultValue:
+              "No se pudieron guardar {{count}} respuesta(s). Primero: {{detail}}. Revisa tu conexión y vuelve a entregar.",
+            count: upsertErrors.length,
+            detail: friendlyError(upsertErrors[0].error),
+          }),
+          { duration: 12000 },
+        );
       }
 
       // ── Encolado IA (solo modo async, después del upsert) ──
@@ -2381,7 +2522,7 @@ export function StudentWorkshopTaker({
         const courseIdForJob = (wsRow as { course_id?: string } | null)?.course_id ?? null;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        await (supabase as any).rpc("enqueue_ai_grading", {
+        const { error: enqueueErr } = await (supabase as any).rpc("enqueue_ai_grading", {
           _kind: "workshop_full",
           _invoke_target: "ai-grade-submission",
           _body: {
@@ -2408,6 +2549,19 @@ export function StudentWorkshopTaker({
           // Defaults ai_grade/ai_feedback están bien.
           _course_id: courseIdForJob,
         });
+        // Sin esto, un fallo del encolado dejaba la entrega "Por calificar"
+        // para siempre sin que nadie se enterara.
+        if (enqueueErr) {
+          console.error("[workshop-submit] enqueue_ai_grading failed", enqueueErr);
+          toast.error(
+            i18n.t("toast.modules_workshops_WorkshopQuestions.enqueueGradingFailed", {
+              defaultValue:
+                "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+              detail: friendlyError(enqueueErr),
+            }),
+            { duration: 12000 },
+          );
+        }
       }
 
       // ── Encolado IA de `codigo_zip` (async) ──
@@ -2430,7 +2584,7 @@ export function StudentWorkshopTaker({
             .maybeSingle();
           if (!row?.id) continue;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any).rpc("enqueue_ai_grading", {
+          const { error: zipEnqErr } = await (supabase as any).rpc("enqueue_ai_grading", {
             _kind: "workshop_codigo_zip",
             _invoke_target: "ai-grade-submission",
             _body: it.body,
@@ -2442,6 +2596,17 @@ export function StudentWorkshopTaker({
             _field_reasons: "ai_reasons",
             _course_id: courseIdForZip,
           });
+          if (zipEnqErr) {
+            console.error("[workshop-submit] enqueue zip grading failed", it.qid, zipEnqErr);
+            toast.error(
+              i18n.t("toast.modules_workshops_WorkshopQuestions.enqueueGradingFailed", {
+                defaultValue:
+                  "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+                detail: friendlyError(zipEnqErr),
+              }),
+              { duration: 12000 },
+            );
+          }
         }
       }
 
@@ -2449,7 +2614,10 @@ export function StudentWorkshopTaker({
         // En async dejamos la submission como `entregado` (no
         // `calificado`) porque la nota real todavía no se calculó.
         // ai_grade queda null y ai_feedback con el placeholder.
-        await supabase
+        // El error de este UPDATE se descartaba: si fallaba, la entrega
+        // quedaba con la nota/estado viejos y el alumno veía "Por calificar"
+        // sin que nada estuviera pendiente de verdad.
+        const { error: pendingErr } = await supabase
           .from("workshop_submissions")
           .update({
             ai_grade: null,
@@ -2458,6 +2626,17 @@ export function StudentWorkshopTaker({
             status: "entregado",
           })
           .eq("id", submissionId);
+        if (pendingErr) {
+          toast.error(
+            i18n.t("toast.modules_workshops_WorkshopQuestions.submissionStateSaveFailed", {
+              defaultValue:
+                "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
+              detail: friendlyError(pendingErr),
+            }),
+            { duration: 12000 },
+          );
+          return;
+        }
         setGraded({ grade: 0, breakdown });
         // Mensaje minimal: solo "Por calificar". Antes incluíamos un
         // body largo con detalle de la cola → ruido en cada submit.
@@ -2466,7 +2645,7 @@ export function StudentWorkshopTaker({
         const finalGrade =
           totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
 
-        await supabase
+        const { error: gradeErr } = await supabase
           .from("workshop_submissions")
           .update({
             ai_grade: finalGrade,
@@ -2477,6 +2656,18 @@ export function StudentWorkshopTaker({
             status: "calificado",
           })
           .eq("id", submissionId);
+        if (gradeErr) {
+          // NO mostramos "Calificación: X" si la nota no quedó persistida.
+          toast.error(
+            i18n.t("toast.modules_workshops_WorkshopQuestions.gradeSaveFailed", {
+              defaultValue:
+                "No se pudo registrar la calificación de tu entrega: {{detail}}. Vuelve a entregar.",
+              detail: friendlyError(gradeErr),
+            }),
+            { duration: 12000 },
+          );
+          return;
+        }
 
         setGraded({ grade: finalGrade, breakdown });
         onGraded?.(finalGrade);
@@ -2488,17 +2679,40 @@ export function StudentWorkshopTaker({
           }),
         );
       }
+    } catch (e) {
+      // ESTE catch faltaba por completo: cualquier throw (subida a Storage,
+      // invoke de la IA, red) terminaba en un unhandled rejection — el
+      // spinner se apagaba y el alumno no sabía si había entregado o no.
+      console.error("[workshop-submit] failed", e);
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.modules_workshops_WorkshopQuestions.submitFailed", {
+            defaultValue: "No se pudo completar la entrega. Revisa tu conexión e inténtalo de nuevo.",
+          }),
+        ),
+        { duration: 12000 },
+      );
     } finally {
+      submitBusyRef.current = false;
       setSubmitting(false);
     }
   };
 
   if (loading) {
+    return <SectionLoader text={t("hc_modulesWorkshopsWorkshopQuestions.loadingQuestions")} />;
+  }
+
+  if (loadError) {
     return (
-      <p className="text-sm text-muted-foreground">
-        <Spinner size="xs" inline className="mr-1" />{" "}
-        {t("hc_modulesWorkshopsWorkshopQuestions.loadingQuestions")}
-      </p>
+      <ErrorState
+        message={loadError}
+        onRetry={() => {
+          loadedForRef.current = null;
+          setLoadError(null);
+          setRetryNonce((n) => n + 1);
+        }}
+      />
     );
   }
 
@@ -2530,6 +2744,20 @@ export function StudentWorkshopTaker({
 
   return (
     <div className="space-y-4">
+      {/* Entrega en curso: puede tardar (subida de archivos + calificación
+          IA). El spinner del botón solo no alcanzaba — el alumno cerraba el
+          modal a mitad creyendo que ya había entregado. */}
+      {submitting && (
+        <LoadingOverlay
+          title={t("hc_modulesWorkshopsWorkshopQuestions.submittingOverlayTitle", {
+            defaultValue: "Entregando tu taller…",
+          })}
+          subtitle={t("hc_modulesWorkshopsWorkshopQuestions.submittingOverlaySubtitle", {
+            defaultValue:
+              "Estamos guardando tus respuestas y calificando. No cierres esta ventana.",
+          })}
+        />
+      )}
       {/* Gate de videos introductorios del taller (lista N en orden
           estricto). Solo se renderiza si el taller tiene videos en
           `workshop_intro_videos`. A diferencia de proyectos, aplica a
@@ -2569,8 +2797,17 @@ export function StudentWorkshopTaker({
               // sí persistirán. Si el alumno cierra el modal entre que
               // ve el primer video y entrega, perderá ese progreso (caso
               // raro — la mayoría ve videos y entrega en la misma sesión).
-            } catch {
-              /* silencioso */
+            } catch (e) {
+              // El progreso local ya está aplicado (optimista), pero el
+              // alumno debe saber que no quedó guardado: si recarga, el
+              // gate le va a pedir el video otra vez.
+              console.error("[workshop] mark_workshop_video_watched failed:", e);
+              toast.warning(
+                i18n.t("toast.modules_workshops_WorkshopQuestions.videoProgressNotSaved", {
+                  defaultValue:
+                    "No pudimos guardar tu progreso del video. Si recargas, quizá debas verlo de nuevo.",
+                }),
+              );
             }
           }}
         />
@@ -2756,10 +2993,21 @@ export function StudentWorkshopTaker({
                 </p>
               ))}
             {q.type === "so_consola" && (
-              <V86Console
-                value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
-                onChange={(v) => updateAnswer(q.id, v)}
-              />
+              // El terminal xterm se renderiza con columnas fijas (~800px), más
+              // ancho que la Card de la pregunta en el modal: sin scroll propio
+              // quedaba RECORTADO por el overflow-hidden del bloque de la
+              // consola y la mitad derecha era inalcanzable (peor en mobile).
+              // El scroll horizontal vive DENTRO de la card (regla del repo:
+              // nunca a nivel página); el `min-w-` es lo que le da algo que
+              // scrollear en vez de dejar que el bloque clipee su contenido.
+              // El alto no necesita nada: el modal ya scrollea en vertical.
+              <div className="overflow-x-auto">
+                <V86Console
+                  className="min-w-[52rem]"
+                  value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                  onChange={(v) => updateAnswer(q.id, v)}
+                />
+              </div>
             )}
             {q.type === "codigo_zip" &&
               q.zip_single &&
@@ -3049,7 +3297,7 @@ export function StudentWorkshopTaker({
           </p>
         ) : null}
         <Button
-          onClick={submit}
+          onClick={() => void submit()}
           disabled={submitting || videoGateBlocking || attemptsExhausted}
           className="w-full"
         >

@@ -9,7 +9,7 @@
  * Toggle `active`: programas inactivos no aparecen en el dropdown del
  * form de curso, pero NO se borran (preservan los cursos viejos).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -23,6 +23,7 @@ import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -103,24 +104,45 @@ export function AdminAcademicProgramsPanel() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
   const [togglingId, setTogglingId] = useState<string | null>(null);
+  // Fila que se está eliminando — bloquea la acción (anti doble-submit) y
+  // deja el ítem del menú deshabilitado mientras corre el DELETE.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Guard "cambios sin guardar" para el dialog crear/editar carrera. El form
   // ya es UN objeto (`draft`), así que se pasa directo al hook.
   const dirty = useDirtyDialog(open, draft);
+  // `load()` se dispara desde el effect y desde cada handler; si el admin
+  // navega mientras la query vuela, los setState caerían sobre un componente
+  // desmontado. Guard estándar del repo.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
-      .from("academic_programs")
-      .select("id, name, code, faculty, active, created_at")
-      .order("name");
-    if (error) {
-      setLoadError(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errLoad")));
-      setLoading(false);
-      return;
+    try {
+      const { data, error } = await db
+        .from("academic_programs")
+        .select("id, name, code, faculty, active, created_at")
+        .order("name");
+      if (!mountedRef.current) return;
+      if (error) {
+        setLoadError(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errLoad")));
+        return;
+      }
+      setRows((data ?? []) as AcademicProgram[]);
+    } catch (e) {
+      // Un throw (red caída, sesión inválida) también debe dejar el
+      // ErrorState con "Reintentar" — no una tabla vacía sin explicación.
+      if (!mountedRef.current) return;
+      setLoadError(friendlyError(e, t("hc_modulesAdminAdminAcademicProgramsPanel.errLoad")));
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-    setRows((data ?? []) as AcademicProgram[]);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -202,70 +224,84 @@ export function AdminAcademicProgramsPanel() {
 
   const save = async () => {
     if (!user) return;
+    if (saving) return; // anti doble-submit (Enter + click, doble click)
     const name = draft.name.trim();
     if (!name) {
       toast.error(i18n.t("academic.programs.toastNameRequired"));
       return;
     }
     setSaving(true);
-    const payload = {
-      name,
-      code: draft.code.trim() || null,
-      faculty: draft.faculty.trim() || null,
-      active: draft.active,
-      updated_by: user.id,
-    };
-    const { error } = draft.id
-      ? await db.from("academic_programs").update(payload).eq("id", draft.id)
-      : await db.from("academic_programs").insert(payload);
-    setSaving(false);
-    if (error) {
-      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errSave")));
-      return;
+    try {
+      const payload = {
+        name,
+        code: draft.code.trim() || null,
+        faculty: draft.faculty.trim() || null,
+        active: draft.active,
+        updated_by: user.id,
+      };
+      const { error } = draft.id
+        ? await db.from("academic_programs").update(payload).eq("id", draft.id)
+        : await db.from("academic_programs").insert(payload);
+      if (error) {
+        toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicProgramsPanel.errSave")));
+        return;
+      }
+      void logEvent({
+        action: draft.id ? "program.updated" : "program.created",
+        category: "academic",
+        severity: "info",
+        entityType: "academic_program",
+        entityId: draft.id ?? undefined,
+        entityName: name,
+        metadata: { code: payload.code, faculty: payload.faculty, active: payload.active },
+      });
+      toast.success(
+        draft.id
+          ? i18n.t("academic.programs.toastUpdated")
+          : i18n.t("academic.programs.toastCreated"),
+      );
+      setOpen(false);
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_modulesAdminAdminAcademicProgramsPanel.errSave")));
+    } finally {
+      // Sin este finally, un throw dejaba el botón deshabilitado para siempre.
+      if (mountedRef.current) setSaving(false);
     }
-    void logEvent({
-      action: draft.id ? "program.updated" : "program.created",
-      category: "academic",
-      severity: "info",
-      entityType: "academic_program",
-      entityId: draft.id ?? undefined,
-      entityName: name,
-      metadata: { code: payload.code, faculty: payload.faculty, active: payload.active },
-    });
-    toast.success(
-      draft.id
-        ? i18n.t("academic.programs.toastUpdated")
-        : i18n.t("academic.programs.toastCreated"),
-    );
-    setOpen(false);
-    void load();
   };
 
   const toggleActive = async (r: AcademicProgram) => {
+    if (togglingId) return;
     setTogglingId(r.id);
     const next = !r.active;
-    const { error } = await db
-      .from("academic_programs")
-      .update({ active: next })
-      .eq("id", r.id);
-    setTogglingId(null);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    try {
+      const { error } = await db
+        .from("academic_programs")
+        .update({ active: next })
+        .eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: "program.toggled",
+        category: "academic",
+        severity: "info",
+        entityType: "academic_program",
+        entityId: r.id,
+        entityName: r.name,
+        metadata: { active: next },
+      });
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      if (mountedRef.current) setTogglingId(null);
     }
-    void logEvent({
-      action: "program.toggled",
-      category: "academic",
-      severity: "info",
-      entityType: "academic_program",
-      entityId: r.id,
-      entityName: r.name,
-      metadata: { active: next },
-    });
-    void load();
   };
 
   const remove = async (r: AcademicProgram) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: i18n.t("academic.programs.confirmDeleteTitle", { name: r.name }),
       description: i18n.t("academic.programs.confirmDeleteDesc"),
@@ -273,21 +309,28 @@ export function AdminAcademicProgramsPanel() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("academic_programs").delete().eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(r.id);
+    try {
+      const { error } = await db.from("academic_programs").delete().eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: "program.deleted",
+        category: "academic",
+        severity: "warning",
+        entityType: "academic_program",
+        entityId: r.id,
+        entityName: r.name,
+      });
+      toast.success(i18n.t("academic.programs.toastDeleted"));
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      if (mountedRef.current) setDeletingId(null);
     }
-    void logEvent({
-      action: "program.deleted",
-      category: "academic",
-      severity: "warning",
-      entityType: "academic_program",
-      entityId: r.id,
-      entityName: r.name,
-    });
-    toast.success(i18n.t("academic.programs.toastDeleted"));
-    void load();
   };
 
   return (
@@ -338,11 +381,7 @@ export function AdminAcademicProgramsPanel() {
           </Select>
         </div>
 
-        {loading ? (
-          <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> {t("academic.programs.loading")}
-          </div>
-        ) : loadError ? (
+        {loadError ? (
           <ErrorState
             message={t("academic.programs.loadError")}
             hint={loadError}
@@ -361,7 +400,11 @@ export function AdminAcademicProgramsPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sort.sorted.length === 0 ? (
+                {/* Carga inicial / reintento: skeleton con el shape de la
+                    tabla (no un "Cargando…" pelado sobre un área vacía). */}
+                {loading ? (
+                  <TableSkeleton rows={5} cols={5} />
+                ) : sort.sorted.length === 0 ? (
                   (() => {
                     // Distinguir "no hay programas" de "los filtros no matchean":
                     // sin esto el admin cree que se le borraron los datos.
@@ -397,9 +440,12 @@ export function AdminAcademicProgramsPanel() {
                         <div className="flex items-center gap-2">
                           <Switch
                             checked={r.active}
-                            disabled={togglingId === r.id}
+                            disabled={togglingId !== null}
                             onCheckedChange={() => void toggleActive(r)}
                           />
+                          {/* Spinner mientras el UPDATE vuela: el Switch
+                              deshabilitado solo no comunica "está guardando". */}
+                          {togglingId === r.id && <Spinner size="xs" />}
                           {!r.active && (
                             <Badge variant="outline" className="text-[10px]">
                               {t("academic.programs.inactiveBadge")}
@@ -417,6 +463,11 @@ export function AdminAcademicProgramsPanel() {
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
+                              disabled: deletingId !== null,
+                              hint:
+                                deletingId !== null
+                                  ? t("common.processing", { defaultValue: "Procesando…" })
+                                  : undefined,
                               onClick: () => void remove(r),
                             },
                           ]}
@@ -487,6 +538,7 @@ export function AdminAcademicProgramsPanel() {
               {t("academic.programs.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
+              {saving && <Spinner size="sm" className="mr-2" />}
               {saving ? t("academic.programs.saving") : draft.id ? t("academic.programs.saveChanges") : t("academic.programs.create")}
             </Button>
           </DialogFooter>

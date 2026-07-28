@@ -31,6 +31,8 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/loaders";
+import { ErrorState } from "@/components/ui/empty-state";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
@@ -242,6 +244,27 @@ function TakeExam() {
   const [maxOpenChars, setMaxOpenChars] = useState(500);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // `preparingSubmit`: cubre la ventana entre el click en "Finalizar" y el
+  // arranque real de performSubmit (guardado previo + cálculo de vacías).
+  // Sin esto el botón quedaba habilitado durante ese await y un doble click
+  // disparaba dos entregas.
+  const [preparingSubmit, setPreparingSubmit] = useState(false);
+  const submitBusyRef = useRef(false);
+  const busySubmit = submitting || preparingSubmit;
+  // Inicio del examen (crea/reclama la submission). Necesita su propio busy:
+  // un doble click podía crear DOS submissions `en_progreso`.
+  const [startingExam, setStartingExam] = useState(false);
+  const startBusyRef = useRef(false);
+  const [reenteringFs, setReenteringFs] = useState(false);
+  const [leavingExam, setLeavingExam] = useState(false);
+  // Falla del último autosave contra el servidor. Se muestra como badge en
+  // el header para que el alumno NO crea que sus respuestas están a salvo
+  // cuando el guardado está fallando (el respaldo local sigue activo).
+  const [saveFailed, setSaveFailed] = useState(false);
+  // Error de la carga inicial (examen/preguntas/intento). Sin esto la
+  // pantalla se quedaba en <PageLoader/> para siempre.
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [currentIdx, setCurrentIdx] = useState(0);
   // Modal de confirmación para "Siguiente" en navegación secuencial:
   // el alumno debe entender explícitamente que no podrá regresar.
@@ -313,20 +336,33 @@ function TakeExam() {
   // llegar a "cancel" sin tener que reload.
   const runAbortersRef = useRef<Record<string, AbortController>>({});
 
-  // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
+  // Carga el proveedor de ejecución de código una vez al montar.
+  // Si falla, se conserva el default local ("onlinecompiler") — no es
+  // bloqueante, pero NO lo dejamos silencioso en consola.
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("code_execution_settings")
-      .select("provider")
-      .eq("is_active", true)
-      .maybeSingle()
-      .then(({ data }: { data: { provider: string } | null }) => {
-        if (data?.provider) {
-          codeExecProviderRef.current = data.provider;
-          setDefaultCodeProvider(data.provider);
+    let cancelled = false;
+    void (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("code_execution_settings")
+          .select("provider")
+          .eq("is_active", true)
+          .maybeSingle();
+        if (cancelled) return;
+        const provider = (data as { provider?: string } | null)?.provider;
+        if (provider) {
+          codeExecProviderRef.current = provider;
+          setDefaultCodeProvider(provider);
         }
-      });
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[ExamLab] code_execution_settings load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   // Sidebar nav links in AppLayout dispatch this event when the exam is in progress
@@ -418,7 +454,13 @@ function TakeExam() {
 
   useEffect(() => {
     if (!user) return;
-    (async () => {
+    let cancelled = false;
+    setLoadError(null);
+    // Body en una función nombrada para poder colgarle un `.catch` que
+    // SIEMPRE deje el fallo visible: antes cualquier throw (red, RLS,
+    // parseo) dejaba la pantalla en <PageLoader/> indefinidamente y el
+    // alumno no sabía si su examen existía o la app estaba rota.
+    const runLoad = async () => {
       // `courses.language` se introduce en migraciones recientes; cast hasta refrescar tipos.
       // Setting global de pantalla completa. Lo leemos en paralelo al
       // fetch del examen — si falla, asumimos true (más seguro).
@@ -546,6 +588,7 @@ function TakeExam() {
       // (antes un sort+random re-ordenaba en cada carga y rompía la
       // navegación al reanudar) y distinta por alumno (anti-copia).
       if (e.shuffle_enabled && qs) qs = seededShuffle(qs, examShuffleSeed(examId, user.id));
+      if (cancelled) return;
       setQuestions(qs ?? []);
 
       // Reintentos: contar todas las submissions del estudiante para este examen
@@ -647,6 +690,7 @@ function TakeExam() {
         answersRef.current = claimedAnswers;
 
         // Reanudar el intento en curso (o re-abrir la entrega sin calificar)
+        if (cancelled) return;
         setSubmissionId(resumeTarget.id);
         submissionIdRef.current = resumeTarget.id;
         setSubmissionStartedAt((resumeTarget as any).started_at ?? null);
@@ -695,8 +739,23 @@ function TakeExam() {
           }),
         );
       }
+      if (cancelled) return;
       setExam(e);
-    })();
+    };
+    void runLoad().catch((e: unknown) => {
+      if (cancelled) return;
+      const msg = friendlyError(
+        e,
+        i18n.t("toast.routes_app_student_take_examId.examLoadFailed", {
+          defaultValue: "No se pudo cargar el examen.",
+        }),
+      );
+      setLoadError(msg);
+      toast.error(msg);
+    });
+    return () => {
+      cancelled = true;
+    };
     // Dep en `user?.id` y no `user` — useAuth emite un objeto nuevo en
     // varios eventos (rehidratación de sesión, refresh de token, etc.)
     // aunque el usuario sea el mismo. Con `user` como dep el toast de
@@ -705,9 +764,26 @@ function TakeExam() {
     // usuario real. `navigate` se quita de deps porque es estable
     // referencialmente en TanStack Router y no aporta nada.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examId, user?.id]);
+  }, [examId, user?.id, retryNonce]);
 
   const startExam = async () => {
+    if (!user || !exam) return;
+    // Anti doble-click: sin este guard dos clicks seguidos podían crear
+    // DOS submissions `en_progreso` para el mismo alumno.
+    if (startBusyRef.current) return;
+    startBusyRef.current = true;
+    setStartingExam(true);
+    try {
+      await startExamInner();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      startBusyRef.current = false;
+      setStartingExam(false);
+    }
+  };
+
+  const startExamInner = async () => {
     if (!user || !exam) return;
     let sid = submissionId;
     if (!sid) {
@@ -878,6 +954,8 @@ function TakeExam() {
   // Estado del overlay de re-entrada a pantalla completa
   const [fsExited, setFsExited] = useState(false);
   const reenterFullscreen = async () => {
+    if (reenteringFs) return;
+    setReenteringFs(true);
     try {
       await document.documentElement.requestFullscreen?.();
       // El click en "Reanudar" del overlay cuenta como entrada válida —
@@ -886,7 +964,19 @@ function TakeExam() {
       hasEverEnteredFullscreenRef.current = true;
       setFsExited(false);
     } catch (e) {
-      console.warn("re-enter fullscreen failed", e);
+      // Sin toast el alumno quedaba atrapado en el overlay sin saber por
+      // qué el botón "no hace nada" (navegador que niega fullscreen).
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_student_take_examId.couldNotReenterFullscreen", {
+            defaultValue:
+              "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11.",
+          }),
+        ),
+      );
+    } finally {
+      setReenteringFs(false);
     }
   };
 
@@ -917,17 +1007,37 @@ function TakeExam() {
     // el server trae focus_warnings menor (requiere prueba multi-cliente).
     const currentWarnings = warningsRef.current;
     if (isOnline()) {
-      await supabase
-        .from("submissions")
-        .update({ answers: currentAnswers, focus_warnings: currentWarnings })
-        .eq("id", submissionIdRef.current);
+      // El error del UPDATE se ignoraba por completo: si el guardado
+      // fallaba (RLS, red, 5xx) el alumno seguía viendo "respuestas
+      // guardadas automáticamente" sin ninguna señal. Ahora lo reflejamos
+      // en un badge del header (`saveFailed`). NO tiramos el error: este
+      // helper lo llaman los flujos de ENTREGA y un throw acá abortaba la
+      // entrega entera (el respaldo local + el update de performSubmit son
+      // los que realmente cuentan).
+      try {
+        const { error } = await supabase
+          .from("submissions")
+          .update({ answers: currentAnswers, focus_warnings: currentWarnings })
+          .eq("id", submissionIdRef.current);
+        setSaveFailed(!!error);
+        if (error) console.error("[ExamLab] autosave failed:", error);
+      } catch (e) {
+        setSaveFailed(true);
+        console.error("[ExamLab] autosave threw:", e);
+      }
     }
-    await saveAnswersLocally(examId, {
-      submissionId: submissionIdRef.current,
-      answers: currentAnswers,
-      warnings: currentWarnings,
-      timestamp: savedAt,
-    });
+    try {
+      await saveAnswersLocally(examId, {
+        submissionId: submissionIdRef.current,
+        answers: currentAnswers,
+        warnings: currentWarnings,
+        timestamp: savedAt,
+      });
+    } catch (e) {
+      // IndexedDB puede fallar (modo privado, cuota). No es motivo para
+      // abortar una entrega en curso.
+      console.error("[ExamLab] local answers save failed:", e);
+    }
   }, [examId]);
 
   const performSubmit = useCallback(
@@ -968,23 +1078,27 @@ function TakeExam() {
       }
 
       // Siempre intentar persistir en servidor (navigator.onLine puede dar falsos negativos).
+      // Dos intentos. El `try/catch` importa: si el fetch REVIENTA (red caída
+      // a mitad, CORS, abort) el await tiraba y performSubmit quedaba a medias
+      // con `submittedRef=true` + spinner infinito → el alumno creía haber
+      // entregado y no podía reintentar.
       let serverUpdated = false;
-      const { error: updateErr } = await supabase
-        .from("submissions")
-        .update(updateData)
-        .eq("id", submissionIdRef.current);
-      if (!updateErr) {
-        serverUpdated = true;
-      } else {
-        console.error("submission update failed:", updateErr);
-        const { error: retryErr } = await supabase
-          .from("submissions")
-          .update(updateData)
-          .eq("id", submissionIdRef.current);
-        if (!retryErr) {
-          serverUpdated = true;
-        } else {
-          console.error("submission update retry failed:", retryErr);
+      let lastSubmitError: unknown = null;
+      for (let attempt = 0; attempt < 2 && !serverUpdated; attempt++) {
+        try {
+          const { error: updateErr } = await supabase
+            .from("submissions")
+            .update(updateData)
+            .eq("id", submissionIdRef.current);
+          if (!updateErr) {
+            serverUpdated = true;
+          } else {
+            lastSubmitError = updateErr;
+            console.error("submission update failed:", updateErr);
+          }
+        } catch (e) {
+          lastSubmitError = e;
+          console.error("submission update threw:", e);
         }
       }
 
@@ -996,6 +1110,10 @@ function TakeExam() {
             defaultValue:
               "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
           }),
+          {
+            description: lastSubmitError ? friendlyError(lastSubmitError) : undefined,
+            duration: 12000,
+          },
         );
         return;
       }
@@ -1004,7 +1122,13 @@ function TakeExam() {
       // no hace falta. Sin esto quedaba un pending que syncPendingAnswers
       // intentaría re-aplicar (hoy inofensivo por el guard `status='en_progreso'`,
       // pero mejor no dejar estado obsoleto que dispare un sync sin efecto).
-      await clearLocalAnswers(examId);
+      // En try/catch: un fallo de IndexedDB acá NO puede impedir el toast de
+      // confirmación ni la navegación — la entrega YA está registrada.
+      try {
+        await clearLocalAnswers(examId);
+      } catch (e) {
+        console.error("clearLocalAnswers failed:", e);
+      }
 
       // Optimización: la UI debe responder rápido (~300ms del update
       // anterior). La notificación al docente y la calificación con IA
@@ -1123,25 +1247,49 @@ function TakeExam() {
 
   const requestManualSubmit = useCallback(async () => {
     if (submitting || submittedRef.current || !submissionIdRef.current) return;
-    await saveAnswersNow();
-    const merged = mergeStarterCodeAnswers(questions, answersRef.current);
-    answersRef.current = merged;
-    setAnswers(merged);
-    const unanswered = getUnansweredIndices(questions, merged);
-    if (unanswered.length === 0) {
-      await performSubmit(false);
-      return;
+    // Guard por ref: `submitting` recién se activa dentro de performSubmit,
+    // así que entre el click y ese punto el botón seguía clickeable.
+    if (submitBusyRef.current) return;
+    submitBusyRef.current = true;
+    setPreparingSubmit(true);
+    try {
+      await saveAnswersNow();
+      const merged = mergeStarterCodeAnswers(questions, answersRef.current);
+      answersRef.current = merged;
+      setAnswers(merged);
+      const unanswered = getUnansweredIndices(questions, merged);
+      if (unanswered.length === 0) {
+        await performSubmit(false);
+        return;
+      }
+      setSubmitModal({
+        open: true,
+        unansweredIndices: unanswered,
+      });
+    } catch (e) {
+      // Antes cualquier throw acá (guardado previo, IndexedDB) abortaba la
+      // entrega en silencio: el alumno pulsaba "Finalizar" y no pasaba nada.
+      toast.error(friendlyError(e));
+    } finally {
+      submitBusyRef.current = false;
+      setPreparingSubmit(false);
     }
-    setSubmitModal({
-      open: true,
-      unansweredIndices: unanswered,
-    });
   }, [submitting, saveAnswersNow, questions, performSubmit]);
 
   const confirmSubmitFromModal = useCallback(async () => {
+    if (submitBusyRef.current || submittedRef.current) return;
+    submitBusyRef.current = true;
+    setPreparingSubmit(true);
     setSubmitModal({ open: false, unansweredIndices: [] });
-    await saveAnswersNow();
-    await performSubmit(false);
+    try {
+      await saveAnswersNow();
+      await performSubmit(false);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      submitBusyRef.current = false;
+      setPreparingSubmit(false);
+    }
   }, [performSubmit, saveAnswersNow]);
 
   const cancelManualSubmitModal = useCallback(() => {
@@ -1152,11 +1300,22 @@ function TakeExam() {
   const handleTimeUp = useCallback(() => {
     if (submittedRef.current) return;
     void (async () => {
-      await saveAnswersNow();
+      // El guardado previo va en su propio try: si falla, la ENTREGA debe
+      // ocurrir igual (antes un throw acá dejaba el examen sin entregar al
+      // vencerse el tiempo — el peor fallo silencioso posible).
+      try {
+        await saveAnswersNow();
+      } catch (e) {
+        console.error("[ExamLab] save before auto-submit failed:", e);
+      }
       const merged = mergeStarterCodeAnswers(questions, answersRef.current);
       answersRef.current = merged;
       setAnswers(merged);
-      await performSubmit(false);
+      try {
+        await performSubmit(false);
+      } catch (e) {
+        toast.error(friendlyError(e));
+      }
     })();
   }, [saveAnswersNow, questions, performSubmit]);
 
@@ -1813,6 +1972,10 @@ function TakeExam() {
         ...prev,
         [questionId]: t("hc_routesAppStudentTakeExamId.errorPrefix", { msg }),
       }));
+      // Además del panel de salida (que puede quedar fuera de vista si el
+      // alumno hizo scroll) mostramos toast: el fallo de ejecución nunca
+      // debe pasar desapercibido durante un examen.
+      toast.error(friendlyError(msg), { duration: 8000 });
       void logEvent({
         action: "code_execution_error",
         category: "exam",
@@ -1841,6 +2004,23 @@ function TakeExam() {
       setRunningCode((prev) => ({ ...prev, [questionId]: false }));
     }
   };
+
+  if (loadError && !exam) {
+    return (
+      <div className="max-w-2xl mx-auto py-10">
+        <ErrorState
+          message={t("hc_routesAppStudentTakeExamId.examLoadErrorTitle", {
+            defaultValue: "No pudimos cargar tu examen",
+          })}
+          hint={loadError}
+          onRetry={() => {
+            setLoadError(null);
+            setRetryNonce((n) => n + 1);
+          }}
+        />
+      </div>
+    );
+  }
 
   if (!exam) return <PageLoader />;
 
@@ -1910,9 +2090,22 @@ function TakeExam() {
                 <li>{t("hc_routesAppStudentTakeExamId.answersAutoSaved")}</li>
               </ul>
             </div>
-            <Button size="lg" className="w-full" onClick={startExam}>
-              <Maximize2 className="h-4 w-4 mr-2" />
-              {t("exam.start")}
+            <Button
+              size="lg"
+              className="w-full"
+              onClick={() => void startExam()}
+              disabled={startingExam}
+            >
+              {startingExam ? (
+                <Spinner size="md" className="mr-2" />
+              ) : (
+                <Maximize2 className="h-4 w-4 mr-2" />
+              )}
+              {startingExam
+                ? t("hc_routesAppStudentTakeExamId.startingExam", {
+                    defaultValue: "Iniciando…",
+                  })
+                : t("exam.start")}
             </Button>
           </CardContent>
         </Card>
@@ -1926,6 +2119,19 @@ function TakeExam() {
     <div
       className={`${maximized ? "max-w-none" : "max-w-3xl"} mx-auto py-4 sm:py-6 select-none`}
     >
+      {/* Entrega en curso: bloqueo visual explícito. El botón deshabilitado
+          solo no alcanzaba — el alumno no sabía si su click "tomó" y podía
+          cerrar la pestaña justo mientras se registraba la entrega. */}
+      {busySubmit && (
+        <LoadingOverlay
+          title={t("hc_routesAppStudentTakeExamId.submittingOverlayTitle", {
+            defaultValue: "Entregando tu examen…",
+          })}
+          subtitle={t("hc_routesAppStudentTakeExamId.submittingOverlaySubtitle", {
+            defaultValue: "No cierres esta ventana ni cambies de pestaña.",
+          })}
+        />
+      )}
       {fsExited && started && (
         <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-6">
           <div className="max-w-md w-full rounded-lg border bg-card p-6 space-y-4 text-center">
@@ -1936,7 +2142,12 @@ function TakeExam() {
             <p className="text-sm text-muted-foreground">
               {t("hc_routesAppStudentTakeExamId.fullscreenRequiredWarning", { maxWarnings })}
             </p>
-            <Button className="w-full" onClick={reenterFullscreen}>
+            <Button
+              className="w-full"
+              onClick={() => void reenterFullscreen()}
+              disabled={reenteringFs}
+            >
+              {reenteringFs ? <Spinner size="md" className="mr-2" /> : null}
               {t("hc_routesAppStudentTakeExamId.returnToFullscreen")}
             </Button>
           </div>
@@ -1988,6 +2199,23 @@ function TakeExam() {
               <WifiOff className="h-3 w-3 sm:mr-1" />
               <span className="hidden sm:inline">
                 {t("hc_routesAppStudentTakeExamId.offline")}
+              </span>
+            </Badge>
+          )}
+          {saveFailed && (
+            <Badge
+              variant="destructive"
+              className="text-[10px] sm:text-xs"
+              title={t("hc_routesAppStudentTakeExamId.saveFailedHint", {
+                defaultValue:
+                  "El último guardado automático falló. Tus respuestas siguen en este dispositivo; revisa tu conexión.",
+              })}
+            >
+              <AlertTriangle className="h-3 w-3 sm:mr-1" />
+              <span className="hidden sm:inline">
+                {t("hc_routesAppStudentTakeExamId.saveFailedBadge", {
+                  defaultValue: "Sin guardar",
+                })}
               </span>
             </Badge>
           )}
@@ -2365,13 +2593,17 @@ function TakeExam() {
             {t("exam.next")}
           </Button>
         ) : (
-          <Button onClick={() => void requestManualSubmit()} disabled={submitting}>
-            {submitting ? (
+          <Button onClick={() => void requestManualSubmit()} disabled={busySubmit}>
+            {busySubmit ? (
               <Spinner size="md" className="mr-1" />
             ) : (
               <Send className="h-4 w-4 mr-1" />
             )}
-            {t("exam.finish")}
+            {busySubmit
+              ? t("hc_routesAppStudentTakeExamId.submittingLabel", {
+                  defaultValue: "Entregando…",
+                })
+              : t("exam.finish")}
           </Button>
         )}
       </div>
@@ -2436,47 +2668,62 @@ function TakeExam() {
             <Button
               type="button"
               variant="destructive"
+              disabled={leavingExam || busySubmit}
               onClick={async () => {
-                if (!submittedRef.current && submissionIdRef.current) {
-                  const nw = warningsRef.current + 1;
-                  warningsRef.current = nw;
-                  warningEventsRef.current = [
-                    ...warningEventsRef.current,
-                    { type: "retroceso", at: new Date().toISOString(), questionIdx: currentIdx },
-                  ];
-                  const updatedAnswers = {
-                    ...answersRef.current,
-                    __warning_events: warningEventsRef.current,
-                  };
-                  answersRef.current = updatedAnswers;
-                  setWarnings(nw);
-                  setAnswers(updatedAnswers);
-                  toast.warning(
-                    i18n.t("toast.routes_app_student_take_examId.warningExamExit", {
-                      defaultValue: "Advertencia {{count}}/{{max}}: Salida de examen",
-                      count: nw,
-                      max: maxWarnings,
-                    }),
-                  );
-                  try {
-                    await saveAnswersNow();
-                  } catch (e) {
-                    console.error("[ExamLab] leave strike save failed:", e);
-                  }
-                  if (shouldMarkSuspicious(nw, maxWarnings)) {
-                    toast.error(
-                      i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
-                        defaultValue: "Has superado el límite de salidas. El examen se suspende.",
+                // Anti doble-click: sin guard, dos clicks sumaban DOS strikes.
+                if (leavingExam) return;
+                setLeavingExam(true);
+                try {
+                  if (!submittedRef.current && submissionIdRef.current) {
+                    const nw = warningsRef.current + 1;
+                    warningsRef.current = nw;
+                    warningEventsRef.current = [
+                      ...warningEventsRef.current,
+                      { type: "retroceso", at: new Date().toISOString(), questionIdx: currentIdx },
+                    ];
+                    const updatedAnswers = {
+                      ...answersRef.current,
+                      __warning_events: warningEventsRef.current,
+                    };
+                    answersRef.current = updatedAnswers;
+                    setWarnings(nw);
+                    setAnswers(updatedAnswers);
+                    toast.warning(
+                      i18n.t("toast.routes_app_student_take_examId.warningExamExit", {
+                        defaultValue: "Advertencia {{count}}/{{max}}: Salida de examen",
+                        count: nw,
+                        max: maxWarnings,
                       }),
                     );
-                    await performSubmit(true);
-                    return;
+                    try {
+                      await saveAnswersNow();
+                    } catch (e) {
+                      // El strike y la salida siguen adelante, pero el alumno
+                      // debe saber que el guardado no llegó al servidor.
+                      console.error("[ExamLab] leave strike save failed:", e);
+                      toast.error(friendlyError(e));
+                    }
+                    if (shouldMarkSuspicious(nw, maxWarnings)) {
+                      toast.error(
+                        i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
+                          defaultValue:
+                            "Has superado el límite de salidas. El examen se suspende.",
+                        }),
+                      );
+                      await performSubmit(true);
+                      return;
+                    }
                   }
+                  setManualLeaveOpen(false);
+                  navigate({ to: "/app/student/exams" });
+                } catch (e) {
+                  toast.error(friendlyError(e));
+                } finally {
+                  setLeavingExam(false);
                 }
-                setManualLeaveOpen(false);
-                navigate({ to: "/app/student/exams" });
               }}
             >
+              {leavingExam ? <Spinner size="md" className="mr-1" /> : null}
               {t("hc_routesAppStudentTakeExamId.leaveRegisterStrike")}
             </Button>
           </DialogFooter>
@@ -2532,9 +2779,9 @@ function TakeExam() {
             <Button
               type="button"
               onClick={() => void confirmSubmitFromModal()}
-              disabled={submitting}
+              disabled={busySubmit}
             >
-              {submitting ? (
+              {busySubmit ? (
                 <Spinner size="md" className="mr-1" />
               ) : (
                 <Send className="h-4 w-4 mr-1" />

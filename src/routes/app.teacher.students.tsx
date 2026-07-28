@@ -74,7 +74,10 @@ function TeacherStudentsInner() {
   // que el bulk (bulk-set-passwords ya autoriza al docente por sus cursos).
   const [resetPasswordFor, setResetPasswordFor] = useState<Student | null>(null);
 
-  const load = async () => {
+  // `isActive` deja al effect abortar los setState si el usuario navega
+  // antes de que resuelvan los awaits (patrón `let cancelled = false` del
+  // repo). El retry la llama sin argumento → siempre activa.
+  const load = async (isActive: () => boolean = () => true) => {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
@@ -84,6 +87,7 @@ function TeacherStudentsInner() {
       .from("course_teachers")
       .select("course_id, courses(id, name, deleted_at)")
       .eq("user_id", user.id);
+    if (!isActive()) return;
     if (tcErr) {
       setLoadError(friendlyError(tcErr, "No pudimos cargar tus cursos."));
       setLoading(false);
@@ -112,6 +116,7 @@ function TeacherStudentsInner() {
       .from("course_enrollments")
       .select("user_id, course_id")
       .in("course_id", courseIds);
+    if (!isActive()) return;
     if (enrErr) {
       setLoadError(friendlyError(enrErr, "No pudimos cargar los estudiantes."));
       setLoading(false);
@@ -131,6 +136,7 @@ function TeacherStudentsInner() {
       .select("id, full_name, institutional_email, codigo")
       .in("id", userIds)
       .order("full_name");
+    if (!isActive()) return;
     if (profErr) {
       setLoadError(friendlyError(profErr, "No pudimos cargar los perfiles."));
       setLoading(false);
@@ -161,7 +167,11 @@ function TeacherStudentsInner() {
   };
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void load(() => !cancelled);
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, retryNonce]);
 
@@ -208,6 +218,7 @@ function TeacherStudentsInner() {
   });
 
   const handleImpersonate = async (s: Student) => {
+    if (impersonating) return;
     const ok = await confirm({
       title: i18n.t("teacherStudents.impersonateConfirmTitle", { name: s.full_name }),
       description: i18n.t("teacherStudents.impersonateConfirmDesc"),
@@ -216,11 +227,22 @@ function TeacherStudentsInner() {
     });
     if (!ok) return;
     setImpersonating(s.id);
+    // `startImpersonate` hace varios round-trips de auth y termina en un hard
+    // reload: el menú de fila ya se cerró, así que el único feedback posible
+    // es un toast de carga (se va solo con la recarga).
+    const progressId = toast.loading(
+      i18n.t("teacherStudents.impersonateStarting", {
+        defaultValue: "Iniciando sesión como {{name}}…",
+        name: s.full_name,
+      }),
+    );
     try {
       await startImpersonate(s.id);
     } catch (e) {
       toast.error(friendlyError(e, i18n.t("teacherStudents.impersonateError")));
       setImpersonating(null);
+    } finally {
+      toast.dismiss(progressId);
     }
   };
 
@@ -366,7 +388,11 @@ function TeacherStudentsInner() {
                                 icon: Eye,
                                 hint: t("teacherStudents.impersonateHint", { name: s.full_name }),
                                 onClick: () => void handleImpersonate(s),
-                                disabled: impersonating === s.id,
+                                // Bloquea TODAS las filas mientras se abre una
+                                // suplantación (redirige al cargar): antes solo
+                                // se deshabilitaba la fila clickeada y se podía
+                                // disparar otra en paralelo.
+                                disabled: impersonating !== null,
                               },
                               {
                                 label: t("teacherStudents.actionResetPassword", {

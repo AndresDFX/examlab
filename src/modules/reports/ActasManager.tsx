@@ -24,6 +24,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
@@ -106,8 +107,13 @@ export function ActasManager({ onPrintActa }: Props) {
   const [genOpen, setGenOpen] = useState(false);
   const [genCourseId, setGenCourseId] = useState<string>("");
   const [generating, setGenerating] = useState(false);
+  // Eliminar un acta es una acción de fila sin feedback propio: guardamos el
+  // id en curso para deshabilitar el menú y no disparar dos DELETE.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const load = async () => {
+  // `isCancelled` opcional: cuando el effect lo pasa, no hacemos setState
+  // tras un desmontaje (convención del repo para effects async).
+  const load = async (isCancelled?: () => boolean) => {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
@@ -120,6 +126,7 @@ export function ActasManager({ onPrintActa }: Props) {
         .order("generated_at", { ascending: false }),
       db.from("courses").select("id, name").is("deleted_at", null).order("name"),
     ]);
+    if (isCancelled?.()) return;
     if (aErr) {
       setLoadError(friendlyError(aErr, t("hc_modulesReportsActasManager.errorLoadActas")));
       setLoading(false);
@@ -136,7 +143,11 @@ export function ActasManager({ onPrintActa }: Props) {
   };
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void load(() => cancelled);
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, retryNonce]);
 
@@ -191,48 +202,60 @@ export function ActasManager({ onPrintActa }: Props) {
 
   const handleGenerate = async () => {
     if (!genCourseId) return;
+    if (generating) return; // anti doble-submit: el acta es única por curso+periodo
     setGenerating(true);
-    const { data, error } = await db.rpc("generate_course_acta", { p_course_id: genCourseId });
-    setGenerating(false);
-    if (error) {
-      // Log del error REAL (code/message/hint/details) para diagnóstico — el
-      // toast traduce a un mensaje amigable, pero la consola guarda la causa.
-      // eslint-disable-next-line no-console
-      console.error("[acta] generate_course_acta falló:", error);
-      // Surface también el detalle crudo (message/hint) cuando exista: el toast
-      // genérico solo no decía POR QUÉ falló (ej. acta ya existente, datos).
-      const e = error as { message?: string; hint?: string };
-      const detail = (e.hint || e.message || "").trim();
-      const friendly = friendlyError(error, t("hc_modulesReportsActasManager.errorGenerateActa"));
-      toast.error(detail && !friendly.includes(detail) ? `${friendly} — ${detail}` : friendly, {
+    try {
+      const { data, error } = await db.rpc("generate_course_acta", { p_course_id: genCourseId });
+      if (error) {
+        // Log del error REAL (code/message/hint/details) para diagnóstico — el
+        // toast traduce a un mensaje amigable, pero la consola guarda la causa.
+        // eslint-disable-next-line no-console
+        console.error("[acta] generate_course_acta falló:", error);
+        // Surface también el detalle crudo (message/hint) cuando exista: el toast
+        // genérico solo no decía POR QUÉ falló (ej. acta ya existente, datos).
+        const e = error as { message?: string; hint?: string };
+        const detail = (e.hint || e.message || "").trim();
+        const friendly = friendlyError(error, t("hc_modulesReportsActasManager.errorGenerateActa"));
+        toast.error(detail && !friendly.includes(detail) ? `${friendly} — ${detail}` : friendly, {
+          duration: 12000,
+        });
+        return;
+      }
+      // Acta es registro institucional — `warning` para que destaque en
+      // el módulo de Auditoría junto a otras acciones críticas.
+      const course = courses.find((c) => c.id === genCourseId);
+      void logEvent({
+        action: "acta.generated",
+        category: "academic",
+        severity: "warning",
+        entityType: "course_acta",
+        entityId: String(data),
+        entityName: course?.name ?? t("hc_modulesReportsActasManager.actaEntityName"),
+        courseId: genCourseId,
+        courseName: course?.name ?? null,
+      });
+      toast.success(
+        i18n.t("toast.modules_reports_ActasManager.actaGenerated", {
+          defaultValue: "Acta generada (ID: {{actaId}}…)",
+          actaId: String(data).slice(0, 8),
+        }),
+      );
+      setGenOpen(false);
+      void load();
+    } catch (e) {
+      // CRÍTICO: si el rpc lanza (red caída, sesión expirada) sin este
+      // try/finally el `LoadingOverlay` quedaba pegado tapando toda la
+      // pantalla, sin salida más que recargar.
+      toast.error(friendlyError(e, t("hc_modulesReportsActasManager.errorGenerateActa")), {
         duration: 12000,
       });
-      return;
+    } finally {
+      setGenerating(false);
     }
-    // Acta es registro institucional — `warning` para que destaque en
-    // el módulo de Auditoría junto a otras acciones críticas.
-    const course = courses.find((c) => c.id === genCourseId);
-    void logEvent({
-      action: "acta.generated",
-      category: "academic",
-      severity: "warning",
-      entityType: "course_acta",
-      entityId: String(data),
-      entityName: course?.name ?? t("hc_modulesReportsActasManager.actaEntityName"),
-      courseId: genCourseId,
-      courseName: course?.name ?? null,
-    });
-    toast.success(
-      i18n.t("toast.modules_reports_ActasManager.actaGenerated", {
-        defaultValue: "Acta generada (ID: {{actaId}}…)",
-        actaId: String(data).slice(0, 8),
-      }),
-    );
-    setGenOpen(false);
-    void load();
   };
 
   const handleDelete = async (acta: Acta) => {
+    if (deletingId) return; // anti doble-submit
     const ok = await confirm({
       title: t("hc_modulesReportsActasManager.deleteConfirmTitle", { curso: acta.curso_nombre }),
       description: t("hc_modulesReportsActasManager.deleteConfirmDescription"),
@@ -240,30 +263,37 @@ export function ActasManager({ onPrintActa }: Props) {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("course_actas").delete().eq("id", acta.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(acta.id);
+    try {
+      const { error } = await db.from("course_actas").delete().eq("id", acta.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: "acta.deleted",
+        category: "academic",
+        // Eliminar un acta oficial es destructivo — log con warning para
+        // dejar rastro claro de quién/cuándo.
+        severity: "warning",
+        entityType: "course_acta",
+        entityId: acta.id,
+        entityName: acta.curso_nombre,
+        courseId: acta.course_id,
+        courseName: acta.curso_nombre,
+        metadata: { integrity_hash: acta.integrity_hash, periodo: acta.periodo_codigo },
+      });
+      toast.success(
+        i18n.t("toast.modules_reports_ActasManager.actaDeleted", {
+          defaultValue: "Acta eliminada",
+        }),
+      );
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
     }
-    void logEvent({
-      action: "acta.deleted",
-      category: "academic",
-      // Eliminar un acta oficial es destructivo — log con warning para
-      // dejar rastro claro de quién/cuándo.
-      severity: "warning",
-      entityType: "course_acta",
-      entityId: acta.id,
-      entityName: acta.curso_nombre,
-      courseId: acta.course_id,
-      courseName: acta.curso_nombre,
-      metadata: { integrity_hash: acta.integrity_hash, periodo: acta.periodo_codigo },
-    });
-    toast.success(
-      i18n.t("toast.modules_reports_ActasManager.actaDeleted", {
-        defaultValue: "Acta eliminada",
-      }),
-    );
-    void load();
   };
 
   return (
@@ -296,8 +326,14 @@ export function ActasManager({ onPrintActa }: Props) {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> {t("hc_modulesReportsActasManager.loading")}
+          /* Skeleton con el shape de la tabla (7 columnas) en lugar de un
+             "Cargando…" suelto — el docente ve qué está por aparecer. */
+          <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
+            <Table fixed>
+              <TableBody>
+                <TableSkeleton cols={7} rows={4} />
+              </TableBody>
+            </Table>
           </div>
         ) : loadError ? (
           <ErrorState
@@ -400,6 +436,7 @@ export function ActasManager({ onPrintActa }: Props) {
                                 icon: Trash2,
                                 tone: "destructive",
                                 separatorBefore: true,
+                                disabled: !!deletingId,
                                 onClick: () => void handleDelete(a),
                               },
                             ]}
@@ -447,6 +484,7 @@ export function ActasManager({ onPrintActa }: Props) {
               {t("hc_modulesReportsActasManager.cancel")}
             </Button>
             <Button onClick={() => void handleGenerate()} disabled={generating || !genCourseId}>
+              {generating && <Spinner size="sm" className="mr-2" />}
               {generating ? t("hc_modulesReportsActasManager.generating") : t("hc_modulesReportsActasManager.generate")}
             </Button>
           </DialogFooter>

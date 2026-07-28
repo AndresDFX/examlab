@@ -15,7 +15,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Terminal as TerminalIcon, AlertTriangle, RotateCw } from "lucide-react";
+import { Terminal as TerminalIcon, AlertTriangle, RotateCw, Square } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import {
   loadV86,
@@ -292,6 +292,23 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
     setAttempt((a) => a + 1);
   };
 
+  // Ctrl+C sin teclado. WHY existe el botón: el banner de BusyBox invita a correr
+  // `udhcpc`, que en un sandbox SIN red imprime "broadcasting discover" para
+  // siempre; en móvil (sin tecla Ctrl) o si xterm perdió el foco, el alumno no
+  // tenía forma de cortar salvo "Reiniciar", que BORRA el transcript — es decir,
+  // su respuesta calificable.
+  const sendInterrupt = () => {
+    try {
+      emulatorRef.current?.serial0_send("\x03");
+    } catch {
+      /* noop */
+    }
+    // El shell descarta la línea a medio escribir al recibir Ctrl+C: el buffer
+    // de captura de comandos debe reflejar eso o registraría un comando abortado.
+    cmdBufRef.current = "";
+    termRef.current?.focus();
+  };
+
   // Modo revisión: no bootea VM, muestra el transcript guardado.
   if (readOnly) {
     const parsed = parseV86Answer(value);
@@ -311,8 +328,13 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
   }
 
   return (
-    <div className={`relative rounded-md border overflow-hidden ${className ?? ""}`}>
-      <div className="bg-muted/40 px-3 py-2 text-xs">
+    // `flex flex-col` + header `shrink-0` encadenan la altura: cuando el padre
+    // impone una altura definida (hoja de pizarra), el área de terminal recibe
+    // solo el espacio que sobra y scrollea dentro de sí misma en vez de quedar
+    // recortada por este `overflow-hidden` (que está acá para que el borde
+    // redondeado recorte el fondo negro).
+    <div className={`relative flex flex-col rounded-md border overflow-hidden ${className ?? ""}`}>
+      <div className="bg-muted/40 px-3 py-2 text-xs shrink-0">
         <div className="flex items-center gap-1.5 font-medium">
           <TerminalIcon className="h-3.5 w-3.5" />
           {t("serverConsole.title", { defaultValue: "Consola del servidor (Linux)" })}
@@ -326,24 +348,42 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
           <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-500">
             {t("serverConsole.ephemeralBadge", { defaultValue: "Efímero" })}
           </span>
-          {/* Reiniciar → sesión limpia (nueva VM efímera). Solo en modo edición
-              (readOnly = revisión, no hay VM viva). */}
+          {/* Interrumpir (Ctrl+C) + Reiniciar → sesión limpia (nueva VM efímera).
+              Solo en modo edición (readOnly = revisión, no hay VM viva). */}
           {!readOnly && status === "ready" && (
-            <button
-              type="button"
-              onClick={restartConsole}
-              title={t("serverConsole.restartTitle", { defaultValue: "Reiniciar con una sesión limpia" })}
-              className="ml-auto inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
-            >
-              <RotateCw className="h-3 w-3" />
-              {t("serverConsole.restart", { defaultValue: "Reiniciar" })}
-            </button>
+            <div className="ml-auto flex items-center gap-1">
+              <button
+                type="button"
+                onClick={sendInterrupt}
+                title={t("serverConsole.interruptTitle", {
+                  defaultValue: "Interrumpir el comando en ejecución (envía Ctrl+C)",
+                })}
+                aria-label={t("serverConsole.interruptTitle", {
+                  defaultValue: "Interrumpir el comando en ejecución (envía Ctrl+C)",
+                })}
+                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+              >
+                <Square className="h-3 w-3" />
+                {t("serverConsole.interrupt", { defaultValue: "Interrumpir" })}
+              </button>
+              <button
+                type="button"
+                onClick={restartConsole}
+                title={t("serverConsole.restartTitle", {
+                  defaultValue: "Reiniciar con una sesión limpia",
+                })}
+                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+              >
+                <RotateCw className="h-3 w-3" />
+                {t("serverConsole.restart", { defaultValue: "Reiniciar" })}
+              </button>
+            </div>
           )}
         </div>
         <p className="text-muted-foreground mt-0.5">
           {t("serverConsole.hintV86", {
             defaultValue:
-              "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal. Es un entorno de práctica EFÍMERO y aislado: corre solo en tu navegador, cada sesión arranca limpia y nada se guarda — no afecta ningún servidor real.",
+              "Linux real en tu navegador: un entorno de práctica efímero y aislado donde cada sesión arranca limpia y nada afecta a un servidor real.",
           })}
         </p>
         {/* Guía de comandos: el sistema es un Linux MÍNIMO (BusyBox), sin gestor
@@ -362,6 +402,12 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
               })}
             </li>
             <li>
+              {t("serverConsole.helpNoNetwork", {
+                defaultValue:
+                  "Sin red: los comandos que esperan internet (udhcpc, ping, wget) se quedan esperando — córtalos con Ctrl+C o el botón Interrumpir.",
+              })}
+            </li>
+            <li>
               {t("serverConsole.helpCommands", {
                 defaultValue:
                   "Es un Linux mínimo (BusyBox). Funcionan: ls, cd, pwd, cat, echo, mkdir, rm, cp, mv, touch, vi, grep, sed, awk, find, chmod, ps, wc, head, tail, tar, mount, y scripts de shell (pipes | y redirecciones > incluidos).",
@@ -377,12 +423,30 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
         </details>
       </div>
 
-      <div className="relative bg-zinc-950">
+      {/* `min-h-0` deja que este bloque SE ENCOJA por debajo de su contenido
+          (xterm mide rows×cols fijos, ~500px) cuando el padre acota la altura. */}
+      <div className="relative min-h-0 bg-zinc-950">
+        {/* Solo scroll HORIZONTAL acá: xterm se instancia con `rows: 30` fijo y
+            sin FitAddon, así que su alto es intrínseco (~470px) y no se adapta.
+            Un techo vertical (`max-h`) crea un segundo scroller por fuera del
+            `.xterm-viewport` — y como el viewport es `absolute inset-0` sobre los
+            470px completos, no sabe del recorte: la rueda la consume él (siempre
+            está al fondo, porque cada byte auto-scrollea) y la fila 30, donde
+            queda el prompt tras el boot, se vuelve inalcanzable. La terminal se
+            ve como un rectángulo negro congelado. El scroll vertical lo da el
+            contenedor de la hoja (`overflow-auto` en el track + `min-h-full` en
+            el bloque); acá solo hace falta poder panear las 100 columnas en
+            móvil.
+            WHY el piso condicional: antes de que xterm monte (loading/booting/
+            error) el host está vacío y sin `min-h` colapsaría a 0px, dejando los
+            overlays `absolute inset-0` sin alto visible. */}
         {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events */}
         <div
           ref={termHostRef}
           onClick={() => termRef.current?.focus()}
-          className="min-h-72 p-2 cursor-text"
+          className={`overflow-x-auto p-2 cursor-text${
+            status === "ready" ? "" : " min-h-72"
+          }`}
         />
 
         {(status === "loading" || status === "booting") && (

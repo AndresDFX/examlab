@@ -23,9 +23,10 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { ListFilters } from "@/components/ui/list-filters";
 import {
   Table,
@@ -59,6 +60,26 @@ export const Route = createFileRoute("/app/certificates")({ component: Certifica
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+/**
+ * Cede un frame al navegador para que PINTE el overlay "Generando el PDF…"
+ * antes de que `buildCertificatePdf` (jspdf, síncrono una vez cargado el
+ * módulo) bloquee el hilo principal. Sin esto el state se seteaba pero el
+ * overlay no alcanzaba a dibujarse y el usuario solo percibía un tirón.
+ *
+ * Duplicado (6 líneas) en `app.student.certificates.tsx` a propósito — el
+ * flujo de descarga es el mismo, pero no toco otros módulos solo para
+ * compartir el helper.
+ */
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "undefined") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
+}
 
 interface CertificateRow {
   id: string;
@@ -113,23 +134,42 @@ function CertificatesAdmin() {
   // renderiza (RLS ya lo acota a su tenant).
   const [tenantFilter, setTenantFilter] = useState<string>("all");
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
+  // Generar el PDF es client-side (jspdf + QR) y bloquea el hilo principal
+  // varios segundos. Sin indicador el docente clickea otra vez y termina
+  // con 2 descargas. `pdfBusyId` alimenta el overlay + deshabilita el item.
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
 
   // Cargar tenants para el Select cuando es SuperAdmin.
   useEffect(() => {
     if (!isSuperAdminCaller) return;
     let cancelled = false;
     void (async () => {
-      const { data } = await db
+      const { data, error } = await db
         .from("tenants")
         .select("id, slug, name")
         .is("deleted_at", null)
         .order("name");
       if (cancelled) return;
+      if (error) {
+        // El filtro por institución es secundario, pero si falla el usuario
+        // debe saber POR QUÉ el Select quedó vacío (antes: silencio total).
+        toast.error(
+          friendlyError(
+            error,
+            t("hc_routesAppCertificates.tenantsLoadError", {
+              defaultValue: "No pudimos cargar la lista de instituciones.",
+            }),
+          ),
+        );
+        return;
+      }
       setTenants((data ?? []) as Array<{ id: string; slug: string; name: string }>);
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isSuperAdminCaller]);
 
   useEffect(() => {
@@ -142,10 +182,19 @@ function CertificatesAdmin() {
       // no tiene tenant_id propio (vive en el course).
       let courseIdsFilter: string[] | null = null;
       if (isSuperAdminCaller && tenantFilter !== "all") {
-        const { data: courseRows } = await db
+        const { data: courseRows, error: coursesErr } = await db
           .from("courses")
           .select("id")
           .eq("tenant_id", tenantFilter);
+        if (cancelled) return;
+        if (coursesErr) {
+          // Sin esto, un fallo acá se veía EXACTAMENTE igual que "el tenant
+          // no tiene cursos" (lista vacía) — el usuario no podía distinguir
+          // error de dato real.
+          setLoadError(friendlyError(coursesErr, t("hc_routesAppCertificates.loadError")));
+          setLoading(false);
+          return;
+        }
         courseIdsFilter = ((courseRows ?? []) as Array<{ id: string }>).map((r) => r.id);
         // Caso edge: el tenant elegido NO tiene cursos. Cortar el query
         // a corto antes de pegarle a certificates (un `.in('course_id', [])`
@@ -223,7 +272,10 @@ function CertificatesAdmin() {
   });
 
   const handleDownload = async (cert: CertificateRow) => {
+    if (pdfBusyId) return; // anti doble-submit: el PDF tarda y bloquea el hilo
+    setPdfBusyId(cert.id);
     try {
+      await yieldToPaint();
       await downloadCertificate({
         shortCode: cert.short_code,
         studentFullName: cert.student_full_name,
@@ -246,12 +298,31 @@ function CertificatesAdmin() {
       });
     } catch (e) {
       toast.error(friendlyError(e, t("hc_routesAppCertificates.pdfError")));
+    } finally {
+      setPdfBusyId(null);
     }
   };
 
-  const handleCopyLink = (cert: CertificateRow) => {
-    void navigator.clipboard.writeText(buildVerifyUrl(cert.short_code));
-    toast.success(i18n.t("toast.routes_app_certificates.verifyLinkCopied", { defaultValue: "Link de verificación copiado" }));
+  const handleCopyLink = async (cert: CertificateRow) => {
+    // `writeText` rechaza en contextos no seguros / sin permiso. Antes se
+    // disparaba con `void` y el toast de éxito mentía.
+    try {
+      await navigator.clipboard.writeText(buildVerifyUrl(cert.short_code));
+      toast.success(
+        i18n.t("toast.routes_app_certificates.verifyLinkCopied", {
+          defaultValue: "Link de verificación copiado",
+        }),
+      );
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_certificates.verifyLinkCopyFailed", {
+            defaultValue: "No pudimos copiar el link. Copialo manualmente desde la vista pública.",
+          }),
+        ),
+      );
+    }
   };
 
   /**
@@ -262,6 +333,7 @@ function CertificatesAdmin() {
    * verificación marca el certificado como inválido a partir de ahí.
    */
   const handleRevoke = async (cert: CertificateRow) => {
+    if (revokingId) return; // anti doble-submit
     const reasonInput = window.prompt(
       i18n.t("toast.routes_app_certificates.revokeReasonPrompt", {
         defaultValue:
@@ -285,21 +357,28 @@ function CertificatesAdmin() {
       }),
     });
     if (!ok) return;
-    const { error } = await db.rpc("revoke_certificate", {
-      _certificate_id: cert.id,
-      _reason: reasonInput.trim() || null,
-    });
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setRevokingId(cert.id);
+    try {
+      const { error } = await db.rpc("revoke_certificate", {
+        _certificate_id: cert.id,
+        _reason: reasonInput.trim() || null,
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_certificates.revokedOk", {
+          defaultValue: "Certificado revocado",
+        }),
+      );
+      // Refrescar la lista — bumpear `retryNonce` re-corre el useEffect de load.
+      setRetryNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRevokingId(null);
     }
-    toast.success(
-      i18n.t("toast.routes_app_certificates.revokedOk", {
-        defaultValue: "Certificado revocado",
-      }),
-    );
-    // Refrescar la lista — bumpear `retryNonce` re-corre el useEffect de load.
-    setRetryNonce((n) => n + 1);
   };
 
   // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
@@ -310,6 +389,25 @@ function CertificatesAdmin() {
 
   return (
     <div className="container mx-auto space-y-6 p-4 sm:p-6">
+      {/* La construcción del PDF (jspdf + QR + logo remoto) congela el hilo
+          principal: sin overlay el usuario no sabe si su click hizo algo. */}
+      {pdfBusyId && (
+        <LoadingOverlay
+          title={t("hc_routesAppCertificates.pdfBusyTitle", {
+            defaultValue: "Generando el PDF del certificado…",
+          })}
+          subtitle={t("hc_routesAppCertificates.pdfBusySubtitle", {
+            defaultValue: "Puede tomar unos segundos. La descarga inicia sola.",
+          })}
+        />
+      )}
+      {revokingId && (
+        <LoadingOverlay
+          title={t("hc_routesAppCertificates.revokingTitle", {
+            defaultValue: "Revocando el certificado…",
+          })}
+        />
+      )}
       <PageHeader
         title={t("hc_routesAppCertificates.pageTitle")}
         subtitle={
@@ -372,9 +470,17 @@ function CertificatesAdmin() {
       )}
 
       {loading ? (
-        <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> {t("hc_routesAppCertificates.loading")}
-        </div>
+        /* Skeleton con el shape del grid (6 columnas) en lugar de un texto
+           "Cargando…" suelto — el usuario ve de inmediato qué va a aparecer. */
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableBody>
+                <TableSkeleton cols={6} rows={5} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       ) : loadError ? (
         <ErrorState
           message={t("hc_routesAppCertificates.loadErrorTitle")}
@@ -496,12 +602,13 @@ function CertificatesAdmin() {
                             {
                               label: t("hc_routesAppCertificates.actionDownloadPdf"),
                               icon: Download,
+                              disabled: !!pdfBusyId,
                               onClick: () => void handleDownload(c),
                             },
                             {
                               label: t("hc_routesAppCertificates.actionCopyVerifyLink"),
                               icon: Link2,
-                              onClick: () => handleCopyLink(c),
+                              onClick: () => void handleCopyLink(c),
                             },
                             {
                               label: t("hc_routesAppCertificates.actionOpenPublicVerify"),
@@ -517,6 +624,7 @@ function CertificatesAdmin() {
                               icon: Ban,
                               tone: "destructive" as const,
                               separatorBefore: true,
+                              disabled: !!revokingId,
                               onClick: () => void handleRevoke(c),
                             },
                           ]}

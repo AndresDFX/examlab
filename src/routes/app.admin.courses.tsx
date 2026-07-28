@@ -522,6 +522,18 @@ export function AdminCourses() {
   const [dupCopyTeachers, setDupCopyTeachers] = useState(false);
   const [dupLoading, setDupLoading] = useState(false);
 
+  // Curso cuya transición de ciclo de vida (publicar / finalizar / reabrir /
+  // volver a borrador) está en curso. Bloquea el ítem del menú y muestra
+  // spinner en el overlay — "cerrar el curso" no tenía NINGÚN feedback.
+  const [statusBusyId, setStatusBusyId] = useState<string | null>(null);
+  // Guardado del form de curso (INSERT/UPDATE + sincronización de cortes en
+  // loop). Sin él, el botón Guardar aceptaba doble click → creaba 2 cursos.
+  const [savingCourse, setSavingCourse] = useState(false);
+  // Carga de datos al abrir los diálogos de fila (editar / estudiantes /
+  // docentes): son queries `await` antes de mostrar el modal, así que sin
+  // esto el click parecía no hacer nada.
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+
   // SuperAdmin tiene los mismos privilegios que Admin para gestión de
   // cursos. Su vista incluye filtro extra cross-tenant abajo.
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
@@ -723,12 +735,19 @@ export function AdminCourses() {
     } else {
       setCourseStats(new Map());
     }
+    } catch (e) {
+      // Antes este try solo tenía `finally`: si CUALQUIER query lanzaba (red
+      // caída, sesión expirada, CORS) el error salía de `load()` como promesa
+      // rechazada sin dueño → `courses` quedaba vacío, `loadError` en null y
+      // el grid mostraba el empty state "crea tu primer curso". El admin veía
+      // un curso "desaparecido" sin ningún mensaje de error.
+      setLoadError(friendlyError(e, t("hc_routesAppAdminCourses.loadErrorMessage")));
     } finally {
       setLoading(false);
     }
   };
   useEffect(() => {
-    load();
+    void load();
     // SuperAdmin: recargamos cuando cambia el filtro de institución para
     // aplicar `.eq('tenant_id', X)` a la query principal. Para Admin
     // normal tenantFilter queda en 'all' permanente y este effect corre
@@ -823,11 +842,34 @@ export function AdminCourses() {
       start_date: toDateInput(c.start_date),
       end_date: toDateInput(c.end_date),
     });
-    const { data: cuts } = await db
-      .from("grade_cuts")
-      .select("*")
-      .eq("course_id", c.id)
-      .order("position");
+    setRowBusyId(c.id);
+    // El `error` de esta query se IGNORABA: si fallaba (RLS / red), el diálogo
+    // abría con CERO cortes y el admin creía que el curso no tenía cortes.
+    // Peor: al guardar, `originalCutIds` vacío + cortes recreados a mano podía
+    // duplicar/renombrar la estructura de evaluación.
+    let cuts: DraftCut[] | null = null;
+    try {
+      const res = await db
+        .from("grade_cuts")
+        .select("*")
+        .eq("course_id", c.id)
+        .order("position");
+      if (res.error) throw res.error;
+      cuts = res.data as DraftCut[] | null;
+    } catch (e) {
+      setRowBusyId(null);
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.loadCutsFailed", {
+          defaultValue: "No se pudieron cargar los cortes del curso: {{error}}",
+          error: friendlyError(e),
+        }),
+        { duration: 12000 },
+      );
+      // No abrimos el diálogo: editar sin los cortes reales es destructivo.
+      setEditing(null);
+      return;
+    }
+    setRowBusyId(null);
     const list = ((cuts ?? []) as DraftCut[]).map((x) => ({
       id: x.id,
       name: x.name,
@@ -916,6 +958,10 @@ export function AdminCourses() {
   };
 
   const save = async () => {
+    // Anti doble-submit: el guardado hace INSERT/UPDATE del curso + N
+    // UPDATE/INSERT de cortes en serie. Un segundo click antes de terminar
+    // creaba un SEGUNDO curso (el INSERT no es idempotente).
+    if (savingCourse) return;
     // La asignatura del plan es OBLIGATORIA: es la fuente de verdad del nombre
     // y el programa del curso. Sin ella no se puede crear/editar.
     if (!editing?.subject_id) {
@@ -1075,6 +1121,8 @@ export function AdminCourses() {
       passing_grade: Number(editing.passing_grade ?? 3),
       max_exam_attempts: Math.max(1, Number(editing.max_exam_attempts ?? 1)),
     };
+    setSavingCourse(true);
+    try {
     let courseId = editing.id ?? "";
     // Cast a any: code/semestre/grupo recién agregados en la migración
     // 20260610000000; types.ts se regenera tras Publish en Lovable.
@@ -1145,7 +1193,7 @@ export function AdminCourses() {
       setEditing(null);
       setEditingCuts([]);
       setOriginalCutIds(new Set());
-      load();
+      void load();
       return;
     }
 
@@ -1166,7 +1214,15 @@ export function AdminCourses() {
     setEditing(null);
     setEditingCuts([]);
     setOriginalCutIds(new Set());
-    load();
+    void load();
+    } catch (e) {
+      // Sin este catch, un throw del UPDATE/INSERT del curso (red caída,
+      // sesión expirada) dejaba el diálogo abierto exactamente igual que
+      // antes de pulsar Guardar: sin toast, sin cierre, sin pista.
+      toast.error(friendlyError(e), { duration: 12000 });
+    } finally {
+      setSavingCourse(false);
+    }
   };
 
   // Borrado individual: abre el diálogo con advertencia de contenido huérfano +
@@ -1209,22 +1265,39 @@ export function AdminCourses() {
   // la enforza el RPC server-side; el grid del docente ya lista solo sus
   // cursos, así que no hace falta un gate extra en cliente.
   const changeCourseStatus = async (course: Course, next: "borrador" | "en_curso" | "finalizado") => {
-    const { error } = await db.rpc("set_course_status", {
-      _course_id: course.id,
-      _status: next,
-    });
-    if (error) return toast.error(friendlyError(error));
-    toast.success(t("toast.routes_app_admin_courses.statusChanged"));
-    void logEvent({
-      action: "course.updated",
-      category: "course",
-      actorRole: roles[0],
-      entityType: "course",
-      entityId: course.id,
-      entityName: course.name,
-      metadata: { status: next },
-    });
-    load();
+    // Anti doble-submit + feedback visible. Antes esta función NO tenía
+    // ningún estado de carga: el usuario confirmaba "Finalizar" y no pasaba
+    // nada visible mientras corría el RPC + el `load()` completo (varias
+    // queries). Y sin try/catch, un throw del RPC (red / sesión / función
+    // inexistente) se perdía como promesa rechazada sin dueño —
+    // literalmente "no lo hizo ni me dio el error".
+    if (statusBusyId) return;
+    setStatusBusyId(course.id);
+    try {
+      const { error } = await db.rpc("set_course_status", {
+        _course_id: course.id,
+        _status: next,
+      });
+      if (error) {
+        toast.error(friendlyError(error), { duration: 12000 });
+        return;
+      }
+      toast.success(t("toast.routes_app_admin_courses.statusChanged"));
+      void logEvent({
+        action: "course.updated",
+        category: "course",
+        actorRole: roles[0],
+        entityType: "course",
+        entityId: course.id,
+        entityName: course.name,
+        metadata: { status: next },
+      });
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e), { duration: 12000 });
+    } finally {
+      setStatusBusyId(null);
+    }
   };
 
   /** Publicar (borrador → en_curso). */
@@ -1279,13 +1352,25 @@ export function AdminCourses() {
 
   const openEnroll = async (c: Course) => {
     setEnrollCourse(c);
-    const [{ data: profs }, { data: enr }] = await Promise.all([
-      supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
-      supabase.from("course_enrollments").select("user_id").eq("course_id", c.id),
-    ]);
-    setAllProfiles(profs ?? []);
-    setEnrolledIds(new Set((enr ?? []).map((e: any) => e.user_id)));
-    setEnrollOpen(true);
+    setRowBusyId(c.id);
+    try {
+      const [profsRes, enrRes] = await Promise.all([
+        supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
+        supabase.from("course_enrollments").select("user_id").eq("course_id", c.id),
+      ]);
+      // Antes ambos `error` se descartaban: el diálogo abría con la lista de
+      // personas vacía (o sin marcar a los ya matriculados) y el admin no
+      // tenía forma de saber que la consulta había fallado.
+      if (profsRes.error) throw profsRes.error;
+      if (enrRes.error) throw enrRes.error;
+      setAllProfiles(profsRes.data ?? []);
+      setEnrolledIds(new Set((enrRes.data ?? []).map((e: any) => e.user_id)));
+      setEnrollOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e), { duration: 12000 });
+    } finally {
+      setRowBusyId(null);
+    }
   };
 
   const toggleEnroll = async (uid: string, checked: boolean) => {
@@ -1345,52 +1430,82 @@ export function AdminCourses() {
     if (!enrollCourse) return;
     const toRemove = visibleIds.filter((id) => enrolledIds.has(id));
     if (!toRemove.length) return;
+    // Antes el loop hacía `await ...delete()` DESCARTANDO el `error` y luego
+    // toast.success incondicional: si la RLS o una FK rechazaba el borrado, el
+    // admin leía "N desmatriculados" y en realidad no se había quitado a nadie.
+    const removed: string[] = [];
+    let firstError: unknown = null;
     for (const id of toRemove) {
-      await supabase
-        .from("course_enrollments")
-        .delete()
-        .eq("course_id", enrollCourse.id)
-        .eq("user_id", id);
+      try {
+        const { error } = await supabase
+          .from("course_enrollments")
+          .delete()
+          .eq("course_id", enrollCourse.id)
+          .eq("user_id", id);
+        if (error) throw error;
+        removed.push(id);
+      } catch (e) {
+        if (!firstError) firstError = e;
+      }
     }
     setEnrolledIds((prev) => {
       const s = new Set(prev);
-      toRemove.forEach((id) => s.delete(id));
+      removed.forEach((id) => s.delete(id));
       return s;
     });
-    toast.success(
-      i18n.t("toast.routes_app_admin_courses.studentsUnenrolledMany", {
-        defaultValue: "{{count}} estudiante(s) desmatriculados correctamente",
-        count: toRemove.length,
-      }),
-    );
+    if (removed.length > 0)
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.studentsUnenrolledMany", {
+          defaultValue: "{{count}} estudiante(s) desmatriculados correctamente",
+          count: removed.length,
+        }),
+      );
+    if (firstError)
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.studentsUnenrollPartialError", {
+          defaultValue: "{{failed}} no se pudieron desmatricular. Primero: {{error}}",
+          failed: toRemove.length - removed.length,
+          error: friendlyError(firstError),
+        }),
+        { duration: 12000 },
+      );
   };
 
   // ── Teacher Assignment ───────────────────────────────────
 
   const openTeachers = async (c: Course) => {
     setTeacherCourse(c);
-    // Get all users with Docente role
-    const { data: roleRows } = await supabase
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "Docente");
-    const teacherIds = (roleRows ?? []).map((r: any) => r.user_id);
-    if (teacherIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email")
-        .in("id", teacherIds)
-        .order("full_name");
-      setTeachers((profs ?? []) as Profile[]);
-    } else {
-      setTeachers([]);
+    setRowBusyId(c.id);
+    // Idem `openEnroll`: los tres `error` se ignoraban → diálogo con lista de
+    // docentes vacía y sin marcar los asignados, sin ningún aviso.
+    try {
+      // Get all users with Docente role
+      const roleRes = await supabase.from("user_roles").select("user_id").eq("role", "Docente");
+      if (roleRes.error) throw roleRes.error;
+      const teacherIds = (roleRes.data ?? []).map((r: any) => r.user_id);
+      if (teacherIds.length) {
+        const profsRes = await supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", teacherIds)
+          .order("full_name");
+        if (profsRes.error) throw profsRes.error;
+        setTeachers((profsRes.data ?? []) as Profile[]);
+      } else {
+        setTeachers([]);
+      }
+      const assignedRes = await supabase
+        .from("course_teachers")
+        .select("user_id")
+        .eq("course_id", c.id);
+      if (assignedRes.error) throw assignedRes.error;
+      setAssignedTeacherIds(new Set((assignedRes.data ?? []).map((a: any) => a.user_id)));
+      setTeacherOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e), { duration: 12000 });
+    } finally {
+      setRowBusyId(null);
     }
-    const { data: assigned } = await supabase
-      .from("course_teachers")
-      .select("user_id")
-      .eq("course_id", c.id);
-    setAssignedTeacherIds(new Set((assigned ?? []).map((a: any) => a.user_id)));
-    setTeacherOpen(true);
   };
 
   const toggleTeacher = async (uid: string, checked: boolean) => {
@@ -1447,24 +1562,44 @@ export function AdminCourses() {
     if (!teacherCourse) return;
     const toRemove = visibleIds.filter((id) => assignedTeacherIds.has(id));
     if (!toRemove.length) return;
+    // Mismo fallo silencioso que `unenrollMany`: el `error` del delete se
+    // descartaba y el toast de éxito salía igual.
+    const removed: string[] = [];
+    let firstError: unknown = null;
     for (const id of toRemove) {
-      await supabase
-        .from("course_teachers")
-        .delete()
-        .eq("course_id", teacherCourse.id)
-        .eq("user_id", id);
+      try {
+        const { error } = await supabase
+          .from("course_teachers")
+          .delete()
+          .eq("course_id", teacherCourse.id)
+          .eq("user_id", id);
+        if (error) throw error;
+        removed.push(id);
+      } catch (e) {
+        if (!firstError) firstError = e;
+      }
     }
     setAssignedTeacherIds((prev) => {
       const s = new Set(prev);
-      toRemove.forEach((id) => s.delete(id));
+      removed.forEach((id) => s.delete(id));
       return s;
     });
-    toast.success(
-      i18n.t("toast.routes_app_admin_courses.teachersUnassignedMany", {
-        defaultValue: "{{count}} docente(s) desasignados correctamente",
-        count: toRemove.length,
-      }),
-    );
+    if (removed.length > 0)
+      toast.success(
+        i18n.t("toast.routes_app_admin_courses.teachersUnassignedMany", {
+          defaultValue: "{{count}} docente(s) desasignados correctamente",
+          count: removed.length,
+        }),
+      );
+    if (firstError)
+      toast.error(
+        i18n.t("toast.routes_app_admin_courses.teachersUnassignPartialError", {
+          defaultValue: "{{failed}} no se pudieron desasignar. Primero: {{error}}",
+          failed: toRemove.length - removed.length,
+          error: friendlyError(firstError),
+        }),
+        { duration: 12000 },
+      );
   };
 
   // ── Duplicate Course ─────────────────────────────────────
@@ -2057,7 +2192,14 @@ export function AdminCourses() {
                     )}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    <StatusBadge status={deriveCourseDisplayState(c, Date.now())} />
+                    <span className="inline-flex items-center gap-1.5">
+                      <StatusBadge status={deriveCourseDisplayState(c, Date.now())} />
+                      {/* La transición (publicar / finalizar / reabrir) corre
+                          desde un menú que se cierra al hacer click: sin este
+                          spinner en la fila no había NINGUNA señal de que el
+                          cambio de estado estaba en curso. */}
+                      {statusBusyId === c.id && <Spinner size="xs" />}
+                    </span>
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
                     <div className="text-xs tabular-nums">
@@ -2121,6 +2263,8 @@ export function AdminCourses() {
                     })()}
                   </TableCell>
                   <TableCell className="text-right">
+                    <div className="inline-flex items-center justify-end gap-1">
+                    {(rowBusyId === c.id || statusBusyId === c.id) && <Spinner size="xs" />}
                     <RowActionsMenu
                       actions={[
                         {
@@ -2141,12 +2285,14 @@ export function AdminCourses() {
                         {
                           label: t("course.students"),
                           icon: Users,
-                          onClick: () => openEnroll(c),
+                          onClick: () => void openEnroll(c),
+                          disabled: rowBusyId === c.id,
                         },
                         {
                           label: t("course.teachers"),
                           icon: UserCog,
-                          onClick: () => openTeachers(c),
+                          onClick: () => void openTeachers(c),
+                          disabled: rowBusyId === c.id,
                         },
                         {
                           label: t("common.duplicate"),
@@ -2187,27 +2333,36 @@ export function AdminCourses() {
                         (c.status ?? "en_curso") === "borrador" && {
                           label: t("course.actionPublish"),
                           icon: Play,
-                          onClick: () => publishCourse(c),
+                          onClick: () => void publishCourse(c),
+                          disabled: statusBusyId != null,
                           separatorBefore: true,
                         },
                         (c.status ?? "en_curso") === "en_curso" && {
                           label: t("course.actionFinalize"),
                           icon: CheckCircle2,
-                          onClick: () => finalizeCourse(c),
+                          onClick: () => void finalizeCourse(c),
+                          disabled: statusBusyId != null,
                           separatorBefore: true,
                         },
                         c.status === "finalizado" && {
                           label: t("course.actionReopen"),
                           icon: RefreshCw,
-                          onClick: () => reopenCourse(c),
+                          onClick: () => void reopenCourse(c),
+                          disabled: statusBusyId != null,
                           separatorBefore: true,
                         },
                         c.status === "finalizado" && {
                           label: t("course.actionMoveToDraft"),
                           icon: Pencil,
-                          onClick: () => moveCourseToDraft(c),
+                          onClick: () => void moveCourseToDraft(c),
+                          disabled: statusBusyId != null,
                         },
-                        { label: t("common.edit"), icon: Pencil, onClick: () => openEdit(c) },
+                        {
+                          label: t("common.edit"),
+                          icon: Pencil,
+                          onClick: () => void openEdit(c),
+                          disabled: rowBusyId === c.id,
+                        },
                         {
                           label: t("common.delete"),
                           icon: Trash2,
@@ -2217,6 +2372,7 @@ export function AdminCourses() {
                         },
                       ]}
                     />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -2898,10 +3054,13 @@ export function AdminCourses() {
             </div>
           )}
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={savingCourse}>
               {t("hc_routesAppAdminCourses.cancel")}
             </Button>
-            <Button onClick={save}>{t("hc_routesAppAdminCourses.save")}</Button>
+            <Button onClick={() => void save()} disabled={savingCourse}>
+              {savingCourse && <Spinner size="sm" className="mr-2" />}
+              {t("hc_routesAppAdminCourses.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

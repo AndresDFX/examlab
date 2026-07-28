@@ -9,7 +9,7 @@
  * Filtro por programa habilita gestión rápida cuando hay muchas
  * asignaturas (típico: 30-60 por programa).
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -22,6 +22,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import {
@@ -153,45 +154,87 @@ export function AdminAcademicSubjectsPanel() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  // Fila que se está eliminando — anti doble-submit + ítem del menú
+  // deshabilitado mientras el DELETE vuela.
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Guard "cambios sin guardar" para el dialog crear/editar asignatura (el
   // sílabo es mucha data: objetivos, contenidos, bibliografía, pesos…). El
   // form ya es UN objeto (`draft`), así que se pasa directo al hook.
   const dirty = useDirtyDialog(open, draft);
+  // `load()` corre desde el effect y desde cada handler; sin guard un setState
+  // podía caer sobre el componente desmontado.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const [subRes, progRes, courseCountRes] = await Promise.all([
-      db
-        .from("academic_subjects")
-        .select(
-          "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
-        )
-        .order("name"),
-      db.from("academic_programs").select("id, name").order("name"),
-      // Count de cursos por subject_id. Lo agregamos al lado para
-      // mostrar 'Cursos: N' en la fila (tracking integral por
-      // programa/asignatura que pidió el admin).
-      db.from("courses").select("subject_id"),
-    ]);
-    if (subRes.error) {
-      setLoadError(friendlyError(subRes.error, t("hc_modulesAdminAdminAcademicSubjectsPanel.loadErrorFallback")));
-      setLoading(false);
-      return;
-    }
-    const countBySubject = new Map<string, number>();
-    for (const c of (courseCountRes.data ?? []) as Array<{ subject_id: string | null }>) {
-      if (c.subject_id) {
-        countBySubject.set(c.subject_id, (countBySubject.get(c.subject_id) ?? 0) + 1);
+    try {
+      const [subRes, progRes, courseCountRes] = await Promise.all([
+        db
+          .from("academic_subjects")
+          .select(
+            "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
+          )
+          .order("name"),
+        db.from("academic_programs").select("id, name").order("name"),
+        // Count de cursos por subject_id. Lo agregamos al lado para
+        // mostrar 'Cursos: N' en la fila (tracking integral por
+        // programa/asignatura que pidió el admin).
+        db.from("courses").select("subject_id"),
+      ]);
+      if (!mountedRef.current) return;
+      if (subRes.error) {
+        setLoadError(friendlyError(subRes.error, t("hc_modulesAdminAdminAcademicSubjectsPanel.loadErrorFallback")));
+        return;
       }
+      const countBySubject = new Map<string, number>();
+      for (const c of (courseCountRes.data ?? []) as Array<{ subject_id: string | null }>) {
+        if (c.subject_id) {
+          countBySubject.set(c.subject_id, (countBySubject.get(c.subject_id) ?? 0) + 1);
+        }
+      }
+      const subjects: Subject[] = ((subRes.data ?? []) as Subject[]).map((s) => ({
+        ...s,
+        course_count: countBySubject.get(s.id) ?? 0,
+      }));
+      setRows(subjects);
+      setPrograms((progRes.data ?? []) as Program[]);
+      // Las 2 queries auxiliares eran best-effort SILENCIOSAS: si fallaban, el
+      // admin veía el filtro de carreras vacío y "Cursos: 0" en todas las filas
+      // sin ninguna pista de que la carga quedó incompleta.
+      const partial: string[] = [];
+      if (progRes.error) {
+        partial.push(t("academic.subjects.partialLoadPrograms", { defaultValue: "carreras" }));
+      }
+      if (courseCountRes.error) {
+        partial.push(
+          t("academic.subjects.partialLoadCourseCounts", { defaultValue: "conteo de cursos" }),
+        );
+      }
+      if (partial.length > 0) {
+        toast.warning(
+          t("academic.subjects.partialLoadWarning", {
+            fields: partial.join(", "),
+            defaultValue:
+              "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+          }),
+          { duration: 10000 },
+        );
+      }
+    } catch (e) {
+      if (!mountedRef.current) return;
+      setLoadError(
+        friendlyError(e, t("hc_modulesAdminAdminAcademicSubjectsPanel.loadErrorFallback")),
+      );
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-    const subjects: Subject[] = ((subRes.data ?? []) as Subject[]).map((s) => ({
-      ...s,
-      course_count: countBySubject.get(s.id) ?? 0,
-    }));
-    setRows(subjects);
-    setPrograms((progRes.data ?? []) as Program[]);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -285,6 +328,7 @@ export function AdminAcademicSubjectsPanel() {
 
   const save = async () => {
     if (!user) return;
+    if (saving) return; // anti doble-submit
     const name = draft.name.trim();
     if (!name) {
       toast.error(i18n.t("academic.subjects.toastNameRequired"));
@@ -310,64 +354,74 @@ export function AdminAcademicSubjectsPanel() {
       return;
     }
     setSaving(true);
-    const payload = {
-      name,
-      code: draft.code.trim() || null,
-      program_id: draft.program_id,
-      semestre: draft.semestre,
-      credits: draft.credits,
-      description: draft.description.trim() || null,
-      active: draft.active,
-      objetivos: draft.objetivos.trim() || null,
-      contenidos: draft.contenidos.trim() || null,
-      bibliografia: draft.bibliografia.trim() || null,
-      intensidad_horaria: draft.intensidad_horaria,
-      // sistema_evaluacion guarda pesos (si suman 100) y/o la escala. Se
-      // persiste si HAY pesos O escala; null solo si no hay nada.
-      sistema_evaluacion: (() => {
-        const ev: Record<string, number> = {};
-        if (evalSum > 0) {
-          ev.exam_weight = draft.exam_weight;
-          ev.workshop_weight = draft.workshop_weight;
-          ev.project_weight = draft.project_weight;
-          ev.attendance_weight = draft.attendance_weight;
-        }
-        if (hasScale) {
-          ev.grade_scale_min = Number(draft.grade_scale_min);
-          ev.grade_scale_max = Number(draft.grade_scale_max);
-        }
-        return Object.keys(ev).length > 0 ? ev : null;
-      })(),
-      updated_by: user.id,
-    };
-    const { error } = draft.id
-      ? await db.from("academic_subjects").update(payload).eq("id", draft.id)
-      : await db.from("academic_subjects").insert(payload);
-    setSaving(false);
-    if (error) {
-      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicSubjectsPanel.saveErrorFallback")));
-      return;
+    try {
+      const payload = {
+        name,
+        code: draft.code.trim() || null,
+        program_id: draft.program_id,
+        semestre: draft.semestre,
+        credits: draft.credits,
+        description: draft.description.trim() || null,
+        active: draft.active,
+        objetivos: draft.objetivos.trim() || null,
+        contenidos: draft.contenidos.trim() || null,
+        bibliografia: draft.bibliografia.trim() || null,
+        intensidad_horaria: draft.intensidad_horaria,
+        // sistema_evaluacion guarda pesos (si suman 100) y/o la escala. Se
+        // persiste si HAY pesos O escala; null solo si no hay nada.
+        sistema_evaluacion: (() => {
+          const ev: Record<string, number> = {};
+          if (evalSum > 0) {
+            ev.exam_weight = draft.exam_weight;
+            ev.workshop_weight = draft.workshop_weight;
+            ev.project_weight = draft.project_weight;
+            ev.attendance_weight = draft.attendance_weight;
+          }
+          if (hasScale) {
+            ev.grade_scale_min = Number(draft.grade_scale_min);
+            ev.grade_scale_max = Number(draft.grade_scale_max);
+          }
+          return Object.keys(ev).length > 0 ? ev : null;
+        })(),
+        updated_by: user.id,
+      };
+      const { error } = draft.id
+        ? await db.from("academic_subjects").update(payload).eq("id", draft.id)
+        : await db.from("academic_subjects").insert(payload);
+      if (error) {
+        toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicSubjectsPanel.saveErrorFallback")));
+        return;
+      }
+      void logEvent({
+        action: draft.id ? "subject.updated" : "subject.created",
+        category: "academic",
+        severity: "info",
+        entityType: "academic_subject",
+        entityId: draft.id ?? undefined,
+        entityName: name,
+        metadata: {
+          code: payload.code,
+          program_id: payload.program_id,
+          semestre: payload.semestre,
+          credits: payload.credits,
+        },
+      });
+      toast.success(draft.id ? i18n.t("academic.subjects.toastUpdated") : i18n.t("academic.subjects.toastCreated"));
+      setOpen(false);
+      void load();
+    } catch (e) {
+      // Sin este catch, un throw (red/sesión) dejaba el sílabo escrito, el
+      // botón trabado en "Guardando…" y ningún mensaje al admin.
+      toast.error(
+        friendlyError(e, t("hc_modulesAdminAdminAcademicSubjectsPanel.saveErrorFallback")),
+      );
+    } finally {
+      if (mountedRef.current) setSaving(false);
     }
-    void logEvent({
-      action: draft.id ? "subject.updated" : "subject.created",
-      category: "academic",
-      severity: "info",
-      entityType: "academic_subject",
-      entityId: draft.id ?? undefined,
-      entityName: name,
-      metadata: {
-        code: payload.code,
-        program_id: payload.program_id,
-        semestre: payload.semestre,
-        credits: payload.credits,
-      },
-    });
-    toast.success(draft.id ? i18n.t("academic.subjects.toastUpdated") : i18n.t("academic.subjects.toastCreated"));
-    setOpen(false);
-    void load();
   };
 
   const remove = async (r: Subject) => {
+    if (deletingId) return;
     const hasCourses = (r.course_count ?? 0) > 0;
     const ok = await confirm({
       title: i18n.t("academic.subjects.confirmDeleteTitle", { name: r.name }),
@@ -378,22 +432,29 @@ export function AdminAcademicSubjectsPanel() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("academic_subjects").delete().eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(r.id);
+    try {
+      const { error } = await db.from("academic_subjects").delete().eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: "subject.deleted",
+        category: "academic",
+        severity: "warning",
+        entityType: "academic_subject",
+        entityId: r.id,
+        entityName: r.name,
+        metadata: { course_count: r.course_count ?? 0 },
+      });
+      toast.success(i18n.t("academic.subjects.toastDeleted"));
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      if (mountedRef.current) setDeletingId(null);
     }
-    void logEvent({
-      action: "subject.deleted",
-      category: "academic",
-      severity: "warning",
-      entityType: "academic_subject",
-      entityId: r.id,
-      entityName: r.name,
-      metadata: { course_count: r.course_count ?? 0 },
-    });
-    toast.success(i18n.t("academic.subjects.toastDeleted"));
-    void load();
   };
 
   return (
@@ -436,11 +497,7 @@ export function AdminAcademicSubjectsPanel() {
           </Select>
         </div>
 
-        {loading ? (
-          <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> {t("academic.subjects.loading")}
-          </div>
-        ) : loadError ? (
+        {loadError ? (
           <ErrorState
             message={t("academic.subjects.loadError")}
             hint={loadError}
@@ -461,7 +518,10 @@ export function AdminAcademicSubjectsPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filtered.length === 0 ? (
+                {/* Carga inicial / reintento: skeleton con el shape de la tabla. */}
+                {loading ? (
+                  <TableSkeleton rows={5} cols={7} />
+                ) : filtered.length === 0 ? (
                   <TableEmpty
                     colSpan={7}
                     text={t("academic.subjects.empty")}
@@ -497,7 +557,12 @@ export function AdminAcademicSubjectsPanel() {
                         {r.credits ?? "—"}
                       </TableCell>
                       <TableCell className="text-center tabular-nums">
-                        {r.course_count ?? 0}
+                        <span className="inline-flex items-center justify-center gap-1.5">
+                          {r.course_count ?? 0}
+                          {/* Eliminar corre desde el menú: sin este spinner la
+                              fila no daba ninguna señal de progreso. */}
+                          {deletingId === r.id && <Spinner size="xs" />}
+                        </span>
                       </TableCell>
                       <TableCell className="text-right">
                         <RowActionsMenu
@@ -528,6 +593,11 @@ export function AdminAcademicSubjectsPanel() {
                               icon: Trash2,
                               tone: "destructive",
                               separatorBefore: true,
+                              disabled: deletingId !== null,
+                              hint:
+                                deletingId !== null
+                                  ? t("common.processing", { defaultValue: "Procesando…" })
+                                  : undefined,
                               onClick: () => void remove(r),
                             },
                           ]}
@@ -816,6 +886,7 @@ export function AdminAcademicSubjectsPanel() {
               {t("academic.subjects.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
+              {saving && <Spinner size="sm" className="mr-2" />}
               {saving ? t("academic.subjects.saving") : draft.id ? t("academic.subjects.saveChanges") : t("academic.subjects.create")}
             </Button>
           </DialogFooter>

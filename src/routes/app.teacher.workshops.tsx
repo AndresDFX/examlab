@@ -299,6 +299,24 @@ function TeacherWorkshops() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [aiErrorsByWorkshop, setAiErrorsByWorkshop] = useState<Record<string, number>>({});
+  // ── Estados de "acción en curso" ──────────────────────────────────────
+  // Cada uno cubre UNA acción asíncrona disparada por el docente para
+  // (a) evitar el doble-submit y (b) mostrar spinner/disabled mientras
+  // corre. Los `*Id` marcan la fila/entrega concreta en curso; los
+  // booleanos, acciones globales del dialog.
+  const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [openingGroupsId, setOpeningGroupsId] = useState<string | null>(null);
+  const [openingAssignId, setOpeningAssignId] = useState<string | null>(null);
+  const [openingGradingId, setOpeningGradingId] = useState<string | null>(null);
+  const [assignBusy, setAssignBusy] = useState(false);
+  const [savingGradeId, setSavingGradeId] = useState<string | null>(null);
+  const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [reopeningId, setReopeningId] = useState<string | null>(null);
+  const [deletingSubId, setDeletingSubId] = useState<string | null>(null);
+  const [togglingReviewId, setTogglingReviewId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -387,7 +405,10 @@ function TeacherWorkshops() {
 
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await softDeleteMany("workshops", ids);
-    if (error) throw new Error(error.message);
+    // `friendlyError` acá y no en el catch del BulkDeleteDialog: envolver el
+    // objeto de Supabase en un Error crudo perdía el SQLSTATE y con él la
+    // traducción, así que el docente veía el mensaje técnico en inglés.
+    if (error) throw new Error(friendlyError(error));
     toast.success(
       i18n.t("toast.routes_app_teacher_workshops.bulkMovedToTrash", {
         defaultValue: "{{count}} taller(es) enviado(s) a papelera",
@@ -427,16 +448,33 @@ function TeacherWorkshops() {
   >([]);
   useEffect(() => {
     if (!open) return;
+    // Guard `cancelled`: si el docente cierra el dialog antes de que la
+    // query resuelva, el setState sobre el componente desmontado dispara
+    // el warning de React (convención del repo).
+    let cancelled = false;
     void (async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("videos")
         .select("id, title, provider, url")
         .eq("is_archived", false)
         .order("title");
+      if (cancelled) return;
+      if (error) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_workshops.videoLibraryLoadFailed", {
+            defaultValue: "No se pudo cargar la biblioteca de videos: {{error}}",
+            error: friendlyError(error),
+          }),
+        );
+        return;
+      }
       setVideoLibrary(
         (data ?? []) as Array<{ id: string; title: string; provider: string; url: string }>,
       );
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
   // Hidratar la lista de videos del taller al editar. Se dispara cuando
   // cambia `form.id` y el dialog está abierto. En create (form.id
@@ -568,23 +606,31 @@ function TeacherWorkshops() {
    * inmediatamente.
    */
   const openGroupsForWorkshop = async (ws: Workshop) => {
+    if (openingGroupsId) return;
     const mode = (ws as any).group_mode ?? "individual";
-    let updatedWs = ws;
-    if (mode === "individual") {
-      const { error } = await (supabase as any)
-        .from("workshops")
-        .update({ group_mode: "teacher_assigned" })
-        .eq("id", ws.id);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
+    setOpeningGroupsId(ws.id);
+    try {
+      let updatedWs = ws;
+      if (mode === "individual") {
+        const { error } = await (supabase as any)
+          .from("workshops")
+          .update({ group_mode: "teacher_assigned" })
+          .eq("id", ws.id);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
+        setWorkshops((prev) => prev.map((w) => (w.id === ws.id ? updatedWs : w)));
+        toast.success(t("workshop.groupActivated"));
       }
-      updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
-      setWorkshops((prev) => prev.map((w) => (w.id === ws.id ? updatedWs : w)));
-      toast.success(t("workshop.groupActivated"));
+      setGroupsWs(updatedWs);
+      setGroupsOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setOpeningGroupsId(null);
     }
-    setGroupsWs(updatedWs);
-    setGroupsOpen(true);
   };
 
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
@@ -918,6 +964,7 @@ function TeacherWorkshops() {
   };
 
   const save = async () => {
+    if (saving) return; // anti doble-submit: el save hace N inserts/updates
     if (!form.title || !user) {
       toast.error(
         i18n.t("toast.routes_app_teacher_workshops.completeFields", {
@@ -1044,6 +1091,12 @@ function TeacherWorkshops() {
       }
     }
 
+    // A partir de acá empiezan las escrituras (update/insert + sync M:N +
+    // videos + auto-assign + notificaciones): puede tardar varios segundos,
+    // así que el botón queda disabled con spinner hasta el finally. El
+    // wrap sin re-indentar sigue el mismo estilo que `load()` de este archivo.
+    setSaving(true);
+    try {
     if (form.id) {
       const courseChanged = !!originalCourseId && form.course_id !== originalCourseId;
       if (courseChanged) {
@@ -1252,7 +1305,12 @@ function TeacherWorkshops() {
       });
     }
     setOpen(false);
-    load();
+    await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSaving(false);
+    }
   };
 
   // Estado del dialog de duplicar (reemplaza el inline INSERT por la
@@ -1267,6 +1325,7 @@ function TeacherWorkshops() {
   };
 
   const remove = async (id: string) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: t("workshop.deleteTitle"),
       description: t("workshop.deleteBody"),
@@ -1275,117 +1334,208 @@ function TeacherWorkshops() {
     });
     if (!ok) return;
     const ws = workshops.find((w) => w.id === id);
-    const { error } = await softDelete("workshops", id);
-    if (error) return toast.error(friendlyError(error));
-    toast.success(t("workshop.deletedToast"));
-    void logEvent({
-      action: "workshop.deleted",
-      category: "workshop",
-      actorRole: roles[0],
-      entityType: "workshop",
-      entityId: id,
-      entityName: ws?.title,
-      courseId: ws?.course_id,
-      courseName: courses.find((c) => c.id === ws?.course_id)?.name,
-    });
-    load();
+    setDeletingId(id);
+    try {
+      const { error } = await softDelete("workshops", id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(t("workshop.deletedToast"));
+      void logEvent({
+        action: "workshop.deleted",
+        category: "workshop",
+        actorRole: roles[0],
+        entityType: "workshop",
+        entityId: id,
+        entityName: ws?.title,
+        courseId: ws?.course_id,
+        courseName: courses.find((c) => c.id === ws?.course_id)?.name,
+      });
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   const openAssign = async (ws: Workshop) => {
+    // El dialog se abre DESPUÉS de resolver 3 queries: sin busy el click
+    // no daba ninguna señal y el docente volvía a clickear.
+    if (openingAssignId) return;
+    setOpeningAssignId(ws.id);
     setAssignWs(ws);
-    const [{ data: enr }, { data: asg }] = await Promise.all([
-      supabase.from("course_enrollments").select("user_id").eq("course_id", ws.course_id),
-      supabase.from("workshop_assignments").select("user_id").eq("workshop_id", ws.id),
-    ]);
-    const userIds = (enr ?? []).map((r: any) => r.user_id);
-    if (userIds.length) {
-      const { data: profs } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email")
-        .in("id", userIds);
-      setStudents((profs ?? []) as Student[]);
-    } else {
-      setStudents([]);
+    try {
+      const [{ data: enr, error: enrErr }, { data: asg, error: asgErr }] = await Promise.all([
+        supabase.from("course_enrollments").select("user_id").eq("course_id", ws.course_id),
+        supabase.from("workshop_assignments").select("user_id").eq("workshop_id", ws.id),
+      ]);
+      if (enrErr || asgErr) {
+        toast.error(friendlyError(enrErr ?? asgErr));
+        return;
+      }
+      const userIds = (enr ?? []).map((r: any) => r.user_id);
+      if (userIds.length) {
+        const { data: profs, error: profErr } = await supabase
+          .from("profiles")
+          .select("id, full_name, institutional_email")
+          .in("id", userIds);
+        if (profErr) {
+          toast.error(friendlyError(profErr));
+          return;
+        }
+        setStudents((profs ?? []) as Student[]);
+      } else {
+        setStudents([]);
+      }
+      setAssignedIds(new Set((asg ?? []).map((a: any) => a.user_id)));
+      setAssignOpen(true);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setOpeningAssignId(null);
     }
-    setAssignedIds(new Set((asg ?? []).map((a: any) => a.user_id)));
-    setAssignOpen(true);
   };
 
   const toggleAssign = async (uid: string, checked: boolean) => {
-    if (!assignWs) return;
-    if (checked) {
-      const { error } = await supabase
-        .from("workshop_assignments")
-        .insert({ workshop_id: assignWs.id, user_id: uid });
-      if (error) return toast.error(friendlyError(error));
-      setAssignedIds(new Set([...assignedIds, uid]));
-      toast.success(
-        i18n.t("toast.routes_app_teacher_workshops.studentAssigned", {
-          defaultValue: "Estudiante asignado correctamente",
-        }),
-      );
-    } else {
-      const { error } = await supabase
-        .from("workshop_assignments")
-        .delete()
-        .eq("workshop_id", assignWs.id)
-        .eq("user_id", uid);
-      if (error) return toast.error(friendlyError(error));
-      const ns = new Set(assignedIds);
-      ns.delete(uid);
-      setAssignedIds(ns);
-      toast.success(
-        i18n.t("toast.routes_app_teacher_workshops.assignmentRemoved", {
-          defaultValue: "Asignación removida correctamente",
-        }),
-      );
+    if (!assignWs || assignBusy) return;
+    setAssignBusy(true);
+    try {
+      if (checked) {
+        const { error } = await supabase
+          .from("workshop_assignments")
+          .insert({ workshop_id: assignWs.id, user_id: uid });
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        setAssignedIds(new Set([...assignedIds, uid]));
+        toast.success(
+          i18n.t("toast.routes_app_teacher_workshops.studentAssigned", {
+            defaultValue: "Estudiante asignado correctamente",
+          }),
+        );
+      } else {
+        const { error } = await supabase
+          .from("workshop_assignments")
+          .delete()
+          .eq("workshop_id", assignWs.id)
+          .eq("user_id", uid);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        const ns = new Set(assignedIds);
+        ns.delete(uid);
+        setAssignedIds(ns);
+        toast.success(
+          i18n.t("toast.routes_app_teacher_workshops.assignmentRemoved", {
+            defaultValue: "Asignación removida correctamente",
+          }),
+        );
+      }
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
   };
 
   const assignAll = async () => {
-    if (!assignWs) return;
+    if (!assignWs || assignBusy) return;
     const toAdd = students.filter((s) => !assignedIds.has(s.id));
     if (!toAdd.length) return;
-    const { error } = await supabase
-      .from("workshop_assignments")
-      .insert(toAdd.map((s) => ({ workshop_id: assignWs.id, user_id: s.id })));
-    if (error) return toast.error(friendlyError(error));
-    setAssignedIds(new Set(students.map((s) => s.id)));
-    toast.success(
-      i18n.t("toast.routes_app_teacher_workshops.studentsAssigned", {
-        defaultValue: "{{count}} estudiante(s) asignados correctamente",
-        count: toAdd.length,
-      }),
-    );
+    setAssignBusy(true);
+    try {
+      const { error } = await supabase
+        .from("workshop_assignments")
+        .insert(toAdd.map((s) => ({ workshop_id: assignWs.id, user_id: s.id })));
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setAssignedIds(new Set(students.map((s) => s.id)));
+      toast.success(
+        i18n.t("toast.routes_app_teacher_workshops.studentsAssigned", {
+          defaultValue: "{{count}} estudiante(s) asignados correctamente",
+          count: toAdd.length,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
+    }
   };
 
   const unassignAll = async () => {
-    if (!assignWs) return;
+    if (!assignWs || assignBusy) return;
     const toRemove = students.filter((s) => assignedIds.has(s.id));
     if (!toRemove.length) return;
-    for (const s of toRemove) {
-      await supabase
-        .from("workshop_assignments")
-        .delete()
-        .eq("workshop_id", assignWs.id)
-        .eq("user_id", s.id);
+    setAssignBusy(true);
+    try {
+      // El loop de DELETEs descartaba los errores y limpiaba el set igual:
+      // si la RLS rechazaba, el docente veía "N removidas" y el estado en
+      // pantalla mentía. Ahora solo se quitan los que realmente se borraron
+      // y se muestra el primer error real (convención de bulk ops).
+      const removed = new Set<string>();
+      let firstError: string | null = null;
+      for (const s of toRemove) {
+        const { error } = await supabase
+          .from("workshop_assignments")
+          .delete()
+          .eq("workshop_id", assignWs.id)
+          .eq("user_id", s.id);
+        if (error) {
+          if (!firstError) firstError = friendlyError(error);
+          continue;
+        }
+        removed.add(s.id);
+      }
+      setAssignedIds((prev) => {
+        const next = new Set(prev);
+        removed.forEach((id) => next.delete(id));
+        return next;
+      });
+      if (firstError) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_workshops.unassignPartialError", {
+            defaultValue: "{{removed}} removidas, {{failed}} con error. Primero: {{error}}",
+            removed: removed.size,
+            failed: toRemove.length - removed.size,
+            error: firstError,
+          }),
+          { duration: 12000 },
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_workshops.assignmentsRemoved", {
+          defaultValue: "{{count}} asignación(es) removidas correctamente",
+          count: removed.size,
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setAssignBusy(false);
     }
-    setAssignedIds(new Set());
-    toast.success(
-      i18n.t("toast.routes_app_teacher_workshops.assignmentsRemoved", {
-        defaultValue: "{{count}} asignación(es) removidas correctamente",
-        count: toRemove.length,
-      }),
-    );
   };
 
   const openGrading = async (ws: Workshop) => {
+    // Carga pesada (entregas + preguntas + pares de copia + perfiles +
+    // respuestas + threads + comentarios) ANTES de abrir el dialog: sin
+    // `openingGradingId` el click quedaba mudo varios segundos.
+    if (openingGradingId) return;
+    setOpeningGradingId(ws.id);
+    try {
     setGradingWs(ws);
     setWsQuestions([]);
     setAnswersBySub({});
     setWsSimilarityPairs([]);
     setWsThreadsByQ({});
-    const [{ data: subs }, { data: qs }, { data: pairs }] = await Promise.all([
+    const [{ data: subs, error: subsErr }, { data: qs }, { data: pairs }] = await Promise.all([
       supabase.from("workshop_submissions").select("*").eq("workshop_id", ws.id),
       supabase
         .from("workshop_questions")
@@ -1402,6 +1552,17 @@ function TeacherWorkshops() {
         .eq("kind", "workshop")
         .eq("ref_id", ws.id),
     ]);
+    // Las entregas son la razón de ser del dialog: si esa query falla,
+    // abrirlo con "Sin entregas" sería mentirle al docente.
+    if (subsErr) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.gradingLoadFailed", {
+          defaultValue: "No se pudieron cargar las entregas: {{error}}",
+          error: friendlyError(subsErr),
+        }),
+      );
+      return;
+    }
     setWsQuestions((qs ?? []) as WsQuestion[]);
     setWsSimilarityPairs((pairs ?? []) as WsSimilarityPair[]);
 
@@ -1549,6 +1710,11 @@ function TeacherWorkshops() {
     // El deep-link (highlightSubId) lo maneja un effect aparte que abre
     // automáticamente el detalle de ese estudiante.
     setViewingSubId(null);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setOpeningGradingId(null);
+    }
   };
 
   /** Mapa: submissionId → questionId → { answerId, score, reasons, reviewedAt }.
@@ -1887,61 +2053,84 @@ function TeacherWorkshops() {
     submissionId: string,
     currentlyReviewed: boolean,
   ) => {
+    // Guard GLOBAL: `togglingReviewId` es un solo slot y lo comparten los N
+    // botones de sospechas por pregunta MÁS los de pares de copia
+    // (`togglePairReviewed`). Por eso el `disabled` de todos esos botones va
+    // con `!== null`: con `=== id` los demás quedaban habilitados y el click
+    // retornaba acá sin ningún feedback.
+    if (togglingReviewId) return;
     const next = currentlyReviewed ? null : new Date().toISOString();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbAny = supabase as any;
-    const { error } = await dbAny
-      .from("workshop_submission_answers")
-      .update({ ai_review_at: next, ai_review_by: user?.id ?? null })
-      .eq("id", answerId);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
-    }
-    setAnswersBySub((prev) => {
-      const list = (prev[submissionId] ?? []).map((a) =>
-        a.id === answerId ? { ...a, ai_review_at: next } : a,
+    setTogglingReviewId(answerId);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { error } = await dbAny
+        .from("workshop_submission_answers")
+        .update({ ai_review_at: next, ai_review_by: user?.id ?? null })
+        .eq("id", answerId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setAnswersBySub((prev) => {
+        const list = (prev[submissionId] ?? []).map((a) =>
+          a.id === answerId ? { ...a, ai_review_at: next } : a,
+        );
+        return { ...prev, [submissionId]: list };
+      });
+      toast.success(
+        currentlyReviewed
+          ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
+              defaultValue: "Marcada como pendiente",
+            })
+          : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
+              defaultValue: "Marcada como revisada",
+            }),
       );
-      return { ...prev, [submissionId]: list };
-    });
-    toast.success(
-      currentlyReviewed
-        ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
-            defaultValue: "Marcada como pendiente",
-          })
-        : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
-            defaultValue: "Marcada como revisada",
-          }),
-    );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setTogglingReviewId(null);
+    }
   };
 
   /** Marca/desmarca un par de copia (similarity_pairs) como revisado.
    *  Persiste `reviewed_at`. Tras toggle actualiza wsSimilarityPairs en
    *  memoria para que el badge "Revisada" se refleje sin recargar. */
   const togglePairReviewed = async (pairId: string, currentlyReviewed: boolean) => {
+    // Mismo slot de estado que toggleQuestionAiReviewed ⇒ mismo guard global y
+    // mismo `disabled` global en los botones de pares.
+    if (togglingReviewId) return;
     const next = currentlyReviewed ? null : new Date().toISOString();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbAny = supabase as any;
-    const { error } = await dbAny
-      .from("similarity_pairs")
-      .update({ reviewed_at: next })
-      .eq("id", pairId);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setTogglingReviewId(pairId);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbAny = supabase as any;
+      const { error } = await dbAny
+        .from("similarity_pairs")
+        .update({ reviewed_at: next })
+        .eq("id", pairId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setWsSimilarityPairs((prev) =>
+        prev.map((p) => (p.id === pairId ? { ...p, reviewed_at: next } : p)),
+      );
+      toast.success(
+        currentlyReviewed
+          ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
+              defaultValue: "Marcada como pendiente",
+            })
+          : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
+              defaultValue: "Marcada como revisada",
+            }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setTogglingReviewId(null);
     }
-    setWsSimilarityPairs((prev) =>
-      prev.map((p) => (p.id === pairId ? { ...p, reviewed_at: next } : p)),
-    );
-    toast.success(
-      currentlyReviewed
-        ? i18n.t("toast.routes_app_teacher_workshops.markedPending", {
-            defaultValue: "Marcada como pendiente",
-          })
-        : i18n.t("toast.routes_app_teacher_workshops.markedReviewed", {
-            defaultValue: "Marcada como revisada",
-          }),
-    );
   };
   /** Estado del botón "Detectar copias" del modal de calificación. La
    *  edge function `detect-plagiarism` compara respuestas POR PREGUNTA
@@ -2344,7 +2533,7 @@ function TeacherWorkshops() {
   };
 
   const gradeAllWithAI = async () => {
-    if (!gradingWs) return;
+    if (!gradingWs || aiGradingAll) return;
     const pending = wsSubs.filter(
       (s) => s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado",
     );
@@ -2357,76 +2546,118 @@ function TeacherWorkshops() {
       return;
     }
     setAiGradingAll(true);
+    // `graded` fuera del try para poder reportar el progreso parcial si algo
+    // revienta a mitad del lote (cada entrega tarda 30-90s con la IA).
     let graded = 0;
-    for (const sub of pending) {
-      const ok = await gradeOneWithAI(sub);
-      if (ok) graded++;
-    }
-    setAiGradingAll(false);
-    if (graded > 0)
-      toast.success(
-        i18n.t("toast.routes_app_teacher_workshops.submissionsGradedWithAi", {
-          defaultValue: "{{count}} entrega(s) calificadas con IA correctamente",
-          count: graded,
+    try {
+      for (const sub of pending) {
+        const ok = await gradeOneWithAI(sub);
+        if (ok) graded++;
+      }
+      if (graded > 0)
+        toast.success(
+          i18n.t("toast.routes_app_teacher_workshops.submissionsGradedWithAi", {
+            defaultValue: "{{count}} entrega(s) calificadas con IA correctamente",
+            count: graded,
+          }),
+        );
+    } catch (e) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.gradeAllPartialError", {
+          defaultValue:
+            "Se calificaron {{graded}} de {{total}} entregas y el proceso se detuvo: {{error}}",
+          graded,
+          total: pending.length,
+          error: friendlyError(e),
         }),
+        { duration: 12000 },
       );
+    } finally {
+      // Sin finally, un throw inesperado dejaba el botón "Calificar todo con
+      // IA" girando para siempre y el docente sin poder reintentar.
+      setAiGradingAll(false);
+    }
   };
 
   const approveAIGrade = async (subId: string) => {
     const sub = wsSubs.find((s) => s.id === subId);
-    if (!sub) return;
-    const { error } = await supabase
-      .from("workshop_submissions")
-      .update({
-        final_grade: sub.ai_grade,
-        teacher_feedback: sub.ai_feedback,
-        status: "calificado",
-      })
-      .eq("id", subId);
-    if (error) return toast.error(friendlyError(error));
-    setWsSubs((prev) =>
-      prev.map((s) =>
-        s.id === subId
-          ? {
-              ...s,
-              final_grade: sub.ai_grade,
-              teacher_feedback: sub.ai_feedback,
-              status: "calificado",
-            }
-          : s,
-      ),
-    );
-    toast.success(t("workshop.gradeApproved"));
-    // Aprobar la nota IA finaliza la calificación → notificar al alumno/grupo
-    // (igual que saveGrade; antes este camino cerraba sin avisar — W1).
-    void notifyWorkshopGraded(subId, Number(sub.ai_grade ?? 0));
-    // Aprobar la nota de IA finaliza la calificación → volver a la lista
-    // para pasar al siguiente (mismo criterio que saveGrade).
-    setViewingSubId(null);
-    // Entrega finalizada → quitar de la cola cualquier otro job IA pendiente
-    // de esta entrega (p. ej. un re-encolado), redundante tras aprobar.
-    void cancelPendingAiJobsForTarget(
-      "workshop_submissions",
-      subId,
-      "Cancelado: el docente aprobó la calificación; entrega finalizada.",
-    );
+    if (!sub || approvingId) return;
+    setApprovingId(subId);
+    try {
+      const { error } = await supabase
+        .from("workshop_submissions")
+        .update({
+          final_grade: sub.ai_grade,
+          teacher_feedback: sub.ai_feedback,
+          status: "calificado",
+        })
+        .eq("id", subId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setWsSubs((prev) =>
+        prev.map((s) =>
+          s.id === subId
+            ? {
+                ...s,
+                final_grade: sub.ai_grade,
+                teacher_feedback: sub.ai_feedback,
+                status: "calificado",
+              }
+            : s,
+        ),
+      );
+      toast.success(t("workshop.gradeApproved"));
+      // Aprobar la nota IA finaliza la calificación → notificar al alumno/grupo
+      // (igual que saveGrade; antes este camino cerraba sin avisar — W1).
+      void notifyWorkshopGraded(subId, Number(sub.ai_grade ?? 0));
+      // Aprobar la nota de IA finaliza la calificación → volver a la lista
+      // para pasar al siguiente (mismo criterio que saveGrade).
+      setViewingSubId(null);
+      // Entrega finalizada → quitar de la cola cualquier otro job IA pendiente
+      // de esta entrega (p. ej. un re-encolado), redundante tras aprobar.
+      void cancelPendingAiJobsForTarget(
+        "workshop_submissions",
+        subId,
+        "Cancelado: el docente aprobó la calificación; entrega finalizada.",
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setApprovingId(null);
+    }
   };
 
   const rejectAIGrade = async (subId: string) => {
-    await supabase
-      .from("workshop_submissions")
-      .update({
-        ai_grade: null,
-        ai_feedback: null,
-        status: "entregado",
-      })
-      .eq("id", subId);
-    setWsSubs((prev) =>
-      prev.map((s) =>
-        s.id === subId ? { ...s, ai_grade: null, ai_feedback: null, status: "entregado" } : s,
-      ),
-    );
-    toast.success(t("workshop.gradeRejected"));
+    if (rejectingId) return;
+    setRejectingId(subId);
+    try {
+      // El UPDATE se hacía sin mirar el error: si la RLS lo rechazaba, el
+      // docente veía "Nota rechazada" y el estado local mentía hasta recargar.
+      const { error } = await supabase
+        .from("workshop_submissions")
+        .update({
+          ai_grade: null,
+          ai_feedback: null,
+          status: "entregado",
+        })
+        .eq("id", subId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setWsSubs((prev) =>
+        prev.map((s) =>
+          s.id === subId ? { ...s, ai_grade: null, ai_feedback: null, status: "entregado" } : s,
+        ),
+      );
+      toast.success(t("workshop.gradeRejected"));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRejectingId(null);
+    }
   };
 
   // Persiste la `final_grade` (que el caller ya recalculó desde las
@@ -2442,6 +2673,7 @@ function TeacherWorkshops() {
    * estudiante las ve precargadas al volver a abrir el taller.
    */
   const reopenSubmission = async (sub: WsSub) => {
+    if (reopeningId) return;
     const ok = await confirm({
       title: t("hc_routesAppTeacherWorkshops.reopenConfirmTitle"),
       description: t("hc_routesAppTeacherWorkshops.reopenConfirmBody"),
@@ -2449,6 +2681,8 @@ function TeacherWorkshops() {
       tone: "warning",
     });
     if (!ok) return;
+    setReopeningId(sub.id);
+    try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const dbAny = supabase as any;
     const { error } = await dbAny
@@ -2489,6 +2723,11 @@ function TeacherWorkshops() {
         s.id === sub.id ? { ...s, status: "entregado", final_grade: null, ai_grade: null } : s,
       ),
     );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setReopeningId(null);
+    }
   };
 
   // Notifica al estudiante (o a TODOS los miembros del grupo) que su taller fue
@@ -2532,6 +2771,9 @@ function TeacherWorkshops() {
   };
 
   const saveGrade = async (subId: string, grade: number) => {
+    if (savingGradeId) return;
+    setSavingGradeId(subId);
+    try {
     const { data, error } = await supabase
       .from("workshop_submissions")
       .update({
@@ -2590,9 +2832,15 @@ function TeacherWorkshops() {
 
     // Notificar al estudiante / grupo (lógica compartida — ver notifyWorkshopGraded).
     await notifyWorkshopGraded(subId, grade);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingGradeId(null);
+    }
   };
 
   const deleteSubmission = async (subId: string, studentName: string) => {
+    if (deletingSubId) return;
     const ok = await confirm({
       title: t("workshop.deleteSubmissionTitle", { name: studentName }),
       description: t("workshop.deleteSubmissionBody"),
@@ -2600,10 +2848,20 @@ function TeacherWorkshops() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await supabase.from("workshop_submissions").delete().eq("id", subId);
-    if (error) return toast.error(friendlyError(error));
-    setWsSubs((prev) => prev.filter((s) => s.id !== subId));
-    toast.success(t("workshop.submissionDeleted"));
+    setDeletingSubId(subId);
+    try {
+      const { error } = await supabase.from("workshop_submissions").delete().eq("id", subId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setWsSubs((prev) => prev.filter((s) => s.id !== subId));
+      toast.success(t("workshop.submissionDeleted"));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingSubId(null);
+    }
   };
 
   if (authLoading) return null;
@@ -2653,38 +2911,64 @@ function TeacherWorkshops() {
                   })),
                 );
               }}
+              disabled={importing}
               onImport={async (rows) => {
                 if (!user) throw new Error(t("hc_routesAppTeacherWorkshops.invalidSession"));
-                const courseByName = new Map(
-                  courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
-                );
-                let created = 0,
-                  skipped = 0;
-                for (const r of rows) {
-                  const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
-                  if (!cid || !r.title) {
-                    skipped++;
-                    continue;
+                setImporting(true);
+                try {
+                  const courseByName = new Map(
+                    courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
+                  );
+                  let created = 0,
+                    skipped = 0;
+                  // Primer error real del lote: sin esto el docente solo veía
+                  // "N omitidos" sin saber por qué (convención de bulk ops).
+                  let firstError: { title: string; message: string } | null = null;
+                  for (const r of rows) {
+                    const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                    if (!cid || !r.title) {
+                      skipped++;
+                      continue;
+                    }
+                    const { error } = await supabase.from("workshops").insert({
+                      course_id: cid,
+                      title: r.title,
+                      description: r.description || null,
+                      instructions: r.instructions || null,
+                      external_link: r.external_link || null,
+                      due_date: r.due_date ? new Date(r.due_date).toISOString() : null,
+                      max_score: Number(r.max_score) || 100,
+                      status: r.status || "draft",
+                      created_by: user.id,
+                    });
+                    if (error) {
+                      skipped++;
+                      if (!firstError)
+                        firstError = { title: r.title, message: friendlyError(error) };
+                    } else created++;
                   }
-                  const { error } = await supabase.from("workshops").insert({
-                    course_id: cid,
-                    title: r.title,
-                    description: r.description || null,
-                    instructions: r.instructions || null,
-                    external_link: r.external_link || null,
-                    due_date: r.due_date ? new Date(r.due_date).toISOString() : null,
-                    max_score: Number(r.max_score) || 100,
-                    status: r.status || "draft",
-                    created_by: user.id,
-                  });
-                  if (error) skipped++;
-                  else created++;
+                  await load();
+                  if (firstError) {
+                    toast.error(
+                      i18n.t("toast.routes_app_teacher_workshops.importFirstError", {
+                        defaultValue:
+                          '{{created}} creados, {{skipped}} con error. Primero: "{{title}}" — {{error}}',
+                        created,
+                        skipped,
+                        title: firstError.title,
+                        error: firstError.message,
+                      }),
+                      { duration: 12000 },
+                    );
+                    return "";
+                  }
+                  return i18n.t("teacherWorkshops.importResult", { created, skipped });
+                } finally {
+                  setImporting(false);
                 }
-                await load();
-                return i18n.t("teacherWorkshops.importResult", { created, skipped });
               }}
             />
-            <Button size="sm" onClick={openNew} data-tour-id="create-workshop">
+            <Button size="sm" onClick={openNew} data-tour-id="create-workshop" disabled={saving}>
               <Plus className="h-4 w-4 mr-1" />
               {t("teacherWorkshops.btnNew")}
             </Button>
@@ -2914,11 +3198,13 @@ function TeacherWorkshops() {
                         {
                           label: t("teacherWorkshops.actionAssign"),
                           icon: Users,
+                          disabled: openingAssignId != null,
                           onClick: () => openAssign(ws),
                         },
                         !ws.is_external && {
                           label: t("teacherWorkshops.actionGroups"),
                           icon: UsersRound,
+                          disabled: openingGroupsId != null,
                           onClick: () => openGroupsForWorkshop(ws),
                         },
                         {
@@ -2929,7 +3215,12 @@ function TeacherWorkshops() {
                             setQuestionsOpen(true);
                           },
                         },
-                        { label: t("teacherWorkshops.actionGrade"), icon: ClipboardList, onClick: () => openGrading(ws) },
+                        {
+                          label: t("teacherWorkshops.actionGrade"),
+                          icon: ClipboardList,
+                          disabled: openingGradingId != null,
+                          onClick: () => openGrading(ws),
+                        },
                         {
                           label: t("teacherWorkshops.actionEdit"),
                           icon: Pencil,
@@ -2986,6 +3277,7 @@ function TeacherWorkshops() {
                           icon: Trash2,
                           tone: "destructive",
                           separatorBefore: true,
+                          disabled: deletingId != null,
                           onClick: () => remove(ws.id),
                         },
                       ]}
@@ -3572,10 +3864,19 @@ function TeacherWorkshops() {
                 resetea (sigue siendo `form.rubric ?? null`). */}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               {t("teacherWorkshops.btnCancel")}
             </Button>
-            <Button onClick={save}>{form.id ? t("teacherWorkshops.btnSave") : t("teacherWorkshops.btnCreate")}</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? (
+                <Spinner size="sm" className="mr-2" />
+              ) : form.id ? (
+                <CheckCircle2 className="h-4 w-4 mr-1" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
+              {form.id ? t("teacherWorkshops.btnSave") : t("teacherWorkshops.btnCreate")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -3629,16 +3930,20 @@ function TeacherWorkshops() {
                   variant="outline"
                   className="h-7 text-xs gap-1"
                   onClick={assignAll}
+                  disabled={assignBusy}
                 >
-                  <CheckSquare className="h-3 w-3" /> {t("hc_routesAppTeacherWorkshops.includeAll")}
+                  {assignBusy ? <Spinner size="xs" /> : <CheckSquare className="h-3 w-3" />}{" "}
+                  {t("hc_routesAppTeacherWorkshops.includeAll")}
                 </Button>
                 <Button
                   size="sm"
                   variant="outline"
                   className="h-7 text-xs gap-1"
                   onClick={unassignAll}
+                  disabled={assignBusy}
                 >
-                  <XSquare className="h-3 w-3" /> {t("hc_routesAppTeacherWorkshops.excludeAll")}
+                  {assignBusy ? <Spinner size="xs" /> : <XSquare className="h-3 w-3" />}{" "}
+                  {t("hc_routesAppTeacherWorkshops.excludeAll")}
                 </Button>
               </div>
             </div>
@@ -3655,7 +3960,11 @@ function TeacherWorkshops() {
                     key={s.id}
                     className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted/50 text-sm cursor-pointer"
                   >
-                    <Checkbox checked={included} onCheckedChange={(v) => toggleAssign(s.id, !!v)} />
+                    <Checkbox
+                      checked={included}
+                      disabled={assignBusy}
+                      onCheckedChange={(v) => toggleAssign(s.id, !!v)}
+                    />
                     <div className="flex-1 min-w-0">
                       <div className="font-medium truncate">{s.full_name}</div>
                       <div className="text-xs text-muted-foreground truncate">
@@ -3758,7 +4067,7 @@ function TeacherWorkshops() {
                   size="sm"
                   variant="outline"
                   onClick={runDetectCopies}
-                  disabled={detectingCopies}
+                  disabled={detectingCopies || aiGradingAll}
                   title={t("hc_routesAppTeacherWorkshops.detectCopiesTitle")}
                 >
                   {detectingCopies ? (
@@ -3768,7 +4077,11 @@ function TeacherWorkshops() {
                   )}
                   {t("hc_routesAppTeacherWorkshops.detectCopies")}
                 </Button>
-                <Button size="sm" onClick={gradeAllWithAI} disabled={aiGradingAll}>
+                <Button
+                  size="sm"
+                  onClick={gradeAllWithAI}
+                  disabled={aiGradingAll || detectingCopies || aiGradingId != null}
+                >
                   {aiGradingAll ? (
                     <Spinner size="md" className="mr-1" />
                   ) : (
@@ -3776,6 +4089,40 @@ function TeacherWorkshops() {
                   )}
                   {t("hc_routesAppTeacherWorkshops.gradeAllWithAi")}
                 </Button>
+              </div>
+            </div>
+          )}
+          {/* Banner de progreso PERSISTENTE para las operaciones de IA
+              (30-90s por entrega). Un botón deshabilitado con spinner se
+              pierde de vista al scrollear el modal: acá el docente ve que
+              el proceso sigue vivo y por qué no debe cerrar el diálogo. */}
+          {(aiGradingAll || aiGradingId != null || detectingCopies) && (
+            <div
+              role="status"
+              aria-live="polite"
+              className="flex items-start gap-2 rounded-md border border-primary/40 bg-primary/5 p-3"
+            >
+              <Spinner size="md" className="mt-0.5 text-primary shrink-0" />
+              <div className="min-w-0">
+                <p className="text-sm font-medium">
+                  {detectingCopies
+                    ? t("hc_routesAppTeacherWorkshops.aiBusyDetecting", {
+                        defaultValue: "Detectando copias con IA…",
+                      })
+                    : aiGradingAll
+                      ? t("hc_routesAppTeacherWorkshops.aiBusyGradingAll", {
+                          defaultValue: "Calificando todas las entregas con IA…",
+                        })
+                      : t("hc_routesAppTeacherWorkshops.aiBusyGradingOne", {
+                          defaultValue: "Calificando la entrega con IA…",
+                        })}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {t("hc_routesAppTeacherWorkshops.aiBusyHint", {
+                    defaultValue:
+                      "Puede tardar entre 30 y 90 segundos por entrega. No cierres esta ventana.",
+                  })}
+                </p>
               </div>
             </div>
           )}
@@ -3954,6 +4301,7 @@ function TeacherWorkshops() {
                                   label={t("hc_routesAppTeacherWorkshops.deleteSubmission")}
                                   icon={Trash2}
                                   tone="destructive"
+                                  disabled={deletingSubId != null}
                                   onClick={() =>
                                     deleteSubmission(
                                       sub.id,
@@ -4098,6 +4446,7 @@ function TeacherWorkshops() {
                               label={t("hc_routesAppTeacherWorkshops.deleteSubmission")}
                               icon={Trash2}
                               tone="destructive"
+                              disabled={deletingSubId != null}
                               onClick={() =>
                                 deleteSubmission(
                                   sub.id,
@@ -4173,16 +4522,28 @@ function TeacherWorkshops() {
                                 variant="outline"
                                 className="gap-1 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
                                 onClick={() => approveAIGrade(sub.id)}
+                                disabled={approvingId === sub.id || rejectingId === sub.id}
                               >
-                                <ThumbsUp className="h-3.5 w-3.5" /> {t("hc_routesAppTeacherWorkshops.approve")}
+                                {approvingId === sub.id ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <ThumbsUp className="h-3.5 w-3.5" />
+                                )}{" "}
+                                {t("hc_routesAppTeacherWorkshops.approve")}
                               </Button>
                               <Button
                                 size="sm"
                                 variant="outline"
                                 className="gap-1 border-destructive/50 text-destructive hover:bg-destructive/5"
                                 onClick={() => rejectAIGrade(sub.id)}
+                                disabled={rejectingId === sub.id || approvingId === sub.id}
                               >
-                                <ThumbsDown className="h-3.5 w-3.5" /> {t("hc_routesAppTeacherWorkshops.reject")}
+                                {rejectingId === sub.id ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <ThumbsDown className="h-3.5 w-3.5" />
+                                )}{" "}
+                                {t("hc_routesAppTeacherWorkshops.reject")}
                               </Button>
                             </div>
                           </div>
@@ -4419,6 +4780,18 @@ function TeacherWorkshops() {
                                                       size="sm"
                                                       variant="outline"
                                                       className="h-7 text-[11px] bg-background"
+                                                      // Global: el guard del handler
+                                                      // serializa todos los toggles de
+                                                      // revisión (ver
+                                                      // toggleQuestionAiReviewed).
+                                                      disabled={togglingReviewId !== null}
+                                                      title={
+                                                        togglingReviewId !== null
+                                                          ? t("common.processing", {
+                                                              defaultValue: "Procesando…",
+                                                            })
+                                                          : undefined
+                                                      }
                                                       onClick={() =>
                                                         toggleQuestionAiReviewed(
                                                           aiSig.answerId,
@@ -4427,6 +4800,9 @@ function TeacherWorkshops() {
                                                         )
                                                       }
                                                     >
+                                                      {togglingReviewId === aiSig.answerId && (
+                                                        <Spinner size="xs" className="mr-1" />
+                                                      )}
                                                       {t("integrity.reopen", {
                                                         defaultValue: "Reabrir",
                                                       })}
@@ -4436,6 +4812,14 @@ function TeacherWorkshops() {
                                                       size="sm"
                                                       variant="outline"
                                                       className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                      disabled={togglingReviewId !== null}
+                                                      title={
+                                                        togglingReviewId !== null
+                                                          ? t("common.processing", {
+                                                              defaultValue: "Procesando…",
+                                                            })
+                                                          : undefined
+                                                      }
                                                       onClick={() =>
                                                         toggleQuestionAiReviewed(
                                                           aiSig.answerId,
@@ -4444,7 +4828,11 @@ function TeacherWorkshops() {
                                                         )
                                                       }
                                                     >
-                                                      <Check className="h-3 w-3 mr-1" />
+                                                      {togglingReviewId === aiSig.answerId ? (
+                                                        <Spinner size="xs" className="mr-1" />
+                                                      ) : (
+                                                        <Check className="h-3 w-3 mr-1" />
+                                                      )}
                                                       {t("integrity.markReviewed", {
                                                         defaultValue: "Marcar revisada",
                                                       })}
@@ -4566,17 +4954,30 @@ function TeacherWorkshops() {
                                                             ? "h-6 text-[10px] ml-auto bg-background"
                                                             : "h-6 text-[10px] ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                                         }
+                                                        disabled={togglingReviewId !== null}
+                                                        title={
+                                                          togglingReviewId !== null
+                                                            ? t("common.processing", {
+                                                                defaultValue: "Procesando…",
+                                                              })
+                                                            : undefined
+                                                        }
                                                         onClick={() =>
                                                           togglePairReviewed(p.id, isReviewed)
                                                         }
                                                       >
+                                                        {togglingReviewId === p.id ? (
+                                                          <Spinner size="xs" className="mr-1" />
+                                                        ) : null}
                                                         {isReviewed ? (
                                                           t("integrity.reopen", {
                                                             defaultValue: "Reabrir",
                                                           })
                                                         ) : (
                                                           <>
-                                                            <Check className="h-3 w-3 mr-1" />
+                                                            {togglingReviewId !== p.id && (
+                                                              <Check className="h-3 w-3 mr-1" />
+                                                            )}
                                                             {t("integrity.markReviewed", {
                                                               defaultValue: "Marcar revisada",
                                                             })}
@@ -4709,14 +5110,20 @@ function TeacherWorkshops() {
                             size="sm"
                             variant="outline"
                             onClick={() => saveGrade(sub.id, sub.final_grade ?? 0)}
+                            disabled={savingGradeId === sub.id}
                           >
-                            <CheckCircle2 className="h-3.5 w-3.5 mr-1" /> {t("hc_routesAppTeacherWorkshops.saveGrade")}
+                            {savingGradeId === sub.id ? (
+                              <Spinner size="sm" className="mr-1" />
+                            ) : (
+                              <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            {t("hc_routesAppTeacherWorkshops.saveGrade")}
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
                             onClick={() => gradeOneWithAI(sub)}
-                            disabled={aiGradingId === sub.id}
+                            disabled={aiGradingId === sub.id || aiGradingAll}
                           >
                             {aiGradingId === sub.id ? (
                               <Spinner size="sm" className="mr-1" />
@@ -4733,7 +5140,9 @@ function TeacherWorkshops() {
                               variant="outline"
                               className="text-amber-700 dark:text-amber-300 border-amber-500/40 hover:bg-amber-500/10"
                               onClick={() => reopenSubmission(sub)}
+                              disabled={reopeningId === sub.id}
                             >
+                              {reopeningId === sub.id && <Spinner size="sm" className="mr-1" />}
                               {t("hc_routesAppTeacherWorkshops.reopenSubmission")}
                             </Button>
                           )}

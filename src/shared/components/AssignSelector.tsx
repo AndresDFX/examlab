@@ -45,6 +45,18 @@ interface Props {
   /** Se pinta arriba del search; útil para chips o helpers. */
   headerExtras?: React.ReactNode;
   loading?: boolean;
+  /**
+   * Bloquea los checkboxes y los botones de selección masiva mientras hay una
+   * asignación en vuelo. Distinto de `loading`, que cubre la carga INICIAL de
+   * la lista.
+   *
+   * WHY existe: los handlers de asignación del parent tienen un guard
+   * anti doble-submit (`if (assignBusy) return`). Sin este prop, los checkboxes
+   * quedan habilitados durante el INSERT y los clics posteriores caen en el
+   * guard SIN aviso: el checkbox revierte solo y el docente cree que asignó a 5
+   * alumnos cuando en la base quedó 1. Guard global ⇒ disabled global.
+   */
+  disabled?: boolean;
   errorText?: string | null;
   /** Texto sustantivo para los contadores ("matriculados", "asignados", …). */
   countNoun?: string;
@@ -61,6 +73,7 @@ export function AssignSelector({
   searchPlaceholder,
   headerExtras,
   loading = false,
+  disabled = false,
   errorText = null,
   countNoun,
 }: Props) {
@@ -123,7 +136,7 @@ export function AssignSelector({
             size="sm"
             className="h-7 text-xs gap-1"
             onClick={() => onSelectAll(filtered.map((i) => i.id))}
-            disabled={loading || filtered.length === 0}
+            disabled={loading || disabled || filtered.length === 0}
           >
             <CheckSquare className="h-3 w-3" />{" "}
             {isSearching
@@ -135,7 +148,7 @@ export function AssignSelector({
             size="sm"
             className="h-7 text-xs gap-1"
             onClick={() => onDeselectAll(filtered.map((i) => i.id))}
-            disabled={loading || filtered.length === 0}
+            disabled={loading || disabled || filtered.length === 0}
           >
             <XSquare className="h-3 w-3" />{" "}
             {isSearching
@@ -166,6 +179,7 @@ export function AssignSelector({
             >
               <Checkbox
                 checked={selectedIds.has(s.id)}
+                disabled={disabled}
                 onCheckedChange={(v) => onToggle(s.id, !!v)}
               />
               <div className="flex-1 min-w-0">

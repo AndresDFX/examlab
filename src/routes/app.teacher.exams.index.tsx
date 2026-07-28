@@ -46,6 +46,7 @@ import {
   SortableHead,
 } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import {
   Plus,
@@ -139,6 +140,14 @@ function TeacherExams() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
   const examDirty = useDirtyDialog(open, form);
+  // Feedback de acciones asíncronas: `saving` bloquea el submit del dialog
+  // (anti doble-creación: el save hace N inserts + N auto-asignaciones +
+  // N notificaciones, puede tardar varios segundos), `deletingId` marca la
+  // fila en curso de envío a papelera y `importing` deshabilita el menú
+  // de importación mientras el CSV se procesa fila por fila.
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [importing, setImporting] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -224,7 +233,10 @@ function TeacherExams() {
     // is('deleted_at', null)) pero recuperable desde /app/trash hasta
     // que el cron de purga (30 días) la borre físicamente.
     const { error } = await softDeleteMany("exams", ids);
-    if (error) throw new Error(error.message);
+    // `friendlyError` acá y no en el catch del BulkDeleteDialog: el objeto de
+    // Supabase trae `code` SQLSTATE, y envolverlo en un Error crudo perdía la
+    // traducción (el docente veía el mensaje técnico en inglés).
+    if (error) throw new Error(friendlyError(error));
     toast.success(
       i18n.t("toast.routes_app_teacher_exams_index.bulkSentToTrash", {
         defaultValue: "{{count}} examen(es) enviado(s) a papelera",
@@ -262,6 +274,7 @@ function TeacherExams() {
   const confirm = useConfirm();
 
   const remove = async (exam: Exam) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: t("exam.deleteTitle", { defaultValue: "Enviar a papelera" }),
       description: t("exam.deleteDesc", {
@@ -273,20 +286,30 @@ function TeacherExams() {
       tone: "warning",
     });
     if (!ok) return;
-    const { error } = await softDelete("exams", exam.id);
-    if (error) return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-    toast.success(t("exam.deleted", { defaultValue: "Examen enviado a papelera" }));
-    void logEvent({
-      action: "exam.deleted",
-      category: "exam",
-      actorRole: roles[0],
-      entityType: "exam",
-      entityId: exam.id,
-      entityName: exam.title,
-      courseId: exam.course_id,
-      courseName: courses.find((c) => c.id === exam.course_id)?.name,
-    });
-    load();
+    setDeletingId(exam.id);
+    try {
+      const { error } = await softDelete("exams", exam.id);
+      if (error) {
+        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+        return;
+      }
+      toast.success(t("exam.deleted", { defaultValue: "Examen enviado a papelera" }));
+      void logEvent({
+        action: "exam.deleted",
+        category: "exam",
+        actorRole: roles[0],
+        entityType: "exam",
+        entityId: exam.id,
+        entityName: exam.title,
+        courseId: exam.course_id,
+        courseName: courses.find((c) => c.id === exam.course_id)?.name,
+      });
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   /** Asigna un examen a todos los estudiantes matriculados en el curso. */
@@ -303,9 +326,20 @@ function TeacherExams() {
     const existingSet = new Set((existing ?? []).map((e: any) => e.user_id));
     const toAdd = (enr as any[]).filter((e) => !existingSet.has(e.user_id));
     if (toAdd.length) {
-      await supabase
+      const { error: asgErr } = await supabase
         .from("exam_assignments")
         .insert(toAdd.map((e: any) => ({ exam_id: examId, user_id: e.user_id })));
+      // El examen ya existe; si la auto-asignación falla el docente DEBE
+      // saberlo (sin assignments el alumno no ve el examen). No abortamos
+      // el resto del flujo — se puede reintentar desde "Asignar".
+      if (asgErr) {
+        toast.error(
+          t("hc_routesAppTeacherExamsIndex.autoAssignFailed", {
+            defaultValue: "No se pudieron asignar los estudiantes: {{error}}",
+            error: friendlyError(asgErr),
+          }),
+        );
+      }
     }
   };
 
@@ -441,6 +475,7 @@ function TeacherExams() {
   };
 
   const save = async () => {
+    if (saving) return; // anti doble-submit: el save crea N exámenes
     if (!form.title || selectedCourseIds.size === 0 || !user) {
       toast.error(t("exam.completeFields"));
       return;
@@ -555,63 +590,70 @@ function TeacherExams() {
     }
 
     // Create one exam per selected course
-    let firstId: string | null = null;
-    for (const cid of courseIds) {
-      const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
-      if (isMultiCourse) {
-        const cc = courseCuts[cid];
-        perCourse.cut_id = cc?.cut_id || null;
-        if (cc?.cut_id && cc?.weight != null) {
-          perCourse.weight = Math.max(0, Number(cc.weight));
+    setSaving(true);
+    try {
+      let firstId: string | null = null;
+      for (const cid of courseIds) {
+        const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
+        if (isMultiCourse) {
+          const cc = courseCuts[cid];
+          perCourse.cut_id = cc?.cut_id || null;
+          if (cc?.cut_id && cc?.weight != null) {
+            perCourse.weight = Math.max(0, Number(cc.weight));
+          }
+        }
+        const { data, error } = await supabase
+          .from("exams")
+          .insert(perCourse as any)
+          .select()
+          .single();
+        if (error) {
+          toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
+          return;
+        }
+        if (!firstId) firstId = data.id;
+        // Auto-asignar todos los estudiantes matriculados en el curso
+        await autoAssignExam(data.id, cid);
+        // Notificar a los estudiantes del curso. NO aplica para externos
+        // (la actividad ya pasó, solo se registra la nota) ni para draft
+        // (el examen aún no es visible, mandar push sería confuso).
+        const initialStatus = (basePayload.status as string) ?? "published";
+        if (!isExternal && initialStatus === "published") {
+          await supabase.rpc("notify_course_students", {
+            _course_id: cid,
+            _title: t("hc_routesAppTeacherExamsIndex.notifyTitle"),
+            _body: t("hc_routesAppTeacherExamsIndex.notifyBody", { title: form.title }),
+            _kind: "exam",
+            _link: "/app/student/exams",
+          });
         }
       }
-      const { data, error } = await supabase
-        .from("exams")
-        .insert(perCourse as any)
-        .select()
-        .single();
-      if (error) {
-        toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
-        return;
-      }
-      if (!firstId) firstId = data.id;
-      // Auto-asignar todos los estudiantes matriculados en el curso
-      await autoAssignExam(data.id, cid);
-      // Notificar a los estudiantes del curso. NO aplica para externos
-      // (la actividad ya pasó, solo se registra la nota) ni para draft
-      // (el examen aún no es visible, mandar push sería confuso).
-      const initialStatus = (basePayload.status as string) ?? "published";
-      if (!isExternal && initialStatus === "published") {
-        await supabase.rpc("notify_course_students", {
-          _course_id: cid,
-          _title: t("hc_routesAppTeacherExamsIndex.notifyTitle"),
-          _body: t("hc_routesAppTeacherExamsIndex.notifyBody", { title: form.title }),
-          _kind: "exam",
-          _link: "/app/student/exams",
+
+      toast.success(
+        courseIds.length > 1
+          ? t("exam.createdIn", { count: courseIds.length })
+          : t("exam.createdOne"),
+      );
+      for (const cid of courseIds) {
+        void logEvent({
+          action: "exam.created",
+          category: "exam",
+          actorRole: roles[0],
+          entityType: "exam",
+          entityId: firstId ?? undefined,
+          entityName: form.title,
+          courseId: cid,
+          courseName: courses.find((c) => c.id === cid)?.name,
+          metadata: { is_external: !!(form as any).is_external },
         });
       }
+      setOpen(false);
+      if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSaving(false);
     }
-
-    toast.success(
-      courseIds.length > 1
-        ? t("exam.createdIn", { count: courseIds.length })
-        : t("exam.createdOne"),
-    );
-    for (const cid of courseIds) {
-      void logEvent({
-        action: "exam.created",
-        category: "exam",
-        actorRole: roles[0],
-        entityType: "exam",
-        entityId: firstId ?? undefined,
-        entityName: form.title,
-        courseId: cid,
-        courseName: courses.find((c) => c.id === cid)?.name,
-        metadata: { is_external: !!(form as any).is_external },
-      });
-    }
-    setOpen(false);
-    if (firstId) navigate({ to: "/app/teacher/exams/$examId", params: { examId: firstId } });
   };
 
   // Esperar a useAuth para evitar flash del gate con roles=[] hidratando.
@@ -665,38 +707,64 @@ function TeacherExams() {
                   })),
                 );
               }}
+              disabled={importing}
               onImport={async (rows) => {
                 if (!user) throw new Error(t("hc_routesAppTeacherExamsIndex.invalidSession"));
-                const courseByName = new Map(
-                  courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
-                );
-                let created = 0,
-                  skipped = 0;
-                for (const r of rows) {
-                  const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
-                  if (!cid || !r.title || !r.start_time || !r.end_time) {
-                    skipped++;
-                    continue;
+                setImporting(true);
+                try {
+                  const courseByName = new Map(
+                    courses.map((c) => [c.name.toLowerCase().trim(), c.id]),
+                  );
+                  let created = 0,
+                    skipped = 0;
+                  // Primer error real del lote: sin esto el docente solo veía
+                  // "N omitidos" sin pista de por qué (convención de bulk ops).
+                  let firstError: { title: string; message: string } | null = null;
+                  for (const r of rows) {
+                    const cid = courseByName.get((r.course_name || "").toLowerCase().trim());
+                    if (!cid || !r.title || !r.start_time || !r.end_time) {
+                      skipped++;
+                      continue;
+                    }
+                    const { error } = await supabase.from("exams").insert({
+                      course_id: cid,
+                      title: r.title,
+                      description: r.description || null,
+                      start_time: new Date(r.start_time).toISOString(),
+                      end_time: new Date(r.end_time).toISOString(),
+                      time_limit_minutes: Number(r.time_limit_minutes) || 60,
+                      navigation_type: r.navigation_type || "libre",
+                      shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
+                      created_by: user.id,
+                    });
+                    if (error) {
+                      skipped++;
+                      if (!firstError)
+                        firstError = { title: r.title, message: friendlyError(error) };
+                    } else created++;
                   }
-                  const { error } = await supabase.from("exams").insert({
-                    course_id: cid,
-                    title: r.title,
-                    description: r.description || null,
-                    start_time: new Date(r.start_time).toISOString(),
-                    end_time: new Date(r.end_time).toISOString(),
-                    time_limit_minutes: Number(r.time_limit_minutes) || 60,
-                    navigation_type: r.navigation_type || "libre",
-                    shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
-                    created_by: user.id,
-                  });
-                  if (error) skipped++;
-                  else created++;
+                  await load();
+                  if (firstError) {
+                    toast.error(
+                      t("hc_routesAppTeacherExamsIndex.importFirstError", {
+                        defaultValue:
+                          '{{created}} creados, {{skipped}} con error. Primero: "{{title}}" — {{error}}',
+                        created,
+                        skipped,
+                        title: firstError.title,
+                        error: firstError.message,
+                      }),
+                      { duration: 12000 },
+                    );
+                    return "";
+                  }
+                  return t("import.imported", { created, skipped });
+                } finally {
+                  setImporting(false);
                 }
-                await load();
-                return t("import.imported", { created, skipped });
               }}
             />
-            <Button size="sm" onClick={openNew} data-tour-id="create-exam">
+            <Button size="sm" onClick={openNew} data-tour-id="create-exam" disabled={saving}>
               <Plus className="h-4 w-4 mr-1" />
               {t("exam.newExam")}
             </Button>
@@ -996,6 +1064,7 @@ function TeacherExams() {
                           icon: Trash2,
                           tone: "destructive",
                           separatorBefore: true,
+                          disabled: deletingId != null,
                           onClick: () => remove(e),
                         },
                       ]}
@@ -1532,10 +1601,13 @@ function TeacherExams() {
             )}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>
+            <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={save}>{t("common.create")}</Button>
+            <Button onClick={save} disabled={saving}>
+              {saving ? <Spinner size="sm" className="mr-2" /> : <Plus className="h-4 w-4 mr-1" />}
+              {t("common.create")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

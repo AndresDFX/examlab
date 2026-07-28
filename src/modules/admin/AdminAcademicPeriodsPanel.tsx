@@ -12,7 +12,7 @@
  * cursos asociados quedan con period_id NULL (ON DELETE SET NULL).
  * Se conserva `courses.period` (text) como respaldo de display.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -25,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ErrorState, TableEmpty } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SearchInput } from "@/components/ui/search-input";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -122,24 +123,46 @@ export function AdminAcademicPeriodsPanel() {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [saving, setSaving] = useState(false);
+  // Fila con una acción en vuelo (cerrar/reabrir o eliminar). Deshabilita el
+  // ítem del menú → anti doble-submit + feedback de "esto está corriendo".
+  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Guard "cambios sin guardar" para el dialog crear/editar periodo. El form
   // ya es UN objeto (`draft`), así que se pasa directo al hook.
   const dirty = useDirtyDialog(open, draft);
+  // `load()` corre desde el effect y desde cada handler; sin este guard un
+  // setState podía caer sobre el componente ya desmontado.
+  const mountedRef = useRef(true);
+  useEffect(
+    () => () => {
+      mountedRef.current = false;
+    },
+    [],
+  );
 
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
-      .from("academic_periods")
-      .select("id, code, name, start_date, end_date, status, closed_at")
-      .order("code", { ascending: false });
-    if (error) {
-      setLoadError(friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.loadFallback")));
-      setLoading(false);
-      return;
+    try {
+      const { data, error } = await db
+        .from("academic_periods")
+        .select("id, code, name, start_date, end_date, status, closed_at")
+        .order("code", { ascending: false });
+      if (!mountedRef.current) return;
+      if (error) {
+        setLoadError(
+          friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.loadFallback")),
+        );
+        return;
+      }
+      setRows((data ?? []) as AcademicPeriod[]);
+    } catch (e) {
+      // Un throw (red/sesión) también debe terminar en ErrorState + Reintentar.
+      if (!mountedRef.current) return;
+      setLoadError(friendlyError(e, t("hc_modulesAdminAdminAcademicPeriodsPanel.loadFallback")));
+    } finally {
+      if (mountedRef.current) setLoading(false);
     }
-    setRows((data ?? []) as AcademicPeriod[]);
-    setLoading(false);
   };
 
   useEffect(() => {
@@ -216,6 +239,7 @@ export function AdminAcademicPeriodsPanel() {
 
   const save = async () => {
     if (!user) return;
+    if (saving) return; // anti doble-submit
     const code = draft.code.trim();
     if (!code) {
       toast.error(i18n.t("academic.periods.toastCodeRequired"));
@@ -229,60 +253,69 @@ export function AdminAcademicPeriodsPanel() {
       return;
     }
     setSaving(true);
-    const payload: Record<string, unknown> = {
-      code,
-      name: draft.name.trim() || null,
-      start_date: draft.start_date || null,
-      end_date: draft.end_date || null,
-      status: draft.status,
-      updated_by: user.id,
-    };
-    // closed_at/closed_by se setean automáticamente al pasar a 'cerrado'.
-    // Si el draft cambió de cerrado→otro estado, los limpiamos.
-    if (draft.status === "cerrado") {
-      // Solo marcar si todavía no estaba cerrado (no pisar timestamp original)
-      const existing = rows.find((r) => r.id === draft.id);
-      if (!existing || existing.status !== "cerrado") {
-        payload.closed_at = new Date().toISOString();
-        payload.closed_by = user.id;
-      }
-    } else {
-      payload.closed_at = null;
-      payload.closed_by = null;
-    }
-    const { error } = draft.id
-      ? await db.from("academic_periods").update(payload).eq("id", draft.id)
-      : await db.from("academic_periods").insert(payload);
-    setSaving(false);
-    if (error) {
-      toast.error(friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.saveFallback")));
-      return;
-    }
-    void logEvent({
-      action: draft.id ? "period.updated" : "period.created",
-      category: "academic",
-      severity: "info",
-      entityType: "academic_period",
-      entityId: draft.id ?? undefined,
-      entityName: code,
-      metadata: {
-        name: draft.name,
-        start_date: draft.start_date,
-        end_date: draft.end_date,
+    try {
+      const payload: Record<string, unknown> = {
+        code,
+        name: draft.name.trim() || null,
+        start_date: draft.start_date || null,
+        end_date: draft.end_date || null,
         status: draft.status,
-      },
-    });
-    toast.success(
-      draft.id
-        ? i18n.t("academic.periods.toastUpdated")
-        : i18n.t("academic.periods.toastCreated"),
-    );
-    setOpen(false);
-    void load();
+        updated_by: user.id,
+      };
+      // closed_at/closed_by se setean automáticamente al pasar a 'cerrado'.
+      // Si el draft cambió de cerrado→otro estado, los limpiamos.
+      if (draft.status === "cerrado") {
+        // Solo marcar si todavía no estaba cerrado (no pisar timestamp original)
+        const existing = rows.find((r) => r.id === draft.id);
+        if (!existing || existing.status !== "cerrado") {
+          payload.closed_at = new Date().toISOString();
+          payload.closed_by = user.id;
+        }
+      } else {
+        payload.closed_at = null;
+        payload.closed_by = null;
+      }
+      const { error } = draft.id
+        ? await db.from("academic_periods").update(payload).eq("id", draft.id)
+        : await db.from("academic_periods").insert(payload);
+      if (error) {
+        toast.error(
+          friendlyError(error, t("hc_modulesAdminAdminAcademicPeriodsPanel.saveFallback")),
+        );
+        return;
+      }
+      void logEvent({
+        action: draft.id ? "period.updated" : "period.created",
+        category: "academic",
+        severity: "info",
+        entityType: "academic_period",
+        entityId: draft.id ?? undefined,
+        entityName: code,
+        metadata: {
+          name: draft.name,
+          start_date: draft.start_date,
+          end_date: draft.end_date,
+          status: draft.status,
+        },
+      });
+      toast.success(
+        draft.id
+          ? i18n.t("academic.periods.toastUpdated")
+          : i18n.t("academic.periods.toastCreated"),
+      );
+      setOpen(false);
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_modulesAdminAdminAcademicPeriodsPanel.saveFallback")));
+    } finally {
+      // Sin finally, un throw dejaba el botón "Guardando…" trabado.
+      if (mountedRef.current) setSaving(false);
+    }
   };
 
   const toggleClose = async (r: AcademicPeriod) => {
     if (!user) return;
+    if (togglingId) return;
     const newStatus: Status = r.status === "cerrado" ? "activo" : "cerrado";
     const ok = await confirm({
       title: newStatus === "cerrado"
@@ -297,33 +330,54 @@ export function AdminAcademicPeriodsPanel() {
       tone: "warning",
     });
     if (!ok) return;
-    const payload: Record<string, unknown> = { status: newStatus };
-    if (newStatus === "cerrado") {
-      payload.closed_at = new Date().toISOString();
-      payload.closed_by = user.id;
-    } else {
-      payload.closed_at = null;
-      payload.closed_by = null;
+    setTogglingId(r.id);
+    try {
+      const payload: Record<string, unknown> = { status: newStatus };
+      if (newStatus === "cerrado") {
+        payload.closed_at = new Date().toISOString();
+        payload.closed_by = user.id;
+      } else {
+        payload.closed_at = null;
+        payload.closed_by = null;
+      }
+      const { error } = await db.from("academic_periods").update(payload).eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: newStatus === "cerrado" ? "period.closed" : "period.reopened",
+        category: "academic",
+        // 'warning' porque cerrar/reabrir un periodo es una acción
+        // institucionalmente significativa (futuro: bloquea calificaciones).
+        severity: "warning",
+        entityType: "academic_period",
+        entityId: r.id,
+        entityName: r.code,
+      });
+      // Cerrar/reabrir no tosteaba nada: el admin solo veía cambiar el badge
+      // (y nada si el load tardaba). Confirmación explícita del resultado.
+      toast.success(
+        newStatus === "cerrado"
+          ? t("academic.periods.toastClosed", {
+              code: r.code,
+              defaultValue: "Periodo {{code}} cerrado",
+            })
+          : t("academic.periods.toastReopened", {
+              code: r.code,
+              defaultValue: "Periodo {{code}} reabierto",
+            }),
+      );
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      if (mountedRef.current) setTogglingId(null);
     }
-    const { error } = await db.from("academic_periods").update(payload).eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
-    }
-    void logEvent({
-      action: newStatus === "cerrado" ? "period.closed" : "period.reopened",
-      category: "academic",
-      // 'warning' porque cerrar/reabrir un periodo es una acción
-      // institucionalmente significativa (futuro: bloquea calificaciones).
-      severity: "warning",
-      entityType: "academic_period",
-      entityId: r.id,
-      entityName: r.code,
-    });
-    void load();
   };
 
   const remove = async (r: AcademicPeriod) => {
+    if (deletingId) return;
     const ok = await confirm({
       title: i18n.t("academic.periods.confirmDeleteTitle", { code: r.code }),
       description: i18n.t("academic.periods.confirmDeleteDesc"),
@@ -331,21 +385,28 @@ export function AdminAcademicPeriodsPanel() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("academic_periods").delete().eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(r.id);
+    try {
+      const { error } = await db.from("academic_periods").delete().eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      void logEvent({
+        action: "period.deleted",
+        category: "academic",
+        severity: "warning",
+        entityType: "academic_period",
+        entityId: r.id,
+        entityName: r.code,
+      });
+      toast.success(i18n.t("academic.periods.toastDeleted"));
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      if (mountedRef.current) setDeletingId(null);
     }
-    void logEvent({
-      action: "period.deleted",
-      category: "academic",
-      severity: "warning",
-      entityType: "academic_period",
-      entityId: r.id,
-      entityName: r.code,
-    });
-    toast.success(i18n.t("academic.periods.toastDeleted"));
-    void load();
   };
 
   return (
@@ -374,11 +435,7 @@ export function AdminAcademicPeriodsPanel() {
           maxWidthClass="sm:max-w-sm"
         />
 
-        {loading ? (
-          <div className="p-4 text-sm text-muted-foreground flex items-center gap-2">
-            <Spinner size="sm" /> {t("academic.periods.loading")}
-          </div>
-        ) : loadError ? (
+        {loadError ? (
           <ErrorState
             message={t("academic.periods.loadError")}
             hint={loadError}
@@ -398,7 +455,10 @@ export function AdminAcademicPeriodsPanel() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {sort.sorted.length === 0 ? (
+                {/* Carga inicial / reintento: skeleton con el shape de la tabla. */}
+                {loading ? (
+                  <TableSkeleton rows={5} cols={6} />
+                ) : sort.sorted.length === 0 ? (
                   (() => {
                     // Distinguir "no hay periodos" de "el buscador no matchea":
                     // sin esto el admin cree que se le borraron los datos.
@@ -431,9 +491,14 @@ export function AdminAcademicPeriodsPanel() {
                           <DateCell value={r.end_date} variant="date" />
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLS[r.status]}`}>
-                            {statusLabel}
-                          </Badge>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className={`text-xs ${STATUS_BADGE_CLS[r.status]}`}>
+                              {statusLabel}
+                            </Badge>
+                            {/* Cerrar/reabrir corre desde el menú de acciones:
+                                sin este spinner la fila no daba señal alguna. */}
+                            {togglingId === r.id && <Spinner size="xs" />}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right">
                           <RowActionsMenu
@@ -445,12 +510,22 @@ export function AdminAcademicPeriodsPanel() {
                                 icon: r.status === "cerrado" ? Unlock : Lock,
                                 onClick: () => void toggleClose(r),
                                 separatorBefore: true,
+                                disabled: togglingId !== null,
+                                hint:
+                                  togglingId !== null
+                                    ? t("common.processing", { defaultValue: "Procesando…" })
+                                    : undefined,
                               },
                               {
                                 label: t("academic.periods.actionDelete"),
                                 icon: Trash2,
                                 tone: "destructive",
                                 separatorBefore: true,
+                                disabled: deletingId !== null,
+                                hint:
+                                  deletingId !== null
+                                    ? t("common.processing", { defaultValue: "Procesando…" })
+                                    : undefined,
                                 onClick: () => void remove(r),
                               },
                             ]}
@@ -535,6 +610,7 @@ export function AdminAcademicPeriodsPanel() {
               {t("academic.periods.cancel")}
             </Button>
             <Button onClick={() => void save()} disabled={saving}>
+              {saving && <Spinner size="sm" className="mr-2" />}
               {saving ? t("academic.periods.saving") : draft.id ? t("academic.periods.saveChanges") : t("academic.periods.create")}
             </Button>
           </DialogFooter>

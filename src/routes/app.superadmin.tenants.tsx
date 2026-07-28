@@ -27,6 +27,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { SectionLoader } from "@/components/ui/loaders";
+import { Spinner } from "@/components/ui/spinner";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -118,6 +119,28 @@ const fmtBytes = (n: number | null): string => {
   return `${(mb / 1024).toFixed(2).replace(".", ",")} GB`;
 };
 
+/**
+ * Copia al portapapeles avisando por toast — éxito Y falla.
+ * `navigator.clipboard.writeText` rechaza cuando el permiso está denegado
+ * o el contexto no es seguro; los `void navigator.clipboard...` previos
+ * mostraban "Copiado" igual y el SuperAdmin pegaba una credencial vieja.
+ */
+async function copyToClipboard(text: string, successMessage: string) {
+  try {
+    await navigator.clipboard.writeText(text);
+    toast.success(successMessage);
+  } catch (e) {
+    toast.error(
+      friendlyError(
+        e,
+        i18n.t("common.copyFailed", {
+          defaultValue: "No se pudo copiar al portapapeles",
+        }),
+      ),
+    );
+  }
+}
+
 function SuperAdminTenantsPage() {
   const { t: tl } = useTranslation();
   const { roles, loading: authLoading } = useAuth();
@@ -177,6 +200,16 @@ function SuperAdminTenantsPage() {
   const [assignUsersTenant, setAssignUsersTenant] = useState<Tenant | null>(null);
   const [emailTenant, setEmailTenant] = useState<Tenant | null>(null);
   const [billingTenant, setBillingTenant] = useState<Tenant | null>(null);
+  /** Id del tenant con una acción de fila en vuelo (pausar/reactivar,
+   *  eliminar, impersonar). Sirve para dos cosas: (1) serializar esas
+   *  acciones — los handlers cortan ante CUALQUIER fila en vuelo, así que
+   *  el `disabled` del menú es global (`rowBusy !== null`), no por fila:
+   *  con `=== t.id` las demás filas quedaban clickeables y el handler
+   *  retornaba sin feedback, y (2) alimentar el banner `busyNotice`. Estas operaciones son largas (el borrado
+   *  cascadea a 8 entidades; impersonar hace 2 queries + reemplazo de
+   *  sesión) y sin feedback parecían "no hacer nada". */
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
+  const [busyNotice, setBusyNotice] = useState<string | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -443,6 +476,7 @@ function SuperAdminTenantsPage() {
     }
 
     // Modo editar: subimos al toque al bucket usando editing.id.
+    if (uploadingLogo) return; // anti doble-submit
     setUploadingLogo(true);
     try {
       const path = await uploadLogoToBucket(valid, editing.id);
@@ -454,6 +488,11 @@ function SuperAdminTenantsPage() {
           }),
         );
       }
+    } catch (e) {
+      // El resize (canvas) puede lanzar con imágenes corruptas: sin este
+      // catch la promesa quedaba rechazada sin feedback y el usuario veía
+      // el botón volver a "Subir logo" como si nada hubiera pasado.
+      toast.error(friendlyError(e, tl("hc_routesAppSuperadminTenants.errUploadLogo")));
     } finally {
       setUploadingLogo(false);
       if (logoFileInputRef.current) logoFileInputRef.current.value = "";
@@ -471,6 +510,7 @@ function SuperAdminTenantsPage() {
   };
 
   const save = async () => {
+    if (saving) return; // anti doble-submit (Enter repetido / doble click)
     if (!form.slug || !form.name) {
       toast.error(
         i18n.t("superadminTenants.slugAndNameRequired", {
@@ -489,6 +529,23 @@ function SuperAdminTenantsPage() {
       return;
     }
     setSaving(true);
+    try {
+      await persistTenant();
+    } catch (e) {
+      // Cualquier excepción inesperada (resize del logo, red caída al
+      // invocar la edge) tiene que salir por toast: sin este catch el
+      // `finally` no corría y el botón "Guardar" quedaba bloqueado.
+      toast.error(friendlyError(e, tl("hc_routesAppSuperadminTenants.errSave")));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /** Cuerpo real del guardado (INSERT/UPDATE + logo pendiente + provisión
+   *  del usuario de prueba). El flag `saving` — spinner del botón y
+   *  anti doble-submit — lo administra `save()`, que además atrapa
+   *  cualquier excepción y siempre lo baja en su `finally`. */
+  const persistTenant = async () => {
     // Cuotas: "" → null (ilimitado). Cualquier otro → parseInt; rechazo
     // si no es entero >= 0.
     const parseQuota = (raw: string, label: string): number | null | undefined => {
@@ -511,7 +568,6 @@ function SuperAdminTenantsPage() {
     const maxTeachers = parseQuota(form.max_teachers, tl("hc_routesAppSuperadminTenants.quotaLabelTeachers"));
     const maxStudents = parseQuota(form.max_students, tl("hc_routesAppSuperadminTenants.quotaLabelStudents"));
     if (maxAdmins === undefined || maxTeachers === undefined || maxStudents === undefined) {
-      setSaving(false);
       return;
     }
 
@@ -533,7 +589,6 @@ function SuperAdminTenantsPage() {
       const { error } = await db.from("tenants").update(payload).eq("id", editing.id);
       if (error) {
         toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errSave")));
-        setSaving(false);
         return;
       }
       toast.success(
@@ -552,7 +607,6 @@ function SuperAdminTenantsPage() {
         .single();
       if (error) {
         toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errCreate")));
-        setSaving(false);
         return;
       }
 
@@ -629,7 +683,6 @@ function SuperAdminTenantsPage() {
         }
       }
     }
-    setSaving(false);
     setDialogOpen(false);
     await load();
   };
@@ -645,13 +698,37 @@ function SuperAdminTenantsPage() {
       });
       if (!ok) return;
     }
-    const { error } = await db.from("tenants").update({ is_active: !t.is_active }).eq("id", t.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    // El guard va DESPUÉS del confirm: es anti doble-submit del propio update,
+    // no un motivo para negarle el diálogo al usuario. El bloqueo previo lo
+    // hace el `disabled` GLOBAL del menú (`rowBusy !== null`), coherente con
+    // que este guard corte ante CUALQUIER fila en vuelo.
+    if (rowBusy) return;
+    setRowBusy(t.id);
+    setBusyNotice(
+      willDeactivate
+        ? i18n.t("superadminTenants.pausingNotice", {
+            defaultValue: "Pausando {{name}}…",
+            name: t.name,
+          })
+        : i18n.t("superadminTenants.reactivatingNotice", {
+            defaultValue: "Reactivando {{name}}…",
+            name: t.name,
+          }),
+    );
+    try {
+      const { error } = await db.from("tenants").update({ is_active: !t.is_active }).eq("id", t.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(willDeactivate ? i18n.t("superadminTenants.pausedToast") : i18n.t("superadminTenants.reactivatedToast"));
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRowBusy(null);
+      setBusyNotice(null);
     }
-    toast.success(willDeactivate ? i18n.t("superadminTenants.pausedToast") : i18n.t("superadminTenants.reactivatedToast"));
-    await load();
   };
 
   // "Ver como X": setea el override en localStorage. `useTenant`
@@ -696,18 +773,40 @@ function SuperAdminTenantsPage() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: t.id });
-    if (error) {
-      toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errDeleteTenant")));
-      return;
-    }
-    toast.success(
-      i18n.t("superadminTenants.tenantSentToTrash", {
-        defaultValue: "{{name}} fue enviada a la papelera",
+    // Guard DESPUÉS del confirm. Antes estaba arriba y, como corta ante
+    // CUALQUIER fila en vuelo, mientras el borrado del tenant A cascadeaba
+    // (varios segundos) el "Eliminar" del tenant B no abría ni el diálogo.
+    if (rowBusy) return;
+    // El RPC cascadea a las 8 entidades trashables del tenant: en
+    // instituciones con datos tarda varios segundos. Sin el banner + el
+    // menú deshabilitado, el SuperAdmin creía que el click no había
+    // registrado y volvía a intentarlo.
+    setRowBusy(t.id);
+    setBusyNotice(
+      i18n.t("superadminTenants.deletingNotice", {
+        defaultValue: "Enviando {{name}} a la papelera (incluye sus cursos y contenidos)…",
         name: t.name,
       }),
     );
-    await load();
+    try {
+      const { error } = await db.rpc("soft_delete_tenant", { _tenant_id: t.id });
+      if (error) {
+        toast.error(friendlyError(error, tl("hc_routesAppSuperadminTenants.errDeleteTenant")));
+        return;
+      }
+      toast.success(
+        i18n.t("superadminTenants.tenantSentToTrash", {
+          defaultValue: "{{name}} fue enviada a la papelera",
+          name: t.name,
+        }),
+      );
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e, tl("hc_routesAppSuperadminTenants.errDeleteTenant")));
+    } finally {
+      setRowBusy(null);
+      setBusyNotice(null);
+    }
   };
 
   /**
@@ -728,58 +827,90 @@ function SuperAdminTenantsPage() {
    *     asignar un Admin primero al tenant.
    */
   const impersonateTenantAdmin = async (t: Tenant) => {
-    // 1. IDs de users con rol Admin (cross-tenant — luego filtramos por tenant_id).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: adminRoleRows } = await (supabase as any)
-      .from("user_roles")
-      .select("user_id")
-      .eq("role", "Admin");
-    const adminUserIds = ((adminRoleRows ?? []) as { user_id: string }[]).map((r) => r.user_id);
-    if (adminUserIds.length === 0) {
-      toast.error(
-        i18n.t("superadminTenants.noAdminUsers", {
-          defaultValue: "No hay usuarios con rol Admin en la plataforma.",
+    // No hay confirm previo acá: el guard queda arriba. Corta ante cualquier
+    // fila en vuelo ⇒ el `disabled` del item también es global.
+    if (rowBusy) return;
+    setRowBusy(t.id);
+    // La búsqueda del Admin son 2 queries antes de poder preguntar nada:
+    // hasta que resuelven, el menú se cerraba y no pasaba "nada" visible.
+    setBusyNotice(
+      i18n.t("superadminTenants.impersonateLookupNotice", {
+        defaultValue: "Buscando el Admin de {{name}}…",
+        name: t.name,
+      }),
+    );
+    try {
+      // 1. IDs de users con rol Admin (cross-tenant — luego filtramos por tenant_id).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: adminRoleRows, error: rolesErr } = await (supabase as any)
+        .from("user_roles")
+        .select("user_id")
+        .eq("role", "Admin");
+      // Antes el error de esta query se descartaba (solo se leía `data`):
+      // un fallo de red / RLS se veía igual que "no hay Admins".
+      if (rolesErr) {
+        toast.error(friendlyError(rolesErr, tl("hc_routesAppSuperadminTenants.errImpersonate")));
+        return;
+      }
+      const adminUserIds = ((adminRoleRows ?? []) as { user_id: string }[]).map((r) => r.user_id);
+      if (adminUserIds.length === 0) {
+        toast.error(
+          i18n.t("superadminTenants.noAdminUsers", {
+            defaultValue: "No hay usuarios con rol Admin en la plataforma.",
+          }),
+        );
+        return;
+      }
+      // 2. Profiles del tenant que estén en ese set de Admins.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: candidates, error: candErr } = await (supabase as any)
+        .from("profiles")
+        .select("id, full_name, institutional_email, created_at")
+        .eq("tenant_id", t.id)
+        .in("id", adminUserIds)
+        .order("created_at", { ascending: true })
+        .limit(1);
+      if (candErr) {
+        toast.error(friendlyError(candErr, tl("hc_routesAppSuperadminTenants.errImpersonate")));
+        return;
+      }
+      const target = (candidates ?? [])[0] as
+        | { id: string; full_name: string | null; institutional_email: string }
+        | undefined;
+      if (!target) {
+        toast.error(
+          i18n.t("superadminTenants.tenantHasNoAdmin", {
+            defaultValue:
+              "{{name}} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.",
+            name: t.name,
+          }),
+        );
+        return;
+      }
+      // 3. Confirmación — esta acción reemplaza la sesión del SuperAdmin
+      //    y recarga la app. Usamos useConfirm del design system (tono
+      //    'warning' por ser cambio importante reversible, no destructivo
+      //    en datos). Bajamos el banner mientras el modal está abierto
+      //    (el spinner no debe girar esperando al usuario).
+      setBusyNotice(null);
+      const ok = await confirm({
+        title: i18n.t("superadminTenants.impersonateConfirmTitle"),
+        description: tl("hc_routesAppSuperadminTenants.impersonateConfirmDesc", {
+          admin: target.full_name ?? target.institutional_email,
+          tenant: t.name,
         }),
-      );
-      return;
-    }
-    // 2. Profiles del tenant que estén en ese set de Admins.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: candidates } = await (supabase as any)
-      .from("profiles")
-      .select("id, full_name, institutional_email, created_at")
-      .eq("tenant_id", t.id)
-      .in("id", adminUserIds)
-      .order("created_at", { ascending: true })
-      .limit(1);
-    const target = (candidates ?? [])[0] as
-      | { id: string; full_name: string | null; institutional_email: string }
-      | undefined;
-    if (!target) {
-      toast.error(
-        i18n.t("superadminTenants.tenantHasNoAdmin", {
-          defaultValue:
-            "{{name}} no tiene Admin asignado. Crea o asigna uno antes de iniciar sesión como.",
+        confirmLabel: i18n.t("superadminTenants.actionImpersonate"),
+        tone: "warning",
+      });
+      if (!ok) return;
+      // Reemplazar la sesión + recargar tarda; el banner cubre esa
+      // ventana en la que la pantalla sigue mostrando el grid viejo.
+      setBusyNotice(
+        i18n.t("superadminTenants.impersonateNotice", {
+          defaultValue: "Iniciando sesión como Admin de {{name}}…",
           name: t.name,
         }),
       );
-      return;
-    }
-    // 3. Confirmación — esta acción reemplaza la sesión del SuperAdmin
-    //    y recarga la app. Usamos useConfirm del design system (tono
-    //    'warning' por ser cambio importante reversible, no destructivo
-    //    en datos).
-    const ok = await confirm({
-      title: i18n.t("superadminTenants.impersonateConfirmTitle"),
-      description: tl("hc_routesAppSuperadminTenants.impersonateConfirmDesc", {
-        admin: target.full_name ?? target.institutional_email,
-        tenant: t.name,
-      }),
-      confirmLabel: i18n.t("superadminTenants.actionImpersonate"),
-      tone: "warning",
-    });
-    if (!ok) return;
-    try {
       // NOTA: antes acá llamábamos `setTenantOverride(null)` para limpiar
       // el contexto de "ver como tenant" antes de impersonar. Con la
       // arquitectura URL-driven eso haría un hard navigate y nunca
@@ -790,6 +921,9 @@ function SuperAdminTenantsPage() {
       // startImpersonate hace window.location.href — no llegamos acá.
     } catch (e) {
       toast.error(friendlyError(e, tl("hc_routesAppSuperadminTenants.errImpersonate")));
+    } finally {
+      setRowBusy(null);
+      setBusyNotice(null);
     }
   };
 
@@ -847,6 +981,21 @@ function SuperAdminTenantsPage() {
               </SelectItem>
             </SelectContent>
           </Select>
+        </div>
+      )}
+
+      {/* Banner de acción en curso. Las acciones de fila de esta pantalla
+          (pausar, enviar a la papelera con cascada, impersonar) tardan y no
+          tienen un botón propio donde colgar el spinner —el menú de tres
+          puntos se cierra al hacer click—, así que el estado se muestra acá. */}
+      {busyNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="flex items-center gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-xs text-muted-foreground"
+        >
+          <Spinner size="sm" />
+          <span>{busyNotice}</span>
         </div>
       )}
 
@@ -1021,7 +1170,16 @@ function SuperAdminTenantsPage() {
                             label: tl("superadminTenants.actionImpersonate"),
                             icon: LogIn,
                             onClick: () => void impersonateTenantAdmin(t),
-                            hint: tl("superadminTenants.actionImpersonateHint"),
+                            // Mientras HAY una operación de fila en vuelo (en
+                            // cualquier institución) estas acciones quedan
+                            // bloqueadas: los handlers las serializan, así que
+                            // el disabled tiene que ser global para que no
+                            // haya clicks que "no hacen nada".
+                            disabled: rowBusy !== null,
+                            hint:
+                              rowBusy !== null
+                                ? tl("common.processing", { defaultValue: "Procesando…" })
+                                : tl("superadminTenants.actionImpersonateHint"),
                             // El ícono toma el primary del tenant de esta
                             // fila — pista visual de que la acción va a
                             // entrar al contexto de ESE tenant. Cae al
@@ -1083,6 +1241,11 @@ function SuperAdminTenantsPage() {
                             icon: Power,
                             onClick: () => void toggleActive(t),
                             tone: t.is_active ? "destructive" : undefined,
+                            disabled: rowBusy !== null,
+                            hint:
+                              rowBusy !== null
+                                ? tl("common.processing", { defaultValue: "Procesando…" })
+                                : undefined,
                           },
                           {
                             label: tl("superadminTenants.actionDelete"),
@@ -1090,7 +1253,11 @@ function SuperAdminTenantsPage() {
                             onClick: () => void softDeleteTenantHandler(t),
                             tone: "destructive",
                             separatorBefore: true,
-                            hint: tl("superadminTenants.actionDeleteHint"),
+                            disabled: rowBusy !== null,
+                            hint:
+                              rowBusy !== null
+                                ? tl("common.processing", { defaultValue: "Procesando…" })
+                                : tl("superadminTenants.actionDeleteHint"),
                           },
                         ]}
                       />
@@ -1104,7 +1271,16 @@ function SuperAdminTenantsPage() {
         </CardContent>
       </Card>
 
-      <Dialog open={dialogOpen} onOpenChange={dirty.guardOpenChange(setDialogOpen)}>
+      <Dialog
+        open={dialogOpen}
+        // Mientras guarda (INSERT + logo + provisión del usuario de prueba)
+        // el dialog no se cierra por Esc / click afuera: desmontarlo dejaba
+        // el flujo a medias sin nadie que muestre el resultado.
+        onOpenChange={(o) => {
+          if (saving || uploadingLogo) return;
+          void dirty.guardOpenChange(setDialogOpen)(o);
+        }}
+      >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{editing ? tl("superadminTenants.dialogEditTitle", { name: editing.name }) : tl("superadminTenants.dialogNewTitle")}</DialogTitle>
@@ -1210,9 +1386,13 @@ function SuperAdminTenantsPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => logoFileInputRef.current?.click()}
-                      disabled={uploadingLogo}
+                      disabled={uploadingLogo || saving}
                     >
-                      <Upload className="h-3.5 w-3.5 mr-1" />
+                      {uploadingLogo ? (
+                        <Spinner size="sm" className="mr-1" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5 mr-1" />
+                      )}
                       {uploadingLogo ? tl("superadminTenants.logoUploadingBtn") : tl("superadminTenants.logoUploadBtn")}
                     </Button>
                     {(form.logo_path || form.logo_url || pendingLogoFile) && (
@@ -1221,6 +1401,7 @@ function SuperAdminTenantsPage() {
                         size="sm"
                         className="text-destructive hover:text-destructive"
                         onClick={removeLogo}
+                        disabled={uploadingLogo || saving}
                       >
                         <Trash2 className="h-3.5 w-3.5 mr-1" />
                         {tl("superadminTenants.logoRemoveBtn")}
@@ -1339,11 +1520,11 @@ function SuperAdminTenantsPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
               {tl("superadminTenants.cancelBtn")}
             </Button>
-            <Button onClick={save} disabled={saving}>
-              <Save className="h-4 w-4 mr-1" />
+            <Button onClick={() => void save()} disabled={saving || uploadingLogo}>
+              {saving ? <Spinner size="sm" className="mr-2" /> : <Save className="h-4 w-4 mr-1" />}
               {saving ? tl("superadminTenants.savingBtn") : tl("superadminTenants.saveBtn")}
             </Button>
           </DialogFooter>
@@ -1425,14 +1606,14 @@ function SuperAdminTenantsPage() {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 shrink-0"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(testUserCreds.email);
-                      toast.success(
+                    onClick={() =>
+                      void copyToClipboard(
+                        testUserCreds.email,
                         i18n.t("superadminTenants.emailCopied", {
                           defaultValue: "Email copiado",
                         }),
-                      );
-                    }}
+                      )
+                    }
                     title={tl("hc_routesAppSuperadminTenants.copyEmailTitle")}
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -1449,14 +1630,14 @@ function SuperAdminTenantsPage() {
                     size="icon"
                     variant="ghost"
                     className="h-8 w-8 shrink-0"
-                    onClick={() => {
-                      void navigator.clipboard.writeText(testUserCreds.password);
-                      toast.success(
+                    onClick={() =>
+                      void copyToClipboard(
+                        testUserCreds.password,
                         i18n.t("superadminTenants.passwordCopied", {
                           defaultValue: "Contraseña copiada",
                         }),
-                      );
-                    }}
+                      )
+                    }
                     title={tl("hc_routesAppSuperadminTenants.copyPasswordTitle")}
                   >
                     <Copy className="h-3.5 w-3.5" />
@@ -1484,13 +1665,11 @@ function SuperAdminTenantsPage() {
             <Button
               onClick={() => {
                 if (!testUserCreds) return;
-                void navigator.clipboard.writeText(
+                void copyToClipboard(
                   tl("hc_routesAppSuperadminTenants.copyAllText", {
                     email: testUserCreds.email,
                     password: testUserCreds.password,
                   }),
-                );
-                toast.success(
                   i18n.t("superadminTenants.credentialsCopied", {
                     defaultValue: "Credenciales copiadas",
                   }),

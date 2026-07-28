@@ -118,24 +118,46 @@ export function DbBackupsPanel() {
   const [createOpen, setCreateOpen] = useState(false);
   const [tableInfos, setTableInfos] = useState<TableInfo[]>([]);
   const [loadingTables, setLoadingTables] = useState(false);
+  const [tablesError, setTablesError] = useState<string | null>(null);
   const [selectedTables, setSelectedTables] = useState<Set<string>>(new Set());
   const [newLabel, setNewLabel] = useState("");
   const [creating, setCreating] = useState(false);
 
-  const load = async () => {
-    setLoading(true);
-    setLoadError(null);
+  // Acciones de fila en vuelo (una por tipo): alimentan el `loading` del
+  // <RowAction> correspondiente y bloquean el re-click. Sin esto, bajar o
+  // borrar un backup no daba ninguna señal mientras la red respondía.
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+
+  /**
+   * `silent` = refresco de fondo (polling mientras hay backups activos).
+   * Sin este flag el `setLoading(true)` del poll reemplazaba la tabla por
+   * el TableSkeleton cada 5s: el histórico parpadeaba entero mientras
+   * corría un backup. En modo silencioso tampoco tumbamos la vista con
+   * ErrorState — ya hay datos en pantalla y el próximo tick reintenta —,
+   * pero el error igual se avisa por toast (con `id` fijo para que los
+   * ticks sucesivos actualicen el mismo toast en vez de spamear).
+   */
+  const load = async (silent = false) => {
+    if (!silent) {
+      setLoading(true);
+      setLoadError(null);
+    }
     const { data, error } = await db
       .from("db_backups")
       .select("*")
       .order("created_at", { ascending: false })
       .limit(100);
     if (error) {
-      setLoadError(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadBackupsError")));
+      const msg = friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadBackupsError"));
+      if (silent) toast.error(msg, { id: "db-backups-poll" });
+      else setLoadError(msg);
       setLoading(false);
       return;
     }
     setBackups((data ?? []) as BackupRow[]);
+    setLoadError(null);
     setLoading(false);
   };
 
@@ -155,7 +177,9 @@ export function DbBackupsPanel() {
   );
   useEffect(() => {
     if (!hasActive) return;
-    const id = setInterval(() => void load(), 5000);
+    // silent=true: el poll refresca los datos SIN devolver la tabla al
+    // skeleton (ver comentario en `load`).
+    const id = setInterval(() => void load(true), 5000);
     return () => clearInterval(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hasActive]);
@@ -202,23 +226,42 @@ export function DbBackupsPanel() {
   }, [backups]);
 
   // ─── Crear backup ───────────────────────────────────────────────────
+  /** Carga la lista de tablas respaldables. Separada de `openCreateDialog`
+   *  para poder REINTENTAR desde el ErrorState del dialog sin perder la
+   *  etiqueta que el admin ya escribió. */
+  const loadBackupableTables = async () => {
+    setLoadingTables(true);
+    setTablesError(null);
+    try {
+      const { data, error } = await db.rpc("admin_list_backupable_tables");
+      if (error) {
+        // Antes esto era solo un toast: el dialog quedaba con la lista
+        // vacía y sin explicación ni forma de reintentar.
+        setTablesError(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadTablesError")));
+        setTableInfos([]);
+        setSelectedTables(new Set());
+        return;
+      }
+      const infos = (data ?? []) as TableInfo[];
+      setTableInfos(infos);
+      // Pre-selecciona todas — el caso común es backup completo y el
+      // admin desmarca lo que no quiere (más rápido que marcarlas todas
+      // una por una cuando hay ~40 tablas).
+      setSelectedTables(new Set(infos.map((t) => t.table_name)));
+    } catch (e) {
+      setTablesError(friendlyError(e, t("hc_modulesAdminDbBackupsPanel.loadTablesError")));
+      setTableInfos([]);
+      setSelectedTables(new Set());
+    } finally {
+      setLoadingTables(false);
+    }
+  };
+
   const openCreateDialog = async () => {
     setCreateOpen(true);
-    setLoadingTables(true);
     setSelectedTables(new Set());
     setNewLabel("");
-    const { data, error } = await db.rpc("admin_list_backupable_tables");
-    setLoadingTables(false);
-    if (error) {
-      toast.error(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.loadTablesError")));
-      return;
-    }
-    const infos = (data ?? []) as TableInfo[];
-    setTableInfos(infos);
-    // Pre-selecciona todas — el caso común es backup completo y el
-    // admin desmarca lo que no quiere (más rápido que marcarlas todas
-    // una por una cuando hay ~40 tablas).
-    setSelectedTables(new Set(infos.map((t) => t.table_name)));
+    await loadBackupableTables();
   };
 
   const toggleTable = (name: string) => {
@@ -239,6 +282,7 @@ export function DbBackupsPanel() {
   };
 
   const createBackup = async () => {
+    if (creating) return; // anti doble-submit
     if (selectedTables.size === 0) {
       toast.error(
         i18n.t("toast.modules_admin_DbBackupsPanel.selectAtLeastOneTable", {
@@ -273,6 +317,14 @@ export function DbBackupsPanel() {
               ),
             );
           }
+        })
+        // `invoke` también puede RECHAZAR (red caída, DNS): sin este catch
+        // la promesa quedaba rechazada sin handler y el admin veía la fila
+        // en "En cola" sin ninguna explicación.
+        .catch((invokeErr) => {
+          toast.error(
+            friendlyError(invokeErr, t("hc_modulesAdminDbBackupsPanel.backupStartFailed")),
+          );
         });
 
       toast.success(
@@ -281,7 +333,9 @@ export function DbBackupsPanel() {
         }),
       );
       setCreateOpen(false);
-      await load();
+      // silent: el toast ya confirmó; refrescamos para que aparezca la fila
+      // en "En cola" sin devolver el histórico al skeleton.
+      await load(true);
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -291,6 +345,7 @@ export function DbBackupsPanel() {
 
   // ─── Descargar backup (signed URL) ──────────────────────────────────
   const downloadBackup = async (row: BackupRow) => {
+    if (downloadingId) return; // anti doble-submit
     if (!row.file_path) {
       toast.error(
         i18n.t("toast.modules_admin_DbBackupsPanel.noFileAvailable", {
@@ -299,28 +354,36 @@ export function DbBackupsPanel() {
       );
       return;
     }
-    // 5 min de validez — suficiente para que el navegador inicie la
-    // descarga. No regalamos URLs eternas: si el admin quiere bajarlo
-    // otra vez clickea otra vez (genera URL nueva).
-    const { data, error } = await db.storage
-      .from("db-backups")
-      .createSignedUrl(row.file_path, 300);
-    if (error || !data?.signedUrl) {
-      toast.error(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.signedUrlError")));
-      return;
+    setDownloadingId(row.id);
+    try {
+      // 5 min de validez — suficiente para que el navegador inicie la
+      // descarga. No regalamos URLs eternas: si el admin quiere bajarlo
+      // otra vez clickea otra vez (genera URL nueva).
+      const { data, error } = await db.storage
+        .from("db-backups")
+        .createSignedUrl(row.file_path, 300);
+      if (error || !data?.signedUrl) {
+        toast.error(friendlyError(error, t("hc_modulesAdminDbBackupsPanel.signedUrlError")));
+        return;
+      }
+      // Forzamos la descarga con `download` attr — sin esto el browser
+      // intenta abrir el ZIP inline en algunos casos.
+      const a = document.createElement("a");
+      a.href = data.signedUrl;
+      a.download = `examlab-backup-${row.id}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_modulesAdminDbBackupsPanel.signedUrlError")));
+    } finally {
+      setDownloadingId(null);
     }
-    // Forzamos la descarga con `download` attr — sin esto el browser
-    // intenta abrir el ZIP inline en algunos casos.
-    const a = document.createElement("a");
-    a.href = data.signedUrl;
-    a.download = `examlab-backup-${row.id}.zip`;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
   };
 
   // ─── Borrar backup ──────────────────────────────────────────────────
   const deleteBackup = async (row: BackupRow) => {
+    if (deletingId) return; // anti doble-submit
     const ok = await confirm({
       title: t("hc_modulesAdminDbBackupsPanel.deleteConfirmTitle"),
       description: row.file_path
@@ -330,39 +393,58 @@ export function DbBackupsPanel() {
       confirmLabel: t("hc_modulesAdminDbBackupsPanel.deleteConfirmLabel"),
     });
     if (!ok) return;
-    const { error } = await db.rpc("admin_delete_db_backup", { _id: row.id });
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(row.id);
+    try {
+      const { error } = await db.rpc("admin_delete_db_backup", { _id: row.id });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_admin_DbBackupsPanel.backupDeleted", {
+          defaultValue: "Backup eliminado.",
+        }),
+      );
+      // silent: la fila desaparece del histórico sin devolver la tabla al
+      // skeleton (el toast ya confirmó la acción).
+      await load(true);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
     }
-    toast.success(
-      i18n.t("toast.modules_admin_DbBackupsPanel.backupDeleted", {
-        defaultValue: "Backup eliminado.",
-      }),
-    );
-    void load();
   };
 
   // ─── Procesar ahora (drenar queued) ─────────────────────────────────
   // Cuando el cron no está habilitado en el proyecto o cuando un backup
   // se quedó queued por una falla, el admin puede dispararlo a mano.
   const processQueued = async (backupId: string) => {
-    const { data, error } = await supabase.functions.invoke("db-backup-runner", {
-      body: { backupId },
-    });
-    if (error || (data as { error?: string })?.error) {
-      const detail = await extractEdgeError(error, data);
-      toast.error(
-        friendlyError(error ?? new Error(detail || t("hc_modulesAdminDbBackupsPanel.backupFailed"))),
+    if (processingId) return; // anti doble-submit
+    // La edge corre el backup completo: puede tardar bastante. El
+    // <RowAction loading> deja el spinner en el propio botón mientras dura.
+    setProcessingId(backupId);
+    try {
+      const { data, error } = await supabase.functions.invoke("db-backup-runner", {
+        body: { backupId },
+      });
+      if (error || (data as { error?: string })?.error) {
+        const detail = await extractEdgeError(error, data);
+        toast.error(
+          friendlyError(error ?? new Error(detail || t("hc_modulesAdminDbBackupsPanel.backupFailed"))),
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_admin_DbBackupsPanel.backupProcessed", {
+          defaultValue: "Backup procesado.",
+        }),
       );
-      return;
+      await load(true);
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_modulesAdminDbBackupsPanel.backupFailed")));
+    } finally {
+      setProcessingId(null);
     }
-    toast.success(
-      i18n.t("toast.modules_admin_DbBackupsPanel.backupProcessed", {
-        defaultValue: "Backup procesado.",
-      }),
-    );
-    void load();
   };
 
   // ─── Render ─────────────────────────────────────────────────────────
@@ -389,6 +471,7 @@ export function DbBackupsPanel() {
               size="icon"
               className="h-8 w-8 ml-auto"
               onClick={() => void load()}
+              disabled={loading}
               title={t("hc_modulesAdminDbBackupsPanel.refresh")}
             >
               <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />
@@ -426,8 +509,12 @@ export function DbBackupsPanel() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" onClick={() => void openCreateDialog()}>
-              <Plus className="h-3.5 w-3.5 mr-1" />
+            <Button size="sm" onClick={() => void openCreateDialog()} disabled={creating}>
+              {creating ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Plus className="h-3.5 w-3.5 mr-1" />
+              )}
               {t("hc_modulesAdminDbBackupsPanel.createBackup")}
             </Button>
             <span className="text-[11px] text-muted-foreground">
@@ -456,7 +543,13 @@ export function DbBackupsPanel() {
         </CardHeader>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
-            <TableSkeleton cols={6} rows={4} />
+            // TableSkeleton emite <TableRow>: sin el <Table><TableBody> que lo
+            // envuelve, las filas quedaban fuera de una tabla (DOM inválido).
+            <Table fixed>
+              <TableBody>
+                <TableSkeleton cols={6} rows={4} />
+              </TableBody>
+            </Table>
           ) : (
             <Table fixed resizable>
               <TableHeader>
@@ -520,6 +613,8 @@ export function DbBackupsPanel() {
                               label={t("hc_modulesAdminDbBackupsPanel.actionProcessNow")}
                               icon={Zap}
                               onClick={() => void processQueued(b.id)}
+                              loading={processingId === b.id}
+                              disabled={!!processingId && processingId !== b.id}
                             />
                           )}
                           {b.status === "done" && b.file_path && (
@@ -527,6 +622,8 @@ export function DbBackupsPanel() {
                               label={t("hc_modulesAdminDbBackupsPanel.actionDownload")}
                               icon={Download}
                               onClick={() => void downloadBackup(b)}
+                              loading={downloadingId === b.id}
+                              disabled={!!downloadingId && downloadingId !== b.id}
                             />
                           )}
                           <RowAction
@@ -534,6 +631,8 @@ export function DbBackupsPanel() {
                             icon={Trash2}
                             tone="destructive"
                             onClick={() => void deleteBackup(b)}
+                            loading={deletingId === b.id}
+                            disabled={!!deletingId && deletingId !== b.id}
                           />
                         </div>
                       </TableCell>
@@ -553,7 +652,15 @@ export function DbBackupsPanel() {
       </Card>
 
       {/* ─── Dialog: crear backup ─────────────────────────────────── */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        // Mientras se encola el backup el dialog no se cierra con Esc /
+        // click afuera: el `finally` de `createBackup` es quien lo cierra.
+        onOpenChange={(o) => {
+          if (creating) return;
+          setCreateOpen(o);
+        }}
+      >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl" hideCloseButton>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -579,6 +686,7 @@ export function DbBackupsPanel() {
                 onChange={(e) => setNewLabel(e.target.value)}
                 placeholder={t("hc_modulesAdminDbBackupsPanel.labelPlaceholder")}
                 maxLength={200}
+                disabled={creating}
               />
             </div>
 
@@ -600,7 +708,7 @@ export function DbBackupsPanel() {
                     size="sm"
                     className="h-6 text-[10px] px-2"
                     onClick={selectAllTables}
-                    disabled={loadingTables}
+                    disabled={loadingTables || creating}
                   >
                     {t("hc_modulesAdminDbBackupsPanel.selectAll")}
                   </Button>
@@ -610,7 +718,7 @@ export function DbBackupsPanel() {
                     size="sm"
                     className="h-6 text-[10px] px-2"
                     onClick={selectNoneTables}
-                    disabled={loadingTables}
+                    disabled={loadingTables || creating}
                   >
                     {t("hc_modulesAdminDbBackupsPanel.selectNone")}
                   </Button>
@@ -620,6 +728,14 @@ export function DbBackupsPanel() {
                 <div className="flex items-center gap-2 text-xs text-muted-foreground py-4">
                   <Spinner size="sm" /> {t("hc_modulesAdminDbBackupsPanel.loadingTables")}
                 </div>
+              ) : tablesError ? (
+                // Sin esto el dialog quedaba con la lista vacía y el admin no
+                // sabía si el proyecto no tenía tablas o si la RPC había fallado.
+                <ErrorState
+                  message={t("hc_modulesAdminDbBackupsPanel.loadTablesError")}
+                  hint={tablesError}
+                  onRetry={() => void loadBackupableTables()}
+                />
               ) : (
                 <div className="border rounded-md max-h-64 overflow-y-auto">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-2">
@@ -631,6 +747,7 @@ export function DbBackupsPanel() {
                         <Checkbox
                           checked={selectedTables.has(t.table_name)}
                           onCheckedChange={() => toggleTable(t.table_name)}
+                          disabled={creating}
                         />
                         <span className="font-mono truncate flex-1" title={t.table_name}>
                           {t.table_name}
@@ -654,7 +771,10 @@ export function DbBackupsPanel() {
             <Button variant="outline" onClick={() => setCreateOpen(false)} disabled={creating}>
               {t("hc_modulesAdminDbBackupsPanel.cancel")}
             </Button>
-            <Button onClick={() => void createBackup()} disabled={creating || loadingTables}>
+            <Button
+              onClick={() => void createBackup()}
+              disabled={creating || loadingTables || !!tablesError}
+            >
               {creating ? <Spinner size="sm" className="mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
               {t("hc_modulesAdminDbBackupsPanel.createBackup")}
             </Button>

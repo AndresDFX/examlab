@@ -55,6 +55,9 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
+import { SectionLoader } from "@/components/ui/loaders";
+import { ErrorState } from "@/components/ui/empty-state";
+import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { CodeEditor, getStarterCode, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
@@ -134,6 +137,14 @@ export function TeacherProjectFilesEditor({
   const aiGate = useAiAuthorizationGate();
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Busy flags por acción: sin ellos un doble click duplicaba la pregunta
+  // (insert), corrompía las positions (swap) o repetía el borrado.
+  const [savingManual, setSavingManual] = useState(false);
+  const [movingId, setMovingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [aiBusy, setAiBusy] = useState(false);
+  const [autoBusy, setAutoBusy] = useState(false);
   const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
 
@@ -223,13 +234,29 @@ export function TeacherProjectFilesEditor({
 
   const load = async () => {
     setLoading(true);
-    const [{ data }, { data: pr }] = await Promise.all([
-      db.from("project_files").select("*").eq("project_id", projectId).order("position"),
-      db.from("projects").select("course_id").eq("id", projectId).maybeSingle(),
-    ]);
-    setQuestions((data ?? []) as ProjectFile[]);
-    setProjectCourseId((pr as { course_id?: string } | null)?.course_id ?? null);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [{ data, error }, { data: pr }] = await Promise.all([
+        db.from("project_files").select("*").eq("project_id", projectId).order("position"),
+        db.from("projects").select("course_id").eq("id", projectId).maybeSingle(),
+      ]);
+      if (error) throw error;
+      setQuestions((data ?? []) as ProjectFile[]);
+      setProjectCourseId((pr as { course_id?: string } | null)?.course_id ?? null);
+    } catch (e) {
+      // Antes el fallo quedaba invisible: lista vacía indistinguible de
+      // "proyecto sin preguntas".
+      const msg = friendlyError(
+        e,
+        i18n.t("toast.modules_projects_ProjectFiles.loadQuestionsFailed", {
+          defaultValue: "No se pudieron cargar las preguntas del proyecto.",
+        }),
+      );
+      setLoadError(msg);
+      toast.error(msg);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -241,7 +268,7 @@ export function TeacherProjectFilesEditor({
   // "auto-generar set completo desde la descripción".
   useEffect(() => {
     let cancelled = false;
-    (async () => {
+    void (async () => {
       const { data } = await db
         .from("projects")
         .select("description, course_id")
@@ -254,13 +281,18 @@ export function TeacherProjectFilesEditor({
       } | null;
       setAutoDescription(row?.description ?? "");
       setAutoCourseId(row?.course_id ?? null);
-    })();
+    })().catch((e: unknown) => {
+      if (cancelled) return;
+      // No bloqueante (solo alimenta el modo auto), pero que no sea silencioso.
+      console.error("[ExamLab] project description load failed:", e);
+    });
     return () => {
       cancelled = true;
     };
   }, [projectId]);
 
   const submitManual = async () => {
+    if (savingManual) return;
     if (!qContent.trim()) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.writeStatement", {
@@ -334,85 +366,105 @@ export function TeacherProjectFilesEditor({
     // cambia el tipo de la pregunta.
     const zipSingle = qType === "codigo_zip" ? qZipSingle : false;
 
-    if (editingId) {
-      // UPDATE: no tocamos position ni starter_code para no clobberar lo que
-      // alumnos o docentes hayan personalizado.
-      const { error } = await db
-        .from("project_files")
-        .update({
+    // A partir de acá se escribe en DB: busy + try/finally para que un throw
+    // no deje el botón "Guardar" activo y sin mensaje.
+    setSavingManual(true);
+    try {
+      if (editingId) {
+        // UPDATE: no tocamos position ni starter_code para no clobberar lo que
+        // alumnos o docentes hayan personalizado.
+        const { error } = await db
+          .from("project_files")
+          .update({
+            type: qType,
+            title: qContent.slice(0, 200),
+            expected_rubric: qRubric || null,
+            options,
+            points: qPoints,
+            language,
+            zip_single: zipSingle,
+          })
+          .eq("id", editingId);
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.modules_projects_ProjectFiles.questionUpdated", {
+            defaultValue: "Pregunta actualizada",
+          }),
+        );
+      } else {
+        // Proyectos no usan starter_code (no es un IDE inline). El ZIP
+        // trae los archivos del estudiante sin plantilla del docente.
+        const { error } = await db.from("project_files").insert({
+          project_id: projectId,
           type: qType,
           title: qContent.slice(0, 200),
+          description: null,
           expected_rubric: qRubric || null,
           options,
           points: qPoints,
+          position: questions.length,
           language,
+          starter_code: null,
           zip_single: zipSingle,
-        })
-        .eq("id", editingId);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
+        });
+        if (error) {
+          toast.error(friendlyError(error));
+          return;
+        }
+        toast.success(
+          i18n.t("toast.modules_projects_ProjectFiles.questionAdded", {
+            defaultValue: "Pregunta agregada — puedes continuar añadiendo",
+          }),
+        );
       }
-      toast.success(
-        i18n.t("toast.modules_projects_ProjectFiles.questionUpdated", {
-          defaultValue: "Pregunta actualizada",
-        }),
-      );
-    } else {
-      // Proyectos no usan starter_code (no es un IDE inline). El ZIP
-      // trae los archivos del estudiante sin plantilla del docente.
-      const { error } = await db.from("project_files").insert({
-        project_id: projectId,
-        type: qType,
-        title: qContent.slice(0, 200),
-        description: null,
-        expected_rubric: qRubric || null,
-        options,
-        points: qPoints,
-        position: questions.length,
-        language,
-        starter_code: null,
-        zip_single: zipSingle,
-      });
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-      toast.success(
-        i18n.t("toast.modules_projects_ProjectFiles.questionAdded", {
-          defaultValue: "Pregunta agregada — puedes continuar añadiendo",
-        }),
-      );
+      resetForm();
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingManual(false);
     }
-    resetForm();
-    void load();
   };
 
   // Swap de positions con vecino. Usamos -1 como temporal para no chocar
   // con un eventual unique(project_id, position).
   const moveQ = async (id: string, direction: "up" | "down") => {
+    // 3 UPDATE secuenciales: dos clicks rápidos se pisan y dejan una
+    // position en -1. El guard los serializa.
+    if (movingId) return;
     const sorted = [...questions].sort((a, b) => a.position - b.position);
     const idx = sorted.findIndex((q) => q.id === id);
     const target = direction === "up" ? idx - 1 : idx + 1;
     if (idx < 0 || target < 0 || target >= sorted.length) return;
     const a = sorted[idx];
     const b = sorted[target];
-    const { error: e1 } = await db.from("project_files").update({ position: -1 }).eq("id", a.id);
-    if (e1) return toast.error(friendlyError(e1));
-    const { error: e2 } = await db
-      .from("project_files")
-      .update({ position: a.position })
-      .eq("id", b.id);
-    if (e2) return toast.error(friendlyError(e2));
-    const { error: e3 } = await db
-      .from("project_files")
-      .update({ position: b.position })
-      .eq("id", a.id);
-    if (e3) return toast.error(friendlyError(e3));
-    void load();
+    setMovingId(id);
+    try {
+      const { error: e1 } = await db.from("project_files").update({ position: -1 }).eq("id", a.id);
+      if (e1) return toast.error(friendlyError(e1));
+      const { error: e2 } = await db
+        .from("project_files")
+        .update({ position: a.position })
+        .eq("id", b.id);
+      if (e2) return toast.error(friendlyError(e2));
+      const { error: e3 } = await db
+        .from("project_files")
+        .update({ position: b.position })
+        .eq("id", a.id);
+      if (e3) return toast.error(friendlyError(e3));
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setMovingId(null);
+    }
   };
 
   const removeQ = async (id: string) => {
+    if (deletingId) return;
     // Antes de borrar, contar cuántas entregas YA tienen respuesta para
     // esta pregunta. Si hay, advertir explícitamente: el DELETE CASCADE
     // borra `project_submission_files` y los ZIPs entregados quedan
@@ -437,17 +489,24 @@ export function TeacherProjectFilesEditor({
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("project_files").delete().eq("id", id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setDeletingId(id);
+    try {
+      const { error } = await db.from("project_files").delete().eq("id", id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.modules_projects_ProjectFiles.questionDeleted", {
+          defaultValue: "Pregunta eliminada",
+        }),
+      );
+      await load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setDeletingId(null);
     }
-    toast.success(
-      i18n.t("toast.modules_projects_ProjectFiles.questionDeleted", {
-        defaultValue: "Pregunta eliminada",
-      }),
-    );
-    void load();
   };
 
   // Modo auto: la IA decide el set completo de preguntas a partir de la
@@ -455,6 +514,20 @@ export function TeacherProjectFilesEditor({
   // adicionales". Sin inputs adicionales — el prompt vive en
   // ai_prompts(use_case='project_questions').
   const generateFromDescription = async () => {
+    if (autoBusy) return;
+    setAutoBusy(true);
+    try {
+      await generateFromDescriptionInner();
+    } catch (e) {
+      // El camino "encolar" (gate async) corría sin try/catch: un throw
+      // dejaba el botón habilitado y sin ningún mensaje al docente.
+      toast.error(friendlyError(e, t("hc_modulesProjectsProjectFiles.errAi")));
+    } finally {
+      setAutoBusy(false);
+    }
+  };
+
+  const generateFromDescriptionInner = async () => {
     if (!autoDescription.trim()) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.projectHasNoDescription", {
@@ -555,6 +628,18 @@ export function TeacherProjectFilesEditor({
   };
 
   const generateWithAI = async () => {
+    if (aiBusy) return;
+    setAiBusy(true);
+    try {
+      await generateWithAIInner();
+    } catch (e) {
+      toast.error(friendlyError(e, t("hc_modulesProjectsProjectFiles.errAi")));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const generateWithAIInner = async () => {
     if (!aiTopics.trim()) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.indicateTopics", {
@@ -751,12 +836,11 @@ export function TeacherProjectFilesEditor({
         </TabsList>
 
         <TabsContent value="list" className="space-y-2">
-          {loading && (
-            <p className="text-sm text-muted-foreground">
-              <Spinner size="xs" inline className="mr-1" /> {t("projectFiles.loadingQuestions")}
-            </p>
+          {loading && <ListSkeleton rows={3} rowHeight="h-16" />}
+          {!loading && loadError && (
+            <ErrorState message={loadError} onRetry={() => void load()} />
           )}
-          {!loading && questions.length === 0 && (
+          {!loading && !loadError && questions.length === 0 && (
             <p className="text-sm text-muted-foreground">{t("projectFiles.noQuestions")}</p>
           )}
           {questions.map((q, idx) => (
@@ -780,14 +864,14 @@ export function TeacherProjectFilesEditor({
                   <RowAction
                     label={t("projectFiles.rowActionMoveUp")}
                     icon={ChevronUp}
-                    disabled={idx === 0}
-                    onClick={() => moveQ(q.id, "up")}
+                    disabled={idx === 0 || movingId !== null}
+                    onClick={() => void moveQ(q.id, "up")}
                   />
                   <RowAction
                     label={t("projectFiles.rowActionMoveDown")}
                     icon={ChevronDown}
-                    disabled={idx === questions.length - 1}
-                    onClick={() => moveQ(q.id, "down")}
+                    disabled={idx === questions.length - 1 || movingId !== null}
+                    onClick={() => void moveQ(q.id, "down")}
                   />
                   <RowAction
                     label={t("projectFiles.rowActionEdit")}
@@ -798,7 +882,8 @@ export function TeacherProjectFilesEditor({
                     label={t("projectFiles.rowActionDelete")}
                     icon={Trash2}
                     tone="destructive"
-                    onClick={() => removeQ(q.id)}
+                    disabled={deletingId !== null}
+                    onClick={() => void removeQ(q.id)}
                   />
                 </div>
               </CardContent>
@@ -1083,8 +1168,13 @@ export function TeacherProjectFilesEditor({
           </div>
           )}
           <div className="flex flex-wrap gap-2">
-            <Button onClick={submitManual}>
-              {editingId ? (
+            <Button onClick={() => void submitManual()} disabled={savingManual}>
+              {savingManual ? (
+                <>
+                  <Spinner size="md" className="mr-1" />
+                  {t("common.saving", { defaultValue: "Guardando…" })}
+                </>
+              ) : editingId ? (
                 <>
                   <Save className="h-4 w-4 mr-1" /> {t("projectFiles.btnSaveChanges")}
                 </>
@@ -1145,10 +1235,10 @@ export function TeacherProjectFilesEditor({
                 </p>
               )}
               <Button
-                onClick={generateFromDescription}
-                disabled={autoLoading || !autoDescription.trim()}
+                onClick={() => void generateFromDescription()}
+                disabled={autoLoading || autoBusy || !autoDescription.trim()}
               >
-                {autoLoading ? (
+                {autoLoading || autoBusy ? (
                   <Spinner size="md" className="mr-1" />
                 ) : (
                   <Sparkles className="h-4 w-4 mr-1" />
@@ -1249,8 +1339,8 @@ export function TeacherProjectFilesEditor({
             <span className="text-xs text-muted-foreground">
               {t("projectFiles.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}
             </span>
-            <Button onClick={generateWithAI} disabled={aiLoading}>
-              {aiLoading ? (
+            <Button onClick={() => void generateWithAI()} disabled={aiLoading || aiBusy}>
+              {aiLoading || aiBusy ? (
                 <Spinner size="md" className="mr-1" />
               ) : (
                 <Sparkles className="h-4 w-4 mr-1" />
@@ -1300,7 +1390,15 @@ export function StudentProjectTaker({
   const [questions, setQuestions] = useState<ProjectFile[]>([]);
   const [answers, setAnswers] = useState<Record<string, any>>({});
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // Pre-validación de ZIP/archivos: corre ANTES de `submitting` y puede
+  // tardar segundos (descompresión en el navegador).
+  const [validatingFiles, setValidatingFiles] = useState(false);
+  // Guard sincrónico anti doble-entrega (el `await confirm(...)` previo corre
+  // con `submitting` todavía en false).
+  const submitBusyRef = useRef(false);
   const [graded, setGraded] = useState<{ grade: number } | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState<string>("");
   // projects.description — contexto global que viaja a la edge function
@@ -1365,20 +1463,32 @@ export function StudentProjectTaker({
   // se aplica vía `nextAttemptCount > max` dentro del submit().
   const attemptsExhausted = attemptCount >= effectiveMaxAttempts && lastSubmissionGraded;
 
-  // Carga el proveedor de ejecución de código una vez al montar (fire-and-forget).
+  // Carga el proveedor de ejecución de código una vez al montar.
+  // No bloqueante: si falla queda el default local, pero se loguea.
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (supabase as any)
-      .from("code_execution_settings")
-      .select("provider")
-      .eq("is_active", true)
-      .maybeSingle()
-      .then(({ data }: { data: { provider: string } | null }) => {
-        if (data?.provider) {
-          codeExecProviderRef.current = data.provider;
-          setDefaultCodeProvider(data.provider);
+    let cancelled = false;
+    void (async () => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data } = await (supabase as any)
+          .from("code_execution_settings")
+          .select("provider")
+          .eq("is_active", true)
+          .maybeSingle();
+        if (cancelled) return;
+        const provider = (data as { provider?: string } | null)?.provider;
+        if (provider) {
+          codeExecProviderRef.current = provider;
+          setDefaultCodeProvider(provider);
         }
-      });
+      } catch (e) {
+        if (cancelled) return;
+        console.error("[ExamLab] code_execution_settings load failed:", e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -1387,8 +1497,9 @@ export function StudentProjectTaker({
     if (loadedForRef.current === key) return;
     loadedForRef.current = key;
     let cancelled = false;
-    (async () => {
+    const runLoad = async () => {
       setLoading(true);
+      setLoadError(null);
       const [{ data: qs }, { data: proj }, { data: videosData }, { data: settingsRow }] =
         await Promise.all([
           db.from("project_files").select("*").eq("project_id", projectId).order("position"),
@@ -1498,12 +1609,26 @@ export function StudentProjectTaker({
         }
       }
       if (!cancelled) setLoading(false);
-    })();
+    };
+    // `.catch` obligatorio: sin él un fallo dejaba `loading=true` para
+    // siempre ("Cargando preguntas…" eterno) sin explicar nada.
+    void runLoad().catch((e: unknown) => {
+      if (cancelled) return;
+      const msg = friendlyError(
+        e,
+        i18n.t("toast.modules_projects_ProjectFiles.loadProjectFailed", {
+          defaultValue: "No se pudo cargar el proyecto.",
+        }),
+      );
+      setLoadError(msg);
+      setLoading(false);
+      toast.error(msg);
+    });
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, user?.id]);
+  }, [projectId, user?.id, retryNonce]);
 
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
@@ -1648,6 +1773,9 @@ export function StudentProjectTaker({
         ...prev,
         [questionId]: t("hc_modulesProjectsProjectFiles.errorPrefix", { msg }),
       }));
+      // Además del panel de salida (que puede quedar fuera de vista si el
+      // alumno hizo scroll) mostramos toast.
+      toast.error(friendlyError(msg), { duration: 8000 });
       void logEvent({
         action: "code_execution_error",
         category: "project",
@@ -1720,6 +1848,7 @@ export function StudentProjectTaker({
 
   const submit = async () => {
     if (!user) return;
+    if (submitBusyRef.current || submitting) return;
     if (!questions.length) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.projectHasNoQuestions", {
@@ -1773,6 +1902,11 @@ export function StudentProjectTaker({
     // codigo_zip al inicio del submit. Si alguna falla, toast → return.
     // Sin side effects (no se crea fila en project_submissions, no se
     // sube nada a Storage, no se llama a la IA).
+    // La validación descomprime los ZIP en el navegador: con 50 MB puede
+    // tardar segundos. Sin marcar busy, el alumno pulsaba "Entregar" y la
+    // pantalla no daba ninguna señal de que algo estaba pasando.
+    submitBusyRef.current = true;
+    setValidatingFiles(true);
     const codeQuestionErrors: Array<{ qNumber: number; message: string }> = [];
     for (let i = 0; i < questions.length; i++) {
       const q = questions[i];
@@ -1861,9 +1995,11 @@ export function StudentProjectTaker({
         }
       }
     }
+    setValidatingFiles(false);
     if (codeQuestionErrors.length > 0) {
       // Un toast por error — duración generosa para que el alumno alcance
       // a leer cada uno. Abortamos sin crear la submission ni subir nada.
+      submitBusyRef.current = false;
       for (const err of codeQuestionErrors) {
         toast.error(err.message, { duration: 10000 });
       }
@@ -1899,7 +2035,10 @@ export function StudentProjectTaker({
         cancelLabel: t("hc_modulesProjectsProjectFiles.keepAnswering"),
         tone: "warning",
       });
-      if (!ok) return;
+      if (!ok) {
+        submitBusyRef.current = false;
+        return;
+      }
     }
     setSubmitting(true);
     try {
@@ -1955,7 +2094,10 @@ export function StudentProjectTaker({
       }
       if (existing?.id) {
         submissionId = existing.id;
-        await db
+        // El error se descartaba: si este UPDATE fallaba, la entrega NO
+        // quedaba marcada como `entregado` (ni el link del repo) y el alumno
+        // igual veía la pantalla de éxito.
+        const { error: updErr } = await db
           .from("project_submissions")
           .update({
             status: "entregado",
@@ -1965,6 +2107,12 @@ export function StudentProjectTaker({
             attempt_count: nextAttemptCount,
           })
           .eq("id", submissionId);
+        if (updErr) {
+          toast.error(
+            friendlyError(updErr, t("hc_modulesProjectsProjectFiles.errCreateSubmission")),
+          );
+          return;
+        }
       } else {
         const { data: created, error } = await db
           .from("project_submissions")
@@ -2587,7 +2735,7 @@ export function StudentProjectTaker({
             .eq("file_id", job.qid)
             .maybeSingle();
           if (!row?.id) continue;
-          await db.rpc("enqueue_ai_grading", {
+          const { error: enqErr } = await db.rpc("enqueue_ai_grading", {
             _kind: job.kind,
             _invoke_target: "ai-grade-submission",
             _body: job.body,
@@ -2599,6 +2747,19 @@ export function StudentProjectTaker({
             _field_reasons: "ai_reasons",
             _course_id: projectCourseId ?? null,
           });
+          // Sin esto, un encolado fallido dejaba la entrega "Por calificar"
+          // eternamente y nadie se enteraba.
+          if (enqErr) {
+            console.error("[project-submit] enqueue_ai_grading failed", job.qid, enqErr);
+            toast.error(
+              i18n.t("toast.modules_projects_ProjectFiles.enqueueGradingFailed", {
+                defaultValue:
+                  "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+                detail: friendlyError(enqErr),
+              }),
+              { duration: 12000 },
+            );
+          }
         }
       }
 
@@ -2608,7 +2769,7 @@ export function StudentProjectTaker({
       // project_submission_files con `persistedInternally: true`, así el
       // worker NO escribe nada (la UI ya tiene placeholder "Pendiente IA").
       if (useAsyncAi && batchItems.length > 0) {
-        await db.rpc("enqueue_ai_grading", {
+        const { error: batchEnqErr } = await db.rpc("enqueue_ai_grading", {
           _kind: "project_full",
           _invoke_target: "ai-grade-submission",
           _body: {
@@ -2631,6 +2792,17 @@ export function StudentProjectTaker({
           // hace que el worker NO escriba), pero la RPC los requiere.
           _course_id: projectCourseId ?? null,
         });
+        if (batchEnqErr) {
+          console.error("[project-submit] enqueue project_full failed", batchEnqErr);
+          toast.error(
+            i18n.t("toast.modules_projects_ProjectFiles.enqueueGradingFailed", {
+              defaultValue:
+                "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+              detail: friendlyError(batchEnqErr),
+            }),
+            { duration: 12000 },
+          );
+        }
       }
 
       // Notif "Por calificar" cuando hay AL MENOS un enqueue (ZIP o batch).
@@ -2662,7 +2834,10 @@ export function StudentProjectTaker({
       // factor VIEJO a la nota NUEVA cuando se guardan los archivos de la
       // re-entrega → final_grade = nota_nueva × factor_viejo. Al limpiarlos, la
       // nueva entrega exige una sustentación fresca (final_grade queda null).
-      await db
+      // Este UPDATE es el que deja la nota de la entrega: su error NO puede
+      // seguir descartado (el alumno veía "Entrega calificada: X" con la nota
+      // sin persistir).
+      const { error: finalErr } = await db
         .from("project_submissions")
         .update({
           ai_grade: submissionGradeToPersist,
@@ -2677,6 +2852,17 @@ export function StudentProjectTaker({
           status: "entregado",
         })
         .eq("id", submissionId);
+      if (finalErr) {
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.submissionStateSaveFailed", {
+            defaultValue:
+              "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
+            detail: friendlyError(finalErr),
+          }),
+          { duration: 12000 },
+        );
+        return;
+      }
 
       if (totalQueued > 0) {
         // Nota pendiente de IA (async): NO mostrar un 0 engañoso ni el toast
@@ -2696,17 +2882,42 @@ export function StudentProjectTaker({
           }),
         );
       }
+    } catch (e) {
+      // ESTE catch faltaba: cualquier throw (upload a Storage, invoke de IA,
+      // red) terminaba en unhandled rejection — el spinner se apagaba y el
+      // alumno no sabía si su proyecto había quedado entregado.
+      console.error("[project-submit] failed", e);
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.modules_projects_ProjectFiles.submitFailed", {
+            defaultValue:
+              "No se pudo completar la entrega. Revisa tu conexión e inténtalo de nuevo.",
+          }),
+        ),
+        { duration: 12000 },
+      );
     } finally {
+      submitBusyRef.current = false;
+      setValidatingFiles(false);
       setSubmitting(false);
     }
   };
 
   if (loading) {
+    return <SectionLoader text={t("hc_modulesProjectsProjectFiles.loadingQuestions")} />;
+  }
+
+  if (loadError) {
     return (
-      <p className="text-sm text-muted-foreground">
-        <Spinner size="xs" inline className="mr-1" />{" "}
-        {t("hc_modulesProjectsProjectFiles.loadingQuestions")}
-      </p>
+      <ErrorState
+        message={loadError}
+        onRetry={() => {
+          loadedForRef.current = null;
+          setLoadError(null);
+          setRetryNonce((n) => n + 1);
+        }}
+      />
     );
   }
 
@@ -2746,6 +2957,27 @@ export function StudentProjectTaker({
     <div className="space-y-4">
       <h3 className="font-semibold">{projectTitle}</h3>
 
+      {/* Entrega en curso: valida ZIPs, sube archivos y llama a la IA — puede
+          tardar. El spinner del botón solo no alcanzaba: el alumno cerraba el
+          modal a mitad creyendo que ya estaba entregado. */}
+      {(submitting || validatingFiles) && (
+        <LoadingOverlay
+          title={
+            validatingFiles
+              ? t("hc_modulesProjectsProjectFiles.validatingOverlayTitle", {
+                  defaultValue: "Revisando tus archivos…",
+                })
+              : t("hc_modulesProjectsProjectFiles.submittingOverlayTitle", {
+                  defaultValue: "Entregando tu proyecto…",
+                })
+          }
+          subtitle={t("hc_modulesProjectsProjectFiles.submittingOverlaySubtitle", {
+            defaultValue:
+              "Estamos subiendo tus archivos y calificando. No cierres esta ventana.",
+          })}
+        />
+      )}
+
       {/* Gate de videos introductorios obligatorios. Solo se renderiza
           si el proyecto tiene videos en `project_intro_videos` Y hay
           al menos una pregunta tipo codigo_zip. Orden estricto: el
@@ -2784,8 +3016,16 @@ export function StudentProjectTaker({
               // creación de submission debería re-persistir el set.
               // (Edge case raro: la mayoría de los alumnos miran video
               // DESPUÉS de entrar a "Entregar" donde ya hay submission.)
-            } catch {
-              /* silencioso — state local sobrevive la sesión */
+            } catch (e) {
+              // El progreso local ya se aplicó, pero el alumno debe saber que
+              // no quedó guardado (al recargar el gate se lo puede volver a pedir).
+              console.error("[project] mark_project_video_watched failed:", e);
+              toast.warning(
+                i18n.t("toast.modules_projects_ProjectFiles.videoProgressNotSaved", {
+                  defaultValue:
+                    "No pudimos guardar tu progreso del video. Si recargas, quizá debas verlo de nuevo.",
+                }),
+              );
             }
           }}
         />
@@ -3295,11 +3535,15 @@ export function StudentProjectTaker({
           </p>
         )}
         <Button
-          onClick={submit}
-          disabled={submitting || videoGateBlocking || attemptsExhausted}
+          onClick={() => void submit()}
+          disabled={submitting || validatingFiles || videoGateBlocking || attemptsExhausted}
           className="w-full"
         >
-          {submitting ? <Spinner size="md" className="mr-1" /> : <Send className="h-4 w-4 mr-1" />}
+          {submitting || validatingFiles ? (
+            <Spinner size="md" className="mr-1" />
+          ) : (
+            <Send className="h-4 w-4 mr-1" />
+          )}
           {t("hc_modulesProjectsProjectFiles.submitButton")}
         </Button>
       </div>

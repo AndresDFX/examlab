@@ -109,7 +109,12 @@
     "reactivate": "Reactivate",
     "deactivate": "Deactivate",
     "searchPlaceholder": "Search…",
-    "clear": "Clear"
+    "clear": "Clear",
+    "processing": "Processing…",
+    "saving": "Saving…",
+    "unknownError": "Unknown error",
+    "copy": "Copy",
+    "copyFailed": "Couldn't copy to clipboard"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -2243,7 +2248,10 @@
       "toastScaleInvalid": "The minimum grade of the scale must be less than the maximum.",
       "evalSumLabel": "Current sum:",
       "labelActive": "Active (appears in course selector)",
-      "placeholderNoProgram": "No program (cross-curricular)"
+      "placeholderNoProgram": "No program (cross-curricular)",
+      "partialLoadPrograms": "programs",
+      "partialLoadCourseCounts": "course counts",
+      "partialLoadWarning": "Subjects loaded, but this complementary data didn't: {{fields}}. Reload to retry."
     },
     "periods": {
       "title": "Academic periods",
@@ -2294,7 +2302,9 @@
       "labelEnd": "End",
       "labelStatus": "Status",
       "searchPlaceholder": "Search by code or name…",
-      "entityPlural": "periods"
+      "entityPlural": "periods",
+      "toastClosed": "Period {{code}} closed",
+      "toastReopened": "Period {{code}} reopened"
     }
   },
   "feedbackThread": {
@@ -2532,7 +2542,8 @@
     "bulkEntityPlural": "students",
     "bulkPasswordAction": "Change password",
     "actionResetPassword": "Reset password",
-    "resetPasswordHint": "Assign a new password to {{name}}"
+    "resetPasswordHint": "Assign a new password to {{name}}",
+    "impersonateStarting": "Logging in as {{name}}…"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2908,7 +2919,13 @@
       "indicateTopics": "Enter the topics",
       "configureAtLeastOneType": "Configure at least one type with a count greater than 0",
       "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
-      "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated"
+      "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated",
+      "loadQuestionsFailed": "Could not load the project questions.",
+      "loadProjectFailed": "Could not load the project.",
+      "enqueueGradingFailed": "Your submission was saved, but automatic grading could not be queued: {{detail}}. Let your teacher know.",
+      "submissionStateSaveFailed": "Could not record your submission status: {{detail}}. Please submit again.",
+      "submitFailed": "Could not complete the submission. Check your connection and try again.",
+      "videoProgressNotSaved": "We couldn't save your video progress. If you reload, you may have to watch it again."
     },
     "modules_workshops_WorkshopQuestions": {
       "questionUpdated": "Question updated",
@@ -2937,7 +2954,15 @@
       "minMaxInverted": "The minimum selected cannot be greater than the maximum",
       "invalidNetworkScenario": "The network scenario is invalid. Check the JSON: devices, links, targetDeviceId and assertions.",
       "networkQuestionsGenerated": "{{count}} Network (console) question(s) generated",
-      "networkGraded": "Network grade"
+      "networkGraded": "Network grade",
+      "loadQuestionsFailed": "Could not load the workshop questions.",
+      "loadWorkshopFailed": "Could not load the workshop.",
+      "answersSaveFailed": "Could not save {{count}} answer(s). First: {{detail}}. Check your connection and submit again.",
+      "enqueueGradingFailed": "Your submission was saved, but automatic grading could not be queued: {{detail}}. Let your teacher know.",
+      "submissionStateSaveFailed": "Could not record your submission status: {{detail}}. Please submit again.",
+      "gradeSaveFailed": "Could not record the grade for your submission: {{detail}}. Please submit again.",
+      "submitFailed": "Could not complete the submission. Check your connection and try again.",
+      "videoProgressNotSaved": "We couldn't save your video progress. If you reload, you may have to watch it again."
     },
     "routes_app_admin_courses": {
       "nameRequired": "Name required",
@@ -2964,7 +2989,10 @@
       "copyBoardFailed": "Could not copy the board: {{error}}",
       "statusChanged": "Course status updated",
       "bulkDeletePartialError": "{{ok}} ok, {{failed}} failed. First: \"{{name}}\" — {{error}}",
-      "subjectRequired": "You must choose a subject from the plan."
+      "subjectRequired": "You must choose a subject from the plan.",
+      "loadCutsFailed": "Could not load the course cuts: {{error}}",
+      "studentsUnenrollPartialError": "{{failed}} could not be unenrolled. First: {{error}}",
+      "teachersUnassignPartialError": "{{failed}} could not be unassigned. First: {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Your account has no institution assigned. Contact the SuperAdmin.",
@@ -2998,7 +3026,9 @@
       "importPartial": "Imported: {{ok}} · Duplicates: {{duplicates}} · Errors: {{errors}}",
       "emailChangeFailed": "Couldn't change the login email",
       "existingUserEnrolled": "The user already existed; they were enrolled in the selected course.",
-      "importProgress": "Importing {{done}}/{{total}}…"
+      "importProgress": "Importing {{done}}/{{total}}…",
+      "bulkDeleteProgress": "Deleting {{done}}/{{total}}…",
+      "bulkDeletePartialDetailed": "{{ok}} user(s) deleted, {{failed}} failed."
     },
     "routes_app_certificates": {
       "verifyLinkCopied": "Verification link copied",
@@ -3007,7 +3037,8 @@
       "revokeDescription": "The certificate will be marked as NOT VALID in the public verification. The student will receive a notification. This action cannot be undone from the UI.",
       "revokeConfirm": "Revoke",
       "revokedOk": "Certificate revoked",
-      "revokeAction": "Revoke"
+      "revokeAction": "Revoke",
+      "verifyLinkCopyFailed": "We couldn't copy the link. Copy it manually from the public view."
     },
     "messages": {
       "pageTitle": "Messages",
@@ -3160,7 +3191,8 @@
     },
     "routes_app_student_certificates": {
       "downloadLocked": "You cannot download this certificate yet. It will be available from {{date}}.",
-      "verifyLinkCopied": "Verification link copied"
+      "verifyLinkCopied": "Verification link copied",
+      "verifyLinkCopyFailed": "We couldn't copy the link. Open the verification and copy it from the address bar."
     },
     "routes_app_student_polls": {
       "cannotChangeVote": "This poll does not allow changing your vote once cast",
@@ -3195,7 +3227,9 @@
       "screenshotsNotAllowed": "Taking screenshots is not allowed during the exam.",
       "executionCancelled": "Execution cancelled. You can switch compilers and try again.",
       "writeCodeBeforeRunning": "Write some code before running",
-      "warningExamExit": "Warning {{count}}/{{max}}: Exam exit"
+      "warningExamExit": "Warning {{count}}/{{max}}: Exam exit",
+      "examLoadFailed": "Could not load the exam.",
+      "couldNotReenterFullscreen": "Could not return to fullscreen. Try again or press F11."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversation cleared"
@@ -3238,7 +3272,12 @@
       "allMarkedPresent": "All students marked as present",
       "sessionAttendanceReset": "Session attendance reset",
       "previousCheckInExpired": "The previous check-in expired. Start a new one.",
-      "studentsMarkedAbsent": "{{count}} student(s) marked as absent"
+      "studentsMarkedAbsent": "{{count}} student(s) marked as absent",
+      "markAllProgress": "Marking present {{done}}/{{total}}…",
+      "allMarkedPresentPartial": "{{done}} marked, {{failed}} with errors. First: {{detail}}",
+      "importAttendanceProgress": "Importing attendance {{done}}/{{total}}…",
+      "importAttendanceWithErrors": "{{base}} First error: {{detail}}",
+      "markingPendingAbsent": "Marking pending as absent…"
     },
     "routes_app_teacher_calendar": {
       "calendarNotAccessible": "The selected calendar is no longer accessible in Google. Choose another and sync again."
@@ -3311,7 +3350,11 @@
       "noCertsToDownload": "No certificates left to download.",
       "zipDownloadedIssuedSuffix": " ({{count}} issued)",
       "zipDownloadedFailedSuffix": " · {{count}} failed to issue",
-      "zipDownloaded": "ZIP with {{count}} certificate(s) downloaded{{issuedMsg}}{{failedMsg}}"
+      "zipDownloaded": "ZIP with {{count}} certificate(s) downloaded{{issuedMsg}}{{failedMsg}}",
+      "gradesSaveFailed": "We couldn't save the grades",
+      "gradesSaveErrorsWithCause": "{{count}} error(s). First: {{error}}",
+      "bulkFirstErrorSuffix": ". First: {{error}}",
+      "bulkIssueFirstError": "{{count}} certificate(s) could not be issued. First: {{error}}"
     },
     "routes_app_teacher_monitor_examId": {
       "timerControlApplied": "{{label}} {{scope}}",
@@ -3388,7 +3431,8 @@
       "batchRegradeCompleted": "Batch regrade completed ({{done}}/{{total}}).",
       "submissionsDeleted": "{{n}} submissions deleted",
       "notAuthenticated": "Not authenticated",
-      "defenseVideoUploaded": "Video uploaded. Save the defense to record it."
+      "defenseVideoUploaded": "Video uploaded. Save the defense to record it.",
+      "batchRegradePartialError": "Regrading stopped at {{done}} of {{total}}: {{error}}"
     },
     "routes_app_teacher_question_bank": {
       "writeStatement": "Write the question statement",
@@ -3424,7 +3468,12 @@
       "aiGenerateError": "Could not prepare AI generation.",
       "aiGenerated": "Report generated with AI and inserted into the editor. Review it and adjust the {{...}} before saving.",
       "aiFallbackCopied": "Could not generate with the platform's AI. We copied the prompt (with the course data) to the clipboard — paste it into your AI and bring the result to the editor.",
-      "aiFallbackReady": "Could not generate with the platform's AI. The prompt was left in the browser console."
+      "aiFallbackReady": "Could not generate with the platform's AI. The prompt was left in the browser console.",
+      "saveTemplateError": "Could not save the template",
+      "persistFailed": "The file was downloaded, but we couldn't save it under “Generated reports”.",
+      "downloadWordError": "Could not generate the Word file.",
+      "downloadPdfError": "Could not prepare the PDF for printing.",
+      "genReportDeleted": "Report removed from the history"
     },
     "routes_app_teacher_whiteboards_id": {
       "whiteboardNeedsName": "The whiteboard needs a name",
@@ -3479,7 +3528,12 @@
       "genericError": "Error: {{error}}",
       "updateFailedCheckPermissions": "Could not update. Check the permissions.",
       "downloadLinkFailed": "The download link could not be generated",
-      "globalGradeRecomputed": "Overall grade recomputed: {{grade}}/{{max}}. Press \"Save grade\" to persist."
+      "globalGradeRecomputed": "Overall grade recomputed: {{grade}}/{{max}}. Press \"Save grade\" to persist.",
+      "videoLibraryLoadFailed": "Could not load the video library: {{error}}",
+      "unassignPartialError": "{{removed}} removed, {{failed}} with errors. First: {{error}}",
+      "gradingLoadFailed": "Could not load the submissions: {{error}}",
+      "gradeAllPartialError": "{{graded}} of {{total}} submissions were graded and the process stopped: {{error}}",
+      "importFirstError": "{{created}} created, {{skipped}} with errors. First: \"{{title}}\" — {{error}}"
     },
     "routes_app_trash": {
       "itemRestored": "{{type}}: {{name}} restored",
@@ -4108,7 +4162,19 @@
     "inactiveBadge": "Inactive",
     "reactivateTitle": "Reactivate {{name}}",
     "deactivateTitle": "Deactivate {{name}}",
-    "setActiveError": "Could not change the user's status"
+    "setActiveError": "Could not change the user's status",
+    "importReportOk": "Imported",
+    "importReportDuplicates": "Already existed",
+    "importReportErrors": "With errors",
+    "importReportCopied": "Details copied to clipboard",
+    "partialLoadWarning": "Users loaded, but this complementary data didn't: {{fields}}. Reload to retry.",
+    "saveUserError": "Could not save the user",
+    "bulkImportCoursesLoadError": "Could not load the courses for the import",
+    "importSeeReport": "Open the details to see the reason for each row.",
+    "importingProgressSubtitle": "Processing {{done}} of {{total}}. This may take several minutes: don't close this tab.",
+    "importReportTitle": "Import details",
+    "importReportErrorsTitle": "Rows that could not be created",
+    "importReportDuplicatesTitle": "Emails that already existed (not duplicated)"
   },
   "projectFiles": {
     "tabList": "Questions ({{count}})",
@@ -4354,7 +4420,10 @@
     "deleteFailed": "Could not delete the ticket",
     "removeAttachmentAria": "Remove attachment {{name}}",
     "searchPlaceholder": "Search by subject or category…",
-    "entityPlural": "tickets"
+    "entityPlural": "tickets",
+    "statusCreating": "Creating the ticket…",
+    "statusUploadingAttachment": "Uploading attachment {{current}} of {{total}}: {{name}}",
+    "attachmentFirstError": "First error: {{reason}}"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — PNG capture",
@@ -4684,7 +4753,12 @@
     "sub_past_due": "Grace period",
     "sub_courtesy": "Courtesy",
     "daysLeft": "{{n}} d left",
-    "colStorage": "Storage"
+    "colStorage": "Storage",
+    "pausingNotice": "Pausing {{name}}…",
+    "reactivatingNotice": "Reactivating {{name}}…",
+    "deletingNotice": "Sending {{name}} to the trash (includes its courses and content)…",
+    "impersonateLookupNotice": "Looking for the Admin of {{name}}…",
+    "impersonateNotice": "Logging in as the Admin of {{name}}…"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Loading prompts…",
@@ -4794,7 +4868,9 @@
     "deleteConfirmLabel": "Delete",
     "ticketDeleted": "Ticket deleted",
     "loadError": "Could not load the inbox",
-    "entityPlural": "tickets"
+    "entityPlural": "tickets",
+    "tenantsLoadFailed": "Could not load the institution filter",
+    "deleteFailed": "Could not delete the ticket"
   },
   "verifyCertificate": {
     "pageTitle": "Certificate verification · {{code}}",
@@ -5526,7 +5602,9 @@
     "noResults": "No results.",
     "csvName": "name",
     "csvEmail": "email",
-    "csvAttendancePct": "% Attendance"
+    "csvAttendancePct": "% Attendance",
+    "importInProgress": "An import is already running. Wait for it to finish.",
+    "importingLabel": "Importing…"
   },
   "privacy": {
     "lastUpdated": "Last updated: {{date}}",
@@ -6889,7 +6967,9 @@
     "warningSingleAttempt": "Note: this workshop allows only ONE submission — review everything before sending.",
     "warningOneAttemptLeft": "Note: you have 1 attempt left — review everything before sending.",
     "networkScenarioMissing": "This network question has no valid scenario configured.",
-    "serverScenarioMissing": "This console question has no valid scenario configured."
+    "serverScenarioMissing": "This console question has no valid scenario configured.",
+    "submittingOverlayTitle": "Submitting your workshop…",
+    "submittingOverlaySubtitle": "We're saving your answers and grading them. Don't close this window."
   },
   "hc_router": {
     "updating": "Updating…",
@@ -7021,7 +7101,11 @@
     "actionDownloadPdf": "Download PDF",
     "actionCopyVerifyLink": "Copy verification link",
     "actionOpenPublicVerify": "Open public verification",
-    "entityPlural": "certificates"
+    "entityPlural": "certificates",
+    "tenantsLoadError": "We couldn't load the list of institutions.",
+    "pdfBusyTitle": "Generating the certificate PDF…",
+    "pdfBusySubtitle": "It may take a few seconds. The download starts by itself.",
+    "revokingTitle": "Revoking the certificate…"
   },
   "hc_routesAppForumCourseId": {
     "loadForumsError": "We couldn't load the forums.",
@@ -7139,7 +7223,8 @@
     "openVerification": "Open verification",
     "availableFromTooltip": "Available from {{date}}",
     "downloadPdf": "Download PDF",
-    "entityNamePlural": "certificates"
+    "entityNamePlural": "certificates",
+    "generatingPdf": "Generating PDF…"
   },
   "hc_routesAppStudentCourses": {
     "loadCoursesError": "We couldn't load your courses.",
@@ -7310,7 +7395,10 @@
     "noOutput": "(no output)",
     "errRunning": "Error running",
     "errorPrefix": "Error: {{msg}}",
-    "networkScenarioMissing": "This network question has no valid scenario configured."
+    "networkScenarioMissing": "This network question has no valid scenario configured.",
+    "validatingOverlayTitle": "Checking your files…",
+    "submittingOverlayTitle": "Submitting your project…",
+    "submittingOverlaySubtitle": "We're uploading your files and grading them. Don't close this window."
   },
   "hc_routesAppAdminCourses": {
     "loadErrorMessage": "We couldn't load the course list.",
@@ -7696,7 +7784,14 @@
     "andNMore": "and {{n}} more…",
     "keepEditing": "Keep editing",
     "submitAnyway": "Submit anyway",
-    "networkScenarioMissing": "This network question has no valid scenario configured."
+    "networkScenarioMissing": "This network question has no valid scenario configured.",
+    "examLoadErrorTitle": "We couldn't load your exam",
+    "startingExam": "Starting…",
+    "submittingOverlayTitle": "Submitting your exam…",
+    "submittingOverlaySubtitle": "Don't close this window or switch tabs.",
+    "saveFailedHint": "The last autosave failed. Your answers are still on this device; check your connection.",
+    "saveFailedBadge": "Unsaved",
+    "submittingLabel": "Submitting…"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "We couldn't load the tutor for this course.",
@@ -8025,7 +8120,9 @@
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric). The student solves it from an IOS-like console.",
     "networkResetTemplate": "Reset template",
-    "typeNetworkGui": "Network (diagram)"
+    "typeNetworkGui": "Network (diagram)",
+    "reassignFailed": "Could not reassign the students: {{error}}",
+    "unassignPartialError": "{{removed}} removed, {{failed}} with errors. First: {{error}}"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",
@@ -8090,7 +8187,9 @@
     "examBucketBreakdown": "{{bucket}}%. Other exams add up to {{others}}%, you have",
     "examBucketSuffix": "available.",
     "currentWeightExceeds": "The current weight ({{current}}%) exceeds the bucket.",
-    "bulkDeleteWarning": "All questions, assignments, and submissions of the selected exams will also be deleted."
+    "bulkDeleteWarning": "All questions, assignments, and submissions of the selected exams will also be deleted.",
+    "autoAssignFailed": "Could not assign the students: {{error}}",
+    "importFirstError": "{{created}} created, {{skipped}} with errors. First: \"{{title}}\" — {{error}}"
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "We couldn't load your courses.",
@@ -8202,7 +8301,12 @@
     "examBadge": "Exam (/{{max}})",
     "workshopBadge": "Workshop (/{{max}})",
     "projectBadge": "Project (/{{max}})",
-    "suspiciousAttemptHint": "Attempt flagged as suspicious (integrity alerts)"
+    "suspiciousAttemptHint": "Attempt flagged as suspicious (integrity alerts)",
+    "loadingGrades": "Loading the course grades…",
+    "noStudentsEnrolledTitle": "This course has no enrolled students",
+    "noStudentsEnrolledHint": "Enroll students in the course to record and consolidate their grades.",
+    "nothingToGradeTitle": "This course has nothing to grade yet",
+    "nothingToGradeHint": "Create grading cuts and publish exams, workshops or projects to see the grade grid."
   },
   "hc_routesAppTeacherGradingCourseId": {
     "loadConfigError": "We couldn't load the grading configuration.",
@@ -8536,7 +8640,10 @@
     "removeWord": "Remove",
     "defenseVideoTip": "For long videos a link is better (Drive/YouTube); direct upload has a size limit.",
     "saveDefense": "Save defense",
-    "importDefensesCsv": "Import defenses"
+    "importDefensesCsv": "Import defenses",
+    "aiBusyBulk": "Regrading with AI… {{done}} of {{total}}",
+    "aiBusyOne": "Regrading the answer with AI…",
+    "aiBusyHint": "It may take 30 to 90 seconds per file. Don't close this window."
   },
   "hc_routesAppTeacherReports": {
     "badgeGlobal": "Global",
@@ -8628,7 +8735,13 @@
     "genDeleteTitle": "Delete generated report",
     "genDeleteDesc": "It will be removed from the history. This action cannot be undone.",
     "entityPlural": "templates",
-    "colUpdated": "Updated"
+    "colUpdated": "Updated",
+    "genLoadError": "We couldn't load the generated reports history.",
+    "studentsLoadError": "We couldn't load the course students.",
+    "preparingFile": "Preparing file…",
+    "preparingFileHint": "It may take a few seconds with long reports.",
+    "importingWord": "Importing…",
+    "genLoadErrorTitle": "We couldn't load the history"
   },
   "hc_routesAppTeacherWhiteboardsId": {
     "couldNotLoad": "We couldn't load the whiteboard.",
@@ -8827,7 +8940,11 @@
     "unknownError": "Unknown error",
     "suggestionSourceAi": "AI {{pct}}%",
     "suggestionSourceCopy": "Copy {{pct}}%",
-    "suggestionSourceBoth": "AI {{aiPct}}% + Copy {{cpPct}}%"
+    "suggestionSourceBoth": "AI {{aiPct}}% + Copy {{cpPct}}%",
+    "aiBusyDetecting": "Detecting copies with AI…",
+    "aiBusyGradingAll": "Grading all submissions with AI…",
+    "aiBusyGradingOne": "Grading the submission with AI…",
+    "aiBusyHint": "It may take 30 to 90 seconds per submission. Don't close this window."
   },
   "hc_routesIndex": {
     "metaTitle": "ExamLab — Education Management Platform",
@@ -9336,12 +9453,15 @@
     "ephemeralBadge": "Ephemeral",
     "restart": "Restart",
     "restartTitle": "Restart with a clean session",
+    "interrupt": "Interrupt",
+    "interruptTitle": "Interrupt the running command (sends Ctrl+C)",
     "helpTitle": "Which commands work here?",
     "helpRoot": "You're already root: don't use sudo.",
     "helpOffline": "Isolated sandbox with no internet: apt, apk, and pip install don't work (there's nowhere to download packages from).",
+    "helpNoNetwork": "No network: commands that wait for the internet (udhcpc, ping, wget) will hang — stop them with Ctrl+C or the Interrupt button.",
     "helpCommands": "It's a minimal Linux (BusyBox). Works: ls, cd, pwd, cat, echo, mkdir, rm, cp, mv, touch, vi, grep, sed, awk, find, chmod, ps, wc, head, tail, tar, mount, and shell scripts (pipes | and redirection > included).",
     "helpLanguages": "Need Python, Java, or JavaScript? Use a Code sheet: it runs the real language.",
-    "hintV86": "A real Linux machine running in your browser. Type commands like in a normal terminal. It's an EPHEMERAL, isolated practice sandbox: it runs only in your browser, every session starts clean and nothing is saved — it does not touch any real server.",
+    "hintV86": "Real Linux in your browser: an ephemeral, isolated practice sandbox where every session starts clean and nothing touches a real server.",
     "loading": "Loading the emulator…",
     "booting": "Starting Linux…",
     "error": "The console could not be started.",
@@ -9422,7 +9542,8 @@
     "pastDue": "Your subscription expired on {{date}}. Please settle it to keep your access.",
     "pastDueNoDate": "Your subscription expired. Please settle it to keep your access.",
     "soon_one": "Your subscription expires in {{count}} day. Contact your provider.",
-    "soon_other": "Your subscription expires in {{count}} days. Contact your provider."
+    "soon_other": "Your subscription expires in {{count}} days. Contact your provider.",
+    "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
     "codeLabel": "Class code",

@@ -33,6 +33,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
 import { TableEmpty, ErrorState, EmptyState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { RowAction } from "@/components/ui/row-action";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
@@ -257,10 +258,14 @@ function TeacherPolls() {
     null,
   );
   const [hosting, setHosting] = useState<string | null>(null);
+  /** id de la encuesta con una acción de fila en curso (cerrar/reabrir,
+   *  eliminar). Deshabilita el menú de esa fila para evitar doble-submit. */
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Crea un juego en vivo para el Kahoot y navega a la vista host.
   const hostKahoot = async (p: Poll) => {
+    if (hosting) return;
     setHosting(p.id);
     try {
       const { data, error } = await db.rpc("kahoot_create_game", { _poll_id: p.id });
@@ -269,6 +274,10 @@ function TeacherPolls() {
         return;
       }
       navigate({ to: "/app/teacher/kahoot/$gameId", params: { gameId: data.id } });
+    } catch (e) {
+      toast.error(
+        friendlyError(e, i18n.t("kahoot.hostError", { defaultValue: "No se pudo iniciar el juego" })),
+      );
     } finally {
       setHosting(null);
     }
@@ -560,19 +569,27 @@ function TeacherPolls() {
       closed_manually: willClose,
     };
     if (!willClose && timeExpired) patch.closes_at = null;
-    const { error } = await db.from("polls").update(patch).eq("id", p.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (rowBusyId) return;
+    setRowBusyId(p.id);
+    try {
+      const { error } = await db.from("polls").update(patch).eq("id", p.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        willClose
+          ? i18n.t("toast.routes_app_teacher_polls.pollClosed", { defaultValue: "Encuesta cerrada" })
+          : i18n.t("toast.routes_app_teacher_polls.pollReopened", {
+              defaultValue: "Encuesta reabierta",
+            }),
+      );
+      setRetryNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRowBusyId(null);
     }
-    toast.success(
-      willClose
-        ? i18n.t("toast.routes_app_teacher_polls.pollClosed", { defaultValue: "Encuesta cerrada" })
-        : i18n.t("toast.routes_app_teacher_polls.pollReopened", {
-            defaultValue: "Encuesta reabierta",
-          }),
-    );
-    setRetryNonce((n) => n + 1);
   };
 
   const removePoll = async (p: Poll) => {
@@ -583,17 +600,25 @@ function TeacherPolls() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await softDelete("polls", p.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (rowBusyId) return;
+    setRowBusyId(p.id);
+    try {
+      const { error } = await softDelete("polls", p.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_polls.pollSentToTrash", {
+          defaultValue: "Encuesta enviada a papelera",
+        }),
+      );
+      setRetryNonce((n) => n + 1);
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRowBusyId(null);
     }
-    toast.success(
-      i18n.t("toast.routes_app_teacher_polls.pollSentToTrash", {
-        defaultValue: "Encuesta enviada a papelera",
-      }),
-    );
-    setRetryNonce((n) => n + 1);
   };
 
   /** Duplica la ESTRUCTURA de una encuesta (config + opcionalmente opciones
@@ -929,9 +954,17 @@ function TeacherPolls() {
       />
 
       {loading ? (
-        <div className="p-4 sm:p-8 flex items-center justify-center text-sm text-muted-foreground">
-          <Spinner size="sm" className="mr-2" /> {t("common.loading")}
-        </div>
+        // Skeleton con el shape del grid (design system) en vez de un
+        // "Cargando…" suelto: se ve la tabla que va a aparecer.
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableBody>
+                <TableSkeleton cols={7} rows={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       ) : loadError ? (
         <ErrorState
           message={t("teacherPolls.loadErrorTitle")}
@@ -1079,6 +1112,7 @@ function TeacherPolls() {
                                       icon: Trash2,
                                       tone: "destructive",
                                       separatorBefore: true,
+                                      disabled: rowBusyId === p.id,
                                       onClick: () => void removePoll(p),
                                     },
                                   ]
@@ -1103,6 +1137,7 @@ function TeacherPolls() {
                                     {
                                       label: isEffectivelyClosed(p) ? t("teacherPolls.actionReopen") : t("teacherPolls.actionClose"),
                                       icon: isEffectivelyClosed(p) ? Unlock : Lock,
+                                      disabled: rowBusyId === p.id,
                                       onClick: () => void toggleClose(p),
                                     },
                                     {
@@ -1110,6 +1145,7 @@ function TeacherPolls() {
                                       icon: Trash2,
                                       tone: "destructive",
                                       separatorBefore: true,
+                                      disabled: rowBusyId === p.id,
                                       onClick: () => void removePoll(p),
                                     },
                                   ]
@@ -1726,7 +1762,7 @@ function CreatePollDialog({
   // re-sincronizaciones (no duplica). Solo tiene sentido para tipo 'slot' y
   // cuando la encuesta ya existe (modo edición → tenemos editingPoll.id).
   const handleSyncPollToCalendar = async () => {
-    if (!editingPoll) return;
+    if (!editingPoll || syncingCalendar) return;
     setSyncingCalendar(true);
     try {
       const { data, error } = await supabase.functions.invoke("calendar", {
@@ -1758,7 +1794,7 @@ function CreatePollDialog({
   };
 
   const save = async () => {
-    if (!userId) return;
+    if (!userId || saving) return;
     if (!title.trim()) {
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.titleRequired", {
@@ -2113,6 +2149,10 @@ function CreatePollDialog({
       );
       onOpenChange(false);
       onCreated({ id: pollRow.id, title: title.trim(), poll_type: type });
+    } catch (e) {
+      // Sin este catch, un fallo de red dejaba el dialog abierto sin ningún
+      // mensaje (promesa rechazada + spinner apagado por el finally).
+      toast.error(friendlyError(e));
     } finally {
       setSaving(false);
     }
@@ -3039,6 +3079,8 @@ function ResultsDialog({
       }
       toast.success(t("teacherPolls.moveVoteOk"));
       void refetch();
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherPolls.errMoveVote")));
     } finally {
       setMoving((prev) => {
         const next = new Set(prev);
@@ -3070,6 +3112,8 @@ function ResultsDialog({
       }
       toast.success(t("teacherPolls.assignRemainingResult", { count: Number(data) || 0 }));
       void refetch();
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherPolls.errAssignRemaining")));
     } finally {
       setAssigning(false);
     }
@@ -3108,6 +3152,8 @@ function ResultsDialog({
       // El realtime debería detectar el DELETE y disparar refetch — pero
       // forzamos uno por si la subscription debounce tarda.
       void refetch();
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherPolls.errClearResponse")));
     } finally {
       setClearing((prev) => {
         const next = new Set(prev);
@@ -3120,40 +3166,57 @@ function ResultsDialog({
   const refetch = useCallback(async () => {
     if (!poll) return;
     setLoading(true);
-    const [optsRes, respRes] = await Promise.all([
-      db
-        .from("poll_options")
-        .select("id, poll_id, label, position, max_responses, responses_count")
-        .eq("poll_id", poll.id)
-        .order("position"),
-      // OJO: `poll_responses.user_id` apunta a `auth.users`, NO a `profiles`,
-      // así que el embed PostgREST `profiles:user_id(full_name)` falla con
-      // PGRST200 (sin relación) y deja `respondents` vacío → el docente NO
-      // veía ningún nombre por cupo. Patrón 2-query (CLAUDE.md): traemos las
-      // respuestas y resolvemos los nombres en una 2ª consulta a profiles.
-      db.from("poll_responses").select("option_id, user_id").eq("poll_id", poll.id),
-    ]);
-    setLiveOptions((optsRes.data ?? []) as PollOption[]);
-    const rawResp = (respRes.data ?? []) as Array<{ option_id: string; user_id: string }>;
-    const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
-    const nameById = new Map<string, string | null>();
-    if (userIds.length > 0) {
-      const { data: profs } = await db
-        .from("profiles")
-        .select("id, full_name")
-        .in("id", userIds);
-      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
-        nameById.set(p.id, p.full_name ?? null);
+    try {
+      const [optsRes, respRes] = await Promise.all([
+        db
+          .from("poll_options")
+          .select("id, poll_id, label, position, max_responses, responses_count")
+          .eq("poll_id", poll.id)
+          .order("position"),
+        // OJO: `poll_responses.user_id` apunta a `auth.users`, NO a `profiles`,
+        // así que el embed PostgREST `profiles:user_id(full_name)` falla con
+        // PGRST200 (sin relación) y deja `respondents` vacío → el docente NO
+        // veía ningún nombre por cupo. Patrón 2-query (CLAUDE.md): traemos las
+        // respuestas y resolvemos los nombres en una 2ª consulta a profiles.
+        db.from("poll_responses").select("option_id, user_id").eq("poll_id", poll.id),
+      ]);
+      // Antes los errores de estas queries se descartaban: el dialog mostraba
+      // 0 respuestas como si nadie hubiera votado.
+      if (optsRes.error || respRes.error) {
+        toast.error(
+          friendlyError(optsRes.error ?? respRes.error, t("teacherPolls.errLoadPolls")),
+        );
+        return;
       }
+      setLiveOptions((optsRes.data ?? []) as PollOption[]);
+      const rawResp = (respRes.data ?? []) as Array<{ option_id: string; user_id: string }>;
+      const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
+      const nameById = new Map<string, string | null>();
+      if (userIds.length > 0) {
+        const { data: profs, error: profErr } = await db
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        if (profErr) toast.error(friendlyError(profErr, t("teacherPolls.errLoadPolls")));
+        for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+          nameById.set(p.id, p.full_name ?? null);
+        }
+      }
+      setRespondents(
+        rawResp.map((r) => ({
+          option_id: r.option_id,
+          user_id: r.user_id,
+          full_name: nameById.get(r.user_id) ?? null,
+        })),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setLoading(false);
     }
-    setRespondents(
-      rawResp.map((r) => ({
-        option_id: r.option_id,
-        user_id: r.user_id,
-        full_name: nameById.get(r.user_id) ?? null,
-      })),
-    );
-    setLoading(false);
+    // `t` es estable entre renders del provider de i18n; no lo metemos en deps
+    // para no re-crear el callback (usePollRealtime lo usa como suscripción).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [poll]);
 
   // Cuando se abre el dialog (poll cambia de null → algo), hacemos el
@@ -3214,6 +3277,12 @@ function ResultsDialog({
           <p className="text-xs text-muted-foreground">
             {t("teacherPolls.responsesCount", { count: total })} · {pollTypeLabel(poll.poll_type)}
           </p>
+          {/* Primera carga sin datos todavía → loader de sección (antes se
+              veía un bloque vacío hasta que respondía la query). Los refetch
+              del realtime dejan la lista visible y usan el indicador de abajo. */}
+          {loading && options.length === 0 ? (
+            <SectionLoader text={t("teacherPolls.loadingResponses")} />
+          ) : (
           <div className="space-y-2">
             {options.map((o) => {
               // En encuestas de CUPO (slot) la barra/porcentaje miden el
@@ -3331,7 +3400,8 @@ function ResultsDialog({
               );
             })}
           </div>
-          {loading && (
+          )}
+          {loading && options.length > 0 && (
             <div className="text-xs text-muted-foreground flex items-center gap-2">
               <Spinner size="sm" /> {t("teacherPolls.loadingResponses")}
             </div>
@@ -3406,38 +3476,57 @@ function MixedResultsDialog({
 
   const refetch = useCallback(async () => {
     setLoading(true);
-    const { data: qs } = await db
-      .from("poll_questions")
-      .select("id, type, text, options, position")
-      .eq("poll_id", poll.id)
-      .order("position");
-    const qrows = ((qs ?? []) as Array<{
-      id: string;
-      type: "abierta" | "cerrada";
-      text: string;
-      options: { choices?: string[] } | null;
-    }>).map((q) => ({
-      id: q.id,
-      type: q.type,
-      text: q.text,
-      choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
-    }));
-    const { data: rs } = await db
-      .from("poll_question_responses")
-      .select("question_id, user_id, answer_text, selected_index, created_at")
-      .eq("poll_id", poll.id);
-    const rawResp = (rs ?? []) as Array<Omit<MixedResp, "full_name">>;
-    const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
-    const nameById = new Map<string, string | null>();
-    if (userIds.length > 0) {
-      const { data: profs } = await db.from("profiles").select("id, full_name").in("id", userIds);
-      for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
-        nameById.set(p.id, p.full_name ?? null);
+    try {
+      const { data: qs, error: qErr } = await db
+        .from("poll_questions")
+        .select("id, type, text, options, position")
+        .eq("poll_id", poll.id)
+        .order("position");
+      // Sin esta rama, un fallo de la query pintaba el empty state "aún no hay
+      // preguntas" — el docente creía que su encuesta se había quedado vacía.
+      if (qErr) {
+        toast.error(friendlyError(qErr));
+        return;
       }
+      const qrows = ((qs ?? []) as Array<{
+        id: string;
+        type: "abierta" | "cerrada";
+        text: string;
+        options: { choices?: string[] } | null;
+      }>).map((q) => ({
+        id: q.id,
+        type: q.type,
+        text: q.text,
+        choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
+      }));
+      const { data: rs, error: rErr } = await db
+        .from("poll_question_responses")
+        .select("question_id, user_id, answer_text, selected_index, created_at")
+        .eq("poll_id", poll.id);
+      if (rErr) {
+        toast.error(friendlyError(rErr));
+        return;
+      }
+      const rawResp = (rs ?? []) as Array<Omit<MixedResp, "full_name">>;
+      const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
+      const nameById = new Map<string, string | null>();
+      if (userIds.length > 0) {
+        const { data: profs, error: pErr } = await db
+          .from("profiles")
+          .select("id, full_name")
+          .in("id", userIds);
+        if (pErr) toast.error(friendlyError(pErr));
+        for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+          nameById.set(p.id, p.full_name ?? null);
+        }
+      }
+      setQuestions(qrows);
+      setResponses(rawResp.map((r) => ({ ...r, full_name: nameById.get(r.user_id) ?? null })));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setLoading(false);
     }
-    setQuestions(qrows);
-    setResponses(rawResp.map((r) => ({ ...r, full_name: nameById.get(r.user_id) ?? null })));
-    setLoading(false);
   }, [poll.id]);
 
   useEffect(() => {
@@ -3465,7 +3554,17 @@ function MixedResultsDialog({
         toast.error(friendlyError(error, t("teacherPolls.errClearResponse")));
         return;
       }
+      // Confirmación explícita (paridad con clearVoteFor de la vista clásica):
+      // antes solo desaparecía la fila y no quedaba claro si se había guardado.
+      toast.success(
+        i18n.t("toast.routes_app_teacher_polls.responseClearedForUser", {
+          defaultValue: 'Respuesta de "{{label}}" borrada. Ya puede volver a votar.',
+          label,
+        }),
+      );
       void refetch();
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherPolls.errClearResponse")));
     } finally {
       setClearing((prev) => {
         const next = new Set(prev);

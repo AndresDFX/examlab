@@ -22,6 +22,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { StatCard } from "@/components/ui/stat-card";
 import { DateCell } from "@/components/ui/date-cell";
 import {
@@ -95,6 +96,12 @@ function AdminSupportPage() {
   const [newSubject, setNewSubject] = useState("");
   const [newBody, setNewBody] = useState("");
   const [creating, setCreating] = useState(false);
+  /** Texto del paso en curso mientras se crea el ticket. Crear + subir N
+   *  adjuntos de hasta 25 MB puede tardar bastante: sin este detalle el
+   *  admin solo veía el spinner del botón sin saber si seguía vivo. */
+  const [createStatus, setCreateStatus] = useState<string | null>(null);
+  /** Id del ticket con el borrado en vuelo (anti doble-submit + fila atenuada). */
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   // Archivos a adjuntar EN la creación del ticket. Antes solo podían
   // subirse desde el dialog detalle (después de crear) — bug reportado:
   // el admin escribía el ticket con un screenshot listo y tenía que
@@ -261,6 +268,7 @@ function AdminSupportPage() {
   };
 
   const createTicket = async () => {
+    if (creating) return; // anti doble-submit (doble click / Enter repetido)
     if (!user?.id || !profile?.tenant_id) {
       toast.error(
         i18n.t("adminSupport.noTenantAssigned", {
@@ -286,6 +294,9 @@ function AdminSupportPage() {
       return;
     }
     setCreating(true);
+    setCreateStatus(
+      i18n.t("adminSupport.statusCreating", { defaultValue: "Creando el ticket…" }),
+    );
     try {
       const { data, error } = await db
         .from("support_tickets")
@@ -319,8 +330,22 @@ function AdminSupportPage() {
       // creado igual y avisamos en el toast cuántos no subieron.
       let attachmentsUploaded = 0;
       const failedFiles: File[] = [];
+      // Convención del repo para operaciones en lote: además del conteo,
+      // mostrar el PRIMER error real — "2 fallaron" sin motivo no es
+      // accionable (¿tamaño? ¿RLS? ¿red?).
+      let firstUploadError: unknown = null;
       if (newAttachments.length > 0) {
+        let idx = 0;
         for (const file of newAttachments) {
+          idx += 1;
+          setCreateStatus(
+            i18n.t("adminSupport.statusUploadingAttachment", {
+              defaultValue: "Subiendo adjunto {{current}} de {{total}}: {{name}}",
+              current: idx,
+              total: newAttachments.length,
+              name: file.name,
+            }),
+          );
           try {
             const ext = file.name.split(".").pop() ?? "bin";
             const randomId = crypto.randomUUID();
@@ -343,6 +368,7 @@ function AdminSupportPage() {
             attachmentsUploaded += 1;
           } catch (uploadErr) {
             failedFiles.push(file);
+            if (!firstUploadError) firstUploadError = uploadErr;
             console.warn(
               "[support] adjunto inicial falló",
               file.name,
@@ -361,6 +387,17 @@ function AdminSupportPage() {
             uploaded: attachmentsUploaded,
             failed: attachmentsFailed,
           }),
+          {
+            // El motivo va en la descripción del MISMO toast (no un segundo
+            // toast) para no apilar avisos sobre la misma acción.
+            description: firstUploadError
+              ? i18n.t("adminSupport.attachmentFirstError", {
+                  defaultValue: "Primer error: {{reason}}",
+                  reason: friendlyError(firstUploadError),
+                })
+              : undefined,
+            duration: 10000,
+          },
         );
       } else if (attachmentsUploaded > 0) {
         toast.success(
@@ -401,7 +438,7 @@ function AdminSupportPage() {
         resetCreateForm();
       }
       setCreateOpen(false);
-      await load();
+      await load(true); // silent: el dialog ya se cerró, sin flicker del skeleton
       // Abrir el detalle del recién creado.
       setActiveTicket(createdTicket);
       setDetailOpen(true);
@@ -416,6 +453,7 @@ function AdminSupportPage() {
       );
     } finally {
       setCreating(false);
+      setCreateStatus(null);
     }
   };
 
@@ -442,24 +480,42 @@ function AdminSupportPage() {
       }),
     });
     if (!ok) return;
-    const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
-    if (error) {
+    // Guard DESPUÉS del confirm (anti doble-submit del propio borrado): puesto
+    // antes, con otro ticket en vuelo el diálogo no se abría siquiera. Como
+    // corta ante CUALQUIER fila en vuelo, el `disabled` del menú es global.
+    if (deletingId) return;
+    setDeletingId(t.id);
+    try {
+      const { error } = await db.rpc("soft_delete_support_ticket", { _ticket_id: t.id });
+      if (error) {
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("adminSupport.deleteFailed", {
+              defaultValue: "No se pudo eliminar el ticket",
+            }),
+          ),
+        );
+        return;
+      }
+      toast.success(
+        i18n.t("adminSupport.ticketDeleted", {
+          defaultValue: "Ticket eliminado",
+        }),
+      );
+      await load(true); // silent: la fila desaparece sin flicker de skeleton
+    } catch (e) {
       toast.error(
         friendlyError(
-          error,
+          e,
           i18n.t("adminSupport.deleteFailed", {
             defaultValue: "No se pudo eliminar el ticket",
           }),
         ),
       );
-      return;
+    } finally {
+      setDeletingId(null);
     }
-    toast.success(
-      i18n.t("adminSupport.ticketDeleted", {
-        defaultValue: "Ticket eliminado",
-      }),
-    );
-    await load();
   };
 
   if (loadError) {
@@ -533,9 +589,13 @@ function AdminSupportPage() {
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           {loading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground p-6">
-              <Spinner size="sm" /> {t("adminSupport.loading")}
-            </div>
+            // Skeleton con el shape del grid en vez de un "Cargando…" suelto:
+            // el admin ve que viene una tabla y no una bandeja vacía.
+            <Table fixed>
+              <TableBody>
+                <TableSkeleton cols={5} rows={4} />
+              </TableBody>
+            </Table>
           ) : sort.sorted.length === 0 ? (
             // `noMatch` distingue "no hay tickets" de "hay tickets pero
             // ninguno pasa los filtros activos" (estado + búsqueda) — sin
@@ -597,7 +657,11 @@ function AdminSupportPage() {
                 {pagination.paginatedItems.map((t) => (
                   <TableRow
                     key={t.id}
-                    className="cursor-pointer hover:bg-muted/40"
+                    // Fila atenuada mientras su borrado está en vuelo.
+                    className={`cursor-pointer hover:bg-muted/40 ${
+                      deletingId === t.id ? "opacity-50" : ""
+                    }`}
+                    aria-busy={deletingId === t.id}
                     onClick={() => openDetail(t)}
                   >
                     <TableCell className="font-medium">
@@ -634,6 +698,15 @@ function AdminSupportPage() {
                             icon: Trash2,
                             tone: "destructive",
                             onClick: () => void deleteTicket(t),
+                            // Global: `deleteTicket` serializa (corta ante
+                            // cualquier borrado en vuelo). Con `=== t.id` las
+                            // otras filas quedaban habilitadas y el click no
+                            // hacía nada ni avisaba.
+                            disabled: deletingId !== null,
+                            hint:
+                              deletingId !== null
+                                ? i18n.t("common.processing", { defaultValue: "Procesando…" })
+                                : undefined,
                           },
                         ]}
                       />
@@ -661,7 +734,16 @@ function AdminSupportPage() {
       />
 
       {/* Dialog crear */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog
+        open={createOpen}
+        // Mientras se crea el ticket (y se suben sus adjuntos) el dialog no
+        // se puede cerrar con Esc / click afuera: al desmontarse quedaba la
+        // subida a medias sin nadie mostrando el resultado.
+        onOpenChange={(o) => {
+          if (creating) return;
+          setCreateOpen(o);
+        }}
+      >
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>{t("adminSupport.dialogTitle")}</DialogTitle>
@@ -745,6 +827,7 @@ function AdminSupportPage() {
               <Input
                 type="file"
                 multiple
+                disabled={creating}
                 onChange={(e) => {
                   onPickFiles(e.target.files);
                   // Limpiar el input para permitir re-seleccionar el mismo
@@ -795,9 +878,22 @@ function AdminSupportPage() {
           </div>
           {/* Banner sutil cuando hay draft: el dialog conserva lo escrito
               entre opens, asi que el admin sabe que su info esta a salvo. */}
-          {hasDraft && (
+          {hasDraft && !creating && (
             <p className="text-[11px] text-muted-foreground italic">
               {t("adminSupport.draftNote")}
+            </p>
+          )}
+          {/* Paso en curso: crear el ticket + subir N adjuntos de hasta 25 MB
+              puede tardar. El spinner del botón solo dice "algo pasa"; esta
+              línea dice QUÉ pasa y por cuál archivo va. */}
+          {creating && createStatus && (
+            <p
+              role="status"
+              aria-live="polite"
+              className="flex items-center gap-2 text-[11px] text-muted-foreground"
+            >
+              <Spinner size="xs" />
+              <span className="truncate">{createStatus}</span>
             </p>
           )}
           <DialogFooter className="flex-col sm:flex-row gap-2">

@@ -398,6 +398,14 @@ function TeacherContents() {
     Record<string, { sessions: number; exams: number; workshops: number; projects: number }>
   >({});
   const [creating, setCreating] = useState(false);
+  /** id del contenido cuyo estado de publicación se está guardando. Bloquea
+   *  el Select de esa fila para que no se disparen dos UPDATE seguidos
+   *  (cada publicación notifica + emaila al curso). */
+  const [publishingId, setPublishingId] = useState<string | null>(null);
+  /** id del contenido que se está enviando a papelera. */
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  /** `path` del archivo que se está eliminando (storage + JSONB). */
+  const [deletingFilePath, setDeletingFilePath] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   // Dialog "Subir externo" — paralelo a "Nuevo contenido" (IA) pero
   // para material ya producido. State separado para que no se
@@ -540,7 +548,11 @@ function TeacherContents() {
   );
   const contentDirty = useDirtyDialog(dialogOpen, contentFormMemo);
 
-  const load = useCallback(async () => {
+  // `isActive` deja al effect abortar los setState si el usuario navega o
+  // cambia el filtro antes de que resuelvan los awaits (patrón
+  // `let cancelled = false` del repo). Los callers que refrescan tras una
+  // mutación la llaman sin argumento → siempre activa.
+  const load = useCallback(async (isActive: () => boolean = () => true) => {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
@@ -559,6 +571,7 @@ function TeacherContents() {
         .from("profiles")
         .select("id")
         .eq("tenant_id", tenantFilter);
+      if (!isActive()) return;
       teacherIdsForTenant = ((profsForTenant ?? []) as { id: string }[]).map((p) => p.id);
       if (teacherIdsForTenant.length === 0) {
         setItems([]);
@@ -611,6 +624,7 @@ function TeacherContents() {
               .order("name")
           : Promise.resolve({ data: [] }),
       ]);
+    if (!isActive()) return;
     // generated_contents es la query crítica — sin contenidos no hay
     // grid. brand y courses son secundarios (no bloquean el render).
     if (gensErr) {
@@ -673,6 +687,7 @@ function TeacherContents() {
       for (const r of (pj.data ?? []) as { source_content_id: string | null }[]) {
         if (r.source_content_id) ensure(r.source_content_id).projects += 1;
       }
+      if (!isActive()) return;
       setDerived(next);
     }
     setLoading(false);
@@ -683,7 +698,11 @@ function TeacherContents() {
   }, [user, isAdminLikeView, isSuperAdminCaller, tenantFilter]);
 
   useEffect(() => {
-    void load();
+    let cancelled = false;
+    void load(() => !cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [load]);
 
   // Polling suave: si hay items en queued/processing, recargamos cada
@@ -697,7 +716,7 @@ function TeacherContents() {
   }, [items, load]);
 
   const submitNew = async () => {
-    if (!user) return;
+    if (!user || creating) return;
     if (!topic.trim()) {
       toast.error(t("integrity.applyError"));
       return;
@@ -729,6 +748,11 @@ function TeacherContents() {
     // está en async sin código, encolamos a `ai_generation_queue` en
     // lugar de bloquear. El worker (o el docente con código) crea la
     // fila `generated_contents` + invoca la edge cuando la procese.
+    // El busy arranca ANTES del gate + del encolado: ese camino (async sin
+    // código de IA) hacía un INSERT sin ningún indicador y el botón quedaba
+    // clickeable → se podían encolar dos generaciones idénticas.
+    setCreating(true);
+    try {
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
@@ -784,8 +808,7 @@ function TeacherContents() {
       setDialogOpen(false);
       return;
     }
-    setCreating(true);
-    try {
+    {
       const insertPayload: Record<string, unknown> = {
         teacher_id: user.id,
         display_name: dn,
@@ -850,6 +873,7 @@ function TeacherContents() {
       setInstructions("");
       setReleaseAfterSessionDate(false);
       void load();
+    }
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -865,18 +889,26 @@ function TeacherContents() {
       tone: "destructive",
     });
     if (!ok) return;
-    // Soft-delete: marcamos la fila como borrada (deleted_at = now()).
-    // NO borramos los archivos del Storage todavía — quedan disponibles
-    // hasta que el cron de purga (30 días) ejecute el hard-delete.
-    // Trade-off conocido: si el cron purga la fila, los archivos quedan
-    // huérfanos en Storage. Un job de cleanup manual los recoge (TODO v2).
-    const { error } = await softDelete("generated_contents", item.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (removingId) return;
+    setRemovingId(item.id);
+    try {
+      // Soft-delete: marcamos la fila como borrada (deleted_at = now()).
+      // NO borramos los archivos del Storage todavía — quedan disponibles
+      // hasta que el cron de purga (30 días) ejecute el hard-delete.
+      // Trade-off conocido: si el cron purga la fila, los archivos quedan
+      // huérfanos en Storage. Un job de cleanup manual los recoge (TODO v2).
+      const { error } = await softDelete("generated_contents", item.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setItems((prev) => prev.filter((i) => i.id !== item.id));
+      toast.success(t("contents.deletedToast"));
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRemovingId(null);
     }
-    setItems((prev) => prev.filter((i) => i.id !== item.id));
-    toast.success(t("contents.deletedToast"));
   };
 
   /**
@@ -1021,24 +1053,36 @@ function TeacherContents() {
    *  pasar a false el material queda como borrador (los alumnos dejan
    *  de verlo). */
   const setPublished = async (item: GeneratedContent, next: boolean) => {
-    const { error } = await db
-      .from("generated_contents")
-      .update({ is_published: next })
-      .eq("id", item.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    // Guard GLOBAL (una publicación a la vez). El `disabled` del Select de
+    // TODAS las filas debe seguir este mismo criterio (`publishingId !== null`),
+    // no `=== it.id`: si no, el Select de otra fila cambia visualmente, el
+    // handler retorna en seco y el valor revierte sin ningún mensaje.
+    if (publishingId) return;
+    setPublishingId(item.id);
+    try {
+      const { error } = await db
+        .from("generated_contents")
+        .update({ is_published: next })
+        .eq("id", item.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_published: next } : i)));
+      toast.success(
+        next
+          ? i18n.t("toast.routes_app_teacher_contents.published", {
+              defaultValue: "Contenido publicado. Los alumnos del curso recibirán notificación.",
+            })
+          : i18n.t("toast.routes_app_teacher_contents.unpublished", {
+              defaultValue: "Contenido despublicado. Los alumnos ya no lo ven.",
+            }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setPublishingId(null);
     }
-    setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, is_published: next } : i)));
-    toast.success(
-      next
-        ? i18n.t("toast.routes_app_teacher_contents.published", {
-            defaultValue: "Contenido publicado. Los alumnos del curso recibirán notificación.",
-          })
-        : i18n.t("toast.routes_app_teacher_contents.unpublished", {
-            defaultValue: "Contenido despublicado. Los alumnos ya no lo ven.",
-          }),
-    );
   };
 
   /** Borra UN archivo individual del contenido. Útil cuando al docente
@@ -1061,6 +1105,8 @@ function TeacherContents() {
       tone: "destructive",
     });
     if (!ok) return;
+    if (deletingFilePath) return;
+    setDeletingFilePath(file.path);
     try {
       // 1. Storage — best-effort. Si falla seguimos para limpiar el
       // JSONB de todos modos (el archivo huérfano en storage es menos
@@ -1094,6 +1140,8 @@ function TeacherContents() {
       toast.success(t("contents.deleteFileDone"));
     } catch (e) {
       toast.error(friendlyError(e));
+    } finally {
+      setDeletingFilePath(null);
     }
   };
 
@@ -1439,12 +1487,23 @@ function TeacherContents() {
                         {it.status === "done" && (
                           <Select
                             value={it.is_published ? "published" : "draft"}
+                            // `setPublished` serializa (guard global), así que el
+                            // disabled también es global: con `=== it.id` las otras
+                            // 24 filas de la página quedaban clickeables y el
+                            // cambio revertía en silencio.
+                            disabled={publishingId !== null}
                             onValueChange={(v) => void setPublished(it, v === "published")}
                           >
                             <SelectTrigger
                               className="h-6 w-auto px-2 py-0 text-[10px] gap-1 shrink-0"
                               aria-label={t("hc_routesAppTeacherContents.publishStatusAria")}
+                              title={
+                                publishingId !== null
+                                  ? t("common.processing", { defaultValue: "Procesando…" })
+                                  : undefined
+                              }
                             >
+                              {publishingId === it.id && <Spinner size="xs" />}
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -1723,7 +1782,8 @@ function TeacherContents() {
                             icon: Trash2,
                             tone: "destructive",
                             separatorBefore: true,
-                            onClick: () => remove(it),
+                            disabled: removingId === it.id,
+                            onClick: () => void remove(it),
                           },
                         ]}
                       />
@@ -2067,6 +2127,7 @@ function TeacherContents() {
         content={filesViewerFor}
         brand={brand}
         downloadingPath={downloadingId}
+        deletingPath={deletingFilePath}
         onDownload={(file) => filesViewerFor && void download(filesViewerFor, file)}
         onDeleteFile={(file) => filesViewerFor && void deleteFile(filesViewerFor, file)}
         onRegenerateClass={(classNumber) =>
@@ -2275,12 +2336,19 @@ function CreateAssessmentDialog({
     }
     let cancelled = false;
     void (async () => {
-      const { data } = await db
+      const { data, error } = await db
         .from("grade_cuts")
         .select("id, name, position")
         .eq("course_id", courseId)
         .order("position", { ascending: true });
       if (cancelled) return;
+      if (error) {
+        // El selector de alcance por cortes queda oculto; avisamos para que
+        // el docente sepa que no es "este curso no tiene cortes".
+        setCourseCuts([]);
+        toast.error(friendlyError(error));
+        return;
+      }
       setCourseCuts(
         ((data as Array<{ id: string; name: string }> | null) ?? []).map((c) => ({
           id: c.id,
@@ -2328,7 +2396,7 @@ function CreateAssessmentDialog({
   const selectNone = () => setSelectedClasses(new Set());
 
   const submit = async () => {
-    if (!user) return;
+    if (!user || creating) return;
     if (!courseId) {
       toast.error(t("contents.courseRequired"));
       return;
@@ -2794,28 +2862,44 @@ function MaterializeCourseDialog({
       return;
     }
     setLoading(true);
+    let cancelled = false;
     void (async () => {
-      const [{ data: cs }, { data: ss }] = await Promise.all([
-        db
-          .from("grade_cuts")
-          .select(
-            "id, course_id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
-          )
-          .eq("course_id", content.course_id)
-          .order("position", { ascending: true }),
-        db
-          .from("attendance_sessions")
-          .select("session_date, content_class_index")
-          .eq("course_id", content.course_id)
-          .eq("content_id", content.id)
-          .is("deleted_at", null),
-      ]);
-      setCuts((cs ?? []) as CutRow[]);
-      setContentSessions(
-        (ss ?? []) as { session_date: string; content_class_index: number | null }[],
-      );
-      setLoading(false);
+      try {
+        const [{ data: cs, error: csErr }, { data: ss, error: ssErr }] = await Promise.all([
+          db
+            .from("grade_cuts")
+            .select(
+              "id, course_id, name, position, start_date, end_date, weight, workshop_weight, exam_weight, project_weight, attendance_weight",
+            )
+            .eq("course_id", content.course_id)
+            .order("position", { ascending: true }),
+          db
+            .from("attendance_sessions")
+            .select("session_date, content_class_index")
+            .eq("course_id", content.course_id)
+            .eq("content_id", content.id)
+            .is("deleted_at", null),
+        ]);
+        if (cancelled) return;
+        // Sin surfacing, un fallo acá se veía como "el curso no tiene cortes /
+        // no tiene sesiones programadas" — diagnóstico equivocado.
+        if (csErr || ssErr) {
+          toast.error(friendlyError(csErr ?? ssErr));
+          return;
+        }
+        setCuts((cs ?? []) as CutRow[]);
+        setContentSessions(
+          (ss ?? []) as { session_date: string; content_class_index: number | null }[],
+        );
+      } catch (e) {
+        if (!cancelled) toast.error(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [content]);
 
   // Construye las propuestas a partir de cuts + sessions.
@@ -2903,7 +2987,7 @@ function MaterializeCourseDialog({
   const checkedCount = proposals.filter((p) => checked[p.key] && !p.disabled).length;
 
   const submit = async () => {
-    if (!user || !content.course_id) return;
+    if (!user || !content.course_id || creating) return;
     setCreating(true);
     try {
       const files = (content.files as ContentFile[]) ?? [];
@@ -3213,13 +3297,21 @@ function AssignToSessionsDialog({
       return;
     }
     setLoading(true);
+    let cancelled = false;
     void (async () => {
-      const { data } = await db
+      try {
+      const { data, error } = await db
         .from("attendance_sessions")
         .select("id, session_date, title, content_id, content_class_index")
         .eq("course_id", content.course_id)
         .is("deleted_at", null)
         .order("session_date", { ascending: true });
+      if (cancelled) return;
+      // Antes un fallo se mostraba como "el curso no tiene sesiones".
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
       const rows = (data ?? []) as AttendanceSessionRow[];
       setSessions(rows);
       // Pre-rellena el draft con la asignación actual: si la sesión
@@ -3234,13 +3326,21 @@ function AssignToSessionsDialog({
         }
       }
       setDraft(next);
-      setLoading(false);
+      } catch (e) {
+        if (!cancelled) toast.error(friendlyError(e));
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [content]);
 
   if (!content) return null;
 
   const save = async () => {
+    if (saving) return;
     setSaving(true);
     try {
       // Recorre las sesiones y aplica solo los cambios respecto del
@@ -3456,6 +3556,7 @@ function FilesByClassDialog({
   content,
   brand,
   downloadingPath,
+  deletingPath,
   onDownload,
   onDeleteFile,
   onRegenerateClass,
@@ -3464,6 +3565,9 @@ function FilesByClassDialog({
   content: GeneratedContent | null;
   brand: BrandConfig | null;
   downloadingPath: string | null;
+  /** `path` del archivo que el padre está eliminando: spinner + botón
+   *  bloqueado mientras corre (storage + re-escritura del JSONB). */
+  deletingPath: string | null;
   onDownload: (file: FileEntry) => void;
   onDeleteFile: (file: FileEntry) => void;
   onRegenerateClass: (classNumber: number) => void;
@@ -3508,6 +3612,7 @@ function FilesByClassDialog({
       setSessionsByClass({});
       return;
     }
+    let cancelled = false;
     void (async () => {
       const { data } = await db
         .from("attendance_sessions")
@@ -3516,6 +3621,7 @@ function FilesByClassDialog({
         .eq("content_id", content.id)
         .is("deleted_at", null)
         .order("session_date", { ascending: true });
+      if (cancelled) return;
       const next: Record<number, { date: string; title: string | null }> = {};
       for (const r of (data ?? []) as Array<{
         session_date: string;
@@ -3531,6 +3637,9 @@ function FilesByClassDialog({
       }
       setSessionsByClass(next);
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [content]);
 
   if (!content) return null;
@@ -3552,6 +3661,7 @@ function FilesByClassDialog({
   const renderFileChip = (f: FileEntry) => {
     const path = `${content.id}:${f.path}`;
     const busy = downloadingPath === path;
+    const deleting = deletingPath === f.path;
     const isMdLike = f.kind === "md" || f.kind === "txt";
     const isPptx = f.kind === "pptx-source";
     const canPreview = (isMdLike || isPptx) && !!f.body;
@@ -3618,12 +3728,13 @@ function FilesByClassDialog({
         )}
         <button
           type="button"
+          disabled={deleting}
           onClick={() => onDeleteFile(f)}
-          className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-60"
           title={`${label} — ${t("contents.deleteFileHint")}`}
           aria-label={`${label} — ${t("contents.deleteFileHint")}`}
         >
-          <Trash2 className="h-3 w-3" />
+          {deleting ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
         </button>
       </div>
     );
@@ -3637,6 +3748,7 @@ function FilesByClassDialog({
   const renderMaterialItem = (f: FileEntry) => {
     const path = `${content.id}:${f.path}`;
     const busy = downloadingPath === path;
+    const deleting = deletingPath === f.path;
     const isMdLike = f.kind === "md" || f.kind === "txt";
     const isPptx = f.kind === "pptx-source";
     const canPreview = (isMdLike || isPptx) && !!f.body;
@@ -3701,12 +3813,13 @@ function FilesByClassDialog({
         )}
         <button
           type="button"
+          disabled={deleting}
           onClick={() => onDeleteFile(f)}
-          className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors"
+          className="flex h-8 w-8 items-center justify-center rounded text-muted-foreground hover:bg-destructive/10 hover:text-destructive transition-colors disabled:opacity-60"
           title={t("contents.deleteFileHint")}
           aria-label={t("contents.deleteFileHint")}
         >
-          <Trash2 className="h-3 w-3" />
+          {deleting ? <Spinner size="xs" /> : <Trash2 className="h-3 w-3" />}
         </button>
       </div>
     );

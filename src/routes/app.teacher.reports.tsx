@@ -24,6 +24,7 @@ import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
@@ -106,6 +107,22 @@ const db = supabase as any;
 // Sentinel para "sin curso" en el Select de asociación de plantillas
 // privadas — Radix Select no admite SelectItem con value="".
 const NONE_COURSE = "__none__";
+
+/**
+ * Cede un frame al navegador para que PINTE el estado "Preparando archivo…"
+ * antes de que `htmlToDocxBlob` / `printReportHtml` (síncronos) bloqueen el
+ * hilo principal. Sin esto el spinner se seteaba en el state pero nunca
+ * llegaba a la pantalla en informes grandes (imágenes del .docx).
+ */
+function yieldToPaint(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "undefined") {
+      setTimeout(resolve, 0);
+      return;
+    }
+    requestAnimationFrame(() => setTimeout(resolve, 0));
+  });
+}
 
 export const Route = createFileRoute("/app/teacher/reports")({ component: TeacherReports });
 
@@ -196,6 +213,20 @@ function Inner() {
   // Historial de informes generados (tab "Informes generados").
   const [genReports, setGenReports] = useState<GeneratedReport[]>([]);
   const [genReportsLoading, setGenReportsLoading] = useState(true);
+  const [genReportsError, setGenReportsError] = useState<string | null>(null);
+  // Acciones de fila (duplicar / eliminar plantilla, re-descargar o borrar
+  // un informe del historial): sin esto el docente clickeaba 3 veces
+  // "Duplicar" y terminaba con 3 copias.
+  const [rowBusyId, setRowBusyId] = useState<string | null>(null);
+  const [histBusyId, setHistBusyId] = useState<string | null>(null);
+  // Re-descargar del historial se dispara desde un menú que se CIERRA: no
+  // queda ningún botón donde poner el Spinner → overlay.
+  const [histPreparing, setHistPreparing] = useState(false);
+  // Importar .docx: parseo del ZIP OOXML en el navegador, puede tardar.
+  const [docxImporting, setDocxImporting] = useState(false);
+  // Descarga del informe generado. Word arma el OOXML en el hilo principal
+  // y PDF abre el diálogo de impresión — ambos merecen feedback.
+  const [genDownload, setGenDownload] = useState<"word" | "pdf" | null>(null);
   // Id del informe ya persistido para el preview actual — evita duplicar la
   // fila si el docente descarga Word Y PDF de la misma generación. Se resetea
   // al generar un preview nuevo.
@@ -249,7 +280,9 @@ function Inner() {
     [tenant],
   );
 
-  const load = async () => {
+  // `isCancelled` opcional: cuando el effect lo pasa, evitamos setState
+  // después de que el componente se desmontó (convención del repo).
+  const load = async (isCancelled?: () => boolean) => {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
@@ -262,6 +295,7 @@ function Inner() {
         .order("name"),
       db.from("courses").select("id, name").is("deleted_at", null).order("name"),
     ]);
+    if (isCancelled?.()) return;
     if (tErr) {
       setLoadError(friendlyError(tErr, "No pudimos cargar las plantillas."));
       setLoading(false);
@@ -277,24 +311,44 @@ function Inner() {
     setLoading(false);
   };
 
-  // Historial de informes generados — best-effort: si la tabla no existe en
-  // este entorno (migración 20260975 sin Publish) o falla, dejamos la lista
-  // vacía sin tumbar la pantalla de plantillas.
-  const loadGenReports = async () => {
+  // Historial de informes generados. Si la tabla no existe en este entorno
+  // (migración 20260975 sin Publish) o la RLS rechaza, mostramos ErrorState
+  // con "Reintentar" en el área del historial — antes fallaba en silencio y
+  // parecía "todavía no generaste informes".
+  const loadGenReports = async (isCancelled?: () => boolean) => {
     if (!user) return;
     setGenReportsLoading(true);
+    setGenReportsError(null);
     const { data, error } = await db
       .from("generated_reports")
       .select("id, template_name, scope, course_id, course_name, student_name, periodo, html, created_at")
       .order("created_at", { ascending: false })
       .limit(200);
-    if (!error) setGenReports((data ?? []) as GeneratedReport[]);
+    if (isCancelled?.()) return;
+    if (error) {
+      setGenReportsError(
+        friendlyError(
+          error,
+          i18n.t("hc_routesAppTeacherReports.genLoadError", {
+            defaultValue: "No pudimos cargar el historial de informes generados.",
+          }),
+        ),
+      );
+      setGenReports([]);
+    } else {
+      setGenReports((data ?? []) as GeneratedReport[]);
+    }
     setGenReportsLoading(false);
   };
 
   useEffect(() => {
-    void load();
-    void loadGenReports();
+    let cancelled = false;
+    const isCancelled = () => cancelled;
+    void load(isCancelled);
+    void loadGenReports(isCancelled);
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, retryNonce]);
 
@@ -454,6 +508,7 @@ function Inner() {
 
   const handleSave = async () => {
     if (!user) return;
+    if (editorSaving) return; // anti doble-submit
     if (!draft.name.trim()) {
       toast.error(i18n.t("toast.routes_app_teacher_reports.nameRequired", { defaultValue: "El nombre es obligatorio" }));
       return;
@@ -513,25 +568,43 @@ function Inner() {
       };
     }
 
-    const { error } = editorTemplateId
-      ? await db.from("report_templates").update(payload).eq("id", editorTemplateId)
-      : await db.from("report_templates").insert({ ...payload, created_by: user.id });
-    setEditorSaving(false);
-    if (error) {
-      toast.error(friendlyError(error, "No se pudo guardar la plantilla"));
-      return;
+    try {
+      const { error } = editorTemplateId
+        ? await db.from("report_templates").update(payload).eq("id", editorTemplateId)
+        : await db.from("report_templates").insert({ ...payload, created_by: user.id });
+      if (error) {
+        toast.error(friendlyError(
+            error,
+            t("toast.routes_app_teacher_reports.saveTemplateError", {
+              defaultValue: "No se pudo guardar la plantilla",
+            }),
+          ));
+        return;
+      }
+      toast.success(
+        editorTemplateId
+          ? i18n.t("toast.routes_app_teacher_reports.templateUpdated", { defaultValue: "Plantilla actualizada" })
+          : i18n.t("toast.routes_app_teacher_reports.templateCreated", { defaultValue: "Plantilla creada" }),
+      );
+      setEditorOpen(false);
+      void load();
+    } catch (e) {
+      // Sin este catch, un fallo de red dejaba el botón "Guardando…" para
+      // siempre y el docente no sabía si se guardó.
+      toast.error(friendlyError(
+          e,
+          t("toast.routes_app_teacher_reports.saveTemplateError", {
+            defaultValue: "No se pudo guardar la plantilla",
+          }),
+        ));
+    } finally {
+      setEditorSaving(false);
     }
-    toast.success(
-      editorTemplateId
-        ? i18n.t("toast.routes_app_teacher_reports.templateUpdated", { defaultValue: "Plantilla actualizada" })
-        : i18n.t("toast.routes_app_teacher_reports.templateCreated", { defaultValue: "Plantilla creada" }),
-    );
-    setEditorOpen(false);
-    void load();
   };
 
   const handleDelete = async (tpl: Template) => {
     if (originOf(tpl) === "global") return; // no puede borrar globales
+    if (rowBusyId) return; // anti doble-submit
     const ok = await confirm({
       title: t("hc_routesAppTeacherReports.deleteTemplateTitle", { name: tpl.name }),
       description: t("hc_routesAppTeacherReports.deleteTemplateDesc"),
@@ -539,17 +612,25 @@ function Inner() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("report_templates").delete().eq("id", tpl.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setRowBusyId(tpl.id);
+    try {
+      const { error } = await db.from("report_templates").delete().eq("id", tpl.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(i18n.t("toast.routes_app_teacher_reports.templateDeleted", { defaultValue: "Plantilla eliminada" }));
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRowBusyId(null);
     }
-    toast.success(i18n.t("toast.routes_app_teacher_reports.templateDeleted", { defaultValue: "Plantilla eliminada" }));
-    void load();
   };
 
   const handleDuplicate = async (t: Template) => {
     if (!user) return;
+    if (rowBusyId) return; // anti doble-submit: duplicar 2 veces crea 2 copias
     // Duplicar siempre como privada propia — no tiene sentido duplicar
     // una global como global (eso es solo Admin).
     const payload = {
@@ -568,13 +649,20 @@ function Inner() {
       created_by: user.id,
       updated_by: user.id,
     };
-    const { error } = await db.from("report_templates").insert(payload);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setRowBusyId(t.id);
+    try {
+      const { error } = await db.from("report_templates").insert(payload);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(i18n.t("toast.routes_app_teacher_reports.templateDuplicated", { defaultValue: "Plantilla duplicada como privada" }));
+      void load();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRowBusyId(null);
     }
-    toast.success(i18n.t("toast.routes_app_teacher_reports.templateDuplicated", { defaultValue: "Plantilla duplicada como privada" }));
-    void load();
   };
 
   // ── Importar .docx ────────────────────────────────────────────────
@@ -584,6 +672,8 @@ function Inner() {
   // docente edita inline (mismo editor/textarea) e inserta {{variables}}.
   const handleDocxFile = async (file: File) => {
     if (!user) return;
+    if (docxImporting) return; // anti doble-submit
+    setDocxImporting(true);
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       // Convertimos a HTML preservando formato básico (párrafos, encabezados,
@@ -636,13 +726,20 @@ function Inner() {
             }),
       );
     } catch (e) {
+      // `parseDocxBundle` lanza mensajes de dominio ya en español ("El archivo
+      // supera el tamaño máximo…"): los pasamos por friendlyError (traduce el
+      // ruido de red/permisos y deja pasar los nuestros) y solo caemos al
+      // texto genérico cuando el error no trae mensaje.
+      const detail = e instanceof Error ? e.message.trim() : "";
       toast.error(
-        e instanceof Error
-          ? e.message
+        detail
+          ? friendlyError(e)
           : i18n.t("toast.routes_app_teacher_reports.docxImportError", {
               defaultValue: "No se pudo importar el documento.",
             }),
       );
+    } finally {
+      setDocxImporting(false);
     }
   };
 
@@ -688,11 +785,12 @@ function Inner() {
       }));
     } catch (e) {
       toast.error(
-        e instanceof Error
-          ? e.message
-          : i18n.t("toast.routes_app_teacher_reports.aiGenerateError", {
-              defaultValue: "No se pudo preparar la generación con IA.",
-            }),
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_reports.aiGenerateError", {
+            defaultValue: "No se pudo preparar la generación con IA.",
+          }),
+        ),
       );
       return null;
     }
@@ -767,17 +865,31 @@ function Inner() {
   const loadCourseStudents = async (
     courseId: string,
   ): Promise<{ id: string; full_name: string }[]> => {
-    const { data: ens } = await db
+    // Los errores acá dejaban el selector de estudiantes vacío sin decir
+    // nada: el docente creía que el curso no tenía matriculados.
+    const { data: ens, error: ensErr } = await db
       .from("course_enrollments")
       .select("user_id")
       .eq("course_id", courseId);
+    if (ensErr) {
+      toast.error(friendlyError(ensErr, t("hc_routesAppTeacherReports.studentsLoadError", {
+        defaultValue: "No pudimos cargar los estudiantes del curso.",
+      })));
+      return [];
+    }
     const ids = (ens ?? []).map((e: { user_id: string }) => e.user_id);
     if (ids.length === 0) return [];
-    const { data: profs } = await db
+    const { data: profs, error: profsErr } = await db
       .from("profiles")
       .select("id, full_name")
       .in("id", ids)
       .order("full_name");
+    if (profsErr) {
+      toast.error(friendlyError(profsErr, t("hc_routesAppTeacherReports.studentsLoadError", {
+        defaultValue: "No pudimos cargar los estudiantes del curso.",
+      })));
+      return [];
+    }
     return (profs ?? []) as { id: string; full_name: string }[];
   };
 
@@ -842,33 +954,63 @@ function Inner() {
     let cancelled = false;
     void (async () => {
       setGenLoadingStudents(true);
-      const { data: enr } = await db
+      const { data: enr, error: enrErr } = await db
         .from("course_enrollments")
         .select("user_id")
         .eq("course_id", genCourseId);
-      const ids = ((enr ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
       if (cancelled) return;
+      if (enrErr) {
+        // Antes el fallo era invisible: el Select quedaba vacío y parecía
+        // "curso sin estudiantes".
+        toast.error(
+          friendlyError(
+            enrErr,
+            t("hc_routesAppTeacherReports.studentsLoadError", {
+              defaultValue: "No pudimos cargar los estudiantes del curso.",
+            }),
+          ),
+        );
+        setGenStudents([]);
+        setGenLoadingStudents(false);
+        return;
+      }
+      const ids = ((enr ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
       if (ids.length === 0) {
         setGenStudents([]);
         setGenLoadingStudents(false);
         return;
       }
-      const { data: profs } = await db
+      const { data: profs, error: profsErr } = await db
         .from("profiles")
         .select("id, full_name, institutional_email")
         .in("id", ids)
         .order("full_name");
       if (cancelled) return;
+      if (profsErr) {
+        toast.error(
+          friendlyError(
+            profsErr,
+            t("hc_routesAppTeacherReports.studentsLoadError", {
+              defaultValue: "No pudimos cargar los estudiantes del curso.",
+            }),
+          ),
+        );
+        setGenStudents([]);
+        setGenLoadingStudents(false);
+        return;
+      }
       setGenStudents((profs ?? []) as Student[]);
       setGenLoadingStudents(false);
     })();
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genOpen, genTemplate, genCourseId]);
 
   const handleGenerate = async () => {
     if (!genTemplate || !genCourseId) return;
+    if (genBuilding) return; // anti doble-submit
     if (genTemplate.scope === "estudiante" && !genStudentId) {
       toast.error(i18n.t("toast.routes_app_teacher_reports.selectStudent", { defaultValue: "Selecciona un estudiante" }));
       return;
@@ -904,8 +1046,11 @@ function Inner() {
       toast.error(
         friendlyError(e, i18n.t("toast.routes_app_teacher_reports.generateReportError", { defaultValue: "Error al generar el informe" })),
       );
+    } finally {
+      // `finally` y no una línea suelta: si algo lanza fuera del catch, el
+      // botón no puede quedarse en "Generando…" para siempre.
+      setGenBuilding(false);
     }
-    setGenBuilding(false);
   };
 
   // Metadatos del informe generado (para nombre de archivo + persistencia).
@@ -923,7 +1068,8 @@ function Inner() {
   };
 
   // Persiste el informe generado en el historial (una sola vez por preview).
-  // Best-effort: si la tabla no existe / RLS rechaza, no bloquea la descarga.
+  // Best-effort: si la tabla no existe / RLS rechaza, no bloquea la descarga
+  // — pero AVISAMOS, porque si no el docente cree que quedó en el historial.
   const persistGeneration = async () => {
     if (!genHtml || !genTemplate || !genCourseId || genSavedId) return;
     const meta = genMeta();
@@ -945,35 +1091,119 @@ function Inner() {
       })
       .select("id")
       .single();
-    if (!error && data) {
-      setGenSavedId(data.id as string);
-      void loadGenReports();
+    if (error || !data) {
+      toast.warning(
+        i18n.t("toast.routes_app_teacher_reports.persistFailed", {
+          defaultValue:
+            "El archivo se descargó, pero no pudimos guardarlo en “Informes generados”.",
+        }),
+      );
+      return;
     }
+    setGenSavedId(data.id as string);
+    void loadGenReports();
   };
 
   const handleDownloadWord = async () => {
     if (!genHtml) return;
-    downloadReportAsWord(genHtml, { ...genMeta(), stamp: fileStamp(new Date()) });
-    await persistGeneration();
+    if (genDownload) return; // anti doble-submit
+    setGenDownload("word");
+    try {
+      // Armar el OOXML corre en el hilo principal: con informes grandes
+      // (imágenes del .docx) tarda y antes no había ningún indicador.
+      await yieldToPaint();
+      downloadReportAsWord(genHtml, { ...genMeta(), stamp: fileStamp(new Date()) });
+      await persistGeneration();
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_reports.downloadWordError", {
+            defaultValue: "No se pudo generar el archivo Word.",
+          }),
+        ),
+      );
+    } finally {
+      setGenDownload(null);
+    }
   };
 
   const handleDownloadPdf = async () => {
     if (!genHtml) return;
-    printReportHtml(genHtml);
-    await persistGeneration();
+    if (genDownload) return; // anti doble-submit
+    setGenDownload("pdf");
+    try {
+      await yieldToPaint();
+      printReportHtml(genHtml);
+      await persistGeneration();
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_reports.downloadPdfError", {
+            defaultValue: "No se pudo preparar el PDF para imprimir.",
+          }),
+        ),
+      );
+    } finally {
+      setGenDownload(null);
+    }
   };
 
   // ── Historial: re-descarga / eliminación de informes generados ──
-  const reDownloadWord = (r: GeneratedReport) =>
-    downloadReportAsWord(r.html, {
-      templateName: r.template_name,
-      courseName: r.course_name,
-      studentName: r.student_name,
-      periodo: r.periodo,
-      stamp: fileStamp(new Date(r.created_at)),
-    });
-  const reDownloadPdf = (r: GeneratedReport) => printReportHtml(r.html);
+  // Ambas re-descargas son síncronas pero pueden tardar (HTML grande) y
+  // pueden lanzar: sin el try/catch el fallo era invisible (nada pasaba al
+  // hacer click). `histBusyId` bloquea el menú de esa fila mientras corre.
+  const reDownloadWord = async (r: GeneratedReport) => {
+    if (histBusyId) return;
+    setHistBusyId(r.id);
+    setHistPreparing(true);
+    try {
+      await yieldToPaint();
+      downloadReportAsWord(r.html, {
+        templateName: r.template_name,
+        courseName: r.course_name,
+        studentName: r.student_name,
+        periodo: r.periodo,
+        stamp: fileStamp(new Date(r.created_at)),
+      });
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_reports.downloadWordError", {
+            defaultValue: "No se pudo generar el archivo Word.",
+          }),
+        ),
+      );
+    } finally {
+      setHistBusyId(null);
+      setHistPreparing(false);
+    }
+  };
+  const reDownloadPdf = async (r: GeneratedReport) => {
+    if (histBusyId) return;
+    setHistBusyId(r.id);
+    setHistPreparing(true);
+    try {
+      await yieldToPaint();
+      printReportHtml(r.html);
+    } catch (e) {
+      toast.error(
+        friendlyError(
+          e,
+          i18n.t("toast.routes_app_teacher_reports.downloadPdfError", {
+            defaultValue: "No se pudo preparar el PDF para imprimir.",
+          }),
+        ),
+      );
+    } finally {
+      setHistBusyId(null);
+      setHistPreparing(false);
+    }
+  };
   const deleteGenReport = async (r: GeneratedReport) => {
+    if (histBusyId) return; // anti doble-submit
     const ok = await confirm({
       title: i18n.t("hc_routesAppTeacherReports.genDeleteTitle", { defaultValue: "Eliminar informe generado" }),
       description: i18n.t("hc_routesAppTeacherReports.genDeleteDesc", {
@@ -983,27 +1213,64 @@ function Inner() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await db.from("generated_reports").delete().eq("id", r.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setHistBusyId(r.id);
+    try {
+      const { error } = await db.from("generated_reports").delete().eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setGenReports((prev) => prev.filter((x) => x.id !== r.id));
+      // Antes no había confirmación de éxito: la fila desaparecía y listo.
+      toast.success(
+        i18n.t("toast.routes_app_teacher_reports.genReportDeleted", {
+          defaultValue: "Informe eliminado del historial",
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setHistBusyId(null);
     }
-    setGenReports((prev) => prev.filter((x) => x.id !== r.id));
   };
 
   // ── Render ───────────────────────────────────────────────────────
 
   return (
     <div className="space-y-5">
+      {/* Re-descarga desde el historial: el menú ya se cerró, así que el
+          feedback tiene que ser un overlay. */}
+      {histPreparing && (
+        <LoadingOverlay
+          title={t("hc_routesAppTeacherReports.preparingFile", {
+            defaultValue: "Preparando archivo…",
+          })}
+          subtitle={t("hc_routesAppTeacherReports.preparingFileHint", {
+            defaultValue: "Puede tomar unos segundos con informes extensos.",
+          })}
+        />
+      )}
       <PageHeader
         icon={<FileBarChart className="h-6 w-6 text-pink-500" />}
         title={t("hc_routesAppTeacherReports.pageTitle")}
         subtitle={loading ? undefined : t("hc_routesAppTeacherReports.templatesAvailable", { count: templates.length })}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
-              <Upload className="h-4 w-4 mr-1" />
-              {t("hc_routesAppTeacherReports.uploadWord")}
+            <Button
+              variant="outline"
+              onClick={() => docxInputRef.current?.click()}
+              disabled={docxImporting}
+            >
+              {docxImporting ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Upload className="h-4 w-4 mr-1" />
+              )}
+              {docxImporting
+                ? t("hc_routesAppTeacherReports.importingWord", {
+                    defaultValue: "Importando…",
+                  })
+                : t("hc_routesAppTeacherReports.uploadWord")}
             </Button>
             <Button onClick={openNewPrivate}>
               <Plus className="h-4 w-4 mr-1" />
@@ -1077,7 +1344,13 @@ function Inner() {
 
           <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
             {loading ? (
-              <TableSkeleton cols={6} rows={5} />
+              /* TableSkeleton emite <tr>: suelto en un <div> el navegador lo
+                 descarta y la pantalla quedaba VACÍA mientras cargaba. */
+              <Table fixed>
+                <TableBody>
+                  <TableSkeleton cols={6} rows={5} />
+                </TableBody>
+              </Table>
             ) : loadError ? (
               <ErrorState
                 message={t("hc_routesAppTeacherReports.loadErrorMessage")}
@@ -1193,6 +1466,7 @@ function Inner() {
                                 {
                                   label: t("hc_routesAppTeacherReports.actionDuplicate"),
                                   icon: Copy,
+                                  disabled: !!rowBusyId,
                                   onClick: () => void handleDuplicate(tpl),
                                 },
                                 origin !== "global" && {
@@ -1200,6 +1474,7 @@ function Inner() {
                                   icon: Trash2,
                                   tone: "destructive",
                                   separatorBefore: true,
+                                  disabled: !!rowBusyId,
                                   onClick: () => void handleDelete(tpl),
                                 },
                               ]}
@@ -1247,7 +1522,20 @@ function Inner() {
               </div>
               <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 {genReportsLoading ? (
-                  <TableSkeleton cols={4} rows={4} />
+                  /* TableSkeleton son <tr>: necesita ir dentro de una tabla. */
+                  <Table fixed>
+                    <TableBody>
+                      <TableSkeleton cols={5} rows={4} />
+                    </TableBody>
+                  </Table>
+                ) : genReportsError ? (
+                  <ErrorState
+                    message={t("hc_routesAppTeacherReports.genLoadErrorTitle", {
+                      defaultValue: "No pudimos cargar el historial",
+                    })}
+                    hint={genReportsError}
+                    onRetry={() => void loadGenReports()}
+                  />
                 ) : (
                   <Table fixed>
                     <TableHeader>
@@ -1292,18 +1580,21 @@ function Inner() {
                                   {
                                     label: t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" }),
                                     icon: FileType,
-                                    onClick: () => reDownloadWord(r),
+                                    disabled: !!histBusyId,
+                                    onClick: () => void reDownloadWord(r),
                                   },
                                   {
                                     label: t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" }),
                                     icon: Printer,
-                                    onClick: () => reDownloadPdf(r),
+                                    disabled: !!histBusyId,
+                                    onClick: () => void reDownloadPdf(r),
                                   },
                                   {
                                     label: t("hc_routesAppTeacherReports.actionDelete", { defaultValue: "Eliminar" }),
                                     icon: Trash2,
                                     tone: "destructive",
                                     separatorBefore: true,
+                                    disabled: !!histBusyId,
                                     onClick: () => void deleteGenReport(r),
                                   },
                                 ]}
@@ -1399,6 +1690,7 @@ function Inner() {
               {t("hc_routesAppTeacherReports.cancel")}
             </Button>
             <Button onClick={() => void handleSave()} disabled={editorSaving}>
+              {editorSaving && <Spinner size="sm" className="mr-2" />}
               {editorSaving ? t("hc_routesAppTeacherReports.saving") : t("hc_routesAppTeacherReports.save")}
             </Button>
           </DialogFooter>
@@ -1506,13 +1798,33 @@ function Inner() {
             </Button>
             {genHtml && (
               <>
-                <Button onClick={() => void handleDownloadWord()}>
-                  <FileType className="h-4 w-4 mr-1" />
-                  {t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" })}
+                <Button onClick={() => void handleDownloadWord()} disabled={!!genDownload}>
+                  {genDownload === "word" ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <FileType className="h-4 w-4 mr-1" />
+                  )}
+                  {genDownload === "word"
+                    ? t("hc_routesAppTeacherReports.preparingFile", {
+                        defaultValue: "Preparando archivo…",
+                      })
+                    : t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" })}
                 </Button>
-                <Button variant="outline" onClick={() => void handleDownloadPdf()}>
-                  <Printer className="h-4 w-4 mr-1" />
-                  {t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" })}
+                <Button
+                  variant="outline"
+                  onClick={() => void handleDownloadPdf()}
+                  disabled={!!genDownload}
+                >
+                  {genDownload === "pdf" ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <Printer className="h-4 w-4 mr-1" />
+                  )}
+                  {genDownload === "pdf"
+                    ? t("hc_routesAppTeacherReports.preparingFile", {
+                        defaultValue: "Preparando archivo…",
+                      })
+                    : t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" })}
                 </Button>
               </>
             )}

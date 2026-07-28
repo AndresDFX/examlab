@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
+import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { CalendarCheck } from "lucide-react";
 import {
@@ -320,6 +321,25 @@ function TeacherAttendance() {
   const [projector, setProjector] = useState<CheckInState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Carga del tablero del curso (sesiones + matriculados + registros).
+  // Antes no había estado: la grilla se pintaba vacía y el docente veía
+  // "Sin estudiantes matriculados" hasta que llegaban los datos.
+  const [loadingCourse, setLoadingCourse] = useState(false);
+  const [courseError, setCourseError] = useState<string | null>(null);
+  const [courseRetryNonce, setCourseRetryNonce] = useState(0);
+  // Acciones asíncronas del docente. Cada una bloquea su propio disparador
+  // para evitar doble-submit (los handlers son idempotentes en DB pero
+  // duplican notificaciones / round-trips y confunden al usuario).
+  const [creatingSession, setCreatingSession] = useState(false);
+  const [savingRecording, setSavingRecording] = useState(false);
+  /** id de la sesión con una acción en curso (marcar todos / reiniciar /
+   *  eliminar / duplicar). Deshabilita el menú de esa columna. */
+  const [sessionBusyId, setSessionBusyId] = useState<string | null>(null);
+  /** id de la sesión cuyo check-in se está abriendo/reabriendo. */
+  const [checkInBusyId, setCheckInBusyId] = useState<string | null>(null);
+  /** Import CSV en curso (clases o asistencia): bloquea los menús y
+   *  muestra el indicador junto al header. */
+  const [importing, setImporting] = useState(false);
 
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
@@ -348,11 +368,23 @@ function TeacherAttendance() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce]);
 
-  // Load data for selected course
-  const loadCourse = useCallback(async () => {
+  // Load data for selected course.
+  // `isActive` permite al effect abortar los setState cuando el docente
+  // cambia de curso / desmonta antes de que resuelvan los awaits (patrón
+  // `let cancelled = false` del repo). Los handlers que la re-invocan para
+  // refrescar la llaman sin argumento → siempre activa.
+  const loadCourse = useCallback(
+    async (isActive: () => boolean = () => true) => {
     if (!courseId) return;
-
-    const [{ data: sess }, { data: enr }, { data: cs }, { data: gens }] = await Promise.all([
+    setLoadingCourse(true);
+    setCourseError(null);
+    try {
+    const [
+      { data: sess, error: sessErr },
+      { data: enr, error: enrErr },
+      { data: cs },
+      { data: gens },
+    ] = await Promise.all([
       supabase
         .from("attendance_sessions")
         .select("*")
@@ -380,6 +412,15 @@ function TeacherAttendance() {
         .is("deleted_at", null)
         .or(`course_id.eq.${courseId},course_id.is.null`),
     ]);
+    if (!isActive()) return;
+    // sesiones + matriculados son la data crítica del tablero: sin ellas la
+    // grilla no tiene sentido. cortes / contenidos son secundarios (solo
+    // enriquecen los selectores), así que no bloquean el render.
+    const criticalErr = sessErr ?? enrErr;
+    if (criticalErr) {
+      setCourseError(friendlyError(criticalErr, t("teacherAttendance.loadCoursesErrorHint")));
+      return;
+    }
     setSessions((sess ?? []) as Session[]);
     setCuts((cs ?? []) as Cut[]);
     // Aplana files[] → classes[] para no recalcular en cada Select.
@@ -406,11 +447,16 @@ function TeacherAttendance() {
 
     const userIds = (enr ?? []).map((e: any) => e.user_id);
     if (userIds.length) {
-      const { data: profs } = await supabase
+      const { data: profs, error: profErr } = await supabase
         .from("profiles")
         .select("id, full_name, institutional_email")
         .in("id", userIds)
         .order("full_name");
+      if (!isActive()) return;
+      if (profErr) {
+        setCourseError(friendlyError(profErr, t("teacherAttendance.loadCoursesErrorHint")));
+        return;
+      }
       setStudents((profs ?? []) as Student[]);
     } else {
       setStudents([]);
@@ -419,43 +465,79 @@ function TeacherAttendance() {
     // Load all records for this course's sessions
     const sessionIds = (sess ?? []).map((s: any) => s.id);
     if (sessionIds.length) {
-      const { data: recs } = await supabase
+      const { data: recs, error: recsErr } = await supabase
         .from("attendance_records")
         .select("*")
         .in("session_id", sessionIds);
+      if (!isActive()) return;
+      if (recsErr) {
+        setCourseError(friendlyError(recsErr, t("teacherAttendance.loadCoursesErrorHint")));
+        return;
+      }
       setRecords((recs ?? []) as Record_[]);
     } else {
       setRecords([]);
     }
-  }, [courseId]);
+    } catch (e) {
+      if (isActive()) setCourseError(friendlyError(e));
+    } finally {
+      if (isActive()) setLoadingCourse(false);
+    }
+    },
+    // `t` se usa solo para los mensajes de error y es estable por instancia de
+    // i18n; incluirlo re-crearía el callback en cada cambio de idioma y
+    // re-dispararía el effect de carga.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [courseId],
+  );
 
   useEffect(() => {
-    loadCourse();
-  }, [loadCourse]);
+    let cancelled = false;
+    void loadCourse(() => !cancelled);
+    return () => {
+      cancelled = true;
+    };
+  }, [loadCourse, courseRetryNonce]);
 
   // Carga lazy de los videos disponibles para asociar a sesión. Se llama
   // cuando se abre el dialog de nueva sesión o el de editar grabación.
   // Filtra a (videos del curso actual) ∪ (globales sin course_id).
-  const loadSessionVideos = useCallback(async () => {
-    if (!courseId) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
-      .from("videos")
-      .select("id, title, provider, course_id")
-      .eq("is_archived", false)
-      .or(`course_id.eq.${courseId},course_id.is.null`)
-      .order("title");
-    setSessionVideos((data ?? []) as Array<{ id: string; title: string; provider: string }>);
-  }, [courseId]);
+  const loadSessionVideos = useCallback(
+    async (isActive: () => boolean = () => true) => {
+      if (!courseId) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any)
+        .from("videos")
+        .select("id, title, provider, course_id")
+        .eq("is_archived", false)
+        .or(`course_id.eq.${courseId},course_id.is.null`)
+        .order("title");
+      if (!isActive()) return;
+      if (error) {
+        // Lista auxiliar del dialog: no bloquea guardar la sesión, pero el
+        // fallo se avisa (antes quedaba un Select vacío sin explicación).
+        setSessionVideos([]);
+        toast.error(friendlyError(error, t("teacherAttendance.libraryVideoPlaceholder")));
+        return;
+      }
+      setSessionVideos((data ?? []) as Array<{ id: string; title: string; provider: string }>);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [courseId],
+  );
 
   useEffect(() => {
-    if (newSessionOpen || recordingEditSession) {
-      void loadSessionVideos();
-    }
+    if (!newSessionOpen && !recordingEditSession) return;
+    let cancelled = false;
+    void loadSessionVideos(() => !cancelled);
+    return () => {
+      cancelled = true;
+    };
   }, [newSessionOpen, recordingEditSession, loadSessionVideos]);
 
   // Create session
   const createSession = async () => {
+    if (creatingSession) return;
     if (!courseId || !user || !newDate) {
       toast.error(
         i18n.t("toast.routes_app_teacher_attendance.dateRequired", {
@@ -491,39 +573,46 @@ function TeacherAttendance() {
     // start_time se persiste como TIME ("HH:MM:00") sin zona horaria (lo
     // normaliza buildNewSessionPayload). Bogotá se aplica al construir el ISO
     // datetime en la edge function de calendar — la columna DB es agnóstica de TZ.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("attendance_sessions").insert(
-      buildNewSessionPayload({
-        course_id: courseId,
-        session_date: newDate,
-        created_by: user.id,
-        title: newTitle || null,
-        start_time: newStartTime || null,
-        duration_minutes: duration,
-        cut_id: newCutId || null,
-        recording_url: newRecordingUrl.trim() || null,
-        recording_video_id: newRecordingVideoId || null,
-        notes_url: newNotesUrl.trim() || null,
-        session_type: newSessionType,
-      }),
-    );
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    setCreatingSession(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("attendance_sessions").insert(
+        buildNewSessionPayload({
+          course_id: courseId,
+          session_date: newDate,
+          created_by: user.id,
+          title: newTitle || null,
+          start_time: newStartTime || null,
+          duration_minutes: duration,
+          cut_id: newCutId || null,
+          recording_url: newRecordingUrl.trim() || null,
+          recording_video_id: newRecordingVideoId || null,
+          notes_url: newNotesUrl.trim() || null,
+          session_type: newSessionType,
+        }),
+      );
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_attendance.sessionCreated", {
+          defaultValue: "Sesión creada correctamente",
+        }),
+      );
+      setNewSessionOpen(false);
+      setNewTitle("");
+      setNewSessionType("virtual");
+      setNewCutId("");
+      setNewRecordingUrl("");
+      setNewRecordingVideoId("");
+      setNewNotesUrl("");
+      await loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setCreatingSession(false);
     }
-    toast.success(
-      i18n.t("toast.routes_app_teacher_attendance.sessionCreated", {
-        defaultValue: "Sesión creada correctamente",
-      }),
-    );
-    setNewSessionOpen(false);
-    setNewTitle("");
-    setNewSessionType("virtual");
-    setNewCutId("");
-    setNewRecordingUrl("");
-    setNewRecordingVideoId("");
-    setNewNotesUrl("");
-    loadCourse();
   };
 
   /** Duplicar una sesión. Crea una sesión NUEVA en la misma fecha (el docente
@@ -542,6 +631,8 @@ function TeacherAttendance() {
     opts: { copyContent: boolean; copyWhiteboard: boolean; copySnippets: boolean },
   ) => {
     if (!user || !courseId) return;
+    if (sessionBusyId) return;
+    setSessionBusyId(s.id);
     try {
       // El whiteboard_scene/shared NO está en el type Session (se cargan con
       // select("*"), pero los leemos puntualmente para no depender del payload).
@@ -655,9 +746,11 @@ function TeacherAttendance() {
         }
       }
       toast.success(t("teacherAttendance.sessionDuplicated"));
-      loadCourse();
+      await loadCourse();
     } catch (e) {
       toast.error(friendlyError(e));
+    } finally {
+      setSessionBusyId(null);
     }
   };
 
@@ -674,38 +767,45 @@ function TeacherAttendance() {
   };
 
   const saveRecordingEdit = async () => {
-    if (!recordingEditSession) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any)
-      .from("attendance_sessions")
-      .update({
-        recording_url: recordingEditUrl.trim() || null,
-        recording_video_id: recordingEditVideoId || null,
-        notes_url: notesEditUrl.trim() || null,
-      })
-      .eq("id", recordingEditSession.id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (!recordingEditSession || savingRecording) return;
+    setSavingRecording(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any)
+        .from("attendance_sessions")
+        .update({
+          recording_url: recordingEditUrl.trim() || null,
+          recording_video_id: recordingEditVideoId || null,
+          notes_url: notesEditUrl.trim() || null,
+        })
+        .eq("id", recordingEditSession.id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === recordingEditSession.id
+            ? {
+                ...s,
+                recording_url: recordingEditUrl.trim() || null,
+                recording_video_id: recordingEditVideoId || null,
+                notes_url: notesEditUrl.trim() || null,
+              }
+            : s,
+        ),
+      );
+      setRecordingEditSession(null);
+      toast.success(
+        i18n.t("toast.routes_app_teacher_attendance.recordingUpdated", {
+          defaultValue: "Grabación actualizada",
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSavingRecording(false);
     }
-    setSessions((prev) =>
-      prev.map((s) =>
-        s.id === recordingEditSession.id
-          ? {
-              ...s,
-              recording_url: recordingEditUrl.trim() || null,
-              recording_video_id: recordingEditVideoId || null,
-              notes_url: notesEditUrl.trim() || null,
-            }
-          : s,
-      ),
-    );
-    setRecordingEditSession(null);
-    toast.success(
-      i18n.t("toast.routes_app_teacher_attendance.recordingUpdated", {
-        defaultValue: "Grabación actualizada",
-      }),
-    );
   };
 
   // Reasignar el corte de una sesión existente (la fecha NO cambia).
@@ -815,30 +915,76 @@ function TeacherAttendance() {
     return records.find((r) => r.session_id === sessionId && r.user_id === userId)?.status ?? "";
   };
 
-  // Marcar todos presentes en la sesión (sobrescribe ausentes / vacíos)
+  // Marcar todos presentes en la sesión (sobrescribe ausentes / vacíos).
+  // Es un loop secuencial de N round-trips (93 alumnos ⇒ varios segundos):
+  // sin indicador el docente no sabía si estaba pasando algo, y los errores
+  // por fila se descartaban en silencio (quedaban alumnos sin marcar sin
+  // aviso). Ahora: toast de progreso + primer error real al final.
   const markAllPresent = async (sessionId: string) => {
-    if (!students.length) return;
-    for (const s of students) {
-      const existing = records.find((r) => r.session_id === sessionId && r.user_id === s.id);
-      if (existing) {
-        await supabase
-          .from("attendance_records")
-          .update({ status: "presente" })
-          .eq("id", existing.id);
-      } else {
-        await supabase.from("attendance_records").insert({
-          session_id: sessionId,
-          user_id: s.id,
-          status: "presente",
-        });
-      }
-    }
-    toast.success(
-      i18n.t("toast.routes_app_teacher_attendance.allMarkedPresent", {
-        defaultValue: "Todos los estudiantes marcados como presentes",
+    if (!students.length || sessionBusyId) return;
+    setSessionBusyId(sessionId);
+    const progressId = toast.loading(
+      i18n.t("toast.routes_app_teacher_attendance.markAllProgress", {
+        defaultValue: "Marcando presentes {{done}}/{{total}}…",
+        done: 0,
+        total: students.length,
       }),
     );
-    loadCourse();
+    try {
+      let done = 0;
+      let failed = 0;
+      let firstError: unknown = null;
+      for (const s of students) {
+        const existing = records.find((r) => r.session_id === sessionId && r.user_id === s.id);
+        const { error } = existing
+          ? await supabase
+              .from("attendance_records")
+              .update({ status: "presente" })
+              .eq("id", existing.id)
+          : await supabase.from("attendance_records").insert({
+              session_id: sessionId,
+              user_id: s.id,
+              status: "presente",
+            });
+        if (error) {
+          failed += 1;
+          if (!firstError) firstError = error;
+        } else {
+          done += 1;
+        }
+        toast.loading(
+          i18n.t("toast.routes_app_teacher_attendance.markAllProgress", {
+            defaultValue: "Marcando presentes {{done}}/{{total}}…",
+            done: done + failed,
+            total: students.length,
+          }),
+          { id: progressId },
+        );
+      }
+      if (failed > 0) {
+        toast.error(
+          i18n.t("toast.routes_app_teacher_attendance.allMarkedPresentPartial", {
+            defaultValue: "{{done}} marcados, {{failed}} con error. Primero: {{detail}}",
+            done,
+            failed,
+            detail: friendlyError(firstError),
+          }),
+          { duration: 12000 },
+        );
+      } else {
+        toast.success(
+          i18n.t("toast.routes_app_teacher_attendance.allMarkedPresent", {
+            defaultValue: "Todos los estudiantes marcados como presentes",
+          }),
+        );
+      }
+      await loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      toast.dismiss(progressId);
+      setSessionBusyId(null);
+    }
   };
 
   // Quitar todo registro de asistencia de la sesión
@@ -850,20 +996,28 @@ function TeacherAttendance() {
       tone: "warning",
     });
     if (!ok) return;
-    const { error } = await supabase
-      .from("attendance_records")
-      .delete()
-      .eq("session_id", sessionId);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (sessionBusyId) return;
+    setSessionBusyId(sessionId);
+    try {
+      const { error } = await supabase
+        .from("attendance_records")
+        .delete()
+        .eq("session_id", sessionId);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        i18n.t("toast.routes_app_teacher_attendance.sessionAttendanceReset", {
+          defaultValue: "Asistencia de la sesión reiniciada",
+        }),
+      );
+      await loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSessionBusyId(null);
     }
-    toast.success(
-      i18n.t("toast.routes_app_teacher_attendance.sessionAttendanceReset", {
-        defaultValue: "Asistencia de la sesión reiniciada",
-      }),
-    );
-    loadCourse();
   };
 
   // Build CSV de exportación de asistencia (matriz)
@@ -900,6 +1054,9 @@ function TeacherAttendance() {
   // (course_id, created_by) y disparamos el insert + reload.
   const importSessions = async (rows: Record<string, string>[]) => {
     if (!courseId || !user) throw new Error(t("teacherAttendance.selectCourse"));
+    if (importing) throw new Error(t("teacherAttendance.importInProgress", {
+      defaultValue: "Ya hay una importación en curso. Espera a que termine.",
+    }));
     const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const { rows: parsed, unmatchedCuts } = parseSessionsCsv(rows, cutByName);
     if (!parsed.length) throw new Error(t("teacherAttendance.noValidRows"));
@@ -915,57 +1072,113 @@ function TeacherAttendance() {
       recording_url: p.recording_url,
       session_type: p.session_type,
     }));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
-    if (error) throw new Error(friendlyError(error));
-    await loadCourse();
-    const suffix =
-      unmatchedCuts > 0
-        ? t("teacherAttendance.importSessionsUnmatchedSuffix", { count: unmatchedCuts })
-        : "";
-    return t("teacherAttendance.importSessionsResult", { count: payload.length }) + suffix;
+    setImporting(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { error } = await (supabase as any).from("attendance_sessions").insert(payload);
+      if (error) throw new Error(friendlyError(error));
+      await loadCourse();
+      const suffix =
+        unmatchedCuts > 0
+          ? t("teacherAttendance.importSessionsUnmatchedSuffix", { count: unmatchedCuts })
+          : "";
+      return t("teacherAttendance.importSessionsResult", { count: payload.length }) + suffix;
+    } finally {
+      setImporting(false);
+    }
   };
 
-  // Importar registros de asistencia desde CSV
+  // Importar registros de asistencia desde CSV.
+  // Loop secuencial de N round-trips → toast de progreso mientras corre
+  // (un CSV de un curso completo tarda varios segundos) y el primer error
+  // real se reporta al final (antes solo se contaba en `skipped`, que
+  // mezclaba "fila inválida" con "el UPDATE falló").
   const importAttendance = async (rows: Record<string, string>[]) => {
     if (!courseId) throw new Error(t("teacherAttendance.selectCourse"));
+    if (importing) throw new Error(t("teacherAttendance.importInProgress", {
+      defaultValue: "Ya hay una importación en curso. Espera a que termine.",
+    }));
     const sessionByDate = new Map(sessions.map((s) => [s.session_date, s.id]));
     const studentByEmail = new Map(
       students.map((s) => [s.institutional_email.toLowerCase(), s.id]),
     );
 
-    let inserted = 0,
-      updated = 0,
-      skipped = 0;
-    for (const r of rows) {
-      const email = (r.email || "").toLowerCase().trim();
-      const date = (r.session_date || "").trim();
-      const status = (r.status || "").toLowerCase().trim();
-      const note = r.note || null;
-      const sid = sessionByDate.get(date);
-      const uid = studentByEmail.get(email);
-      if (!sid || !uid || !["presente", "ausente"].includes(status)) {
-        skipped++;
-        continue;
+    setImporting(true);
+    const progressId = toast.loading(
+      i18n.t("toast.routes_app_teacher_attendance.importAttendanceProgress", {
+        defaultValue: "Importando asistencia {{done}}/{{total}}…",
+        done: 0,
+        total: rows.length,
+      }),
+    );
+    try {
+      let inserted = 0,
+        updated = 0,
+        skipped = 0,
+        processed = 0;
+      let firstError: unknown = null;
+      for (const r of rows) {
+        const email = (r.email || "").toLowerCase().trim();
+        const date = (r.session_date || "").trim();
+        const status = (r.status || "").toLowerCase().trim();
+        const note = r.note || null;
+        const sid = sessionByDate.get(date);
+        const uid = studentByEmail.get(email);
+        processed++;
+        toast.loading(
+          i18n.t("toast.routes_app_teacher_attendance.importAttendanceProgress", {
+            defaultValue: "Importando asistencia {{done}}/{{total}}…",
+            done: processed,
+            total: rows.length,
+          }),
+          { id: progressId },
+        );
+        if (!sid || !uid || !["presente", "ausente"].includes(status)) {
+          skipped++;
+          continue;
+        }
+        const existing = records.find((rec) => rec.session_id === sid && rec.user_id === uid);
+        if (existing) {
+          const { error } = await supabase
+            .from("attendance_records")
+            .update({ status, note })
+            .eq("id", existing.id);
+          if (!error) updated++;
+          else {
+            skipped++;
+            if (!firstError) firstError = error;
+          }
+        } else {
+          const { error } = await supabase
+            .from("attendance_records")
+            .insert({ session_id: sid, user_id: uid, status, note });
+          if (!error) inserted++;
+          else {
+            skipped++;
+            if (!firstError) firstError = error;
+          }
+        }
       }
-      const existing = records.find((rec) => rec.session_id === sid && rec.user_id === uid);
-      if (existing) {
-        const { error } = await supabase
-          .from("attendance_records")
-          .update({ status, note })
-          .eq("id", existing.id);
-        if (!error) updated++;
-        else skipped++;
-      } else {
-        const { error } = await supabase
-          .from("attendance_records")
-          .insert({ session_id: sid, user_id: uid, status, note });
-        if (!error) inserted++;
-        else skipped++;
+      await loadCourse();
+      const base = t("teacherAttendance.importAttendanceResult", { inserted, updated, skipped });
+      if (firstError) {
+        // Devolvemos "" para que ImportExportMenu no tape este toast con su
+        // success genérico — el detalle del fallo es lo que importa acá.
+        toast.error(
+          i18n.t("toast.routes_app_teacher_attendance.importAttendanceWithErrors", {
+            defaultValue: "{{base}} Primer error: {{detail}}",
+            base,
+            detail: friendlyError(firstError),
+          }),
+          { duration: 12000 },
+        );
+        return "";
       }
+      return base;
+    } finally {
+      toast.dismiss(progressId);
+      setImporting(false);
     }
-    await loadCourse();
-    return t("teacherAttendance.importAttendanceResult", { inserted, updated, skipped });
   };
 
   // ── Check-in self-service ──────────────────────────────────────────
@@ -979,7 +1192,7 @@ function TeacherAttendance() {
   };
 
   const startCheckIn = async () => {
-    if (!checkInConfigSession) return;
+    if (!checkInConfigSession || startingCheckIn) return;
     setStartingCheckIn(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1034,7 +1247,9 @@ function TeacherAttendance() {
       // (2× por apertura — p.ej. 186 correos en un curso de 93).
       setCheckInConfigSession(null);
       // Refresca listado para reflejar check_in_open=true
-      loadCourse();
+      await loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e, t("teacherAttendance.checkInStartFailed")));
     } finally {
       setStartingCheckIn(false);
     }
@@ -1042,56 +1257,55 @@ function TeacherAttendance() {
 
   /** Reabre el proyector de una sesión que ya está abierta (refresh / otra pestaña). */
   const reopenProjector = async (sess: Session) => {
-    const { data, error } = await supabase
-      .from("attendance_check_in_state" as never)
-      .select("seed, rotation_seconds, closes_at")
-      .eq("session_id", sess.id)
-      .maybeSingle();
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
-    }
-    // Sesión inconsistente: check_in_open=true pero no hay state. Limpiar
-    // y permitir al docente iniciar uno nuevo.
-    if (!data) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).rpc("teacher_close_attendance_check_in", {
-        p_session_id: sess.id,
+    if (checkInBusyId) return;
+    setCheckInBusyId(sess.id);
+    try {
+      const { data, error } = await supabase
+        .from("attendance_check_in_state" as never)
+        .select("seed, rotation_seconds, closes_at")
+        .eq("session_id", sess.id)
+        .maybeSingle();
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      const row = data as { seed: string; rotation_seconds: number; closes_at: string } | null;
+      // Sesión inconsistente (check_in_open=true sin state) o state ya
+      // expirado: limpiar y dejar al docente iniciar uno nuevo, en vez de
+      // reabrir un proyector que se cerraría en el primer tick.
+      const stale = !row || new Date(row.closes_at).getTime() <= Date.now();
+      if (stale) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: closeErr } = await (supabase as any).rpc(
+          "teacher_close_attendance_check_in",
+          { p_session_id: sess.id },
+        );
+        if (closeErr) {
+          toast.error(friendlyError(closeErr));
+          return;
+        }
+        toast.info(
+          i18n.t("toast.routes_app_teacher_attendance.previousCheckInExpired", {
+            defaultValue: "El check-in anterior expiró. Inicia uno nuevo.",
+          }),
+        );
+        await loadCourse();
+        openCheckInConfig(sess);
+        return;
+      }
+      setProjector({
+        sessionId: sess.id,
+        seed: row!.seed,
+        rotationSeconds: row!.rotation_seconds,
+        closesAt: row!.closes_at,
+        totalEnrolled,
+        sessionLabel: formatSessionLabel(sess.session_date, sess.title),
       });
-      toast.info(
-        i18n.t("toast.routes_app_teacher_attendance.previousCheckInExpired", {
-          defaultValue: "El check-in anterior expiró. Inicia uno nuevo.",
-        }),
-      );
-      loadCourse();
-      openCheckInConfig(sess);
-      return;
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setCheckInBusyId(null);
     }
-    const row = data as { seed: string; rotation_seconds: number; closes_at: string };
-    // State expirado en DB pero check_in_open=true: limpiar y abrir uno
-    // nuevo en vez de reabrir un proyector que se cerrará en el primer tick.
-    if (new Date(row.closes_at).getTime() <= Date.now()) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (supabase as any).rpc("teacher_close_attendance_check_in", {
-        p_session_id: sess.id,
-      });
-      toast.info(
-        i18n.t("toast.routes_app_teacher_attendance.previousCheckInExpired", {
-          defaultValue: "El check-in anterior expiró. Inicia uno nuevo.",
-        }),
-      );
-      loadCourse();
-      openCheckInConfig(sess);
-      return;
-    }
-    setProjector({
-      sessionId: sess.id,
-      seed: row.seed,
-      rotationSeconds: row.rotation_seconds,
-      closesAt: row.closes_at,
-      totalEnrolled,
-      sessionLabel: formatSessionLabel(sess.session_date, sess.title),
-    });
   };
 
   /** Llamado por el proyector cuando se cierra (manual o por expiración). */
@@ -1108,7 +1322,7 @@ function TeacherAttendance() {
       });
     }
     setProjector(null);
-    loadCourse();
+    void loadCourse();
     if (!closedSessionId) return;
     // Ofrecer marcar pendientes como ausentes
     const ok = await confirm({
@@ -1118,13 +1332,30 @@ function TeacherAttendance() {
       tone: "warning",
     });
     if (!ok) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data, error } = await (supabase as any).rpc("teacher_mark_pending_absent", {
-      p_session_id: closedSessionId,
-    });
-    if (error) {
-      toast.error(friendlyError(error));
+    // El proyector ya se cerró, así que no hay botón donde poner el spinner:
+    // usamos un toast de carga (mismo patrón que el bulk import de usuarios)
+    // para que el docente sepa que el marcado está corriendo.
+    const pendingToastId = toast.loading(
+      i18n.t("toast.routes_app_teacher_attendance.markingPendingAbsent", {
+        defaultValue: "Marcando pendientes como ausentes…",
+      }),
+    );
+    let data: unknown;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const res = await (supabase as any).rpc("teacher_mark_pending_absent", {
+        p_session_id: closedSessionId,
+      });
+      if (res.error) {
+        toast.error(friendlyError(res.error));
+        return;
+      }
+      data = res.data;
+    } catch (e) {
+      toast.error(friendlyError(e));
       return;
+    } finally {
+      toast.dismiss(pendingToastId);
     }
     const result = data as { ok: boolean; marked_absent?: number; error?: string };
     if (result?.ok) {
@@ -1144,7 +1375,7 @@ function TeacherAttendance() {
           count: result.marked_absent ?? 0,
         }),
       );
-      loadCourse();
+      void loadCourse();
     } else {
       toast.error(result?.error ?? t("teacherAttendance.markPendingFailed"));
     }
@@ -1167,13 +1398,21 @@ function TeacherAttendance() {
       tone: "destructive",
     });
     if (!ok) return;
-    const { error } = await softDelete("attendance_sessions", id);
-    if (error) {
-      toast.error(friendlyError(error));
-      return;
+    if (sessionBusyId) return;
+    setSessionBusyId(id);
+    try {
+      const { error } = await softDelete("attendance_sessions", id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(t("attendance.sessionDeleted"));
+      await loadCourse();
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setSessionBusyId(null);
     }
-    toast.success(t("attendance.sessionDeleted"));
-    loadCourse();
   };
 
   // Agrupa las sesiones por corte usando el FK explícito
@@ -1266,7 +1505,7 @@ function TeacherAttendance() {
               templateCsv={SESSIONS_TEMPLATE}
               onImport={importSessions}
               onExport={buildSessionsCsv}
-              disabled={!courseId}
+              disabled={!courseId || importing}
             />
             <ImportExportMenu
               label={t("teacherAttendance.attendanceLabel")}
@@ -1274,12 +1513,22 @@ function TeacherAttendance() {
               templateCsv={ATTENDANCE_TEMPLATE}
               onImport={importAttendance}
               onExport={buildAttendanceCsv}
-              disabled={!courseId}
+              disabled={!courseId || importing}
             />
+            {/* Indicador de import en curso: los menús quedan bloqueados y
+                el docente ve que el CSV se está procesando (el detalle del
+                avance va en el toast de progreso). */}
+            {importing && (
+              <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Spinner size="sm" />
+                {t("teacherAttendance.importingLabel", { defaultValue: "Importando…" })}
+              </span>
+            )}
             <Button
               size="sm"
               onClick={() => setNewSessionOpen(true)}
               data-tour-id="create-session"
+              disabled={importing}
             >
               <Plus className="h-4 w-4 mr-1" />
               {t("teacherAttendance.newSession")}
@@ -1339,7 +1588,27 @@ function TeacherAttendance() {
         />
       )}
 
-      {/* Attendance grid */}
+      {/* Attendance grid.
+          Mientras carga el tablero del curso mostramos un skeleton (antes la
+          grilla se pintaba vacía y decía "Sin estudiantes matriculados"), y si
+          la query crítica falla, un ErrorState con reintento. */}
+      {loadingCourse ? (
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableBody>
+                <TableSkeleton cols={6} rows={6} />
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      ) : courseError ? (
+        <ErrorState
+          message={t("teacherAttendance.loadCoursesError")}
+          hint={courseError}
+          onRetry={() => setCourseRetryNonce((n) => n + 1)}
+        />
+      ) : (
       <Card>
         <CardContent className="p-0 overflow-x-auto">
           <Table>
@@ -1400,8 +1669,11 @@ function TeacherAttendance() {
                             variant={sess.check_in_open ? "default" : "outline"}
                             size="icon"
                             className="h-8 w-8 shrink-0"
+                            disabled={checkInBusyId === sess.id}
                             onClick={() =>
-                              sess.check_in_open ? reopenProjector(sess) : openCheckInConfig(sess)
+                              sess.check_in_open
+                                ? void reopenProjector(sess)
+                                : openCheckInConfig(sess)
                             }
                             title={
                               sess.check_in_open
@@ -1409,7 +1681,11 @@ function TeacherAttendance() {
                                 : t("teacherAttendance.startCheckInQr")
                             }
                           >
-                            <QrCode className="h-4 w-4" aria-hidden />
+                            {checkInBusyId === sess.id ? (
+                              <Spinner size="sm" />
+                            ) : (
+                              <QrCode className="h-4 w-4" aria-hidden />
+                            )}
                           </Button>
                           {/* Configurar sesión: corte + contenido — popover
                               porque son Selects que necesitan espacio. */}
@@ -1507,16 +1783,27 @@ function TeacherAttendance() {
                                 size="icon"
                                 className="h-8 w-8 shrink-0"
                                 title={t("teacherAttendance.moreActionsTitle")}
+                                disabled={sessionBusyId === sess.id}
                               >
-                                <MoreVertical className="h-4 w-4" aria-hidden />
+                                {sessionBusyId === sess.id ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <MoreVertical className="h-4 w-4" aria-hidden />
+                                )}
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
-                              <DropdownMenuItem onSelect={() => markAllPresent(sess.id)}>
+                              <DropdownMenuItem
+                                disabled={sessionBusyId !== null}
+                                onSelect={() => void markAllPresent(sess.id)}
+                              >
                                 <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
                                 {t("teacherAttendance.markAllPresent")}
                               </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => clearSessionAttendance(sess.id)}>
+                              <DropdownMenuItem
+                                disabled={sessionBusyId !== null}
+                                onSelect={() => void clearSessionAttendance(sess.id)}
+                              >
                                 <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
                                 {t("teacherAttendance.resetAttendance")}
                               </DropdownMenuItem>
@@ -1553,13 +1840,17 @@ function TeacherAttendance() {
                               {/* Duplicar la sesión: crea una copia (misma fecha,
                                   el docente la reubica) con opción de copiar el
                                   contenido asignado, la pizarra y los snippets. */}
-                              <DropdownMenuItem onSelect={() => setDuplicateSessionFor(sess)}>
+                              <DropdownMenuItem
+                                disabled={sessionBusyId !== null}
+                                onSelect={() => setDuplicateSessionFor(sess)}
+                              >
                                 <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
                                 {t("teacherAttendance.duplicateSession")}
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem
-                                onSelect={() => deleteSession(sess.id)}
+                                disabled={sessionBusyId !== null}
+                                onSelect={() => void deleteSession(sess.id)}
                                 className="text-destructive focus:text-destructive"
                               >
                                 <Trash2 className="h-4 w-4 mr-2" />
@@ -1704,6 +1995,7 @@ function TeacherAttendance() {
           </Table>
         </CardContent>
       </Card>
+      )}
 
       {/* New session dialog */}
       <Dialog open={newSessionOpen} onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}>
@@ -1849,10 +2141,21 @@ function TeacherAttendance() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setNewSessionOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => setNewSessionOpen(false)}
+              disabled={creatingSession}
+            >
               {t("common.cancel")}
             </Button>
-            <Button onClick={createSession}>{t("teacherAttendance.create")}</Button>
+            <Button onClick={() => void createSession()} disabled={creatingSession}>
+              {creatingSession ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
+              {t("teacherAttendance.create")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1923,10 +2226,17 @@ function TeacherAttendance() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setRecordingEditSession(null)}>
+            <Button
+              variant="outline"
+              onClick={() => setRecordingEditSession(null)}
+              disabled={savingRecording}
+            >
               {t("common.cancel")}
             </Button>
-            <Button onClick={saveRecordingEdit}>{t("common.save")}</Button>
+            <Button onClick={() => void saveRecordingEdit()} disabled={savingRecording}>
+              {savingRecording && <Spinner size="sm" className="mr-1" />}
+              {t("common.save")}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -1987,9 +2297,9 @@ function TeacherAttendance() {
             >
               {t("common.cancel")}
             </Button>
-            <Button onClick={startCheckIn} disabled={startingCheckIn}>
+            <Button onClick={() => void startCheckIn()} disabled={startingCheckIn}>
               {startingCheckIn ? (
-                <Spinner size="md" className="mr-1" />
+                <Spinner size="sm" className="mr-1" />
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}

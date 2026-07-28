@@ -109,7 +109,12 @@
     "reactivate": "Reactivar",
     "deactivate": "Desactivar",
     "searchPlaceholder": "Buscar…",
-    "clear": "Limpiar"
+    "clear": "Limpiar",
+    "processing": "Procesando…",
+    "saving": "Guardando…",
+    "unknownError": "Error desconocido",
+    "copy": "Copiar",
+    "copyFailed": "No se pudo copiar al portapapeles"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -2243,7 +2248,10 @@
       "toastScaleInvalid": "La nota mínima de la escala debe ser menor que la máxima.",
       "evalSumLabel": "Suma actual:",
       "labelActive": "Activa (aparece en el selector de curso)",
-      "placeholderNoProgram": "Sin programa (transversal)"
+      "placeholderNoProgram": "Sin programa (transversal)",
+      "partialLoadPrograms": "carreras",
+      "partialLoadCourseCounts": "conteo de cursos",
+      "partialLoadWarning": "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar."
     },
     "periods": {
       "title": "Periodos académicos",
@@ -2294,7 +2302,9 @@
       "labelEnd": "Fin",
       "labelStatus": "Estado",
       "searchPlaceholder": "Buscar por código o nombre…",
-      "entityPlural": "periodos"
+      "entityPlural": "periodos",
+      "toastClosed": "Periodo {{code}} cerrado",
+      "toastReopened": "Periodo {{code}} reabierto"
     }
   },
   "feedbackThread": {
@@ -2532,7 +2542,8 @@
     "bulkEntityPlural": "estudiantes",
     "bulkPasswordAction": "Cambiar contraseña",
     "actionResetPassword": "Resetear contraseña",
-    "resetPasswordHint": "Asignar una nueva contraseña a {{name}}"
+    "resetPasswordHint": "Asignar una nueva contraseña a {{name}}",
+    "impersonateStarting": "Iniciando sesión como {{name}}…"
   },
   "toast": {
     "modules_admin_AdminAcademicPeriodsPanel": {
@@ -2908,7 +2919,13 @@
       "indicateTopics": "Indica los temas",
       "configureAtLeastOneType": "Configura al menos un tipo con cantidad > 0",
       "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
-      "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas"
+      "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas",
+      "loadQuestionsFailed": "No se pudieron cargar las preguntas del proyecto.",
+      "loadProjectFailed": "No se pudo cargar el proyecto.",
+      "enqueueGradingFailed": "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+      "submissionStateSaveFailed": "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
+      "submitFailed": "No se pudo completar la entrega. Revisa tu conexión e inténtalo de nuevo.",
+      "videoProgressNotSaved": "No pudimos guardar tu progreso del video. Si recargas, quizá debas verlo de nuevo."
     },
     "modules_workshops_WorkshopQuestions": {
       "questionUpdated": "Pregunta actualizada",
@@ -2937,7 +2954,15 @@
       "minMaxInverted": "Mínimo de marcadas no puede ser mayor al máximo",
       "invalidNetworkScenario": "El escenario de red no es válido. Revisa el JSON: devices, links, targetDeviceId y assertions.",
       "networkQuestionsGenerated": "{{count}} pregunta(s) de Red (consola) generadas",
-      "networkGraded": "Calificación de red"
+      "networkGraded": "Calificación de red",
+      "loadQuestionsFailed": "No se pudieron cargar las preguntas del taller.",
+      "loadWorkshopFailed": "No se pudo cargar el taller.",
+      "answersSaveFailed": "No se pudieron guardar {{count}} respuesta(s). Primero: {{detail}}. Revisa tu conexión y vuelve a entregar.",
+      "enqueueGradingFailed": "Tu entrega se guardó, pero no se pudo encolar la calificación automática: {{detail}}. Avisa a tu docente.",
+      "submissionStateSaveFailed": "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
+      "gradeSaveFailed": "No se pudo registrar la calificación de tu entrega: {{detail}}. Vuelve a entregar.",
+      "submitFailed": "No se pudo completar la entrega. Revisa tu conexión e inténtalo de nuevo.",
+      "videoProgressNotSaved": "No pudimos guardar tu progreso del video. Si recargas, quizá debas verlo de nuevo."
     },
     "routes_app_admin_courses": {
       "nameRequired": "Nombre requerido",
@@ -2964,7 +2989,10 @@
       "copyBoardFailed": "No se pudo copiar el tablero: {{error}}",
       "statusChanged": "Estado del curso actualizado",
       "bulkDeletePartialError": "{{ok}} ok, {{failed}} con error. Primero: \"{{name}}\" — {{error}}",
-      "subjectRequired": "Debes elegir una asignatura del plan."
+      "subjectRequired": "Debes elegir una asignatura del plan.",
+      "loadCutsFailed": "No se pudieron cargar los cortes del curso: {{error}}",
+      "studentsUnenrollPartialError": "{{failed}} no se pudieron desmatricular. Primero: {{error}}",
+      "teachersUnassignPartialError": "{{failed}} no se pudieron desasignar. Primero: {{error}}"
     },
     "routes_app_admin_support": {
       "noTenantAssigned": "Tu cuenta no tiene institución asignada. Contacta al SuperAdmin.",
@@ -2998,7 +3026,9 @@
       "importPartial": "Importados: {{ok}} · Duplicados: {{duplicates}} · Errores: {{errors}}",
       "emailChangeFailed": "No se pudo cambiar el correo de acceso",
       "existingUserEnrolled": "El usuario ya existía; se matriculó al curso seleccionado.",
-      "importProgress": "Importando {{done}}/{{total}}…"
+      "importProgress": "Importando {{done}}/{{total}}…",
+      "bulkDeleteProgress": "Eliminando {{done}}/{{total}}…",
+      "bulkDeletePartialDetailed": "{{ok}} usuario(s) eliminados, {{failed}} fallaron."
     },
     "routes_app_certificates": {
       "verifyLinkCopied": "Link de verificación copiado",
@@ -3007,7 +3037,8 @@
       "revokeDescription": "El certificado quedará marcado como NO VÁLIDO en la verificación pública. El estudiante recibirá una notificación. Esta acción no se puede deshacer desde la UI.",
       "revokeConfirm": "Revocar",
       "revokedOk": "Certificado revocado",
-      "revokeAction": "Revocar"
+      "revokeAction": "Revocar",
+      "verifyLinkCopyFailed": "No pudimos copiar el link. Copialo manualmente desde la vista pública."
     },
     "messages": {
       "pageTitle": "Mensajes",
@@ -3160,7 +3191,8 @@
     },
     "routes_app_student_certificates": {
       "downloadLocked": "Aún no puedes descargar este certificado. Estará disponible desde el {{date}}.",
-      "verifyLinkCopied": "Link de verificación copiado"
+      "verifyLinkCopied": "Link de verificación copiado",
+      "verifyLinkCopyFailed": "No pudimos copiar el link. Abrí la verificación y copialo de la barra."
     },
     "routes_app_student_polls": {
       "cannotChangeVote": "Esta encuesta no permite cambiar el voto una vez emitido",
@@ -3195,7 +3227,9 @@
       "screenshotsNotAllowed": "No está permitido tomar pantallazos durante el examen.",
       "executionCancelled": "Ejecución cancelada. Puedes cambiar de compilador y reintentar.",
       "writeCodeBeforeRunning": "Escribe código antes de ejecutar",
-      "warningExamExit": "Advertencia {{count}}/{{max}}: Salida de examen"
+      "warningExamExit": "Advertencia {{count}}/{{max}}: Salida de examen",
+      "examLoadFailed": "No se pudo cargar el examen.",
+      "couldNotReenterFullscreen": "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversación limpiada"
@@ -3238,7 +3272,12 @@
       "allMarkedPresent": "Todos los estudiantes marcados como presentes",
       "sessionAttendanceReset": "Asistencia de la sesión reiniciada",
       "previousCheckInExpired": "El check-in anterior expiró. Inicia uno nuevo.",
-      "studentsMarkedAbsent": "{{count}} estudiante(s) marcado(s) como ausentes"
+      "studentsMarkedAbsent": "{{count}} estudiante(s) marcado(s) como ausentes",
+      "markAllProgress": "Marcando presentes {{done}}/{{total}}…",
+      "allMarkedPresentPartial": "{{done}} marcados, {{failed}} con error. Primero: {{detail}}",
+      "importAttendanceProgress": "Importando asistencia {{done}}/{{total}}…",
+      "importAttendanceWithErrors": "{{base}} Primer error: {{detail}}",
+      "markingPendingAbsent": "Marcando pendientes como ausentes…"
     },
     "routes_app_teacher_calendar": {
       "calendarNotAccessible": "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar."
@@ -3311,7 +3350,11 @@
       "noCertsToDownload": "No quedaron certificados para descargar.",
       "zipDownloadedIssuedSuffix": " ({{count}} emitido(s))",
       "zipDownloadedFailedSuffix": " · {{count}} falló al emitir",
-      "zipDownloaded": "ZIP con {{count}} certificado(s) descargado{{issuedMsg}}{{failedMsg}}"
+      "zipDownloaded": "ZIP con {{count}} certificado(s) descargado{{issuedMsg}}{{failedMsg}}",
+      "gradesSaveFailed": "No pudimos guardar las calificaciones",
+      "gradesSaveErrorsWithCause": "{{count}} error(es). Primero: {{error}}",
+      "bulkFirstErrorSuffix": ". Primero: {{error}}",
+      "bulkIssueFirstError": "{{count}} certificado(s) no se pudieron emitir. Primero: {{error}}"
     },
     "routes_app_teacher_monitor_examId": {
       "timerControlApplied": "{{label}} {{scope}}",
@@ -3388,7 +3431,8 @@
       "batchRegradeCompleted": "Recalificación batch completada ({{done}}/{{total}}).",
       "submissionsDeleted": "{{n}} entregas eliminadas",
       "notAuthenticated": "No autenticado",
-      "defenseVideoUploaded": "Video subido. Guarda la sustentación para registrarlo."
+      "defenseVideoUploaded": "Video subido. Guarda la sustentación para registrarlo.",
+      "batchRegradePartialError": "La recalificación se detuvo en {{done}} de {{total}}: {{error}}"
     },
     "routes_app_teacher_question_bank": {
       "writeStatement": "Escribe el enunciado",
@@ -3424,7 +3468,12 @@
       "aiGenerateError": "No se pudo preparar la generación con IA.",
       "aiGenerated": "Informe generado con IA e insertado en el editor. Revísalo y ajusta los {{...}} antes de guardar.",
       "aiFallbackCopied": "No se pudo generar con la IA de la plataforma. Copiamos el prompt (con los datos del curso) al portapapeles — pégalo en tu IA y trae el resultado al editor.",
-      "aiFallbackReady": "No se pudo generar con la IA de la plataforma. El prompt quedó en la consola del navegador."
+      "aiFallbackReady": "No se pudo generar con la IA de la plataforma. El prompt quedó en la consola del navegador.",
+      "saveTemplateError": "No se pudo guardar la plantilla",
+      "persistFailed": "El archivo se descargó, pero no pudimos guardarlo en “Informes generados”.",
+      "downloadWordError": "No se pudo generar el archivo Word.",
+      "downloadPdfError": "No se pudo preparar el PDF para imprimir.",
+      "genReportDeleted": "Informe eliminado del historial"
     },
     "routes_app_teacher_whiteboards_id": {
       "whiteboardNeedsName": "La pizarra necesita un nombre",
@@ -3479,7 +3528,12 @@
       "genericError": "Error: {{error}}",
       "updateFailedCheckPermissions": "No se pudo actualizar. Verifica los permisos.",
       "downloadLinkFailed": "No se pudo generar el enlace de descarga",
-      "globalGradeRecomputed": "Calificación global recalculada: {{grade}}/{{max}}. Pulsa \"Guardar calificación\" para persistir."
+      "globalGradeRecomputed": "Calificación global recalculada: {{grade}}/{{max}}. Pulsa \"Guardar calificación\" para persistir.",
+      "videoLibraryLoadFailed": "No se pudo cargar la biblioteca de videos: {{error}}",
+      "unassignPartialError": "{{removed}} removidas, {{failed}} con error. Primero: {{error}}",
+      "gradingLoadFailed": "No se pudieron cargar las entregas: {{error}}",
+      "gradeAllPartialError": "Se calificaron {{graded}} de {{total}} entregas y el proceso se detuvo: {{error}}",
+      "importFirstError": "{{created}} creados, {{skipped}} con error. Primero: \"{{title}}\" — {{error}}"
     },
     "routes_app_trash": {
       "itemRestored": "{{type}}: {{name}} restaurado",
@@ -4108,7 +4162,19 @@
     "inactiveBadge": "Inactivo",
     "reactivateTitle": "Reactivar a {{name}}",
     "deactivateTitle": "Desactivar a {{name}}",
-    "setActiveError": "No se pudo cambiar el estado del usuario"
+    "setActiveError": "No se pudo cambiar el estado del usuario",
+    "importReportOk": "Importados",
+    "importReportDuplicates": "Ya existían",
+    "importReportErrors": "Con error",
+    "importReportCopied": "Detalle copiado al portapapeles",
+    "partialLoadWarning": "Los usuarios cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+    "saveUserError": "No se pudo guardar el usuario",
+    "bulkImportCoursesLoadError": "No se pudieron cargar los cursos para el import",
+    "importSeeReport": "Abrí el detalle para ver el motivo de cada fila.",
+    "importingProgressSubtitle": "Procesando {{done}} de {{total}}. Puede tomar varios minutos: no cierres esta pestaña.",
+    "importReportTitle": "Detalle del import",
+    "importReportErrorsTitle": "Filas que no se pudieron crear",
+    "importReportDuplicatesTitle": "Correos que ya existían (no se duplicaron)"
   },
   "projectFiles": {
     "tabList": "Preguntas ({{count}})",
@@ -4354,7 +4420,10 @@
     "deleteFailed": "No se pudo eliminar el ticket",
     "removeAttachmentAria": "Quitar adjunto {{name}}",
     "searchPlaceholder": "Buscar por asunto o categoría…",
-    "entityPlural": "tickets"
+    "entityPlural": "tickets",
+    "statusCreating": "Creando el ticket…",
+    "statusUploadingAttachment": "Subiendo adjunto {{current}} de {{total}}: {{name}}",
+    "attachmentFirstError": "Primer error: {{reason}}"
   },
   "javaGuiRunner": {
     "badgePngCapture": "Java GUI — captura PNG",
@@ -4684,7 +4753,12 @@
     "sub_past_due": "En gracia",
     "sub_courtesy": "Cortesía",
     "daysLeft": "Vence en {{n}} d",
-    "colStorage": "Almacenam."
+    "colStorage": "Almacenam.",
+    "pausingNotice": "Pausando {{name}}…",
+    "reactivatingNotice": "Reactivando {{name}}…",
+    "deletingNotice": "Enviando {{name}} a la papelera (incluye sus cursos y contenidos)…",
+    "impersonateLookupNotice": "Buscando el Admin de {{name}}…",
+    "impersonateNotice": "Iniciando sesión como Admin de {{name}}…"
   },
   "adminPromptsPanel": {
     "loadingPrompts": "Cargando prompts…",
@@ -4794,7 +4868,9 @@
     "deleteConfirmLabel": "Eliminar",
     "ticketDeleted": "Ticket eliminado",
     "loadError": "No pudimos cargar la bandeja",
-    "entityPlural": "tickets"
+    "entityPlural": "tickets",
+    "tenantsLoadFailed": "No se pudo cargar el filtro de instituciones",
+    "deleteFailed": "No se pudo eliminar el ticket"
   },
   "verifyCertificate": {
     "pageTitle": "Verificación de certificado · {{code}}",
@@ -5526,7 +5602,9 @@
     "noResults": "Sin resultados.",
     "csvName": "nombre",
     "csvEmail": "email",
-    "csvAttendancePct": "% Asistencia"
+    "csvAttendancePct": "% Asistencia",
+    "importInProgress": "Ya hay una importación en curso. Espera a que termine.",
+    "importingLabel": "Importando…"
   },
   "privacy": {
     "lastUpdated": "Última actualización: {{date}}",
@@ -6889,7 +6967,9 @@
     "warningSingleAttempt": "Aviso: este taller admite UNA sola entrega — revisa todo antes de enviar.",
     "warningOneAttemptLeft": "Aviso: te queda 1 intento — revisa todo antes de enviar.",
     "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado.",
-    "serverScenarioMissing": "Esta pregunta de consola no tiene un escenario válido configurado."
+    "serverScenarioMissing": "Esta pregunta de consola no tiene un escenario válido configurado.",
+    "submittingOverlayTitle": "Entregando tu taller…",
+    "submittingOverlaySubtitle": "Estamos guardando tus respuestas y calificando. No cierres esta ventana."
   },
   "hc_router": {
     "updating": "Actualizando…",
@@ -7021,7 +7101,11 @@
     "actionDownloadPdf": "Descargar PDF",
     "actionCopyVerifyLink": "Copiar link de verificación",
     "actionOpenPublicVerify": "Abrir verificación pública",
-    "entityPlural": "certificados"
+    "entityPlural": "certificados",
+    "tenantsLoadError": "No pudimos cargar la lista de instituciones.",
+    "pdfBusyTitle": "Generando el PDF del certificado…",
+    "pdfBusySubtitle": "Puede tomar unos segundos. La descarga inicia sola.",
+    "revokingTitle": "Revocando el certificado…"
   },
   "hc_routesAppForumCourseId": {
     "loadForumsError": "No pudimos cargar los foros.",
@@ -7139,7 +7223,8 @@
     "openVerification": "Abrir verificación",
     "availableFromTooltip": "Disponible desde el {{date}}",
     "downloadPdf": "Descargar PDF",
-    "entityNamePlural": "certificados"
+    "entityNamePlural": "certificados",
+    "generatingPdf": "Generando PDF…"
   },
   "hc_routesAppStudentCourses": {
     "loadCoursesError": "No pudimos cargar tus cursos.",
@@ -7310,7 +7395,10 @@
     "noOutput": "(sin salida)",
     "errRunning": "Error ejecutando",
     "errorPrefix": "Error: {{msg}}",
-    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado.",
+    "validatingOverlayTitle": "Revisando tus archivos…",
+    "submittingOverlayTitle": "Entregando tu proyecto…",
+    "submittingOverlaySubtitle": "Estamos subiendo tus archivos y calificando. No cierres esta ventana."
   },
   "hc_routesAppAdminCourses": {
     "loadErrorMessage": "No pudimos cargar la lista de cursos.",
@@ -7696,7 +7784,14 @@
     "andNMore": "y {{n}} más…",
     "keepEditing": "Seguir editando",
     "submitAnyway": "Entregar de todas formas",
-    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado."
+    "networkScenarioMissing": "Esta pregunta de red no tiene un escenario válido configurado.",
+    "examLoadErrorTitle": "No pudimos cargar tu examen",
+    "startingExam": "Iniciando…",
+    "submittingOverlayTitle": "Entregando tu examen…",
+    "submittingOverlaySubtitle": "No cierres esta ventana ni cambies de pestaña.",
+    "saveFailedHint": "El último guardado automático falló. Tus respuestas siguen en este dispositivo; revisa tu conexión.",
+    "saveFailedBadge": "Sin guardar",
+    "submittingLabel": "Entregando…"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "No pudimos cargar el tutor de este curso.",
@@ -8025,7 +8120,9 @@
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada). El alumno resuelve desde una consola tipo IOS.",
     "networkResetTemplate": "Restablecer plantilla",
-    "typeNetworkGui": "Red (diagrama)"
+    "typeNetworkGui": "Red (diagrama)",
+    "reassignFailed": "No se pudieron reasignar los estudiantes: {{error}}",
+    "unassignPartialError": "{{removed}} removidas, {{failed}} con error. Primero: {{error}}"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",
@@ -8090,7 +8187,9 @@
     "examBucketBreakdown": "{{bucket}}%. Otros exámenes suman {{others}}%, te queda",
     "examBucketSuffix": "disponible.",
     "currentWeightExceeds": "El peso actual ({{current}}%) excede el bucket.",
-    "bulkDeleteWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados."
+    "bulkDeleteWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados.",
+    "autoAssignFailed": "No se pudieron asignar los estudiantes: {{error}}",
+    "importFirstError": "{{created}} creados, {{skipped}} con error. Primero: \"{{title}}\" — {{error}}"
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "No pudimos cargar tus cursos.",
@@ -8202,7 +8301,12 @@
     "examBadge": "Examen (/{{max}})",
     "workshopBadge": "Taller (/{{max}})",
     "projectBadge": "Proyecto (/{{max}})",
-    "suspiciousAttemptHint": "Intento marcado como sospechoso (alertas de integridad)"
+    "suspiciousAttemptHint": "Intento marcado como sospechoso (alertas de integridad)",
+    "loadingGrades": "Cargando calificaciones del curso…",
+    "noStudentsEnrolledTitle": "Este curso no tiene estudiantes matriculados",
+    "noStudentsEnrolledHint": "Matricula estudiantes al curso para poder registrar y consolidar sus notas.",
+    "nothingToGradeTitle": "Este curso todavía no tiene nada que calificar",
+    "nothingToGradeHint": "Crea cortes evaluativos y publica exámenes, talleres o proyectos para ver la grilla de notas."
   },
   "hc_routesAppTeacherGradingCourseId": {
     "loadConfigError": "No pudimos cargar la configuración de calificación.",
@@ -8536,7 +8640,10 @@
     "removeWord": "Quitar",
     "defenseVideoTip": "Para videos largos conviene un enlace (Drive/YouTube); la subida directa tiene tope de tamaño.",
     "saveDefense": "Guardar sustentación",
-    "importDefensesCsv": "Importar sustentaciones"
+    "importDefensesCsv": "Importar sustentaciones",
+    "aiBusyBulk": "Recalificando con IA… {{done}} de {{total}}",
+    "aiBusyOne": "Recalificando la respuesta con IA…",
+    "aiBusyHint": "Puede tardar entre 30 y 90 segundos por archivo. No cierres esta ventana."
   },
   "hc_routesAppTeacherReports": {
     "badgeGlobal": "Global",
@@ -8628,7 +8735,13 @@
     "genDeleteTitle": "Eliminar informe generado",
     "genDeleteDesc": "Se quitará del historial. Esta acción no se puede deshacer.",
     "entityPlural": "plantillas",
-    "colUpdated": "Actualizada"
+    "colUpdated": "Actualizada",
+    "genLoadError": "No pudimos cargar el historial de informes generados.",
+    "studentsLoadError": "No pudimos cargar los estudiantes del curso.",
+    "preparingFile": "Preparando archivo…",
+    "preparingFileHint": "Puede tomar unos segundos con informes extensos.",
+    "importingWord": "Importando…",
+    "genLoadErrorTitle": "No pudimos cargar el historial"
   },
   "hc_routesAppTeacherWhiteboardsId": {
     "couldNotLoad": "No pudimos cargar la pizarra.",
@@ -8827,7 +8940,11 @@
     "unknownError": "Error desconocido",
     "suggestionSourceAi": "IA {{pct}}%",
     "suggestionSourceCopy": "Copia {{pct}}%",
-    "suggestionSourceBoth": "IA {{aiPct}}% + Copia {{cpPct}}%"
+    "suggestionSourceBoth": "IA {{aiPct}}% + Copia {{cpPct}}%",
+    "aiBusyDetecting": "Detectando copias con IA…",
+    "aiBusyGradingAll": "Calificando todas las entregas con IA…",
+    "aiBusyGradingOne": "Calificando la entrega con IA…",
+    "aiBusyHint": "Puede tardar entre 30 y 90 segundos por entrega. No cierres esta ventana."
   },
   "hc_routesIndex": {
     "metaTitle": "ExamLab — Plataforma de Gestión Educativa",
@@ -9336,12 +9453,15 @@
     "ephemeralBadge": "Efímero",
     "restart": "Reiniciar",
     "restartTitle": "Reiniciar con una sesión limpia",
+    "interrupt": "Interrumpir",
+    "interruptTitle": "Interrumpir el comando en ejecución (envía Ctrl+C)",
     "helpTitle": "¿Qué comandos funcionan aquí?",
     "helpRoot": "Ya eres root: no uses sudo.",
     "helpOffline": "Sandbox aislado sin internet: apt, apk y pip install no funcionan (no hay de dónde bajar paquetes).",
+    "helpNoNetwork": "Sin red: los comandos que esperan internet (udhcpc, ping, wget) se quedan esperando — córtalos con Ctrl+C o el botón Interrumpir.",
     "helpCommands": "Es un Linux mínimo (BusyBox). Funcionan: ls, cd, pwd, cat, echo, mkdir, rm, cp, mv, touch, vi, grep, sed, awk, find, chmod, ps, wc, head, tail, tar, mount, y scripts de shell (pipes | y redirecciones > incluidos).",
     "helpLanguages": "¿Necesitas Python, Java o JavaScript? Usa una hoja de Código: ejecuta el lenguaje de verdad.",
-    "hintV86": "Máquina Linux real ejecutándose en tu navegador. Escribe comandos como en una terminal normal. Es un entorno de práctica EFÍMERO y aislado: corre solo en tu navegador, cada sesión arranca limpia y nada se guarda — no afecta ningún servidor real.",
+    "hintV86": "Linux real en tu navegador: un entorno de práctica efímero y aislado donde cada sesión arranca limpia y nada afecta a un servidor real.",
     "loading": "Cargando el emulador…",
     "booting": "Iniciando Linux…",
     "error": "No se pudo iniciar la consola.",
@@ -9422,7 +9542,8 @@
     "pastDue": "Tu suscripción venció el {{date}}. Regularízala para no perder el acceso.",
     "pastDueNoDate": "Tu suscripción venció. Regularízala para no perder el acceso.",
     "soon_one": "Tu suscripción vence en {{count}} día. Contacta a tu proveedor.",
-    "soon_other": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
+    "soon_other": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor.",
+    "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
     "codeLabel": "Código de la clase",
