@@ -9206,7 +9206,9 @@
     "shapesPanelTitle": "Shapes by diagram type",
     "shapesPanelHint": "Tap one to insert it in the center.",
     "exitFullscreen": "Exit fullscreen",
-    "enterFullscreen": "Fullscreen"
+    "enterFullscreen": "Fullscreen",
+    "crashTitle": "We could not open the whiteboard",
+    "crashHint": "The saved content could not be loaded in the editor. You can retry; if it keeps failing, let your administrator know."
   },
   "hc_modulesSchedulesWeeklyScheduleView": {
     "title": "My week",

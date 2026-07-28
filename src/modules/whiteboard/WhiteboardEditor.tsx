@@ -49,8 +49,13 @@ import {
   Binary,
   Cloud,
   Network,
+  AlertTriangle,
+  RefreshCw,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { Button } from "@/components/ui/button";
+import { ErrorBoundary } from "@/shared/components/ErrorBoundary";
+import i18n from "@/i18n";
 import { ErrorState } from "@/components/ui/empty-state";
 import { useTheme } from "@/hooks/use-theme";
 import { cn } from "@/shared/lib/utils";
@@ -288,7 +293,9 @@ interface ScenePayload {
   scene: WhiteboardScene;
 }
 
-export function WhiteboardEditor({
+/** Implementación real. El export público (abajo) la envuelve en un
+ *  ErrorBoundary — ver el comentario de `WhiteboardEditor`. */
+function WhiteboardEditorInner({
   scene,
   onPersist,
   readOnly,
@@ -924,5 +931,64 @@ export function WhiteboardEditor({
         </button>
       )}
     </div>
+  );
+}
+
+/**
+ * WhiteboardEditor — export público: la implementación envuelta en un
+ * ErrorBoundary.
+ *
+ * WHY: en producción se registraron `app.runtime_error` con mensaje vacío
+ * ("Uncaught Error") lanzados desde el chunk de Excalidraw al montar el editor
+ * en /app/teacher/whiteboards/<id> (2026-07-07 y 2026-07-10). Una escena con
+ * `appState`/elementos incompatibles (guardada por otra versión de Excalidraw, o
+ * corrupta) hace throw DENTRO de la librería, y sin boundary ese throw sube hasta
+ * el router: el docente pierde la pantalla completa y su única salida es recargar
+ * — sin forma de recuperar ni de saber qué pasó.
+ *
+ * El boundary se pone acá y no en cada ruta a propósito: así quedan cubiertos de
+ * una sola vez TODOS los puntos de montaje (detalle del docente, detalle del
+ * alumno, MultiPageWhiteboard por hoja y el diálogo de pizarra de sesión) sin
+ * tocar ninguno, y cualquier consumidor nuevo lo hereda.
+ *
+ * El fallback es RECUPERABLE: `reset()` re-monta el editor (útil si el fallo fue
+ * transitorio) sin perder la navegación ni la metadata de la pizarra.
+ */
+export function WhiteboardEditor(props: Props) {
+  return (
+    <ErrorBoundary
+      fallback={(error, reset) => (
+        <div
+          className={cn(
+            "flex flex-col items-center justify-center gap-3 rounded-md border border-destructive/30 bg-destructive/5 p-4 sm:p-8 text-center",
+            props.className,
+          )}
+        >
+          <AlertTriangle className="h-8 w-8 text-destructive" />
+          <p className="text-sm font-medium">
+            {i18n.t("hc_modulesWhiteboardWhiteboardEditor.crashTitle", {
+              defaultValue: "No pudimos abrir la pizarra",
+            })}
+          </p>
+          <p className="max-w-md text-xs text-muted-foreground">
+            {i18n.t("hc_modulesWhiteboardWhiteboardEditor.crashHint", {
+              defaultValue:
+                "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador.",
+            })}
+          </p>
+          {error?.message && (
+            <code className="max-w-md truncate text-[11px] text-muted-foreground">
+              {error.message}
+            </code>
+          )}
+          <Button size="sm" variant="outline" onClick={reset}>
+            <RefreshCw className="mr-1 h-3.5 w-3.5" />
+            {i18n.t("common.retry", { defaultValue: "Reintentar" })}
+          </Button>
+        </div>
+      )}
+    >
+      <WhiteboardEditorInner {...props} />
+    </ErrorBoundary>
   );
 }

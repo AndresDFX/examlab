@@ -9206,7 +9206,9 @@
     "shapesPanelTitle": "Figuras por tipo de diagrama",
     "shapesPanelHint": "Toca una para insertarla en el centro.",
     "exitFullscreen": "Salir de pantalla completa",
-    "enterFullscreen": "Pantalla completa"
+    "enterFullscreen": "Pantalla completa",
+    "crashTitle": "No pudimos abrir la pizarra",
+    "crashHint": "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador."
   },
   "hc_modulesSchedulesWeeklyScheduleView": {
     "title": "Mi semana",
