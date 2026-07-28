@@ -148,4 +148,43 @@ describe("usePagination", () => {
     // El pageSize persistido sobrevive (no quedó sobreescrito por el default 10).
     expect(JSON.parse(window.localStorage.getItem(key)!).pageSize).toBe(100);
   });
+
+  // El efecto de `resetKey` corre también al montar, así que pisaba la página
+  // restaurada: el "recordar que estabas en la página 3" que documenta el hook
+  // nunca se cumplía (solo se restauraba el pageSize). Con el guard de primera
+  // ejecución, la página SÍ se restaura y el reset queda para cambios reales
+  // de filtro.
+  it("restaura la página guardada al montar, incluso pasando resetKey", () => {
+    const key = "test_pag_restore_page";
+    window.localStorage.setItem(key, JSON.stringify({ page: 3, pageSize: 10 }));
+    const { result } = renderHook(() =>
+      usePagination(seq(100), { defaultPageSize: 10, storageKey: key, resetKey: "filtro-inicial" }),
+    );
+    expect(result.current.currentPage).toBe(3);
+    expect(result.current.paginatedItems[0]).toBe(21); // página 3 con size 10
+  });
+
+  it("un cambio REAL de resetKey (post-mount) sí vuelve a página 1", () => {
+    const key = "test_pag_reset_after_mount";
+    window.localStorage.setItem(key, JSON.stringify({ page: 3, pageSize: 10 }));
+    const { result, rerender } = renderHook(
+      ({ rk }: { rk: string }) =>
+        usePagination(seq(100), { defaultPageSize: 10, storageKey: key, resetKey: rk }),
+      { initialProps: { rk: "sin-filtro" } },
+    );
+    expect(result.current.currentPage).toBe(3); // restaurada
+    rerender({ rk: "curso=abc" }); // el usuario aplica un filtro
+    expect(result.current.currentPage).toBe(1);
+  });
+
+  it("clampea la página restaurada si quedó fuera de rango", () => {
+    const key = "test_pag_restore_clamp";
+    window.localStorage.setItem(key, JSON.stringify({ page: 9, pageSize: 10 }));
+    // Solo 12 items → 2 páginas. La página 9 guardada debe clampearse.
+    const { result } = renderHook(() =>
+      usePagination(seq(12), { defaultPageSize: 10, storageKey: key, resetKey: "x" }),
+    );
+    expect(result.current.currentPage).toBe(2);
+    expect(result.current.paginatedItems).toEqual([11, 12]);
+  });
 });

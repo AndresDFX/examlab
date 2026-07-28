@@ -148,7 +148,21 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
   // Reset a página 1 cuando cambia el set de filtros. Distinguimos esto
   // del clamp porque aplicar un filtro debe llevar al usuario al inicio
   // de los nuevos resultados (no a "la última página del nuevo set").
+  //
+  // Se SALTA la primera ejecución (la del mount): un useEffect con deps corre
+  // igual al montar, así que este reset pisaba la página que acabábamos de
+  // restaurar de localStorage — y lo hacía incluso sin pasar `resetKey`. Por eso
+  // el "recordar que estabas en la página 3" que promete este hook nunca se
+  // cumplió en los ~40 grids (solo se restauraba el pageSize). Con el guard, el
+  // reset queda para los cambios REALES de filtro post-mount, que es su
+  // propósito. Si la página restaurada quedó fuera de rango, el efecto de clamp
+  // de arriba la corrige.
+  const resetKeyFirstRunRef = useRef(true);
   useEffect(() => {
+    if (resetKeyFirstRunRef.current) {
+      resetKeyFirstRunRef.current = false;
+      return;
+    }
     setCurrentPageRaw(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);

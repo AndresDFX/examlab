@@ -96,10 +96,18 @@ function readBackup(): ImpersonationBackup | null {
  * (`examlab:impersonation-changed`) tras start/stop.
  */
 export function useImpersonation() {
-  const [backup, setBackup] = useState<ImpersonationBackup | null>(() => readBackup());
+  // Estado inicial DETERMINISTA (null): NO se lee localStorage en el
+  // initializer. `startImpersonate` termina en `window.location.href = "/app"`
+  // (hard reload), así que el HTML pre-renderizado sale SIN banner y, si el
+  // primer render del cliente leyera el backup, saldría CON banner → los
+  // árboles difieren y React tira `Minified React error #418` en CADA
+  // impersonación (además de auditarse como error). El backup se lee
+  // post-mount, en el mismo efecto que ya escucha los cambios.
+  const [backup, setBackup] = useState<ImpersonationBackup | null>(null);
 
   useEffect(() => {
     const refresh = () => setBackup(readBackup());
+    refresh(); // hidratación inicial post-mount (ver comentario de arriba)
     window.addEventListener("storage", refresh);
     window.addEventListener("examlab:impersonation-changed", refresh as EventListener);
     return () => {

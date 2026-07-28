@@ -30,13 +30,19 @@ export function TenantOverrideBanner() {
   const { t } = useTranslation();
   const { roles } = useAuth();
   const activeRole = useActiveRole();
-  const [overrideSlug, setOverrideSlug] = useState<string | null>(() => readTenantOverride());
+  // Estado inicial DETERMINISTA (null): leer localStorage en el initializer
+  // difiere del HTML pre-renderizado → React #418. Hoy el render temprano
+  // también depende de roles/activeRole (deterministas en el primer commit),
+  // así que no se manifiesta, pero el patrón es el prohibido y cualquier
+  // refactor que adelante ese gate reintroduce el bug. Se hidrata post-mount.
+  const [overrideSlug, setOverrideSlug] = useState<string | null>(null);
   const [tenantInfo, setTenantInfo] = useState<TenantInfo | null>(null);
 
   // Subscribe a cambios del override: setTenantOverride dispara
   // CustomEvent; storage event cubre cross-tab.
   useEffect(() => {
     const refresh = () => setOverrideSlug(readTenantOverride());
+    refresh(); // hidratación inicial post-mount (ver comentario del useState)
     window.addEventListener("examlab:tenant-override-changed", refresh);
     window.addEventListener("storage", refresh);
     return () => {
