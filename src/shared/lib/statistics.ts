@@ -86,6 +86,60 @@ export type CourseDataset = {
   cuts: Cut[];
 };
 
+/** Fila de una actividad compartida, ya resuelta para UN curso. */
+export type SharedActivityRow = {
+  id: string;
+  course_id: string;
+  cut_id: string | null;
+  /** Peso en ESTE curso (de la tabla M:N). null = usar el legacy del item. */
+  weight: number | null;
+  max_score: number;
+  is_external: boolean;
+  status: string | null;
+};
+
+/**
+ * Achata las filas de `workshop_courses` / `project_courses` a la forma que
+ * consume el resto del módulo.
+ *
+ * Tres reglas, y cada una tiene su razón:
+ *  - **Borradores fuera**: un taller en borrador todavía no es parte del
+ *    progreso del curso (mismo criterio que ya aplicaban las queries viejas).
+ *  - **Papelera fuera**: se filtra en JS y no en la query porque PostgREST no
+ *    filtra cómodo dentro de un embed anidado; el patrón obligatorio del
+ *    proyecto es pedir `deleted_at` en el embed y saltar acá.
+ *  - **El `cut_id` del JOIN gana** sobre el del taller/proyecto: es el corte de
+ *    ESTE curso, que es la razón de existir de la tabla M:N.
+ *
+ * Una fila con el embed vacío se descarta: pasa cuando la RLS no devolvió el
+ * item (no publicado, otro tenant), y contarlo como actividad inflaría el
+ * denominador con algo que el usuario no puede ver.
+ */
+export function flattenSharedActivities(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  rows: any[] | null | undefined,
+  key: "workshop" | "project",
+  courseId: string,
+): SharedActivityRow[] {
+  const out: SharedActivityRow[] = [];
+  for (const r of rows ?? []) {
+    const item = r?.[key];
+    if (!item || !item.id) continue;
+    if (item.deleted_at) continue;
+    if (item.status === "draft") continue;
+    out.push({
+      id: item.id,
+      course_id: courseId,
+      cut_id: r.cut_id ?? item.cut_id ?? null,
+      weight: r.weight ?? null,
+      max_score: item.max_score,
+      is_external: item.is_external,
+      status: item.status ?? null,
+    });
+  }
+  return out;
+}
+
 // ─── Loaders ──────────────────────────────────────────────────────────
 
 /**
@@ -120,19 +174,34 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       .eq("course_id", courseId)
       .neq("status", "draft")
       .is("deleted_at", null),
-    supabase
-      .from("workshops")
-      .select("id, course_id, cut_id, max_score, is_external, status")
-      .eq("course_id", courseId)
-      .neq("status", "draft")
-      .is("deleted_at", null),
+    // Talleres y proyectos se leen por su tabla M:N, NO por `course_id`.
+    //
+    // `workshops.course_id` / `projects.course_id` son el curso ANCLA (legacy
+    // single-course); la pertenencia REAL vive en `workshop_courses` /
+    // `project_courses`, junto al peso y el corte que pueden variar POR CURSO.
+    // Leyendo por la columna ancla, un taller compartido entre 3 cursos solo
+    // aparecía en UNO — los otros dos veían el % de aprobación, la
+    // distribución de notas y la alerta temprana calculados sin esa actividad,
+    // en silencio. Es la misma fuente que ya usa `report-context.ts` para el
+    // acta, así que además elimina la divergencia entre las dos vistas.
+    //
+    // Los joins están backfilleados desde la columna ancla (migs
+    // 20260704000000 y 20260428210225) y el cliente inserta las N filas al
+    // crear/editar, así que leer por acá no pierde nada.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
-      .from("projects")
-      .select("id, course_id, cut_id, max_score, is_external, status")
-      .eq("course_id", courseId)
-      .neq("status", "draft")
-      .is("deleted_at", null),
+      .from("workshop_courses")
+      .select(
+        "cut_id, weight, workshop:workshops(id, cut_id, max_score, is_external, status, deleted_at)",
+      )
+      .eq("course_id", courseId),
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from("project_courses")
+      .select(
+        "cut_id, weight, project:projects(id, cut_id, max_score, is_external, status, deleted_at)",
+      )
+      .eq("course_id", courseId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("grade_cuts")
@@ -153,9 +222,9 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const exams = (examsRaw ?? []) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const workshops = (workshopsRaw ?? []) as any[];
+  const workshops = flattenSharedActivities(workshopsRaw as any[], "workshop", courseId) as any[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const projects = (projectsRaw ?? []) as any[];
+  const projects = flattenSharedActivities(projectsRaw as any[], "project", courseId) as any[];
 
   const examIds = exams.map((e) => e.id);
   const workshopIds = workshops.map((w) => w.id);
