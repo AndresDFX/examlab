@@ -32,6 +32,8 @@ import {
   Play,
   NotebookPen,
   Video,
+  FileCheck,
+  History,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -79,6 +81,12 @@ import {
   type MaterialStatusFilter,
 } from "@/shared/lib/material-status";
 import { deriveCourseDisplayState } from "@/modules/courses/course-status";
+import {
+  computeMaterialProgress,
+  progressKey,
+  type RenderedFile,
+} from "@/modules/progress/content-progress";
+import { markContentFileViewed, type ConsumeAction } from "@/modules/progress/mark-viewed";
 
 export const Route = createFileRoute("/app/student/courses")({ component: StudentCourses });
 
@@ -98,6 +106,17 @@ type CourseRow = {
   /** Ciclo de vida del curso. Un curso `finalizado` (y todo su material)
    *  se considera "cerrado": oculto en la vista activa por defecto. */
   status: string | null;
+};
+
+/** Fila del RPC `get_my_course_continuity`: el último material que el alumno
+ *  tocó en cada curso. El RPC ya filtró papelera y re-verificó publicación. */
+type ContinuityRow = {
+  course_id: string;
+  content_id: string;
+  file_path: string;
+  content_label: string | null;
+  session_id: string | null;
+  last_seen_at: string;
 };
 
 type SessionRow = {
@@ -190,6 +209,10 @@ function StudentCourses() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Último material que el alumno tocó en cada curso, para ofrecerle retomar.
+  // El RPC re-verifica visibilidad server-side, así que si el docente
+  // despublicó o mandó el material a la papelera, deja de ofrecerse.
+  const [continuity, setContinuity] = useState<Map<string, ContinuityRow>>(new Map());
 
   useEffect(() => {
     if (!user) return;
@@ -226,6 +249,20 @@ function StudentCourses() {
       if (cancelled) return;
       setCourses((data as CourseRow[]) ?? []);
       setLoading(false);
+
+      // UNA sola llamada cubre todos los cursos → sin N+1 al paginar.
+      // Falla en silencio: es una ayuda de navegación, no datos críticos.
+      try {
+        const { data: cont } = await db.rpc("get_my_course_continuity");
+        if (cancelled) return;
+        const m = new Map<string, ContinuityRow>();
+        for (const r of (cont ?? []) as ContinuityRow[]) {
+          if (r.course_id) m.set(r.course_id, r);
+        }
+        setContinuity(m);
+      } catch {
+        // Sin continuidad la lista de cursos funciona igual.
+      }
     })();
     return () => {
       cancelled = true;
@@ -400,6 +437,21 @@ function StudentCourses() {
                   {" → "}
                   {c.end_date ? formatDateOnly(c.end_date) : "—"}
                 </div>
+                {(() => {
+                  // "Seguías en…" — no lleva barra de avance a propósito: el
+                  // conteo exacto solo existe dentro del tablero, y dos
+                  // números distintos para el mismo curso se leen como bug.
+                  const cont = continuity.get(c.id);
+                  if (!cont?.content_label) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                      <History className="h-3 w-3 shrink-0" />
+                      <span className="truncate">
+                        {t("courseBoard.resumeHint", { label: cont.content_label })}
+                      </span>
+                    </div>
+                  );
+                })()}
               </button>
             ))}
           </div>
@@ -435,6 +487,9 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
+  // Claves `contentId|filePath` del material que este alumno ya abrió o
+  // descargó en ESTE curso. Se usa solo para contar; el detalle vive en DB.
+  const [viewedKeys, setViewedKeys] = useState<Set<string>>(new Set());
   // Archivo .md/.txt seleccionado para preview inline (sin descargar).
   const [previewFile, setPreviewFile] = useState<ContentFileEntry | null>(null);
   // Archivo de código (.java/.py/.js) seleccionado para ver + ejecutar.
@@ -508,6 +563,31 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         for (const c of (cs ?? []) as ContentRow[]) map[c.id] = c;
       }
       setContents(map);
+
+      // Progreso de consumo del alumno en ESTE curso. Se pide acá porque es
+      // donde ya están resueltos todos los contentIds.
+      //
+      // Cortocircuito obligatorio: un `.in(col, [])` en PostgREST devuelve
+      // TODAS las filas, no ninguna — el mismo bug que este archivo ya evita
+      // en otra query.
+      if (allContentIds.length === 0) {
+        setViewedKeys(new Set());
+      } else {
+        const { data: prog } = await db
+          .from("content_file_progress")
+          .select("content_id, file_path")
+          .eq("user_id", user.id)
+          .eq("course_id", course.id);
+        const keys = new Set<string>();
+        for (const r of (prog ?? []) as Array<{
+          content_id: string;
+          file_path: string;
+        }>) {
+          keys.add(progressKey(r.content_id, r.file_path));
+        }
+        setViewedKeys(keys);
+      }
+
       // Global = asignado al curso pero a NINGUNA sesión (las sesiones ya
       // muestran el suyo). Si la RLS no lo devolvió (no publicado), se cae
       // con el filter(Boolean).
@@ -710,6 +790,59 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     return { total, present, absent, late, justified, attended, pct };
   }, [pastSessions, attendance]);
 
+  /**
+   * Telemetría de consumo de material. Va sin await para no demorar la
+   * apertura del visor, y actualiza el conteo local en el acto para que el
+   * alumno vea el número moverse sin recargar.
+   */
+  const consumeFile = (
+    file: ContentFileEntry,
+    action: ConsumeAction,
+    ctx: { contentId: string | null; sessionId: string | null },
+  ) => {
+    if (!user || !ctx.contentId || !file.path) return;
+    markContentFileViewed({
+      courseId: course.id,
+      contentId: ctx.contentId,
+      filePath: file.path,
+      action,
+      sessionId: ctx.sessionId,
+    });
+    const key = progressKey(ctx.contentId, file.path);
+    setViewedKeys((prev) => (prev.has(key) ? prev : new Set(prev).add(key)));
+  };
+
+  /**
+   * Material que el alumno abrió, sobre el que hoy tiene disponible.
+   *
+   * El denominador se calcula ACÁ y no en SQL a propósito: el filtro de
+   * visibilidad combina archivos solo-docente, el subconjunto explícito de la
+   * sesión y el número de clase, con un fallback que decide sobre el conjunto
+   * completo. Replicarlo en PL/pgSQL sería un invariante frágil sobre dos
+   * regex con casos borde ya documentados; acá es exacto y gratis.
+   *
+   * Es un CONTEO, no un porcentaje — ver el comentario de `content-progress.ts`.
+   */
+  const materialProgress = useMemo(() => {
+    const rendered: RenderedFile[] = [];
+    for (const s of sessions) {
+      const content = s.content_id ? contents[s.content_id] : null;
+      if (!content) continue;
+      for (const f of filesForSession(s)) {
+        if (f.path) rendered.push({ contentId: content.id, filePath: f.path });
+      }
+    }
+    for (const c of globalContents) {
+      for (const f of c.files ?? []) {
+        if (f.path && !isTeacherOnlyFile(f.name)) {
+          rendered.push({ contentId: c.id, filePath: f.path });
+        }
+      }
+    }
+    return computeMaterialProgress(rendered, viewedKeys);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions, contents, globalContents, viewedKeys]);
+
   if (loading) {
     return <SectionLoader text={t("hc_routesAppStudentCourses.loadingCourses")} />;
   }
@@ -741,6 +874,20 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                   {course.end_date ? formatDateOnly(course.end_date) : "—"}
                 </Badge>
               </div>
+              {materialProgress.total > 0 && (
+                // Se dice "abriste N de M", NO "avance N%": el denominador
+                // crece cuando el docente sube material, así que un
+                // porcentaje bajaría solo y se leería como un error.
+                <div className="flex items-center gap-1.5 pt-2 text-[11px] text-muted-foreground">
+                  <FileCheck className="h-3 w-3" />
+                  <span className="tabular-nums">
+                    {t("courseBoard.materialOpened", {
+                      viewed: materialProgress.viewed,
+                      total: materialProgress.total,
+                    })}
+                  </span>
+                </div>
+              )}
               {attendanceStats && (
                 <div className="flex flex-wrap items-center gap-3 pt-2 text-[11px]">
                   <span className="text-muted-foreground">
@@ -871,6 +1018,12 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                           onRunCode={setRunCodeFile}
                           onOpenNotebook={setNotebookFile}
                           onViewMedia={setMediaFile}
+                          onConsume={(file, action) =>
+                            consumeFile(file, action, {
+                              contentId: c.id,
+                              sessionId: null,
+                            })
+                          }
                           downloadingPath={downloadingPath}
                         />
                       ))}
@@ -920,6 +1073,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onRunCode={setRunCodeFile}
               onOpenNotebook={setNotebookFile}
               onViewMedia={setMediaFile}
+              onConsume={consumeFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -936,6 +1090,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               onRunCode={setRunCodeFile}
               onOpenNotebook={setNotebookFile}
               onViewMedia={setMediaFile}
+              onConsume={consumeFile}
               downloadingPath={downloadingPath}
             />
           )}
@@ -1031,6 +1186,7 @@ function SessionGroup({
   onRunCode,
   onOpenNotebook,
   onViewMedia,
+  onConsume,
   downloadingPath,
 }: {
   title: string;
@@ -1044,6 +1200,11 @@ function SessionGroup({
   onRunCode: (file: ContentFileEntry) => void;
   onOpenNotebook: (file: ContentFileEntry) => void;
   onViewMedia: (file: ContentFileEntry) => void;
+  onConsume: (
+    file: ContentFileEntry,
+    action: ConsumeAction,
+    ctx: { contentId: string | null; sessionId: string | null },
+  ) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
@@ -1147,6 +1308,12 @@ function SessionGroup({
                         onRunCode={onRunCode}
                         onOpenNotebook={onOpenNotebook}
                         onViewMedia={onViewMedia}
+                        onConsume={(file, action) =>
+                          onConsume(file, action, {
+                            contentId: content?.id ?? null,
+                            sessionId: s.id,
+                          })
+                        }
                         downloadingPath={downloadingPath}
                       />
                     ))}
@@ -1216,6 +1383,7 @@ function ContentFileChip({
   onRunCode,
   onOpenNotebook,
   onViewMedia,
+  onConsume,
   downloadingPath,
 }: {
   file: ContentFileEntry;
@@ -1226,10 +1394,17 @@ function ContentFileChip({
   onRunCode: (file: ContentFileEntry) => void;
   onOpenNotebook: (file: ContentFileEntry) => void;
   onViewMedia: (file: ContentFileEntry) => void;
+  /** Telemetría de consumo. Este componente es el ÚNICO lugar donde vive el
+   *  branch por tipo de archivo, así que un solo callback acá cubre los 5
+   *  tipos de material de una vez. */
+  onConsume?: (file: ContentFileEntry, action: ConsumeAction) => void;
   downloadingPath: string | null;
 }) {
   const { t } = useTranslation();
   const busy = downloadingPath === f.path;
+  // Se dispara ANTES de abrir el visor y sin await: es telemetría, no puede
+  // demorar la apertura del archivo.
+  const consume = (action: ConsumeAction) => onConsume?.(f, action);
   const canPreview = (f.kind === "md" || f.kind === "txt") && !!f.body;
   // Archivo de código subido (.java/.py/.js) con su texto inline en body →
   // se puede ver + ejecutar.
@@ -1245,7 +1420,10 @@ function ContentFileChip({
     <button
       type="button"
       disabled={busy}
-      onClick={() => onDownload(f, topic)}
+      onClick={() => {
+        consume("download");
+        void onDownload(f, topic);
+      }}
       className="flex items-center justify-center w-8 h-8 border-l text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors disabled:opacity-60"
       title={`${f.name} — ${t("contents.downloadHint")}`}
       aria-label={`${f.name} — ${t("contents.downloadHint")}`}
@@ -1259,7 +1437,10 @@ function ContentFileChip({
       <div className="inline-flex rounded-md border overflow-hidden">
         <button
           type="button"
-          onClick={() => onOpenNotebook(f)}
+          onClick={() => {
+            consume("open");
+            onOpenNotebook(f);
+          }}
           className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
           aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
@@ -1276,7 +1457,10 @@ function ContentFileChip({
       <div className="inline-flex rounded-md border overflow-hidden">
         <button
           type="button"
-          onClick={() => onRunCode(f)}
+          onClick={() => {
+            consume("open");
+            onRunCode(f);
+          }}
           className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
           aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
@@ -1293,7 +1477,10 @@ function ContentFileChip({
       <div className="inline-flex rounded-md border overflow-hidden">
         <button
           type="button"
-          onClick={() => onPreview(f)}
+          onClick={() => {
+            consume("open");
+            onPreview(f);
+          }}
           className="flex items-center justify-center w-8 h-8 hover:bg-muted/60 transition-colors"
           title={`${label} — ${t("contents.previewHint")}`}
           aria-label={`${label} — ${t("contents.previewHint")}`}
@@ -1309,7 +1496,10 @@ function ContentFileChip({
       <div className="inline-flex rounded-md border overflow-hidden">
         <button
           type="button"
-          onClick={() => onViewMedia(f)}
+          onClick={() => {
+            consume("open");
+            onViewMedia(f);
+          }}
           className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
           aria-label={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
@@ -1327,7 +1517,10 @@ function ContentFileChip({
       variant="outline"
       className="h-8 w-8"
       disabled={busy}
-      onClick={() => onDownload(f, topic)}
+      onClick={() => {
+        consume("download");
+        void onDownload(f, topic);
+      }}
       title={`${label} — ${t("contents.downloadHint")}`}
       aria-label={`${label} — ${t("contents.downloadHint")}`}
     >

@@ -1414,7 +1414,9 @@
     "calendarOpenedToast": "Google Calendar opened in a new tab — confirm the subscription there.",
     "calendarUrlError": "Could not build calendar URL. Try logging out and back in.",
     "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)",
-    "meeting": "Meeting"
+    "meeting": "Meeting",
+    "materialOpened": "You opened {{viewed}} of {{total}} material files",
+    "resumeHint": "You left off at: {{label}}"
   },
   "manageCourses": {
     "title": "Assign to courses",

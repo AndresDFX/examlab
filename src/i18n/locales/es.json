@@ -1414,7 +1414,9 @@
     "calendarOpenedToast": "Google Calendar abierto en una nueva pestaña — confirma la suscripción ahí.",
     "calendarUrlError": "No se pudo generar el URL del calendario. Intenta cerrar sesión y volver a entrar.",
     "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)",
-    "meeting": "Reunión"
+    "meeting": "Reunión",
+    "materialOpened": "Abriste {{viewed}} de {{total}} archivos del material",
+    "resumeHint": "Seguías en: {{label}}"
   },
   "manageCourses": {
     "title": "Asignar a cursos",

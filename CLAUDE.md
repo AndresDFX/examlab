@@ -730,6 +730,66 @@ gráficas** a propósito: es lo accionable de la pantalla.
   "empeoró desde el último snapshot" + cadencia de digest. Se dejó afuera a propósito: sería la 15ª
   invariante cross-file del proyecto y hacerla mal genera spam, que es peor que no tenerla.
 
+### Progreso de material + continuidad ("Seguías en…")
+
+Registra qué archivos del material del tablero abrió/descargó cada alumno, para mostrarle cuánto
+lleva y ofrecerle retomar donde iba. Mig
+[20261590000000](supabase/migrations/20261590000000_content_file_progress.sql).
+
+- **La clave estable es `file_path`** (no el índice, no el `name`, no el `kind`). Los archivos viven
+  en `generated_contents.files[]` y su `path` tiene formato `<owner_uid>/<content_id>/<slug>`, así que
+  **el path solo ya identifica el archivo** (embebe el contentId). Sobrevive las ediciones in-place
+  porque "nueva versión" es un `upsert` al MISMO path en todos los flujos. El **índice** se corre al
+  borrar un archivo y al regen parcial de IA; el **`name`** colisiona por slugificación; y el `kind`
+  es inservible como discriminador porque el tipo TS declara `"pptx-source"|"md"|"txt"` pero **todo el
+  material subido tiene `kind="uploaded"`** (por eso el cliente discrimina por EXTENSIÓN). Precedente:
+  `content_slide_annotations` (20261570000000) keyea por `"<file_path>#<slide_index>"`.
+- **Tabla `content_file_progress`** con PK `(user_id, course_id, content_id, file_path)`. `course_id`
+  va en la PK porque el mismo contenido puede estar en 2 cursos del alumno **y** porque da el scope de
+  tenant sin joins — `generated_contents.course_id` es NULLABLE y esa tabla no tiene `tenant_id`, así
+  que el tenant NO se puede derivar del contenido. `session_id` NO va en la PK (el mismo archivo se
+  renderiza bajo N sesiones; en la clave duplicaría filas).
+- **Escritura SOLO por RPC**: la tabla **no tiene policy de INSERT/UPDATE a propósito**. Con una
+  policy owner-writable un alumno podría POSTear `opened_at` sin abrir nada (la clase de vuln
+  self-tamper del repo). Precedente: `workshop_submission_video_views`.
+- **UN predicado de visibilidad compartido** (`content_file_visible_to_student`) usado por el RPC de
+  escritura **y** por el de lectura. Sin eso, la continuidad seguía ofreciendo material que el docente
+  ya había despublicado o mandado a la papelera, contradiciendo al conteo del tablero.
+- **NO se muestra un "% de avance"** — decisión deliberada, y por eso el helper puro
+  ([content-progress.ts](src/modules/progress/content-progress.ts)) **no expone un `pct`**: si lo
+  expusiera, alguien lo pintaría. Dos razones verificadas: (a) el denominador CRECE durante el
+  semestre (el tablero muestra el material de todas las sesiones y el gate `release_after_session_date`
+  no lo usa ningún contenido en prod), así que cada archivo que sube el docente bajaría el % de todos
+  — un alumno al día vería 100% en marzo y 60% en abril; (b) un archivo REEMPLAZADO sigue contando
+  como visto, porque el upsert al mismo path es justo lo que hace estable la clave. Lo que sí es
+  literalmente cierto es **"abriste N de M archivos"**, y eso es lo que se muestra.
+- **El denominador se calcula en el CLIENTE**, no en SQL: el filtro de visibilidad combina
+  `isTeacherOnlyFile`, el subconjunto explícito de la sesión y `classNumberFromFilename`, con un
+  fallback que decide sobre el CONJUNTO completo (no es un predicado por fila). Replicarlo en PL/pgSQL
+  sería un invariante frágil sobre dos regex con casos borde ya documentados. Por eso el conteo vive
+  **solo dentro del tablero** y las cards del índice reciben **continuidad**, que no necesita
+  denominador. No agregar un segundo número aproximado en las cards: dos cifras distintas para el
+  mismo curso se leen como bug.
+- **Huérfanas**: un regen COMPLETO con IA reescribe `files[]` con paths nuevos y deja filas colgadas.
+  Se ignoran por INTERSECCIÓN contra el `files[]` actual (no se borran, no inflan el número).
+- **Telemetría, no acción del usuario** ([mark-viewed.ts](src/modules/progress/mark-viewed.ts)):
+  fire-and-forget, sin `await` antes de abrir el visor, sin toast de error. El dedupe de módulo se
+  keyea **incluyendo la acción** — con solo (contenido, archivo) se perdería la transición
+  abrir→descargar, que es justo lo que las columnas `opened_at`/`downloaded_at` separadas existen para
+  registrar.
+- **`ContentFileChip` es el único lugar con el branch por tipo de archivo**, así que un solo
+  `onConsume` cubre los 5 tipos. Ojo: hay **DOS** call sites (material por sesión y material general
+  del curso) — sin el segundo, el material general nunca se marca y el conteo jamás llega al total.
+- **Limitación honesta de v1**: se registra el EVENTO (abrió / descargó), no la profundidad. Un click
+  marca "abierto" sin leer nada. Por eso **no debe alimentar notas ni gates de entrega**: para eso
+  haría falta señal de consumo real (tiempo mínimo, plausibilidad server-side), que es otro feature.
+- **Fuera de v1**: progreso/posición de VIDEOS. `/app/videos` no reproduce nada (es un
+  `<a target=_blank>`), así que el paso 0 sería crear un player extrayendo el tracker de
+  `IntroVideoGate`. Y la posición en YouTube/Vimeo es inaccesible con el código actual (son `<iframe>`
+  sin su API cargada, y no se pueden agregar dependencias npm). Cuando llegue, `video_views` —hoy una
+  tabla MUERTA, 0 referencias fuera de `types.ts`— es el lugar correcto: sumarle `position_sec` +
+  RPC de upsert con `GREATEST`, nunca una policy owner-writable.
+
 ### Papelera (soft-delete) — `/app/trash`
 
 Sistema de "borrado reversible" para 8 entidades padre: `courses`, `exams`, `workshops`, `projects`, `attendance_sessions`, `whiteboards`, `generated_contents`, `polls`. Toda eliminación de estas entidades pasa por el flujo soft → trash → purge a 30 días.
