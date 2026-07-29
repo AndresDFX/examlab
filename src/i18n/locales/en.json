@@ -8211,7 +8211,11 @@
     "currentWeightExceeds": "The current weight ({{current}}%) exceeds the bucket.",
     "bulkDeleteWarning": "All questions, assignments, and submissions of the selected exams will also be deleted.",
     "autoAssignFailed": "Could not assign the students: {{error}}",
-    "importFirstError": "{{created}} created, {{skipped}} with errors. First: \"{{title}}\" — {{error}}"
+    "importFirstError": "{{created}} created, {{skipped}} with errors. First: \"{{title}}\" — {{error}}",
+    "sectionWhatTitle": "What it assesses",
+    "sectionWhenTitle": "When",
+    "sectionHowTitle": "How it is taken",
+    "sectionHowHint": "Duration, navigation, shuffling and warnings. Already preset."
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "We couldn't load your courses.",

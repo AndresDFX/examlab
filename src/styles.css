@@ -49,9 +49,13 @@
 
   /* Tamaños de texto bajo `text-sm` (14px), CON NOMBRE.
    *
-   * Antes había SIETE tamaños distintos bajo 16px escritos a mano
-   * (`text-[11px]`, `text-[10px]`, `text-[9px]`, `text-[8px]`, `text-[12px]`…):
-   * 1.113 usos en 162 archivos. Tres badges de estado con letra de 9, 10 y 11px
+   * Antes había SIETE tamaños distintos bajo 16px escritos a mano como valores
+   * arbitrarios (11px, 10px, 9px, 8px, 12px…): 1.114 usos en 162 archivos.
+   * (No se escriben acá con la sintaxis de clase a propósito: el check del
+   * principio P2 es un grep de esa sintaxis sobre `src/`, y mencionarla en un
+   * comentario lo dejaría devolviendo 1 para siempre — un check que nunca da 0
+   * no sirve de check.)
+   * Tres badges de estado con letra de 9, 10 y 11px
    * en la misma tabla no leen como jerarquía, leen como azar — y sin un token
    * cada pantalla nueva volvía a inventar su tamaño. Esa era la causa raíz.
    *

@@ -29,6 +29,11 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
   Dialog,
   DialogContent,
   DialogHeader,
@@ -59,6 +64,8 @@ import {
   CheckCircle2,
   Lock,
   ExternalLink,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
@@ -139,6 +146,10 @@ function TeacherExams() {
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Exam>>({});
+  // Sección "Cómo se toma" del dialog: arranca cerrada (todos sus campos ya
+  // traen default en `openNew`). Queda abierta entre aperturas del dialog a
+  // propósito — quien la abrió una vez suele querer ajustarla en el siguiente.
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const examDirty = useDirtyDialog(open, form);
   // Feedback de acciones asíncronas: `saving` bloquea el submit del dialog
   // (anti doble-creación: el save hace N inserts + N auto-asignaciones +
@@ -1090,9 +1101,9 @@ function TeacherExams() {
             {/*
              * Toggle de actividad externa: cuando se activa, el examen
              * no es para tomarlo en línea — es solo registro de notas
-             * de un parcial presencial. Escondemos los campos que no
-             * aplican (duración, navegación, proctoring, padre) y la
-             * fecha de fin (la actividad ya pasó, fecha = un instante).
+             * de un parcial presencial. Escondemos la sección "Cómo se
+             * toma" completa (duración, navegación, proctoring, supletorio)
+             * y la fecha de fin (la actividad ya pasó, fecha = un instante).
              */}
             <div
               className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
@@ -1112,492 +1123,545 @@ function TeacherExams() {
                 onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
-            <div data-tour-id="exam-field-title">
-              <Label required>{t("common.title")}</Label>
-              <Input
-                value={form.title ?? ""}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label>{t("common.description")}</Label>
-              <Textarea
-                value={form.description ?? ""}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            {/* Reabrir un examen cerrado: solo aplica cuando se EDITA un
-                examen existente (form con id) cuyo estado actual es 'closed'.
-                Este dialog del índice se usa hoy solo para CREAR (la edición
-                navega a /app/teacher/exams/$examId), así que el banner no se
-                muestra acá — pero queda gateado por id+estado para honrar la
-                semántica "solo en edición" si el dialog se reutilizara. */}
-            {(form as any).id && (form as any).status === "closed" && (
-              <ReopenClosedBanner
-                hint={t("hc_routesAppTeacherExamsIndex.reopenHint")}
-                onReopen={() => {
-                  const now = new Date();
-                  const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-                  const endMs = form.end_time ? new Date(form.end_time).getTime() : 0;
-                  const nextEnd = endMs > now.getTime() ? form.end_time : toLocal(sevenDays);
-                  const nextStart = form.start_time || toLocal(now);
-                  setForm({
-                    ...form,
-                    status: "published",
-                    start_time: nextStart,
-                    end_time: nextEnd,
-                  } as any);
-                }}
-              />
-            )}
-            <div>
-              <Label>
-                {t("hc_routesAppTeacherExamsIndex.statusLabel")}{" "}
-                <HelpHint>{t("help.examStatusHelp")}</HelpHint>
-              </Label>
-              <Select
-                value={(form as any).status ?? "published"}
-                onValueChange={(v) => setForm({ ...form, status: v } as any)}
-              >
-                <SelectTrigger className="mt-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="draft">
-                    {t("hc_routesAppTeacherExamsIndex.statusDraft")}
-                  </SelectItem>
-                  <SelectItem value="published">
-                    {t("hc_routesAppTeacherExamsIndex.statusPublished")}
-                  </SelectItem>
-                  <SelectItem value="closed">
-                    {t("hc_routesAppTeacherExamsIndex.statusClosed")}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div data-tour-id="exam-field-courses">
-              <Label required>
-                {t("nav.courses")}{" "}
-                <span className="text-xs text-muted-foreground font-normal">
-                  {t("exam.selectCourses")}
-                </span>
-              </Label>
-              <CoursePicker courses={courses} selectedIds={selectedCourseIds} onToggle={toggleCourse} />
 
-              {selectedCourseIds.size > 1 && (
-                <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
-              )}
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-tour-id="exam-field-dates">
-              <div>
-                <Label required>
-                  {(form as any).is_external
-                    ? t("hc_routesAppTeacherExamsIndex.examDate")
-                    : t("common.start")}
-                </Label>
-                <DateTimePicker
-                  value={form.start_time as string}
-                  onChange={(start) => {
-                    const startMs = new Date(start).getTime();
-                    // Auto-set end to start + 1h if end is empty or not after start
-                    const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
-                    const autoEnd =
-                      currentEnd > startMs
-                        ? form.end_time
-                        : toLocal(new Date(startMs + 60 * 60 * 1000));
-                    const diffMin = Math.max(
-                      1,
-                      Math.round((new Date(autoEnd!).getTime() - startMs) / 60000),
-                    );
-                    setForm({
-                      ...form,
-                      start_time: start,
-                      end_time: autoEnd,
-                      time_limit_minutes: diffMin,
-                    });
-                  }}
-                />
-              </div>
-              {!(form as any).is_external && (
-                <div>
-                  <Label required>{t("common.end")}</Label>
-                  <DateTimePicker
-                    value={form.end_time as string}
-                    onChange={(end) => {
-                      const diffMin = form.start_time
-                        ? Math.max(
-                            1,
-                            Math.round(
-                              (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
-                                60000,
-                            ),
-                          )
-                        : form.time_limit_minutes;
-                      setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
-                    }}
-                  />
-                </div>
-              )}
-            </div>
-            {!(form as any).is_external && (
-              <ActivitySessionSelect
-                courseId={
-                  (form.course_id as string) ??
-                  (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
-                }
-                value={(form as any).attendance_session_id ?? null}
-                onChange={(sid) => setForm((f) => ({ ...(f as any), attendance_session_id: sid }))}
-              />
-            )}
-            {!(form as any).is_external && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <Label required>
-                    {t("common.duration")} ({t("common.min")})
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    value={form.time_limit_minutes || ""}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        time_limit_minutes:
-                          e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
-                      })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label className="flex items-center gap-1.5">
-                    {t("exam.navigation")}
-                    <HelpHint>{t("help.examNavigationHelp")}</HelpHint>
-                  </Label>
-                  <Select
-                    value={form.navigation_type}
-                    onValueChange={(v) => setForm({ ...form, navigation_type: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
-                      <SelectItem value="secuencial">{t("exam.navigationSequential")}</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div>
-                <Label>
-                  {t("hc_routesAppTeacherExamsIndex.scheduleTypeLabel")}{" "}
-                  <HelpHint>
-                    <strong>{t("hc_routesAppTeacherExamsIndex.scheduleNormalName")}:</strong>{" "}
-                    {t("hc_routesAppTeacherExamsIndex.scheduleNormalHint")}{" "}
-                    <strong>{t("hc_routesAppTeacherExamsIndex.scheduleRelativeName")}:</strong>{" "}
-                    {t("hc_routesAppTeacherExamsIndex.scheduleRelativeHint")}
-                  </HelpHint>
-                </Label>
-                <Select
-                  value={(form as any).schedule_type ?? "normal"}
-                  onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="normal">
-                      {t("hc_routesAppTeacherExamsIndex.scheduleNormalOption")}
-                    </SelectItem>
-                    <SelectItem value="relativo">
-                      {t("hc_routesAppTeacherExamsIndex.scheduleRelativeOption")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div>
-                <Label>
-                  {t("hc_routesAppTeacherExamsIndex.retryModeLabel")}{" "}
-                  <HelpHint>{t("help.examRetryModeHelp")}</HelpHint>
-                </Label>
-                <Select
-                  value={(form as any).retry_mode ?? "last"}
-                  onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="last">
-                      {t("hc_routesAppTeacherExamsIndex.retryLast")}
-                    </SelectItem>
-                    <SelectItem value="average">
-                      {t("hc_routesAppTeacherExamsIndex.retryAverage")}
-                    </SelectItem>
-                    <SelectItem value="highest">
-                      {t("hc_routesAppTeacherExamsIndex.retryHighest")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div className="flex items-center justify-between">
-                <Label className="flex items-center gap-1.5">
-                  {t("exam.shuffle")}
-                  <HelpHint>{t("help.examShuffleHelp")}</HelpHint>
-                </Label>
-                <Switch
-                  checked={!!form.shuffle_enabled}
-                  onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
-                />
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div>
-                <Label>
-                  {t("hc_routesAppTeacherExamsIndex.maxWarningsLabel")}{" "}
-                  <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
-                </Label>
+            {/* Qué evalúa: la identidad del examen. Primero porque es la
+                primera decisión del docente (qué es y cuánto pesa). */}
+            <div className="rounded-md border p-3 space-y-3">
+              <p className="text-sm font-medium">
+                {t("hc_routesAppTeacherExamsIndex.sectionWhatTitle")}
+              </p>
+              <div data-tour-id="exam-field-title">
+                <Label required>{t("common.title")}</Label>
                 <Input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={(form as any).max_warnings ?? 3}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      max_warnings:
-                        e.target.value === ""
-                          ? 3
-                          : Math.max(1, Math.min(50, Number(e.target.value))),
-                    } as any)
-                  }
+                  value={form.title ?? ""}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
               </div>
-            )}
-            {/* Corte y peso: tabla per-curso si hay varios; selectores normales si uno solo */}
-            {selectedCourseIds.size > 1 ? (
-              <div className="space-y-2">
-                <Label>
-                  {t("hc_routesAppTeacherExamsIndex.cutWeightPerCourseLabel")}{" "}
-                  <HelpHint>{t("help.examCutWeightPerCourseHelp")}</HelpHint>
+              <div>
+                <Label>{t("common.description")}</Label>
+                <Textarea
+                  value={form.description ?? ""}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+              </div>
+              <div data-tour-id="exam-field-courses">
+                <Label required>
+                  {t("nav.courses")}{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {t("exam.selectCourses")}
+                  </span>
                 </Label>
-                {[...selectedCourseIds].map((cid) => {
-                  const course = courses.find((c) => c.id === cid);
-                  const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
-                  const cutsForCourse = cuts.filter((c) => c.course_id === cid);
-                  const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
-                  const exBucket = Number(selectedCut?.exam_weight ?? 0);
-                  const sumOthers = exams
-                    .filter((e) => e.cut_id === cc.cut_id && !e.parent_exam_id)
-                    .reduce((s, e) => s + Number(e.weight ?? 0), 0);
-                  const exMax = Math.max(0, exBucket - sumOthers);
-                  const overBucket = !!cc.cut_id && Number(cc.weight) > exMax + 0.01;
-                  return (
-                    <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
-                      <p className="text-sm font-medium">{course?.name ?? cid}</p>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            {t("hc_routesAppTeacherExamsIndex.cutLabel")}
-                          </Label>
-                          <Select
-                            value={cc.cut_id ?? "__none__"}
-                            onValueChange={(v) =>
-                              setCourseCuts((prev) => ({
-                                ...prev,
-                                [cid]: {
-                                  ...(prev[cid] ?? { weight: 1 }),
-                                  cut_id: v === "__none__" ? null : v,
-                                },
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="mt-1 h-8 text-sm">
-                              <SelectValue
-                                placeholder={t("hc_routesAppTeacherExamsIndex.noCut")}
-                              />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">
-                                {t("hc_routesAppTeacherExamsIndex.noCut")}
-                              </SelectItem>
-                              {cutsForCourse.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {cutsForCourse.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {t("hc_routesAppTeacherExamsIndex.noCutsDefined")}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">
-                            {t("hc_routesAppTeacherExamsIndex.weightPercent")}
-                          </Label>
-                          <div className="relative mt-1">
-                            <DecimalInput
-                              min={0}
-                              max={exMax > 0 ? exMax : undefined}
-                              placeholder="1,0"
-                              className="pr-7 h-8 text-sm"
-                              disabled={!cc.cut_id}
-                              value={cc.weight}
-                              onChange={(v) =>
+                <CoursePicker
+                  courses={courses}
+                  selectedIds={selectedCourseIds}
+                  onToggle={toggleCourse}
+                />
+
+                {selectedCourseIds.size > 1 && (
+                  <p className="text-xs text-muted-foreground mt-1">{t("exam.coursesHelp")}</p>
+                )}
+              </div>
+              {/* Corte y peso: tabla per-curso si hay varios; selectores normales si uno solo */}
+              {selectedCourseIds.size > 1 ? (
+                <div className="space-y-2">
+                  <Label>
+                    {t("hc_routesAppTeacherExamsIndex.cutWeightPerCourseLabel")}{" "}
+                    <HelpHint>{t("help.examCutWeightPerCourseHelp")}</HelpHint>
+                  </Label>
+                  {[...selectedCourseIds].map((cid) => {
+                    const course = courses.find((c) => c.id === cid);
+                    const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
+                    const cutsForCourse = cuts.filter((c) => c.course_id === cid);
+                    const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
+                    const exBucket = Number(selectedCut?.exam_weight ?? 0);
+                    const sumOthers = exams
+                      .filter((e) => e.cut_id === cc.cut_id && !e.parent_exam_id)
+                      .reduce((s, e) => s + Number(e.weight ?? 0), 0);
+                    const exMax = Math.max(0, exBucket - sumOthers);
+                    const overBucket = !!cc.cut_id && Number(cc.weight) > exMax + 0.01;
+                    return (
+                      <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
+                        <p className="text-sm font-medium">{course?.name ?? cid}</p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">
+                              {t("hc_routesAppTeacherExamsIndex.cutLabel")}
+                            </Label>
+                            <Select
+                              value={cc.cut_id ?? "__none__"}
+                              onValueChange={(v) =>
                                 setCourseCuts((prev) => ({
                                   ...prev,
-                                  [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                  [cid]: {
+                                    ...(prev[cid] ?? { weight: 1 }),
+                                    cut_id: v === "__none__" ? null : v,
+                                  },
                                 }))
                               }
+                            >
+                              <SelectTrigger className="mt-1 h-8 text-sm">
+                                <SelectValue
+                                  placeholder={t("hc_routesAppTeacherExamsIndex.noCut")}
+                                />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">
+                                  {t("hc_routesAppTeacherExamsIndex.noCut")}
+                                </SelectItem>
+                                {cutsForCourse.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {cutsForCourse.length === 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {t("hc_routesAppTeacherExamsIndex.noCutsDefined")}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">
+                              {t("hc_routesAppTeacherExamsIndex.weightPercent")}
+                            </Label>
+                            <div className="relative mt-1">
+                              <DecimalInput
+                                min={0}
+                                max={exMax > 0 ? exMax : undefined}
+                                placeholder="1,0"
+                                className="pr-7 h-8 text-sm"
+                                disabled={!cc.cut_id}
+                                value={cc.weight}
+                                onChange={(v) =>
+                                  setCourseCuts((prev) => ({
+                                    ...prev,
+                                    [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                  }))
+                                }
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                                %
+                              </span>
+                            </div>
+                            {selectedCut && (
+                              <p
+                                className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
+                              >
+                                {t("hc_routesAppTeacherExamsIndex.availablePrefix")}{" "}
+                                <strong>{exMax.toFixed(1)}%</strong>{" "}
+                                {t("hc_routesAppTeacherExamsIndex.bucketBreakdown", {
+                                  bucket: exBucket,
+                                  others: sumOthers.toFixed(1),
+                                })}
+                                {overBucket && (
+                                  <span className="block">
+                                    {t("hc_routesAppTeacherExamsIndex.exceedsBucket")}
+                                  </span>
+                                )}
+                              </p>
+                            )}
+                            {!cc.cut_id && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {t("hc_routesAppTeacherExamsIndex.assignCutToConfigure")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label>
+                      {t("hc_routesAppTeacherExamsIndex.evaluationCutLabel")}{" "}
+                      <HelpHint>{t("help.examCutWeightHelp")}</HelpHint>
+                    </Label>
+                    {(() => {
+                      const targetCourseId = [...selectedCourseIds][0];
+                      const availableCuts = cuts.filter((c) => c.course_id === targetCourseId);
+                      return (
+                        <Select
+                          value={form.cut_id ?? "__none__"}
+                          onValueChange={(v) =>
+                            setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">
+                              {t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
+                            </SelectItem>
+                            {availableCuts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                  </div>
+                  {form.cut_id &&
+                    (() => {
+                      const selectedCut = cuts.find((c) => c.id === form.cut_id);
+                      const exBucket = Number(selectedCut?.exam_weight ?? 0);
+                      const exMax = examWeightMax ?? 0;
+                      const sumOthers = exams
+                        .filter((e) => e.cut_id === form.cut_id && !e.parent_exam_id)
+                        .reduce((s, e) => s + Number(e.weight ?? 0), 0);
+                      const currentWeight = Number((form as any).weight ?? 1) || 0;
+                      const overBucket = currentWeight > exMax + 0.01;
+                      return (
+                        <div>
+                          <Label>{t("hc_routesAppTeacherExamsIndex.examWeightLabel")}</Label>
+                          <div className="relative mt-1 w-32">
+                            <DecimalInput
+                              min={0}
+                              max={exMax || undefined}
+                              placeholder="1,0"
+                              className="pr-7"
+                              value={(form as any).weight ?? 1}
+                              onChange={(v) => setForm({ ...form, weight: v ?? 1 } as any)}
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                               %
                             </span>
                           </div>
-                          {selectedCut && (
-                            <p
-                              className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
-                            >
-                              {t("hc_routesAppTeacherExamsIndex.availablePrefix")}{" "}
-                              <strong>{exMax.toFixed(1)}%</strong>{" "}
-                              {t("hc_routesAppTeacherExamsIndex.bucketBreakdown", {
-                                bucket: exBucket,
-                                others: sumOthers.toFixed(1),
-                              })}
-                              {overBucket && (
-                                <span className="block">
-                                  {t("hc_routesAppTeacherExamsIndex.exceedsBucket")}
-                                </span>
-                              )}
-                            </p>
-                          )}
-                          {!cc.cut_id && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {t("hc_routesAppTeacherExamsIndex.assignCutToConfigure")}
-                            </p>
-                          )}
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {t("hc_routesAppTeacherExamsIndex.examBucketPrefix")}{" "}
+                            <span className="font-medium">{selectedCut?.name}</span>:{" "}
+                            {t("hc_routesAppTeacherExamsIndex.examBucketBreakdown", {
+                              bucket: exBucket,
+                              others: sumOthers.toFixed(1),
+                            })}{" "}
+                            <strong>{exMax.toFixed(1)}%</strong>{" "}
+                            {t("hc_routesAppTeacherExamsIndex.examBucketSuffix")}
+                            {overBucket && (
+                              <span className="block text-destructive mt-1">
+                                {t("hc_routesAppTeacherExamsIndex.currentWeightExceeds", {
+                                  current: currentWeight.toFixed(1),
+                                })}
+                              </span>
+                            )}
+                          </p>
                         </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label>
-                    {t("hc_routesAppTeacherExamsIndex.evaluationCutLabel")}{" "}
-                    <HelpHint>{t("help.examCutWeightHelp")}</HelpHint>
-                  </Label>
-                  {(() => {
-                    const targetCourseId = [...selectedCourseIds][0];
-                    const availableCuts = cuts.filter((c) => c.course_id === targetCourseId);
-                    return (
-                      <Select
-                        value={form.cut_id ?? "__none__"}
-                        onValueChange={(v) =>
-                          setForm({ ...form, cut_id: v === "__none__" ? null : v })
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue
-                            placeholder={t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">
-                            {t("hc_routesAppTeacherExamsIndex.noCutAssigned")}
-                          </SelectItem>
-                          {availableCuts.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
-                </div>
-                {form.cut_id &&
-                  (() => {
-                    const selectedCut = cuts.find((c) => c.id === form.cut_id);
-                    const exBucket = Number(selectedCut?.exam_weight ?? 0);
-                    const exMax = examWeightMax ?? 0;
-                    const sumOthers = exams
-                      .filter((e) => e.cut_id === form.cut_id && !e.parent_exam_id)
-                      .reduce((s, e) => s + Number(e.weight ?? 0), 0);
-                    const currentWeight = Number((form as any).weight ?? 1) || 0;
-                    const overBucket = currentWeight > exMax + 0.01;
-                    return (
-                      <div>
-                        <Label>{t("hc_routesAppTeacherExamsIndex.examWeightLabel")}</Label>
-                        <div className="relative mt-1 w-32">
-                          <DecimalInput
-                            min={0}
-                            max={exMax || undefined}
-                            placeholder="1,0"
-                            className="pr-7"
-                            value={(form as any).weight ?? 1}
-                            onChange={(v) => setForm({ ...form, weight: v ?? 1 } as any)}
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                            %
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {t("hc_routesAppTeacherExamsIndex.examBucketPrefix")}{" "}
-                          <span className="font-medium">{selectedCut?.name}</span>:{" "}
-                          {t("hc_routesAppTeacherExamsIndex.examBucketBreakdown", {
-                            bucket: exBucket,
-                            others: sumOthers.toFixed(1),
-                          })}{" "}
-                          <strong>{exMax.toFixed(1)}%</strong>{" "}
-                          {t("hc_routesAppTeacherExamsIndex.examBucketSuffix")}
-                          {overBucket && (
-                            <span className="block text-destructive mt-1">
-                              {t("hc_routesAppTeacherExamsIndex.currentWeightExceeds", {
-                                current: currentWeight.toFixed(1),
-                              })}
-                            </span>
-                          )}
-                        </p>
-                      </div>
-                    );
-                  })()}
-              </>
-            )}
-            {!(form as any).is_external && (
+                      );
+                    })()}
+                </>
+              )}
+            </div>
+
+            <div className="rounded-md border p-3 space-y-3">
+              <p className="text-sm font-medium">
+                {t("hc_routesAppTeacherExamsIndex.sectionWhenTitle")}
+              </p>
+              {/* Reabrir un examen cerrado: solo aplica cuando se EDITA un
+                  examen existente (form con id) cuyo estado actual es 'closed'.
+                  Este dialog del índice se usa hoy solo para CREAR (la edición
+                  navega a /app/teacher/exams/$examId), así que el banner no se
+                  muestra acá — pero queda gateado por id+estado para honrar la
+                  semántica "solo en edición" si el dialog se reutilizara. */}
+              {(form as any).id && (form as any).status === "closed" && (
+                <ReopenClosedBanner
+                  hint={t("hc_routesAppTeacherExamsIndex.reopenHint")}
+                  onReopen={() => {
+                    const now = new Date();
+                    const sevenDays = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+                    const endMs = form.end_time ? new Date(form.end_time).getTime() : 0;
+                    const nextEnd = endMs > now.getTime() ? form.end_time : toLocal(sevenDays);
+                    const nextStart = form.start_time || toLocal(now);
+                    setForm({
+                      ...form,
+                      status: "published",
+                      start_time: nextStart,
+                      end_time: nextEnd,
+                    } as any);
+                  }}
+                />
+              )}
               <div>
-                <Label>{t("exam.parentExam")}</Label>
+                <Label>
+                  {t("hc_routesAppTeacherExamsIndex.statusLabel")}{" "}
+                  <HelpHint>{t("help.examStatusHelp")}</HelpHint>
+                </Label>
                 <Select
-                  value={form.parent_exam_id ?? "none"}
-                  onValueChange={(v) =>
-                    setForm({ ...form, parent_exam_id: v === "none" ? null : v })
-                  }
+                  value={(form as any).status ?? "published"}
+                  onValueChange={(v) => setForm({ ...form, status: v } as any)}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("exam.originalExam")} />
+                  <SelectTrigger className="mt-1">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="none">{t("common.none")}</SelectItem>
-                    {exams
-                      .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
-                      .map((e) => (
-                        <SelectItem key={e.id} value={e.id}>
-                          {e.title}
-                        </SelectItem>
-                      ))}
+                    <SelectItem value="draft">
+                      {t("hc_routesAppTeacherExamsIndex.statusDraft")}
+                    </SelectItem>
+                    <SelectItem value="published">
+                      {t("hc_routesAppTeacherExamsIndex.statusPublished")}
+                    </SelectItem>
+                    <SelectItem value="closed">
+                      {t("hc_routesAppTeacherExamsIndex.statusClosed")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-3"
+                data-tour-id="exam-field-dates"
+              >
+                <div>
+                  <Label required>
+                    {(form as any).is_external
+                      ? t("hc_routesAppTeacherExamsIndex.examDate")
+                      : t("common.start")}
+                  </Label>
+                  <DateTimePicker
+                    value={form.start_time as string}
+                    onChange={(start) => {
+                      const startMs = new Date(start).getTime();
+                      // Auto-set end to start + 1h if end is empty or not after start
+                      const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
+                      const autoEnd =
+                        currentEnd > startMs
+                          ? form.end_time
+                          : toLocal(new Date(startMs + 60 * 60 * 1000));
+                      const diffMin = Math.max(
+                        1,
+                        Math.round((new Date(autoEnd!).getTime() - startMs) / 60000),
+                      );
+                      setForm({
+                        ...form,
+                        start_time: start,
+                        end_time: autoEnd,
+                        time_limit_minutes: diffMin,
+                      });
+                    }}
+                  />
+                </div>
+                {!(form as any).is_external && (
+                  <div>
+                    <Label required>{t("common.end")}</Label>
+                    <DateTimePicker
+                      value={form.end_time as string}
+                      onChange={(end) => {
+                        const diffMin = form.start_time
+                          ? Math.max(
+                              1,
+                              Math.round(
+                                (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
+                                  60000,
+                              ),
+                            )
+                          : form.time_limit_minutes;
+                        setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
+                      }}
+                    />
+                  </div>
+                )}
+              </div>
+              {!(form as any).is_external && (
+                <ActivitySessionSelect
+                  courseId={
+                    (form.course_id as string) ??
+                    (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
+                  }
+                  value={(form as any).attendance_session_id ?? null}
+                  onChange={(sid) =>
+                    setForm((f) => ({ ...(f as any), attendance_session_id: sid }))
+                  }
+                />
+              )}
+            </div>
+
+            {/* Cómo se toma: TODO lo de acá ya trae un default razonable
+                (ver openNew), así que arranca COLAPSADO — el docente no
+                debería decidir sobre proctoring para crear un examen. Y
+                como son campos de examen en línea, el condicional envuelve
+                la sección entera en vez de repetirse campo por campo. */}
+            {!(form as any).is_external && (
+              <Collapsible
+                open={advancedOpen}
+                onOpenChange={setAdvancedOpen}
+                className="rounded-md border p-3"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-2 text-left"
+                  >
+                    <span>
+                      <span className="text-sm font-medium">
+                        {t("hc_routesAppTeacherExamsIndex.sectionHowTitle")}
+                      </span>
+                      <span className="block text-2xs text-muted-foreground leading-tight">
+                        {t("hc_routesAppTeacherExamsIndex.sectionHowHint")}
+                      </span>
+                    </span>
+                    {advancedOpen ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <Label required>
+                        {t("common.duration")} ({t("common.min")})
+                      </Label>
+                      <Input
+                        type="number"
+                        min={1}
+                        value={form.time_limit_minutes || ""}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            time_limit_minutes:
+                              e.target.value === "" ? 0 : Math.max(1, Number(e.target.value)),
+                          })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="flex items-center gap-1.5">
+                        {t("exam.navigation")}
+                        <HelpHint>{t("help.examNavigationHelp")}</HelpHint>
+                      </Label>
+                      <Select
+                        value={form.navigation_type}
+                        onValueChange={(v) => setForm({ ...form, navigation_type: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
+                          <SelectItem value="secuencial">
+                            {t("exam.navigationSequential")}
+                          </SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div>
+                    <Label>
+                      {t("hc_routesAppTeacherExamsIndex.scheduleTypeLabel")}{" "}
+                      <HelpHint>
+                        <strong>
+                          {t("hc_routesAppTeacherExamsIndex.scheduleNormalName")}:
+                        </strong>{" "}
+                        {t("hc_routesAppTeacherExamsIndex.scheduleNormalHint")}{" "}
+                        <strong>
+                          {t("hc_routesAppTeacherExamsIndex.scheduleRelativeName")}:
+                        </strong>{" "}
+                        {t("hc_routesAppTeacherExamsIndex.scheduleRelativeHint")}
+                      </HelpHint>
+                    </Label>
+                    <Select
+                      value={(form as any).schedule_type ?? "normal"}
+                      onValueChange={(v) => setForm({ ...form, schedule_type: v } as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="normal">
+                          {t("hc_routesAppTeacherExamsIndex.scheduleNormalOption")}
+                        </SelectItem>
+                        <SelectItem value="relativo">
+                          {t("hc_routesAppTeacherExamsIndex.scheduleRelativeOption")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>
+                      {t("hc_routesAppTeacherExamsIndex.retryModeLabel")}{" "}
+                      <HelpHint>{t("help.examRetryModeHelp")}</HelpHint>
+                    </Label>
+                    <Select
+                      value={(form as any).retry_mode ?? "last"}
+                      onValueChange={(v) => setForm({ ...form, retry_mode: v } as any)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="last">
+                          {t("hc_routesAppTeacherExamsIndex.retryLast")}
+                        </SelectItem>
+                        <SelectItem value="average">
+                          {t("hc_routesAppTeacherExamsIndex.retryAverage")}
+                        </SelectItem>
+                        <SelectItem value="highest">
+                          {t("hc_routesAppTeacherExamsIndex.retryHighest")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label className="flex items-center gap-1.5">
+                      {t("exam.shuffle")}
+                      <HelpHint>{t("help.examShuffleHelp")}</HelpHint>
+                    </Label>
+                    <Switch
+                      checked={!!form.shuffle_enabled}
+                      onCheckedChange={(v) => setForm({ ...form, shuffle_enabled: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label>
+                      {t("hc_routesAppTeacherExamsIndex.maxWarningsLabel")}{" "}
+                      <HelpHint>{t("help.examMaxWarningsHelp")}</HelpHint>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={(form as any).max_warnings ?? 3}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          max_warnings:
+                            e.target.value === ""
+                              ? 3
+                              : Math.max(1, Math.min(50, Number(e.target.value))),
+                        } as any)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("exam.parentExam")}</Label>
+                    <Select
+                      value={form.parent_exam_id ?? "none"}
+                      onValueChange={(v) =>
+                        setForm({ ...form, parent_exam_id: v === "none" ? null : v })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("exam.originalExam")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">{t("common.none")}</SelectItem>
+                        {exams
+                          .filter((e) => !e.parent_exam_id && e.course_id === form.course_id)
+                          .map((e) => (
+                            <SelectItem key={e.id} value={e.id}>
+                              {e.title}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
           </div>
           <DialogFooter>

@@ -8211,7 +8211,11 @@
     "currentWeightExceeds": "El peso actual ({{current}}%) excede el bucket.",
     "bulkDeleteWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los exámenes seleccionados.",
     "autoAssignFailed": "No se pudieron asignar los estudiantes: {{error}}",
-    "importFirstError": "{{created}} creados, {{skipped}} con error. Primero: \"{{title}}\" — {{error}}"
+    "importFirstError": "{{created}} creados, {{skipped}} con error. Primero: \"{{title}}\" — {{error}}",
+    "sectionWhatTitle": "Qué evalúa",
+    "sectionWhenTitle": "Cuándo",
+    "sectionHowTitle": "Cómo se toma",
+    "sectionHowHint": "Duración, navegación, mezcla y advertencias. Ya vienen configuradas."
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "No pudimos cargar tus cursos.",
