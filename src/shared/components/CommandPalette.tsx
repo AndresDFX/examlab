@@ -121,17 +121,23 @@ export function CommandPalette({
 
   return (
     <>
+      {/* Los colores salen de los tokens del SIDEBAR, no de los de página.
+          `text-muted-foreground` está calculado contra `--background`; sobre el
+          sidebar —que TenantThemeProvider pinta con el color de la institución—
+          queda casi ilegible (con una marca naranja, gris claro sobre naranja).
+          Los ítems del nav de al lado ya usan `text-sidebar-foreground`, así que
+          esto además los desalineaba visualmente. */}
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2 rounded-md border border-sidebar-border/60 px-2 py-1.5 text-2xs text-muted-foreground transition-colors hover:bg-sidebar-accent/50"
+        className="flex w-full items-center gap-2 rounded-md border border-sidebar-foreground/25 bg-sidebar-foreground/5 px-2 py-1.5 text-2xs text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
         aria-label={t("palette.openLabel")}
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
         <span className="flex-1 truncate text-left">{t("palette.trigger")}</span>
         {/* El atajo se muestra en el disparador: si no se anuncia, nadie lo
             descubre y la paleta no existe para el usuario. */}
-        <kbd className="hidden rounded border border-sidebar-border/60 px-1 font-mono text-3xs sm:inline">
+        <kbd className="hidden rounded border border-sidebar-foreground/25 px-1 font-mono text-3xs text-sidebar-foreground/70 sm:inline">
           ⌘K
         </kbd>
       </button>
