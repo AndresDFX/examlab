@@ -3309,7 +3309,7 @@ function TeacherWorkshops() {
                 <Label htmlFor="ws-is-external" className="text-sm">
                   {t("teacherWorkshops.fieldExternal")}
                 </Label>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-2xs text-muted-foreground leading-tight">
                   {t("teacherWorkshops.fieldExternalDesc")}
                 </p>
               </div>
@@ -3357,7 +3357,7 @@ function TeacherWorkshops() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-2xs text-muted-foreground leading-tight">
                   {t("teacherWorkshops.groupModeHint")}
                 </p>
               </div>
@@ -3639,7 +3639,7 @@ function TeacherWorkshops() {
                   <HelpHint>{t("help.introVideosSequentialUnlockWorkshop")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground italic">
+                  <p className="text-2xs text-muted-foreground italic">
                     {t("teacherWorkshops.fieldVideosEmpty")}
                   </p>
                 )}
@@ -3668,7 +3668,7 @@ function TeacherWorkshops() {
                     return (
                       <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+                          <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
                             {idx + 1}
                           </Badge>
                           <Input
@@ -3751,7 +3751,7 @@ function TeacherWorkshops() {
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   {t("teacherWorkshops.videoAddBtn")}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("teacherWorkshops.videoTip")}
                 </p>
               </div>
@@ -3904,7 +3904,7 @@ function TeacherWorkshops() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("hc_routesAppTeacherWorkshops.assignCourseLevelHint")}
               </p>
             </div>
@@ -3972,13 +3972,13 @@ function TeacherWorkshops() {
                       </div>
                     </div>
                     {included ? (
-                      <Badge variant="secondary" className="text-[9px] shrink-0">
+                      <Badge variant="secondary" className="text-3xs shrink-0">
                         {t("hc_routesAppTeacherWorkshops.includedBadge")}
                       </Badge>
                     ) : (
                       <Badge
                         variant="outline"
-                        className="text-[9px] shrink-0 border-destructive/40 text-destructive"
+                        className="text-3xs shrink-0 border-destructive/40 text-destructive"
                       >
                         {t("hc_routesAppTeacherWorkshops.excludedBadge")}
                       </Badge>
@@ -4154,7 +4154,7 @@ function TeacherWorkshops() {
                   )}
                 </div>
                 {gradingSearch && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                  <span className="text-2xs text-muted-foreground tabular-nums shrink-0">
                     {t("hc_routesAppTeacherWorkshops.countOf", {
                       shown: filteredWsSubs.length,
                       total: wsSubs.length,
@@ -4222,7 +4222,7 @@ function TeacherWorkshops() {
                               <div className="font-medium text-sm truncate">
                                 {sub.profile?.full_name ?? "—"}
                               </div>
-                              <div className="text-[11px] text-muted-foreground truncate">
+                              <div className="text-2xs text-muted-foreground truncate">
                                 {sub.profile?.institutional_email}
                               </div>
                             </TableCell>
@@ -4238,8 +4238,8 @@ function TeacherWorkshops() {
                                   variant={integrity.aiPending > 0 ? "destructive" : "outline"}
                                   className={
                                     integrity.aiPending > 0
-                                      ? "text-[10px] flex items-center gap-1 w-fit"
-                                      : "text-[10px] flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                      ? "text-3xs flex items-center gap-1 w-fit"
+                                      : "text-3xs flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                   }
                                   title={
                                     integrity.aiPending > 0
@@ -4267,8 +4267,8 @@ function TeacherWorkshops() {
                                   variant={integrity.copyPending > 0 ? "destructive" : "outline"}
                                   className={
                                     integrity.copyPending > 0
-                                      ? "text-[10px] flex items-center gap-1 w-fit"
-                                      : "text-[10px] flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                      ? "text-3xs flex items-center gap-1 w-fit"
+                                      : "text-3xs flex items-center gap-1 w-fit bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                   }
                                   title={
                                     integrity.copyPending > 0
@@ -4396,8 +4396,8 @@ function TeacherWorkshops() {
                                 variant={integrity.aiPending > 0 ? "destructive" : "outline"}
                                 className={
                                   integrity.aiPending > 0
-                                    ? "text-[10px] flex items-center gap-1"
-                                    : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                    ? "text-3xs flex items-center gap-1"
+                                    : "text-3xs flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                 }
                                 title={
                                   integrity.aiPending > 0
@@ -4421,8 +4421,8 @@ function TeacherWorkshops() {
                                 variant={integrity.copyPending > 0 ? "destructive" : "outline"}
                                 className={
                                   integrity.copyPending > 0
-                                    ? "text-[10px] flex items-center gap-1"
-                                    : "text-[10px] flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                    ? "text-3xs flex items-center gap-1"
+                                    : "text-3xs flex items-center gap-1 bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                 }
                                 title={
                                   integrity.copyPending > 0
@@ -4589,16 +4589,16 @@ function TeacherWorkshops() {
                                       }`}
                                     >
                                       <div className="flex flex-wrap items-center gap-2">
-                                        <Badge variant="outline" className="text-[10px]">
+                                        <Badge variant="outline" className="text-3xs">
                                           {idx + 1}
                                         </Badge>
                                         <Badge
                                           variant="secondary"
-                                          className="text-[10px] capitalize"
+                                          className="text-3xs capitalize"
                                         >
                                           {q.type}
                                         </Badge>
-                                        <span className="text-[11px] text-muted-foreground">
+                                        <span className="text-2xs text-muted-foreground">
                                           {t("hc_routesAppTeacherWorkshops.maxPts", {
                                             points: q.points,
                                           })}
@@ -4608,7 +4608,7 @@ function TeacherWorkshops() {
                                         <MarkdownInline>{q.content}</MarkdownInline>
                                       </div>
                                       <div>
-                                        <Label className="text-[11px] text-muted-foreground">
+                                        <Label className="text-2xs text-muted-foreground">
                                           {t("hc_routesAppTeacherWorkshops.studentAnswer")}
                                         </Label>
                                         {q.type === "cerrada" ? (
@@ -4680,7 +4680,7 @@ function TeacherWorkshops() {
                                         const aiPct = Math.round((aiSig?.score ?? 0) * 100);
                                         const cpPct = Math.round((plagiarismMax ?? 0) * 100);
                                         return (
-                                          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                          <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-2xs">
                                             <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
                                             <span className="font-medium text-amber-700 dark:text-amber-300">
                                               {t("integrity.perQuestionSuggestion")}
@@ -4688,7 +4688,7 @@ function TeacherWorkshops() {
                                             <span className="font-semibold tabular-nums">
                                               {sug.suggested.toLocaleString("es-CO")} / {q.points}
                                             </span>
-                                            <Badge variant="outline" className="text-[10px]">
+                                            <Badge variant="outline" className="text-3xs">
                                               {sug.source === "ai"
                                                 ? t("hc_routesAppTeacherWorkshops.suggestionSourceAi", {
                                                     pct: aiPct,
@@ -4708,7 +4708,7 @@ function TeacherWorkshops() {
                                             <Button
                                               size="sm"
                                               variant="outline"
-                                              className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                              className="h-6 text-2xs ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
                                               onClick={() =>
                                                 patchAnswer(sub.id, q.id, {
                                                   ai_grade: sug.suggested,
@@ -4738,7 +4738,7 @@ function TeacherWorkshops() {
                                               <CollapsibleTrigger asChild>
                                                 <button
                                                   type="button"
-                                                  className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                                  className="w-full flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
                                                 >
                                                   <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                                                   <Bot className="h-3 w-3" />
@@ -4751,14 +4751,14 @@ function TeacherWorkshops() {
                                                           ? "default"
                                                           : "secondary"
                                                     }
-                                                    className="text-[10px] ml-auto"
+                                                    className="text-3xs ml-auto"
                                                   >
                                                     {Math.round(aiSig.score * 100)}%
                                                   </Badge>
                                                   {reviewed && (
                                                     <Badge
                                                       variant="outline"
-                                                      className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                      className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                                     >
                                                       <Check className="h-3 w-3 mr-1" />
                                                       {t("integrity.reviewed", {
@@ -4770,7 +4770,7 @@ function TeacherWorkshops() {
                                               </CollapsibleTrigger>
                                               <CollapsibleContent className="space-y-2">
                                                 {aiSig.reasons && (
-                                                  <p className="text-[11px] text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
+                                                  <p className="text-2xs text-amber-700 dark:text-amber-300 whitespace-pre-wrap pt-1 border-t border-amber-300/30">
                                                     {aiSig.reasons}
                                                   </p>
                                                 )}
@@ -4779,7 +4779,7 @@ function TeacherWorkshops() {
                                                     <Button
                                                       size="sm"
                                                       variant="outline"
-                                                      className="h-7 text-[11px] bg-background"
+                                                      className="h-7 text-2xs bg-background"
                                                       // Global: el guard del handler
                                                       // serializa todos los toggles de
                                                       // revisión (ver
@@ -4811,7 +4811,7 @@ function TeacherWorkshops() {
                                                     <Button
                                                       size="sm"
                                                       variant="outline"
-                                                      className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                      className="h-7 text-2xs bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                                       disabled={togglingReviewId !== null}
                                                       title={
                                                         togglingReviewId !== null
@@ -4880,21 +4880,21 @@ function TeacherWorkshops() {
                                               <CollapsibleTrigger asChild>
                                                 <button
                                                   type="button"
-                                                  className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                                  className="w-full flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
                                                 >
                                                   <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                                                   <Users className="h-3 w-3" />
                                                   <span>{t("integrity.copySection")}</span>
                                                   <Badge
                                                     variant="outline"
-                                                    className="text-[10px] ml-auto"
+                                                    className="text-3xs ml-auto"
                                                   >
                                                     {qPairs.length} · {Math.round(maxScore * 100)}%
                                                   </Badge>
                                                   {pendingCount > 0 ? (
                                                     <Badge
                                                       variant="outline"
-                                                      className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                                      className="text-3xs bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
                                                     >
                                                       {t(
                                                         "hc_routesAppTeacherWorkshops.pendingCount",
@@ -4904,7 +4904,7 @@ function TeacherWorkshops() {
                                                   ) : (
                                                     <Badge
                                                       variant="outline"
-                                                      className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                      className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                                     >
                                                       <Check className="h-3 w-3 mr-1" />
                                                       {t("hc_routesAppTeacherWorkshops.allReviewed")}
@@ -4931,14 +4931,14 @@ function TeacherWorkshops() {
                                                               ? "default"
                                                               : "secondary"
                                                         }
-                                                        className="text-[10px]"
+                                                        className="text-3xs"
                                                       >
                                                         {Math.round(p.score * 100)}%
                                                       </Badge>
                                                       {isReviewed && (
                                                         <Badge
                                                           variant="outline"
-                                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                                          className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                                         >
                                                           <Check className="h-3 w-3 mr-1" />
                                                           {t("integrity.reviewed", {
@@ -4951,8 +4951,8 @@ function TeacherWorkshops() {
                                                         variant="outline"
                                                         className={
                                                           isReviewed
-                                                            ? "h-6 text-[10px] ml-auto bg-background"
-                                                            : "h-6 text-[10px] ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                            ? "h-6 text-3xs ml-auto bg-background"
+                                                            : "h-6 text-3xs ml-auto bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                                         }
                                                         disabled={togglingReviewId !== null}
                                                         title={
@@ -4995,7 +4995,7 @@ function TeacherWorkshops() {
 
                                       <div className="grid grid-cols-1 sm:grid-cols-[120px_1fr] gap-2">
                                         <div>
-                                          <Label className="text-[11px]">{t("hc_routesAppTeacherWorkshops.aiGradeFieldLabel")}</Label>
+                                          <Label className="text-2xs">{t("hc_routesAppTeacherWorkshops.aiGradeFieldLabel")}</Label>
                                           <DecimalInput
                                             min={0}
                                             max={q.points}
@@ -5007,7 +5007,7 @@ function TeacherWorkshops() {
                                           />
                                         </div>
                                         <div>
-                                          <Label className="text-[11px]">{t("hc_routesAppTeacherWorkshops.feedbackFieldLabel")}</Label>
+                                          <Label className="text-2xs">{t("hc_routesAppTeacherWorkshops.feedbackFieldLabel")}</Label>
                                           <Textarea
                                             rows={2}
                                             value={ans?.ai_feedback ?? ""}

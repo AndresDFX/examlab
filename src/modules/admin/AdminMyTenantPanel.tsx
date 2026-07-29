@@ -299,7 +299,7 @@ export function AdminMyTenantPanel() {
         <div>
           <Label className="text-xs">{t("hc_modulesAdminAdminMyTenantPanel.slugLabel")}</Label>
           <Input value={tenant.slug} disabled className="font-mono text-xs" />
-          <p className="text-[11px] text-muted-foreground mt-1">
+          <p className="text-2xs text-muted-foreground mt-1">
             {t("hc_modulesAdminAdminMyTenantPanel.slugHint")}
           </p>
         </div>
@@ -333,7 +333,7 @@ export function AdminMyTenantPanel() {
                 />
               </div>
             ) : (
-              <div className="h-16 w-16 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+              <div className="h-16 w-16 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-3xs text-muted-foreground shrink-0">
                 {t("hc_modulesAdminAdminMyTenantPanel.noLogo")}
               </div>
             )}
@@ -372,7 +372,7 @@ export function AdminMyTenantPanel() {
                   </Button>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground mt-1.5">
+              <p className="text-2xs text-muted-foreground mt-1.5">
                 {t("hc_modulesAdminAdminMyTenantPanel.logoHint")}
               </p>
             </div>
@@ -388,7 +388,7 @@ export function AdminMyTenantPanel() {
               placeholder="#3B82F6"
               ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.primaryColorAria")}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("hc_modulesAdminAdminMyTenantPanel.primaryColorHint")}
             </p>
           </div>
@@ -400,7 +400,7 @@ export function AdminMyTenantPanel() {
               placeholder="#8B5CF6"
               ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.secondaryColorAria")}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("hc_modulesAdminAdminMyTenantPanel.secondaryColorHint")}
             </p>
           </div>
@@ -412,7 +412,7 @@ export function AdminMyTenantPanel() {
               placeholder="#FFFFFF"
               ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.textColorAria")}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("hc_modulesAdminAdminMyTenantPanel.textColorHint")}
             </p>
           </div>
@@ -424,7 +424,7 @@ export function AdminMyTenantPanel() {
               placeholder="#FFFFFF"
               ariaLabel={t("hc_modulesAdminAdminMyTenantPanel.iconColorAria")}
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("hc_modulesAdminAdminMyTenantPanel.iconColorHint")}
             </p>
           </div>
@@ -437,7 +437,7 @@ export function AdminMyTenantPanel() {
             onChange={(e) => setForm((p) => ({ ...p, email_domain: e.target.value }))}
             placeholder={t("hc_modulesAdminAdminMyTenantPanel.emailDomainPlaceholder")}
           />
-          <p className="text-[11px] text-muted-foreground mt-1">
+          <p className="text-2xs text-muted-foreground mt-1">
             {t("hc_modulesAdminAdminMyTenantPanel.emailDomainHint")}
           </p>
         </div>
@@ -449,7 +449,7 @@ export function AdminMyTenantPanel() {
             crear uno nuevo. */}
         <div className="pt-2 border-t">
           <TenantQuotaCard compact title={t("hc_modulesAdminAdminMyTenantPanel.quotaCardTitle")} />
-          <p className="text-[11px] text-muted-foreground mt-2">
+          <p className="text-2xs text-muted-foreground mt-2">
             {t("hc_modulesAdminAdminMyTenantPanel.quotaHint")}
           </p>
         </div>

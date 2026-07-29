@@ -849,7 +849,7 @@ function TeacherPolls() {
       <PageHeader
         title={t("teacherPolls.pageTitle")}
         subtitle={t("teacherPolls.pageSubtitle")}
-        icon={<ListChecks className="h-6 w-6 text-sky-500" />}
+        icon={<ListChecks className="h-6 w-6" />}
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -1022,7 +1022,7 @@ function TeacherPolls() {
                           </div>
                           {p.description && (
                             <div
-                              className="text-[11px] text-muted-foreground truncate"
+                              className="text-2xs text-muted-foreground truncate"
                               title={p.description}
                             >
                               {p.description}
@@ -1042,7 +1042,7 @@ function TeacherPolls() {
                             return (
                               <div className="truncate" title={names}>
                                 {lc[0].name}{" "}
-                                <span className="text-[10px] text-muted-foreground/80">
+                                <span className="text-3xs text-muted-foreground/80">
                                   {t("teacherPolls.plusMore", { count: lc.length - 1 })}
                                 </span>
                               </div>
@@ -1051,12 +1051,12 @@ function TeacherPolls() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap items-center gap-1">
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-3xs">
                               <Icon className="h-3 w-3 mr-1" />
                               {pollTypeLabel(p.poll_type)}
                             </Badge>
                             {!p.is_published && (
-                              <Badge variant="secondary" className="text-[10px]">
+                              <Badge variant="secondary" className="text-3xs">
                                 {t("teacherPolls.badgeDraft")}
                               </Badge>
                             )}
@@ -1075,7 +1075,7 @@ function TeacherPolls() {
                           {p.total_responses ?? 0}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
+                          <Badge variant={open ? "default" : "secondary"} className="text-3xs">
                             {open ? t("teacherPolls.statusOpen") : t("teacherPolls.statusClosed")}
                           </Badge>
                         </TableCell>
@@ -2230,7 +2230,7 @@ function CreatePollDialog({
               {courses.length > 1 && (
                 <button
                   type="button"
-                  className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                  className="text-2xs text-primary hover:underline disabled:opacity-50"
                   onClick={() =>
                     setCourseIds(
                       courseIds.length === courses.length ? [] : courses.map((c) => c.id),
@@ -2266,7 +2266,7 @@ function CreatePollDialog({
               </div>
             )}
             {courseIds.length > 1 && (
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("teacherPolls.coursesSelected", { count: courseIds.length })}
               </p>
             )}
@@ -2299,7 +2299,7 @@ function CreatePollDialog({
               </SelectContent>
             </Select>
             {anchorCourseIdLoaded && availableSessions.length === 0 && (
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("teacherPolls.noSessionsRegistered")}
               </p>
             )}
@@ -2359,7 +2359,7 @@ function CreatePollDialog({
                 <SelectItem value="single">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.typeSingle")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.typeOptionSingleDesc")}
                     </span>
                   </div>
@@ -2367,7 +2367,7 @@ function CreatePollDialog({
                 <SelectItem value="multiple">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.typeMultiple")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.typeOptionMultipleDesc")}
                     </span>
                   </div>
@@ -2375,7 +2375,7 @@ function CreatePollDialog({
                 <SelectItem value="slot">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.typeSlotDoodle")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.typeOptionSlotDesc")}
                     </span>
                   </div>
@@ -2383,7 +2383,7 @@ function CreatePollDialog({
                 <SelectItem value="kahoot">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.typeKahoot")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.typeOptionKahootDesc")}
                     </span>
                   </div>
@@ -2391,7 +2391,7 @@ function CreatePollDialog({
                 <SelectItem value="mixed">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.typeMixed", { defaultValue: "Mixta (preguntas)" })}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.typeOptionMixedDesc", {
                         defaultValue: "Preguntas abiertas y/o cerradas, como un taller",
                       })}
@@ -2414,7 +2414,7 @@ function CreatePollDialog({
                 <HelpHint side="right">{t("help.pollCloseDatetimeHint")}</HelpHint>
               </Label>
               <DateTimePicker value={closesAt} onChange={setClosesAt} />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("teacherPolls.closesAtEmptyHint")}
               </p>
               {isEdit && editingPoll && !pollIsOpen(editingPoll) && (
@@ -2468,7 +2468,7 @@ function CreatePollDialog({
                   <SelectItem value="always">
                     <div className="flex flex-col gap-0.5">
                       <span>{visLabel("always")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("teacherPolls.visDescAlways")}
                       </span>
                     </div>
@@ -2476,7 +2476,7 @@ function CreatePollDialog({
                   <SelectItem value="after_close">
                     <div className="flex flex-col gap-0.5">
                       <span>{visLabel("after_close")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("teacherPolls.visDescAfterClose")}
                       </span>
                     </div>
@@ -2484,7 +2484,7 @@ function CreatePollDialog({
                   <SelectItem value="never">
                     <div className="flex flex-col gap-0.5">
                       <span>{visLabel("never")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("teacherPolls.visDescNever")}
                       </span>
                     </div>
@@ -2504,7 +2504,7 @@ function CreatePollDialog({
                   <span className="text-sm font-medium">{t("teacherPolls.allowChangeTitle")}</span>
                   <HelpHint>{t("help.pollAllowChangeResponseHint")}</HelpHint>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+                <p className="text-2xs text-muted-foreground mt-0.5">
                   {allowChange
                     ? t("teacherPolls.allowChangeOn")
                     : t("teacherPolls.allowChangeOff")}
@@ -2523,7 +2523,7 @@ function CreatePollDialog({
                     <span className="text-sm font-medium">{t("teacherPolls.autoCloseTitle")}</span>
                     <HelpHint>{t("help.pollAutoCloseAllRespondedHint")}</HelpHint>
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                  <p className="text-2xs text-muted-foreground mt-0.5">
                     {autoCloseAll
                       ? t("teacherPolls.autoCloseOn")
                       : t("teacherPolls.autoCloseOff")}
@@ -2566,7 +2566,7 @@ function CreatePollDialog({
                 <SelectItem value="draft">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.statusOptionDraft")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.statusOptionDraftDesc")}
                     </span>
                   </div>
@@ -2574,7 +2574,7 @@ function CreatePollDialog({
                 <SelectItem value="published">
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.statusOptionPublished")}</span>
-                    <span className="text-[11px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       {t("teacherPolls.statusOptionPublishedDesc")}
                     </span>
                   </div>
@@ -2649,12 +2649,12 @@ function CreatePollDialog({
               </HelpHint>
             </Label>
             {optionsLocked && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5 mt-1 mb-2">
+              <p className="text-2xs text-amber-700 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5 mt-1 mb-2">
                 {t("teacherPolls.optionsLockedNote")}
               </p>
             )}
             {type === "slot" && isEdit && hasVotes && (
-              <p className="text-[11px] text-sky-700 dark:text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded px-2 py-1.5 mt-1 mb-2">
+              <p className="text-2xs text-sky-700 dark:text-sky-400 bg-sky-500/10 border border-sky-500/30 rounded px-2 py-1.5 mt-1 mb-2">
                 {t("teacherPolls.slotEditWithVotesNote", {
                   defaultValue:
                     "Puedes agregar nuevas fechas, ampliar el cupo y reabrir la encuesta (fija un cierre futuro). Las fechas que ya tienen reservas no se pueden eliminar.",
@@ -2676,10 +2676,10 @@ function CreatePollDialog({
 
                   {/* Lista de fechas elegidas + DatePicker para agregar */}
                   <div>
-                    <Label className="text-[11px]">{t("teacherPolls.availableDates")}</Label>
+                    <Label className="text-2xs">{t("teacherPolls.availableDates")}</Label>
                     <div className="flex flex-wrap gap-1.5 mt-1.5 mb-2">
                       {slotDates.length === 0 ? (
-                        <span className="text-[11px] text-muted-foreground italic">
+                        <span className="text-2xs text-muted-foreground italic">
                           {t("teacherPolls.noDatesYet")}
                         </span>
                       ) : (
@@ -2687,7 +2687,7 @@ function CreatePollDialog({
                           <Badge
                             key={d}
                             variant="secondary"
-                            className="text-[11px] gap-1 pl-2 pr-1"
+                            className="text-2xs gap-1 pl-2 pr-1"
                           >
                             {d}
                             <button
@@ -2728,7 +2728,7 @@ function CreatePollDialog({
                   {/* Ventana horaria del día (aplica a cada fecha) */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[11px]">{t("teacherPolls.startTime")}</Label>
+                      <Label className="text-2xs">{t("teacherPolls.startTime")}</Label>
                       <Input
                         type="time"
                         value={slotTimeStart}
@@ -2737,7 +2737,7 @@ function CreatePollDialog({
                       />
                     </div>
                     <div>
-                      <Label className="text-[11px]">{t("teacherPolls.endTime")}</Label>
+                      <Label className="text-2xs">{t("teacherPolls.endTime")}</Label>
                       <Input
                         type="time"
                         value={slotTimeEnd}
@@ -2749,7 +2749,7 @@ function CreatePollDialog({
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <div>
-                      <Label className="text-[11px]">{t("teacherPolls.everyMinutes")}</Label>
+                      <Label className="text-2xs">{t("teacherPolls.everyMinutes")}</Label>
                       <Input
                         type="number"
                         min={1}
@@ -2760,20 +2760,20 @@ function CreatePollDialog({
                     </div>
                     <div>
                       <div className="flex items-center justify-between gap-1 mb-0.5">
-                        <Label className="text-[11px]">{t("teacherPolls.cupoPerSlot")}</Label>
+                        <Label className="text-2xs">{t("teacherPolls.cupoPerSlot")}</Label>
                         {/* Badge auto/manual. En modo auto el cupo se
                             recalcula con cada cambio de fechas/horas/step
                             usando ceil(matriculados / total_slots). Pasa
                             a manual cuando el docente tipea su propio valor;
                             el botón "Auto" abajo del input revierte. */}
                         {cupoManual ? (
-                          <Badge variant="outline" className="text-[9px] h-4 px-1">
+                          <Badge variant="outline" className="text-3xs h-4 px-1">
                             {t("teacherPolls.badgeManual")}
                           </Badge>
                         ) : (
                           <Badge
                             variant="secondary"
-                            className="text-[9px] h-4 px-1 bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-300/50"
+                            className="text-3xs h-4 px-1 bg-sky-100 text-sky-700 dark:bg-sky-950/40 dark:text-sky-300 border-sky-300/50"
                           >
                             {t("teacherPolls.badgeAuto")}
                           </Badge>
@@ -2794,7 +2794,7 @@ function CreatePollDialog({
                       {cupoManual && (
                         <button
                           type="button"
-                          className="text-[10px] text-primary hover:underline mt-0.5"
+                          className="text-3xs text-primary hover:underline mt-0.5"
                           onClick={() => setCupoManual(false)}
                         >
                           {t("teacherPolls.backToAuto")}
@@ -2812,7 +2812,7 @@ function CreatePollDialog({
                   {slotDates.length > 0 && slotSummary.validWindow && (
                     <div
                       className={cn(
-                        "rounded-md border px-2.5 py-2 text-[11px] space-y-0.5",
+                        "rounded-md border px-2.5 py-2 text-2xs space-y-0.5",
                         slotSummary.enough
                           ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-300/50 text-emerald-900 dark:text-emerald-200"
                           : "bg-amber-50/70 dark:bg-amber-950/30 border-amber-400/60 text-amber-900 dark:text-amber-200",
@@ -2835,7 +2835,7 @@ function CreatePollDialog({
                         </span>
                       </div>
                       {!slotSummary.enough && enrolledCount != null && enrolledCount > 0 && (
-                        <p className="text-[10px] opacity-90">
+                        <p className="text-3xs opacity-90">
                           {t("teacherPolls.capacityShortfall", {
                             count: enrolledCount - slotSummary.totalCapacity,
                           })}
@@ -2858,7 +2858,7 @@ function CreatePollDialog({
                         ? t("teacherPolls.generateSlotsFromDates", { count: slotDates.length })
                         : t("teacherPolls.generateSlots")}
                     </Button>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-3xs text-muted-foreground">
                       {t("teacherPolls.generateSlotsFooterHint")}
                     </p>
                   </div>
@@ -2867,7 +2867,7 @@ function CreatePollDialog({
                       faltó en la generación masiva. Compone el label con el
                       mismo formato que los generados. */}
                   <div className="border-t pt-3 space-y-1.5">
-                    <Label className="text-[11px]">{t("teacherPolls.addSingleSlot")}</Label>
+                    <Label className="text-2xs">{t("teacherPolls.addSingleSlot")}</Label>
                     <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-end">
                       <div className="flex-1 min-w-0">
                         <DatePicker
@@ -2944,7 +2944,7 @@ function CreatePollDialog({
                     // se muestra el conteo. Sin reservas → botón borrar normal.
                     (o.responses_count ?? 0) > 0 ? (
                       <span
-                        className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                        className="whitespace-nowrap rounded bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground"
                         title={t("teacherPolls.slotHasReservations", {
                           defaultValue: "Esta fecha tiene reservas y no puede eliminarse",
                         })}
@@ -3266,7 +3266,7 @@ function ResultsDialog({
             {poll.title}
             <Badge
               variant="outline"
-              className="text-[9px] gap-1 text-emerald-600 dark:text-emerald-400"
+              className="text-3xs gap-1 text-emerald-600 dark:text-emerald-400"
             >
               <Radio className="h-2.5 w-2.5 animate-pulse" />
               {t("teacherPolls.liveBadge")}
@@ -3343,7 +3343,7 @@ function ResultsDialog({
                         return (
                           <span
                             key={v.user_id}
-                            className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-[10px]"
+                            className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-3xs"
                           >
                             <span className="truncate max-w-[140px]" title={display}>
                               {display}
@@ -3617,7 +3617,7 @@ function MixedResultsDialog({
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{q.text}</p>
-                      <Badge variant="outline" className="text-[9px] mt-1">
+                      <Badge variant="outline" className="text-3xs mt-1">
                         {q.type === "abierta"
                           ? t("pollQuestions.typeOpen", { defaultValue: "Abierta (texto)" })
                           : t("pollQuestions.typeClosed", { defaultValue: "Cerrada (opción única)" })}
@@ -3653,7 +3653,7 @@ function MixedResultsDialog({
                                   return (
                                     <span
                                       key={v.user_id}
-                                      className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-[10px]"
+                                      className="inline-flex items-center gap-0.5 rounded border bg-muted/40 pl-1.5 pr-0.5 py-0.5 text-3xs"
                                     >
                                       <span className="truncate max-w-[140px]" title={display}>
                                         {display}

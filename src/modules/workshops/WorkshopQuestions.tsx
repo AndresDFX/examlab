@@ -639,7 +639,7 @@ export function TeacherWorkshopQuestionsEditor({
       toast.success(
         i18n.t("toast.modules_workshops_WorkshopQuestions.generationJobsQueued", {
           defaultValue:
-            "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+            "{{count}} tarea{{plural}} de generación encoladas. Cuando tengas un código de IA inmediata o un administrador las procese, las preguntas aparecerán automáticamente. Puedes verlas en el módulo Tareas de IA.",
           count: rows.length,
           plural: rows.length === 1 ? "" : "s",
         }),
@@ -735,10 +735,10 @@ export function TeacherWorkshopQuestionsEditor({
               <CardContent className="p-3 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-3xs">
                       {idx + 1}
                     </Badge>
-                    <Badge variant="secondary" className="text-[10px] capitalize">
+                    <Badge variant="secondary" className="text-3xs capitalize">
                       {q.type}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
@@ -801,7 +801,7 @@ export function TeacherWorkshopQuestionsEditor({
                 {questions.slice(0, 9).map((q, i) => (
                   <span
                     key={q.id}
-                    className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
+                    className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                   >
                     <span className="text-muted-foreground">#{i + 1}</span>
                     <span className="capitalize">{q.type}</span>
@@ -809,7 +809,7 @@ export function TeacherWorkshopQuestionsEditor({
                   </span>
                 ))}
                 {questions.length > 9 && (
-                  <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-3xs text-muted-foreground">
                     {t("workshopQuestions.moreItems", { n: questions.length - 9 })}
                   </span>
                 )}
@@ -981,7 +981,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="javafx">JavaFX</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {qJavaFramework === "javafx"
                   ? t("workshopQuestions.javaFxWarning")
                   : t("workshopQuestions.swingCompat")}
@@ -1023,7 +1023,7 @@ export function TeacherWorkshopQuestionsEditor({
                     {t("workshopQuestions.labelZipSingleMode")}
                     <HelpHint><span dangerouslySetInnerHTML={{ __html: t("help.codigoZipSingleModeToggle") }} /></HelpHint>
                   </Label>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {qZipSingle
                       ? t("workshopQuestions.zipSingleOn")
                       : t("workshopQuestions.zipSingleOff")}
@@ -2833,10 +2833,10 @@ export function StudentWorkshopTaker({
         <Card key={q.id}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-3xs">
                 {idx + 1}
               </Badge>
-              <Badge variant="secondary" className="text-[10px] capitalize">
+              <Badge variant="secondary" className="text-3xs capitalize">
                 {q.type}
               </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
@@ -3032,7 +3032,7 @@ export function StudentWorkshopTaker({
                   answers[q.id] instanceof File ? (answers[q.id] as File) : null;
                 return (
                   <div className="space-y-2">
-                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
                       <strong>{t("hc_modulesWorkshopsWorkshopQuestions.zipSingleModeLabel")}</strong>{" "}
                       {t("hc_modulesWorkshopsWorkshopQuestions.zipSingleModeNotice1")}{" "}
                       <code>.zip</code>{" "}
@@ -3078,14 +3078,14 @@ export function StudentWorkshopTaker({
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       {t("hc_modulesWorkshopsWorkshopQuestions.compressFolderInto")}{" "}
                       <span className="font-mono">.zip</span>.{" "}
                       {t("hc_modulesWorkshopsWorkshopQuestions.limit50Mb")}
                     </p>
                     {currentZip && (
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
+                      <div className="flex items-center justify-between gap-2 text-2xs">
+                        <Badge variant="secondary" className="text-3xs gap-1 pr-1">
                           <span className="truncate max-w-[16rem]">{currentZip.name}</span>
                           <span className="text-muted-foreground">
                             · {formatFileSizeShort(currentZip.size)}
@@ -3213,7 +3213,7 @@ export function StudentWorkshopTaker({
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       {t("hc_modulesWorkshopsWorkshopQuestions.uploadSourceFilesIntro")}{" "}
                       <span className="font-mono">{allowedLabel}</span>.{" "}
                       {t("hc_modulesWorkshopsWorkshopQuestions.uploadSourceFilesLimit", {
@@ -3222,7 +3222,7 @@ export function StudentWorkshopTaker({
                     </p>
                     {current.length > 0 && (
                       <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2 text-2xs text-muted-foreground">
                           <span>
                             {t("hc_modulesWorkshopsWorkshopQuestions.filesCountSummary", {
                               count: current.length,
@@ -3243,7 +3243,7 @@ export function StudentWorkshopTaker({
                             <Badge
                               key={`${f.name}-${f.size}-${i}`}
                               variant="secondary"
-                              className="text-[10px] gap-1 pr-1"
+                              className="text-3xs gap-1 pr-1"
                             >
                               <span className="truncate max-w-[12rem]">{f.name}</span>
                               <span className="text-muted-foreground">
@@ -3277,7 +3277,7 @@ export function StudentWorkshopTaker({
       ))}
       <div className="sticky bottom-2 z-10 bg-background/80 backdrop-blur p-2 rounded-lg border">
         {videoGateBlocking && (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 mb-1.5 text-center">
+          <p className="text-2xs text-amber-700 dark:text-amber-300 mb-1.5 text-center">
             {t("hc_modulesWorkshopsWorkshopQuestions.finishWatchingVideos")}
           </p>
         )}
@@ -3285,7 +3285,7 @@ export function StudentWorkshopTaker({
             0 restantes) + aviso. Mismo patrón que el taker de proyectos
             (ProjectFiles): cuando no quedan intentos, el botón "Entregar" se
             deshabilita en vez de mostrarse habilitado y fallar al hacer clic. */}
-        <div className="flex items-center justify-center gap-1.5 text-[11px] mb-1">
+        <div className="flex items-center justify-center gap-1.5 text-2xs mb-1">
           <span className="text-muted-foreground">
             {t("hc_modulesWorkshopsWorkshopQuestions.attemptsRemaining")}
           </span>
@@ -3302,11 +3302,11 @@ export function StudentWorkshopTaker({
           </span>
         </div>
         {attemptsExhausted ? (
-          <p className="text-[11px] text-destructive text-center mb-1.5">
+          <p className="text-2xs text-destructive text-center mb-1.5">
             {t("hc_modulesWorkshopsWorkshopQuestions.allAttemptsUsed")}
           </p>
         ) : attemptsRemaining === 1 ? (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium mb-1.5">
+          <p className="text-2xs text-amber-700 dark:text-amber-300 text-center font-medium mb-1.5">
             {effectiveMaxAttempts === 1
               ? t("hc_modulesWorkshopsWorkshopQuestions.warningSingleAttempt")
               : t("hc_modulesWorkshopsWorkshopQuestions.warningOneAttemptLeft")}

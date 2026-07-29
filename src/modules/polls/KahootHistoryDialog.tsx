@@ -194,7 +194,7 @@ export function KahootHistoryDialog({
                       <TableCell>
                         <Badge
                           variant={r.status === "ended" || r.status === "podium" ? "default" : "secondary"}
-                          className="text-[10px]"
+                          className="text-3xs"
                         >
                           {statusLabel(r.status)}
                         </Badge>

@@ -243,7 +243,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
               <Link to={cronModulePath} className="block">
                 <div className="rounded-md border border-orange-500/40 bg-orange-500/10 px-2.5 py-1.5 flex items-center gap-2 hover:bg-orange-500/15 transition-colors">
                   <MessageSquareWarning className="h-3.5 w-3.5 text-orange-500 shrink-0" />
-                  <span className="text-[11px] font-medium text-orange-700 dark:text-orange-400 flex-1 min-w-0 truncate">
+                  <span className="text-2xs font-medium text-orange-700 dark:text-orange-400 flex-1 min-w-0 truncate">
                     {t("aiQueue.widgetRejections", { count: myRejectedPending })}
                   </span>
                   <ArrowRight className="h-3 w-3 text-orange-500 shrink-0" />
@@ -277,7 +277,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 bg="bg-destructive/10"
               />
             </div>
-            <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+            <div className="text-2xs text-muted-foreground flex items-center gap-1.5">
               <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
               {t("aiQueue.widgetLastSuccess")} {counts.lastDoneAt ? formatDateTime(counts.lastDoneAt) : "—"}
             </div>
@@ -289,7 +289,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                 Si no hay jobs activos, mostramos un mensaje sutil para
                 que el card no se vea vacío. */}
             <div className="flex-1 min-h-0 flex flex-col gap-1 border-t pt-2">
-              <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium shrink-0">
+              <div className="text-3xs uppercase tracking-wide text-muted-foreground font-medium shrink-0">
                 {t("aiQueue.widgetQueue")}
               </div>
               <div className="flex-1 overflow-y-auto pr-1 space-y-0.5 min-h-0">
@@ -305,7 +305,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                     return (
                       <div
                         key={j.id}
-                        className={`flex items-center gap-2 px-1.5 py-0.5 rounded text-[11px] ${
+                        className={`flex items-center gap-2 px-1.5 py-0.5 rounded text-2xs ${
                           isFailed ? "bg-destructive/5" : ""
                         }`}
                       >
@@ -317,7 +317,7 @@ export function AiGradingQueueWidget({ isAdmin = false }: Props) {
                           <Clock className="h-3 w-3 text-muted-foreground shrink-0" />
                         )}
                         <span className="flex-1 truncate">{kindLabel}</span>
-                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                        <span className="text-3xs text-muted-foreground tabular-nums shrink-0">
                           {relativeAge(j.created_at)}
                         </span>
                       </div>
@@ -363,7 +363,7 @@ function Stat({
   return (
     <div className={`rounded-md p-2.5 ${bg}`}>
       <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+      <div className="text-3xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

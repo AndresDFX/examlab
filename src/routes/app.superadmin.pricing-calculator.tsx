@@ -239,7 +239,7 @@ function PricingCalculatorPage() {
               })
         }
         actions={
-          <Button variant="outline" onClick={exportCsv}>
+          <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download className="h-4 w-4 mr-2" />
             {t("pricingCalculator.exportCsv", { defaultValue: "Exportar escala (CSV)" })}
           </Button>
@@ -535,7 +535,7 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
     <div>
       <div className="text-xs text-muted-foreground">{label}</div>
       <div className="text-lg font-semibold tabular-nums">{value}</div>
-      {sub ? <div className="text-[10px] text-muted-foreground">{sub}</div> : null}
+      {sub ? <div className="text-3xs text-muted-foreground">{sub}</div> : null}
     </div>
   );
 }

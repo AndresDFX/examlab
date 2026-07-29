@@ -308,7 +308,7 @@ export function AdminCodeExecutionPanel() {
               defaultValue: "Proveedor de ejecución de código",
             })}
             {activeRow && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-3xs">
                 {PROVIDER_LABELS[activeRow.provider]}
               </Badge>
             )}
@@ -360,7 +360,7 @@ export function AdminCodeExecutionPanel() {
                   {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
                     defaultValue: "Preguntas",
                   })}{" "}
-                  <code className="text-[11px]">codigo</code>{" "}
+                  <code className="text-2xs">codigo</code>{" "}
                   {t("hc_modulesAdminAdminCodeExecutionPanel.codeQuestionBody", {
                     defaultValue:
                       "— el alumno escribe código y ve la salida en consola. Para Java se usa el proveedor seleccionado abajo; para otros lenguajes (Python, JS, C++…) cae automáticamente a OnlineCompiler.io.",
@@ -402,7 +402,7 @@ export function AdminCodeExecutionPanel() {
                   {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
                     defaultValue: "Preguntas",
                   })}{" "}
-                  <code className="text-[11px]">java_gui</code>{" "}
+                  <code className="text-2xs">java_gui</code>{" "}
                   {t("hc_modulesAdminAdminCodeExecutionPanel.javaGuiQuestionBody", {
                     defaultValue:
                       "— el alumno escribe Swing / AWT / JavaFX y necesita ver la ventana renderizada.",
@@ -445,7 +445,7 @@ export function AdminCodeExecutionPanel() {
                   {t("hc_modulesAdminAdminCodeExecutionPanel.questionsPrefix", {
                     defaultValue: "Preguntas",
                   })}{" "}
-                  <code className="text-[11px]">python_gui</code>{" "}
+                  <code className="text-2xs">python_gui</code>{" "}
                   {t("hc_modulesAdminAdminCodeExecutionPanel.pythonGuiQuestionBody", {
                     defaultValue:
                       "— el alumno escribe tkinter. Solo hay un proveedor por ahora (no existe Pyodide+tkinter en WASM).",
@@ -494,12 +494,12 @@ export function AdminCodeExecutionPanel() {
                   })}{" "}
                   <strong>{PROVIDER_LABELS[draftProvider]}</strong> (
                   {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
-                  <code className="text-[11px]">codigo</code>):
+                  <code className="text-2xs">codigo</code>):
                 </p>
                 <ul className="list-disc list-inside space-y-0.5">
                   {PROVIDER_SECRETS[draftProvider].map((s) => (
                     <li key={s}>
-                      <code className="text-[11px]">{s}</code>
+                      <code className="text-2xs">{s}</code>
                     </li>
                   ))}
                 </ul>
@@ -512,12 +512,12 @@ export function AdminCodeExecutionPanel() {
                     })}{" "}
                     <strong>{JAVA_GUI_LABELS[draftJavaGui]}</strong> (
                     {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
-                    <code className="text-[11px]">java_gui</code>):
+                    <code className="text-2xs">java_gui</code>):
                   </p>
                   <ul className="list-disc list-inside space-y-0.5">
                     {JAVA_GUI_SECRETS[draftJavaGui].map((s) => (
                       <li key={s}>
-                        <code className="text-[11px]">{s}</code>
+                        <code className="text-2xs">{s}</code>
                       </li>
                     ))}
                   </ul>
@@ -531,12 +531,12 @@ export function AdminCodeExecutionPanel() {
                     })}{" "}
                     <strong>{PYTHON_GUI_LABELS[draftPythonGui]}</strong> (
                     {t("hc_modulesAdminAdminCodeExecutionPanel.typeWord", { defaultValue: "tipo" })}{" "}
-                    <code className="text-[11px]">python_gui</code>):
+                    <code className="text-2xs">python_gui</code>):
                   </p>
                   <ul className="list-disc list-inside space-y-0.5">
                     {PYTHON_GUI_SECRETS[draftPythonGui].map((s) => (
                       <li key={s}>
-                        <code className="text-[11px]">{s}</code>
+                        <code className="text-2xs">{s}</code>
                       </li>
                     ))}
                   </ul>

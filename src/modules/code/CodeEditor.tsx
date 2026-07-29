@@ -270,7 +270,7 @@ export function CodeEditor({
       </div>
 
       {language === "java" && !hideHints && (
-        <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
+        <div className="flex items-start gap-1.5 text-2xs text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
           <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
           <span>
             {t("codeEditor.javaHint")}

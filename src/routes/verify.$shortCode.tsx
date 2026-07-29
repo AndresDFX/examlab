@@ -257,7 +257,7 @@ function Detail({
     <div className="flex items-start gap-2 rounded border bg-background/60 p-2.5">
       <Icon className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
       <div className="min-w-0">
-        <div className="text-[11px] text-muted-foreground uppercase tracking-wide">{label}</div>
+        <div className="text-2xs text-muted-foreground uppercase tracking-wide">{label}</div>
         <div className="text-sm font-medium break-words">{value}</div>
       </div>
     </div>

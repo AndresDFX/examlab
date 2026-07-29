@@ -266,7 +266,7 @@ function PublicAttendance() {
                     {submitting ? <Spinner size="sm" className="mr-1" /> : <LogIn className="h-4 w-4 mr-1" />}
                     {t("publicAttendance.markBtn", { defaultValue: "Marcar asistencia" })}
                   </Button>
-                  <p className="text-[11px] text-muted-foreground text-center">
+                  <p className="text-2xs text-muted-foreground text-center">
                     {t("publicAttendance.credsHint", {
                       defaultValue:
                         "Usamos tu correo y contraseña solo para confirmar tu identidad. No se inicia sesión.",

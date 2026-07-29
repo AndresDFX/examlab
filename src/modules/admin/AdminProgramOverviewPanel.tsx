@@ -375,13 +375,13 @@ export function AdminProgramOverviewPanel() {
                             <div className="truncate" title={p.name}>
                               {p.name}
                               {!p.active && (
-                                <Badge variant="outline" className="ml-2 text-[10px]">
+                                <Badge variant="outline" className="ml-2 text-3xs">
                                   {t("hc_modulesAdminAdminProgramOverviewPanel.inactive")}
                                 </Badge>
                               )}
                             </div>
                             {p.code && (
-                              <div className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate" title={p.code}>
+                              <div className="text-3xs text-muted-foreground font-mono mt-0.5 truncate" title={p.code}>
                                 {p.code}
                               </div>
                             )}

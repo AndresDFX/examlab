@@ -1555,7 +1555,7 @@ function MessagesPage() {
   return (
     <div className="space-y-3">
       <PageHeader
-        icon={<MessageSquare className="h-6 w-6 text-cyan-400 dark:text-cyan-300" />}
+        icon={<MessageSquare className="h-6 w-6" />}
         title={t("hc_routesAppMessages.pageTitle")}
         actions={
           <>
@@ -1756,7 +1756,7 @@ function MessagesPage() {
                             </span>
                             {c.unread > 0 && (
                               <Badge
-                                className="text-[10px] h-4 min-w-4 px-1 bg-primary text-primary-foreground"
+                                className="text-3xs h-4 min-w-4 px-1 bg-primary text-primary-foreground"
                                 data-testid={`unread-badge-${c.conv.id}`}
                               >
                                 {c.unread}
@@ -1765,7 +1765,7 @@ function MessagesPage() {
                             <Badge
                               variant="outline"
                               className={cn(
-                                "text-[9px] px-1 py-0 h-auto",
+                                "text-3xs px-1 py-0 h-auto",
                                 ROLE_BADGE_CLASS[c.other.role_label],
                               )}
                             >
@@ -1774,7 +1774,7 @@ function MessagesPage() {
                           </div>
                           <p
                             className={cn(
-                              "text-[11px] truncate pl-6",
+                              "text-2xs truncate pl-6",
                               c.unread > 0
                                 ? "text-foreground font-medium"
                                 : "text-muted-foreground",
@@ -1787,7 +1787,7 @@ function MessagesPage() {
                             )}
                           </p>
                           {c.lastMessage && (
-                            <p className="text-[10px] text-muted-foreground/70 mt-0.5 pl-6 tabular-nums">
+                            <p className="text-3xs text-muted-foreground/70 mt-0.5 pl-6 tabular-nums">
                               {formatDateTime(c.lastMessage.created_at)}
                             </p>
                           )}
@@ -1894,7 +1894,7 @@ function MessagesPage() {
                       <Badge
                         variant="outline"
                         className={cn(
-                          "text-[9px] px-1 py-0 h-auto",
+                          "text-3xs px-1 py-0 h-auto",
                           ROLE_BADGE_CLASS[activeConv.other.role_label],
                         )}
                       >
@@ -1902,7 +1902,7 @@ function MessagesPage() {
                       </Badge>
                     </p>
                     {activeConv.other.email && (
-                      <p className="text-[10px] text-muted-foreground truncate">
+                      <p className="text-3xs text-muted-foreground truncate">
                         {activeConv.other.email}
                       </p>
                     )}
@@ -2015,7 +2015,7 @@ function MessagesPage() {
                     dayGroups.map((group) => (
                       <div key={group.dayKey} className="space-y-1">
                         <div className="flex justify-center">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-3xs">
                             {group.label}
                           </Badge>
                         </div>
@@ -2113,7 +2113,7 @@ function MessagesPage() {
                                       <Button
                                         size="sm"
                                         variant="ghost"
-                                        className="h-6 text-[10px] text-primary-foreground hover:text-primary-foreground"
+                                        className="h-6 text-3xs text-primary-foreground hover:text-primary-foreground"
                                         onClick={cancelEdit}
                                         disabled={isSaving}
                                       >
@@ -2122,7 +2122,7 @@ function MessagesPage() {
                                       <Button
                                         size="sm"
                                         variant="secondary"
-                                        className="h-6 text-[10px]"
+                                        className="h-6 text-3xs"
                                         onClick={() => void saveEdit()}
                                         disabled={isSaving || !editingText.trim()}
                                       >
@@ -2211,7 +2211,7 @@ function MessagesPage() {
                                     <div className="flex items-center justify-between gap-2 mt-0.5">
                                       <p
                                         className={cn(
-                                          "text-[9px] tabular-nums flex items-center gap-1",
+                                          "text-3xs tabular-nums flex items-center gap-1",
                                           mine
                                             ? "text-primary-foreground/70"
                                             : "text-muted-foreground",
@@ -2332,7 +2332,7 @@ function MessagesPage() {
                       escribió. Da un ejemplo concreto en línea para
                       reducir fricción de descubrimiento. */}
                   {!body.trim() && (
-                    <p className="text-[11px] text-muted-foreground flex items-center gap-1 px-0.5">
+                    <p className="text-2xs text-muted-foreground flex items-center gap-1 px-0.5">
                       <Hash className="h-3 w-3 shrink-0" />
                       {t("hc_routesAppMessages.tagTipBefore")}{" "}
                       <code className="rounded bg-muted px-1">#</code>{" "}
@@ -2390,7 +2390,7 @@ function MessagesPage() {
                     {/* Indicador de adjuntos pendientes — visible en la
                         misma toolbar para ahorrar vertical. */}
                     {pendingFiles.length > 0 && (
-                      <span className="ml-1 inline-flex items-center gap-1 text-[11px] text-muted-foreground tabular-nums">
+                      <span className="ml-1 inline-flex items-center gap-1 text-2xs text-muted-foreground tabular-nums">
                         <Paperclip className="h-3 w-3" />
                         {pendingFiles.length}/{MESSAGE_ATTACHMENT_MAX_COUNT}
                       </span>
@@ -2442,7 +2442,7 @@ function MessagesPage() {
                       {pendingFiles.map((f, idx) => (
                         <li
                           key={`${f.name}-${idx}`}
-                          className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px] min-w-0"
+                          className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-2xs min-w-0"
                         >
                           <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="truncate flex-1" title={f.name}>
@@ -2523,7 +2523,7 @@ function MessagesPage() {
                               {c.full_name ?? c.email ?? t("hc_routesAppMessages.user")}
                             </p>
                             {c.email && (
-                              <p className="text-[11px] text-muted-foreground truncate">
+                              <p className="text-2xs text-muted-foreground truncate">
                                 {c.email}
                               </p>
                             )}
@@ -2531,7 +2531,7 @@ function MessagesPage() {
                           <Badge
                             variant="outline"
                             className={cn(
-                              "text-[9px] px-1 py-0 h-auto",
+                              "text-3xs px-1 py-0 h-auto",
                               ROLE_BADGE_CLASS[c.role_label],
                             )}
                           >
@@ -2579,7 +2579,7 @@ function MessagesPage() {
                 {broadcastCourses.length > 0 && (
                   <button
                     type="button"
-                    className="text-[11px] text-primary hover:underline disabled:opacity-50"
+                    className="text-2xs text-primary hover:underline disabled:opacity-50"
                     disabled={broadcastSending}
                     onClick={() =>
                       setBroadcastCourseIds(
@@ -2596,7 +2596,7 @@ function MessagesPage() {
                 )}
               </div>
               {broadcastCourses.length === 0 ? (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_routesAppMessages.noCoursesForBroadcast")}
                 </p>
               ) : (
@@ -2614,7 +2614,7 @@ function MessagesPage() {
                       <span className="flex-1 truncate">{c.name}</span>
                       {typeof c.recipient_count === "number" && (
                         <span
-                          className={`text-[11px] shrink-0 ${
+                          className={`text-2xs shrink-0 ${
                             c.recipient_count === 0
                               ? "text-amber-600 dark:text-amber-400"
                               : "text-muted-foreground"
@@ -2639,7 +2639,7 @@ function MessagesPage() {
                 </div>
               )}
               {broadcastCourseIds.length > 0 && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_routesAppMessages.coursesSelectedHint", {
                     count: broadcastCourseIds.length,
                   })}
@@ -2656,7 +2656,7 @@ function MessagesPage() {
                     .reduce((acc, c) => acc + (c.recipient_count ?? 0), 0);
                   if (totalRecipients > 0) return null;
                   return (
-                    <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-3 py-2 text-[11px] text-amber-900 dark:text-amber-100">
+                    <div className="mt-2 rounded-md border border-amber-300 bg-amber-50 dark:border-amber-900 dark:bg-amber-950/30 px-3 py-2 text-2xs text-amber-900 dark:text-amber-100">
                       {t("hc_routesAppMessages.broadcastNoRecipients", {
                         defaultValue:
                           "Esta difusión no tiene destinatarios: los cursos seleccionados no tienen alumnos matriculados (excluyendo a vos como autor).",
@@ -2675,7 +2675,7 @@ function MessagesPage() {
                 maxLength={200}
                 disabled={broadcastSending}
               />
-              <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+              <p className="text-3xs text-muted-foreground text-right mt-0.5">
                 {broadcastSubject.length} / 200
               </p>
             </div>
@@ -2694,7 +2694,7 @@ function MessagesPage() {
                 maxLength={10000}
                 disabled={broadcastSending}
               />
-              <p className="text-[10px] text-muted-foreground text-right mt-0.5">
+              <p className="text-3xs text-muted-foreground text-right mt-0.5">
                 {broadcastBody.length} / 10000
               </p>
             </div>
@@ -2713,7 +2713,7 @@ function MessagesPage() {
                 disabled={broadcastSending}
               />
               {broadcastScheduleAt && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_routesAppMessages.willBeSentAutomatically", {
                     when: formatDateTime(localToIso(broadcastScheduleAt)),
                   })}
@@ -2721,7 +2721,7 @@ function MessagesPage() {
               )}
             </div>
 
-            <div className="rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/50 p-2 text-[11px] text-amber-700 dark:text-amber-300 flex items-start gap-2">
+            <div className="rounded-md border bg-amber-50/40 dark:bg-amber-500/5 border-amber-300/50 p-2 text-2xs text-amber-700 dark:text-amber-300 flex items-start gap-2">
               <Megaphone className="h-3.5 w-3.5 mt-0.5 shrink-0" />
               <span>
                 {t("hc_routesAppMessages.broadcastWarningBefore")}{" "}
@@ -2802,7 +2802,7 @@ function MessagesPage() {
               <Button
                 size="sm"
                 variant="ghost"
-                className="h-7 text-[11px]"
+                className="h-7 text-2xs"
                 onClick={() => {
                   setShowScheduledHistory((s) => !s);
                   void loadScheduled();
@@ -2904,7 +2904,7 @@ function MessagesPage() {
                     >
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                          <Badge variant="outline" className="text-[10px] shrink-0">
+                          <Badge variant="outline" className="text-3xs shrink-0">
                             {kindLabel}
                           </Badge>
                           <span className={`text-xs font-medium ${sevColor}`}>
@@ -2913,7 +2913,7 @@ function MessagesPage() {
                           {isOverdue && !isEditing && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
+                              className="text-3xs shrink-0 border-amber-500/40 text-amber-700 dark:text-amber-400 bg-amber-500/10"
                             >
                               <AlertTriangle className="h-2.5 w-2.5 mr-0.5" />
                               {t("hc_routesAppMessages.overdue")}
@@ -2921,7 +2921,7 @@ function MessagesPage() {
                           )}
                         </div>
                         {!isEditing && (
-                          <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                          <span className="text-2xs text-muted-foreground tabular-nums shrink-0">
                             {formatDateTime(it.send_at)}
                           </span>
                         )}
@@ -2993,7 +2993,7 @@ function MessagesPage() {
                       )}
 
                       {it.status === "failed" && it.error && !isEditing && (
-                        <div className="text-[11px] text-destructive">
+                        <div className="text-2xs text-destructive">
                           {t("hc_routesAppMessages.errorPrefix", { error: it.error })}
                         </div>
                       )}

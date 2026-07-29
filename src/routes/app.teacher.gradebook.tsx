@@ -1931,7 +1931,7 @@ function Gradebook() {
               {/* Contador de progreso: el guardado es un loop secuencial de
                   updates y sin esto el docente no sabe si avanza. */}
               {saving && saveProgress && (
-                <span className="ml-1.5 tabular-nums text-[11px] opacity-90">
+                <span className="ml-1.5 tabular-nums text-2xs opacity-90">
                   {saveProgress.done}/{saveProgress.total}
                 </span>
               )}
@@ -1973,7 +1973,7 @@ function Gradebook() {
                       por alumno): sin él el botón solo giraba sin decir cuánto
                       falta ni si sigue vivo. */}
                   {bulkIssuing && bulkProgress && (
-                    <span className="ml-1.5 tabular-nums text-[11px] opacity-90">
+                    <span className="ml-1.5 tabular-nums text-2xs opacity-90">
                       {bulkProgress.done}/{bulkProgress.total}
                     </span>
                   )}
@@ -2134,7 +2134,7 @@ function Gradebook() {
               {t("hc_routesAppTeacherGradebook.consolidatedByCuts")}
               <HelpHint>{t("help.consolidatedByCutsExplanation")}</HelpHint>
             </h2>
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-3xs">
               {t("hc_routesAppTeacherGradebook.readOnly")}
             </Badge>
           </div>
@@ -2168,7 +2168,7 @@ function Gradebook() {
                           </span>
                           <Badge
                             variant="outline"
-                            className="text-[9px] py-0 h-4 px-1.5 bg-background/60"
+                            className="text-3xs py-0 h-4 px-1.5 bg-background/60"
                           >
                             {c.weight}% ·{" "}
                             {t("hc_routesAppTeacherGradebook.itemCount", { count: itemCount })}
@@ -2176,7 +2176,7 @@ function Gradebook() {
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-8 px-2 text-[10px] gap-1"
+                            className="h-8 px-2 text-3xs gap-1"
                             onClick={() => setDetailCutId(c.id)}
                             disabled={itemCount === 0}
                             title={
@@ -2312,7 +2312,7 @@ function Gradebook() {
                                 <div className="flex items-center justify-center gap-1">
                                   <Badge
                                     variant="outline"
-                                    className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                                    className="text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                                   >
                                     {t("hc_routesAppTeacherGradebook.issued")}
                                   </Badge>
@@ -2340,7 +2340,7 @@ function Gradebook() {
                             }
                             if (passes !== true) {
                               return (
-                                <span className="text-[11px] text-muted-foreground">
+                                <span className="text-2xs text-muted-foreground">
                                   {t("hc_routesAppTeacherGradebook.notPassing")}
                                 </span>
                               );
@@ -2349,7 +2349,7 @@ function Gradebook() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-8 text-[11px]"
+                                className="h-8 text-2xs"
                                 onClick={() =>
                                   void issueCertForStudent(row.student.id, row.finalGrade)
                                 }
@@ -2420,7 +2420,7 @@ function Gradebook() {
             <DialogTitle>
               {t("hc_routesAppTeacherGradebook.cutDetailTitle", { name: detailCut?.name ?? "" })}
               {detailCut && (
-                <Badge variant="outline" className="ml-2 text-[10px]">
+                <Badge variant="outline" className="ml-2 text-3xs">
                   {detailCut.weight}%
                 </Badge>
               )}
@@ -2618,11 +2618,11 @@ function renderCutDetailGrouped({
     <div className="space-y-3">
       {bucketSummary.length > 0 && (
         <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/30 p-2">
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             {i18n.t("hc_routesAppTeacherGradebook.cutBuckets")}
           </span>
           {bucketSummary.map((b) => (
-            <Badge key={b.label} variant="outline" className="text-[10px] gap-1 py-0 h-5">
+            <Badge key={b.label} variant="outline" className="text-3xs gap-1 py-0 h-5">
               <b.icon className="h-3 w-3" />
               {b.label}: {b.weight.toFixed(1)}%
             </Badge>
@@ -2726,7 +2726,7 @@ function renderCutDetailGrouped({
                             <span className="text-sm tabular-nums font-medium">
                               {att.nota != null ? att.nota.toFixed(2) : "—"}
                             </span>
-                            <span className="text-[10px] text-muted-foreground tabular-nums">
+                            <span className="text-3xs text-muted-foreground tabular-nums">
                               {att.present}/{att.total}
                             </span>
                           </div>
@@ -2751,7 +2751,7 @@ function renderCutDetailGrouped({
       </div>
 
       {showAttendance && sessionsInCut.length === 0 && (
-        <p className="text-[11px] text-muted-foreground italic">
+        <p className="text-2xs text-muted-foreground italic">
           {i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsHint")}
         </p>
       )}
@@ -2845,13 +2845,13 @@ function renderStudentCutDetail({
               <div className="flex items-center gap-2">
                 <sec.icon className="h-3.5 w-3.5 text-primary" />
                 <span className="text-sm font-medium">{sec.label}</span>
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   {i18n.t("hc_routesAppTeacherGradebook.activityCount", {
                     count: sec.cols.length,
                   })}
                 </span>
               </div>
-              <span className="text-[11px] text-muted-foreground tabular-nums">
+              <span className="text-2xs text-muted-foreground tabular-nums">
                 {i18n.t("hc_routesAppTeacherGradebook.bucketWeight", {
                   weight: sec.bucketWeight.toFixed(1),
                 })}
@@ -2896,7 +2896,7 @@ function renderStudentCutDetail({
                       <TableCell className="font-medium text-sm">
                         {col.title}
                         {col.maxScore != null && (
-                          <span className="text-[10px] text-muted-foreground ml-1">
+                          <span className="text-3xs text-muted-foreground ml-1">
                             (/{col.maxScore})
                           </span>
                         )}
@@ -2930,7 +2930,7 @@ function renderStudentCutDetail({
                       <TableCell className="text-center">
                         <div className="inline-flex items-center justify-center gap-1">
                           {g.isMakeup && (
-                            <Badge variant="outline" className="text-[9px] py-0 h-4 px-1">
+                            <Badge variant="outline" className="text-3xs py-0 h-4 px-1">
                               <GitBranch className="h-2.5 w-2.5 mr-0.5" /> S
                             </Badge>
                           )}
@@ -2943,7 +2943,7 @@ function renderStudentCutDetail({
                             </span>
                           )}
                           {!g.isMakeup && g.status !== "sospechoso" && (
-                            <span className="text-[10px] text-muted-foreground">—</span>
+                            <span className="text-3xs text-muted-foreground">—</span>
                           )}
                         </div>
                       </TableCell>
@@ -2964,11 +2964,11 @@ function renderStudentCutDetail({
               <span className="text-sm font-medium">
                 {i18n.t("hc_routesAppTeacherGradebook.attendance")}
               </span>
-              <span className="text-[11px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 {i18n.t("hc_routesAppTeacherGradebook.sessionsInCutRange", { count: totalSess })}
               </span>
             </div>
-            <span className="text-[11px] text-muted-foreground tabular-nums">
+            <span className="text-2xs text-muted-foreground tabular-nums">
               {i18n.t("hc_routesAppTeacherGradebook.bucketWeight", {
                 weight: Number(cut.attendance_weight ?? 0).toFixed(1),
               })}
@@ -3027,7 +3027,7 @@ function renderStudentCutDetail({
         </div>
       )}
 
-      <p className="text-[11px] text-muted-foreground italic">
+      <p className="text-2xs text-muted-foreground italic">
         {i18n.t("hc_routesAppTeacherGradebook.editsAccumulateHint")}
       </p>
     </div>
@@ -3096,7 +3096,7 @@ function renderEditableGrid({
                       {col.title}
                     </span>
                   </div>
-                  <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                  <Badge variant="outline" className="text-3xs py-0 h-3.5">
                     {col.kind === "exam"
                       ? i18n.t("hc_routesAppTeacherGradebook.examBadge", {
                           max: selectedCourse?.grade_scale_max ?? 5,
@@ -3165,7 +3165,7 @@ function renderEditableGrid({
                           {g.isMakeup && (
                             <Badge
                               variant="outline"
-                              className="text-[8px] py-0 h-4 px-1 inline-flex items-center gap-0.5"
+                              className="text-3xs py-0 h-4 px-1 inline-flex items-center gap-0.5"
                             >
                               <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
                             </Badge>

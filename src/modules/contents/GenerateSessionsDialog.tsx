@@ -419,7 +419,7 @@ export function GenerateSessionsDialog({
                       key={d.idx}
                       type="button"
                       onClick={() => toggleDay(d.idx)}
-                      className={`rounded-md border px-2 py-1 text-[11px] transition-colors ${
+                      className={`rounded-md border px-2 py-1 text-2xs transition-colors ${
                         checked
                           ? "border-primary bg-primary/10 text-primary"
                           : "border-border hover:bg-muted/40"
@@ -432,7 +432,7 @@ export function GenerateSessionsDialog({
                 })}
               </div>
               {!content && schedules.length > 0 && (
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-3xs text-muted-foreground">
                   {t("contents.generateSessionsFromSchedule", {
                     defaultValue: "Días y horarios tomados del horario del curso.",
                   })}
@@ -470,7 +470,7 @@ export function GenerateSessionsDialog({
                   })}
                 </HelpHint>
               </Label>
-              <div className="flex flex-wrap gap-3 text-[11px]">
+              <div className="flex flex-wrap gap-3 text-2xs">
                 {HOLIDAY_POLICIES.map((p) => (
                   <label key={p.value} className="flex items-center gap-1 cursor-pointer">
                     <input
@@ -494,7 +494,7 @@ export function GenerateSessionsDialog({
 
             {!content ? (
               rows.length === 0 ? (
-                <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+                <div className="rounded-md border bg-muted/30 p-3 text-2xs text-muted-foreground">
                   {t("contents.generateSessionsPreviewEmpty", {
                     defaultValue: "Selecciona fecha y días para ver las sesiones.",
                   })}
@@ -516,14 +516,14 @@ export function GenerateSessionsDialog({
                         />
                       </div>
                       <Input
-                        className="h-8 flex-1 text-[11px]"
+                        className="h-8 flex-1 text-2xs"
                         value={r.title}
                         onChange={(e) => updateRow(r.key, { title: e.target.value })}
                         placeholder={t("contents.generateSessionsTitlePh", { defaultValue: "Título" })}
                       />
                       <Input
                         type="time"
-                        className="h-8 w-[92px] text-[11px]"
+                        className="h-8 w-[92px] text-2xs"
                         value={r.startTime ?? ""}
                         onChange={(e) => updateRow(r.key, { startTime: e.target.value || null })}
                       />
@@ -531,7 +531,7 @@ export function GenerateSessionsDialog({
                         type="number"
                         min={15}
                         max={480}
-                        className="h-8 w-16 text-[11px]"
+                        className="h-8 w-16 text-2xs"
                         value={r.durationMin ?? ""}
                         placeholder="min"
                         onChange={(e) =>
@@ -544,7 +544,7 @@ export function GenerateSessionsDialog({
                       />
                       {r.isHoliday && (
                         <span
-                          className="text-[10px] text-amber-600 dark:text-amber-400 whitespace-nowrap"
+                          className="text-3xs text-amber-600 dark:text-amber-400 whitespace-nowrap"
                           title={r.holidayName ?? undefined}
                         >
                           ⚠ {t("contents.generateSessionsHolidayBadge", { defaultValue: "Festivo" })}
@@ -564,7 +564,7 @@ export function GenerateSessionsDialog({
                 </div>
               )
             ) : previewDates.length === 0 ? (
-              <div className="rounded-md border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+              <div className="rounded-md border bg-muted/30 p-3 text-2xs text-muted-foreground">
                 {t("contents.generateSessionsPreviewEmpty", {
                   defaultValue: "Selecciona fecha y días para ver las sesiones.",
                 })}
@@ -584,7 +584,7 @@ export function GenerateSessionsDialog({
                         })
                       : (content.display_name ?? content.topic);
                   return (
-                    <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-[11px]">
+                    <div key={i} className="flex items-center gap-3 px-3 py-1.5 text-2xs">
                       <span className="tabular-nums text-foreground/80 w-32 shrink-0">
                         {toLocalIsoDate(d)} ({dayShort})
                       </span>
@@ -602,14 +602,14 @@ export function GenerateSessionsDialog({
           {/* Conflict prompt (solo modo contenido con sesiones existentes). */}
           {content && existingSessions.length > 0 && (
             <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-3 space-y-2">
-              <div className="text-[11px] font-medium text-amber-700 dark:text-amber-300">
+              <div className="text-2xs font-medium text-amber-700 dark:text-amber-300">
                 {t("contents.generateSessionsConflictTitle", {
                   count: existingSessions.length,
                   defaultValue: `El curso ya tiene ${existingSessions.length} sesión(es) programadas.`,
                 })}
               </div>
               <div className="space-y-1.5">
-                <label className="flex items-start gap-2 text-[11px] cursor-pointer">
+                <label className="flex items-start gap-2 text-2xs cursor-pointer">
                   <input
                     type="radio"
                     name="conflict-mode"
@@ -629,7 +629,7 @@ export function GenerateSessionsDialog({
                     </span>
                   </span>
                 </label>
-                <label className="flex items-start gap-2 text-[11px] cursor-pointer">
+                <label className="flex items-start gap-2 text-2xs cursor-pointer">
                   <input
                     type="radio"
                     name="conflict-mode"

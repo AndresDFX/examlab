@@ -294,7 +294,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
             <Pencil className="h-4 w-4 text-violet-500" />
             {t("imageEditor.title")}
           </DialogTitle>
-          <DialogDescription className="text-[11px] font-mono truncate">
+          <DialogDescription className="text-2xs font-mono truncate">
             {file?.name}
           </DialogDescription>
         </DialogHeader>
@@ -318,7 +318,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
             ))}
           </div>
           <div className="flex items-center gap-1.5">
-            <span className="text-[11px] text-muted-foreground">{t("imageEditor.thickness")}</span>
+            <span className="text-2xs text-muted-foreground">{t("imageEditor.thickness")}</span>
             <input
               type="range"
               min={1}
@@ -328,7 +328,7 @@ export function ImageEditorDialog({ file, contentId, onClose, onSaved }: Props) 
               className="w-24 accent-violet-500"
               aria-label={t("imageEditor.penThickness")}
             />
-            <span className="text-[11px] tabular-nums w-6">{penSize}</span>
+            <span className="text-2xs tabular-nums w-6">{penSize}</span>
           </div>
           <div className="flex items-center gap-1 ml-auto">
             <Button size="icon" variant="outline" className="h-8 w-8" onClick={() => transform("rot-left")} title={t("imageEditor.rotateLeft")} aria-label={t("imageEditor.rotateLeft")}>

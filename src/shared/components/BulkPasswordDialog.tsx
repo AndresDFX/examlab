@@ -154,7 +154,7 @@ export function BulkPasswordDialog({ open, onOpenChange, userIds, onDone }: Prop
                 {t("bulkPassword.requireChangeLabel")}
                 <HelpHint>{t("bulkPassword.requireChangeHelp")}</HelpHint>
               </Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("bulkPassword.requireChangeHint")}
               </p>
             </div>

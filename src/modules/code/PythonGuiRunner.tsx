@@ -232,7 +232,7 @@ export function PythonGuiRunner({
         </button>
       )}
 
-      <div className="flex items-start gap-1.5 text-[11px] text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
+      <div className="flex items-start gap-1.5 text-2xs text-muted-foreground bg-muted/30 border rounded-md px-2.5 py-1.5">
         <Info className="h-3 w-3 mt-0.5 shrink-0 text-primary" />
         <span>{t("pythonGuiRunner.hint")}</span>
       </div>
@@ -289,7 +289,7 @@ export function PythonGuiRunner({
                 </CardTitle>
               </CardHeader>
               <CardContent className="px-3 pb-3 pt-0 flex-1 min-h-0 overflow-hidden">
-                <pre className="text-[11px] font-mono whitespace-pre-wrap overflow-auto h-full">
+                <pre className="text-2xs font-mono whitespace-pre-wrap overflow-auto h-full">
                   {screenshotData
                     ? [
                         screenshotData.stdout,
@@ -333,7 +333,7 @@ export function PythonGuiRunner({
                       {screenshotData.exitCode === 0 &&
                         screenshotData.pngBytes > 0 &&
                         screenshotData.pngBytes < 2000 && (
-                          <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-[10px] leading-snug shadow-md">
+                          <div className="absolute inset-x-2 bottom-2 bg-amber-50/95 dark:bg-amber-950/95 border border-amber-300 dark:border-amber-700 rounded-md p-2 text-3xs leading-snug shadow-md">
                             <p className="font-semibold text-amber-700 dark:text-amber-300">
                               {t("pythonGuiRunner.emptyPngTitle")}
                             </p>

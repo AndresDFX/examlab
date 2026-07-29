@@ -28,7 +28,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
       <Badge
         variant="outline"
         className={
-          "text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40 " +
+          "text-3xs text-amber-700 dark:text-amber-300 border-amber-500/40 " +
           (className ?? "")
         }
       >
@@ -42,7 +42,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
       <Badge
         variant="outline"
         className={
-          "text-[10px] text-indigo-700 dark:text-indigo-300 border-indigo-500/40 " +
+          "text-3xs text-indigo-700 dark:text-indigo-300 border-indigo-500/40 " +
           (className ?? "")
         }
       >
@@ -56,7 +56,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
     <Badge
       variant="outline"
       className={
-        "text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10 " +
+        "text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10 " +
         (className ?? "")
       }
     >

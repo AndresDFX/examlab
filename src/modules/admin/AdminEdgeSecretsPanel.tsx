@@ -205,7 +205,7 @@ export function AdminEdgeSecretsPanel() {
                       <li>{t("hc_modulesAdminAdminEdgeSecretsPanel.setupGoToDashboard")}</li>
                       <li>
                         {t("hc_modulesAdminAdminEdgeSecretsPanel.setupAddSecret")}{" "}
-                        <code className="text-[11px]">MANAGEMENT_PAT</code>{" "}
+                        <code className="text-2xs">MANAGEMENT_PAT</code>{" "}
                         {t("hc_modulesAdminAdminEdgeSecretsPanel.setupAddSecretSuffix")}{" "}
                         <code>sbp_</code>)
                       </li>
@@ -259,7 +259,7 @@ export function AdminEdgeSecretsPanel() {
                     >
                       <div className="flex-1 min-w-0">
                         <div className="font-mono text-xs font-medium truncate">{s.name}</div>
-                        <div className="text-[11px] text-muted-foreground flex items-center gap-2 mt-0.5">
+                        <div className="text-2xs text-muted-foreground flex items-center gap-2 mt-0.5">
                           <span className="font-mono">
                             {s.value_masked || t("hc_modulesAdminAdminEdgeSecretsPanel.empty")}
                           </span>
@@ -335,7 +335,7 @@ export function AdminEdgeSecretsPanel() {
                 disabled={editorIsEdit}
               />
               {!editorIsEdit && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_modulesAdminAdminEdgeSecretsPanel.nameHint")} <code>SUPABASE_</code>.
                 </p>
               )}

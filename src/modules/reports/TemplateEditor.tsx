@@ -326,7 +326,7 @@ export function TemplateEditor({
                     <SelectItem value="curso">{t("hc_modulesReportsTemplateEditor.scopeCourse")}</SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("hc_modulesReportsTemplateEditor.scopeFirstHint", {
                     defaultValue:
                       "Elígelo primero: define qué variables aparecen a la derecha y qué datos usa la IA (todo el curso o un estudiante).",
@@ -430,7 +430,7 @@ export function TemplateEditor({
                   {/* Conteo de páginas (= saltos de página + 1). Da el sentido
                       de cuántas páginas tiene el informe mientras se edita; los
                       números por página se ven en la pestaña Vista previa. */}
-                  <span className="ml-auto text-[11px] text-muted-foreground tabular-nums">
+                  <span className="ml-auto text-2xs text-muted-foreground tabular-nums">
                     {t("hc_modulesReportsTemplateEditor.pageCount", {
                       count: pageCount,
                       defaultValue: "{{count}} página(s)",
@@ -496,7 +496,7 @@ export function TemplateEditor({
                 {courses && courses.length > 0 && (
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="space-y-1">
-                      <Label className="text-[11px]">
+                      <Label className="text-2xs">
                         {t("hc_modulesReportsTemplateEditor.previewCourseLabel", { defaultValue: "Datos del curso" })}
                       </Label>
                       <Select value={pvCourseId} onValueChange={setPvCourseId}>
@@ -516,7 +516,7 @@ export function TemplateEditor({
                     </div>
                     {value.scope === "estudiante" && pvStudents.length > 0 && (
                       <div className="space-y-1">
-                        <Label className="text-[11px]">
+                        <Label className="text-2xs">
                           {t("hc_modulesReportsTemplateEditor.previewStudentLabel", { defaultValue: "Estudiante" })}
                         </Label>
                         <Select value={pvStudentId} onValueChange={setPvStudentId}>
@@ -535,7 +535,7 @@ export function TemplateEditor({
                     )}
                   </div>
                 )}
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {pvCtx
                     ? t("hc_modulesReportsTemplateEditor.previewRealNote", {
                         defaultValue:
@@ -579,7 +579,7 @@ export function TemplateEditor({
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" />
                   {t("hc_modulesReportsTemplateEditor.aiInsertButton", { defaultValue: "Generación IA" })}
                 </Button>
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-3xs text-muted-foreground mt-1">
                   {t("hc_modulesReportsTemplateEditor.aiInsertHint", {
                     defaultValue: "Sitúa el cursor en el cuerpo y la IA inserta ahí lo que pidas.",
                   })}
@@ -589,11 +589,11 @@ export function TemplateEditor({
             <p className="text-xs uppercase tracking-wide text-muted-foreground font-medium pb-1">
               {t("hc_modulesReportsTemplateEditor.availableVariables")}
             </p>
-            <p className="text-[11px] text-muted-foreground pb-1">
+            <p className="text-2xs text-muted-foreground pb-1">
               {t("hc_modulesReportsTemplateEditor.clickToInsert")}
             </p>
             {/* Las variables dependen del tipo de informe (scope). */}
-            <p className="text-[11px] font-medium text-violet-700 dark:text-violet-300 pb-2">
+            <p className="text-2xs font-medium text-violet-700 dark:text-violet-300 pb-2">
               {value.scope === "estudiante"
                 ? t("hc_modulesReportsTemplateEditor.varsScopeStudent", {
                     defaultValue: "Informe por estudiante: variables del alumno.",
@@ -628,13 +628,13 @@ export function TemplateEditor({
             <div className="space-y-3">
               {/* Fuente de datos = el curso/estudiante elegido en Vista previa. */}
               {pvCourseId ? (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("hc_modulesReportsTemplateEditor.aiDataSource", { defaultValue: "Datos de:" })}{" "}
                   <span className="font-medium text-foreground">{pvCourseName}</span>
                   {value.scope === "estudiante" && pvStudentName ? ` · ${pvStudentName}` : ""}
                 </p>
               ) : (
-                <p className="text-[11px] text-amber-600">
+                <p className="text-2xs text-amber-600">
                   {t("hc_modulesReportsTemplateEditor.aiNoCourse", {
                     defaultValue: "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
                   })}
@@ -704,7 +704,7 @@ function CatalogNode({
         }}
         className={cn(
           "w-full justify-start h-7 text-xs font-normal hover:bg-muted",
-          isClickable && "font-mono text-[11px]",
+          isClickable && "font-mono text-2xs",
         )}
         style={{ paddingLeft: depth * 8 + 8 }}
         title={hint}

@@ -1563,7 +1563,7 @@ function TeacherAttendance() {
             return (
               <div key={opt.value} className="flex items-center gap-1.5">
                 <span
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded border text-[11px] font-bold ${opt.color}`}
+                  className={`inline-flex h-6 w-6 items-center justify-center rounded border text-2xs font-bold ${opt.color}`}
                 >
                   {opt.short}
                 </span>
@@ -1627,7 +1627,7 @@ function TeacherAttendance() {
                       <span className={g.cut ? "" : "text-muted-foreground italic"}>
                         {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
                       </span>
-                      <span className="ml-2 text-[10px] font-normal text-muted-foreground">
+                      <span className="ml-2 text-3xs font-normal text-muted-foreground">
                         {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
                       </span>
                     </TableHead>
@@ -1709,7 +1709,7 @@ function TeacherAttendance() {
                                 </span>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-[11px]">{t("sessionType.label")}</Label>
+                                <Label className="text-2xs">{t("sessionType.label")}</Label>
                                 <Select
                                   value={sess.session_type ?? "virtual"}
                                   onValueChange={(v) => updateSessionType(sess.id, v as SessionType)}
@@ -1727,7 +1727,7 @@ function TeacherAttendance() {
                                 </Select>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-[11px] flex items-center gap-1">
+                                <Label className="text-2xs flex items-center gap-1">
                                   <Scissors className="h-3 w-3" />
                                   {t("teacherAttendance.cutLabel")}
                                 </Label>
@@ -1753,7 +1753,7 @@ function TeacherAttendance() {
                                 </Select>
                               </div>
                               <div className="space-y-1.5">
-                                <Label className="text-[11px] flex items-center gap-1">
+                                <Label className="text-2xs flex items-center gap-1">
                                   <PresentationIcon className="h-3 w-3" />
                                   {t("teacherAttendance.contentLabel")}
                                 </Label>
@@ -1860,17 +1860,17 @@ function TeacherAttendance() {
                           </DropdownMenu>
                         </div>
                         {sess.check_in_open && (
-                          <Badge variant="default" className="text-[9px] py-0 px-1 self-center">
+                          <Badge variant="default" className="text-3xs py-0 px-1 self-center">
                             {t("teacherAttendance.checkInActive")}
                           </Badge>
                         )}
                         <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
-                          <span className="text-[10px] font-medium leading-tight tabular-nums">
+                          <span className="text-3xs font-medium leading-tight tabular-nums">
                             {formatDateShort(sess.session_date + "T12:00:00")}
                           </span>
                           {sess.title && (
                             <span
-                              className="text-[9px] text-muted-foreground truncate max-w-[5.5rem]"
+                              className="text-3xs text-muted-foreground truncate max-w-[5.5rem]"
                               title={sess.title ?? undefined}
                             >
                               {sess.title}
@@ -1880,25 +1880,25 @@ function TeacherAttendance() {
                               indicador read-only; click en el Settings
                               de arriba para editar. */}
                           <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
-                            <SessionTypeBadge type={sess.session_type} className="text-[9px] py-0 px-1" />
+                            <SessionTypeBadge type={sess.session_type} className="text-3xs py-0 px-1" />
                             {cutLabel ? (
                               <Badge
                                 variant="outline"
-                                className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
                                 title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
                               >
                                 <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
                                 {cutLabel}
                               </Badge>
                             ) : (
-                              <span className="text-[9px] text-muted-foreground/50">
+                              <span className="text-3xs text-muted-foreground/50">
                                 {t("teacherAttendance.noCutShort")}
                               </span>
                             )}
                             {contentLabel && (
                               <Badge
                                 variant="outline"
-                                className="text-[9px] py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
                                 title={t("teacherAttendance.contentTooltip", {
                                   content: contentLabel,
                                 })}
@@ -1983,7 +1983,7 @@ function TeacherAttendance() {
                     <TableCell className="text-center">
                       <Badge
                         variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
-                        className="text-[10px]"
+                        className="text-3xs"
                       >
                         {pct}%
                       </Badge>
@@ -2060,7 +2060,7 @@ function TeacherAttendance() {
                 </SelectContent>
               </Select>
               {newSessionType === "autonoma" && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("sessionType.autonomaHint")}
                 </p>
               )}
@@ -2087,7 +2087,7 @@ function TeacherAttendance() {
                 </SelectContent>
               </Select>
               {cuts.length === 0 && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("teacherAttendance.noCutsDefined")}
                 </p>
               )}
@@ -2202,7 +2202,7 @@ function TeacherAttendance() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("teacherAttendance.uploadVideoHint")}
               </p>
             </div>
@@ -2524,7 +2524,7 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
                   <div className="min-w-0">
                     <div className="text-xs font-medium truncate">{o.primary}</div>
                     {o.secondary && o.secondary !== o.primary && (
-                      <div className="text-[10px] text-muted-foreground truncate">
+                      <div className="text-3xs text-muted-foreground truncate">
                         {o.secondary}
                       </div>
                     )}

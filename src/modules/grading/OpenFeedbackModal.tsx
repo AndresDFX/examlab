@@ -482,7 +482,7 @@ export function OpenFeedbackModal({ open, onOpenChange, filterMode = "all" }: Pr
                 ? t("hc_modulesGradingOpenFeedbackModal.titleStudentNeedsResponse")
                 : t("hc_modulesGradingOpenFeedbackModal.titleOpen")}
             {!loading && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-3xs">
                 {threads.length}
               </Badge>
             )}
@@ -627,7 +627,7 @@ function Section({
       <div className="flex items-center gap-2">
         <Icon className={`h-4 w-4 ${color}`} />
         <h3 className="text-sm font-medium">{title}</h3>
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           {count}
         </Badge>
       </div>
@@ -664,11 +664,11 @@ function ThreadRowItem({
         <div className="text-sm font-medium truncate">{primary}</div>
         <div className="text-xs text-muted-foreground truncate">{secondary}</div>
         {thread.questionTitle && (
-          <div className="text-[11px] text-muted-foreground/80 truncate break-words">
+          <div className="text-2xs text-muted-foreground/80 truncate break-words">
             {thread.questionTitle}
           </div>
         )}
-        <div className="text-[10px] text-muted-foreground/70 truncate tabular-nums">
+        <div className="text-3xs text-muted-foreground/70 truncate tabular-nums">
           {lastAuthor ? t("hc_modulesGradingOpenFeedbackModal.lastAuthor", { author: lastAuthor }) : ""}
           {formatDateTime(lastWhen)}
         </div>

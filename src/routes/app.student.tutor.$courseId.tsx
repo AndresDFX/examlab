@@ -284,10 +284,10 @@ function TutorChat() {
   const hasMessages = messages.length > 0;
 
   return (
-    <div className="container mx-auto space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       <PageHeader
         backTo="/app/student/courses"
-        icon={<Bot className="h-6 w-6 text-indigo-500" />}
+        icon={<Bot className="h-6 w-6" />}
         title={course ? t("hc_routesAppStudentTutorCourseId.titleWithCourse", { course: course.name }) : t("hc_routesAppStudentTutorCourseId.title")}
         subtitle={t("hc_routesAppStudentTutorCourseId.subtitle")}
         actions={
@@ -342,9 +342,9 @@ function TutorChat() {
         <div className="border-t p-3 space-y-2">
           {referenced.length > 0 && (
             <div className="flex flex-wrap items-center gap-1">
-              <span className="text-[11px] text-muted-foreground mr-0.5">{t("hc_routesAppStudentTutorCourseId.referencedMaterial")}</span>
+              <span className="text-2xs text-muted-foreground mr-0.5">{t("hc_routesAppStudentTutorCourseId.referencedMaterial")}</span>
               {referenced.map((f, i) => (
-                <Badge key={`${f.contentId}-${f.fileName}-${i}`} variant="secondary" className="gap-1 text-[10px] max-w-[220px]">
+                <Badge key={`${f.contentId}-${f.fileName}-${i}`} variant="secondary" className="gap-1 text-3xs max-w-[220px]">
                   <FileText className="h-3 w-3 shrink-0" />
                   <span className="truncate">{f.fileName}</span>
                   <button
@@ -428,7 +428,7 @@ function TutorChat() {
             />
           </div>
           <div className="flex items-center justify-end sm:justify-between gap-2">
-            <span className="hidden sm:inline text-[11px] text-muted-foreground">
+            <span className="hidden sm:inline text-2xs text-muted-foreground">
               {t("hc_routesAppStudentTutorCourseId.shortcutsHintBefore")} <span className="font-medium">#</span> {t("hc_routesAppStudentTutorCourseId.shortcutsHintAfter")}
             </span>
             <Button
@@ -461,7 +461,7 @@ function EmptyChat() {
       <p className="text-sm text-muted-foreground max-w-md mx-auto">
         {t("hc_routesAppStudentTutorCourseId.emptyDescription")}
       </p>
-      <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 pt-2">
+      <div className="text-2xs text-muted-foreground flex items-center justify-center gap-1 pt-2">
         <AlertTriangle className="h-3 w-3" />
         {t("hc_routesAppStudentTutorCourseId.emptyDisclaimer")}
       </div>
@@ -484,7 +484,7 @@ function MessageBubble({ message }: { message: Message }) {
       <div className={`flex-1 max-w-[80%] ${isUser ? "text-right" : ""}`}>
         <Badge
           variant="outline"
-          className={`text-[10px] ${isUser ? "" : "border-indigo-500/40 text-indigo-700 dark:text-indigo-300"}`}
+          className={`text-3xs ${isUser ? "" : "border-indigo-500/40 text-indigo-700 dark:text-indigo-300"}`}
         >
           {isUser ? t("hc_routesAppStudentTutorCourseId.roleYou") : t("hc_routesAppStudentTutorCourseId.roleTutor")}
         </Badge>
@@ -497,7 +497,7 @@ function MessageBubble({ message }: { message: Message }) {
             <MarkdownInline>{message.content}</MarkdownInline>
           </div>
         </div>
-        <div className="text-[10px] text-muted-foreground mt-1">
+        <div className="text-3xs text-muted-foreground mt-1">
           {formatDateTime(message.created_at)}
         </div>
       </div>

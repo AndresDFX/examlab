@@ -81,7 +81,7 @@ function AdminSettings() {
     return (
       <div className="space-y-5">
         <PageHeader
-          icon={<Settings className="h-6 w-6 text-indigo-500" />}
+          icon={<Settings className="h-6 w-6" />}
           title={t("hc_routesAppAdminSettings.pageTitle")}
           subtitle={t("hc_routesAppAdminSettings.platformGlobalSubtitle")}
         />
@@ -135,7 +135,7 @@ function AdminSettings() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Settings className="h-6 w-6 text-indigo-500" />}
+        icon={<Settings className="h-6 w-6" />}
         title={t("hc_routesAppAdminSettings.pageTitle")}
         subtitle={t("hc_routesAppAdminSettings.operationalSubtitle")}
       />

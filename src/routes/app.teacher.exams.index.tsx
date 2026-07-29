@@ -946,7 +946,7 @@ function TeacherExams() {
                           {e.title}
                         </span>
                         {e.parent_exam_id && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-3xs">
                             <GitBranch className="h-3 w-3 mr-1" />
                             {t("exam.supletorio")}
                           </Badge>
@@ -955,10 +955,10 @@ function TeacherExams() {
                       <div className="md:hidden text-xs text-muted-foreground truncate">
                         {e.course?.name}
                         {e.course?.period && (
-                          <span className="ml-1.5 text-[10px]">({e.course.period})</span>
+                          <span className="ml-1.5 text-3xs">({e.course.period})</span>
                         )}
                       </div>
-                      <div className="sm:hidden text-[11px] text-muted-foreground tabular-nums">
+                      <div className="sm:hidden text-2xs text-muted-foreground tabular-nums">
                         {formatDateTime(e.start_time)} · {formatDuration(e.time_limit_minutes)}
                       </div>
                     </div>
@@ -1020,11 +1020,11 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
                     {(e as any).is_external ? (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-3xs">
                         {t("exam.kindExternal")}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {t("exam.kindOnline")}
                       </Badge>
                     )}
@@ -1033,7 +1033,7 @@ function TeacherExams() {
                     <StatusBadge status={(e as any).status ?? "published"} />
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {e.navigation_type === "secuencial"
                         ? t("exam.navigationSequential")
                         : t("exam.navigationFree")}
@@ -1102,7 +1102,7 @@ function TeacherExams() {
                 <Label htmlFor="is-external" className="text-sm">
                   {t("hc_routesAppTeacherExamsIndex.externalActivity")}
                 </Label>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-2xs text-muted-foreground leading-tight">
                   {t("hc_routesAppTeacherExamsIndex.externalActivityHint")}
                 </p>
               </div>

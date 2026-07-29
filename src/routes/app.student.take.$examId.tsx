@@ -2170,7 +2170,7 @@ function TakeExam() {
       <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-semibold truncate text-sm sm:text-base">{exam.title}</div>
-          <div className="text-[11px] sm:text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <div className="text-2xs sm:text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
             <span>
               {t("exam.question")} {currentIdx + 1} {t("exam.of")} {questions.length}
             </span>
@@ -2194,7 +2194,7 @@ function TakeExam() {
           {offline && (
             <Badge
               variant="outline"
-              className="text-[10px] sm:text-xs text-warning-foreground border-warning/40 bg-warning/10"
+              className="text-3xs sm:text-xs text-warning-foreground border-warning/40 bg-warning/10"
             >
               <WifiOff className="h-3 w-3 sm:mr-1" />
               <span className="hidden sm:inline">
@@ -2205,7 +2205,7 @@ function TakeExam() {
           {saveFailed && (
             <Badge
               variant="destructive"
-              className="text-[10px] sm:text-xs"
+              className="text-3xs sm:text-xs"
               title={t("hc_routesAppStudentTakeExamId.saveFailedHint", {
                 defaultValue:
                   "El último guardado automático falló. Tus respuestas siguen en este dispositivo; revisa tu conexión.",
@@ -2222,7 +2222,7 @@ function TakeExam() {
           {isPaused && (
             <Badge
               variant="outline"
-              className="text-[10px] sm:text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
+              className="text-3xs sm:text-xs text-primary border-primary/40 bg-primary/10 animate-pulse"
             >
               <Pause className="h-3 w-3 sm:mr-1" />
               <span className="hidden sm:inline">
@@ -2232,13 +2232,13 @@ function TakeExam() {
           )}
           <Badge
             variant={warnings > 0 ? "destructive" : "outline"}
-            className="text-[10px] sm:text-xs"
+            className="text-3xs sm:text-xs"
           >
             <AlertTriangle className="h-3 w-3 mr-0.5 sm:mr-1" />
             {warnings}/{maxWarnings}
           </Badge>
           <Badge
-            className={`text-[10px] sm:text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+            className={`text-3xs sm:text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
           >
             <Clock className="h-3 w-3 mr-0.5 sm:mr-1" />
             {formattedTime}
@@ -2304,10 +2304,10 @@ function TakeExam() {
             <Card key={q.id}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-3xs">
                     #{idx + 1}
                   </Badge>
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-3xs">
                     {QUESTION_TYPE_LABEL_KEY[q.type]
                       ? t(QUESTION_TYPE_LABEL_KEY[q.type])
                       : q.type}
@@ -2515,7 +2515,7 @@ function TakeExam() {
                           onBlur={saveAnswersNow}
                         />
                         <div
-                          className={`text-[11px] text-right tabular-nums ${
+                          className={`text-2xs text-right tabular-nums ${
                             atMax
                               ? "text-destructive"
                               : warn
@@ -2761,7 +2761,7 @@ function TakeExam() {
                       ))}
                     </ul>
                     {submitModal.unansweredIndices.length > 25 && (
-                      <p className="text-[10px] mt-1 text-muted-foreground">
+                      <p className="text-3xs mt-1 text-muted-foreground">
                         {t("hc_routesAppStudentTakeExamId.andNMore", {
                           n: submitModal.unansweredIndices.length - 25,
                         })}

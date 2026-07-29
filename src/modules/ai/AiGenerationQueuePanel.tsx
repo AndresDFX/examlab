@@ -429,7 +429,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
         <CardHeader className="pb-3 flex-row items-center justify-between gap-3 space-y-0 flex-wrap">
           <div className="flex items-center gap-2">
             <CardTitle className="text-base">{t("aiQueue.title")}</CardTitle>
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {filtered.length}
             </Badge>
           </div>
@@ -493,7 +493,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{j.source_title ?? kindLabel}</span>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
+                        <Badge variant="outline" className="text-3xs shrink-0">
                           {kindLabel}
                         </Badge>
                         <Badge
@@ -506,7 +506,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                                   ? "secondary"
                                   : "secondary"
                           }
-                          className={`text-[10px] shrink-0 ${
+                          className={`text-3xs shrink-0 ${
                             j.status === "done"
                               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30"
                               : ""
@@ -529,7 +529,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                         // reportado por usuario). Ahora wrap + max 4
                         // líneas con `line-clamp-4` + botón "Copiar"
                         // para llevar el texto completo al portapapeles.
-                        <div className="text-[10px] text-destructive mt-1 flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/5 p-1.5">
+                        <div className="text-3xs text-destructive mt-1 flex items-start gap-1.5 rounded border border-destructive/30 bg-destructive/5 p-1.5">
                           <AlertTriangle className="h-3 w-3 shrink-0 mt-0.5" />
                           <div className="flex-1 min-w-0 whitespace-pre-wrap break-words line-clamp-4">
                             {j.last_error}
@@ -547,7 +547,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                                   toast.error(i18n.t("aiQueue.toastCouldNotCopy")),
                                 );
                             }}
-                            className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive underline"
+                            className="shrink-0 text-3xs text-destructive/80 hover:text-destructive underline"
                             title={t("aiQueue.copyErrorTitle")}
                           >
                             {t("aiQueue.copyError")}
@@ -555,7 +555,7 @@ export function AiGenerationQueuePanel({ isAdmin = false }: Props) {
                         </div>
                       )}
                     </div>
-                    <span className="text-[11px] text-muted-foreground tabular-nums shrink-0 hidden sm:inline">
+                    <span className="text-2xs text-muted-foreground tabular-nums shrink-0 hidden sm:inline">
                       <Clock className="inline h-3 w-3 mr-0.5" />
                       {formatDateTime(j.created_at)}
                     </span>

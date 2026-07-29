@@ -408,7 +408,7 @@ export function AdminModelPanel() {
           <Cpu className="h-4 w-4 text-indigo-500" />
           {t("aiModel.activeTitle", { defaultValue: "Modelo activo" })}
           {activeRow && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {PROVIDER_LABELS[activeRow.provider]} · {activeRow.model}
             </Badge>
           )}
@@ -436,7 +436,7 @@ export function AdminModelPanel() {
               </strong>{" "}
               {t("aiModel.scopeGlobalBody", {
                 defaultValue:
-                  "Lo que guardes acá lo usan jobs internos de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
+                  "Lo que guardes acá lo usan las tareas internas de la plataforma. Las instituciones NO heredan de esta configuración: cada Admin debe pegar su propia API key en su panel.",
               })}
             </>
           ) : aiMode === "own" ? (
@@ -475,7 +475,7 @@ export function AdminModelPanel() {
                 <Cpu className="h-4 w-4 text-indigo-500" />
                 {t("aiModel.modeTitle", { defaultValue: "IA de la institución" })}
               </span>
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-3xs">
                 {aiMode === "own"
                   ? t("aiModel.modeOwn", { defaultValue: "Propia" })
                   : aiMode === "managed"
@@ -580,7 +580,7 @@ export function AdminModelPanel() {
               <Trans
                 i18nKey="hc_modulesAdminAdminModelPanel.apiKeyAlertGlobal"
                 values={{ secret: SECRET_NAME[draftProvider] }}
-                defaults="Esta key se usa para jobs internos de la plataforma. Si la dejás vacía, los jobs caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback."
+                defaults="Esta key se usa para las tareas internas de la plataforma. Si la dejás vacía, las tareas caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback."
                 components={{ code: <code /> }}
               />
             ) : (
@@ -602,7 +602,8 @@ export function AdminModelPanel() {
             maskFn={maskKey}
             isGlobalScope={isGlobalScope}
             placeholderEmptyGlobal={t("aiModel.apiKeyEmptyGlobal", {
-              defaultValue: "Sin configurar — los jobs internos caen al env secret",
+              defaultValue:
+                "Sin configurar — las tareas internas de la plataforma caen al env secret",
             })}
             placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
               defaultValue: "Pegá tu API key (obligatorio)",
@@ -647,7 +648,8 @@ export function AdminModelPanel() {
             maskFn={maskKey}
             isGlobalScope={isGlobalScope}
             placeholderEmptyGlobal={t("aiModel.apiKeyEmptyGlobal", {
-              defaultValue: "Sin configurar — los jobs internos caen al env secret",
+              defaultValue:
+                "Sin configurar — las tareas internas de la plataforma caen al env secret",
             })}
             placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
               defaultValue: "Pegá tu API key (obligatorio)",
@@ -805,7 +807,7 @@ function ApiKeyInput({
           </Button>
         )}
       </div>
-      {help && <p className="text-[11px] text-muted-foreground mt-1">{help}</p>}
+      {help && <p className="text-2xs text-muted-foreground mt-1">{help}</p>}
     </div>
   );
 }
@@ -849,7 +851,7 @@ function FallbackKeysEditor({
             })}
           </HelpHint>
         </Label>
-        <Badge variant="secondary" className="text-[10px]">
+        <Badge variant="secondary" className="text-3xs">
           {t("aiModel.fallbackKeysCount", {
             count,
             defaultValue: "{{count}} configurada(s)",
@@ -857,7 +859,7 @@ function FallbackKeysEditor({
         </Badge>
       </div>
       {keys.length === 0 && (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-2xs text-muted-foreground">
           {t("aiModel.fallbackKeysEmpty", {
             defaultValue: "Sin claves de respaldo. Solo se usa la principal.",
           })}
@@ -866,7 +868,7 @@ function FallbackKeysEditor({
       {keys.map((k, i) => (
         // eslint-disable-next-line react/no-array-index-key
         <div key={i} className="flex items-center gap-2">
-          <span className="text-[11px] text-muted-foreground w-5 shrink-0 text-right">
+          <span className="text-2xs text-muted-foreground w-5 shrink-0 text-right">
             {i + 1}.
           </span>
           <PasswordInput

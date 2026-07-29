@@ -669,13 +669,13 @@ function AdminDashboard() {
                           <div className="text-sm font-medium truncate" title={ev.action}>
                             {ev.action}
                           </div>
-                          <div className="text-[11px] text-muted-foreground truncate">
+                          <div className="text-2xs text-muted-foreground truncate">
                             {ev.actor_email ?? t("hc_routesAppIndex.system")}
                             {ev.entity_name ? ` · ${ev.entity_name}` : ""} ·{" "}
                             {relativeAge(ev.created_at)}
                           </div>
                         </div>
-                        <Badge variant="outline" className="text-[10px] shrink-0">
+                        <Badge variant="outline" className="text-3xs shrink-0">
                           {ev.category}
                         </Badge>
                       </li>
@@ -735,7 +735,7 @@ function AdminDashboard() {
                     <span className="text-sm font-medium truncate">{c.courseName}</span>
                     <span className="flex items-center gap-2 shrink-0">
                       {c.count > 0 && (
-                        <Badge variant="destructive" className="text-[10px] tabular-nums">
+                        <Badge variant="destructive" className="text-3xs tabular-nums">
                           {c.count}
                         </Badge>
                       )}
@@ -1307,7 +1307,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
                 >
                   <span className="text-sm font-medium truncate">{c.courseName}</span>
                   <span className="flex items-center gap-2 shrink-0">
-                    <Badge variant="destructive" className="text-[10px] tabular-nums">
+                    <Badge variant="destructive" className="text-3xs tabular-nums">
                       {c.count}
                     </Badge>
                     <Stethoscope className="h-4 w-4 text-emerald-600" />
@@ -1741,7 +1741,7 @@ function Stat({
             <div className="text-xs text-muted-foreground line-clamp-2 leading-tight">{label}</div>
             <div className="text-2xl font-semibold tabular-nums">{value}</div>
             {sub && (
-              <div className="text-[10px] text-muted-foreground/70 mt-0.5 truncate">{sub}</div>
+              <div className="text-3xs text-muted-foreground/70 mt-0.5 truncate">{sub}</div>
             )}
           </div>
           {Icon && (
@@ -1887,7 +1887,7 @@ function EventRow({
       {badgeNode ? (
         <span className="shrink-0">{badgeNode}</span>
       ) : (
-        badge && <Badge className={`text-[10px] shrink-0 ${badgeColor}`}>{badge}</Badge>
+        badge && <Badge className={`text-3xs shrink-0 ${badgeColor}`}>{badge}</Badge>
       )}
     </div>
   );
@@ -2161,7 +2161,7 @@ function SuperAdminDashboard() {
                         <div className="text-sm font-medium truncate flex items-center gap-1.5">
                           {tt.name}
                           {!tt.is_active && (
-                            <Badge variant="outline" className="text-[10px] shrink-0">
+                            <Badge variant="outline" className="text-3xs shrink-0">
                               {t("hc_routesAppIndex.paused")}
                             </Badge>
                           )}
@@ -2170,7 +2170,7 @@ function SuperAdminDashboard() {
                             vive en la URL (ver use-tenant.ts) — se resuelve por
                             localStorage. Mostrar esa ruta era engañoso. */}
                       </div>
-                      <div className="text-[11px] text-muted-foreground text-right shrink-0 tabular-nums">
+                      <div className="text-2xs text-muted-foreground text-right shrink-0 tabular-nums">
                         <div>{t("hc_routesAppIndex.userCount", { count: tt.userCount })}</div>
                         <div>{t("hc_routesAppIndex.courseCount", { count: tt.courseCount })}</div>
                       </div>
@@ -2180,7 +2180,7 @@ function SuperAdminDashboard() {
               )}
             </div>
             {stats.newTenants30d > 0 && !loading && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("hc_routesAppIndex.newTenants30d", { count: stats.newTenants30d })}
               </p>
             )}

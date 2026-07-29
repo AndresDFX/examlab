@@ -290,7 +290,7 @@ export function AdminGeneralSettingsPanel() {
                 setDraft({ ...draft, default_grade_scale_max: Number(e.target.value) })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">{t("adminGeneralSettings.hintScaleMax")}</p>
+            <p className="text-2xs text-muted-foreground mt-1">{t("adminGeneralSettings.hintScaleMax")}</p>
           </div>
           <div>
             <Label>{t("adminGeneralSettings.labelPassingGrade")}</Label>
@@ -330,7 +330,7 @@ export function AdminGeneralSettingsPanel() {
                 })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("adminGeneralSettings.hintMaxWarnings")}
             </p>
           </div>
@@ -431,11 +431,11 @@ export function AdminGeneralSettingsPanel() {
                 })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("adminGeneralSettings.hintOpenCharsPrefix", {
                 defaultValue: "Solo afecta preguntas ",
               })}
-              <code className="text-[10px]">abierta</code>
+              <code className="text-3xs">abierta</code>
               {t("adminGeneralSettings.hintOpenCharsSuffix", {
                 defaultValue:
                   ". Las de código, diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.",
@@ -455,7 +455,7 @@ export function AdminGeneralSettingsPanel() {
                   {t("adminGeneralSettings.labelFullscreen")}
                   <HelpHint>{t("help.requireExamFullscreen")}</HelpHint>
                 </div>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
+                <p className="text-2xs text-muted-foreground mt-0.5">
                   {draft.require_exam_fullscreen
                     ? t("adminGeneralSettings.fullscreenActive")
                     : t("adminGeneralSettings.fullscreenInactive")}
@@ -505,7 +505,7 @@ export function AdminGeneralSettingsPanel() {
                 setDraft({ ...draft, due_reminder_lead_hours: Number(e.target.value) })
               }
             />
-            <p className="text-[11px] text-muted-foreground mt-1">
+            <p className="text-2xs text-muted-foreground mt-1">
               {t("adminGeneralSettings.hintDueReminderLead", {
                 defaultValue:
                   "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado.",
@@ -542,7 +542,7 @@ export function AdminGeneralSettingsPanel() {
                   defaultValue: "0 = desactivado",
                 })}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("adminGeneralSettings.hintThreshold")}
               </p>
             </div>
@@ -560,7 +560,7 @@ export function AdminGeneralSettingsPanel() {
                   })
                 }
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("adminGeneralSettings.hintCooldown")}
               </p>
             </div>
@@ -646,7 +646,7 @@ export function AdminGeneralSettingsPanel() {
               />
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("adminGeneralSettings.earlyAlertNote")}
           </p>
         </CardContent>

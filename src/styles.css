@@ -46,6 +46,24 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
   --breakpoint-xs: 30rem; /* 480px — extra small screens (large phones) */
+
+  /* Tamaños de texto bajo `text-sm` (14px), CON NOMBRE.
+   *
+   * Antes había SIETE tamaños distintos bajo 16px escritos a mano
+   * (`text-[11px]`, `text-[10px]`, `text-[9px]`, `text-[8px]`, `text-[12px]`…):
+   * 1.113 usos en 162 archivos. Tres badges de estado con letra de 9, 10 y 11px
+   * en la misma tabla no leen como jerarquía, leen como azar — y sin un token
+   * cada pantalla nueva volvía a inventar su tamaño. Esa era la causa raíz.
+   *
+   * Quedan TRES: `text-xs` (12px, de Tailwind) · `text-2xs` (11px) ·
+   * `text-3xs` (10px). Los valores preservan exactamente lo que ya se
+   * renderizaba, así que nombrarlos no cambió ni un píxel en los 1.056 usos de
+   * 11 y 10px. Los 57 de 9px/8px se plegaron a `text-3xs`.
+   *
+   * REGLA: no volver a escribir `text-[Npx]`. Si hace falta un tamaño que no
+   * está acá, se agrega el token — no se inventa en la pantalla. */
+  --text-2xs: 0.6875rem; /* 11px */
+  --text-3xs: 0.625rem; /* 10px */
 }
 
 :root {

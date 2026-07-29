@@ -73,14 +73,14 @@ function ProviderLogo({ provider }: { provider: Provider }) {
   }
   if (provider === "teams") {
     return (
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-[#5059C9] text-white text-[9px] font-bold leading-none shrink-0">
+      <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-[#5059C9] text-white text-3xs font-bold leading-none shrink-0">
         T
       </span>
     );
   }
   if (provider === "zoom") {
     return (
-      <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-[#2D8CFF] text-white text-[9px] font-bold leading-none shrink-0">
+      <span className="inline-flex h-4 w-4 items-center justify-center rounded-sm bg-[#2D8CFF] text-white text-3xs font-bold leading-none shrink-0">
         Z
       </span>
     );

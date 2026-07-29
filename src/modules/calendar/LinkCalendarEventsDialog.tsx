@@ -431,7 +431,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
             </div>
             {events.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-3xs">
                   {t("hc_modulesCalendarLinkCalendarEventsDialog.eventCountBadge", { count: events.length })}
                 </Badge>
                 <span>{t("hc_modulesCalendarLinkCalendarEventsDialog.eventsLoadedHint")}</span>
@@ -489,7 +489,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                           <TableCell className="font-medium text-sm">
                             <div className="truncate">{s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession")}</div>
                             {s.meeting_url && !isDirty && (
-                              <div className="text-[10px] text-muted-foreground truncate">
+                              <div className="text-3xs text-muted-foreground truncate">
                                 {s.meeting_url}
                               </div>
                             )}
@@ -531,17 +531,17 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                               if (!ev) return null;
                               return (
                                 <div className="mt-1 space-y-0.5">
-                                  <div className="text-[10px] text-muted-foreground truncate">
+                                  <div className="text-3xs text-muted-foreground truncate">
                                     {ev.hangoutLink ?? ev.htmlLink ?? t("hc_modulesCalendarLinkCalendarEventsDialog.noMeetLink")}
                                   </div>
                                   {ev.recordingUrl && (
-                                    <div className="flex items-center gap-1 text-[10px] text-emerald-600 dark:text-emerald-400">
+                                    <div className="flex items-center gap-1 text-3xs text-emerald-600 dark:text-emerald-400">
                                       <Video className="h-3 w-3 shrink-0" />
                                       <span className="truncate">{t("hc_modulesCalendarLinkCalendarEventsDialog.recordingAvailable")}</span>
                                     </div>
                                   )}
                                   {ev.notesUrl && (
-                                    <div className="flex items-center gap-1 text-[10px] text-sky-600 dark:text-sky-400">
+                                    <div className="flex items-center gap-1 text-3xs text-sky-600 dark:text-sky-400">
                                       <FileText className="h-3 w-3 shrink-0" />
                                       <span className="truncate">
                                         {i18n.t(

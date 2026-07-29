@@ -189,7 +189,7 @@ export function AssignSelector({
                 </div>
               </div>
               {selectedIds.has(s.id) && (
-                <Badge variant="secondary" className="text-[9px] shrink-0">
+                <Badge variant="secondary" className="text-3xs shrink-0">
                   {selectedLabelText}
                 </Badge>
               )}

@@ -71,7 +71,7 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
                 defaultValue: "Videos introductorios ({{n}})",
               })}
           {allDone && (
-            <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="ml-auto inline-flex items-center gap-1 text-2xs text-emerald-600 dark:text-emerald-400 font-medium">
               <Check className="h-3.5 w-3.5" />{" "}
               {t("hc_sharedComponentsIntroVideoGate.allWatched", {
                 defaultValue: "Todos vistos",
@@ -141,7 +141,7 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
                     <div className="font-medium truncate">
                       {idx + 1}. {label}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-3xs text-muted-foreground">
                       {isWatched
                         ? t("hc_sharedComponentsIntroVideoGate.statusWatched", {
                             defaultValue: "Visto",
@@ -163,7 +163,7 @@ export function IntroVideoGate({ videos, watchedIds, onVideoWatched }: Props) {
                 )}
                 {isLocked && (
                   <div className="px-3 pb-3">
-                    <p className="text-[11px] text-muted-foreground italic">
+                    <p className="text-2xs text-muted-foreground italic">
                       {t("hc_sharedComponentsIntroVideoGate.finishPreviousToUnlock", {
                         defaultValue: "Termina los videos anteriores para desbloquearlo.",
                       })}

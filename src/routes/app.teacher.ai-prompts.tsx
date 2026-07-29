@@ -375,7 +375,7 @@ function TeacherAIPrompts() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Sparkles className="h-6 w-6 text-amber-500" />}
+        icon={<Sparkles className="h-6 w-6" />}
         title={
           <span className="inline-flex items-center gap-2">
             {t("hc_routesAppTeacherAiPrompts.pageTitle")}
@@ -447,7 +447,7 @@ function TeacherAIPrompts() {
               </SelectContent>
             </Select>
           </div>
-          <Badge variant="outline" className="text-[11px] tabular-nums h-6">
+          <Badge variant="outline" className="text-2xs tabular-nums h-6">
             {t("hc_routesAppTeacherAiPrompts.promptCount", {
               count: filteredUseCases.length,
               total: USE_CASES.length,
@@ -482,11 +482,11 @@ function TeacherAIPrompts() {
                   <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                     {uc.label}
                     {hasOverride ? (
-                      <Badge className="text-[10px] bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25">
+                      <Badge className="text-3xs bg-amber-500/15 text-amber-700 border-amber-500/25 dark:bg-amber-400/15 dark:text-amber-300 dark:border-amber-400/25">
                         {t("hc_routesAppTeacherAiPrompts.badgeCourseOverride")}
                       </Badge>
                     ) : (
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {t("hc_routesAppTeacherAiPrompts.badgeUsingGlobal")}
                       </Badge>
                     )}
@@ -497,7 +497,7 @@ function TeacherAIPrompts() {
                   {/* Prompt global de referencia */}
                   <div className="rounded-md border bg-muted/30 p-3 space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
+                      <span className="text-2xs font-medium text-muted-foreground uppercase tracking-wide">
                         {t("hc_routesAppTeacherAiPrompts.globalPromptReference")}
                       </span>
                     </div>

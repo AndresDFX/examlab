@@ -157,11 +157,11 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
                 <span className="text-sm font-medium text-amber-700 dark:text-amber-300">
                   {t("hc_modulesAiAiOverrideDialog.windowActive")}
                 </span>
-                <Badge variant="outline" className="text-[10px] ml-auto">
+                <Badge variant="outline" className="text-3xs ml-auto">
                   {t("hc_modulesAiAiOverrideDialog.minutesLeft", { minutes: minutesLeft })}
                 </Badge>
                 {status?.cap != null && (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-3xs">
                     {t("hc_modulesAiAiOverrideDialog.messagesCount", {
                       remaining: status.remaining ?? 0,
                       cap: status.cap,
@@ -169,7 +169,7 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
                   </Badge>
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("hc_modulesAiAiOverrideDialog.syncUntil")}{" "}
                 <strong>{formatDateTime(activeExpiry)}</strong>
                 {status?.cap != null ? (

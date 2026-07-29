@@ -52,18 +52,18 @@ export function ConversationSection({
         <CollapsibleTrigger asChild>
           <button
             type="button"
-            className="w-full flex items-center gap-2 text-[11px] font-medium text-muted-foreground hover:text-foreground group"
+            className="w-full flex items-center gap-2 text-2xs font-medium text-muted-foreground hover:text-foreground group"
           >
             <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
             <MessageSquareText className="h-3 w-3" />
             <span>{conversationLabel}</span>
             {count > 0 && (
-              <Badge variant="outline" className="ml-auto text-[10px] tabular-nums">
+              <Badge variant="outline" className="ml-auto text-3xs tabular-nums">
                 {count}
               </Badge>
             )}
             {hasPending && (
-              <Badge variant="destructive" className={`text-[10px] ${count > 0 ? "" : "ml-auto"}`}>
+              <Badge variant="destructive" className={`text-3xs ${count > 0 ? "" : "ml-auto"}`}>
                 {pendingLabel}
               </Badge>
             )}

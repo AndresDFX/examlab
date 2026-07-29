@@ -535,7 +535,7 @@ function AdminSupportPage() {
         title={t("adminSupport.title")}
         subtitle={t("adminSupport.subtitle")}
         actions={
-          <Button onClick={openCreate}>
+          <Button size="sm" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1" />
             {t("adminSupport.newTicketBtn")}
           </Button>
@@ -615,7 +615,7 @@ function AdminSupportPage() {
                   }
                   action={
                     noMatch ? undefined : (
-                      <Button onClick={openCreate}>
+                      <Button size="sm" onClick={openCreate}>
                         <Plus className="h-4 w-4 mr-1" />
                         {t("adminSupport.createFirstBtn")}
                       </Button>
@@ -670,7 +670,7 @@ function AdminSupportPage() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {CATEGORY_LABEL[t.category]}
                       </Badge>
                     </TableCell>
@@ -678,7 +678,7 @@ function AdminSupportPage() {
                       {PRIORITY_LABEL[t.priority]}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${STATUS_TONE[t.status]}`}>
+                      <Badge variant="outline" className={`text-3xs ${STATUS_TONE[t.status]}`}>
                         {STATUS_LABEL[t.status]}
                       </Badge>
                     </TableCell>
@@ -836,7 +836,7 @@ function AdminSupportPage() {
                 }}
                 className="text-xs file:mr-2 file:text-xs"
               />
-              <p className="text-[10px] text-muted-foreground mt-1">
+              <p className="text-3xs text-muted-foreground mt-1">
                 {t("adminSupport.attachmentsHint")}
               </p>
               {newAttachments.length > 0 && (
@@ -850,7 +850,7 @@ function AdminSupportPage() {
                       <span className="truncate flex-1" title={file.name}>
                         {file.name}
                       </span>
-                      <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                      <span className="text-3xs text-muted-foreground tabular-nums shrink-0">
                         {(file.size / 1024).toFixed(1)} KB
                       </span>
                       {/* Tap target ≥ 32x32px en mobile — el ícono X de
@@ -879,7 +879,7 @@ function AdminSupportPage() {
           {/* Banner sutil cuando hay draft: el dialog conserva lo escrito
               entre opens, asi que el admin sabe que su info esta a salvo. */}
           {hasDraft && !creating && (
-            <p className="text-[11px] text-muted-foreground italic">
+            <p className="text-2xs text-muted-foreground italic">
               {t("adminSupport.draftNote")}
             </p>
           )}
@@ -890,7 +890,7 @@ function AdminSupportPage() {
             <p
               role="status"
               aria-live="polite"
-              className="flex items-center gap-2 text-[11px] text-muted-foreground"
+              className="flex items-center gap-2 text-2xs text-muted-foreground"
             >
               <Spinner size="xs" />
               <span className="truncate">{createStatus}</span>

@@ -551,7 +551,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
       }
       toast.success(
         i18n.t("toast.modules_ai_AiJobsHistoryPanel.jobRequeued", {
-          defaultValue: "Job re-encolado",
+          defaultValue: "Tarea devuelta a la cola",
         }),
       );
       void logEvent({
@@ -656,7 +656,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               <CardTitle className="text-base">
                 {t("hc_modulesAiAiJobsHistoryPanel.cardTitle")}
               </CardTitle>
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-3xs">
                 {filteredJobs.length}
                 {filteredJobs.length !== jobs.length && (
                   <span className="ml-1 text-muted-foreground">/ {jobs.length}</span>
@@ -824,7 +824,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{label}</span>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
+                            <Badge variant="outline" className="text-3xs shrink-0">
                               {kindLabel}
                             </Badge>
                             <Badge
@@ -835,7 +835,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                                     ? "destructive"
                                     : "secondary"
                               }
-                              className={`text-[10px] shrink-0 ${
+                              className={`text-3xs shrink-0 ${
                                 j.status === "done"
                                   ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
                                   : j.status === "rejected"
@@ -852,7 +852,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                             </div>
                           )}
                         </div>
-                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        <span className="text-2xs text-muted-foreground tabular-nums shrink-0">
                           {j.completed_at ? formatDateTime(j.completed_at) : "—"}
                         </span>
                       </button>
@@ -946,7 +946,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                             <div className="text-muted-foreground mb-0.5">
                               {t("hc_modulesAiAiJobsHistoryPanel.detailLastError")}
                             </div>
-                            <pre className="text-[11px] bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
+                            <pre className="text-2xs bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
                               {j.last_error}
                             </pre>
                           </div>
@@ -956,7 +956,7 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
                             <div className="text-muted-foreground mb-0.5">
                               {t("hc_modulesAiAiJobsHistoryPanel.detailRejectionReason")}
                             </div>
-                            <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
+                            <pre className="text-2xs bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
                               {j.rejection_reason}
                             </pre>
                             {j.rejected_at && (
@@ -980,12 +980,15 @@ export function AiJobsHistoryPanel({ isAdmin = false }: Props) {
               })}
             </div>
           )}
-          <DataPagination state={pagination} entityNamePlural="jobs" />
+          <DataPagination
+            state={pagination}
+            entityNamePlural={t("hc_modulesAiAiJobsHistoryPanel.entityPlural")}
+          />
         </CardContent>
       </Card>
 
       {jobs.length === PAGE_LIMIT && (
-        <p className="text-[11px] text-muted-foreground text-center">
+        <p className="text-2xs text-muted-foreground text-center">
           {t("hc_modulesAiAiJobsHistoryPanel.pageLimitNote", { limit: PAGE_LIMIT })}
         </p>
       )}
@@ -1007,7 +1010,7 @@ function DetailRow({ k, v, mono = false }: { k: string; v: string; mono?: boolea
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground w-28 shrink-0">{k}</span>
-      <span className={`flex-1 break-all ${mono ? "font-mono text-[11px]" : ""}`}>{v}</span>
+      <span className={`flex-1 break-all ${mono ? "font-mono text-2xs" : ""}`}>{v}</span>
     </div>
   );
 }

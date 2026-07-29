@@ -843,7 +843,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                 {matrixSummary.entregadoSinCalificar + matrixSummary.errorIa > 0 && (
                   <Badge
                     variant="destructive"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                   >
                     {matrixSummary.entregadoSinCalificar + matrixSummary.errorIa}
                   </Badge>
@@ -855,7 +855,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                 {aiFailedJobs.length > 0 && (
                   <Badge
                     variant="destructive"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                   >
                     {aiFailedJobs.length}
                   </Badge>
@@ -867,7 +867,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                 {openThreads.length > 0 && (
                   <Badge
                     variant="secondary"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                   >
                     {openThreads.length}
                   </Badge>
@@ -879,7 +879,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                 {attendanceRows.length > 0 && (
                   <Badge
                     variant="outline"
-                    className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                    className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                   >
                     {attendanceRows.length}
                   </Badge>
@@ -892,7 +892,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   {cohortCoverage.gaps.length > 0 && (
                     <Badge
                       variant="destructive"
-                      className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                      className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                     >
                       {cohortCoverage.gaps.length}
                     </Badge>
@@ -906,7 +906,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                   {coverageGapCount > 0 && (
                     <Badge
                       variant="destructive"
-                      className="ml-1 text-[10px] px-1.5 py-0 h-4 leading-none"
+                      className="ml-1 text-3xs px-1.5 py-0 h-4 leading-none"
                     >
                       {coverageGapCount}
                     </Badge>
@@ -1034,27 +1034,27 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                             </TableCell>
                             <TableCell>
                               {r.status === "calificado" && (
-                                <Badge variant="secondary" className="text-[10px]">
+                                <Badge variant="secondary" className="text-3xs">
                                   <CheckCircle2 className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stCalificado")}
                                 </Badge>
                               )}
                               {r.status === "entregado_sin_calificar" && (
-                                <Badge variant="outline" className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300">
+                                <Badge variant="outline" className="text-3xs border-amber-500/40 text-amber-700 dark:text-amber-300">
                                   {t("courseDiagnostic.stUngraded")}
                                 </Badge>
                               )}
                               {r.status === "error_ia" && (
-                                <Badge variant="destructive" className="text-[10px]">
+                                <Badge variant="destructive" className="text-3xs">
                                   <AlertTriangle className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stAiError")}
                                 </Badge>
                               )}
                               {r.status === "sin_sustentacion" && (
-                                <Badge variant="outline" className="text-[10px] border-violet-500/40 text-violet-700 dark:text-violet-300">
+                                <Badge variant="outline" className="text-3xs border-violet-500/40 text-violet-700 dark:text-violet-300">
                                   <Gavel className="h-3 w-3 mr-0.5" /> {t("courseDiagnostic.stNoDefense")}
                                 </Badge>
                               )}
                               {r.status === "sin_entregar" && (
-                                <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                                <Badge variant="outline" className="text-3xs text-muted-foreground">
                                   {t("courseDiagnostic.stNotSubmitted")}
                                 </Badge>
                               )}
@@ -1134,7 +1134,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                             <div className="font-medium truncate max-w-[180px]">
                               {j.itemLabel ?? j.target_table}
                             </div>
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-3xs text-muted-foreground">
                               {j.target_table}
                             </div>
                           </TableCell>
@@ -1348,7 +1348,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                                   <Badge
                                     key={c}
                                     variant="outline"
-                                    className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                    className="text-3xs border-amber-500/40 text-amber-700 dark:text-amber-300"
                                   >
                                     {c}
                                   </Badge>
@@ -1484,7 +1484,7 @@ function StatPill({
       <div className="flex items-center gap-1.5">
         {icon}
         <span className="font-medium tabular-nums">{value}</span>
-        <span className="text-[10px] uppercase tracking-wide opacity-80 truncate">{label}</span>
+        <span className="text-3xs uppercase tracking-wide opacity-80 truncate">{label}</span>
       </div>
     </div>
   );
@@ -1526,14 +1526,14 @@ function CutCoverageRows({
           {cut.intraCutGap > 0 ? (
             <Badge
               variant="outline"
-              className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+              className="text-3xs border-amber-500/40 text-amber-700 dark:text-amber-300"
             >
               {t("courseDiagnostic.coverageGapBadge", { gap: formatPct(cut.intraCutGap) })}
             </Badge>
           ) : (
             <Badge
               variant="outline"
-              className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+              className="text-3xs border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
             >
               {t("courseDiagnostic.coverageOkBadge")}
             </Badge>
@@ -1568,14 +1568,14 @@ function CutCoverageRows({
               {hasGap ? (
                 <Badge
                   variant="outline"
-                  className="text-[10px] border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  className="text-3xs border-amber-500/40 text-amber-700 dark:text-amber-300"
                 >
                   {t("courseDiagnostic.coverageGapBadge", { gap: formatPct(b.gap) })}
                 </Badge>
               ) : (
                 <Badge
                   variant="outline"
-                  className="text-[10px] border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                  className="text-3xs border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                 >
                   {t("courseDiagnostic.coverageOkBadge")}
                 </Badge>

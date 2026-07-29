@@ -329,7 +329,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
                   style={{ width: `${rotationPct}%` }}
                 />
               </div>
-              <div className="text-[11px] text-muted-foreground mt-1 tabular-nums">
+              <div className="text-2xs text-muted-foreground mt-1 tabular-nums">
                 {t("hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn", { seconds: secondsToRotation })}
               </div>
             </div>

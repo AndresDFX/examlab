@@ -203,7 +203,7 @@ export function TagTextarea({
     <div className="relative flex-1">
       {dropdownOpen && (
         <div className="absolute bottom-full left-0 right-0 mb-1 z-20 rounded-md border bg-popover shadow-md overflow-hidden">
-          <div className="px-2.5 py-1.5 text-[10px] uppercase tracking-wide text-muted-foreground border-b">
+          <div className="px-2.5 py-1.5 text-3xs uppercase tracking-wide text-muted-foreground border-b">
             {t("hc_modulesMessagingTagTextarea.taggerHint", {
               defaultValue: "Etiquetar contenido — Enter para insertar",
             })}
@@ -229,7 +229,7 @@ export function TagTextarea({
                   >
                     <TagIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                     <span className="flex-1 truncate">{tg.label}</span>
-                    <span className="text-[10px] text-muted-foreground shrink-0">
+                    <span className="text-3xs text-muted-foreground shrink-0">
                       {TAG_TYPE_LABEL[tg.type]}
                     </span>
                   </button>
@@ -258,7 +258,7 @@ export function TagTextarea({
             return (
               <span
                 key={`${tag.type}:${tag.id}:${i}`}
-                className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[11px] text-primary"
+                className="inline-flex items-center gap-1 rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-2xs text-primary"
               >
                 <TagIcon className="h-3 w-3 shrink-0" />
                 <span className="truncate max-w-[160px]">{tag.label}</span>

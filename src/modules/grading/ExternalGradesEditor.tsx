@@ -395,7 +395,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
             <HelpHint>{t("externalGrades.helpHint", { max: maxScore })}</HelpHint>
           </CardTitle>
           <div className="flex items-center gap-2">
-            <Badge variant="outline" className="text-[11px]">
+            <Badge variant="outline" className="text-2xs">
               {t("externalGrades.gradedBadge", { graded: summary.graded, total: summary.total })}
             </Badge>
             <Button
@@ -442,7 +442,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
               )}
             </div>
             {search && (
-              <span className="text-[11px] text-muted-foreground tabular-nums">
+              <span className="text-2xs text-muted-foreground tabular-nums">
                 {t("externalGrades.filterCount", { filtered: filteredRows.length, total: rows.length })}
               </span>
             )}

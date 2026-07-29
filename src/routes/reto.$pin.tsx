@@ -188,7 +188,7 @@ function EmailGate({ pin, onJoined }: { pin: string; onJoined: (p: StoredPlayer)
             {busy ? <Spinner size="sm" className="mr-2" /> : null}
             {t("kahoot.enterGame", { defaultValue: "Entrar al reto" })}
           </Button>
-          <p className="text-center text-[11px] leading-tight text-muted-foreground">
+          <p className="text-center text-2xs leading-tight text-muted-foreground">
             {t("kahoot.joinDisclaimer", {
               defaultValue: "Solo pueden participar los correos matriculados en el curso. Un jugador por correo.",
             })}
@@ -574,7 +574,7 @@ function RetoPlay({
           onClose={() => setReviewOpen(false)}
         />
       )}
-      <p className="text-[11px] text-muted-foreground tabular-nums">PIN {pin}</p>
+      <p className="text-2xs text-muted-foreground tabular-nums">PIN {pin}</p>
     </div>
   );
 }

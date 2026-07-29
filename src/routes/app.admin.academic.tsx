@@ -52,7 +52,7 @@ function AdminAcademic() {
     return (
       <div className="space-y-5">
         <PageHeader
-          icon={<GraduationCap className="h-6 w-6 text-indigo-500" />}
+          icon={<GraduationCap className="h-6 w-6" />}
           title={t("hc_routesAppAdminAcademic.title")}
           subtitle={t("hc_routesAppAdminAcademic.subtitleByInstitution")}
         />
@@ -77,7 +77,7 @@ function AdminAcademic() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<GraduationCap className="h-6 w-6 text-indigo-500" />}
+        icon={<GraduationCap className="h-6 w-6" />}
         title={t("hc_routesAppAdminAcademic.title")}
         subtitle={t("hc_routesAppAdminAcademic.subtitleProgramsSubjectsPeriods")}
       />

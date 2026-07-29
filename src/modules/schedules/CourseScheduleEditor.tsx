@@ -242,7 +242,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                     }`}
                   >
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Label className="text-3xs uppercase tracking-wide text-muted-foreground">
                         {t("hc_modulesSchedulesCourseScheduleEditor.labelDay")}
                       </Label>
                       <Select
@@ -264,7 +264,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                       </Select>
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Label className="text-3xs uppercase tracking-wide text-muted-foreground">
                         {t("hc_modulesSchedulesCourseScheduleEditor.labelStart")}
                       </Label>
                       <Input
@@ -275,7 +275,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Label className="text-3xs uppercase tracking-wide text-muted-foreground">
                         {t("hc_modulesSchedulesCourseScheduleEditor.labelEnd")}
                       </Label>
                       <Input
@@ -286,7 +286,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Label className="text-3xs uppercase tracking-wide text-muted-foreground">
                         {t("hc_modulesSchedulesCourseScheduleEditor.labelModality")}
                       </Label>
                       <Select
@@ -310,7 +310,7 @@ export function CourseScheduleEditor({ open, onOpenChange, courseId, courseName 
                       </Select>
                     </div>
                     <div className="space-y-1 col-span-2 sm:col-span-1">
-                      <Label className="text-[10px] uppercase tracking-wide text-muted-foreground">
+                      <Label className="text-3xs uppercase tracking-wide text-muted-foreground">
                         {t("hc_modulesSchedulesCourseScheduleEditor.labelRoom")}
                       </Label>
                       <Input

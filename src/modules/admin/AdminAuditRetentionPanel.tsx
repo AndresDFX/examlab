@@ -192,7 +192,7 @@ export function AdminAuditRetentionPanel() {
                 value={draft.info}
                 onChange={(e) => setDraft((d) => ({ ...d, info: Number(e.target.value) || 0 }))}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("hc_modulesAdminAdminAuditRetentionPanel.infoDaysHint")}
               </p>
             </div>
@@ -204,7 +204,7 @@ export function AdminAuditRetentionPanel() {
                 value={draft.warning}
                 onChange={(e) => setDraft((d) => ({ ...d, warning: Number(e.target.value) || 0 }))}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("hc_modulesAdminAdminAuditRetentionPanel.warningDaysHint")}
               </p>
             </div>
@@ -216,7 +216,7 @@ export function AdminAuditRetentionPanel() {
                 value={draft.error}
                 onChange={(e) => setDraft((d) => ({ ...d, error: Number(e.target.value) || 0 }))}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("hc_modulesAdminAdminAuditRetentionPanel.errorDaysHint")}
               </p>
             </div>
@@ -229,7 +229,7 @@ export function AdminAuditRetentionPanel() {
                 <strong>{t("hc_modulesAdminAdminAuditRetentionPanel.enableAutoPurgeStrong")}</strong>
                 {t("hc_modulesAdminAdminAuditRetentionPanel.enableAutoPurgeRest")}
               </p>
-              <pre className="text-[11px] font-mono bg-muted p-2 rounded mt-1 overflow-x-auto">
+              <pre className="text-2xs font-mono bg-muted p-2 rounded mt-1 overflow-x-auto">
                 {`SELECT cron.schedule('audit-logs-purge', '0 3 1 * *',
   $$ SELECT public.purge_audit_logs(); $$);`}
               </pre>

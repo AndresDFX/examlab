@@ -51,6 +51,7 @@ import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
+import { CommandPalette } from "@/shared/components/CommandPalette";
 import { TenantBillingBanner } from "@/modules/tenants/TenantBillingBanner";
 import { KahootLiveBanner } from "@/modules/polls/KahootLiveBanner";
 // Lazy: driver.js (+ su CSS) solo se descarga cuando REALMENTE corre un tour
@@ -1059,7 +1060,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             )}
             <div className="flex-1 min-w-0">
               <div className="font-semibold tracking-tight text-sm">ExamLab</div>
-              <div className="text-[10px] text-sidebar-foreground/60 tracking-wide truncate">
+              <div className="text-3xs text-sidebar-foreground/60 tracking-wide truncate">
                 {/* En cross-tenant: indicamos modo SuperAdmin explícito,
                     no el nombre del tenant default del usuario. Al
                     elegir "Ver como X" desde /app/superadmin/tenants se
@@ -1127,6 +1128,22 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
           )
+        )}
+
+        {/* Buscador ⌘K arriba de la lista: con 22 items planos el escaneo
+            lineal es el costo real de cada navegacion, y los ultimos quedan
+            bajo el pliegue en pantallas de 768px. Recibe los destinos YA
+            filtrados por rol y module_visibility. */}
+        {!isTakingExam && (
+          <div className="px-3 pt-2">
+            <CommandPalette
+              destinations={visibleNav.map((n) => ({
+                to: n.to,
+                label: t(n.labelKey),
+                icon: n.icon,
+              }))}
+            />
+          </div>
         )}
 
         <nav className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-0.5">
@@ -1200,7 +1217,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-2.5 border-t border-sidebar-border">
           <div className="px-2 pt-1 pb-1.5" data-tour-id="user-info">
             <div className="text-xs font-medium truncate">{profile?.full_name ?? user.email}</div>
-            <div className="text-[10px] text-sidebar-foreground/60 truncate">
+            <div className="text-3xs text-sidebar-foreground/60 truncate">
               {profile?.institutional_email}
             </div>
           </div>
@@ -1296,7 +1313,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <DropdownMenuSubTrigger className="gap-2">
                       <Languages className="h-4 w-4" />
                       {t("nav.language")}
-                      <span className="ml-auto text-[10px] uppercase text-muted-foreground">
+                      <span className="ml-auto text-3xs uppercase text-muted-foreground">
                         {currentLang}
                       </span>
                     </DropdownMenuSubTrigger>
@@ -1435,7 +1452,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <SheetTitle className="text-sidebar-foreground tracking-tight text-base">
                       ExamLab
                     </SheetTitle>
-                    <div className="text-[10px] text-sidebar-foreground/60 tracking-wide">
+                    <div className="text-3xs text-sidebar-foreground/60 tracking-wide">
                       {isSuperAdminCrossTenant
                         ? t("tenant.platformBrand")
                         : (tenant?.name ?? t("auth.brandSubtitle"))}
@@ -1622,12 +1639,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <div className="min-w-0">
               <div className="font-semibold truncate leading-tight">ExamLab</div>
               {isSuperAdminCrossTenant ? (
-                <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
+                <div className="text-3xs text-sidebar-foreground/60 truncate leading-tight">
                   {t("tenant.platformBrand")}
                 </div>
               ) : (
                 tenant?.name && (
-                  <div className="text-[10px] text-sidebar-foreground/60 truncate leading-tight">
+                  <div className="text-3xs text-sidebar-foreground/60 truncate leading-tight">
                     {tenant.name}
                   </div>
                 )
@@ -1752,7 +1769,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   key={item.to}
                   to={item.to}
                   className={cn(
-                    "flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-[10px] font-medium touch-manipulation transition-colors",
+                    "flex-1 flex flex-col items-center justify-center gap-0.5 py-2 min-h-[56px] text-3xs font-medium touch-manipulation transition-colors",
                     isActive
                       ? "text-primary"
                       : "text-muted-foreground hover:text-foreground active:bg-muted/50",

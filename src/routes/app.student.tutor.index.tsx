@@ -97,7 +97,7 @@ function TutorIndex() {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="font-medium text-sm truncate">{t("tutorIndex.platformCardTitle")}</span>
-                  <Badge variant="secondary" className="text-[9px] shrink-0">
+                  <Badge variant="secondary" className="text-3xs shrink-0">
                     {t("tutorIndex.platformBadge")}
                   </Badge>
                 </div>
@@ -148,7 +148,7 @@ function TutorIndex() {
                   <div className="flex-1 min-w-0">
                     <div className="font-medium text-sm truncate">{c.name}</div>
                     {c.period && (
-                      <p className="text-[11px] text-muted-foreground">{c.period}</p>
+                      <p className="text-2xs text-muted-foreground">{c.period}</p>
                     )}
                     {c.description && (
                       <p className="text-xs text-muted-foreground truncate mt-0.5">

@@ -148,7 +148,7 @@ export function WeeklyScheduleView({ title, highlightToday = true }: Props) {
                   <div className="px-3 py-1.5 flex items-center justify-between border-b">
                     <span className="text-sm font-medium">{DAY_LABELS[day]}</span>
                     {isToday && (
-                      <Badge variant="outline" className="text-[10px] border-cyan-400 text-cyan-700 dark:text-cyan-300">
+                      <Badge variant="outline" className="text-3xs border-cyan-400 text-cyan-700 dark:text-cyan-300">
                         {t("hc_modulesSchedulesWeeklyScheduleView.today", { defaultValue: "Hoy" })}
                       </Badge>
                     )}

@@ -317,7 +317,7 @@ function PreferencesPage() {
   const hasAnyOptOut = Object.keys(normalizePrefs(prefs)).length > 0;
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <PageHeader
         icon={<Bell className="h-6 w-6" />}
         title={t("preferences.title")}
@@ -325,13 +325,13 @@ function PreferencesPage() {
         actions={
           <div className="flex items-center gap-2">
             {hasAnyOptOut && (
-              <Button variant="outline" onClick={restoreDefaults} disabled={saving}>
+              <Button variant="outline" size="sm" onClick={restoreDefaults} disabled={saving}>
                 <RotateCcw className="h-4 w-4 mr-1" />
                 {t("preferences.restoreDefaults")}
               </Button>
             )}
             {dirty && (
-              <Button onClick={() => void save()} disabled={saving}>
+              <Button size="sm" onClick={() => void save()} disabled={saving}>
                 {saving ? <Spinner size="sm" className="mr-1" /> : <Save className="h-4 w-4 mr-1" />}
                 {t("common.save")}
               </Button>
@@ -359,7 +359,7 @@ function PreferencesPage() {
           </CardHeader>
           <CardContent className="divide-y">
             {/* Header */}
-            <div className="grid grid-cols-[1fr_72px_72px] sm:grid-cols-[1fr_96px_96px] items-center pb-2 text-[11px] uppercase tracking-wider text-muted-foreground">
+            <div className="grid grid-cols-[1fr_72px_72px] sm:grid-cols-[1fr_96px_96px] items-center pb-2 text-2xs uppercase tracking-wider text-muted-foreground">
               <div>{t("preferences.tableHeaderCategory")}</div>
               <div className="text-center">{t("preferences.tableHeaderEmail")}</div>
               <div className="text-center">{t("preferences.tableHeaderPush")}</div>

@@ -744,7 +744,7 @@ function VideoLibrary() {
       <PageHeader
         title={t("videosPage.title")}
         subtitle={t("videosPage.subtitle")}
-        icon={<VideoIcon className="h-6 w-6 text-cyan-500" />}
+        icon={<VideoIcon className="h-6 w-6" />}
         actions={
           <Button size="sm" onClick={openNew}>
             <Plus className="h-4 w-4 mr-1" />
@@ -872,7 +872,7 @@ function VideoLibrary() {
                           }
                           action={
                             noMatch ? undefined : (
-                              <Button onClick={openNew}>
+                              <Button size="sm" onClick={openNew}>
                                 <Plus className="h-4 w-4 mr-1" />
                                 {t("videosPage.newVideo")}
                               </Button>
@@ -912,7 +912,7 @@ function VideoLibrary() {
                                 {v.tenant_id === null && (
                                   <Badge
                                     variant="outline"
-                                    className="text-[9px] gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
+                                    className="text-3xs gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
                                   >
                                     <Globe className="h-2.5 w-2.5" />
                                     {t("videosPage.globalBadge")}
@@ -931,7 +931,7 @@ function VideoLibrary() {
                                 href={v.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-[11px] text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
+                                className="text-2xs text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
                                 title={v.url}
                               >
                                 <ExternalLink className="h-2.5 w-2.5 shrink-0" />
@@ -942,11 +942,11 @@ function VideoLibrary() {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-col gap-1">
-                            <Badge variant="outline" className="text-[10px] uppercase w-fit">
+                            <Badge variant="outline" className="text-3xs uppercase w-fit">
                               {v.provider === "direct" ? "MP4" : v.provider}
                             </Badge>
                             {v.storage_path && (
-                              <Badge variant="secondary" className="text-[10px] gap-1 w-fit">
+                              <Badge variant="secondary" className="text-3xs gap-1 w-fit">
                                 <Upload className="h-2.5 w-2.5" />{" "}
                                 {t("videosPage.badgeUploaded", { defaultValue: "Subido" })}
                               </Badge>
@@ -962,7 +962,7 @@ function VideoLibrary() {
                               {courseNameById[v.course_id] ?? "—"}
                             </div>
                           ) : (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-3xs">
                               {t("videosPage.courseGlobalBadge", { defaultValue: "Global" })}
                             </Badge>
                           )}
@@ -1037,7 +1037,7 @@ function VideoLibrary() {
                   placeholder={t("videos.urlPlaceholder")}
                   disabled={saving}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-3xs text-muted-foreground mt-1">
                   {t("videos.urlHint")}
                 </p>
               </div>
@@ -1069,7 +1069,7 @@ function VideoLibrary() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-3xs text-muted-foreground mt-1">
                   {t("videos.courseHint")}
                 </p>
               </div>
@@ -1096,16 +1096,16 @@ function VideoLibrary() {
                   disabled={saving}
                 />
                 {file && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {file.name} · {formatFileSize(file.size)}
                   </p>
                 )}
                 {editing?.storage_path && !file && (
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {t("videos.keepFile")}
                   </p>
                 )}
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-3xs text-muted-foreground mt-1">
                   {t("videos.formatsHint")}
                 </p>
               </div>
@@ -1138,7 +1138,7 @@ function VideoLibrary() {
                     ))}
                   </SelectContent>
                 </Select>
-                <p className="text-[10px] text-muted-foreground mt-1">
+                <p className="text-3xs text-muted-foreground mt-1">
                   {t("videos.courseHint")}
                 </p>
               </div>
@@ -1180,7 +1180,7 @@ function VideoLibrary() {
           {saving && uploadPct > 0 && (
             <div className="space-y-1 border-t pt-3">
               <Progress value={uploadPct} />
-              <p className="text-[11px] text-muted-foreground">{t("videos.uploading", { pct: uploadPct })}</p>
+              <p className="text-2xs text-muted-foreground">{t("videos.uploading", { pct: uploadPct })}</p>
             </div>
           )}
 

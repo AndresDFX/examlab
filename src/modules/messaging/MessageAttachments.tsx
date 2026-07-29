@@ -133,7 +133,7 @@ export function MessageAttachments({ attachments, canDelete, onChanged, inverted
           <li
             key={a.id}
             className={
-              "flex items-center gap-2 rounded border px-2 py-1 text-[11px] " +
+              "flex items-center gap-2 rounded border px-2 py-1 text-2xs " +
               (inverted
                 ? "bg-primary-foreground/10 border-primary-foreground/20"
                 : "bg-background/60")

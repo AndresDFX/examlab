@@ -69,7 +69,7 @@ export function LoadingOverlay({ title, subtitle, progress, variant = "solid" }:
                 style={{ width: `${Math.round(pct * 100)}%` }}
               />
             </div>
-            <p className="text-[10px] text-muted-foreground text-right tabular-nums">
+            <p className="text-3xs text-muted-foreground text-right tabular-nums">
               {Math.round(pct * 100)}%
             </p>
           </div>

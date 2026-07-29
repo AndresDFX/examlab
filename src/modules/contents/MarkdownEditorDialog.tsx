@@ -157,7 +157,7 @@ export function MarkdownEditorDialog({
             <FileText className="h-4 w-4 text-primary" />
             {file ? humanLabelForFile(file, t) : ""}
           </DialogTitle>
-          <DialogDescription className="text-[11px] font-mono truncate">
+          <DialogDescription className="text-2xs font-mono truncate">
             {file?.name}
           </DialogDescription>
         </DialogHeader>

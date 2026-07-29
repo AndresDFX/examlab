@@ -18,7 +18,7 @@ export function StatTile({
   return (
     <div className={`rounded-md p-2.5 ${bg}`}>
       <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+      <div className="text-3xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

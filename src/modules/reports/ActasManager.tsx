@@ -391,7 +391,7 @@ export function ActasManager({ onPrintActa }: Props) {
                           <div className="truncate" title={a.curso_nombre}>
                             {a.curso_nombre}
                           </div>
-                          <div className="text-[10px] text-muted-foreground font-mono mt-0.5 truncate">
+                          <div className="text-3xs text-muted-foreground font-mono mt-0.5 truncate">
                             {a.integrity_hash.slice(0, 16)}…
                           </div>
                         </TableCell>
@@ -412,7 +412,7 @@ export function ActasManager({ onPrintActa }: Props) {
                               <span className="text-xs font-medium tabular-nums">
                                 {Math.round((a.total_aprobados / a.total_estudiantes) * 100)}%
                               </span>
-                              <span className="text-[10px] text-muted-foreground tabular-nums">
+                              <span className="text-3xs text-muted-foreground tabular-nums">
                                 {a.total_aprobados}/{a.total_estudiantes}
                               </span>
                             </div>

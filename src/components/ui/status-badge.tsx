@@ -80,7 +80,7 @@ export function StatusBadge({ status, className, hideIcon }: Readonly<StatusBadg
   };
   const Icon = hideIcon ? undefined : meta.icon;
   return (
-    <Badge variant={meta.variant} className={cn("text-[10px]", className)}>
+    <Badge variant={meta.variant} className={cn("text-3xs", className)}>
       {Icon ? <Icon className="h-3 w-3 mr-0.5" /> : null}
       {statusLabel(status)}
     </Badge>

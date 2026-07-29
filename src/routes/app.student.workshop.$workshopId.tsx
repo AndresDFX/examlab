@@ -329,12 +329,12 @@ function StudentWorkshopDetail() {
                 <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
                 {c}
                 {isStudent && (
-                  <Badge variant="outline" className="ml-2 text-[9px]">
+                  <Badge variant="outline" className="ml-2 text-3xs">
                     {t("exam.review.yourAnswer")}
                   </Badge>
                 )}
                 {isCorrect && (
-                  <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                  <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                     {t("exam.review.correct")}
                   </Badge>
                 )}
@@ -505,11 +505,11 @@ function StudentWorkshopDetail() {
                       <span>
                         {t("exam.question")} {idx + 1}
                       </span>
-                      <Badge variant="outline" className="text-[10px] capitalize">
+                      <Badge variant="outline" className="text-3xs capitalize">
                         {q.type}
                       </Badge>
                       {q.language && (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-3xs">
                           {q.language}
                         </Badge>
                       )}

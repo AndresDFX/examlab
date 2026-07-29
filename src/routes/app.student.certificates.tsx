@@ -275,9 +275,9 @@ function StudentCertificates() {
   });
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <PageHeader
-        icon={<Award className="h-6 w-6 text-amber-500" />}
+        icon={<Award className="h-6 w-6" />}
         title={t("hc_routesAppStudentCertificates.pageTitle")}
         subtitle={t("hc_routesAppStudentCertificates.pageSubtitle")}
       />
@@ -421,19 +421,19 @@ function StudentCertificates() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <h3 className="font-semibold text-base truncate">{cert.course_name}</h3>
                         {cert.revoked_at ? (
-                          <Badge variant="destructive" className="text-[10px]">
+                          <Badge variant="destructive" className="text-3xs">
                             {t("hc_routesAppStudentCertificates.badgeRevoked")}
                           </Badge>
                         ) : (
                           <Badge
                             variant="outline"
-                            className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                            className="text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                           >
                             {t("hc_routesAppStudentCertificates.badgeValid")}
                           </Badge>
                         )}
                         {cert.course_period && (
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-3xs">
                             {cert.course_period}
                           </Badge>
                         )}
@@ -453,7 +453,7 @@ function StudentCertificates() {
                       <div className="text-2xl font-bold tabular-nums">
                         {Number(cert.final_grade).toFixed(2)}
                       </div>
-                      <div className="text-[11px] text-muted-foreground">
+                      <div className="text-2xs text-muted-foreground">
                         / {cert.grade_scale_max}
                       </div>
                     </div>

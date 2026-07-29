@@ -253,7 +253,7 @@ export function LaunchPollDialog({
                   <SelectItem value="single">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.typeSingleLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.typeSingleDesc")}
                       </span>
                     </div>
@@ -261,7 +261,7 @@ export function LaunchPollDialog({
                   <SelectItem value="multiple">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.typeMultipleLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.typeMultipleDesc")}
                       </span>
                     </div>
@@ -269,7 +269,7 @@ export function LaunchPollDialog({
                   <SelectItem value="slot">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.typeSlotLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.typeSlotDesc")}
                       </span>
                     </div>
@@ -305,7 +305,7 @@ export function LaunchPollDialog({
                   <SelectItem value="always">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.visAlwaysLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.visAlwaysDesc")}
                       </span>
                     </div>
@@ -313,7 +313,7 @@ export function LaunchPollDialog({
                   <SelectItem value="after_close">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.visAfterCloseLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.visAfterCloseDesc")}
                       </span>
                     </div>
@@ -321,7 +321,7 @@ export function LaunchPollDialog({
                   <SelectItem value="never">
                     <div className="flex flex-col gap-0.5">
                       <span>{t("launchPollDialog.visNeverLabel")}</span>
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-2xs text-muted-foreground">
                         {t("launchPollDialog.visNeverDesc")}
                       </span>
                     </div>
@@ -414,7 +414,7 @@ export function LaunchPollDialog({
               </Button>
             </div>
           </div>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("launchPollDialog.openUntilManual")}
           </p>
         </div>

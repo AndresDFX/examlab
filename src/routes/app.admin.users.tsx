@@ -2002,7 +2002,7 @@ function AdminUsers() {
                               togglingActiveId === r.id ||
                               impersonatingId === r.id) && <Spinner size="xs" />}
                             {r.is_active === false && (
-                              <Badge variant="destructive" className="text-[10px] shrink-0">
+                              <Badge variant="destructive" className="text-3xs shrink-0">
                                 {t("adminUsers.inactiveBadge", { defaultValue: "Inactivo" })}
                               </Badge>
                             )}
@@ -2214,7 +2214,7 @@ function AdminUsers() {
                       <Label htmlFor="force-pwd-change" className="text-sm font-medium">
                         {t("adminUsers.forcePwdChangeLabel")}
                       </Label>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-2xs text-muted-foreground">
                         {forcePasswordChange
                           ? t("adminUsers.forcePwdChangeOnDesc")
                           : t("adminUsers.forcePwdChangeOffDesc")}
@@ -2320,7 +2320,7 @@ function AdminUsers() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {t("adminUsers.institutionSADesc")}
                     {editing.roles.includes("SuperAdmin")
                       ? t("adminUsers.institutionSADescCrossTenant")
@@ -2365,7 +2365,7 @@ function AdminUsers() {
                       />
                       {/* La unicidad es por tenant cuando se asigna (mig
                           20260822). Si queda vacío, no choca con nadie. */}
-                      <p className="text-[10px] text-muted-foreground mt-1">
+                      <p className="text-3xs text-muted-foreground mt-1">
                         {t("adminUsers.fieldStudentCardCodeHint")}
                       </p>
                     </div>
@@ -2463,7 +2463,7 @@ function AdminUsers() {
                             ))}
                           </SelectContent>
                         </Select>
-                        <p className="text-[11px] text-muted-foreground mt-1">
+                        <p className="text-2xs text-muted-foreground mt-1">
                           {isSuperAdminCaller && !editing.tenant_id
                             ? t("adminUsers.enrollHintChooseTenant")
                             : filteredEnrollCourses.length === 0
@@ -2518,7 +2518,7 @@ function AdminUsers() {
               <div className="grid grid-cols-3 gap-2 text-center">
                 <div className="rounded-md border p-2">
                   <p className="text-lg font-semibold tabular-nums">{importReport.ok}</p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("adminUsers.importReportOk", { defaultValue: "Importados" })}
                   </p>
                 </div>
@@ -2526,7 +2526,7 @@ function AdminUsers() {
                   <p className="text-lg font-semibold tabular-nums">
                     {importReport.duplicates.length}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("adminUsers.importReportDuplicates", { defaultValue: "Ya existían" })}
                   </p>
                 </div>
@@ -2534,7 +2534,7 @@ function AdminUsers() {
                   <p className="text-lg font-semibold tabular-nums">
                     {importReport.errors.length}
                   </p>
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("adminUsers.importReportErrors", { defaultValue: "Con error" })}
                   </p>
                 </div>

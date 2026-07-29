@@ -581,7 +581,7 @@ export function TeacherProjectFilesEditor({
       toast.success(
         i18n.t("toast.modules_projects_ProjectFiles.oneGenerationJobQueued", {
           defaultValue:
-            "1 job de generación encolado. Cuando tengas un código de IA inmediata o un administrador lo procese, las preguntas aparecerán automáticamente. Puedes verlo en el panel de Cola IA.",
+            "1 tarea de generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, las preguntas aparecerán automáticamente. Puedes verla en el módulo Tareas de IA.",
         }),
       );
       return;
@@ -747,7 +747,7 @@ export function TeacherProjectFilesEditor({
       toast.success(
         i18n.t("toast.modules_projects_ProjectFiles.generationJobsQueued", {
           defaultValue:
-            "{{count}} job(s) de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+            "{{count}} tarea(s) de generación encoladas. Cuando tengas un código de IA inmediata o un administrador las procese, las preguntas aparecerán automáticamente. Puedes verlas en el módulo Tareas de IA.",
           count: rows.length,
         }),
       );
@@ -848,10 +848,10 @@ export function TeacherProjectFilesEditor({
               <CardContent className="p-3 flex items-start justify-between gap-3">
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 mb-1">
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-3xs">
                       {idx + 1}
                     </Badge>
-                    <Badge variant="secondary" className="text-[10px] capitalize">
+                    <Badge variant="secondary" className="text-3xs capitalize">
                       {q.type}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
@@ -913,7 +913,7 @@ export function TeacherProjectFilesEditor({
                 {questions.slice(0, 9).map((q, i) => (
                   <span
                     key={q.id}
-                    className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
+                    className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                   >
                     <span className="text-muted-foreground">#{i + 1}</span>
                     <span className="capitalize">{q.type}</span>
@@ -921,7 +921,7 @@ export function TeacherProjectFilesEditor({
                   </span>
                 ))}
                 {questions.length > 9 && (
-                  <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                  <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-3xs text-muted-foreground">
                     {t("projectFiles.moreItems", { n: questions.length - 9 })}
                   </span>
                 )}
@@ -1070,7 +1070,7 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="javafx">JavaFX</SelectItem>
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {qJavaFramework === "javafx"
                   ? t("projectFiles.javaFxWarning")
                   : t("projectFiles.swingCompat")}
@@ -1120,7 +1120,7 @@ export function TeacherProjectFilesEditor({
                     {t("projectFiles.labelZipSingleMode")}{" "}
                     <HelpHint>{t("help.projectZipSingleModeHint")}</HelpHint>
                   </Label>
-                  <p className="text-[11px] text-muted-foreground leading-tight">
+                  <p className="text-2xs text-muted-foreground leading-tight">
                     {t("projectFiles.zipSinglePoc")}
                   </p>
                 </div>
@@ -1248,7 +1248,7 @@ export function TeacherProjectFilesEditor({
             </CardContent>
           </Card>
 
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+          <div className="flex items-center gap-2 text-2xs text-muted-foreground uppercase tracking-wide">
             <span className="h-px flex-1 bg-border" />{t("projectFiles.orByTopics")}
             <span className="h-px flex-1 bg-border" />
           </div>
@@ -3047,7 +3047,7 @@ export function StudentProjectTaker({
             value={repositoryUrl}
             onChange={(e) => setRepositoryUrl(e.target.value)}
           />
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             <strong>{t("hc_modulesProjectsProjectFiles.repositoryRequiredLabel")}</strong>
             {t("hc_modulesProjectsProjectFiles.repositoryHint")}
           </p>
@@ -3058,10 +3058,10 @@ export function StudentProjectTaker({
         <Card key={q.id}>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm flex items-center gap-2">
-              <Badge variant="outline" className="text-[10px]">
+              <Badge variant="outline" className="text-3xs">
                 {idx + 1}
               </Badge>
-              <Badge variant="secondary" className="text-[10px] capitalize">
+              <Badge variant="secondary" className="text-3xs capitalize">
                 {q.type}
               </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
@@ -3243,7 +3243,7 @@ export function StudentProjectTaker({
                   answers[q.id] instanceof File ? (answers[q.id] as File) : null;
                 return (
                   <div className="space-y-2">
-                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
                       <strong>{t("hc_modulesProjectsProjectFiles.studentZipSingleLabel")}</strong>{" "}
                       {t("hc_modulesProjectsProjectFiles.studentZipSinglePart1")} <code>.zip</code>{" "}
                       {t("hc_modulesProjectsProjectFiles.studentZipSinglePart2")}
@@ -3289,14 +3289,14 @@ export function StudentProjectTaker({
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       {t("hc_modulesProjectsProjectFiles.compressFolderPart1")}{" "}
                       <span className="font-mono">.zip</span>
                       {t("hc_modulesProjectsProjectFiles.compressFolderPart2")}
                     </p>
                     {currentZip && (
-                      <div className="flex items-center justify-between gap-2 text-[11px]">
-                        <Badge variant="secondary" className="text-[10px] gap-1 pr-1">
+                      <div className="flex items-center justify-between gap-2 text-2xs">
+                        <Badge variant="secondary" className="text-3xs gap-1 pr-1">
                           <span className="truncate max-w-[16rem]">{currentZip.name}</span>
                           <span className="text-muted-foreground">
                             · {formatFileSizeShort(currentZip.size)}
@@ -3430,7 +3430,7 @@ export function StudentProjectTaker({
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       {t("hc_modulesProjectsProjectFiles.multiFilePickPart1")}{" "}
                       <span className="font-mono">{allowedLabel}</span>
                       {t("hc_modulesProjectsProjectFiles.multiFilePickPart2", {
@@ -3439,7 +3439,7 @@ export function StudentProjectTaker({
                     </p>
                     {current.length > 0 && (
                       <div className="space-y-1">
-                        <div className="flex items-center justify-between gap-2 text-[11px] text-muted-foreground">
+                        <div className="flex items-center justify-between gap-2 text-2xs text-muted-foreground">
                           <span>
                             {t("hc_modulesProjectsProjectFiles.filesCountSize", {
                               count: current.length,
@@ -3461,7 +3461,7 @@ export function StudentProjectTaker({
                               <Badge
                                 key={`${f.name}-${f.size}-${i}`}
                                 variant="secondary"
-                                className="text-[10px] gap-1 pr-1"
+                                className="text-3xs gap-1 pr-1"
                               >
                                 <span className="truncate max-w-[12rem]">{f.name}</span>
                                 <span className="text-muted-foreground">· {sizeStr}</span>
@@ -3500,7 +3500,7 @@ export function StudentProjectTaker({
           const remaining = Math.max(0, effectiveMaxAttempts - attemptCount);
           const isLast = remaining === 1;
           return (
-            <div className="flex items-center justify-center gap-1.5 text-[11px]">
+            <div className="flex items-center justify-center gap-1.5 text-2xs">
               <span className="text-muted-foreground">
                 {t("hc_modulesProjectsProjectFiles.attemptsRemainingLabel")}
               </span>
@@ -3519,18 +3519,18 @@ export function StudentProjectTaker({
           );
         })()}
         {attemptsExhausted ? (
-          <p className="text-[11px] text-destructive text-center">
+          <p className="text-2xs text-destructive text-center">
             {t("hc_modulesProjectsProjectFiles.attemptsExhaustedNotice")}
           </p>
         ) : effectiveMaxAttempts - attemptCount === 1 ? (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center font-medium">
+          <p className="text-2xs text-amber-700 dark:text-amber-300 text-center font-medium">
             {effectiveMaxAttempts === 1
               ? t("hc_modulesProjectsProjectFiles.noticeSingleSubmission")
               : t("hc_modulesProjectsProjectFiles.noticeOneAttemptLeft")}
           </p>
         ) : null}
         {videoGateBlocking && !attemptsExhausted && (
-          <p className="text-[11px] text-amber-700 dark:text-amber-300 text-center">
+          <p className="text-2xs text-amber-700 dark:text-amber-300 text-center">
             {t("hc_modulesProjectsProjectFiles.watchIntroVideoNotice")}
           </p>
         )}

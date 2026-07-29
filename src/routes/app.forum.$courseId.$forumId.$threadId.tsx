@@ -443,7 +443,7 @@ function ThreadDetail() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div>
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             <Spinner size="md" /> {t("forumThread.loading")}
@@ -455,7 +455,7 @@ function ThreadDetail() {
 
   if (loadError) {
     return (
-      <div className="container mx-auto p-6">
+      <div>
         <ErrorState
           message={t("forumThread.loadError")}
           hint={loadError}
@@ -467,7 +467,7 @@ function ThreadDetail() {
 
   if (!thread) {
     return (
-      <div className="container mx-auto p-6">
+      <div>
         <Card>
           <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
             {t("forumThread.notFound")}
@@ -478,11 +478,11 @@ function ThreadDetail() {
   }
 
   return (
-    <div className="container mx-auto space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       <PageHeader
         backTo="/app/forum/$courseId/$forumId"
         backParams={{ courseId, forumId }}
-        icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
+        icon={<MessageSquareText className="h-6 w-6" />}
         title={thread.title}
         subtitle={
           <>
@@ -530,7 +530,7 @@ function ThreadDetail() {
       {thread.tags.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {thread.tags.map((tag) => (
-            <Badge key={tag} variant="secondary" className="text-[10px]">
+            <Badge key={tag} variant="secondary" className="text-3xs">
               #{tag}
             </Badge>
           ))}
@@ -635,7 +635,7 @@ function ThreadDetail() {
                     </div>
                   )}
                   <div className="flex items-center justify-between flex-wrap gap-2 pt-1 border-t mt-2">
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-2xs text-muted-foreground">
                       {r.author?.full_name ?? t("forumThread.anonymous", { defaultValue: "Anónimo" })} ·{" "}
                       {formatDateTime(r.created_at)}
                     </div>
@@ -644,7 +644,7 @@ function ThreadDetail() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          className="h-7 text-[11px]"
+                          className="h-7 text-2xs"
                           onClick={() => void toggleOfficial(r.id, !r.is_official)}
                         >
                           <Crown className="h-3 w-3 mr-1" />
@@ -656,7 +656,7 @@ function ThreadDetail() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px]"
+                            className="h-7 text-2xs"
                             onClick={() => startEditReply(r)}
                           >
                             <Pencil className="h-3 w-3 mr-1" />
@@ -665,7 +665,7 @@ function ThreadDetail() {
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="h-7 text-[11px] text-destructive"
+                            className="h-7 text-2xs text-destructive"
                             onClick={() => void deleteReply(r.id)}
                           >
                             <Trash2 className="h-3 w-3 mr-1" />

@@ -388,7 +388,7 @@ function CertificatesAdmin() {
   }
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       {/* La construcción del PDF (jspdf + QR + logo remoto) congela el hilo
           principal: sin overlay el usuario no sabe si su click hizo algo. */}
       {pdfBusyId && (
@@ -415,7 +415,7 @@ function CertificatesAdmin() {
             ? t("hc_routesAppCertificates.subtitleAdmin")
             : t("hc_routesAppCertificates.subtitleDocente")
         }
-        icon={<Award className="h-6 w-6 text-amber-500" />}
+        icon={<Award className="h-6 w-6" />}
       />
 
       {/* Filtros: mismo patrón que talleres/proyectos/exámenes. */}
@@ -463,7 +463,7 @@ function CertificatesAdmin() {
               </>
             }
           />
-          <span className="text-[11px] text-muted-foreground ml-auto">
+          <span className="text-2xs text-muted-foreground ml-auto">
             {filtered.length} / {items.length}
           </span>
         </div>
@@ -557,7 +557,7 @@ function CertificatesAdmin() {
                               {c.student_full_name}
                             </span>
                             {c.revoked_at && (
-                              <Badge variant="destructive" className="text-[10px]">
+                              <Badge variant="destructive" className="text-3xs">
                                 {t("hc_routesAppCertificates.revokedBadge")}
                               </Badge>
                             )}
@@ -566,11 +566,11 @@ function CertificatesAdmin() {
                             {c.course_name}
                             {c.course_period ? ` · ${c.course_period}` : ""}
                           </div>
-                          <div className="sm:hidden text-[11px] text-muted-foreground tabular-nums">
+                          <div className="sm:hidden text-2xs text-muted-foreground tabular-nums">
                             {Number(c.final_grade).toFixed(2)} / {c.grade_scale_max}
                           </div>
                           {c.revoked_at && c.revoke_reason && (
-                            <div className="text-[11px] text-destructive">
+                            <div className="text-2xs text-destructive">
                               {t("hc_routesAppCertificates.reasonLabel")} {c.revoke_reason}
                             </div>
                           )}
@@ -581,12 +581,12 @@ function CertificatesAdmin() {
                           {c.course_name}
                         </div>
                         {c.course_period && (
-                          <div className="text-[10px] text-muted-foreground">{c.course_period}</div>
+                          <div className="text-3xs text-muted-foreground">{c.course_period}</div>
                         )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums hidden sm:table-cell">
                         {Number(c.final_grade).toFixed(2)}
-                        <span className="text-[10px] text-muted-foreground ml-1">
+                        <span className="text-3xs text-muted-foreground ml-1">
                           / {c.grade_scale_max}
                         </span>
                       </TableCell>
@@ -594,7 +594,7 @@ function CertificatesAdmin() {
                         <DateCell value={c.issued_at} variant="date" />
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
-                        <code className="text-[10px] text-muted-foreground">{c.short_code}</code>
+                        <code className="text-3xs text-muted-foreground">{c.short_code}</code>
                       </TableCell>
                       <TableCell className="text-right">
                         <RowActionsMenu

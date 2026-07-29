@@ -409,7 +409,7 @@ export function ErrorsPanel({ embedded = false }: Props) {
               ? t("hc_modulesAdminErrorsPanel.subtitleSuperAdmin")
               : t("hc_modulesAdminErrorsPanel.subtitleAdmin")
           }
-          icon={<AlertTriangle className="h-6 w-6 text-rose-500" />}
+          icon={<AlertTriangle className="h-6 w-6" />}
           actions={
             <Button variant="outline" size="sm" onClick={() => setRetryNonce((n) => n + 1)}>
               <RefreshCw className="h-4 w-4 mr-1" />
@@ -618,13 +618,13 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             </div>
                             {g.sampleMessage && (
                               <div
-                                className="text-[11px] text-destructive truncate"
+                                className="text-2xs text-destructive truncate"
                                 title={g.sampleMessage}
                               >
                                 {g.sampleMessage}
                               </div>
                             )}
-                            <div className="text-[10px] text-muted-foreground mt-0.5">
+                            <div className="text-3xs text-muted-foreground mt-0.5">
                               {t("hc_modulesAdminErrorsPanel.lastSeenLabel")}{" "}
                               <DateCell value={g.lastSeen} variant="datetime" />
                             </div>
@@ -638,12 +638,12 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             </TableCell>
                           )}
                           <TableCell className="text-xs tabular-nums">
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-3xs">
                               {t("hc_modulesAdminErrorsPanel.eventCount", { count: g.count })}
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Badge variant={aggCfg.badge} className="text-[10px]">
+                            <Badge variant={aggCfg.badge} className="text-3xs">
                               {aggCfg.label}
                             </Badge>
                           </TableCell>
@@ -734,7 +734,7 @@ function CountTile({
       }`}
     >
       <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[11px] text-muted-foreground mt-0.5">{label}</div>
+      <div className="text-2xs text-muted-foreground mt-0.5">{label}</div>
     </button>
   );
 }
@@ -770,7 +770,7 @@ function AiAnalysisPanel({
         <span className="font-medium">{t("hc_modulesAdminErrorsPanel.aiPanelTitle")}</span>
         <div className="ml-auto flex items-center gap-1">
           {state?.text && (
-            <Button size="sm" variant="ghost" className="h-7 px-2 text-[11px]" onClick={copySuggestion}>
+            <Button size="sm" variant="ghost" className="h-7 px-2 text-2xs" onClick={copySuggestion}>
               <Copy className="h-3 w-3 mr-1" />
               {t("hc_modulesAdminErrorsPanel.aiCopy")}
             </Button>
@@ -778,7 +778,7 @@ function AiAnalysisPanel({
           <Button
             size="sm"
             variant="outline"
-            className="h-7 px-2 text-[11px]"
+            className="h-7 px-2 text-2xs"
             onClick={onAnalyze}
             disabled={state?.loading}
           >
@@ -851,7 +851,7 @@ function EventDetailBlock({
         <div className="flex-1 min-w-0 space-y-1">
           <div className="flex flex-wrap items-center gap-2">
             <DateCell value={ev.created_at} variant="datetime" />
-            <Badge variant={cfg.badge} className="text-[10px]">
+            <Badge variant={cfg.badge} className="text-3xs">
               {cfg.label}
             </Badge>
             {ev.actor_email && (
@@ -881,10 +881,10 @@ function EventDetailBlock({
             <DetailRow k={t("hc_modulesAdminErrorsPanel.detailId")} v={ev.id} mono />
           </div>
           <details className="mt-1">
-            <summary className="cursor-pointer text-[10px] uppercase tracking-wide text-muted-foreground hover:text-foreground">
+            <summary className="cursor-pointer text-3xs uppercase tracking-wide text-muted-foreground hover:text-foreground">
               {t("hc_modulesAdminErrorsPanel.metadata")}
             </summary>
-            <pre className="text-[11px] whitespace-pre-wrap break-all bg-muted rounded p-2 mt-1 max-h-40 overflow-y-auto">
+            <pre className="text-2xs whitespace-pre-wrap break-all bg-muted rounded p-2 mt-1 max-h-40 overflow-y-auto">
               {JSON.stringify(ev.metadata, null, 2)}
             </pre>
           </details>
@@ -893,7 +893,7 @@ function EventDetailBlock({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 px-2 text-[11px]"
+                className="h-7 px-2 text-2xs"
                 onClick={() => void retryGrading()}
                 disabled={retrying}
               >

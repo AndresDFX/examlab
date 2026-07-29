@@ -666,13 +666,13 @@ export function FeedbackThread({
             <span className="text-muted-foreground font-normal">({comments.length})</span>
           )}
           {closed && (
-            <Badge variant="secondary" className="text-[9px] ml-1">
+            <Badge variant="secondary" className="text-3xs ml-1">
               {t("feedbackThread.closedLabel")}
             </Badge>
           )}
         </div>
         {isTeacher && thread && (
-          <Button size="sm" variant="ghost" onClick={toggleClosed} className="h-6 text-[11px]">
+          <Button size="sm" variant="ghost" onClick={toggleClosed} className="h-6 text-2xs">
             {closed ? <Unlock className="h-3 w-3 mr-1" /> : <Lock className="h-3 w-3 mr-1" />}
             {closed ? t("feedbackThread.reopen") : t("feedbackThread.close")}
           </Button>
@@ -721,7 +721,7 @@ export function FeedbackThread({
                     <Badge
                       variant="outline"
                       className={
-                        "text-[9px] px-1 py-0 h-auto " +
+                        "text-3xs px-1 py-0 h-auto " +
                         (isTeacherComment
                           ? "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30"
                           : "bg-primary/10 text-primary border-primary/30")
@@ -730,11 +730,11 @@ export function FeedbackThread({
                       {isTeacherComment ? t("feedbackThread.roleTeacher") : t("feedbackThread.roleStudent")}
                     </Badge>
                     {mine && (
-                      <span className="text-muted-foreground font-normal text-[10px]">· {t("feedbackThread.youLabel")}</span>
+                      <span className="text-muted-foreground font-normal text-3xs">· {t("feedbackThread.youLabel")}</span>
                     )}
                   </span>
                   <span className="flex items-center gap-1 shrink-0">
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <span className="text-3xs text-muted-foreground tabular-nums">
                       {formatDateTime(c.created_at)}
                     </span>
                     {mine && !isEditing && !closed && (
@@ -779,7 +779,7 @@ export function FeedbackThread({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-6 text-[11px]"
+                        className="h-6 text-2xs"
                         onClick={cancelEdit}
                         disabled={savingEdit}
                       >
@@ -788,7 +788,7 @@ export function FeedbackThread({
                       </Button>
                       <Button
                         size="sm"
-                        className="h-6 text-[11px]"
+                        className="h-6 text-2xs"
                         onClick={() => void saveEdit()}
                         disabled={savingEdit || !editingText.trim()}
                       >
@@ -872,7 +872,7 @@ export function FeedbackThread({
               {pendingFiles.map((f, idx) => (
                 <li
                   key={`${f.name}-${idx}`}
-                  className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-[11px]"
+                  className="flex items-center gap-2 rounded border bg-muted/30 px-2 py-1 text-2xs"
                 >
                   <Paperclip className="h-3 w-3 text-muted-foreground shrink-0" />
                   <span className="truncate flex-1" title={f.name}>
@@ -901,7 +901,7 @@ export function FeedbackThread({
       )}
 
       {closed && (
-        <p className="text-[11px] text-muted-foreground italic">
+        <p className="text-2xs text-muted-foreground italic">
           {t("feedbackThread.closedBanner")}
         </p>
       )}

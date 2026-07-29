@@ -867,13 +867,13 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
           <TerminalIcon className="h-3.5 w-3.5" />
           {t("serverConsole.title", { defaultValue: "Consola del servidor (Linux)" })}
           {status === "ready" && (
-            <span className="ml-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-medium text-emerald-500">
+            <span className="ml-1 rounded bg-emerald-500/15 px-1.5 py-0.5 text-3xs font-medium text-emerald-500">
               {t("serverConsole.liveBadge", { defaultValue: "Linux real" })}
             </span>
           )}
           {/* Sandbox efímero: refuerza que corre en el navegador y no toca
               infraestructura real. Se muestra siempre (no solo cuando ready). */}
-          <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-medium text-violet-500">
+          <span className="rounded bg-violet-500/15 px-1.5 py-0.5 text-3xs font-medium text-violet-500">
             {t("serverConsole.ephemeralBadge", { defaultValue: "Efímero" })}
           </span>
           {/* Interrumpir (Ctrl+C) + Reiniciar → sesión limpia (nueva VM efímera).
@@ -889,7 +889,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
                 aria-label={t("serverConsole.interruptTitle", {
                   defaultValue: "Interrumpir el comando en ejecución (envía Ctrl+C)",
                 })}
-                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-3xs font-medium text-muted-foreground hover:bg-muted"
               >
                 <Square className="h-3 w-3" />
                 {t("serverConsole.interrupt", { defaultValue: "Interrumpir" })}
@@ -900,7 +900,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
                 title={t("serverConsole.restartTitle", {
                   defaultValue: "Reiniciar con una sesión limpia",
                 })}
-                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground hover:bg-muted"
+                className="inline-flex items-center gap-1 rounded border border-border/60 px-1.5 py-0.5 text-3xs font-medium text-muted-foreground hover:bg-muted"
               >
                 <RotateCw className="h-3 w-3" />
                 {t("serverConsole.restart", { defaultValue: "Reiniciar" })}
@@ -918,10 +918,10 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
             de paquetes ni red. Los alumnos vienen con reflejos de Ubuntu
             (sudo/apt/pip) que NO aplican acá → esta ayuda aclara qué usar. */}
         <details className="mt-1.5 group">
-          <summary className="cursor-pointer text-[11px] font-medium text-muted-foreground hover:text-foreground">
+          <summary className="cursor-pointer text-2xs font-medium text-muted-foreground hover:text-foreground">
             {t("serverConsole.helpTitle", { defaultValue: "¿Qué comandos funcionan aquí?" })}
           </summary>
-          <ul className="mt-1 space-y-0.5 text-[11px] text-muted-foreground list-disc pl-4">
+          <ul className="mt-1 space-y-0.5 text-2xs text-muted-foreground list-disc pl-4">
             <li>{t("serverConsole.helpRoot", { defaultValue: "Ya eres root: no uses sudo." })}</li>
             <li>
               {t("serverConsole.helpOffline", {
@@ -994,7 +994,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
             <span className="text-xs">
               {t("serverConsole.error", { defaultValue: "No se pudo iniciar la consola." })}
             </span>
-            {error && <span className="text-[11px] text-zinc-400 max-w-md break-words">{error}</span>}
+            {error && <span className="text-2xs text-zinc-400 max-w-md break-words">{error}</span>}
             <button
               type="button"
               onClick={() => setAttempt((a) => a + 1)}
@@ -1014,7 +1014,7 @@ export function V86Console({ value, onChange, readOnly, className }: Props) {
                 defaultValue: "La consola Linux aún no tiene una imagen configurada.",
               })}
             </span>
-            <span className="text-[11px] text-zinc-500 max-w-md">
+            <span className="text-2xs text-zinc-500 max-w-md">
               {t("serverConsole.unconfiguredHint", {
                 defaultValue:
                   "El administrador debe hostear una imagen de Linux y definir VITE_V86_IMAGE_URL (o VITE_V86_STATE_URL / VITE_V86_BZIMAGE_URL). Ver docs/server-console-v86.md.",

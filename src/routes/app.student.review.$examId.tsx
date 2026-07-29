@@ -448,7 +448,7 @@ function StudentExamReview() {
                 el curso NO es la del último intento (el detalle de abajo). Se
                 aclara para que el alumno no vea "dos notas distintas". */}
             {retryMode !== "last" && attemptCount > 1 && (
-              <div className="text-[10px] text-muted-foreground">
+              <div className="text-3xs text-muted-foreground">
                 {t("exam.review.retryModeNote", {
                   defaultValue:
                     "Nota {{mode}} de {{count}} intentos · el detalle es el último",
@@ -460,7 +460,7 @@ function StudentExamReview() {
             {submission.final_override_grade != null &&
               submission.ai_grade != null &&
               submission.final_override_grade !== submission.ai_grade && (
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-3xs text-muted-foreground">
                   {t("exam.review.priorValue", { value: submission.ai_grade })}
                 </div>
               )}
@@ -520,11 +520,11 @@ function StudentExamReview() {
                   <span>
                     {t("exam.question")} {idx + 1}
                   </span>
-                  <Badge variant="outline" className="text-[10px] capitalize">
+                  <Badge variant="outline" className="text-3xs capitalize">
                     {q.type.replace(/_/g, " ")}
                   </Badge>
                   {q.language && (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {q.language}
                     </Badge>
                   )}
@@ -551,12 +551,12 @@ function StudentExamReview() {
                           <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
                           {c}
                           {isStudent && (
-                            <Badge variant="outline" className="ml-2 text-[9px]">
+                            <Badge variant="outline" className="ml-2 text-3xs">
                               {t("exam.review.yourAnswer")}
                             </Badge>
                           )}
                           {isCorrect && (
-                            <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                            <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                               {t("exam.review.correct")}
                             </Badge>
                           )}
@@ -581,12 +581,12 @@ function StudentExamReview() {
                           <span className="font-mono mr-2">{String.fromCharCode(65 + i)}.</span>
                           {c}
                           {isStudent && (
-                            <Badge variant="outline" className="ml-2 text-[9px]">
+                            <Badge variant="outline" className="ml-2 text-3xs">
                               {t("exam.review.yourAnswer")}
                             </Badge>
                           )}
                           {isCorrect && (
-                            <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                            <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                               {t("exam.review.correct")}
                             </Badge>
                           )}

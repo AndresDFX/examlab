@@ -235,7 +235,7 @@ export function PptxViewerDialog({
           <DialogTitle className="flex items-center gap-2 text-base min-w-0">
             <PresentationIcon className="h-5 w-5 text-primary shrink-0" />
             <span className="truncate">{file.name}</span>
-            <Badge variant="outline" className="text-[10px] ml-2 tabular-nums shrink-0">
+            <Badge variant="outline" className="text-3xs ml-2 tabular-nums shrink-0">
               {t("pptxViewer.slideCount", { count: slides.length })}
             </Badge>
           </DialogTitle>
@@ -257,7 +257,7 @@ export function PptxViewerDialog({
               >
                 <CardContent className="p-3 space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+                    <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
                       {idx + 1}
                       {slide.isCover ? ` · ${t("pptxViewer.cover")}` : ""}
                     </Badge>
@@ -309,7 +309,7 @@ export function PptxViewerDialog({
                   </div>
                   {editing ? (
                     <div className="space-y-1">
-                      <Label className="text-[10px] text-muted-foreground">
+                      <Label className="text-3xs text-muted-foreground">
                         {t("pptxViewer.bulletsLabel")}
                       </Label>
                       <Textarea
@@ -338,7 +338,7 @@ export function PptxViewerDialog({
                       <Button
                         size="sm"
                         variant="ghost"
-                        className="h-7 text-[11px] text-muted-foreground"
+                        className="h-7 text-2xs text-muted-foreground"
                         onClick={() => addSlide(idx)}
                       >
                         <Plus className="h-3 w-3 mr-1" />

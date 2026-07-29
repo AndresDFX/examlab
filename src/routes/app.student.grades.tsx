@@ -669,12 +669,12 @@ function StudentGrades() {
                     <span className="text-xs text-muted-foreground uppercase tracking-wide">
                       {cb.cut.name}
                     </span>
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-3xs">
                       {cb.cut.weight}%
                     </Badge>
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">{fmt(cb.grade)}</div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-2xs text-muted-foreground">
                     {t("studentGrades.gradedCount", {
                       graded: cb.items.filter((i) => i.grade != null).length,
                       total: cb.items.length,
@@ -759,7 +759,7 @@ function StudentGrades() {
                     </p>
                   </div>
                   {cb.cut.start_date && cb.cut.end_date && (
-                    <Badge variant="outline" className="text-[10px]">
+                    <Badge variant="outline" className="text-3xs">
                       {formatDateOnly(cb.cut.start_date)} → {formatDateOnly(cb.cut.end_date)}
                     </Badge>
                   )}
@@ -896,7 +896,7 @@ function KindGroup({
         <div className="flex items-center gap-2">
           <KindBadge kind={kind} />
           <span className="text-sm font-medium">{label}</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             {i18n.t("studentGrades.gradedCount", { graded: gradedCount, total: totalCount })}
           </span>
         </div>
@@ -964,28 +964,28 @@ function KindBadge({ kind }: { kind: ItemRow["kind"] }) {
   switch (kind) {
     case "exam":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <FileText className="h-3 w-3 mr-1" />
           {i18n.t("studentGrades.kindBadgeExam")}
         </Badge>
       );
     case "workshop":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <Hammer className="h-3 w-3 mr-1" />
           {i18n.t("studentGrades.kindBadgeWorkshop")}
         </Badge>
       );
     case "project":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <FolderKanban className="h-3 w-3 mr-1" />
           {i18n.t("studentGrades.kindBadgeProject")}
         </Badge>
       );
     case "attendance":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <CalendarCheck className="h-3 w-3 mr-1" />
           {i18n.t("studentGrades.kindBadgeAttendance")}
         </Badge>

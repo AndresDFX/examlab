@@ -716,7 +716,7 @@ function QuestionBankPage() {
 
   if (moduleAvailable === false) {
     return (
-      <div className="container mx-auto p-6">
+      <div>
         <Card>
           <CardContent className="p-0">
             <EmptyState
@@ -731,7 +731,7 @@ function QuestionBankPage() {
   }
 
   return (
-    <div className="container mx-auto space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
         icon={<Library className="h-6 w-6" />}
         title={t("questionBank.pageTitle")}
@@ -815,7 +815,7 @@ function QuestionBankPage() {
                 // user no sabe qué hacer. El banco de preguntas vive
                 // POR CURSO (RLS lo enforza), así que sin curso no
                 // hay forma de crear.
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("questionBank.noCoursesHint")}
                 </p>
               )}
@@ -965,13 +965,13 @@ function QuestionBankPage() {
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
                         <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant="secondary" className="text-[10px] whitespace-nowrap">
+                          <Badge variant="secondary" className="text-3xs whitespace-nowrap">
                             {typeLabel(r.type)}
                           </Badge>
                           {r.shared_org && (
                             <Badge
                               variant="outline"
-                              className="text-[10px] whitespace-nowrap gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                              className="text-3xs whitespace-nowrap gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                             >
                               <Globe className="h-2.5 w-2.5" />
                               {t("questionBank.sharedBadge")}
@@ -985,12 +985,12 @@ function QuestionBankPage() {
                       <TableCell className="hidden lg:table-cell">
                         <div className="flex flex-wrap gap-1">
                           {r.tags.slice(0, 3).map((t) => (
-                            <Badge key={t} variant="outline" className="text-[10px]">
+                            <Badge key={t} variant="outline" className="text-3xs">
                               {t}
                             </Badge>
                           ))}
                           {r.tags.length > 3 && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-3xs">
                               +{r.tags.length - 3}
                             </Badge>
                           )}
@@ -1198,7 +1198,7 @@ function QuestionBankPage() {
               <Label>{t("questionBank.tagsLabel")}</Label>
               <div className="flex flex-wrap gap-1 mb-2">
                 {(draft.tags ?? []).map((t) => (
-                  <Badge key={t} variant="secondary" className="text-[11px] gap-1">
+                  <Badge key={t} variant="secondary" className="text-2xs gap-1">
                     {t}
                     <button
                       type="button"
@@ -1242,7 +1242,7 @@ function QuestionBankPage() {
                   {t("questionBank.shareOrgLabel")}
                   <HelpHint>{t("questionBank.shareOrgHelp")}</HelpHint>
                 </Label>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("questionBank.shareOrgHint")}
                 </p>
               </div>

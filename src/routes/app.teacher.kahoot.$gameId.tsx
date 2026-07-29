@@ -398,7 +398,7 @@ function KahootHost() {
                   <div className="rounded-lg bg-white p-3">
                     <QRCodeSVG value={joinUrl} size={148} />
                   </div>
-                  <span className="text-[11px] text-muted-foreground">{t("kahoot.scanToJoin")}</span>
+                  <span className="text-2xs text-muted-foreground">{t("kahoot.scanToJoin")}</span>
                 </div>
               )}
             </div>
@@ -522,7 +522,7 @@ function KahootHost() {
                         {responders.map((r) => (
                           <span
                             key={r.player_id}
-                            className="inline-flex max-w-[160px] items-center gap-1 truncate rounded bg-white/20 px-1.5 py-0.5 text-[11px] font-medium"
+                            className="inline-flex max-w-[160px] items-center gap-1 truncate rounded bg-white/20 px-1.5 py-0.5 text-2xs font-medium"
                             title={r.nickname}
                           >
                             {r.is_correct && <CheckCircle2 className="h-3 w-3 shrink-0" />}

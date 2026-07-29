@@ -216,7 +216,7 @@ export function ManageContentCoursesDialog({ target, courses, onClose, onSaved }
                   />
                   <span className="text-sm truncate flex-1 min-w-0">{c.name}</span>
                   {isAnchor && (
-                    <Badge variant="outline" className="text-[9px] shrink-0">
+                    <Badge variant="outline" className="text-3xs shrink-0">
                       {t("manageCourses.anchorBadge", { defaultValue: "Curso original" })}
                     </Badge>
                   )}

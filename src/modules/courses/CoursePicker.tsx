@@ -56,12 +56,12 @@ export function CoursePicker({
       <Checkbox checked={sel.has(c.id)} onCheckedChange={() => onToggle(c.id)} />
       <span className="flex-1">{c.name}</span>
       {isClosed(c) && (
-        <Badge variant="outline" className="text-[9px] text-muted-foreground">
+        <Badge variant="outline" className="text-3xs text-muted-foreground">
           {t("coursePicker.closedBadge", { defaultValue: "Finalizado" })}
         </Badge>
       )}
       {c.period && (
-        <Badge variant="outline" className="text-[9px]">
+        <Badge variant="outline" className="text-3xs">
           {c.period}
         </Badge>
       )}

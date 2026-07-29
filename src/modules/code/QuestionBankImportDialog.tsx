@@ -379,32 +379,32 @@ export function QuestionBankImportDialog({
                     />
                     <div className="flex-1 min-w-0 space-y-1">
                       <div className="flex items-start gap-2 flex-wrap">
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-3xs">
                           {TYPE_LABEL[r.type]}
                         </Badge>
                         {r.shared_org && r.course_id !== courseId && (
                           <Badge
                             variant="outline"
-                            className="text-[10px] gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                            className="text-3xs gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                           >
                             <Library className="h-2.5 w-2.5" />
                             {t("hc_modulesCodeQuestionBankImportDialog.sharedBadge")}
                           </Badge>
                         )}
                         {r.topic && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-3xs">
                             {r.topic}
                           </Badge>
                         )}
                         {r.difficulty != null && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-3xs">
                             {t("hc_modulesCodeQuestionBankImportDialog.difficultyBadge", {
                               difficulty: r.difficulty,
                             })}
                           </Badge>
                         )}
                         {r.times_used > 0 && (
-                          <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                          <Badge variant="outline" className="text-3xs text-muted-foreground">
                             {t("hc_modulesCodeQuestionBankImportDialog.timesUsedBadge", {
                               count: r.times_used,
                             })}
@@ -417,7 +417,7 @@ export function QuestionBankImportDialog({
                           {r.tags.map((t) => (
                             <span
                               key={t}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                              className="text-3xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
                             >
                               {t}
                             </span>
@@ -428,7 +428,7 @@ export function QuestionBankImportDialog({
                     {/* Override de puntos solo si está seleccionada */}
                     {checked && (
                       <div className="shrink-0 w-24" onClick={(e) => e.preventDefault()}>
-                        <Label className="text-[10px]">{t("hc_modulesCodeQuestionBankImportDialog.pointsLabel")}</Label>
+                        <Label className="text-3xs">{t("hc_modulesCodeQuestionBankImportDialog.pointsLabel")}</Label>
                         <Input
                           type="number"
                           min={0}

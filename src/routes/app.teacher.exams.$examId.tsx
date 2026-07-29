@@ -899,7 +899,7 @@ function ExamEditor() {
       toast.success(
         i18n.t("toast.routes_app_teacher_exams_examId.generationJobsQueued", {
           defaultValue:
-            "{{count}} job{{plural}} de generación encolados. Cuando tengas un código de IA inmediata o un administrador los procese, las preguntas aparecerán automáticamente. Puedes verlos en el panel de Cola IA.",
+            "{{count}} tarea{{plural}} de generación encoladas. Cuando tengas un código de IA inmediata o un administrador las procese, las preguntas aparecerán automáticamente. Puedes verlas en el módulo Tareas de IA.",
           count: rows.length,
           plural: rows.length === 1 ? "" : "s",
         }),
@@ -1357,7 +1357,7 @@ function ExamEditor() {
                         <Button
                           type="button"
                           size="sm"
-                          className="h-7 px-2.5 text-[11px] gap-1"
+                          className="h-7 px-2.5 text-2xs gap-1"
                           onClick={evaluateTimeWithAI}
                           disabled={timeEvalLoading || (questions?.length ?? 0) === 0}
                           title={
@@ -1374,7 +1374,7 @@ function ExamEditor() {
                           {t("hc_routesAppTeacherExamsExamId.evalTimeButton")}
                         </Button>
                       </div>
-                      <p className="text-[11px] text-muted-foreground">
+                      <p className="text-2xs text-muted-foreground">
                         {t("hc_routesAppTeacherExamsExamId.durationAutoHint")}
                       </p>
                       <Input
@@ -1780,7 +1780,7 @@ function ExamEditor() {
                     {questions.slice(0, 9).map((q, i) => (
                       <span
                         key={q.id}
-                        className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-[10px] tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
+                        className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                       >
                         <span className="text-muted-foreground">#{i + 1}</span>
                         <span className="capitalize">{q.type}</span>
@@ -1788,7 +1788,7 @@ function ExamEditor() {
                       </span>
                     ))}
                     {questions.length > 9 && (
-                      <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-[10px] text-muted-foreground">
+                      <span className="inline-flex items-center rounded border bg-background px-1.5 py-0.5 text-3xs text-muted-foreground">
                         {t("hc_routesAppTeacherExamsExamId.moreCount", { count: questions.length - 9 })}
                       </span>
                     )}
@@ -1864,7 +1864,7 @@ function ExamEditor() {
                       <SelectItem value="javafx">JavaFX</SelectItem>
                     </SelectContent>
                   </Select>
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {qJavaFramework === "javafx"
                       ? t("hc_routesAppTeacherExamsExamId.frameworkJavafxHint")
                       : t("hc_routesAppTeacherExamsExamId.frameworkSwingHint")}
@@ -2045,14 +2045,14 @@ function ExamEditor() {
                 <CardContent className="p-4 flex justify-between items-start gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-3xs">
                         #{i + 1}
                       </Badge>
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {q.type}
                       </Badge>
                       {q.type === "codigo" && q.language && (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-3xs">
                           {q.language}
                         </Badge>
                       )}
@@ -2184,21 +2184,21 @@ function ExamEditor() {
                   y los números de 2xl quedaban espachurrados a 375px. */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-center">
                 <div className="rounded-md border p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileCurrent")}</div>
+                  <div className="text-3xs uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileCurrent")}</div>
                   <div className="text-2xl font-semibold tabular-nums">
                     {timeEvalResult.current_minutes}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
+                  <div className="text-3xs text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
                 </div>
                 <div className="rounded-md border border-primary/40 bg-primary/5 p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileSuggested")}</div>
+                  <div className="text-3xs uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileSuggested")}</div>
                   <div className="text-2xl font-semibold tabular-nums text-primary">
                     {timeEvalResult.suggested_minutes}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
+                  <div className="text-3xs text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.unitMin")}</div>
                 </div>
                 <div className="rounded-md border p-2">
-                  <div className="text-[10px] uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileVerdict")}</div>
+                  <div className="text-3xs uppercase text-muted-foreground">{t("hc_routesAppTeacherExamsExamId.tileVerdict")}</div>
                   <Badge
                     variant={
                       timeEvalResult.verdict === "AJUSTADA"
@@ -2207,7 +2207,7 @@ function ExamEditor() {
                           ? "secondary"
                           : "destructive"
                     }
-                    className="mt-2 text-[10px]"
+                    className="mt-2 text-3xs"
                   >
                     {timeEvalResult.verdict}
                   </Badge>
@@ -2216,7 +2216,7 @@ function ExamEditor() {
               <p className="text-xs text-muted-foreground whitespace-pre-wrap rounded-md bg-muted/40 p-2">
                 {timeEvalResult.explanation || t("hc_routesAppTeacherExamsExamId.noExplanation")}
               </p>
-              <p className="text-[11px] text-muted-foreground italic">
+              <p className="text-2xs text-muted-foreground italic">
                 {t("hc_routesAppTeacherExamsExamId.basedOnQuestions", {
                   count: timeEvalResult.question_count,
                 })}

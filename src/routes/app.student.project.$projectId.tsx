@@ -461,13 +461,13 @@ function StudentProjectDetail() {
                 <Card key={f.id}>
                   <CardHeader className="pb-2">
                     <CardTitle className="text-base flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-3xs">
                         {idx + 1}
                       </Badge>
                       <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                       <span>{f.title}</span>
                       {aiFlag && (
-                        <Badge variant="destructive" className="text-[10px]">
+                        <Badge variant="destructive" className="text-3xs">
                           <Bot className="h-3 w-3 mr-1" />
                           {t("hc_routesAppStudentProjectProjectId.possibleAi")}
                         </Badge>
@@ -497,7 +497,7 @@ function StudentProjectDetail() {
                             ? ans.code_paths.map((p) => (
                                 <div key={p} className="flex items-center gap-3 min-w-0">
                                   <FileArchive className="h-5 w-5 text-primary shrink-0" />
-                                  <p className="text-[12px] truncate flex-1">
+                                  <p className="text-xs truncate flex-1">
                                     {p.split("/").pop()}
                                   </p>
                                   <Button
@@ -527,7 +527,7 @@ function StudentProjectDetail() {
                                   <FileArchive className="h-6 w-6 text-primary shrink-0" />
                                   <div className="flex-1 min-w-0">
                                     <p className="text-sm font-medium">{t("hc_routesAppStudentProjectProjectId.submittedCodeZip")}</p>
-                                    <p className="text-[11px] text-muted-foreground truncate">
+                                    <p className="text-2xs text-muted-foreground truncate">
                                       {ans.zip_path.split("/").pop()}
                                     </p>
                                   </div>
@@ -601,7 +601,7 @@ function StudentProjectDetail() {
                       submission?.status === "ai_revisado") &&
                       ans &&
                       (!ans.ai_feedback || !ans.ai_feedback.trim()) && (
-                        <div className="border-t pt-3 text-[11px] text-amber-700 dark:text-amber-300">
+                        <div className="border-t pt-3 text-2xs text-amber-700 dark:text-amber-300">
                           {t("hc_routesAppStudentProjectProjectId.aiNoFeedbackNote")}
                         </div>
                       )}

@@ -1251,13 +1251,14 @@ function Inner() {
         />
       )}
       <PageHeader
-        icon={<FileBarChart className="h-6 w-6 text-pink-500" />}
+        icon={<FileBarChart className="h-6 w-6" />}
         title={t("hc_routesAppTeacherReports.pageTitle")}
         subtitle={loading ? undefined : t("hc_routesAppTeacherReports.templatesAvailable", { count: templates.length })}
         actions={
           <div className="flex flex-wrap gap-2">
             <Button
               variant="outline"
+              size="sm"
               onClick={() => docxInputRef.current?.click()}
               disabled={docxImporting}
             >
@@ -1272,7 +1273,7 @@ function Inner() {
                   })
                 : t("hc_routesAppTeacherReports.uploadWord")}
             </Button>
-            <Button onClick={openNewPrivate}>
+            <Button size="sm" onClick={openNewPrivate}>
               <Plus className="h-4 w-4 mr-1" />
               {t("hc_routesAppTeacherReports.newTemplate")}
             </Button>
@@ -1513,7 +1514,7 @@ function Inner() {
                   <History className="h-4 w-4 text-pink-500" />
                   {t("hc_routesAppTeacherReports.genHistoryTitle", { defaultValue: "Informes generados" })}
                 </h3>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("hc_routesAppTeacherReports.genHistoryHint", {
                     defaultValue:
                       "Cada Word/PDF que generaste desde una plantilla. Volvé a descargarlo cuando quieras.",
@@ -1669,7 +1670,7 @@ function Inner() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("hc_routesAppTeacherReports.associatedCourseHint")}
               </p>
             </div>
@@ -1829,7 +1830,7 @@ function Inner() {
               </>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground -mt-1">
+          <p className="text-2xs text-muted-foreground -mt-1">
             {t("hc_routesAppTeacherReports.generateHint", {
               defaultValue:
                 "Generá el archivo descargable (Word o PDF) con tus ajustes. Cada descarga queda en “Informes generados”.",

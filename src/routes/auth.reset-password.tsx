@@ -225,7 +225,7 @@ function ResetPasswordPage() {
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("auth.reset.minChars", { defaultValue: "Mínimo 8 caracteres." })}
                 </p>
               </div>

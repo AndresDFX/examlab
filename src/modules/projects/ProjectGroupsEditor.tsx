@@ -233,7 +233,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="h-4 w-4 text-primary" />
             {t("hc_modulesProjectsProjectGroupsEditor.projectGroupsTitle")}
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {groups.length}
             </Badge>
           </CardTitle>
@@ -283,11 +283,11 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
                 {t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
-                <Badge variant="outline" className="text-[10px]">
+                <Badge variant="outline" className="text-3xs">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
-              <p className="text-[10px] text-muted-foreground">
+              <p className="text-3xs text-muted-foreground">
                 {t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
               </p>
             </CardHeader>
@@ -335,7 +335,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                   <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
                     <CardTitle className="text-sm flex items-center gap-2">
                       {g.name}
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-3xs">
                         {t("hc_modulesProjectsProjectGroupsEditor.memberCount", {
                           count: ms.length,
                         })}
@@ -421,7 +421,7 @@ function DraggableStudent({
       <GripVertical className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
       <div className="min-w-0 flex-1">
         <div className="text-sm truncate">{student.full_name}</div>
-        <div className="text-[10px] text-muted-foreground truncate">
+        <div className="text-3xs text-muted-foreground truncate">
           {student.institutional_email}
         </div>
       </div>

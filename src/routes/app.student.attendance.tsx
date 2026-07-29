@@ -664,7 +664,7 @@ function StudentAttendance() {
                 <div className="text-2xl font-semibold tabular-nums">
                   {stats.pct == null ? "—" : `${stats.pct}%`}
                 </div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-3xs text-muted-foreground">
                   {t("studentAttendance.overRegistered", {
                     count: stats.registradas,
                     defaultValue: "sobre {{count}} registradas",
@@ -735,7 +735,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-[11px]"
+                                    className="h-8 px-2 text-2xs"
                                     onClick={() => {
                                       const { kind, src } = buildVideoEmbedUrl(video.url);
                                       setRecordingDialog({
@@ -755,7 +755,7 @@ function StudentAttendance() {
                                     asChild
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-[11px]"
+                                    className="h-8 px-2 text-2xs"
                                   >
                                     <a
                                       href={s.recording_url}
@@ -775,7 +775,7 @@ function StudentAttendance() {
                                     asChild
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-[11px]"
+                                    className="h-8 px-2 text-2xs"
                                   >
                                     <a
                                       href={s.notes_url}
@@ -801,7 +801,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-[11px]"
+                                    className="h-8 px-2 text-2xs"
                                     onClick={() =>
                                       setSnippetsSession({
                                         id: s.id,
@@ -821,7 +821,7 @@ function StudentAttendance() {
                                   <Button
                                     size="sm"
                                     variant="outline"
-                                    className="h-8 px-2 text-[11px] border-sky-400/60 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
+                                    className="h-8 px-2 text-2xs border-sky-400/60 text-sky-700 dark:text-sky-300 hover:bg-sky-50 dark:hover:bg-sky-950/30"
                                     onClick={() =>
                                       setSharedWhiteboardSession({
                                         id: s.id,
@@ -837,7 +837,7 @@ function StudentAttendance() {
                                   (rec?.status === "presente" ? (
                                     <Badge
                                       variant="outline"
-                                      className="text-[11px] border-emerald-400/60 text-emerald-700 dark:text-emerald-300"
+                                      className="text-2xs border-emerald-400/60 text-emerald-700 dark:text-emerald-300"
                                     >
                                       <CheckCircle2 className="h-3 w-3 mr-1" />
                                       {t("sessionType.reviewedBadge")}
@@ -846,7 +846,7 @@ function StudentAttendance() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-8 px-2 text-[11px] border-violet-400/60 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30"
+                                      className="h-8 px-2 text-2xs border-violet-400/60 text-violet-700 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950/30"
                                       onClick={() => markReviewed(s.id)}
                                     >
                                       <BookOpen className="h-3 w-3 mr-1" />
@@ -980,7 +980,7 @@ function StudentAttendance() {
                   />
                 )}
               </div>
-              <p className="text-[11px] text-muted-foreground">{recordingDialog.videoTitle}</p>
+              <p className="text-2xs text-muted-foreground">{recordingDialog.videoTitle}</p>
             </div>
           )}
         </DialogContent>

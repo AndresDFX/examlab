@@ -191,7 +191,7 @@ function StudentWhiteboards() {
     return (
       <div className="space-y-5">
         <PageHeader
-          icon={<Palette className="h-6 w-6 text-violet-500" />}
+          icon={<Palette className="h-6 w-6" />}
           title={t("studentWhiteboards.title")}
           subtitle={t("studentWhiteboards.subtitleStatic")}
         />
@@ -207,7 +207,7 @@ function StudentWhiteboards() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Palette className="h-6 w-6 text-violet-500" />}
+        icon={<Palette className="h-6 w-6" />}
         title={t("studentWhiteboards.title")}
         subtitle={
           items.length > 0
@@ -311,13 +311,13 @@ function StudentWhiteboards() {
                     {w.course_name && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] self-start inline-flex items-center gap-1"
+                        className="text-3xs self-start inline-flex items-center gap-1"
                       >
                         <BookOpen className="h-2.5 w-2.5" />
                         {w.course_name}
                       </Badge>
                     )}
-                    <div className="mt-auto pt-2 text-[11px] text-muted-foreground tabular-nums flex items-center gap-1">
+                    <div className="mt-auto pt-2 text-2xs text-muted-foreground tabular-nums flex items-center gap-1">
                       <span>{t("studentWhiteboards.lastEdited")}</span>
                       <DateCell value={w.updated_at} variant="datetime" />
                     </div>

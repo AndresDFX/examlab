@@ -1669,13 +1669,13 @@ function ExamMonitor() {
       const failed = rows.filter((r) => r.status === "failed").length;
       const cancelled = rows.filter((r) => r.status === "cancelled").length;
       if (queued > 0) {
-        // Mensaje sin "cada hora": en este proyecto el cron no corre
-        // por defecto, así que el docente debe procesar la cola
-        // manualmente desde el módulo Cola cuando quiera ver las notas.
+        // Mensaje sin "cada hora": en este proyecto la tarea programada no
+        // corre por defecto, así que el docente debe procesar la cola
+        // manualmente desde el módulo "Tareas de IA" para ver las notas.
         toast.success(
           i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueued", {
             defaultValue:
-              "{{count}} job(s) encolado(s). Procesa la cola desde el módulo Cola o espera a la tarea programada.",
+              "{{count}} calificación(es) encolada(s). Procesa la cola desde el módulo Tareas de IA o espera a la tarea programada.",
             count: queued,
           }),
         );
@@ -1683,7 +1683,8 @@ function ExamMonitor() {
       if (failed > 0) {
         toast.error(
           i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueueFailed", {
-            defaultValue: "{{count}} job(s) no se pudieron encolar — reintenta más tarde.",
+            defaultValue:
+              "{{count}} calificación(es) no se pudieron encolar — reintenta más tarde.",
             count: failed,
           }),
         );
@@ -1691,7 +1692,7 @@ function ExamMonitor() {
       if (cancelled > 0) {
         toast.info(
           i18n.t("toast.routes_app_teacher_monitor_examId.jobsQueueCancelled", {
-            defaultValue: "Cancelado: {{count}} job(s) no se encolaron.",
+            defaultValue: "Cancelado: {{count}} calificación(es) no se encolaron.",
             count: cancelled,
           }),
         );
@@ -2112,23 +2113,23 @@ function ExamMonitor() {
                     );
                   return (
                     <>
-                      <Badge variant="outline" className="text-[11px]">
+                      <Badge variant="outline" className="text-2xs">
                         {t("integrity.summaryAi_other", { count: aiSignalsByQuestion.length })}
                       </Badge>
-                      <Badge variant="outline" className="text-[11px]">
+                      <Badge variant="outline" className="text-2xs">
                         {t("integrity.summaryCopy_other", { count: similarityPairs.length })}
                       </Badge>
                       {totalPending > 0 ? (
                         <Badge
                           variant="outline"
-                          className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                          className="text-2xs bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
                         >
                           {t("integrity.summaryPending_other", { count: totalPending })}
                         </Badge>
                       ) : (
                         <Badge
                           variant="outline"
-                          className="text-[11px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                          className="text-2xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                         >
                           <Check className="h-3 w-3 mr-1" />
                           {t("integrity.summaryAllReviewed")}
@@ -2147,7 +2148,7 @@ function ExamMonitor() {
                     sutil; desaparece apenas marca algo (entonces el
                     MultiSelectToolbar toma el relevo). */}
                 {selectableSubmissions.length > 0 && monitorSel.count === 0 && (
-                  <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
+                  <span className="text-2xs text-muted-foreground hidden md:inline-flex items-center gap-1">
                     <span aria-hidden>↙</span>
                     {t("hc_routesAppTeacherMonitorExamId.multiSelectHint")}
                   </span>
@@ -2229,7 +2230,7 @@ function ExamMonitor() {
                 )}
               </div>
               {monitorSearch && (
-                <span className="text-[11px] text-muted-foreground tabular-nums">
+                <span className="text-2xs text-muted-foreground tabular-nums">
                   {t("hc_routesAppTeacherMonitorExamId.filteredCount", {
                     shown: filteredStudentRows.length,
                     total: studentRows.length,
@@ -2416,7 +2417,7 @@ function ExamMonitor() {
                     <TableCell className="hidden lg:table-cell">
                       <Badge
                         variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
-                        className="text-[10px] tabular-nums"
+                        className="text-3xs tabular-nums"
                       >
                         {latest.focus_warnings}/3
                       </Badge>
@@ -2442,7 +2443,7 @@ function ExamMonitor() {
                                 title={t("hc_routesAppTeacherMonitorExamId.openConversations", {
                                   count: open,
                                 })}
-                                className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-400/15 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
+                                className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-400/15 px-1.5 py-0.5 text-2xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
                               >
                                 <MessageSquareText className="h-3 w-3" />
                                 <span className="tabular-nums">{open}</span>
@@ -2455,7 +2456,7 @@ function ExamMonitor() {
                                 title={t("hc_routesAppTeacherMonitorExamId.pendingConversations", {
                                   count: pending,
                                 })}
-                                className="inline-flex items-center gap-1 rounded-md border border-destructive/60 bg-destructive/15 px-1.5 py-0.5 text-[11px] font-semibold text-destructive hover:bg-destructive/25 transition-colors"
+                                className="inline-flex items-center gap-1 rounded-md border border-destructive/60 bg-destructive/15 px-1.5 py-0.5 text-2xs font-semibold text-destructive hover:bg-destructive/25 transition-colors"
                               >
                                 <AlertTriangle className="h-3 w-3" />
                                 <span className="tabular-nums">{pending}</span>
@@ -2473,7 +2474,7 @@ function ExamMonitor() {
                         return (
                           <Badge
                             variant="outline"
-                            className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                            className="text-2xs bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
                           >
                             <Bot className="h-3 w-3 mr-1" />
                             {n}
@@ -2489,7 +2490,7 @@ function ExamMonitor() {
                         return (
                           <Badge
                             variant="outline"
-                            className="text-[11px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+                            className="text-2xs bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
                           >
                             <Users className="h-3 w-3 mr-1" />
                             {n}
@@ -2527,7 +2528,7 @@ function ExamMonitor() {
                                 ) : (
                                   <Pause className="h-3.5 w-3.5" />
                                 )}
-                                <span className="ml-1 text-[11px]">
+                                <span className="ml-1 text-2xs">
                                   {isPaused
                                     ? t("hc_routesAppTeacherMonitorExamId.resume")
                                     : t("hc_routesAppTeacherMonitorExamId.pause")}
@@ -2548,7 +2549,7 @@ function ExamMonitor() {
                             ) : (
                               <TimerReset className="h-3.5 w-3.5" />
                             )}
-                            <span className="ml-1 text-[11px]">+5m</span>
+                            <span className="ml-1 text-2xs">+5m</span>
                           </Button>
                         )}
                         <RowAction
@@ -2637,7 +2638,7 @@ function ExamMonitor() {
                             </span>
                             <StatusBadge status={a.status} />
                             {extraMin > 0 && (
-                              <Badge variant="secondary" className="text-[10px]">
+                              <Badge variant="secondary" className="text-3xs">
                                 <TimerReset className="h-3 w-3 mr-0.5" />
                                 {t("hc_routesAppTeacherMonitorExamId.extraMinutesBadge", {
                                   n: extraMin,
@@ -2887,11 +2888,11 @@ function ExamMonitor() {
                               <span className="font-semibold">
                                 {t("hc_routesAppTeacherMonitorExamId.questionN", { n: idx + 1 })}
                               </span>
-                              <Badge variant="outline" className="text-[10px]">
+                              <Badge variant="outline" className="text-3xs">
                                 {q.type}
                               </Badge>
                               {q.language && (
-                                <Badge variant="secondary" className="text-[10px]">
+                                <Badge variant="secondary" className="text-3xs">
                                   {q.language}
                                 </Badge>
                               )}
@@ -2907,18 +2908,18 @@ function ExamMonitor() {
                                   <>
                                     <Badge
                                       variant="outline"
-                                      className="text-[10px] text-muted-foreground line-through decoration-muted-foreground/60"
+                                      className="text-3xs text-muted-foreground line-through decoration-muted-foreground/60"
                                       title={t("hc_routesAppTeacherMonitorExamId.originalAiGradeTitle")}
                                     >
                                       {bd?.earned ?? "—"} / {q.points}
                                     </Badge>
-                                    <Badge className="text-[10px] bg-primary/15 text-primary border border-primary/30 hover:bg-primary/20">
+                                    <Badge className="text-3xs bg-primary/15 text-primary border border-primary/30 hover:bg-primary/20">
                                       <Pencil className="h-2.5 w-2.5 mr-1" />
                                       {override.score} / {q.points}
                                     </Badge>
                                   </>
                                 ) : (
-                                  <Badge variant="outline" className="text-[10px]">
+                                  <Badge variant="outline" className="text-3xs">
                                     {bd?.earned ?? "—"} / {q.points}
                                   </Badge>
                                 )}
@@ -2945,12 +2946,12 @@ function ExamMonitor() {
                                       </span>
                                       {c}
                                       {isStudent && (
-                                        <Badge variant="outline" className="ml-2 text-[9px]">
+                                        <Badge variant="outline" className="ml-2 text-3xs">
                                           {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                         </Badge>
                                       )}
                                       {isCorrect && (
-                                        <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                        <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                                           {t("hc_routesAppTeacherMonitorExamId.correct")}
                                         </Badge>
                                       )}
@@ -2984,12 +2985,12 @@ function ExamMonitor() {
                                         </span>
                                         {c}
                                         {isStudent && (
-                                          <Badge variant="outline" className="ml-2 text-[9px]">
+                                          <Badge variant="outline" className="ml-2 text-3xs">
                                             {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                           </Badge>
                                         )}
                                         {isCorrect && (
-                                          <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                          <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                                             {t("hc_routesAppTeacherMonitorExamId.correct")}
                                           </Badge>
                                         )}
@@ -3070,7 +3071,7 @@ function ExamMonitor() {
                                 respuesta del alumno. */}
                             {bd?.feedback && (
                               <div className="rounded-md border border-blue-300/60 bg-blue-50/40 dark:bg-blue-500/5 dark:border-blue-500/25 p-2 space-y-1">
-                                <div className="flex items-center gap-1.5 text-[11px] font-medium text-blue-700 dark:text-blue-300">
+                                <div className="flex items-center gap-1.5 text-2xs font-medium text-blue-700 dark:text-blue-300">
                                   <Sparkles className="h-3 w-3" />
                                   <span>{t("integrity.aiFeedbackLabel")}</span>
                                 </div>
@@ -3126,7 +3127,7 @@ function ExamMonitor() {
                                       <CollapsibleTrigger asChild>
                                         <button
                                           type="button"
-                                          className="flex-1 flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group min-w-0"
+                                          className="flex-1 flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group min-w-0"
                                         >
                                           <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90 shrink-0" />
                                           <Bot className="h-3 w-3 shrink-0" />
@@ -3141,7 +3142,7 @@ function ExamMonitor() {
                                                   ? "default"
                                                   : "secondary"
                                             }
-                                            className="text-[10px] ml-auto shrink-0"
+                                            className="text-3xs ml-auto shrink-0"
                                           >
                                             {Math.round(sig.score * 100)}%
                                           </Badge>
@@ -3150,7 +3151,7 @@ function ExamMonitor() {
                                       {reviewed ? (
                                         <Badge
                                           variant="outline"
-                                          className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2 shrink-0"
+                                          className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2 shrink-0"
                                         >
                                           <Check className="h-3 w-3 mr-1" />
                                           {t("integrity.reviewed")}
@@ -3173,7 +3174,7 @@ function ExamMonitor() {
                                         <Button
                                           size="sm"
                                           variant="outline"
-                                          className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0"
+                                          className="h-7 text-2xs bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 shrink-0"
                                           onClick={(e) => {
                                             e.stopPropagation();
                                             toggleQuestionAiReviewedHandler(
@@ -3228,14 +3229,14 @@ function ExamMonitor() {
                                     <CollapsibleTrigger asChild>
                                       <button
                                         type="button"
-                                        className="w-full flex items-center gap-2 text-[11px] font-medium text-amber-700 dark:text-amber-300 group"
+                                        className="w-full flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
                                       >
                                         <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                                         <Users className="h-3 w-3" />
                                         <span>{t("integrity.copySection")}</span>
                                         <Badge
                                           variant="outline"
-                                          className="text-[10px] ml-auto"
+                                          className="text-3xs ml-auto"
                                           title={t("integrity.copyScore")}
                                         >
                                           {qPairs.length} · {Math.round(maxScore * 100)}%
@@ -3243,7 +3244,7 @@ function ExamMonitor() {
                                         {pendingCount > 0 && (
                                           <Badge
                                             variant="outline"
-                                            className="text-[10px] bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
+                                            className="text-3xs bg-amber-500/15 border-amber-500/30 text-amber-700 dark:text-amber-300"
                                           >
                                             {pendingCount}{" "}
                                             {t("integrity.summaryPending_other", {
@@ -3276,7 +3277,7 @@ function ExamMonitor() {
                                                       ? "default"
                                                       : "secondary"
                                                 }
-                                                className="text-[10px]"
+                                                className="text-3xs"
                                               >
                                                 {Math.round(p.score * 100)}%
                                               </Badge>
@@ -3296,7 +3297,7 @@ function ExamMonitor() {
                                                   <Button
                                                     size="sm"
                                                     variant={isActive ? "secondary" : "outline"}
-                                                    className="h-7 text-[11px]"
+                                                    className="h-7 text-2xs"
                                                     onClick={() =>
                                                       setComparisonForCopy(
                                                         isActive
@@ -3330,7 +3331,7 @@ function ExamMonitor() {
                                                 {p.reviewedAt ? (
                                                   <Badge
                                                     variant="outline"
-                                                    className="text-[11px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2"
+                                                    className="text-2xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300 h-7 px-2"
                                                   >
                                                     <Check className="h-3 w-3 mr-1" />
                                                     {t("integrity.reviewed")}
@@ -3351,7 +3352,7 @@ function ExamMonitor() {
                                                   <Button
                                                     size="sm"
                                                     variant="outline"
-                                                    className="h-7 text-[11px] bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
+                                                    className="h-7 text-2xs bg-emerald-500/10 hover:bg-emerald-500/20 border-emerald-500/40 text-emerald-700 dark:text-emerald-300"
                                                     onClick={() =>
                                                       toggleCopyReviewedHandler(p.id, false)
                                                     }
@@ -3442,7 +3443,7 @@ function ExamMonitor() {
                                 const peersToShow = compareablePeers.slice(0, 3);
                                 const peersHidden = compareablePeers.length - peersToShow.length;
                                 return (
-                                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px]">
+                                  <div className="flex flex-wrap items-center gap-2 rounded-md border border-amber-300/70 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-2xs">
                                     <AlertTriangle className="h-3.5 w-3.5 text-amber-700 dark:text-amber-300" />
                                     <span className="font-medium text-amber-700 dark:text-amber-300">
                                       {t("integrity.perQuestionSuggestion")}
@@ -3450,7 +3451,7 @@ function ExamMonitor() {
                                     <span className="font-semibold tabular-nums">
                                       {sug.suggested.toLocaleString("es-CO")} / {q.points}
                                     </span>
-                                    <Badge variant="outline" className="text-[10px]">
+                                    <Badge variant="outline" className="text-3xs">
                                       {sug.source === "ai"
                                         ? t("hc_routesAppTeacherMonitorExamId.sourceAi", {
                                             pct: aiPct,
@@ -3479,7 +3480,7 @@ function ExamMonitor() {
                                           key={pair.id}
                                           size="sm"
                                           variant={isActive ? "secondary" : "outline"}
-                                          className="h-6 text-[11px]"
+                                          className="h-6 text-2xs"
                                           onClick={() => {
                                             if (isActive) {
                                               setComparisonForCopy(null);
@@ -3508,7 +3509,7 @@ function ExamMonitor() {
                                       );
                                     })}
                                     {peersHidden > 0 && (
-                                      <span className="text-[10px] text-muted-foreground">
+                                      <span className="text-3xs text-muted-foreground">
                                         {t("hc_routesAppTeacherMonitorExamId.morePeers", {
                                           count: peersHidden,
                                         })}
@@ -3517,7 +3518,7 @@ function ExamMonitor() {
                                     <Button
                                       size="sm"
                                       variant="outline"
-                                      className="h-6 text-[11px] ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                                      className="h-6 text-2xs ml-auto bg-amber-500/10 hover:bg-amber-500/20 border-amber-500/40 text-amber-700 dark:text-amber-300"
                                       onClick={() => {
                                         // Compone la retroalimentación SOLO con las
                                         // razones reales (IA y/o copia), sin prefijo
@@ -3568,7 +3569,7 @@ function ExamMonitor() {
                                   tenía que adivinar que ese input era
                                   donde va la nota final. Ahora un label
                                   pequeño de sección lo deja explícito. */}
-                              <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              <div className="flex items-center gap-1.5 text-3xs font-semibold uppercase tracking-wide text-muted-foreground">
                                 <Pencil className="h-3 w-3" />
                                 <span>{t("integrity.gradingSection")}</span>
                               </div>
@@ -3700,7 +3701,7 @@ function ExamMonitor() {
                               <Eye className="h-4 w-4 text-primary" />
                               {t("integrity.compareTitle", { name: peerName })}
                             </div>
-                            <p className="text-[11px] text-muted-foreground">
+                            <p className="text-2xs text-muted-foreground">
                               {t("integrity.compareSubtitle")}
                             </p>
                           </div>
@@ -3737,12 +3738,12 @@ function ExamMonitor() {
                                   </span>
                                   {c}
                                   {isStudent && (
-                                    <Badge variant="outline" className="ml-2 text-[9px]">
+                                    <Badge variant="outline" className="ml-2 text-3xs">
                                       {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                     </Badge>
                                   )}
                                   {isCorrect && (
-                                    <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                    <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                                       {t("hc_routesAppTeacherMonitorExamId.correct")}
                                     </Badge>
                                   )}
@@ -3772,12 +3773,12 @@ function ExamMonitor() {
                                     </span>
                                     {c}
                                     {isStudent && (
-                                      <Badge variant="outline" className="ml-2 text-[9px]">
+                                      <Badge variant="outline" className="ml-2 text-3xs">
                                         {t("hc_routesAppTeacherMonitorExamId.chosen")}
                                       </Badge>
                                     )}
                                     {isCorrect && (
-                                      <Badge className="ml-1 text-[9px] bg-success text-success-foreground">
+                                      <Badge className="ml-1 text-3xs bg-success text-success-foreground">
                                         {t("hc_routesAppTeacherMonitorExamId.correct")}
                                       </Badge>
                                     )}
@@ -3828,7 +3829,7 @@ function ExamMonitor() {
                         {/* Sospecha IA del COMPAÑERO para esta pregunta. */}
                         {peerAiSig && peerAiSig.score >= 0.6 && (
                           <div className="rounded-md border border-amber-300 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 space-y-1">
-                            <div className="flex items-center gap-1 text-[11px] font-medium text-amber-700 dark:text-amber-300">
+                            <div className="flex items-center gap-1 text-2xs font-medium text-amber-700 dark:text-amber-300">
                               <Bot className="h-3 w-3" />
                               {t("integrity.aiSection")}
                               <Badge
@@ -3839,7 +3840,7 @@ function ExamMonitor() {
                                       ? "default"
                                       : "secondary"
                                 }
-                                className="text-[10px] ml-1"
+                                className="text-3xs ml-1"
                               >
                                 {Math.round(peerAiSig.score * 100)}%
                               </Badge>
@@ -3851,14 +3852,14 @@ function ExamMonitor() {
                         {/* Marca de revisión del MISMO pair.id (compartido). */}
                         {pair && (
                           <div className="rounded-md border bg-background p-2 flex items-center justify-between gap-2">
-                            <div className="text-[11px] text-muted-foreground">
+                            <div className="text-2xs text-muted-foreground">
                               <Users className="h-3 w-3 inline mr-1" />
                               {Math.round(Number(pair.score) * 100)}%
                             </div>
                             {pair.reviewed_at ? (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                               >
                                 <Check className="h-3 w-3 mr-1" />
                                 {t("integrity.reviewed")}
@@ -3874,7 +3875,7 @@ function ExamMonitor() {
                               <Button
                                 size="sm"
                                 variant="outline"
-                                className="h-7 text-[11px]"
+                                className="h-7 text-2xs"
                                 onClick={() => toggleCopyReviewedHandler(pair.id, false)}
                               >
                                 <Check className="h-3 w-3 mr-1" />
@@ -4082,14 +4083,14 @@ function ExamMonitor() {
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate">{row.studentName}</div>
                           {row.aiLikelihood > 0 && (
-                            <div className="text-[10px] text-muted-foreground">
+                            <div className="text-3xs text-muted-foreground">
                               {t("hc_routesAppTeacherMonitorExamId.aiFraudPct", {
                                 pct: (row.aiLikelihood * 100).toFixed(0),
                               })}
                             </div>
                           )}
                           {row.status === "failed" && row.error && (
-                            <div className="text-[10px] text-destructive mt-0.5">
+                            <div className="text-3xs text-destructive mt-0.5">
                               {t("hc_routesAppTeacherMonitorExamId.errorPrefix", {
                                 error: row.error,
                               })}
@@ -4127,7 +4128,7 @@ function ExamMonitor() {
                           {row.status === "approved" ? (
                             <Badge
                               variant="outline"
-                              className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                              className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                             >
                               <Check className="h-3 w-3 mr-1" />
                               {t("hc_routesAppTeacherMonitorExamId.applied")}
@@ -4135,13 +4136,13 @@ function ExamMonitor() {
                           ) : row.status === "queued" ? (
                             <Badge
                               variant="outline"
-                              className="text-[10px] bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300"
+                              className="text-3xs bg-sky-500/10 text-sky-700 border-sky-500/30 dark:text-sky-300"
                             >
                               <Clock className="h-3 w-3 mr-1" />
                               {t("hc_routesAppTeacherMonitorExamId.queued")}
                             </Badge>
                           ) : row.status === "cancelled" ? (
-                            <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                            <Badge variant="outline" className="text-3xs text-muted-foreground">
                               {t("hc_routesAppTeacherMonitorExamId.cancelled")}
                             </Badge>
                           ) : row.status === "failed" ? (
@@ -4149,7 +4150,7 @@ function ExamMonitor() {
                               size="sm"
                               variant="outline"
                               disabled
-                              className="h-7 text-[11px]"
+                              className="h-7 text-2xs"
                             >
                               {t("hc_routesAppTeacherMonitorExamId.errorLabel")}
                             </Button>
@@ -4165,7 +4166,7 @@ function ExamMonitor() {
                               variant="outline"
                               onClick={() => void applyRegradeRow(idx)}
                               disabled={applyingBulk}
-                              className="h-7 text-[11px]"
+                              className="h-7 text-2xs"
                             >
                               <Check className="h-3 w-3 mr-1" />
                               {t("hc_routesAppTeacherMonitorExamId.apply")}
@@ -4202,26 +4203,26 @@ function ExamMonitor() {
                                 <div className="flex items-start gap-2">
                                   <Badge
                                     variant="outline"
-                                    className="text-[10px] tabular-nums shrink-0"
+                                    className="text-3xs tabular-nums shrink-0"
                                   >
                                     {bi + 1}
                                   </Badge>
                                   <div className="flex-1 min-w-0">
-                                    <div className="text-[11px] text-muted-foreground line-clamp-2">
+                                    <div className="text-2xs text-muted-foreground line-clamp-2">
                                       {q?.content ??
                                         t("hc_routesAppTeacherMonitorExamId.questionNotFound")}
                                     </div>
                                   </div>
-                                  <span className="text-[11px] font-semibold tabular-nums shrink-0">
+                                  <span className="text-2xs font-semibold tabular-nums shrink-0">
                                     {Number(earned).toFixed(2)}/{Number(points).toFixed(2)}
                                   </span>
                                 </div>
                                 {studentAnswerStr && (
                                   <div className="rounded border bg-muted/40 px-2 py-1.5">
-                                    <div className="text-[10px] font-medium text-muted-foreground mb-0.5">
+                                    <div className="text-3xs font-medium text-muted-foreground mb-0.5">
                                       {t("hc_routesAppTeacherMonitorExamId.studentAnswer")}
                                     </div>
-                                    <div className="text-[11px] whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
+                                    <div className="text-2xs whitespace-pre-wrap font-mono max-h-32 overflow-y-auto">
                                       {studentAnswerStr.slice(0, 800)}
                                       {studentAnswerStr.length > 800 && "…"}
                                     </div>
@@ -4229,10 +4230,10 @@ function ExamMonitor() {
                                 )}
                                 {fb && (
                                   <div className="rounded border-l-2 border-primary/40 bg-primary/5 pl-2 py-1">
-                                    <div className="text-[10px] font-medium text-foreground mb-0.5">
+                                    <div className="text-3xs font-medium text-foreground mb-0.5">
                                       {t("hc_routesAppTeacherMonitorExamId.aiFeedback")}
                                     </div>
-                                    <div className="text-[11px] text-muted-foreground whitespace-pre-wrap">
+                                    <div className="text-2xs text-muted-foreground whitespace-pre-wrap">
                                       {fb}
                                     </div>
                                   </div>
@@ -4240,7 +4241,7 @@ function ExamMonitor() {
                                 {aiLike != null && aiLike >= 0.6 && (
                                   <Badge
                                     variant="destructive"
-                                    className="text-[10px]"
+                                    className="text-3xs"
                                     title={t("hc_routesAppTeacherMonitorExamId.aiDetectedTitle")}
                                   >
                                     <Bot className="h-2.5 w-2.5 mr-1" />
@@ -4338,7 +4339,7 @@ function ExamMonitor() {
               {/* Resumen OLD vs NEW */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="rounded-lg border bg-muted/30 p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+                  <div className="text-2xs uppercase tracking-wide text-muted-foreground mb-1">
                     {t("hc_routesAppTeacherMonitorExamId.currentGrade")}
                   </div>
                   <div className="text-2xl font-semibold tabular-nums">
@@ -4346,20 +4347,20 @@ function ExamMonitor() {
                       reGradePreview.previous.ai_grade ??
                       "—"}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
+                  <div className="text-2xs text-muted-foreground mt-1">
                     {reGradePreview.previous.final_override_grade != null
                       ? t("hc_routesAppTeacherMonitorExamId.teacherManualOverride")
                       : t("hc_routesAppTeacherMonitorExamId.previousAiGrade")}
                   </div>
                 </div>
                 <div className="rounded-lg border border-indigo-500/40 bg-indigo-500/5 p-3">
-                  <div className="text-[11px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-1">
+                  <div className="text-2xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-1">
                     {t("hc_routesAppTeacherMonitorExamId.aiProposedGrade")}
                   </div>
                   <div className="text-2xl font-semibold tabular-nums text-indigo-700 dark:text-indigo-300">
                     {reGradePreview.grade}
                   </div>
-                  <div className="text-[11px] text-muted-foreground mt-1">
+                  <div className="text-2xs text-muted-foreground mt-1">
                     {(() => {
                       const prev =
                         reGradePreview.previous.final_override_grade ??
@@ -4408,7 +4409,7 @@ function ExamMonitor() {
                 <div className="rounded-lg border">
                   <div className="px-3 py-2 border-b bg-muted/30 text-xs font-medium flex items-center justify-between">
                     <span>{t("hc_routesAppTeacherMonitorExamId.detailPerQuestion")}</span>
-                    <span className="text-[10px] text-muted-foreground font-normal">
+                    <span className="text-3xs text-muted-foreground font-normal">
                       {t("hc_routesAppTeacherMonitorExamId.questionsCount", {
                         count: reGradePreview.breakdown.length,
                       })}
@@ -4466,7 +4467,7 @@ function ExamMonitor() {
                               completo. */}
                           {question?.content && (
                             <div className="rounded border bg-muted/30 px-2 py-1.5">
-                              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                              <div className="text-3xs uppercase tracking-wide text-muted-foreground mb-0.5">
                                 {t("hc_routesAppTeacherMonitorExamId.statement")}
                               </div>
                               <p
@@ -4486,10 +4487,10 @@ function ExamMonitor() {
                               alinee. */}
                           {answerText && (
                             <div className="rounded border bg-background px-2 py-1.5">
-                              <div className="text-[10px] uppercase tracking-wide text-muted-foreground mb-0.5">
+                              <div className="text-3xs uppercase tracking-wide text-muted-foreground mb-0.5">
                                 {t("hc_routesAppTeacherMonitorExamId.studentAnswer")}
                               </div>
-                              <pre className="whitespace-pre-wrap break-words font-mono text-[11px] max-h-32 overflow-y-auto text-foreground/90">
+                              <pre className="whitespace-pre-wrap break-words font-mono text-2xs max-h-32 overflow-y-auto text-foreground/90">
                                 {answerText}
                               </pre>
                             </div>
@@ -4500,7 +4501,7 @@ function ExamMonitor() {
                               razonamiento completo. */}
                           {b.feedback && (
                             <div className="rounded border border-indigo-500/30 bg-indigo-500/5 px-2 py-1.5">
-                              <div className="text-[10px] uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-0.5">
+                              <div className="text-3xs uppercase tracking-wide text-indigo-700 dark:text-indigo-300 mb-0.5">
                                 {t("hc_routesAppTeacherMonitorExamId.aiFeedback")}
                               </div>
                               <p className="whitespace-pre-wrap text-foreground/90">{b.feedback}</p>

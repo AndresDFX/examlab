@@ -50,7 +50,7 @@ export function CourseListCell({
         <Badge
           key={c.id}
           variant="outline"
-          className="text-[10px] max-w-[10rem] truncate"
+          className="text-3xs max-w-[10rem] truncate"
           title={`${c.name}${c.period ? ` · ${c.period}` : ""}`}
         >
           {c.name}
@@ -62,7 +62,7 @@ export function CourseListCell({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center rounded-full border bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground transition-colors"
+              className="inline-flex items-center rounded-full border bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-3xs font-medium text-muted-foreground transition-colors"
               title={t("hc_componentsUiCourseListCell.moreCourses", {
                 count: overflow.length,
                 defaultValue_one: "+{{count}} curso más",
@@ -79,7 +79,7 @@ export function CourseListCell({
                 <Badge
                   key={c.id}
                   variant="outline"
-                  className="text-[10px] max-w-[14rem] truncate"
+                  className="text-3xs max-w-[14rem] truncate"
                   title={`${c.name}${c.period ? ` · ${c.period}` : ""}`}
                 >
                   {c.name}

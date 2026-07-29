@@ -288,9 +288,9 @@ export function PlatformAssistantChat() {
   );
 
   return (
-    <div className="container mx-auto space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       <PageHeader
-        icon={<Bot className="h-6 w-6 text-indigo-500" />}
+        icon={<Bot className="h-6 w-6" />}
         title={t("supportAssistant.title", { defaultValue: "Asistente IA" })}
         subtitle={t("supportAssistant.subtitle", {
           defaultValue:
@@ -438,7 +438,7 @@ function EmptyChat({
         </div>
       )}
 
-      <div className="text-[11px] text-muted-foreground flex items-center justify-center gap-1 pt-2">
+      <div className="text-2xs text-muted-foreground flex items-center justify-center gap-1 pt-2">
         <AlertTriangle className="h-3 w-3" />
         {t("supportAssistant.emptyHint", {
           defaultValue:
@@ -466,7 +466,7 @@ function MessageBubble({ message }: { message: Message }) {
       <div className={`flex-1 max-w-[80%] ${isUser ? "text-right" : ""}`}>
         <Badge
           variant="outline"
-          className={`text-[10px] ${
+          className={`text-3xs ${
             isUser ? "" : "border-indigo-500/40 text-indigo-700 dark:text-indigo-300"
           }`}
         >
@@ -483,7 +483,7 @@ function MessageBubble({ message }: { message: Message }) {
             <MarkdownInline>{message.content}</MarkdownInline>
           </div>
         </div>
-        <div className="text-[10px] text-muted-foreground mt-1">
+        <div className="text-3xs text-muted-foreground mt-1">
           {formatDateTime(message.created_at)}
         </div>
       </div>

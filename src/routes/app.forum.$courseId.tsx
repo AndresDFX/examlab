@@ -418,10 +418,10 @@ function ForumsList() {
   });
 
   return (
-    <div className="container mx-auto space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
         backTo="/app"
-        icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
+        icon={<MessageSquareText className="h-6 w-6" />}
         title={course ? t("forum.titleWithCourse", { courseName: course.name }) : t("forum.title")}
         subtitle={t("forum.subtitle")}
         actions={
@@ -646,7 +646,7 @@ function ForumRow({
               <h3 className="font-semibold text-sm truncate">{forum.title}</h3>
               <ForumStateBadge state={state} />
               {forum.session && !forum.session.deleted_at && (
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-3xs">
                   <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
                   {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
                   {forum.session.title ? ` · ${forum.session.title}` : ""}
@@ -658,7 +658,7 @@ function ForumRow({
                 {forum.description}
               </p>
             )}
-            <div className="text-[11px] text-muted-foreground mt-2">
+            <div className="text-2xs text-muted-foreground mt-2">
               {i18n.t("forum.threadCount", { count: forum.thread_count ?? 0 })} ·{" "}
               {i18n.t("forum.createdAt", { datetime: formatDateTime(forum.created_at) })}
             </div>
@@ -701,7 +701,7 @@ function ForumStateBadge({ state }: { state: ForumState }) {
       return (
         <Badge
           variant="outline"
-          className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+          className="text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
         >
           {i18n.t("forum.statusOpen")}
           {state.closesAt && (
@@ -715,21 +715,21 @@ function ForumStateBadge({ state }: { state: ForumState }) {
       return (
         <Badge
           variant="outline"
-          className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10"
+          className="text-3xs text-amber-700 dark:text-amber-300 border-amber-500/40 bg-amber-500/10"
         >
           {i18n.t("forum.statusScheduled", { datetime: formatDateTime(state.opensAt) })}
         </Badge>
       );
     case "closed_auto":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <Lock className="h-2.5 w-2.5 mr-0.5" />
           {i18n.t("forum.statusClosedAuto", { datetime: formatDateTime(state.closedAt) })}
         </Badge>
       );
     case "closed_manual":
       return (
-        <Badge variant="outline" className="text-[10px]">
+        <Badge variant="outline" className="text-3xs">
           <Lock className="h-2.5 w-2.5 mr-0.5" />
           {i18n.t("forum.statusClosed", { datetime: formatDateTime(state.closedAt) })}
         </Badge>

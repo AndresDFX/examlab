@@ -642,7 +642,7 @@ export function StudentEventsCalendar({
         ) : (
           <>
             {/* Header de días de la semana */}
-            <div className="grid grid-cols-7 gap-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
+            <div className="grid grid-cols-7 gap-1 text-3xs uppercase font-medium text-muted-foreground tracking-wide">
               {WEEKDAY_NAMES_SHORT.map((w, i) => (
                 <div key={i} className="text-center py-1">
                   {w}
@@ -682,8 +682,8 @@ export function StudentEventsCalendar({
             {/* Leyenda — solo los kinds que aparecen este mes. Si el
                 mes está limpio, mostramos un hint. */}
             {visibleKinds.size > 0 ? (
-              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-2 border-t text-[11px]">
-                <span className="text-muted-foreground font-medium uppercase tracking-wide text-[10px]">
+              <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 pt-2 border-t text-2xs">
+                <span className="text-muted-foreground font-medium uppercase tracking-wide text-3xs">
                   {t("studentCalendar.legend.label", { defaultValue: "Leyenda:" })}
                 </span>
                 {(Object.keys(KIND_META) as EventKind[])
@@ -698,7 +698,7 @@ export function StudentEventsCalendar({
                   ))}
               </div>
             ) : (
-              <p className="text-[11px] text-muted-foreground italic pt-2 border-t">
+              <p className="text-2xs text-muted-foreground italic pt-2 border-t">
                 {t("studentCalendar.legend.empty", { defaultValue: "Sin eventos en este mes." })}
               </p>
             )}
@@ -768,7 +768,7 @@ function DayCell({
           ))}
           {extraKinds.length > 0 && (
             <span
-              className="text-[8px] font-bold text-muted-foreground ml-0.5"
+              className="text-3xs font-bold text-muted-foreground ml-0.5"
               title={extraKinds.map((k) => kindMeta[k].label).join(", ")}
             >
               +{extraKinds.length}
@@ -812,11 +812,11 @@ function DayCell({
                       <span className="truncate">{e.title}</span>
                     </div>
                     {e.course_name && (
-                      <div className="text-[11px] text-muted-foreground truncate">
+                      <div className="text-2xs text-muted-foreground truncate">
                         {e.course_name}
                       </div>
                     )}
-                    <div className={`text-[10px] mt-0.5 ${meta.legendClass}`}>{meta.label}</div>
+                    <div className={`text-3xs mt-0.5 ${meta.legendClass}`}>{meta.label}</div>
                   </div>
                 </div>
               </>

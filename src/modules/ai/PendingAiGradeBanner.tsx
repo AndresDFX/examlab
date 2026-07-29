@@ -31,7 +31,7 @@ export function PendingAiGradeBanner({ variant = "default", className }: Props) 
       <span
         role="status"
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-900 dark:text-amber-200",
+          "inline-flex items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-2xs font-medium text-amber-900 dark:text-amber-200",
           className,
         )}
       >

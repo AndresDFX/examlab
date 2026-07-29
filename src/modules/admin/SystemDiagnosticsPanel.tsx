@@ -225,14 +225,14 @@ function UsageBar({
     <div className="space-y-1.5 pt-1">
       <div className="flex items-baseline justify-between gap-2 text-xs">
         <span className={`font-medium ${labelColor}`}>{t("systemDiagnosticsPanel.usedPct", { pct: usedPct.toFixed(1) })}</span>
-        <span className="text-[10px] text-muted-foreground tabular-nums">
+        <span className="text-3xs text-muted-foreground tabular-nums">
           {usedMB.toFixed(1)} MB / {totalMB} MB
         </span>
       </div>
       <div className="h-1.5 rounded-full bg-muted overflow-hidden">
         <div className={`h-full ${barColor} transition-all`} style={{ width: `${widthPct}%` }} />
       </div>
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between text-3xs text-muted-foreground">
         <span>{t("systemDiagnosticsPanel.freeLabel", { mb: freeMB })}</span>
         {state === "danger" && (
           <span className="text-destructive font-medium">
@@ -712,7 +712,7 @@ export function SystemDiagnosticsPanel() {
                   <Badge key={b.id} variant="outline" className="text-xs">
                     {b.id}
                     {b.public && (
-                      <span className="ml-1 text-[10px] text-amber-600 dark:text-amber-400">
+                      <span className="ml-1 text-3xs text-amber-600 dark:text-amber-400">
                         {t("systemDiagnosticsPanel.badgePublic")}
                       </span>
                     )}
@@ -905,7 +905,7 @@ export function SystemDiagnosticsPanel() {
                         {pushSubs.slice(0, 3).map((s) => (
                           <div
                             key={s.id}
-                            className="flex items-center justify-between text-[11px] text-muted-foreground gap-2"
+                            className="flex items-center justify-between text-2xs text-muted-foreground gap-2"
                           >
                             <span className="truncate flex-1" title={s.user_agent ?? ""}>
                               {s.user_agent
@@ -918,7 +918,7 @@ export function SystemDiagnosticsPanel() {
                           </div>
                         ))}
                         {pushSubs.length > 3 && (
-                          <p className="text-[10px] text-muted-foreground">
+                          <p className="text-3xs text-muted-foreground">
                             + {pushSubs.length - 3} más
                           </p>
                         )}
@@ -935,7 +935,7 @@ export function SystemDiagnosticsPanel() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="ml-1 h-5 text-[10px]"
+                              className="ml-1 h-5 text-3xs"
                               onClick={() => void loadAllPushSubs()}
                             >
                               {t("systemDiagnosticsPanel.btnRetry")}
@@ -951,7 +951,7 @@ export function SystemDiagnosticsPanel() {
                               {allPushSubs.map((s) => (
                                 <div
                                   key={s.id}
-                                  className="rounded border bg-background/50 p-1.5 text-[11px] space-y-0.5"
+                                  className="rounded border bg-background/50 p-1.5 text-2xs space-y-0.5"
                                 >
                                   <div className="flex items-center justify-between gap-2">
                                     <span
@@ -984,7 +984,7 @@ export function SystemDiagnosticsPanel() {
                                 </div>
                               ))}
                             </div>
-                            <p className="text-[10px] text-muted-foreground pt-1">
+                            <p className="text-3xs text-muted-foreground pt-1">
                               {t("systemDiagnosticsPanel.deviceCount", { count: allPushSubs.length })}
                             </p>
                           </>
@@ -1009,7 +1009,7 @@ export function SystemDiagnosticsPanel() {
                     {t("systemDiagnosticsPanel.btnSendTestPush")}
                   </Button>
                   {(!configOk || !allSecretsOk) && (
-                    <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                    <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
                       {t("systemDiagnosticsPanel.pushConfigureFirst")}
                     </p>
                   )}
@@ -1135,7 +1135,7 @@ export function SystemDiagnosticsPanel() {
                           {fn.function_name}
                         </div>
                         {fn.last_action && (
-                          <div className={`text-[10px] ${severityColor}`}>{fn.last_action}</div>
+                          <div className={`text-3xs ${severityColor}`}>{fn.last_action}</div>
                         )}
                       </div>
                       <span className="text-muted-foreground tabular-nums shrink-0 text-right">
@@ -1147,12 +1147,12 @@ export function SystemDiagnosticsPanel() {
                       </span>
                     </div>
                     {desc && (
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
+                      <p className="text-3xs text-muted-foreground leading-relaxed">{desc}</p>
                     )}
                   </div>
                 );
               })}
-              <p className="pt-1 text-[10px] text-muted-foreground">
+              <p className="pt-1 text-3xs text-muted-foreground">
                 {t("systemDiagnosticsPanel.edgeFunctionsHint")}
               </p>
             </div>
@@ -1197,7 +1197,7 @@ export function SystemDiagnosticsPanel() {
                           {j.jobname}
                         </span>
                         {!j.active && (
-                          <Badge variant="outline" className="text-[9px] py-0 h-3.5">
+                          <Badge variant="outline" className="text-3xs py-0 h-3.5">
                             {t("systemDiagnosticsPanel.cronInactive")}
                           </Badge>
                         )}
@@ -1206,14 +1206,14 @@ export function SystemDiagnosticsPanel() {
                         {j.schedule}
                       </span>
                     </div>
-                    <div className="flex items-center justify-between gap-2 text-[10px]">
+                    <div className="flex items-center justify-between gap-2 text-3xs">
                       <span className={statusColor}>{j.last_status ?? t("systemDiagnosticsPanel.cronNoRuns")}</span>
                       <span className="text-muted-foreground tabular-nums shrink-0">
                         {j.last_run_at ? formatDateTime(j.last_run_at) : "—"}
                       </span>
                     </div>
                     {desc && (
-                      <p className="text-[10px] text-muted-foreground leading-relaxed">{desc}</p>
+                      <p className="text-3xs text-muted-foreground leading-relaxed">{desc}</p>
                     )}
                   </div>
                 );

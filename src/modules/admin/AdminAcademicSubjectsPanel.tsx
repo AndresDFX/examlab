@@ -534,7 +534,7 @@ export function AdminAcademicSubjectsPanel() {
                         <div className="truncate" title={r.name}>
                           {r.name}
                           {!r.active && (
-                            <Badge variant="outline" className="ml-2 text-[10px]">
+                            <Badge variant="outline" className="ml-2 text-3xs">
                               {t("academic.subjects.inactiveBadge")}
                             </Badge>
                           )}
@@ -855,7 +855,7 @@ export function AdminAcademicSubjectsPanel() {
                   />
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("academic.subjects.scaleHint", {
                   defaultValue:
                     "Los cursos creados desde esta asignatura heredan esta escala (puedes cambiarla por curso). Si la dejas vacía, el curso usa el default de la institución.",

@@ -65,10 +65,10 @@ export function SlideMockup({ slide, index, total, className }: Readonly<Props>)
               {(slide.codeBlocks ?? []).map((cb, ci) => (
                 <pre
                   key={ci}
-                  className="rounded bg-slate-100 border border-slate-200 p-2 text-[10px] font-mono whitespace-pre overflow-x-auto text-slate-800"
+                  className="rounded bg-slate-100 border border-slate-200 p-2 text-3xs font-mono whitespace-pre overflow-x-auto text-slate-800"
                 >
                   {cb.lang ? (
-                    <div className="text-[9px] uppercase tracking-wide text-slate-500 mb-1">
+                    <div className="text-3xs uppercase tracking-wide text-slate-500 mb-1">
                       {cb.lang}
                     </div>
                   ) : null}
@@ -82,7 +82,7 @@ export function SlideMockup({ slide, index, total, className }: Readonly<Props>)
             </div>
           </>
         )}
-        <div className="text-[10px] text-slate-400 text-right mt-2 tabular-nums">
+        <div className="text-3xs text-slate-400 text-right mt-2 tabular-nums">
           {index + 1} / {total}
         </div>
       </div>

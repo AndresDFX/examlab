@@ -544,7 +544,7 @@ function StudentPolls() {
       <PageHeader
         title={t("studentPolls.title")}
         subtitle={t("studentPolls.subtitle")}
-        icon={<ListChecks className="h-6 w-6 text-sky-500" />}
+        icon={<ListChecks className="h-6 w-6" />}
         actions={
           <Button
             variant="outline"
@@ -740,10 +740,10 @@ function PollCard({
             </CardTitle>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               {poll.course_name && (
-                <p className="text-[11px] text-muted-foreground">{poll.course_name}</p>
+                <p className="text-2xs text-muted-foreground">{poll.course_name}</p>
               )}
               {poll.attendance_session_id && (
-                <Badge variant="outline" className="text-[10px] gap-1">
+                <Badge variant="outline" className="text-3xs gap-1">
                   <Presentation className="h-3 w-3" />
                   {i18n.t("studentPolls.sessionBadge")}
                 </Badge>
@@ -754,11 +754,11 @@ function PollCard({
             )}
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
+            <Badge variant={open ? "default" : "secondary"} className="text-3xs">
               {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
             </Badge>
             {poll.closes_at && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-3xs text-muted-foreground">
                 {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
                 <DateCell value={poll.closes_at} variant="datetime" />
               </span>
@@ -767,7 +767,7 @@ function PollCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-2">
-        <p className="text-[11px] text-muted-foreground">{getTypeHint(poll.poll_type)}</p>
+        <p className="text-2xs text-muted-foreground">{getTypeHint(poll.poll_type)}</p>
         <div className="space-y-2">
           {poll.options.map((o) => {
             const myVote = poll.my_votes.includes(o.id);
@@ -794,7 +794,7 @@ function PollCard({
                     <div className="text-sm flex items-center justify-between gap-2">
                       <span className="truncate">{o.label}</span>
                       {showResults && (
-                        <span className="text-[10px] text-muted-foreground tabular-nums">
+                        <span className="text-3xs text-muted-foreground tabular-nums">
                           {o.responses_count} · {pct}%
                         </span>
                       )}
@@ -832,7 +832,7 @@ function PollCard({
                       {myVote && <Check className="h-3.5 w-3.5" />}
                       {o.label}
                     </span>
-                    <span className="text-[10px] tabular-nums opacity-80">
+                    <span className="text-3xs tabular-nums opacity-80">
                       {poll.poll_type === "slot" && o.max_responses != null && (
                         <>
                           {o.responses_count} / {o.max_responses}
@@ -862,7 +862,7 @@ function PollCard({
         {hasVoted && open && (
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             {poll.poll_type !== "multiple" && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {poll.allow_change_response
                   ? i18n.t("studentPolls.changeVoteHint")
                   : i18n.t("studentPolls.noChangeHint")}
@@ -873,7 +873,7 @@ function PollCard({
                 type="button"
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive ml-auto"
+                className="h-7 px-2 text-2xs text-muted-foreground hover:text-destructive ml-auto"
                 disabled={voting}
                 onClick={() => onClear(poll)}
                 title={i18n.t("studentPolls.removeVoteTitle")}
@@ -885,7 +885,7 @@ function PollCard({
           </div>
         )}
         {!showResults && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {poll.results_visible_to_students === "never"
               ? i18n.t("studentPolls.resultsNever")
               : i18n.t("studentPolls.resultsAfterClose")}
@@ -1215,10 +1215,10 @@ function MixedPollCard({
             </CardTitle>
             <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
               {poll.course_name && (
-                <p className="text-[11px] text-muted-foreground">{poll.course_name}</p>
+                <p className="text-2xs text-muted-foreground">{poll.course_name}</p>
               )}
               {poll.attendance_session_id && (
-                <Badge variant="outline" className="text-[10px] gap-1">
+                <Badge variant="outline" className="text-3xs gap-1">
                   <Presentation className="h-3 w-3" />
                   {i18n.t("studentPolls.sessionBadge")}
                 </Badge>
@@ -1229,11 +1229,11 @@ function MixedPollCard({
             )}
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
-            <Badge variant={open ? "default" : "secondary"} className="text-[10px]">
+            <Badge variant={open ? "default" : "secondary"} className="text-3xs">
               {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
             </Badge>
             {poll.closes_at && (
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-3xs text-muted-foreground">
                 {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
                 <DateCell value={poll.closes_at} variant="datetime" />
               </span>
@@ -1272,7 +1272,7 @@ function MixedPollCard({
           </>
         ) : (
           <>
-        <p className="text-[11px] text-muted-foreground">{getTypeHint("mixed")}</p>
+        <p className="text-2xs text-muted-foreground">{getTypeHint("mixed")}</p>
         {questions.length === 0 ? (
           <p className="text-xs text-muted-foreground">
             {t("studentPolls.mixedNoQuestions", { defaultValue: "Esta encuesta aún no tiene preguntas." })}
@@ -1331,7 +1331,7 @@ function MixedPollCard({
                     }}
                   />
                   <div className="flex items-center justify-between">
-                    <span className="text-[10px] flex items-center gap-1">
+                    <span className="text-3xs flex items-center gap-1">
                       {draftStatus === "saving" && (
                         <>
                           <Spinner size="xs" />
@@ -1350,7 +1350,7 @@ function MixedPollCard({
                       )}
                     </span>
                     <span
-                      className={`text-[10px] tabular-nums ${near ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+                      className={`text-3xs tabular-nums ${near ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
                     >
                       {value.length} / {maxLen}
                     </span>
@@ -1430,7 +1430,7 @@ function MixedPollCard({
               type="button"
               variant="ghost"
               size="sm"
-              className="h-7 px-2 text-[11px] text-muted-foreground hover:text-destructive"
+              className="h-7 px-2 text-2xs text-muted-foreground hover:text-destructive"
               disabled={clearing}
               onClick={() => void clearAll()}
             >
@@ -1440,7 +1440,7 @@ function MixedPollCard({
           </div>
         )}
         {!open && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("studentPolls.mixedClosedNote", {
               defaultValue: "La encuesta está cerrada. Ya no puedes modificar tus respuestas.",
             })}

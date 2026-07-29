@@ -113,7 +113,7 @@ export function CollapsibleReasons({ text }: { text: string | null }) {
       <button
         type="button"
         onClick={() => setExpanded((p) => !p)}
-        className="text-[11px] text-primary hover:underline"
+        className="text-2xs text-primary hover:underline"
       >
         {expanded ? t("integrity.showLess") : t("integrity.showMore")}
       </button>
@@ -219,7 +219,7 @@ export function IntegrityReviewDialog({
         {/* Resumen + Sugerencia combinada */}
         <div className="rounded-md border p-3 grid grid-cols-1 md:grid-cols-3 gap-3 bg-muted/30">
           <div>
-            <div className="text-[11px] uppercase text-muted-foreground tracking-wide">
+            <div className="text-2xs uppercase text-muted-foreground tracking-wide">
               {t("integrity.currentGrade")}
             </div>
             <div className="font-semibold tabular-nums">
@@ -229,7 +229,7 @@ export function IntegrityReviewDialog({
             </div>
           </div>
           <div>
-            <div className="text-[11px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+            <div className="text-2xs uppercase text-muted-foreground tracking-wide flex items-center gap-1">
               <Bot className="h-3 w-3" /> {t("integrity.aiProbability")}
             </div>
             <div>
@@ -241,7 +241,7 @@ export function IntegrityReviewDialog({
             </div>
           </div>
           <div>
-            <div className="text-[11px] uppercase text-muted-foreground tracking-wide flex items-center gap-1">
+            <div className="text-2xs uppercase text-muted-foreground tracking-wide flex items-center gap-1">
               <Users className="h-3 w-3" /> {t("integrity.copyScore")}
             </div>
             <div>
@@ -257,10 +257,10 @@ export function IntegrityReviewDialog({
         {severity > 0 && currentGrade != null && (
           <div className="rounded-md border border-amber-200 bg-amber-50/60 dark:bg-amber-500/5 dark:border-amber-500/20 p-3 flex items-center gap-3">
             <div className="flex-1">
-              <div className="text-[11px] uppercase tracking-wide text-amber-700 dark:text-amber-300">
+              <div className="text-2xs uppercase tracking-wide text-amber-700 dark:text-amber-300">
                 {t("integrity.suggestedGrade")}
                 {sourceKey && (
-                  <span className="ml-2 text-[10px] text-muted-foreground">
+                  <span className="ml-2 text-3xs text-muted-foreground">
                     {t(`integrity.scope_${sourceKey}`)}
                   </span>
                 )}
@@ -303,7 +303,7 @@ export function IntegrityReviewDialog({
             <p className="text-xs text-muted-foreground">{t("integrity.aiNoSignal")}</p>
           ) : (
             <div className="rounded-md border p-3 space-y-2">
-              <div className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wide text-muted-foreground">
                 {t("integrity.aiReasons")}
               </div>
               <CollapsibleReasons text={aiSignal.reasons} />
@@ -312,7 +312,7 @@ export function IntegrityReviewDialog({
                   <>
                     <Badge
                       variant="outline"
-                      className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                      className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                     >
                       <Check className="h-3 w-3 mr-1" />
                       {t("integrity.reviewed")}
@@ -338,7 +338,7 @@ export function IntegrityReviewDialog({
             <Users className="h-4 w-4 text-muted-foreground" />
             {t("integrity.copySection")}
             {copyPairs.length > 0 && (
-              <Badge variant="outline" className="ml-auto text-[11px]">
+              <Badge variant="outline" className="ml-auto text-2xs">
                 {copyPairs.length}
               </Badge>
             )}
@@ -378,14 +378,14 @@ export function IntegrityReviewDialog({
                         <div className="flex flex-col items-end gap-1">
                           <Badge
                             variant="outline"
-                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                            className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                           >
                             <Check className="h-3 w-3 mr-1" />
                             {t("integrity.reviewed")}
                           </Badge>
                           <button
                             type="button"
-                            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                            className="text-3xs text-muted-foreground hover:text-foreground underline"
                             onClick={() => toggleCopy(overallPair)}
                           >
                             {t("integrity.reopen")}
@@ -423,14 +423,14 @@ export function IntegrityReviewDialog({
                         <div className="flex flex-col items-end gap-1">
                           <Badge
                             variant="outline"
-                            className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                            className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                           >
                             <Check className="h-3 w-3 mr-1" />
                             {t("integrity.reviewed")}
                           </Badge>
                           <button
                             type="button"
-                            className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                            className="text-3xs text-muted-foreground hover:text-foreground underline"
                             onClick={() => toggleCopy(p)}
                           >
                             {t("integrity.reopen")}

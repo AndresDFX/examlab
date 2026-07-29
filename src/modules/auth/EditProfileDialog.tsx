@@ -252,7 +252,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
               autoComplete="email"
             />
             {institutionalChanged && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400">
+              <p className="text-2xs text-amber-600 dark:text-amber-400">
                 {t("profile.institutionalChangeWarning")}
               </p>
             )}
@@ -262,7 +262,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
             <Label className="flex items-center gap-1.5">
               <AtSign className="h-3.5 w-3.5" />
               {t("profile.personalEmail")}
-              <span className="text-[10px] text-muted-foreground font-normal">
+              <span className="text-3xs text-muted-foreground font-normal">
                 ({t("common.optional")})
               </span>
             </Label>
@@ -273,7 +273,7 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
               placeholder="personal@email.com"
               autoComplete="email"
             />
-            <p className="text-[11px] text-muted-foreground">{t("profile.personalEmailHint")}</p>
+            <p className="text-2xs text-muted-foreground">{t("profile.personalEmailHint")}</p>
           </div>
         </div>
 

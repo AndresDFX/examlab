@@ -39,7 +39,7 @@ function SuperAdminSystem() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Wrench className="h-6 w-6 text-rose-500" />}
+        icon={<Wrench className="h-6 w-6" />}
         title={t("superadminSystem.title")}
         subtitle={t("superadminSystem.subtitle")}
       />

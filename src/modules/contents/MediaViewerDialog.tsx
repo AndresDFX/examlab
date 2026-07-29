@@ -209,7 +209,7 @@ export function MediaViewerDialog({
             )}
             {isPdf ? t("mediaViewer.titlePdf") : t("mediaViewer.titleImage")}
           </DialogTitle>
-          <DialogDescription className="text-[11px] font-mono truncate">
+          <DialogDescription className="text-2xs font-mono truncate">
             {file?.name}
           </DialogDescription>
         </DialogHeader>
@@ -270,7 +270,7 @@ export function MediaViewerDialog({
               >
                 <ZoomOut className="h-4 w-4" />
               </Button>
-              <span className="text-[11px] tabular-nums w-10 text-center">
+              <span className="text-2xs tabular-nums w-10 text-center">
                 {Math.round(zoom * 100)}%
               </span>
               <Button

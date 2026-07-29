@@ -796,7 +796,7 @@ function StudentProjects() {
                       {t("hc_routesAppStudentProjects.deleteMySubmission")}
                     </Button>
                   ) : (
-                    <p className="text-[11px] text-muted-foreground text-center italic">
+                    <p className="text-2xs text-muted-foreground text-center italic">
                       {t("hc_routesAppStudentProjects.attemptsExhausted")}
                     </p>
                   );
@@ -876,7 +876,7 @@ function StatTile({
   return (
     <div className={`rounded-md p-2.5 ${bg}`}>
       <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+      <div className="text-3xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }

@@ -447,7 +447,7 @@ export function AdminAcademicProgramsPanel() {
                               deshabilitado solo no comunica "está guardando". */}
                           {togglingId === r.id && <Spinner size="xs" />}
                           {!r.active && (
-                            <Badge variant="outline" className="text-[10px]">
+                            <Badge variant="outline" className="text-3xs">
                               {t("academic.programs.inactiveBadge")}
                             </Badge>
                           )}

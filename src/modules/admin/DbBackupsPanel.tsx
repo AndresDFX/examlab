@@ -517,7 +517,7 @@ export function DbBackupsPanel() {
               )}
               {t("hc_modulesAdminDbBackupsPanel.createBackup")}
             </Button>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               {t("hc_modulesAdminDbBackupsPanel.weeklyCronHint")}
             </span>
           </div>
@@ -536,7 +536,7 @@ export function DbBackupsPanel() {
           <CardTitle className="text-base flex items-center gap-2">
             <HardDrive className="h-4 w-4 text-muted-foreground" />
             {t("hc_modulesAdminDbBackupsPanel.history")}
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {backups.length}
             </Badge>
           </CardTitle>
@@ -584,7 +584,7 @@ export function DbBackupsPanel() {
                       <TableCell className="hidden sm:table-cell">
                         <Badge
                           variant="outline"
-                          className="text-[10px]"
+                          className="text-3xs"
                         >
                           {b.source === "cron"
                             ? t("hc_modulesAdminDbBackupsPanel.sourceAuto")
@@ -669,9 +669,9 @@ export function DbBackupsPanel() {
             </DialogTitle>
             <DialogDescription className="text-xs">
               {t("hc_modulesAdminDbBackupsPanel.dialogDescPart1")}{" "}
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">.json</code>{" "}
+              <code className="text-3xs bg-muted px-1 py-0.5 rounded">.json</code>{" "}
               {t("hc_modulesAdminDbBackupsPanel.dialogDescPart2")}{" "}
-              <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+              <code className="text-3xs bg-muted px-1 py-0.5 rounded">
                 metadata.json
               </code>{" "}
               {t("hc_modulesAdminDbBackupsPanel.dialogDescPart3")}
@@ -680,7 +680,7 @@ export function DbBackupsPanel() {
 
           <div className="space-y-3">
             <div>
-              <Label className="text-[11px]">{t("hc_modulesAdminDbBackupsPanel.labelOptional")}</Label>
+              <Label className="text-2xs">{t("hc_modulesAdminDbBackupsPanel.labelOptional")}</Label>
               <Input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
@@ -692,7 +692,7 @@ export function DbBackupsPanel() {
 
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
-                <Label className="text-[11px]">
+                <Label className="text-2xs">
                   {t("hc_modulesAdminDbBackupsPanel.tablesToBackup")}
                   <span className="text-muted-foreground ml-1">
                     {t("hc_modulesAdminDbBackupsPanel.tablesCount", {
@@ -706,7 +706,7 @@ export function DbBackupsPanel() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px] px-2"
+                    className="h-6 text-3xs px-2"
                     onClick={selectAllTables}
                     disabled={loadingTables || creating}
                   >
@@ -716,7 +716,7 @@ export function DbBackupsPanel() {
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[10px] px-2"
+                    className="h-6 text-3xs px-2"
                     onClick={selectNoneTables}
                     disabled={loadingTables || creating}
                   >
@@ -752,7 +752,7 @@ export function DbBackupsPanel() {
                         <span className="font-mono truncate flex-1" title={t.table_name}>
                           {t.table_name}
                         </span>
-                        <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                        <span className="text-3xs text-muted-foreground tabular-nums shrink-0">
                           {/* `est_rows` es estimación de pg_class (puede
                               ser -1 si la tabla nunca tuvo ANALYZE). En
                               ese caso mostramos "—" en vez de "-1" para
@@ -803,11 +803,11 @@ function Stat({
   return (
     <div className={`rounded-md p-2.5 ${bg}`}>
       <div
-        className={`${size === "sm" ? "text-[11px]" : "text-2xl"} font-semibold tabular-nums ${color}`}
+        className={`${size === "sm" ? "text-2xs" : "text-2xl"} font-semibold tabular-nums ${color}`}
       >
         {value}
       </div>
-      <div className="text-[10px] text-muted-foreground mt-0.5">{label}</div>
+      <div className="text-3xs text-muted-foreground mt-0.5">{label}</div>
     </div>
   );
 }
@@ -826,7 +826,7 @@ function StatusBadge({ status, error }: { status: BackupRow["status"]; error: st
   return (
     <Badge
       variant={m.variant}
-      className="text-[10px] inline-flex items-center gap-1"
+      className="text-3xs inline-flex items-center gap-1"
       title={error ?? undefined}
     >
       <Icon className={`h-2.5 w-2.5 ${status === "running" ? "animate-pulse" : ""}`} />

@@ -172,7 +172,7 @@ export function KahootReviewDialog({
                         )}
                         <span className="flex-1">{o.label}</span>
                         {chosen && (
-                          <span className="text-[10px] rounded bg-foreground/10 px-1.5 py-0.5">
+                          <span className="text-3xs rounded bg-foreground/10 px-1.5 py-0.5">
                             {t("kahootReview.yourChoice", { defaultValue: "Tu respuesta" })}
                           </span>
                         )}

@@ -424,7 +424,7 @@ function StudentCourses() {
                 <div className="flex items-start justify-between gap-2">
                   <h3 className="font-semibold text-base leading-tight">{c.name}</h3>
                   {c.period && (
-                    <Badge variant="outline" className="text-[11px]">
+                    <Badge variant="outline" className="text-2xs">
                       {c.period}
                     </Badge>
                   )}
@@ -432,7 +432,7 @@ function StudentCourses() {
                 {c.description && (
                   <p className="text-xs text-muted-foreground line-clamp-2">{c.description}</p>
                 )}
-                <div className="text-[11px] text-muted-foreground tabular-nums">
+                <div className="text-2xs text-muted-foreground tabular-nums">
                   {c.start_date ? formatDateOnly(c.start_date) : "—"}
                   {" → "}
                   {c.end_date ? formatDateOnly(c.end_date) : "—"}
@@ -444,7 +444,7 @@ function StudentCourses() {
                   const cont = continuity.get(c.id);
                   if (!cont?.content_label) return null;
                   return (
-                    <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground pt-0.5">
+                    <div className="flex items-center gap-1.5 text-2xs text-muted-foreground pt-0.5">
                       <History className="h-3 w-3 shrink-0" />
                       <span className="truncate">
                         {t("courseBoard.resumeHint", { label: cont.content_label })}
@@ -864,11 +864,11 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               )}
               <div className="flex flex-wrap gap-2 pt-1">
                 {course.period && (
-                  <Badge variant="outline" className="text-[11px]">
+                  <Badge variant="outline" className="text-2xs">
                     {course.period}
                   </Badge>
                 )}
-                <Badge variant="outline" className="text-[11px] tabular-nums">
+                <Badge variant="outline" className="text-2xs tabular-nums">
                   {course.start_date ? formatDateOnly(course.start_date) : "—"}
                   {" → "}
                   {course.end_date ? formatDateOnly(course.end_date) : "—"}
@@ -878,7 +878,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                 // Se dice "abriste N de M", NO "avance N%": el denominador
                 // crece cuando el docente sube material, así que un
                 // porcentaje bajaría solo y se leería como un error.
-                <div className="flex items-center gap-1.5 pt-2 text-[11px] text-muted-foreground">
+                <div className="flex items-center gap-1.5 pt-2 text-2xs text-muted-foreground">
                   <FileCheck className="h-3 w-3" />
                   <span className="tabular-nums">
                     {t("courseBoard.materialOpened", {
@@ -889,7 +889,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                 </div>
               )}
               {attendanceStats && (
-                <div className="flex flex-wrap items-center gap-3 pt-2 text-[11px]">
+                <div className="flex flex-wrap items-center gap-3 pt-2 text-2xs">
                   <span className="text-muted-foreground">
                     {t("courseBoard.attendanceSummary", {
                       attended: attendanceStats.attended,
@@ -957,7 +957,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-medium text-sm truncate">{g.cohorte}</span>
-                    <Badge variant="secondary" className="text-[11px] shrink-0 tabular-nums">
+                    <Badge variant="secondary" className="text-2xs shrink-0 tabular-nums">
                       {t("courseBoard.cohortWeightsTotal", {
                         defaultValue: "Total {{total}}%",
                         total: g.totalWeight,
@@ -1131,7 +1131,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               <FileText className="h-4 w-4 text-primary" />
               {previewFile ? humanLabelForFile(previewFile) : ""}
             </DialogTitle>
-            <DialogDescription className="text-[11px] font-mono truncate">
+            <DialogDescription className="text-2xs font-mono truncate">
               {previewFile?.name}
             </DialogDescription>
           </DialogHeader>
@@ -1225,7 +1225,7 @@ function SessionGroup({
                 <div className="flex flex-wrap items-start gap-3">
                   <div className="flex-1 min-w-0 space-y-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="outline" className="text-[11px] tabular-nums">
+                      <Badge variant="outline" className="text-2xs tabular-nums">
                         {formatDateOnly(s.session_date)}
                       </Badge>
                       {/* Subtítulo solo con el nombre del día — la fecha
@@ -1233,7 +1233,7 @@ function SessionGroup({
                           "Sábado, 16 de mayo" generaba además un mismatch
                           (UTC -1 día). `formatWeekdayName` ancla a 12:00
                           local y devuelve solo "sábado". */}
-                      <span className="text-[11px] text-muted-foreground capitalize">
+                      <span className="text-2xs text-muted-foreground capitalize">
                         {formatWeekdayName(s.session_date)}
                       </span>
                       <SessionTypeBadge type={s.session_type} />
@@ -1242,7 +1242,7 @@ function SessionGroup({
                       {s.title || t("contents.assignSessionUntitled")}
                     </h3>
                     {s.session_type === "autonoma" && (
-                      <p className="text-[11px] text-violet-700 dark:text-violet-300">
+                      <p className="text-2xs text-violet-700 dark:text-violet-300">
                         {t("sessionType.autonomaHint")}
                       </p>
                     )}
@@ -1358,7 +1358,7 @@ function ScheduledItemBadge({ item }: { item: ScheduledItem }) {
     <Link to={href} className="max-w-full min-w-0">
       <Badge
         variant="outline"
-        className={`text-[11px] flex items-center gap-1 max-w-[220px] cursor-pointer hover:bg-muted/60 transition-colors ${
+        className={`text-2xs flex items-center gap-1 max-w-[220px] cursor-pointer hover:bg-muted/60 transition-colors ${
           isPastDue
             ? "border-amber-400/60 bg-amber-50/40 text-amber-700 dark:bg-amber-500/10 dark:text-amber-300"
             : ""
@@ -1441,7 +1441,7 @@ function ContentFileChip({
             consume("open");
             onOpenNotebook(f);
           }}
-          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          className="flex items-center justify-center gap-1 px-2 h-8 text-2xs hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
           aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.openRunNotebook")}`}
         >
@@ -1461,7 +1461,7 @@ function ContentFileChip({
             consume("open");
             onRunCode(f);
           }}
-          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          className="flex items-center justify-center gap-1 px-2 h-8 text-2xs hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
           aria-label={`${f.name} — ${t("hc_routesAppStudentCourses.viewRun")}`}
         >
@@ -1500,7 +1500,7 @@ function ContentFileChip({
             consume("open");
             onViewMedia(f);
           }}
-          className="flex items-center justify-center gap-1 px-2 h-8 text-[11px] hover:bg-muted/60 transition-colors"
+          className="flex items-center justify-center gap-1 px-2 h-8 text-2xs hover:bg-muted/60 transition-colors"
           title={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
           aria-label={`${f.name} — ${isImageFile(f.name) ? t("mediaViewer.viewImage") : t("mediaViewer.viewPdf")}`}
         >
@@ -1533,7 +1533,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
   const { t } = useTranslation();
   if (!status) {
     return (
-      <Badge variant="outline" className="text-[10px]">
+      <Badge variant="outline" className="text-3xs">
         <Clock className="h-3 w-3 mr-1" />
         {t("courseBoard.attendancePending")}
       </Badge>
@@ -1543,7 +1543,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
     return (
       <Badge
         variant="outline"
-        className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+        className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
       >
         <CheckCircle2 className="h-3 w-3 mr-1" />
         {t("courseBoard.attendancePresent")}
@@ -1552,7 +1552,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
   }
   if (status === "absent") {
     return (
-      <Badge variant="destructive" className="text-[10px]">
+      <Badge variant="destructive" className="text-3xs">
         <XCircle className="h-3 w-3 mr-1" />
         {t("courseBoard.attendanceAbsent")}
       </Badge>
@@ -1562,7 +1562,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
     return (
       <Badge
         variant="outline"
-        className="text-[10px] bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
+        className="text-3xs bg-amber-500/10 text-amber-700 border-amber-500/30 dark:text-amber-300"
       >
         <Clock3 className="h-3 w-3 mr-1" />
         {t("courseBoard.attendanceLate")}
@@ -1570,7 +1570,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
     );
   }
   return (
-    <Badge variant="secondary" className="text-[10px]">
+    <Badge variant="secondary" className="text-3xs">
       {t("courseBoard.attendanceJustified")}
     </Badge>
   );
@@ -1742,7 +1742,7 @@ function SubscribeCalendarButton() {
         <button
           type="button"
           onClick={() => void showFallback()}
-          className="inline-flex items-center min-h-8 py-1.5 text-[10px] text-muted-foreground underline hover:text-foreground"
+          className="inline-flex items-center min-h-8 py-1.5 text-3xs text-muted-foreground underline hover:text-foreground"
         >
           {t("courseBoard.subscribeFallbackLink")}
         </button>
@@ -1764,7 +1764,7 @@ function SubscribeCalendarButton() {
               value={fallbackUrl}
               readOnly
               onClick={(e) => e.currentTarget.select()}
-              className="font-mono text-[11px]"
+              className="font-mono text-2xs"
             />
             <div className="flex justify-end">
               <Button size="sm" onClick={() => void copyFallbackUrl()}>
@@ -1774,7 +1774,7 @@ function SubscribeCalendarButton() {
                   : t("courseBoard.subscribeFallbackCopy")}
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground pt-2 border-t">
+            <p className="text-2xs text-muted-foreground pt-2 border-t">
               {t("courseBoard.subscribeFallbackHint")}
             </p>
           </div>

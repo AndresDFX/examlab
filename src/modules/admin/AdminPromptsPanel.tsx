@@ -728,7 +728,7 @@ export function AdminPromptsPanel() {
         {/* En `branding` no contamos prompts — la categoría tiene su
             propio Card de marca institucional, no use_cases de IA. */}
         {moduleFilter !== "branding" && (
-          <Badge variant="outline" className="text-[11px] tabular-nums h-6">
+          <Badge variant="outline" className="text-2xs tabular-nums h-6">
             {t("adminPromptsPanel.showingCount", { shown: filteredUseCases.length, total: USE_CASES.length })}
           </Badge>
         )}
@@ -808,7 +808,7 @@ export function AdminPromptsPanel() {
                     value={brand.author_default ?? ""}
                     onChange={(e) => setBrand({ ...brand, author_default: e.target.value || null })}
                   />
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("adminPromptsPanel.brandingFieldAuthorHint")}
                   </p>
                 </div>
@@ -845,11 +845,11 @@ export function AdminPromptsPanel() {
                 <CardTitle className="text-base flex items-center gap-2 flex-wrap">
                   {uc.label}
                   {isDefault ? (
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {t("adminPromptsPanel.badgeDefault")}
                     </Badge>
                   ) : (
-                    <Badge className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
+                    <Badge className="text-3xs bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25">
                       {t("adminPromptsPanel.badgeCustomized")}
                     </Badge>
                   )}

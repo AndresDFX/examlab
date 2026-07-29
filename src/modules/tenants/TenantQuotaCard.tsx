@@ -159,7 +159,7 @@ export function QuotaTile({
     : Math.min(100, Math.round((current / Math.max(1, max as number)) * 100));
   return (
     <div className="rounded-md border p-2 bg-background">
-      <div className="text-[11px] text-muted-foreground truncate">{label}</div>
+      <div className="text-2xs text-muted-foreground truncate">{label}</div>
       <div
         className={`text-sm font-semibold tabular-nums mt-0.5 ${
           atLimit ? "text-destructive" : ""

@@ -685,13 +685,13 @@ function TrashPage() {
                         </div>
                         {/* Repetir tipo en mobile (la columna está hidden). */}
                         <div className="sm:hidden">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-3xs">
                             {TRASH_TABLE_LABEL[item.table]}
                           </Badge>
                         </div>
                       </TableCell>
                       <TableCell className="hidden sm:table-cell">
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-3xs">
                           {TRASH_TABLE_LABEL[item.table]}
                         </Badge>
                       </TableCell>

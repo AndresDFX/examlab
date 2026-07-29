@@ -264,8 +264,8 @@ function RiskTally({ level, count, total }: { level: RiskLevel; count: number; t
   return (
     <div className={cn("rounded-md border p-2.5", RISK_TONE[level])}>
       <div className="text-xl font-semibold tabular-nums">{count}</div>
-      <div className="text-[11px] leading-tight opacity-90">{t(`earlyAlert.level.${level}`)}</div>
-      <div className="text-[10px] opacity-70 tabular-nums">
+      <div className="text-2xs leading-tight opacity-90">{t(`earlyAlert.level.${level}`)}</div>
+      <div className="text-3xs opacity-70 tabular-nums">
         {t("earlyAlert.ofStudents", { count: total })}
       </div>
     </div>

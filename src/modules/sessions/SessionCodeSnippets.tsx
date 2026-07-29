@@ -624,7 +624,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
           <Code2 className="h-4 w-4 text-indigo-500" />
           {t("hc_modulesSessionsSessionCodeSnippets.heading")}
           {snippets.length > 0 && (
-            <Badge variant="secondary" className="text-[10px] ml-1">
+            <Badge variant="secondary" className="text-3xs ml-1">
               {snippets.length}
             </Badge>
           )}
@@ -674,7 +674,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   )}
                 </CardTitle>
                 {readOnly ? (
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-3xs">
                     {LANG_LABEL[snippet.language] ?? snippet.language}
                   </Badge>
                 ) : (
@@ -730,7 +730,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   return (
                     <div
                       key={file.id}
-                      className={`group flex items-center gap-1 rounded-t-md border px-2 py-1 text-[11px] ${
+                      className={`group flex items-center gap-1 rounded-t-md border px-2 py-1 text-2xs ${
                         active
                           ? "border-indigo-500/60 bg-indigo-500/10 font-medium"
                           : "border-transparent bg-muted/40 text-muted-foreground hover:bg-muted"
@@ -751,7 +751,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                           onChange={(e) =>
                             updateFile(snippet.id, fileIdx, { filename: e.target.value })
                           }
-                          className="h-5 w-[120px] px-1 text-[11px] border-0 bg-transparent focus-visible:ring-1"
+                          className="h-5 w-[120px] px-1 text-2xs border-0 bg-transparent focus-visible:ring-1"
                           placeholder={defaultFilename(snippet.language, fileIdx)}
                         />
                       ) : (
@@ -782,7 +782,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-6 px-1.5 text-[11px]"
+                    className="h-6 px-1.5 text-2xs"
                     onClick={() => void addFile(snippet.id)}
                     title={t("hc_modulesSessionsSessionCodeSnippets.addFileTitle")}
                   >
@@ -817,7 +817,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                 }
               />
               {output && (
-                <div className="mt-1 text-[10px] text-muted-foreground">
+                <div className="mt-1 text-3xs text-muted-foreground">
                   exit {output.exitCode}
                   {!readOnly && snippet.last_executed_at && (
                     <span className="ml-2">

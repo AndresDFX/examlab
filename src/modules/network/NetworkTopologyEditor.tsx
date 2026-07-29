@@ -216,7 +216,7 @@ export function NetworkTopologyEditor({ scenario, value, onChange, readOnly }: P
           {topo.devices.map((d) => (
             <div key={d.id} className="rounded-md border p-2 space-y-2">
               <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase text-muted-foreground w-14 shrink-0">{d.kind}</span>
+                <span className="text-3xs uppercase text-muted-foreground w-14 shrink-0">{d.kind}</span>
                 <Input
                   value={d.name}
                   onChange={(e) => updateDevice(d.id, { name: e.target.value })}

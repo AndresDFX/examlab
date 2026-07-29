@@ -80,7 +80,7 @@ export function MessagesBell() {
             <span
               className={cn(
                 "absolute -top-0.5 -right-0.5 flex h-4 min-w-4 items-center justify-center",
-                "rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground",
+                "rounded-full bg-destructive px-1 text-3xs font-medium text-destructive-foreground",
               )}
             >
               {unread > 99 ? "99+" : unread}

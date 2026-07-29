@@ -278,11 +278,11 @@ function ForumThreads() {
   };
 
   return (
-    <div className="container mx-auto space-y-5 p-4 sm:p-6">
+    <div className="space-y-5">
       <PageHeader
         backTo="/app/forum/$courseId"
         backParams={{ courseId }}
-        icon={<MessageSquareText className="h-6 w-6 text-indigo-500" />}
+        icon={<MessageSquareText className="h-6 w-6" />}
         title={forum ? forum.title : t("forumThreads.defaultTitle")}
         subtitle={course ? t("forumThreads.subtitleFormat", { courseName: course.name }) : undefined}
         actions={
@@ -308,12 +308,12 @@ function ForumThreads() {
           {open ? (
             <Badge
               variant="outline"
-              className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+              className="text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
             >
               {t("forumThreads.statusOpen")}
             </Badge>
           ) : (
-            <Badge variant="outline" className="text-[10px]">
+            <Badge variant="outline" className="text-3xs">
               <Lock className="h-2.5 w-2.5 mr-0.5" />
               {forum.manually_closed_at
                 ? t("forumThreads.statusClosedManual")
@@ -323,7 +323,7 @@ function ForumThreads() {
             </Badge>
           )}
           {forum.session && !forum.session.deleted_at && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
               {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
               {forum.session.title ? ` · ${forum.session.title}` : ""}
@@ -502,7 +502,7 @@ function ThreadCard({
                 {thread.is_pinned && (
                   <Badge
                     variant="outline"
-                    className="text-[10px] text-indigo-700 dark:text-indigo-300 border-indigo-500/40"
+                    className="text-3xs text-indigo-700 dark:text-indigo-300 border-indigo-500/40"
                   >
                     <Pin className="h-2.5 w-2.5 mr-0.5" />
                     {i18n.t("forumThreads.badgePinned")}
@@ -511,7 +511,7 @@ function ThreadCard({
                 {thread.is_locked && (
                   <Badge
                     variant="outline"
-                    className="text-[10px] text-amber-700 dark:text-amber-300 border-amber-500/40"
+                    className="text-3xs text-amber-700 dark:text-amber-300 border-amber-500/40"
                   >
                     <Lock className="h-2.5 w-2.5 mr-0.5" />
                     {i18n.t("forumThreads.badgeLocked")}
@@ -520,7 +520,7 @@ function ThreadCard({
                 {isResolved && (
                   <Badge
                     variant="outline"
-                    className="text-[10px] text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
+                    className="text-3xs text-emerald-700 dark:text-emerald-400 border-emerald-500/40 bg-emerald-500/10"
                   >
                     <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
                     {i18n.t("forumThreads.badgeResolved")}
@@ -533,12 +533,12 @@ function ThreadCard({
               </div>
               <div className="flex flex-wrap items-center gap-1.5 mt-2">
                 {thread.tags.map((tag) => (
-                  <Badge key={tag} variant="secondary" className="text-[10px]">
+                  <Badge key={tag} variant="secondary" className="text-3xs">
                     #{tag}
                   </Badge>
                 ))}
               </div>
-              <div className="text-[11px] text-muted-foreground mt-2">
+              <div className="text-2xs text-muted-foreground mt-2">
                 {thread.author?.full_name ?? "—"} ·{" "}
                 {i18n.t("forumThreads.lastActivity", { datetime: formatDateTime(thread.last_activity_at) })}
               </div>

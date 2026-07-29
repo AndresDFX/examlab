@@ -697,7 +697,7 @@ export function UploadExternalContentDialog({
                       ? t("contents.modeFull")
                       : t("contents.modeSingle")}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-2xs text-muted-foreground">
                     {m === "curso_completo"
                       ? t("contents.modeFullDesc")
                       : t("contents.modeSingleDesc")}
@@ -787,13 +787,13 @@ export function UploadExternalContentDialog({
                       <div className="font-medium text-sm">{opt.label}</div>
                       {active && <CheckSquareIcon className="h-3.5 w-3.5 text-primary" />}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                    <div className="text-3xs text-muted-foreground">{opt.desc}</div>
                   </button>
                 );
               })}
             </div>
             {tags.length === 0 && (
-              <p className="text-[11px] text-destructive">{t("contents.tagsRequired")}</p>
+              <p className="text-2xs text-destructive">{t("contents.tagsRequired")}</p>
             )}
           </div>
 
@@ -914,7 +914,7 @@ export function UploadExternalContentDialog({
               </div>
             )}
             {selectedCourseIds.size > 0 && (
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {t("hc_modulesContentsUploadExternalContentDialog.coursesSelected", {
                   count: selectedCourseIds.size,
                 })}
@@ -995,7 +995,7 @@ export function UploadExternalContentDialog({
                     key={`${f.name}-${idx}`}
                     className="flex items-center gap-2 rounded border px-2 py-1 text-xs"
                   >
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {(f.size / 1024).toFixed(0)} KB
                     </Badge>
                     <span className="flex-1 truncate" title={relPathOf(f)}>{relPathOf(f)}</span>

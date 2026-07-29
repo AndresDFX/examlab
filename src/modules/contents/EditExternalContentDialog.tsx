@@ -233,7 +233,7 @@ export function EditExternalContentDialog({ content, onOpenChange, onSaved }: Pr
                   <div className="font-medium text-sm">
                     {m === "curso_completo" ? t("contents.modeFull") : t("contents.modeSingle")}
                   </div>
-                  <div className="text-[11px] text-muted-foreground">
+                  <div className="text-2xs text-muted-foreground">
                     {m === "curso_completo"
                       ? t("contents.modeFullDesc")
                       : t("contents.modeSingleDesc")}

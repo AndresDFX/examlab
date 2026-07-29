@@ -547,16 +547,16 @@ function Inner() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<FileBarChart className="h-6 w-6 text-pink-500" />}
+        icon={<FileBarChart className="h-6 w-6" />}
         title={t("adminReportTemplates.title")}
         subtitle={loading ? undefined : t("adminReportTemplates.subtitleCount", { count: templates.length })}
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => docxInputRef.current?.click()}>
+            <Button variant="outline" size="sm" onClick={() => docxInputRef.current?.click()}>
               <Upload className="h-4 w-4 mr-1" />
               {t("adminReportTemplates.loadWordBtn")}
             </Button>
-            <Button onClick={openNew}>
+            <Button size="sm" onClick={openNew}>
               <Plus className="h-4 w-4 mr-1" />
               {t("adminReportTemplates.newTemplateBtn")}
             </Button>

@@ -276,7 +276,7 @@ export function PendingExamNotesModal({ open, onOpenChange, onChange }: Props) {
             <FileText className="h-5 w-5" />
             {t("hc_modulesExamsPendingExamNotesModal.title")}
             {!loading && (
-              <Badge variant="secondary" className="text-[10px]">
+              <Badge variant="secondary" className="text-3xs">
                 {rows.length}
               </Badge>
             )}
@@ -350,7 +350,7 @@ function PendingNoteRow({
             {note.courseName ? `${note.courseName} · ` : ""}
             {note.examTitle ?? t("hc_modulesExamsPendingExamNotesModal.examDeleted")}
           </div>
-          <div className="text-[10px] text-muted-foreground/70 tabular-nums truncate">
+          <div className="text-3xs text-muted-foreground/70 tabular-nums truncate">
             {t("hc_modulesExamsPendingExamNotesModal.uploadedAt", { date: formatDateTime(note.created_at) })}
           </div>
         </div>
@@ -362,7 +362,7 @@ function PendingNoteRow({
       </div>
 
       {/* Preview del contenido — pequeño, scroll si es largo. */}
-      <pre className="whitespace-pre-wrap text-[11px] leading-relaxed bg-muted/40 rounded p-2 max-h-24 overflow-y-auto">
+      <pre className="whitespace-pre-wrap text-2xs leading-relaxed bg-muted/40 rounded p-2 max-h-24 overflow-y-auto">
         {note.content}
       </pre>
 

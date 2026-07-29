@@ -357,13 +357,13 @@ function EmailSuppressionsCard({
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-sm font-medium truncate">{r.email}</span>
-                    <Badge variant="secondary" className="text-[10px]">
+                    <Badge variant="secondary" className="text-3xs">
                       {t(`hc_modulesAdminAdminEmailSettingsPanel.reason_${r.reason}`, {
                         defaultValue: REASON_LABEL[r.reason] ?? r.reason,
                       })}
                     </Badge>
                     {r.tenant_id === null && (
-                      <Badge variant="outline" className="text-[10px]">
+                      <Badge variant="outline" className="text-3xs">
                         {t("hc_modulesAdminAdminEmailSettingsPanel.globalBadge", {
                           defaultValue: "Global",
                         })}
@@ -371,9 +371,9 @@ function EmailSuppressionsCard({
                     )}
                   </div>
                   {r.note && (
-                    <p className="text-[11px] text-muted-foreground truncate mt-0.5">{r.note}</p>
+                    <p className="text-2xs text-muted-foreground truncate mt-0.5">{r.note}</p>
                   )}
-                  <p className="text-[10px] text-muted-foreground mt-0.5">
+                  <p className="text-3xs text-muted-foreground mt-0.5">
                     {formatDateTime(r.created_at)}
                   </p>
                 </div>
@@ -532,7 +532,7 @@ export function AdminEmailSettingsPanel() {
                 })}
               </p>
               {!globallyEnabled && (
-                <Badge variant="destructive" className="text-[10px] mt-1">
+                <Badge variant="destructive" className="text-3xs mt-1">
                   {t("hc_modulesAdminAdminEmailSettingsPanel.globallyDisabledBadge", {
                     defaultValue: "Correos desactivados globalmente",
                   })}
@@ -602,7 +602,7 @@ export function AdminEmailSettingsPanel() {
 
       <div className="flex items-center justify-between">
         {settings && (
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("hc_modulesAdminAdminEmailSettingsPanel.lastUpdated", {
               date: formatDateTime(settings.updated_at),
               defaultValue: "Última actualización: {{date}}",

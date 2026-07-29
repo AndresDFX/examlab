@@ -249,7 +249,7 @@ export function ContentPromptsOverridesDialog({
                       {meta.label}
                       {customized ? (
                         <Badge
-                          className="text-[10px] bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25"
+                          className="text-3xs bg-indigo-500/15 text-indigo-700 border-indigo-500/25 dark:bg-indigo-400/15 dark:text-indigo-300 dark:border-indigo-400/25"
                           data-testid={`badge-customized-${meta.key}`}
                         >
                           {t("hc_modulesContentsContentPromptsOverridesDialog.badgeCustomized")}
@@ -257,7 +257,7 @@ export function ContentPromptsOverridesDialog({
                       ) : (
                         <Badge
                           variant="secondary"
-                          className="text-[10px]"
+                          className="text-3xs"
                           data-testid={`badge-global-${meta.key}`}
                         >
                           {t("hc_modulesContentsContentPromptsOverridesDialog.badgeGlobal")}

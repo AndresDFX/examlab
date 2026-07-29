@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { logEvent } from "@/shared/lib/audit";
 import { supabase } from "@/integrations/supabase/client";
@@ -113,6 +113,18 @@ function AuthPage() {
   // localStorage acá rompe el primer render cuando el HTML pre-renderizado
   // no los tiene.
   const [selectedSlug, setSelectedSlug] = useState<string>("");
+  // La opción de vista de plataforma (SuperAdmin, sin institución) NO se
+  // ofrece por defecto: quien entra acá es casi siempre un estudiante o un
+  // docente, para quien esa opción termina en el rechazo
+  // `auth.crossTenantOnlySuperAdmin`. Se revela con un gesto deliberado
+  // (enlace "Soy del equipo de plataforma" al pie) — descubrible para quien
+  // la necesita, ausente para el resto.
+  //
+  // Initializer DETERMINÍSTICO (false) por la misma razón que email /
+  // rememberMe / selectedSlug: leer storage o URL acá rompe la hidratación
+  // (React #418). El único caso que lo enciende automáticamente es el slug
+  // recordado, y eso pasa POST-mount en el efecto "hydrate-remember".
+  const [platformViewShown, setPlatformViewShown] = useState(false);
 
   // Post-mount: leer flags / URL / storage y poblar email, rememberMe,
   // selectedSlug. Corre UNA sola vez tras el primer render — el árbol
@@ -139,7 +151,15 @@ function AuthPage() {
       try {
         if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
           const storedSlug = window.localStorage.getItem(REMEMBER_SLUG_KEY);
-          if (storedSlug) setSelectedSlug(storedSlug);
+          if (storedSlug) {
+            setSelectedSlug(storedSlug);
+            // Un SuperAdmin que marcó "Recordarme" entrando sin institución
+            // dejó el sentinel guardado: revelamos la opción para que el
+            // Select no quede con un value sin item que lo respalde
+            // (SelectValue mostraría el placeholder y el submit sería un
+            // rechazo silencioso).
+            if (storedSlug === SUPERADMIN_CROSS_TENANT) setPlatformViewShown(true);
+          }
         }
       } catch {
         /* ignore */
@@ -177,11 +197,6 @@ function AuthPage() {
       setSelectedSlug(fromUrl);
     }
   }, [tenantsLoading, tenants]);
-
-  const selectedTenant = useMemo(
-    () => tenants.find((tn) => tn.slug === selectedSlug) ?? null,
-    [tenants, selectedSlug],
-  );
 
   const openForgot = () => {
     setForgotEmail(email);
@@ -530,21 +545,20 @@ function AuthPage() {
                         {tn.name}
                       </SelectItem>
                     ))}
-                    {/* Opción especial para SuperAdmin cross-tenant. Cualquier
-                        non-SuperAdmin que la elija será rechazado post-auth. */}
-                    <SelectItem value={SUPERADMIN_CROSS_TENANT}>
-                      {t("auth.crossTenantOption", {
-                        defaultValue: "— SuperAdmin: vista cross-tenant —",
-                      })}
-                    </SelectItem>
+                    {/* Opción especial para SuperAdmin sin institución.
+                        Oculta hasta que el usuario la pide desde el pie
+                        ("Soy del equipo de plataforma") — cualquier
+                        non-SuperAdmin que la elija será rechazado post-auth,
+                        así que no tiene sentido ofrecérsela a todos. */}
+                    {platformViewShown && (
+                      <SelectItem value={SUPERADMIN_CROSS_TENANT}>
+                        {t("auth.crossTenantOption", {
+                          defaultValue: "— SuperAdmin: vista cross-tenant —",
+                        })}
+                      </SelectItem>
+                    )}
                   </SelectContent>
                 </Select>
-                {selectedTenant && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("auth.institutionUrl", { defaultValue: "URL:" })}{" "}
-                    <code className="text-[11px]">/t/{selectedTenant.slug}</code>
-                  </p>
-                )}
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="li-email" required>
@@ -633,7 +647,7 @@ function AuthPage() {
                 Si no, cierra sesión + muestra error. */}
             <div className="my-4 flex items-center gap-3">
               <div className="flex-1 h-px bg-border" />
-              <span className="text-[11px] uppercase tracking-wide text-muted-foreground">
+              <span className="text-2xs uppercase tracking-wide text-muted-foreground">
                 {t("auth.sso.divider", { defaultValue: "o continúa con" })}
               </span>
               <div className="flex-1 h-px bg-border" />
@@ -675,7 +689,7 @@ function AuthPage() {
                 {t("auth.sso.microsoft", { defaultValue: "Microsoft" })}
               </Button>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">
+            <p className="text-2xs text-muted-foreground mt-2 text-center">
               {t("auth.sso.noAutoCreate", {
                 defaultValue:
                   "El SSO solo entra si tu admin ya creó tu cuenta. No registra usuarios nuevos.",
@@ -692,6 +706,29 @@ function AuthPage() {
               <Link to="/privacy" className="hover:text-foreground">
                 {t("nav.privacy")}
               </Link>
+            </div>
+            {/* Puerta explícita a la vista de plataforma (SuperAdmin sin
+                institución). Un enlace visible al pie, no un truco oculto:
+                quien lo necesita lo encuentra, y el estudiante que nunca lo
+                toca no ve una opción que lo rechazaría. */}
+            <div className="mt-1 text-center">
+              {platformViewShown ? (
+                <p className="py-2 text-xs text-muted-foreground">
+                  {t("auth.platformTeamRevealed", {
+                    defaultValue: "Agregamos la vista de plataforma al selector de institución.",
+                  })}
+                </p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setPlatformViewShown(true)}
+                  className="rounded px-2 py-2 text-xs text-muted-foreground/70 hover:text-foreground hover:underline"
+                >
+                  {t("auth.platformTeamReveal", {
+                    defaultValue: "Soy del equipo de plataforma",
+                  })}
+                </button>
+              )}
             </div>
           </CardContent>
         </Card>

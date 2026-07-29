@@ -381,12 +381,12 @@ export function AdminAiGradingPanel() {
                 <Zap className="h-3.5 w-3.5 mr-1" />
                 {t("adminAiGradingPanel.modeSync")}
               </Button>
-              <Badge variant="outline" className="text-[10px] ml-auto">
+              <Badge variant="outline" className="text-3xs ml-auto">
                 {t("adminAiGradingPanel.current", { mode: mode === "async" ? t("adminAiGradingPanel.modeQueueShort") : "sync" })}
               </Badge>
             </div>
           )}
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-2xs text-muted-foreground">
             {t("adminAiGradingPanel.processingNote")}
           </p>
         </CardContent>
@@ -403,7 +403,7 @@ export function AdminAiGradingPanel() {
         <CardContent className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
             <div>
-              <Label className="text-[11px]">{t("adminAiGradingPanel.labelField")}</Label>
+              <Label className="text-2xs">{t("adminAiGradingPanel.labelField")}</Label>
               <Input
                 value={newLabel}
                 onChange={(e) => setNewLabel(e.target.value)}
@@ -411,7 +411,7 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">
+              <Label className="text-2xs">
                 {t("adminAiGradingPanel.windowField")}
                 <HelpHint>{t("help.windowDurationHelp")}</HelpHint>
               </Label>
@@ -424,7 +424,7 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">
+              <Label className="text-2xs">
                 {t("adminAiGradingPanel.maxActivationsField")}
                 <HelpHint>{t("help.maxActivationsHelp")}</HelpHint>
               </Label>
@@ -436,7 +436,7 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">
+              <Label className="text-2xs">
                 {t("adminAiGradingPanel.maxMessagesField")}
                 <HelpHint>{t("help.maxMessagesHelp")}</HelpHint>
               </Label>
@@ -452,7 +452,7 @@ export function AdminAiGradingPanel() {
               />
             </div>
             <div>
-              <Label className="text-[11px]">{t("adminAiGradingPanel.expiresField")}</Label>
+              <Label className="text-2xs">{t("adminAiGradingPanel.expiresField")}</Label>
               <Input
                 type="number"
                 min={1}
@@ -562,14 +562,14 @@ export function AdminAiGradingPanel() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <Badge variant={status.variant} className="text-[10px]">
+                          <Badge variant={status.variant} className="text-3xs">
                             {status.label}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-[11px] text-muted-foreground">
+                        <TableCell className="text-2xs text-muted-foreground">
                           {formatDateTime(c.created_at)}
                           {c.expires_at && (
-                            <div className="text-[10px]">exp {formatDateTime(c.expires_at)}</div>
+                            <div className="text-3xs">exp {formatDateTime(c.expires_at)}</div>
                           )}
                         </TableCell>
                         <TableCell>

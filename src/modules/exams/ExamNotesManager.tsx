@@ -141,7 +141,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
   const statusBadge = note ? (
     <Badge
       variant={isApproved ? "default" : isRejected ? "destructive" : "secondary"}
-      className="text-[10px]"
+      className="text-3xs"
     >
       {isApproved ? (
         <>
@@ -180,7 +180,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
             inmediato qué corregir antes de re-enviar. Una línea con
             truncate; el texto completo siempre vive en el dialog. */}
         {isRejected && note?.rejection_reason && (
-          <div className="flex items-start gap-1.5 text-[11px] text-destructive border-l-2 border-destructive/40 pl-2">
+          <div className="flex items-start gap-1.5 text-2xs text-destructive border-l-2 border-destructive/40 pl-2">
             <XCircle className="h-3 w-3 mt-0.5 shrink-0" />
             <span className="line-clamp-2" title={note.rejection_reason}>
               <strong>{t("hc_modulesExamsExamNotesManager.reasonLabel")}</strong>{" "}
@@ -204,10 +204,10 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
                 <XCircle className="h-3.5 w-3.5" />
                 {t("hc_modulesExamsExamNotesManager.lastRejectionReason")}
               </div>
-              <p className="text-[12px] text-destructive whitespace-pre-wrap break-words">
+              <p className="text-xs text-destructive whitespace-pre-wrap break-words">
                 {note.rejection_reason}
               </p>
-              <p className="text-[10px] text-muted-foreground pt-1">
+              <p className="text-3xs text-muted-foreground pt-1">
                 {t("hc_modulesExamsExamNotesManager.fixAndResend")}
               </p>
             </div>
@@ -239,7 +239,7 @@ export function StudentExamNotes({ examId, userId }: { examId: string; userId: s
               </Button>
             )}
             {isPending && (
-              <span className="text-[11px] text-muted-foreground self-center">
+              <span className="text-2xs text-muted-foreground self-center">
                 {t("hc_modulesExamsExamNotesManager.teacherMustApprove")}
               </span>
             )}
@@ -447,17 +447,17 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
       {notes.map((n) => {
         const statusBadge =
           n.status === "aprobada" ? (
-            <Badge variant="default" className="text-[10px]">
+            <Badge variant="default" className="text-3xs">
               <CheckCircle2 className="h-3 w-3 mr-0.5" />
               {t("hc_modulesExamsExamNotesManager.statusApproved")}
             </Badge>
           ) : n.status === "rechazada" ? (
-            <Badge variant="destructive" className="text-[10px]">
+            <Badge variant="destructive" className="text-3xs">
               <XCircle className="h-3 w-3 mr-0.5" />
               {t("hc_modulesExamsExamNotesManager.statusRejected")}
             </Badge>
           ) : (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               <Clock className="h-3 w-3 mr-0.5" />
               {t("hc_modulesExamsExamNotesManager.statusPending")}
             </Badge>
@@ -472,7 +472,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                     <div className="text-sm font-medium truncate">
                       {n.profile?.full_name ?? t("hc_modulesExamsExamNotesManager.studentFallback")}
                     </div>
-                    <div className="text-[11px] text-muted-foreground truncate">
+                    <div className="text-2xs text-muted-foreground truncate">
                       {n.profile?.institutional_email ?? n.user_id}
                     </div>
                   </div>
@@ -480,7 +480,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
                 {statusBadge}
               </div>
               {n.status === "rechazada" && n.rejection_reason && (
-                <div className="text-[11px] rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
+                <div className="text-2xs rounded border border-destructive/40 bg-destructive/5 p-2 text-destructive">
                   <strong>{t("hc_modulesExamsExamNotesManager.previousReasonLabel")}</strong>{" "}
                   {n.rejection_reason}
                 </div>
@@ -507,7 +507,7 @@ export function TeacherExamNotes({ examId }: { examId: string }) {
               )}
               {n.status === "rechazada" && (
                 <div className="flex justify-between items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {t("hc_modulesExamsExamNotesManager.studentCanUploadNew")}
                   </span>
                   <Button size="sm" onClick={() => approve(n.id)} disabled={busy}>

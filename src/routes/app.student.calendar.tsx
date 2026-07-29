@@ -341,9 +341,9 @@ function StudentCalendar() {
   };
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <PageHeader
-        icon={<CalendarIcon className="h-6 w-6 text-blue-500" />}
+        icon={<CalendarIcon className="h-6 w-6" />}
         title={t("hc_routesAppStudentCalendar.pageTitle")}
         subtitle={t("hc_routesAppStudentCalendar.pageSubtitle")}
       />
@@ -448,7 +448,7 @@ function StudentCalendar() {
                   size="sm"
                   variant={active ? "default" : "outline"}
                   onClick={() => toggleKind(k)}
-                  className="h-7 text-[11px]"
+                  className="h-7 text-2xs"
                 >
                   <Icon className="h-3 w-3 mr-1" />
                   {t(KIND_LABEL_KEY[k])}
@@ -520,7 +520,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="text-sm font-medium truncate">{event.title}</span>
-          <Badge variant="outline" className="text-[10px]">
+          <Badge variant="outline" className="text-3xs">
             {t(KIND_LABEL_KEY[event.kind])}
           </Badge>
           {event.kind === "session" && <SessionTypeBadge type={event.sessionType} />}
@@ -532,7 +532,7 @@ function EventRow({ event }: { event: CalendarEvent }) {
             <span>{t("hc_routesAppStudentCalendar.end", { time: formatDateTime(event.end) })}</span>
           )}
           {event.allDay && (
-            <Badge variant="secondary" className="text-[9px]">
+            <Badge variant="secondary" className="text-3xs">
               {t("hc_routesAppStudentCalendar.allDay")}
             </Badge>
           )}
@@ -560,14 +560,14 @@ function EventRow({ event }: { event: CalendarEvent }) {
               href={event.location}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-[11px] text-primary hover:underline inline-flex items-center gap-1"
+              className="text-2xs text-primary hover:underline inline-flex items-center gap-1"
             >
               <ExternalLink className="h-3 w-3" />
               {t("hc_routesAppStudentCalendar.meeting")}
             </a>
           )}
           {event.link && (
-            <Link to={event.link} className="text-[11px] text-muted-foreground hover:underline">
+            <Link to={event.link} className="text-2xs text-muted-foreground hover:underline">
               {t("hc_routesAppStudentCalendar.goTo")}
             </Link>
           )}

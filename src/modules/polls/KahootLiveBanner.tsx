@@ -143,7 +143,7 @@ export function KahootLiveBanner() {
             {t("kahoot.liveBannerTitle", { defaultValue: "¡Reto en vivo!" })}
             {game.title ? ` · ${game.title}` : ""}
           </p>
-          <p className="text-[11px] text-muted-foreground truncate">
+          <p className="text-2xs text-muted-foreground truncate">
             {game.amIPlayer
               ? t("kahoot.liveBannerReconnect", { defaultValue: "Tu juego sigue activo — vuelve a entrar." })
               : t("kahoot.liveBannerJoin", { defaultValue: "Únete ahora con tu cuenta — sin PIN." })}

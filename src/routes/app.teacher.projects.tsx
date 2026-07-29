@@ -2511,7 +2511,7 @@ function TeacherProjects() {
               resourceName={t("hc_routesAppTeacherProjects.resourceName")}
               onExport={exportProjectsCsv}
             />
-            <Button onClick={openNew} data-tour-id="create-project" disabled={saving}>
+            <Button size="sm" onClick={openNew} data-tour-id="create-project" disabled={saving}>
               <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherProjects.newProject")}
             </Button>
           </>
@@ -2800,7 +2800,7 @@ function TeacherProjects() {
                 <Label htmlFor="project-is-external" className="text-sm">
                   {t("hc_routesAppTeacherProjects.externalActivity")}
                 </Label>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-2xs text-muted-foreground leading-tight">
                   {t("hc_routesAppTeacherProjects.externalActivityHint")}
                 </p>
               </div>
@@ -2839,7 +2839,7 @@ function TeacherProjects() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-[11px] text-muted-foreground leading-tight">
+                <p className="text-2xs text-muted-foreground leading-tight">
                   {t("hc_routesAppTeacherProjects.workModeHint")}
                 </p>
               </div>
@@ -2861,7 +2861,7 @@ function TeacherProjects() {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-[11px]"
+                  className="h-7 px-2 text-2xs"
                   onClick={() => {
                     setAiDescTopic(form.title ?? "");
                     setAiDescOpen(true);
@@ -2916,7 +2916,7 @@ function TeacherProjects() {
                   <HelpHint>{t("help.introVideosHelpProject")}</HelpHint>
                 </Label>
                 {formIntroVideos.length === 0 && (
-                  <p className="text-[11px] text-muted-foreground italic">
+                  <p className="text-2xs text-muted-foreground italic">
                     {t("hc_routesAppTeacherProjects.noVideosHint")}
                   </p>
                 )}
@@ -2945,7 +2945,7 @@ function TeacherProjects() {
                     return (
                       <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+                          <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
                             {idx + 1}
                           </Badge>
                           <Input
@@ -3017,7 +3017,7 @@ function TeacherProjects() {
                             la cambia rompe el mapping (Y antes podía dejarla
                             vacía y la fila se descartaba al guardar). */}
                         {video.library_id ? (
-                          <div className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-[11px] text-muted-foreground">
+                          <div className="rounded-md border bg-muted/40 px-2.5 py-1.5 text-2xs text-muted-foreground">
                             {t("hc_routesAppTeacherProjects.urlManagedFromVideos")}{" "}
                             <span className="font-mono truncate inline-block max-w-[400px] align-bottom">
                               {video.url || t("hc_routesAppTeacherProjects.loadingParen")}
@@ -3049,7 +3049,7 @@ function TeacherProjects() {
                   <Plus className="h-3.5 w-3.5 mr-1" />
                   {t("hc_routesAppTeacherProjects.addVideo")}
                 </Button>
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("hc_routesAppTeacherProjects.videoTipPrefix")}{" "}
                   <strong>{t("hc_routesAppTeacherProjects.videosSidebar")}</strong>{" "}
                   {t("hc_routesAppTeacherProjects.videoTipSuffix")}
@@ -3284,12 +3284,12 @@ function TeacherProjects() {
                 placeholder={t("hc_routesAppTeacherProjects.topicPlaceholder")}
                 disabled={aiDescLoading}
               />
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("hc_routesAppTeacherProjects.descriptionContextHint")}
               </p>
             </div>
             {form.description && (
-              <p className="text-[11px] text-amber-700 dark:text-amber-300">
+              <p className="text-2xs text-amber-700 dark:text-amber-300">
                 {t("hc_routesAppTeacherProjects.willReplaceDescription")}
               </p>
             )}
@@ -3376,7 +3376,7 @@ function TeacherProjects() {
             headerExtras={
               assignProject && (assignProject.linked_course_ids ?? []).length > 0 ? (
                 <div className="space-y-2">
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {t("hc_routesAppTeacherProjects.filterByCourseHint")}
                   </p>
                   <div className="flex flex-wrap gap-1.5">
@@ -3397,7 +3397,7 @@ function TeacherProjects() {
                                 return next;
                               });
                             }}
-                            className={`text-[10px] px-2 py-0.5 rounded-full border ${
+                            className={`text-3xs px-2 py-0.5 rounded-full border ${
                               enabled
                                 ? "bg-primary text-primary-foreground border-primary"
                                 : "bg-muted text-muted-foreground"
@@ -3542,7 +3542,7 @@ function TeacherProjects() {
                   )}
                 </div>
                 {gradingSearch && (
-                  <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                  <span className="text-2xs text-muted-foreground tabular-nums shrink-0">
                     {t("hc_routesAppTeacherProjects.countOf", {
                       shown: filteredGradingSubs.length,
                       total: gradingSubs.length,
@@ -3563,7 +3563,7 @@ function TeacherProjects() {
                       monitor del examen. Solo aparece cuando hay
                       entregas seleccionables y aún ninguna marcada. */}
                   {gradingSel.count === 0 && filteredGradingSubs.length > 1 && (
-                    <span className="text-[11px] text-muted-foreground hidden md:inline-flex items-center gap-1">
+                    <span className="text-2xs text-muted-foreground hidden md:inline-flex items-center gap-1">
                       <span aria-hidden>↙</span>
                       {t("hc_routesAppTeacherProjects.markToRegradeSome")}
                     </span>
@@ -3684,18 +3684,18 @@ function TeacherProjects() {
                           <span className="font-medium text-sm">
                             {sub.profile?.full_name ?? "—"}
                           </span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-3xs text-muted-foreground">
                             {sub.profile?.institutional_email}
                           </span>
                           <div className="ml-auto">
                             <StatusBadge status={sub.status} />
                           </div>
                           {sub.defense_factor == null && headerGrade != null && (
-                            <Badge variant="secondary" className="text-[9px]">
+                            <Badge variant="secondary" className="text-3xs">
                               {t("hc_routesAppTeacherProjects.pendingDefenseBadge")}
                             </Badge>
                           )}
-                          <Badge variant="outline" className="text-[10px] tabular-nums">
+                          <Badge variant="outline" className="text-3xs tabular-nums">
                             {headerGrade != null
                               ? `${headerGrade}/${gradingProject?.max_score}`
                               : "—"}
@@ -3705,7 +3705,7 @@ function TeacherProjects() {
                       <AccordionContent>
                         <div className="space-y-3">
                           <div className="flex items-center justify-between flex-wrap gap-2">
-                            <p className="text-[11px] text-muted-foreground tabular-nums">
+                            <p className="text-2xs text-muted-foreground tabular-nums">
                               {t("hc_routesAppTeacherProjects.sentLabel")}{" "}
                               {formatDateTime(sub.submitted_at)}
                             </p>
@@ -3726,7 +3726,7 @@ function TeacherProjects() {
                           </div>
                           {sub.repository_url && (
                             <div className="rounded-md border bg-amber-500/5 dark:bg-amber-500/10 border-amber-500/30 p-2.5 space-y-1">
-                              <div className="text-[11px] text-muted-foreground">
+                              <div className="text-2xs text-muted-foreground">
                                 {t("hc_routesAppTeacherProjects.studentRepository")}
                               </div>
                               <a
@@ -3744,7 +3744,7 @@ function TeacherProjects() {
                               sustentación (fuera de pantalla) y el docente
                               creía que "no se veía lo que entregaron". */}
                           {gradingFiles.length > 0 && (
-                            <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            <div className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                               {t("hc_routesAppTeacherProjects.whatStudentSubmitted")}
                             </div>
                           )}
@@ -3762,13 +3762,13 @@ function TeacherProjects() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                                     <span className="text-sm font-medium">{f.title}</span>
-                                    <span className="text-[10px] text-muted-foreground">
+                                    <span className="text-3xs text-muted-foreground">
                                       {f.points} pts
                                     </span>
                                     {a?.zip_truncated && (
                                       <Badge
                                         variant="outline"
-                                        className="text-[10px] border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+                                        className="text-3xs border-amber-500/50 bg-amber-500/10 text-amber-700 dark:text-amber-300"
                                         title={t("hc_routesAppTeacherProjects.zipTruncatedTooltip", {
                                           chars:
                                             a.zip_chars_used ??
@@ -3783,7 +3783,7 @@ function TeacherProjects() {
                                         variant={
                                           Number(a.ai_likelihood) >= 0.6 ? "destructive" : "outline"
                                         }
-                                        className="text-[10px] ml-auto"
+                                        className="text-3xs ml-auto"
                                       >
                                         {t("hc_routesAppTeacherProjects.aiBadge", {
                                           pct: Math.round(Number(a.ai_likelihood) * 100),
@@ -3800,7 +3800,7 @@ function TeacherProjects() {
                                   {a?.ai_reasons &&
                                     a?.ai_likelihood != null &&
                                     Number(a.ai_likelihood) >= 0.6 && (
-                                      <div className="rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-[11px] text-amber-700 dark:text-amber-300">
+                                      <div className="rounded-md border border-amber-300/60 bg-amber-50/40 dark:bg-amber-500/5 dark:border-amber-500/30 p-2 text-2xs text-amber-700 dark:text-amber-300">
                                         <div className="font-medium mb-0.5">
                                           {t("hc_routesAppTeacherProjects.aiReasonsLabel")}
                                         </div>
@@ -3810,20 +3810,20 @@ function TeacherProjects() {
                                   {f.type === "codigo_zip" &&
                                     ((a?.code_paths && a.code_paths.length > 0) || a?.zip_path) && (
                                       <div className="rounded-md border bg-muted/30 p-2 space-y-1.5">
-                                        <div className="text-[11px] font-medium text-muted-foreground">
+                                        <div className="text-2xs font-medium text-muted-foreground">
                                           {t("hc_routesAppTeacherProjects.submittedFiles")}
                                         </div>
                                         {a?.code_paths && a.code_paths.length > 0
                                           ? a.code_paths.map((p) => (
                                               <div key={p} className="flex items-center gap-2 min-w-0">
                                                 <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
-                                                <span className="text-[11px] font-mono truncate flex-1">
+                                                <span className="text-2xs font-mono truncate flex-1">
                                                   {p.split("/").pop()}
                                                 </span>
                                                 <Button
                                                   size="sm"
                                                   variant="outline"
-                                                  className="h-6 px-2 text-[10px]"
+                                                  className="h-6 px-2 text-3xs"
                                                   onClick={async () => {
                                                     const { data, error } = await supabase.storage
                                                       .from("project-files")
@@ -3849,14 +3849,14 @@ function TeacherProjects() {
                                           : a?.zip_path && (
                                               <div className="flex items-center gap-2 min-w-0">
                                                 <FileArchive className="h-3.5 w-3.5 text-primary shrink-0" />
-                                                <span className="text-[11px] font-mono truncate flex-1">
+                                                <span className="text-2xs font-mono truncate flex-1">
                                                   {a.zip_path.split("/").pop()}{" "}
                                                   {t("hc_routesAppTeacherProjects.zipLegacy")}
                                                 </span>
                                                 <Button
                                                   size="sm"
                                                   variant="outline"
-                                                  className="h-6 px-2 text-[10px]"
+                                                  className="h-6 px-2 text-3xs"
                                                   onClick={async () => {
                                                     if (!a.zip_path) return;
                                                     const { data, error } = await supabase.storage
@@ -3895,7 +3895,7 @@ function TeacherProjects() {
                                   )}
                                   <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
                                     <div>
-                                      <Label className="text-[10px]">
+                                      <Label className="text-3xs">
                                         {t("hc_routesAppTeacherProjects.gradeMax", {
                                           points: f.points,
                                         })}
@@ -3910,7 +3910,7 @@ function TeacherProjects() {
                                       />
                                     </div>
                                     <div className="md:col-span-2">
-                                      <Label className="text-[10px]">
+                                      <Label className="text-3xs">
                                         {t("hc_routesAppTeacherProjects.feedback")}
                                       </Label>
                                       <Textarea
@@ -4163,9 +4163,9 @@ function DefensePanel({
         <div className="text-sm font-medium">{t("hc_routesAppTeacherProjects.defense")}</div>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
           <div>
-            <div className="text-muted-foreground text-[11px]">
+            <div className="text-muted-foreground text-2xs">
               {t("hc_routesAppTeacherProjects.submissionGrade")}{" "}
-              <span className="text-[10px]">(/{maxScore})</span>
+              <span className="text-3xs">(/{maxScore})</span>
             </div>
             <Input
               type="text"
@@ -4176,18 +4176,18 @@ function DefensePanel({
               className="h-8 text-xs font-mono tabular-nums"
             />
             {!subGradeValid && (
-              <p className="text-[10px] text-destructive mt-0.5">
+              <p className="text-3xs text-destructive mt-0.5">
                 0 — {maxScore}
               </p>
             )}
             {subGradeChanged && subGradeValid && (
-              <p className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+              <p className="text-3xs text-amber-600 dark:text-amber-400 mt-0.5">
                 {t("hc_routesAppTeacherProjects.overrideManualIa", { value: baselineSubGrade ?? 0 })}
               </p>
             )}
           </div>
           <div>
-            <div className="text-muted-foreground text-[11px] flex items-center gap-1">
+            <div className="text-muted-foreground text-2xs flex items-center gap-1">
               {t("hc_routesAppTeacherProjects.factor01")}
               <HelpHint>{t("help.defenseFactorHelp")}</HelpHint>
             </div>
@@ -4200,13 +4200,13 @@ function DefensePanel({
               className="h-8 text-xs"
             />
             {!factorValid && (
-              <p className="text-[10px] text-destructive mt-0.5">
+              <p className="text-3xs text-destructive mt-0.5">
                 {t("hc_routesAppTeacherProjects.factorRange")}
               </p>
             )}
           </div>
           <div>
-            <div className="text-muted-foreground text-[11px]">
+            <div className="text-muted-foreground text-2xs">
               {t("hc_routesAppTeacherProjects.finalGradeFormula")}
             </div>
             <div className="font-mono tabular-nums font-semibold">
@@ -4223,7 +4223,7 @@ function DefensePanel({
         />
         {/* Video de sustentación: pegar un enlace o subir un archivo. */}
         <div className="space-y-1">
-          <div className="text-muted-foreground text-[11px]">
+          <div className="text-muted-foreground text-2xs">
             {t("hc_routesAppTeacherProjects.defenseVideoLabel")}
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -4250,7 +4250,7 @@ function DefensePanel({
             </label>
           </div>
           {videoUrl && (
-            <div className="flex items-center gap-2 text-[11px]">
+            <div className="flex items-center gap-2 text-2xs">
               <button
                 type="button"
                 onClick={() => void openVideo()}
@@ -4270,7 +4270,7 @@ function DefensePanel({
               </button>
             </div>
           )}
-          <p className="text-[10px] text-muted-foreground">
+          <p className="text-3xs text-muted-foreground">
             {t("hc_routesAppTeacherProjects.defenseVideoTip")}
           </p>
         </div>

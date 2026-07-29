@@ -1032,7 +1032,7 @@ function TeacherWhiteboards() {
                 </SelectContent>
               </Select>
               {draftCourseId !== "none" && (
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_routesAppTeacherWhiteboardsIndex.courseShareNote")}
                 </p>
               )}

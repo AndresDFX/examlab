@@ -560,13 +560,13 @@ export function SupportTicketDetailDialog({
             <div className="min-w-0 flex-1">
               <DialogTitle className="text-base flex items-center gap-2 flex-wrap">
                 <span className="truncate">{ticket.subject}</span>
-                <Badge variant="outline" className={`text-[10px] ${STATUS_TONE[status]}`}>
+                <Badge variant="outline" className={`text-3xs ${STATUS_TONE[status]}`}>
                   {getStatusLabel(status)}
                 </Badge>
-                <Badge variant="outline" className={`text-[10px] ${PRIORITY_TONE[ticket.priority]}`}>
+                <Badge variant="outline" className={`text-3xs ${PRIORITY_TONE[ticket.priority]}`}>
                   {getPriorityLabel(ticket.priority)}
                 </Badge>
-                <Badge variant="secondary" className="text-[10px]">
+                <Badge variant="secondary" className="text-3xs">
                   {getCategoryLabel(ticket.category)}
                 </Badge>
               </DialogTitle>
@@ -707,7 +707,7 @@ export function SupportTicketDetailDialog({
                     key={m.id}
                     className={`flex flex-col gap-0.5 ${isMine ? "items-end" : "items-start"}`}
                   >
-                    <div className="text-[10px] text-muted-foreground px-1">
+                    <div className="text-3xs text-muted-foreground px-1">
                       <strong>{m.sender_name ?? (isMine ? t("support.senderMe") : "—")}</strong>
                       {" · "}
                       {formatDateTime(m.created_at)}

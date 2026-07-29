@@ -434,7 +434,7 @@ function CalendarPage() {
                 <CardTitle className="flex items-center gap-2">
                   <CheckCircle2 className="h-5 w-5 text-emerald-500" />
                   {t("calendar.connectedTitle")}
-                  <Badge variant="outline" className="text-[10px]">
+                  <Badge variant="outline" className="text-3xs">
                     {provider === "google" ? "Google" : "Microsoft"}
                   </Badge>
                 </CardTitle>
@@ -519,7 +519,7 @@ function CalendarPage() {
                   <AlertDescription className="text-xs space-y-1">
                     <div>{t("calendar.noCoursesWithTime")}</div>
                     {coursesPendingTimes.length > 0 && (
-                      <ul className="list-disc pl-4 mt-1 text-[11px]">
+                      <ul className="list-disc pl-4 mt-1 text-2xs">
                         {coursesPendingTimes.map((c) => (
                           <li key={c.id}>
                             <span className="font-medium">{c.name}</span>:{" "}

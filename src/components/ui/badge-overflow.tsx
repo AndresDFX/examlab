@@ -45,7 +45,7 @@ interface BadgeOverflowProps<T> {
   /** Variante visual del Badge para los items inline + el +N.
    *  Default "secondary". */
   variant?: "default" | "secondary" | "outline" | "destructive";
-  /** Clase extra para cada badge. Útil para text-[10px] / colores. */
+  /** Clase extra para cada badge. Útil para text-3xs / colores. */
   badgeClassName?: string;
   /** Render custom de cada item. Si no se pasa, usa `toString()`. */
   renderItem?: (item: T) => ReactNode;
@@ -64,7 +64,7 @@ export function BadgeOverflow<T>({
   items,
   max = 2,
   variant = "secondary",
-  badgeClassName = "text-[10px]",
+  badgeClassName = "text-3xs",
   renderItem,
   renderTooltipItem,
   getKey,

@@ -176,7 +176,7 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
         >
           <MessageSquare className="h-5 w-5" />
           {totalUnread > 0 && (
-            <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-medium text-destructive-foreground">
+            <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-3xs font-medium text-destructive-foreground">
               {totalUnread > 99 ? "99+" : totalUnread}
             </span>
           )}
@@ -228,7 +228,7 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
           <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" />
         </Link>
 
-        <div className="px-3 py-1.5 border-b text-[11px] uppercase tracking-wide text-muted-foreground">
+        <div className="px-3 py-1.5 border-b text-2xs uppercase tracking-wide text-muted-foreground">
           {t("hc_modulesMessagingMessagesFab.notificationsLabel", { defaultValue: "Notificaciones" })}{" "}
           {unreadCount > 0 &&
             t("hc_modulesMessagingMessagesFab.notificationsUnread", {
@@ -271,10 +271,10 @@ export function MessagesFab({ sidebarCollapsed }: MessagesFabProps) {
                           <span className="h-1.5 w-1.5 rounded-full bg-primary shrink-0" />
                         )}
                       </div>
-                      <p className="text-[11px] text-muted-foreground line-clamp-2 mt-0.5">
+                      <p className="text-2xs text-muted-foreground line-clamp-2 mt-0.5">
                         {n.body}
                       </p>
-                      <span className="text-[10px] text-muted-foreground/70 mt-0.5">
+                      <span className="text-3xs text-muted-foreground/70 mt-0.5">
                         {timeAgo(n.created_at)}
                       </span>
                     </div>

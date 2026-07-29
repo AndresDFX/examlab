@@ -251,7 +251,7 @@ function TeacherStudentsInner() {
       <PageHeader
         title={t("teacherStudents.title")}
         subtitle={loading ? undefined : t("teacherStudents.subtitle", { count: students.length })}
-        icon={<Users className="h-6 w-6 text-violet-500" />}
+        icon={<Users className="h-6 w-6" />}
       />
 
       {/* Filtros: búsqueda + curso estandarizados (ListFilters), igual que los

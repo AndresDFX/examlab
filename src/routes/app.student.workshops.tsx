@@ -785,7 +785,7 @@ function StudentWorkshops() {
                       {t("hc_routesAppStudentWorkshops.deleteMySubmission")}
                     </Button>
                   ) : (
-                    <p className="text-[11px] text-muted-foreground text-center italic">
+                    <p className="text-2xs text-muted-foreground text-center italic">
                       {t("hc_routesAppStudentWorkshops.attemptsExhaustedNoDelete")}
                     </p>
                   );

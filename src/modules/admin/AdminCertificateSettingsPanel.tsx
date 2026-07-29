@@ -261,7 +261,7 @@ export function AdminCertificateSettingsPanel() {
                 defaultValue: "Cómo se resuelve cada campo al emitir:",
               })}
             </strong>{" "}
-            <span className="font-mono text-[11px]">
+            <span className="font-mono text-2xs">
               {t("certSettings.resolutionHelpChain", {
                 defaultValue:
                   "override del curso (docente) → este panel (institución) → texto por defecto",
@@ -349,7 +349,7 @@ export function AdminCertificateSettingsPanel() {
                   />
                 </div>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("adminCertificateSettings.logoHint")}
               </p>
             </div>
@@ -436,7 +436,7 @@ export function AdminCertificateSettingsPanel() {
                   />
                 </div>
               )}
-              <p className="text-[11px] text-muted-foreground mt-1">
+              <p className="text-2xs text-muted-foreground mt-1">
                 {t("adminCertificateSettings.signatureHint")}
               </p>
             </div>

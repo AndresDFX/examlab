@@ -1122,7 +1122,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                 cancelable visible. Toggle all/none de lo cancelable. */}
             {selectableJobs.length > 0 && <MultiSelectHeaderCheckbox state={multi} />}
             <CardTitle className="text-base">{t("aiCronPage.cardQueueTitle")}</CardTitle>
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {filteredCount}
             </Badge>
           </div>
@@ -1255,7 +1255,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{label}</span>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
+                            <Badge variant="outline" className="text-3xs shrink-0">
                               {kindLabel}
                             </Badge>
                             {(isProcessing || isFailed || isPending || isRejected) && (
@@ -1269,7 +1269,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                                         ? "secondary"
                                         : "outline"
                                 }
-                                className={`text-[10px] shrink-0 ${
+                                className={`text-3xs shrink-0 ${
                                   isRejected
                                     ? "bg-orange-500/15 text-orange-700 dark:text-orange-400 border-orange-500/30 hover:bg-orange-500/20"
                                     : ""
@@ -1285,7 +1285,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                             </div>
                           )}
                         </div>
-                        <span className="text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        <span className="text-2xs text-muted-foreground tabular-nums shrink-0">
                           {relativeAge(j.created_at)}
                         </span>
                       </button>
@@ -1419,7 +1419,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                                 {j.rejection_reason ?? t("aiCronPage.noReason")}
                               </p>
                               {j.rejected_at && (
-                                <p className="text-[10px] text-muted-foreground">
+                                <p className="text-3xs text-muted-foreground">
                                   {t("aiCronPage.rejectedAt", { date: formatDateTime(j.rejected_at) })}
                                 </p>
                               )}
@@ -1459,7 +1459,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                         {j.last_error && (
                           <div className="pt-1">
                             <div className="text-muted-foreground mb-0.5">{t("aiCronPage.detailLastError")}</div>
-                            <pre className="text-[11px] bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
+                            <pre className="text-2xs bg-destructive/10 text-destructive border border-destructive/30 rounded p-2 whitespace-pre-wrap break-all">
                               {j.last_error}
                             </pre>
                           </div>
@@ -1481,7 +1481,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
                                 <div className="text-muted-foreground mb-0.5">
                                   {t("aiCronPage.rejectionReason")}
                                 </div>
-                                <pre className="text-[11px] bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
+                                <pre className="text-2xs bg-orange-500/10 text-orange-700 dark:text-orange-400 border border-orange-500/30 rounded p-2 whitespace-pre-wrap break-words">
                                   {j.rejection_reason}
                                 </pre>
                               </div>
@@ -1582,7 +1582,7 @@ function AiQueuePanel({ isAdmin = false }: Props) {
               disabled={rejecting}
               maxLength={500}
             />
-            <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+            <div className="flex items-center justify-between text-2xs text-muted-foreground">
               <span>{t("aiCronPage.rejectMinChars")}</span>
               <span className="tabular-nums">{rejectReason.length}/500</span>
             </div>
@@ -1633,7 +1633,7 @@ function DetailRow({ k, v, mono = false }: { k: string; v: string; mono?: boolea
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground w-28 shrink-0">{k}</span>
-      <span className={`flex-1 break-all ${mono ? "font-mono text-[11px]" : ""}`}>{v}</span>
+      <span className={`flex-1 break-all ${mono ? "font-mono text-2xs" : ""}`}>{v}</span>
     </div>
   );
 }

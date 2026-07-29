@@ -32,7 +32,7 @@ function AdminEmailSettings() {
 
   if (!roles.includes("Admin") && !roles.includes("SuperAdmin")) {
     return (
-      <div className="container mx-auto p-6">
+      <div>
         <p className="text-muted-foreground">{t("hc_routesAppAdminEmailSettings.needAdminRole")}</p>
       </div>
     );
@@ -40,7 +40,7 @@ function AdminEmailSettings() {
 
   if (isSuperAdminCrossTenant) {
     return (
-      <div className="container mx-auto space-y-6 p-4 sm:p-6">
+      <div className="space-y-6">
         <PageHeader
           icon={<Mail className="h-6 w-6" />}
           title={t("hc_routesAppAdminEmailSettings.title")}
@@ -65,7 +65,7 @@ function AdminEmailSettings() {
   }
 
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <PageHeader
         icon={<Mail className="h-6 w-6" />}
         title={t("hc_routesAppAdminEmailSettings.title")}

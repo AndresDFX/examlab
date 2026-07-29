@@ -41,7 +41,7 @@ function AdminAIConfig() {
   return (
     <div className="space-y-5">
       <PageHeader
-        icon={<Sparkles className="h-6 w-6 text-indigo-500" />}
+        icon={<Sparkles className="h-6 w-6" />}
         title={t("adminAiConfig.title")}
         subtitle={
           isSuperAdminCrossTenant

@@ -138,7 +138,7 @@ export function FeedbackCommentAttachments({ attachments, onChanged, closed }: P
         return (
           <li
             key={a.id}
-            className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1 text-[11px]"
+            className="flex items-center gap-2 rounded border bg-background/60 px-2 py-1 text-2xs"
           >
             <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             <span className="truncate flex-1" title={a.name}>

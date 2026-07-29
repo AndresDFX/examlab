@@ -930,7 +930,7 @@ function SuperAdminTenantsPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        icon={<Building2 className="h-6 w-6 text-violet-500 dark:text-violet-400" />}
+        icon={<Building2 className="h-6 w-6" />}
         title={tl("superadminTenants.title")}
         subtitle={
           tenants.length === 1
@@ -1077,18 +1077,18 @@ function SuperAdminTenantsPage() {
                     </TableCell>
                     <TableCell>
                       {t.is_active ? (
-                        <Badge variant="secondary" className="text-[10px]">
+                        <Badge variant="secondary" className="text-3xs">
                           {tl("superadminTenants.statusActive")}
                         </Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-3xs">
                           {tl("superadminTenants.statusPaused")}
                         </Badge>
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
                       {overview[t.id] ? (
-                        <Badge variant="outline" className="text-[10px] capitalize">
+                        <Badge variant="outline" className="text-3xs capitalize">
                           {overview[t.id].plan_tier}
                         </Badge>
                       ) : (
@@ -1098,7 +1098,7 @@ function SuperAdminTenantsPage() {
                     <TableCell className="hidden lg:table-cell">
                       {overview[t.id] ? (
                         <span className="inline-flex items-center gap-1">
-                          <Badge variant="secondary" className="text-[10px]">
+                          <Badge variant="secondary" className="text-3xs">
                             {overview[t.id].ai_mode === "shared"
                               ? tl("superadminTenants.aiShared")
                               : overview[t.id].ai_mode === "own"
@@ -1144,13 +1144,13 @@ function SuperAdminTenantsPage() {
                         const s = o.subscription_status;
                         if (s === "suspended" || s === "expired" || s === "cancelled")
                           return (
-                            <Badge variant="destructive" className="text-[10px]">
+                            <Badge variant="destructive" className="text-3xs">
                               {tl(`superadminTenants.sub_${s}`)}
                             </Badge>
                           );
                         if (s === "past_due")
                           return (
-                            <Badge className="text-[10px] border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400">
+                            <Badge className="text-3xs border-amber-500/40 bg-amber-500/15 text-amber-700 dark:text-amber-400">
                               {tl("superadminTenants.sub_past_due")}
                             </Badge>
                           );
@@ -1300,7 +1300,7 @@ function SuperAdminTenantsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, slug: e.target.value }))}
                 placeholder="sena-bogota"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 URL: <code>/t/{form.slug || "..."}/app/...</code>. {tl("superadminTenants.fieldSlugHintChars")}
                 {editing && (
                   <>
@@ -1327,7 +1327,7 @@ function SuperAdminTenantsPage() {
                 onChange={(e) => setForm((p) => ({ ...p, email_domain: e.target.value }))}
                 placeholder="sena.edu.co"
               />
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {tl("superadminTenants.fieldEmailDomainHint")}
               </p>
             </div>
@@ -1366,7 +1366,7 @@ function SuperAdminTenantsPage() {
                     />
                   </div>
                 ) : (
-                  <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-[10px] text-muted-foreground shrink-0">
+                  <div className="h-14 w-14 rounded-lg border border-dashed bg-muted/30 flex items-center justify-center text-3xs text-muted-foreground shrink-0">
                     {tl("superadminTenants.logoNoLogo")}
                   </div>
                 )}
@@ -1408,7 +1408,7 @@ function SuperAdminTenantsPage() {
                       </Button>
                     )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground mt-1">
+                  <p className="text-2xs text-muted-foreground mt-1">
                     {tl("superadminTenants.logoHint")}
                     {!editing && pendingLogoFile ? tl("superadminTenants.logoPendingHint") : ""}
                   </p>
@@ -1454,7 +1454,7 @@ function SuperAdminTenantsPage() {
                   placeholder="#FFFFFF"
                   ariaLabel={tl("superadminTenants.colorText")}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {tl("superadminTenants.colorTextHint")}
                 </p>
               </div>
@@ -1466,7 +1466,7 @@ function SuperAdminTenantsPage() {
                   placeholder="#FFFFFF"
                   ariaLabel={tl("superadminTenants.colorIcon")}
                 />
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {tl("superadminTenants.colorIconHint")}
                 </p>
               </div>
@@ -1479,7 +1479,7 @@ function SuperAdminTenantsPage() {
                 cross-tenant, no cuenta). */}
             <div className="space-y-2 pt-2 border-t">
               <Label className="text-sm font-medium">{tl("superadminTenants.quotaSection")}</Label>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {tl("superadminTenants.quotaHint")}
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -1648,7 +1648,7 @@ function SuperAdminTenantsPage() {
                 <Label className="text-xs text-muted-foreground">{tl("superadminTenants.testUserLabelRoles")}</Label>
                 <div className="flex flex-wrap gap-1">
                   {testUserCreds.roles.map((r) => (
-                    <Badge key={r} variant="secondary" className="text-[10px]">
+                    <Badge key={r} variant="secondary" className="text-3xs">
                       {r}
                     </Badge>
                   ))}

@@ -346,7 +346,7 @@ function KpiCard({
           <div className="text-xs text-muted-foreground truncate">{label}</div>
           <div className="text-2xl font-semibold tabular-nums">{value}</div>
           {subline && (
-            <div className="text-[11px] text-muted-foreground truncate tabular-nums">{subline}</div>
+            <div className="text-2xs text-muted-foreground truncate tabular-nums">{subline}</div>
           )}
         </div>
       </CardContent>
@@ -614,7 +614,7 @@ function AttendanceCard({ sessions }: { sessions: ReturnType<typeof computeAtten
                       return (
                         <div className="flex flex-col">
                           <span className="font-medium">{value}%</span>
-                          <span className="text-[10px] text-muted-foreground">
+                          <span className="text-3xs text-muted-foreground">
                             {p.presentCount}/{p.total}
                           </span>
                         </div>

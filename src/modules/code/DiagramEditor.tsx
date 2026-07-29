@@ -213,7 +213,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
               type="button"
               variant="outline"
               size="sm"
-              className="h-6 text-[11px] px-2"
+              className="h-6 text-2xs px-2"
               onClick={() => applyTemplate(key)}
             >
               {t(labelKey)}
@@ -262,7 +262,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
             )}
             placeholder={t("diagramEditor.placeholder")}
           />
-          <p className="text-[10px] text-muted-foreground mt-1">
+          <p className="text-3xs text-muted-foreground mt-1">
             {t("diagramEditor.hint")}{" "}
             <a
               href="https://mermaid.js.org/syntax/classDiagram.html"

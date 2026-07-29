@@ -468,7 +468,7 @@ function SuperAdminSupportPage() {
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {CATEGORY_LABEL[t.category]}
                       </Badge>
                     </TableCell>
@@ -476,7 +476,7 @@ function SuperAdminSupportPage() {
                       {PRIORITY_LABEL[t.priority]}
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className={`text-[10px] ${STATUS_TONE[t.status]}`}>
+                      <Badge variant="outline" className={`text-3xs ${STATUS_TONE[t.status]}`}>
                         {STATUS_LABEL[t.status]}
                       </Badge>
                     </TableCell>

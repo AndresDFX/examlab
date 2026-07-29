@@ -594,7 +594,7 @@ export function AdminModuleVisibilityPanel() {
                 </label>
               )}
               {roleFilter !== "all" && (
-                <span className="text-[10px] text-muted-foreground italic ml-auto">
+                <span className="text-3xs text-muted-foreground italic ml-auto">
                   {t("hc_modulesAdminAdminModuleVisibilityPanel.previewVisibleItems", {
                     count: displayedModuleKeys.length,
                     role: roleFilter,
@@ -611,7 +611,7 @@ export function AdminModuleVisibilityPanel() {
             <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
               <div className="min-w-[480px]">
                 {/* Header con etiquetas de los switches a la derecha */}
-                <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-[10px] uppercase font-medium text-muted-foreground tracking-wide">
+                <div className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-2 pb-1 text-3xs uppercase font-medium text-muted-foreground tracking-wide">
                   <span>{t("hc_modulesAdminAdminModuleVisibilityPanel.columnModule")}</span>
                   <div className="flex gap-2">
                     {displayRoles.map((r) => (
@@ -681,7 +681,7 @@ export function AdminModuleVisibilityPanel() {
                             <div className="font-medium text-sm truncate">
                               {moduleLabel(m.key, m.label)}
                             </div>
-                            <div className="text-[10px] text-muted-foreground font-mono truncate">
+                            <div className="text-3xs text-muted-foreground font-mono truncate">
                               {m.key}
                             </div>
                           </div>

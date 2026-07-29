@@ -305,7 +305,7 @@ function ContentAssignmentSelector({
       {selected && classIndex != null && (
         <Badge
           variant="outline"
-          className="h-8 shrink-0 flex items-center px-2 text-[10px] font-normal"
+          className="h-8 shrink-0 flex items-center px-2 text-3xs font-normal"
           title={t("contents.classAutoAlignedHint", {
             defaultValue: "Clase alineada automáticamente al orden de la sesión en el curso.",
           })}
@@ -329,7 +329,7 @@ function ContentAssignmentSelector({
             </Button>
           </PopoverTrigger>
           <PopoverContent align="start" className="w-72 p-2">
-            <div className="text-[11px] text-muted-foreground px-1 pb-1">
+            <div className="text-2xs text-muted-foreground px-1 pb-1">
               {t("hc_routesAppTeacherBoardCourseId.filesPickerHint")}
             </div>
             <div className="max-h-56 overflow-y-auto space-y-0.5">
@@ -348,7 +348,7 @@ function ContentAssignmentSelector({
               ))}
             </div>
             {includedCount === 0 && (
-              <p className="text-[11px] text-amber-600 dark:text-amber-400 px-1 pt-1">
+              <p className="text-2xs text-amber-600 dark:text-amber-400 px-1 pt-1">
                 {t("hc_routesAppTeacherBoardCourseId.filesNoneSelected")}
               </p>
             )}
@@ -1127,7 +1127,7 @@ function CourseBoardPage() {
     const used = sessionsByContent.get(c.id) ?? [];
     if (used.length === 1) {
       return (
-        <Badge variant="outline" className="text-[9px] shrink-0">
+        <Badge variant="outline" className="text-3xs shrink-0">
           {t("course.boardAssignedSession", {
             defaultValue: "Sesión del {{date}}",
             date: formatDateOnly(used[0].session_date),
@@ -1137,7 +1137,7 @@ function CourseBoardPage() {
     }
     if (used.length > 1) {
       return (
-        <Badge variant="outline" className="text-[9px] shrink-0">
+        <Badge variant="outline" className="text-3xs shrink-0">
           {t("course.boardAssignedSessionCount", {
             defaultValue: "{{count}} sesiones",
             count: used.length,
@@ -1149,14 +1149,14 @@ function CourseBoardPage() {
       return (
         <Badge
           variant="outline"
-          className="text-[9px] shrink-0 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
+          className="text-3xs shrink-0 border-emerald-500/40 text-emerald-700 dark:text-emerald-400"
         >
           {t("course.boardAssignedGeneral", { defaultValue: "General del curso" })}
         </Badge>
       );
     }
     return (
-      <Badge variant="outline" className="text-[9px] shrink-0 text-muted-foreground">
+      <Badge variant="outline" className="text-3xs shrink-0 text-muted-foreground">
         {t("course.boardAssignedNone", { defaultValue: "No visible al estudiante" })}
       </Badge>
     );
@@ -1269,7 +1269,7 @@ function CourseBoardPage() {
               <Badge
                 key={b.id ?? `${b.day_of_week}-${b.start_time}-${i}`}
                 variant="outline"
-                className="text-[11px] gap-1 tabular-nums"
+                className="text-2xs gap-1 tabular-nums"
               >
                 <CalendarClock className="h-3 w-3" />
                 {formatBlockShort(b)}
@@ -1286,7 +1286,7 @@ function CourseBoardPage() {
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1">
-            <Label className="text-[11px]">{t("common.date")}</Label>
+            <Label className="text-2xs">{t("common.date")}</Label>
             <DatePicker
               value={editingId ? "" : draftDate}
               onChange={onDraftDatePicked}
@@ -1294,7 +1294,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[11px]">{t("course.boardStartTime")}</Label>
+            <Label className="text-2xs">{t("course.boardStartTime")}</Label>
             <Input
               type="time"
               value={editingId ? "" : draftStartTime}
@@ -1307,7 +1307,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1">
-            <Label className="text-[11px]">{t("course.boardDuration")}</Label>
+            <Label className="text-2xs">{t("course.boardDuration")}</Label>
             <Input
               type="number"
               min={15}
@@ -1323,7 +1323,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-            <Label className="text-[11px]">{t("common.title")}</Label>
+            <Label className="text-2xs">{t("common.title")}</Label>
             <Input
               value={editingId ? "" : draftTitle}
               onChange={(e) => {
@@ -1335,7 +1335,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1 w-full sm:w-auto sm:min-w-[140px]">
-            <Label className="text-[11px]">{t("sessionType.label")}</Label>
+            <Label className="text-2xs">{t("sessionType.label")}</Label>
             <Select
               value={editingId ? "virtual" : draftSessionType}
               onValueChange={(v) => {
@@ -1356,7 +1356,7 @@ function CourseBoardPage() {
             </Select>
           </div>
           <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-            <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
+            <Label className="text-2xs">{t("course.boardMeetingUrl")}</Label>
             <Input
               type="url"
               value={editingId ? "" : draftMeetingUrl}
@@ -1369,7 +1369,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-            <Label className="text-[11px]">
+            <Label className="text-2xs">
               {t("course.boardRecordingUrl", { defaultValue: "Enlace de grabación (opcional)" })}
             </Label>
             <Input
@@ -1384,7 +1384,7 @@ function CourseBoardPage() {
             />
           </div>
           <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-            <Label className="text-[11px]">
+            <Label className="text-2xs">
               {t("course.boardNotesUrl", {
                 defaultValue: "Enlace de notas / minuta (opcional)",
               })}
@@ -1425,7 +1425,7 @@ function CourseBoardPage() {
           <FileText className="h-3.5 w-3.5" />
           {t("course.boardContentsTitle", { defaultValue: "Contenidos del curso" })}
           {boardContents.length > 0 && (
-            <span className="text-[10px] tabular-nums">({boardContents.length})</span>
+            <span className="text-3xs tabular-nums">({boardContents.length})</span>
           )}
         </div>
         {boardContents.length === 0 ? (
@@ -1442,18 +1442,18 @@ function CourseBoardPage() {
                 <FileText className="h-3.5 w-3.5 text-primary shrink-0" />
                 <span className="font-medium truncate flex-1 min-w-0">{c.displayName}</span>
                 {!c.isPublished && (
-                  <span className="text-[9px] text-amber-600 dark:text-amber-400 shrink-0">
+                  <span className="text-3xs text-amber-600 dark:text-amber-400 shrink-0">
                     {t("course.boardContentsDraft", { defaultValue: "Borrador" })}
                   </span>
                 )}
                 {visibilityBadge(c)}
-                <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
+                <span className="text-3xs text-muted-foreground tabular-nums shrink-0">
                   {t("course.boardContentsFiles", {
                     defaultValue: "{{count}} archivo(s)",
                     count: c.fileCount,
                   })}
                 </span>
-                <span className="hidden sm:block text-[10px] text-muted-foreground shrink-0">
+                <span className="hidden sm:block text-3xs text-muted-foreground shrink-0">
                   <DateCell value={c.createdAt} variant="auto" />
                 </span>
                 {/* Presentar y anotar: proyecta las diapositivas y deja
@@ -1514,7 +1514,7 @@ function CourseBoardPage() {
                     // los items vinculados se ocultan en este modo.
                     <div className="flex flex-wrap items-end gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[11px]">{t("common.date")}</Label>
+                        <Label className="text-2xs">{t("common.date")}</Label>
                         <DatePicker
                           value={draftDate}
                           onChange={setDraftDate}
@@ -1522,7 +1522,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px]">{t("course.boardStartTime")}</Label>
+                        <Label className="text-2xs">{t("course.boardStartTime")}</Label>
                         <Input
                           type="time"
                           value={draftStartTime}
@@ -1531,7 +1531,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1">
-                        <Label className="text-[11px]">{t("course.boardDuration")}</Label>
+                        <Label className="text-2xs">{t("course.boardDuration")}</Label>
                         <Input
                           type="number"
                           min={15}
@@ -1543,7 +1543,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-                        <Label className="text-[11px]">{t("common.title")}</Label>
+                        <Label className="text-2xs">{t("common.title")}</Label>
                         <Input
                           value={draftTitle}
                           onChange={(e) => setDraftTitle(e.target.value)}
@@ -1552,7 +1552,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-                        <Label className="text-[11px]">{t("course.boardMeetingUrl")}</Label>
+                        <Label className="text-2xs">{t("course.boardMeetingUrl")}</Label>
                         <Input
                           type="url"
                           value={draftMeetingUrl}
@@ -1562,7 +1562,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-                        <Label className="text-[11px]">
+                        <Label className="text-2xs">
                           {t("course.boardRecordingUrl", {
                             defaultValue: "Enlace de grabación (opcional)",
                           })}
@@ -1576,7 +1576,7 @@ function CourseBoardPage() {
                         />
                       </div>
                       <div className="space-y-1 w-full sm:flex-1 sm:min-w-[160px] md:min-w-48">
-                        <Label className="text-[11px]">
+                        <Label className="text-2xs">
                           {t("course.boardNotesUrl", {
                             defaultValue: "Enlace de notas / minuta (opcional)",
                           })}
@@ -1616,11 +1616,11 @@ function CourseBoardPage() {
                     <div className="flex flex-wrap items-start gap-3">
                       <div className="flex-1 min-w-0 space-y-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="text-[11px] tabular-nums">
+                          <Badge variant="outline" className="text-2xs tabular-nums">
                             {s.session_date}
                           </Badge>
                           {s.start_time && (
-                            <Badge variant="outline" className="text-[11px] tabular-nums">
+                            <Badge variant="outline" className="text-2xs tabular-nums">
                               {s.start_time.slice(0, 5)}
                               {s.duration_minutes ? ` · ${s.duration_minutes}m` : ""}
                             </Badge>
@@ -1631,7 +1631,7 @@ function CourseBoardPage() {
                               href={s.meeting_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
+                              className="inline-flex items-center gap-1 text-2xs rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-0.5 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20"
                               title={s.meeting_url}
                             >
                               <Link2 className="h-3 w-3" />
@@ -1643,7 +1643,7 @@ function CourseBoardPage() {
                               href={s.recording_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
+                              className="inline-flex items-center gap-1 text-2xs rounded-md border border-violet-500/30 bg-violet-500/10 px-2 py-0.5 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20"
                               title={s.recording_url}
                             >
                               <Video className="h-3 w-3" />
@@ -1655,7 +1655,7 @@ function CourseBoardPage() {
                               href={s.notes_url}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1 text-[11px] rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
+                              className="inline-flex items-center gap-1 text-2xs rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20"
                               title={s.notes_url}
                             >
                               <FileText className="h-3 w-3" />
@@ -1702,7 +1702,7 @@ function CourseBoardPage() {
                         <Badge
                           key={`${it.kind}-${it.id}`}
                           variant="outline"
-                          className="text-[10px] flex items-center gap-1"
+                          className="text-3xs flex items-center gap-1"
                         >
                           {it.kind === "exam" ? (
                             <FileText className="h-3 w-3" />
@@ -1737,7 +1737,7 @@ function CourseBoardPage() {
                 <Badge
                   key={`${it.kind}-${it.id}`}
                   variant="outline"
-                  className="text-[10px] flex items-center gap-1"
+                  className="text-3xs flex items-center gap-1"
                 >
                   {it.kind === "exam" ? (
                     <FileText className="h-3 w-3" />
@@ -1795,7 +1795,7 @@ function CourseBoardPage() {
                   ))}
                 </SelectContent>
               </Select>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {uploadDest === "global"
                   ? t("course.boardUploadDestGlobalHint", {
                       defaultValue:
@@ -1833,7 +1833,7 @@ function CourseBoardPage() {
               {uploadFiles.length > 0 && (
                 <div className="max-h-28 overflow-y-auto space-y-0.5 pt-1">
                   {uploadFiles.map((f) => (
-                    <div key={f.name} className="text-[11px] text-muted-foreground truncate">
+                    <div key={f.name} className="text-2xs text-muted-foreground truncate">
                       • {f.name}
                     </div>
                   ))}

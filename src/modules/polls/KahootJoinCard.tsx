@@ -158,7 +158,7 @@ export function KahootJoinCard({
               >
                 <div className="min-w-0">
                   <p className="font-medium truncate">{g.title || t("kahoot.liveGame")}</p>
-                  <p className="text-[11px] text-muted-foreground">{t("kahoot.reconnectHint")}</p>
+                  <p className="text-2xs text-muted-foreground">{t("kahoot.reconnectHint")}</p>
                 </div>
                 <Button size="sm" disabled={joining} onClick={() => reconnect(g.id)}>
                   <RotateCcw className="h-4 w-4 mr-1" />
@@ -172,7 +172,7 @@ export function KahootJoinCard({
         {/* Unirse a un juego NUEVO: SOLO con el PIN que proyecta el docente (o
             escaneando el QR). Nunca en 1-click — el PIN es el control de acceso. */}
         <div className="space-y-1.5">
-          <p className="text-[11px] text-muted-foreground">{t("kahoot.enterPinHint")}</p>
+          <p className="text-2xs text-muted-foreground">{t("kahoot.enterPinHint")}</p>
           <div className="flex items-center gap-2">
             <Input
               inputMode="numeric"

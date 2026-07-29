@@ -345,14 +345,14 @@ export function AssignUsersToTenantDialog({
                     <Checkbox checked={isMember} onCheckedChange={() => toggle(p.id)} />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium truncate">{p.full_name}</div>
-                      <div className="text-[11px] text-muted-foreground truncate">
+                      <div className="text-2xs text-muted-foreground truncate">
                         {p.institutional_email}
                       </div>
                     </div>
                     {willChange && isMember && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] shrink-0 border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
+                        className="text-3xs shrink-0 border-emerald-500/50 text-emerald-600 dark:text-emerald-400"
                       >
                         {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeAdd")}
                       </Badge>
@@ -360,23 +360,23 @@ export function AssignUsersToTenantDialog({
                     {willChange && !isMember && (
                       <Badge
                         variant="outline"
-                        className="text-[10px] shrink-0 border-destructive/50 text-destructive"
+                        className="text-3xs shrink-0 border-destructive/50 text-destructive"
                       >
                         {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeRemove")}
                       </Badge>
                     )}
                     {!willChange && wasMember && (
-                      <Badge variant="secondary" className="text-[10px] shrink-0">
+                      <Badge variant="secondary" className="text-3xs shrink-0">
                         {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeMember")}
                       </Badge>
                     )}
                     {!willChange && !wasMember && otherTenant && (
-                      <Badge variant="outline" className="text-[10px] shrink-0">
+                      <Badge variant="outline" className="text-3xs shrink-0">
                         {otherTenant}
                       </Badge>
                     )}
                     {!willChange && !wasMember && !otherTenant && (
-                      <Badge variant="outline" className="text-[10px] shrink-0">
+                      <Badge variant="outline" className="text-3xs shrink-0">
                         {t("hc_modulesSuperadminAssignUsersToTenantDialog.badgeNoInstitution")}
                       </Badge>
                     )}

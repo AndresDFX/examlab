@@ -120,7 +120,7 @@ export function DuplicateOptionsDialog({
                 <span className="min-w-0">
                   <span className="text-sm font-medium block">{opt.label}</span>
                   {opt.hint && (
-                    <span className="text-[11px] text-muted-foreground block">{opt.hint}</span>
+                    <span className="text-2xs text-muted-foreground block">{opt.hint}</span>
                   )}
                 </span>
               </label>

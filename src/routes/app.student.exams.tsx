@@ -578,7 +578,7 @@ function StudentExams() {
                   <div className="flex items-center justify-between gap-2">
                     <span>{t("exam.duration", { min: exam.time_limit_minutes })}</span>
                     {maxAttempts > 1 && (
-                      <Badge variant="outline" className="text-[10px] py-0 px-1.5">
+                      <Badge variant="outline" className="text-3xs py-0 px-1.5">
                         {t("hc_routesAppStudentExams.attemptCount", {
                           current: Math.min(attemptsUsed + (completed ? 0 : 1), maxAttempts),
                           max: maxAttempts,
@@ -639,7 +639,7 @@ function StudentExams() {
                     >
                       {t("exam.windowClosed")}
                     </Button>
-                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                    <p className="text-2xs text-center text-muted-foreground leading-snug">
                       {t("exam.windowClosedHelp")}
                     </p>
                   </div>
@@ -649,7 +649,7 @@ function StudentExams() {
                       <Play className="h-4 w-4 mr-1" />
                       {t("hc_routesAppStudentExams.noAttemptsLeft")}
                     </Button>
-                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                    <p className="text-2xs text-center text-muted-foreground leading-snug">
                       {t("hc_routesAppStudentExams.noAttemptsLeftHelp", { max: maxAttempts })}
                     </p>
                   </div>
@@ -662,7 +662,7 @@ function StudentExams() {
                       <ShieldAlert className="h-4 w-4 mr-1" />
                       {t("hc_routesAppStudentExams.examSuspended")}
                     </Button>
-                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                    <p className="text-2xs text-center text-muted-foreground leading-snug">
                       {t("hc_routesAppStudentExams.examSuspendedHelp")}
                     </p>
                   </div>
@@ -679,7 +679,7 @@ function StudentExams() {
                       <Play className="h-4 w-4 mr-1" />
                       {t("hc_routesAppStudentExams.notYetAvailable")}
                     </Button>
-                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                    <p className="text-2xs text-center text-muted-foreground leading-snug">
                       {t("hc_routesAppStudentExams.notYetAvailableHelp")}
                     </p>
                   </div>
@@ -689,7 +689,7 @@ function StudentExams() {
                       <Play className="h-4 w-4 mr-1" />
                       {t("hc_routesAppStudentExams.examClosed")}
                     </Button>
-                    <p className="text-[11px] text-center text-muted-foreground leading-snug">
+                    <p className="text-2xs text-center text-muted-foreground leading-snug">
                       {t("hc_routesAppStudentExams.examClosedHelp")}
                     </p>
                   </div>

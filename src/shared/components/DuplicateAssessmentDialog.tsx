@@ -290,7 +290,7 @@ export function DuplicateAssessmentDialog({
                 />
                 <span className="min-w-0">
                   <span className="text-sm font-medium block">{t(opt.labelKey)}</span>
-                  <span className="text-[11px] text-muted-foreground block">{t(opt.hintKey)}</span>
+                  <span className="text-2xs text-muted-foreground block">{t(opt.hintKey)}</span>
                 </span>
               </label>
             ))}

@@ -343,7 +343,7 @@ export function CodePageEditor({
         }
       />
       {output && (
-        <div className="text-[10px] text-muted-foreground">
+        <div className="text-3xs text-muted-foreground">
           exit {output.exitCode}
           {!readOnly && executedAt && (
             <span className="ml-2">

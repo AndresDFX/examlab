@@ -721,7 +721,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                       )}
                     />
                     <span className="truncate flex-1">{label}</span>
-                    <span className="text-[10px] text-muted-foreground tabular-nums">
+                    <span className="text-3xs text-muted-foreground tabular-nums">
                       #{page.position + 1}
                     </span>
                   </DropdownMenuItem>
@@ -758,7 +758,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                 <Palette className="h-4 w-4 mr-2 text-violet-500" />
                 <div className="flex flex-col">
                   <span className="text-sm">{t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPage")}</span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPageHint")}
                   </span>
                 </div>
@@ -772,7 +772,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                 <FileText className="h-4 w-4 mr-2 text-sky-500" />
                 <div className="flex flex-col">
                   <span className="text-sm">{t("hc_modulesWhiteboardMultiPageWhiteboard.textPage")}</span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.textPageHint")}
                   </span>
                 </div>
@@ -788,7 +788,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   <span className="text-sm">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.codePage", { defaultValue: "Hoja de código" })}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.codePageHint", {
                       defaultValue: "Editor + compilador para mostrar código en vivo",
                     })}
@@ -806,7 +806,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   <span className="text-sm">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.consolePage", { defaultValue: "Hoja de consola (Linux)" })}
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-2xs text-muted-foreground">
                     {t("hc_modulesWhiteboardMultiPageWhiteboard.consolePageHint", {
                       defaultValue: "Terminal Linux real para demostrar comandos",
                     })}

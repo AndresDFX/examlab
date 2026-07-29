@@ -213,7 +213,7 @@ export function AssessmentTemplateMenu<T extends Record<string, unknown>>({
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm">{tpl.name}</div>
                   {tpl.description && (
-                    <div className="truncate text-[11px] text-muted-foreground">
+                    <div className="truncate text-2xs text-muted-foreground">
                       {tpl.description}
                     </div>
                   )}

@@ -509,7 +509,7 @@ export function KahootQuestionsEditor({
                   {t("kahoot.aiGenerateBtn")}
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">{t("kahoot.aiHint")}</p>
+              <p className="text-2xs text-muted-foreground">{t("kahoot.aiHint")}</p>
             </div>
             {questions.length === 0 && (
               <EmptyState icon={Gamepad2} text={t("kahoot.noQuestions")} />
@@ -590,7 +590,7 @@ export function KahootQuestionsEditor({
                 </div>
 
                 <div className="space-y-2 pl-6">
-                  <p className="text-[11px] text-muted-foreground">
+                  <p className="text-2xs text-muted-foreground">
                     {q.multi_select ? t("kahoot.markCorrectHintMulti") : t("kahoot.markCorrectHint")}
                   </p>
                   {q.options.map((o, oi) => {

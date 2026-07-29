@@ -90,6 +90,7 @@ import i18n from "@/i18n";
 import { formatDateTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { isAdminLike } from "@/shared/lib/roles";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
@@ -224,6 +225,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
   const { roles } = useAuth();
   const activeRole = useActiveRole();
   const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
+  // El docente entra a este panel cuando algo falló y tiene UNA pregunta
+  // ("¿se calificó? si no, ¿por qué?"). La tabla/fila de origen y el JSON del
+  // request no responden eso: solo sirven para correlacionar contra la DB
+  // desde soporte. Gate por Admin/SuperAdmin — es afordancia, no seguridad
+  // (el payload ya viaja en la fila que el propio docente puede leer).
+  const canSeeTechDetail = isAdmin || isAdminLike(roles);
 
   const [jobs, setJobs] = useState<UnifiedJob[]>([]);
   const [loading, setLoading] = useState(true);
@@ -884,7 +891,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       }
       toast.success(
         i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobCancelled", {
-          defaultValue: "Job cancelado",
+          defaultValue: "Tarea cancelada",
         }),
       );
       void logEvent({
@@ -927,7 +934,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       }
       toast.success(
         i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobRequeued", {
-          defaultValue: "Job re-encolado",
+          defaultValue: "Tarea devuelta a la cola",
         }),
       );
       await load();
@@ -953,7 +960,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         toast.info(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.asyncModeActivateCode", {
             defaultValue:
-              "La cola está en modo async. Activá un código de IA inmediata para procesar jobs al instante.",
+              "La cola está en modo diferido. Activá un código de IA inmediata para procesar las tareas al instante.",
           }),
         );
         setOverrideOpen(true);
@@ -978,19 +985,19 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         toast.info(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobNoLongerPending", {
             defaultValue:
-              "El job ya no estaba pending — quizás el worker lo levantó primero.",
+              "La tarea ya no estaba en espera — quizás se procesó primero.",
           }),
         );
       } else if (d?.failed > 0) {
         toast.error(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobProcessedButFailed", {
-            defaultValue: "El job se procesó pero falló — revisá el error en la cola.",
+            defaultValue: "La tarea se procesó pero falló — revisá el error en la cola.",
           }),
         );
       } else {
         toast.success(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobProcessed", {
-            defaultValue: "Job procesado",
+            defaultValue: "Tarea procesada",
           }),
         );
       }
@@ -1061,7 +1068,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       const failPart =
         failTotal > 0
           ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainFailPart", {
-              defaultValue: " ({{failed}} con error, quedan listos para reintentar)",
+              defaultValue: " ({{failed}} con error, quedan listas para reintentar)",
               failed: failTotal,
             })
           : "";
@@ -1072,7 +1079,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         toast.warning(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainExhausted", {
             defaultValue:
-              "Procesados {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} pendientes. Espera unos minutos y vuelve a pulsar «Procesar todos» manualmente.",
+              "Procesadas {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} en espera. Espera unos minutos y vuelve a pulsar «Procesar todas» manualmente.",
             n: procTotal,
             remaining,
             retries: attempt,
@@ -1084,7 +1091,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       } else {
         toast.success(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainDone", {
-            defaultValue: "Listo: procesados {{n}}{{failPart}}. No quedan jobs pendientes.",
+            defaultValue: "Listo: procesadas {{n}}{{failPart}}. No quedan tareas en espera.",
             n: procTotal,
             failPart,
           }),
@@ -1116,19 +1123,19 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       if (toPending === 0 && toFailed === 0) {
         toast.info(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.releaseNone", {
-            defaultValue: "No había jobs atascados para liberar.",
+            defaultValue: "No había tareas atascadas para liberar.",
           }),
         );
       } else {
         toast.success(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.released", {
             defaultValue:
-              "{{pending}} job(s) devuelto(s) a la cola{{failedPart}}. Espera unos minutos o pulsa «Procesar todos».",
+              "{{pending}} tarea(s) devuelta(s) a la cola{{failedPart}}. Espera unos minutos o pulsa «Procesar todas».",
             pending: toPending,
             failedPart:
               toFailed > 0
                 ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.releasedFailedPart", {
-                    defaultValue: " · {{n}} marcados como fallidos (agotaron reintentos)",
+                    defaultValue: " · {{n}} marcadas con error (agotaron reintentos)",
                     n: toFailed,
                   })
                 : "",
@@ -1138,7 +1145,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       }
       await load();
     } catch (e) {
-      toast.error(friendlyError(e, t("unifiedAiQueue.releaseError", { defaultValue: "No se pudieron liberar los jobs atascados" })));
+      toast.error(friendlyError(e, t("unifiedAiQueue.releaseError", { defaultValue: "No se pudieron liberar las tareas atascadas" })));
     } finally {
       setReleasing(false);
     }
@@ -1168,7 +1175,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       if (error) throw error;
       toast.success(
         i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobRejected", {
-          defaultValue: "Job rechazado. El docente recibió la notificación.",
+          defaultValue: "Tarea rechazada. El docente recibió la notificación.",
         }),
       );
       setRejectTarget(null);
@@ -1189,7 +1196,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       if (error) throw error;
       toast.success(
         i18n.t("toast.modules_ai_UnifiedAiQueuePanel.rejectionClosed", {
-          defaultValue: "Rechazo cerrado. El job se movió al historial.",
+          defaultValue: "Rechazo cerrado. La tarea se movió al historial.",
         }),
       );
       await load();
@@ -1212,7 +1219,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     if (targets.length === 0) {
       toast.info(
         i18n.t("toast.modules_ai_UnifiedAiQueuePanel.requeueNoneNeeded", {
-          defaultValue: "Los jobs seleccionados ya están en la cola.",
+          defaultValue: "Las tareas seleccionadas ya están en la cola.",
         }),
       );
       return;
@@ -1223,7 +1230,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       }),
       description: t("unifiedAiQueue.bulkRequeueDesc", {
         defaultValue:
-          "Se devolverán {{count}} job(s) a la cola como pendientes para que la IA los reintente. No se borra nada.",
+          "Se devolverán {{count}} tarea(s) a la cola para que la IA las reintente. No se borra nada.",
         count: targets.length,
       }),
       tone: "warning",
@@ -1277,7 +1284,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         toast.success(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkRequeued", {
             defaultValue:
-              "{{count}} job(s) devuelto(s) a la cola{{skipped}}. Espera unos minutos a que la IA los procese o pulsa «Procesar todos».",
+              "{{count}} tarea(s) devuelta(s) a la cola{{skipped}}. Espera unos minutos a que la IA las procese o pulsa «Procesar todas».",
             count: okCount,
             skipped:
               alreadyQueued > 0
@@ -1332,7 +1339,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     }
     toast.success(
       i18n.t("toast.modules_ai_UnifiedAiQueuePanel.bulkDeleted", {
-        defaultValue: "{{count}} job(s) eliminado(s)",
+        defaultValue: "{{count}} tarea(s) eliminada(s)",
         count: ids.length,
       }),
     );
@@ -1396,8 +1403,8 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         count={multi.count}
         onClear={multi.clear}
         onDelete={() => setBulkOpen(true)}
-        entityNameSingular="job"
-        entityNamePlural="jobs"
+        entityNameSingular={t("unifiedAiQueue.entitySingular")}
+        entityNamePlural={t("unifiedAiQueue.entityPlural")}
         actionLabel={t("unifiedAiQueue.actionDelete", { defaultValue: "Eliminar" })}
         actionIcon={Trash2}
         extraActions={[
@@ -1415,7 +1422,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
           <div className="flex items-center gap-2">
             {selectableJobs.length > 0 && <MultiSelectHeaderCheckbox state={multi} />}
             <CardTitle className="text-base">{t("unifiedAiQueue.cardTitle")}</CardTitle>
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="secondary" className="text-3xs">
               {filteredJobs.length}
             </Badge>
           </div>
@@ -1532,7 +1539,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 disabled={releasing}
                 title={t("unifiedAiQueue.releaseStuckTooltip", {
                   defaultValue:
-                    "Devuelve a la cola los jobs colgados en proceso por más de unos minutos.",
+                    "Devuelve a la cola las tareas atascadas en proceso por más de unos minutos.",
                 })}
               >
                 {releasing ? (
@@ -1540,7 +1547,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                 ) : (
                   <RotateCcw className="h-3.5 w-3.5 mr-1" />
                 )}
-                {t("unifiedAiQueue.btnReleaseStuck", { defaultValue: "Liberar atascados" })}
+                {t("unifiedAiQueue.btnReleaseStuck", { defaultValue: "Liberar atascadas" })}
               </Button>
             )}
             <Button
@@ -1636,7 +1643,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             ámbar para generación (Wand2 icon). */}
                         <Badge
                           variant="outline"
-                          className={`text-[10px] shrink-0 ${
+                          className={`text-3xs shrink-0 ${
                             j.source === "grading"
                               ? "border-sky-500/40 text-sky-700 dark:text-sky-400"
                               : "border-amber-500/40 text-amber-700 dark:text-amber-400"
@@ -1657,7 +1664,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{j.label}</span>
-                            <Badge variant="outline" className="text-[10px] shrink-0">
+                            <Badge variant="outline" className="text-3xs shrink-0">
                               {kindLabelFor(j)}
                             </Badge>
                             <Badge
@@ -1668,7 +1675,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                     ? "secondary"
                                     : "outline"
                               }
-                              className="text-[10px] shrink-0"
+                              className="text-3xs shrink-0"
                             >
                               {STATUS_LABELS[j.status]}
                             </Badge>
@@ -1678,12 +1685,12 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             {procMins !== null && (
                               <Badge
                                 variant={procStuck ? "destructive" : "secondary"}
-                                className="text-[10px] shrink-0 gap-0.5"
+                                className="text-3xs shrink-0 gap-0.5"
                                 title={
                                   procStuck
                                     ? t("unifiedAiQueue.processingStuckHint", {
                                         defaultValue:
-                                          "Lleva mucho en proceso — probable atasco. Selecciónalo y usa «Volver a la cola».",
+                                          "Lleva mucho procesando — probable atasco. Selecciónala y usa «Volver a la cola».",
                                       })
                                     : undefined
                                 }
@@ -1691,7 +1698,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                 <Clock className="h-3 w-3" />
                                 {procStuck
                                   ? t("unifiedAiQueue.processingStuck", {
-                                      defaultValue: "atascado {{mins}}m",
+                                      defaultValue: "atascada {{mins}}m",
                                       mins: procMins,
                                     })
                                   : t("unifiedAiQueue.processingFor", {
@@ -1713,7 +1720,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                             montando "Pendiente" sobre "Proyecto (batch)".
                             El detalle completo de fechas vive en el panel
                             expandible — el age es solo at-a-glance. */}
-                        <span className="hidden sm:inline text-[11px] text-muted-foreground tabular-nums shrink-0">
+                        <span className="hidden sm:inline text-2xs text-muted-foreground tabular-nums shrink-0">
                           {relativeAge(j.created_at)}
                         </span>
                       </div>
@@ -1796,18 +1803,15 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         )}
                       </div>
                     </div>
-                    {/* Panel de detalle expandible — body del request (gen),
-                        target/attempts/created (grading + gen), error
-                        completo con botón Copiar. Restaurado del refactor
-                        UnifiedAiQueuePanel que lo perdió silenciosamente. */}
+                    {/* Panel de detalle expandible — qué se calificaba, en qué
+                        estado quedó, quién lo pidió y el error completo con
+                        botón Copiar. Lo crudo (id de la fila, tabla/fila de
+                        origen, JSON del request) vive en el bloque "Detalle
+                        técnico" de abajo, solo para Admin/SuperAdmin. */}
                     {expanded && (
                       <div className="px-10 pr-3 pb-3 -mt-1 space-y-2">
                         <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs space-y-1.5">
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-1">
-                            <div>
-                              <span className="text-muted-foreground">ID:</span>{" "}
-                              <code className="font-mono text-[10px]">{j.id.slice(0, 8)}…</code>
-                            </div>
                             <div>
                               <span className="text-muted-foreground">{t("unifiedAiQueue.detailType")}:</span>{" "}
                               <span>{kindLabelFor(j)}</span>
@@ -1867,18 +1871,11 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                   </span>
                                 </div>
                               )}
-                            {j.source === "grading" && j.target_table && (
-                              <div className="col-span-2">
-                                <span className="text-muted-foreground">{t("unifiedAiQueue.detailTarget")}:</span>{" "}
-                                <code className="font-mono text-[10px]">
-                                  {j.target_table}/{j.target_row_id?.slice(0, 8)}…
-                                </code>
-                              </div>
-                            )}
                             {/* Datos de rechazo en el detalle — para quien
-                                gestiona la cola (Admin/SA) que ve jobs ajenos.
-                                El dueño del job ya tiene el bloque interactivo
-                                naranja abajo (con "Cerrar conversación"). */}
+                                gestiona la cola (Admin/SA) que ve tareas
+                                ajenas. El dueño de la tarea ya tiene el bloque
+                                interactivo naranja abajo (con "Cerrar
+                                conversación"). */}
                             {j.status === "rejected" && !isMyRejection && (
                               <>
                                 <div className="col-span-2">
@@ -1901,12 +1898,41 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                               </>
                             )}
                           </div>
-                          {j.source === "generation" && j.body && (
-                            <div>
-                              <div className="text-muted-foreground mb-0.5">{t("unifiedAiQueue.detailBody")}:</div>
-                              <pre className="font-mono text-[10px] whitespace-pre-wrap break-words max-h-40 overflow-y-auto rounded bg-background/60 p-2 border">
-                                {JSON.stringify(j.body, null, 2)}
-                              </pre>
+                          {/* "Detalle técnico" — el id de la fila de la cola,
+                              la tabla/fila de origen y el JSON del request. Son
+                              datos de soporte (correlacionar contra la DB), no
+                              responden la pregunta del docente. Gated a
+                              Admin/SuperAdmin. */}
+                          {canSeeTechDetail && (
+                            <div className="rounded border border-dashed bg-background/40 px-2 py-1.5 space-y-1">
+                              <div className="flex items-baseline gap-1.5 flex-wrap">
+                                <span className="text-3xs font-medium uppercase tracking-wide text-muted-foreground">
+                                  {t("unifiedAiQueue.techDetailTitle")}
+                                </span>
+                                <span className="text-3xs text-muted-foreground/70">
+                                  {t("unifiedAiQueue.techDetailHint")}
+                                </span>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">{t("unifiedAiQueue.detailId")}:</span>{" "}
+                                <code className="font-mono text-3xs break-all">{j.id}</code>
+                              </div>
+                              {j.source === "grading" && j.target_table && (
+                                <div>
+                                  <span className="text-muted-foreground">{t("unifiedAiQueue.detailTarget")}:</span>{" "}
+                                  <code className="font-mono text-3xs break-all">
+                                    {j.target_table}/{j.target_row_id ?? "—"}
+                                  </code>
+                                </div>
+                              )}
+                              {j.source === "generation" && j.body && (
+                                <div>
+                                  <div className="text-muted-foreground mb-0.5">{t("unifiedAiQueue.detailBody")}:</div>
+                                  <pre className="font-mono text-3xs whitespace-pre-wrap break-words max-h-40 overflow-y-auto rounded bg-background/60 p-2 border">
+                                    {JSON.stringify(j.body, null, 2)}
+                                  </pre>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
@@ -1914,10 +1940,10 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                           <div className="rounded border border-destructive/30 bg-destructive/5 p-2 flex items-start gap-1.5">
                             <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-0.5 text-destructive" />
                             <div className="flex-1 min-w-0">
-                              <div className="text-[11px] font-medium text-destructive mb-0.5">
+                              <div className="text-2xs font-medium text-destructive mb-0.5">
                                 {t("unifiedAiQueue.detailLastError")}
                               </div>
-                              <div className="text-[11px] text-destructive whitespace-pre-wrap break-words">
+                              <div className="text-2xs text-destructive whitespace-pre-wrap break-words">
                                 {j.last_error}
                               </div>
                             </div>
@@ -1944,7 +1970,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                     ),
                                   );
                               }}
-                              className="shrink-0 text-[10px] text-destructive/80 hover:text-destructive flex items-center gap-0.5"
+                              className="shrink-0 text-3xs text-destructive/80 hover:text-destructive flex items-center gap-0.5"
                               title={t("unifiedAiQueue.copyError")}
                             >
                               <Copy className="h-3 w-3" /> {t("unifiedAiQueue.btnCopy")}
@@ -1962,7 +1988,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                         <button
                           type="button"
                           onClick={() => setExpandedId(j.id)}
-                          className="text-left w-full text-[11px] text-destructive/90 hover:text-destructive truncate flex items-center gap-1"
+                          className="text-left w-full text-2xs text-destructive/90 hover:text-destructive truncate flex items-center gap-1"
                           title={t("unifiedAiQueue.clickToExpand")}
                         >
                           <AlertTriangle className="h-3 w-3 shrink-0" />
@@ -1983,7 +2009,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
                                 {j.rejection_reason ?? t("unifiedAiQueue.noReason")}
                               </p>
                               {j.rejected_at && (
-                                <p className="text-[10px] text-muted-foreground">
+                                <p className="text-3xs text-muted-foreground">
                                   {t("unifiedAiQueue.rejectedAt", { datetime: formatDateTime(j.rejected_at) })}
                                 </p>
                               )}
@@ -2013,14 +2039,14 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         open={bulkOpen}
         onOpenChange={setBulkOpen}
         items={selectedItems}
-        entityNameSingular="job"
-        entityNamePlural="jobs"
+        entityNameSingular={t("unifiedAiQueue.entitySingular")}
+        entityNamePlural={t("unifiedAiQueue.entityPlural")}
         actionLabel={t("unifiedAiQueue.actionDelete", { defaultValue: "Eliminar" })}
         actionIcon={Trash2}
         dismissLabel={t("unifiedAiQueue.btnBack")}
         extraWarning={t("unifiedAiQueue.bulkDeleteWarning", {
           defaultValue:
-            "Se eliminarán permanentemente los jobs seleccionados de la cola. Si querías reintentarlos, usa «Volver a la cola» en su lugar.",
+            "Se eliminarán permanentemente las tareas seleccionadas de la cola. Si querías reintentarlas, usa «Volver a la cola» en su lugar.",
         })}
         onConfirm={bulkDelete}
       />

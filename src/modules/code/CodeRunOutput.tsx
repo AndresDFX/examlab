@@ -63,11 +63,11 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
   }, [submissionId, questionId, userId]);
 
   if (loading) {
-    return <div className="text-[11px] text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.loadingConsole")}</div>;
+    return <div className="text-2xs text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.loadingConsole")}</div>;
   }
   if (!exec) {
     return (
-      <div className="text-[11px] text-muted-foreground italic flex items-center gap-1.5">
+      <div className="text-2xs text-muted-foreground italic flex items-center gap-1.5">
         <Terminal className="h-3 w-3" />
         {t("hc_modulesCodeCodeRunOutput.noExecutions")}
       </div>
@@ -77,15 +77,15 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
   const isOk = exec.exit_code === 0;
   return (
     <div className="space-y-1.5">
-      <div className="flex items-center gap-2 text-[11px]">
+      <div className="flex items-center gap-2 text-2xs">
         <Terminal className="h-3 w-3 text-muted-foreground" />
         <span className="text-muted-foreground">{t("hc_modulesCodeCodeRunOutput.lastExecution")}</span>
         {exec.language && (
-          <Badge variant="outline" className="text-[9px]">
+          <Badge variant="outline" className="text-3xs">
             {exec.language}
           </Badge>
         )}
-        <Badge variant={isOk ? "secondary" : "destructive"} className="text-[9px] tabular-nums">
+        <Badge variant={isOk ? "secondary" : "destructive"} className="text-3xs tabular-nums">
           {isOk ? (
             <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
           ) : (
@@ -94,23 +94,23 @@ export function CodeRunOutput({ submissionId, questionId, userId }: Props) {
           exit {exec.exit_code ?? "?"}
         </Badge>
         {typeof exec.execution_time_ms === "number" && (
-          <span className="text-[10px] text-muted-foreground tabular-nums">
+          <span className="text-3xs text-muted-foreground tabular-nums">
             {exec.execution_time_ms} ms
           </span>
         )}
       </div>
       {exec.stdout && exec.stdout.trim() && (
-        <pre className="text-[11px] bg-muted/40 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">
+        <pre className="text-2xs bg-muted/40 rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">
           {exec.stdout}
         </pre>
       )}
       {exec.stderr && exec.stderr.trim() && (
-        <pre className="text-[11px] bg-destructive/10 text-destructive rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">
+        <pre className="text-2xs bg-destructive/10 text-destructive rounded p-2 max-h-40 overflow-auto whitespace-pre-wrap">
           {exec.stderr}
         </pre>
       )}
       {!exec.stdout?.trim() && !exec.stderr?.trim() && (
-        <p className="text-[10px] text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.noConsoleOutput")}</p>
+        <p className="text-3xs text-muted-foreground italic">{t("hc_modulesCodeCodeRunOutput.noConsoleOutput")}</p>
       )}
     </div>
   );

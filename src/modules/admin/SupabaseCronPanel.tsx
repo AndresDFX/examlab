@@ -364,12 +364,12 @@ export function SupabaseCronPanel() {
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-medium truncate">{job.jobname}</span>
                             {!job.active && (
-                              <Badge variant="secondary" className="text-[10px] shrink-0">
+                              <Badge variant="secondary" className="text-3xs shrink-0">
                                 {t("hc_modulesAdminSupabaseCronPanel.paused")}
                               </Badge>
                             )}
                             {lastFailed && (
-                              <Badge variant="destructive" className="text-[10px] shrink-0">
+                              <Badge variant="destructive" className="text-3xs shrink-0">
                                 {t("hc_modulesAdminSupabaseCronPanel.lastStatusBadge", {
                                   status: job.last_status,
                                 })}
@@ -493,7 +493,7 @@ export function SupabaseCronPanel() {
                               {t("hc_modulesAdminSupabaseCronPanel.lastMessageLabel")}
                             </div>
                             <pre
-                              className={`text-[11px] rounded p-2 whitespace-pre-wrap break-all border ${
+                              className={`text-2xs rounded p-2 whitespace-pre-wrap break-all border ${
                                 lastFailed
                                   ? "bg-destructive/10 text-destructive border-destructive/30"
                                   : "bg-muted/40 border-muted-foreground/20"
@@ -507,7 +507,7 @@ export function SupabaseCronPanel() {
                           <div className="text-muted-foreground mb-0.5">
                             {t("hc_modulesAdminSupabaseCronPanel.commandReadOnly")}
                           </div>
-                          <pre className="text-[11px] bg-muted/40 border border-muted-foreground/20 rounded p-2 whitespace-pre-wrap break-all font-mono">
+                          <pre className="text-2xs bg-muted/40 border border-muted-foreground/20 rounded p-2 whitespace-pre-wrap break-all font-mono">
                             {job.command}
                           </pre>
                         </div>
@@ -667,7 +667,7 @@ function DetailRow({
   return (
     <div className="flex items-start gap-2">
       <span className="text-muted-foreground w-32 shrink-0">{k}</span>
-      <span className={`flex-1 break-all ${mono ? "font-mono text-[11px]" : ""} ${color}`}>
+      <span className={`flex-1 break-all ${mono ? "font-mono text-2xs" : ""} ${color}`}>
         {v}
       </span>
     </div>

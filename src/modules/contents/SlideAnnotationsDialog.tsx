@@ -498,7 +498,7 @@ export function SlideAnnotationsDialog({
             <PresentationIcon className="h-5 w-5 text-primary shrink-0" />
             <span className="truncate">{contentName}</span>
             {deck.length > 0 && (
-              <Badge variant="outline" className="text-[10px] tabular-nums shrink-0">
+              <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
                 {t("slideAnnotations.position", {
                   defaultValue: "{{current}} / {{total}}",
                   current: Math.min(idx + 1, deck.length),
@@ -507,7 +507,7 @@ export function SlideAnnotationsDialog({
               </Badge>
             )}
             {annotatedKeys.length > 0 && (
-              <Badge variant="secondary" className="text-[10px] tabular-nums shrink-0">
+              <Badge variant="secondary" className="text-3xs tabular-nums shrink-0">
                 {/* Clave con plurales (_one/_other) — sin defaultValue inline
                     a propósito: el defaultValue no soporta pluralización. */}
                 {t("slideAnnotations.annotatedCount", { count: annotatedKeys.length })}

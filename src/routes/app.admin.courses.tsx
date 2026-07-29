@@ -2172,7 +2172,7 @@ export function AdminCourses() {
                       </span>
                       <div className="flex flex-wrap items-center gap-1 sm:hidden">
                         {c.period && (
-                          <Badge variant="outline" className="text-[10px] w-fit">
+                          <Badge variant="outline" className="text-3xs w-fit">
                             {c.period}
                           </Badge>
                         )}
@@ -2415,7 +2415,7 @@ export function AdminCourses() {
                     defaultValue: "Se prellena con la asignatura — personalízalo si quieres",
                   })}
                 />
-                <p className="text-[11px] text-muted-foreground mt-1">
+                <p className="text-2xs text-muted-foreground mt-1">
                   {t("courses.nameFromSubjectHint", {
                     defaultValue:
                       "Se prellena con la asignatura del plan; puedes personalizarlo para esta versión del curso (ej. grupo, jornada o cohorte).",
@@ -2561,7 +2561,7 @@ export function AdminCourses() {
                   </SelectContent>
                 </Select>
                 {subjects.length === 0 && (
-                  <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-1">
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
                     {t("courses.noSubjectsHint", {
                       defaultValue:
                         "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos.",
@@ -2587,7 +2587,7 @@ export function AdminCourses() {
                     );
                   if (parts.length === 0) return null;
                   return (
-                    <p className="text-[11px] text-muted-foreground mt-1">
+                    <p className="text-2xs text-muted-foreground mt-1">
                       {t("hc_routesAppAdminCourses.inheritedFromSubject", {
                         parts: parts.join(" · "),
                       })}
@@ -2845,7 +2845,7 @@ export function AdminCourses() {
                   )}
 
                   {editingCuts.length > 0 && (
-                    <p className="text-[11px] text-muted-foreground">
+                    <p className="text-2xs text-muted-foreground">
                       {t("hc_routesAppAdminCourses.cutsHintBefore")}{" "}
                       <ChevronRight className="inline h-3 w-3 align-text-bottom" />{" "}
                       {t("hc_routesAppAdminCourses.cutsHintAfter")}
@@ -2899,7 +2899,7 @@ export function AdminCourses() {
                           {/* Fila 2: fechas + peso (3 columnas desde sm) */}
                           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 min-w-0">
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">
+                              <Label className="text-3xs text-muted-foreground">
                                 {t("hc_routesAppAdminCourses.cutStart")}
                               </Label>
                               <DatePicker
@@ -2909,7 +2909,7 @@ export function AdminCourses() {
                               />
                             </div>
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">
+                              <Label className="text-3xs text-muted-foreground">
                                 {t("hc_routesAppAdminCourses.cutEnd")}
                               </Label>
                               <DatePicker
@@ -2919,7 +2919,7 @@ export function AdminCourses() {
                               />
                             </div>
                             <div className="min-w-0">
-                              <Label className="text-[10px] text-muted-foreground">
+                              <Label className="text-3xs text-muted-foreground">
                                 {t("hc_routesAppAdminCourses.cutWeightPercent")}
                               </Label>
                               <DecimalInput
@@ -3122,7 +3122,7 @@ export function AdminCourses() {
             countNoun={t("hc_routesAppAdminCourses.assignedNoun")}
           />
           {!isAdmin && (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {t("hc_routesAppAdminCourses.cannotSelfAssign")}
             </p>
           )}

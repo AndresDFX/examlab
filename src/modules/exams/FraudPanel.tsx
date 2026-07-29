@@ -710,14 +710,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           <div className="flex items-center gap-2 text-sm font-medium">
             <Bot className="h-4 w-4 text-muted-foreground" />
             {t("hc_modulesExamsFraudPanel.aiGeneratedProbability")}
-            <Badge variant="outline" className="ml-auto text-[11px]">
+            <Badge variant="outline" className="ml-auto text-2xs">
               {aiSummaryLabel}
             </Badge>
             {hasAi && (
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[11px]"
+                className="h-7 text-2xs"
                 disabled={bulkApplying}
                 onClick={() =>
                   applyAllInSection(
@@ -832,14 +832,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                             <div className="flex flex-col items-end gap-1">
                               <Badge
                                 variant="outline"
-                                className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                               >
                                 <Check className="h-3 w-3 mr-1" />
                                 {t("hc_modulesExamsFraudPanel.reviewed")}
                               </Badge>
                               <button
                                 type="button"
-                                className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                className="text-3xs text-muted-foreground hover:text-foreground underline"
                                 onClick={() => toggleAiReviewed(row.submissionId, true)}
                               >
                                 {t("hc_modulesExamsFraudPanel.reopen")}
@@ -871,7 +871,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
           <div className="flex items-center gap-2 text-sm font-medium">
             <Users className="h-4 w-4 text-muted-foreground" />
             {t("hc_modulesExamsFraudPanel.possibleCopiesBetweenStudents")}
-            <Badge variant="outline" className="ml-auto text-[11px]">
+            <Badge variant="outline" className="ml-auto text-2xs">
               {hasPairs
                 ? t("hc_modulesExamsFraudPanel.studentPairsCount", {
                     count: groupedPairs.length,
@@ -936,14 +936,14 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                               <div className="flex flex-col items-end gap-1">
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
+                                  className="text-3xs bg-emerald-500/10 text-emerald-700 border-emerald-500/30 dark:text-emerald-300"
                                 >
                                   <Check className="h-3 w-3 mr-1" />
                                   {t("hc_modulesExamsFraudPanel.reviewed")}
                                 </Badge>
                                 <button
                                   type="button"
-                                  className="text-[10px] text-muted-foreground hover:text-foreground underline"
+                                  className="text-3xs text-muted-foreground hover:text-foreground underline"
                                   onClick={markAll}
                                 >
                                   {t("hc_modulesExamsFraudPanel.reopen")}
@@ -999,7 +999,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
                     <Button
                       size="sm"
                       variant="outline"
-                      className="h-7 text-[11px]"
+                      className="h-7 text-2xs"
                       disabled={bulkApplying}
                       onClick={() =>
                         applyAllInSection(

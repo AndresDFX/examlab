@@ -822,7 +822,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                               {log.actor_role && (
                                 <Badge
                                   variant="outline"
-                                  className={`self-start text-[10px] py-0 ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}
+                                  className={`self-start text-3xs py-0 ${ROLE_CLS[log.actor_role] ?? ROLE_CLS.sistema}`}
                                 >
                                   {log.actor_role}
                                 </Badge>
@@ -837,7 +837,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                               (() => {
                                 const f = forensicDetails(log.metadata);
                                 return f ? (
-                                  <span className="block text-[11px] text-muted-foreground">
+                                  <span className="block text-2xs text-muted-foreground">
                                     {fieldLabel(f.field, t)}:{" "}
                                     <span className="line-through">{f.oldValue ?? "∅"}</span>
                                     {" → "}
@@ -852,7 +852,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                           {/* Categoría */}
                           <TableCell>
                             {cat && (
-                              <Badge variant="outline" className={`text-[10px] ${cat.cls}`}>
+                              <Badge variant="outline" className={`text-3xs ${cat.cls}`}>
                                 {t(`audit.categories.${log.category}`)}
                               </Badge>
                             )}
@@ -963,7 +963,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                   {detail.actor_role ? (
                     <Badge
                       variant="outline"
-                      className={`text-[10px] ${ROLE_CLS[detail.actor_role] ?? ROLE_CLS.sistema}`}
+                      className={`text-3xs ${ROLE_CLS[detail.actor_role] ?? ROLE_CLS.sistema}`}
                     >
                       {detail.actor_role}
                     </Badge>
@@ -976,7 +976,7 @@ export function AuditLogsView({ mode }: { mode: "admin" | "teacher" }) {
                   {CATEGORY_CONFIG[detail.category] ? (
                     <Badge
                       variant="outline"
-                      className={`text-[10px] ${CATEGORY_CONFIG[detail.category].cls}`}
+                      className={`text-3xs ${CATEGORY_CONFIG[detail.category].cls}`}
                     >
                       {t(`audit.categories.${detail.category}`)}
                     </Badge>

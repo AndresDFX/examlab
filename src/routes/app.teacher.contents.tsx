@@ -1250,7 +1250,7 @@ function TeacherContents() {
       <div className="space-y-5">
         <PageHeader
           title={t("contents.title")}
-          icon={<Presentation className="h-6 w-6 text-pink-500" />}
+          icon={<Presentation className="h-6 w-6" />}
         />
         <ErrorState
           message={t("hc_routesAppTeacherContents.loadErrorTitle")}
@@ -1266,7 +1266,7 @@ function TeacherContents() {
       <PageHeader
         title={t("contents.title")}
         subtitle={t("contents.subtitle")}
-        icon={<Presentation className="h-6 w-6 text-pink-500" />}
+        icon={<Presentation className="h-6 w-6" />}
         actions={
           // flex-wrap: en móvil (375px) los 2 CTAs no caben en una línea y
           // desbordaban el header; envolver + size="sm" los deja apilar.
@@ -1430,7 +1430,7 @@ function TeacherContents() {
                         }
                         action={
                           noMatch ? undefined : (
-                            <Button onClick={() => setDialogOpen(true)}>
+                            <Button size="sm" onClick={() => setDialogOpen(true)}>
                               <Plus className="h-4 w-4 mr-1" />
                               {t("contents.createFirst")}
                             </Button>
@@ -1495,7 +1495,7 @@ function TeacherContents() {
                             onValueChange={(v) => void setPublished(it, v === "published")}
                           >
                             <SelectTrigger
-                              className="h-6 w-auto px-2 py-0 text-[10px] gap-1 shrink-0"
+                              className="h-6 w-auto px-2 py-0 text-3xs gap-1 shrink-0"
                               aria-label={t("hc_routesAppTeacherContents.publishStatusAria")}
                               title={
                                 publishingId !== null
@@ -1531,7 +1531,7 @@ function TeacherContents() {
                             {d.sessions > 0 && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] gap-1 px-1.5 py-0"
+                                className="text-3xs gap-1 px-1.5 py-0"
                                 title={t("contents.derivedSessionsHint")}
                               >
                                 <CalendarRange className="h-2.5 w-2.5" />
@@ -1541,7 +1541,7 @@ function TeacherContents() {
                             {d.exams > 0 && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] gap-1 px-1.5 py-0"
+                                className="text-3xs gap-1 px-1.5 py-0"
                                 title={t("contents.derivedExamsHint")}
                               >
                                 <BookOpenCheck className="h-2.5 w-2.5" />
@@ -1551,7 +1551,7 @@ function TeacherContents() {
                             {d.workshops > 0 && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] gap-1 px-1.5 py-0"
+                                className="text-3xs gap-1 px-1.5 py-0"
                                 title={t("contents.derivedWorkshopsHint")}
                               >
                                 <FileText className="h-2.5 w-2.5" />
@@ -1561,7 +1561,7 @@ function TeacherContents() {
                             {d.projects > 0 && (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] gap-1 px-1.5 py-0"
+                                className="text-3xs gap-1 px-1.5 py-0"
                                 title={t("contents.derivedProjectsHint")}
                               >
                                 <Presentation className="h-2.5 w-2.5" />
@@ -1574,7 +1574,7 @@ function TeacherContents() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[11px]">
+                      <Badge variant="outline" className="text-2xs">
                         {it.mode === "curso_completo"
                           ? `${t("contents.modeFull")} (${it.n_classes})`
                           : t("contents.modeSingle")}
@@ -1593,7 +1593,7 @@ function TeacherContents() {
                       })()}
                     </TableCell>
                     <TableCell>
-                      <Badge variant={statusVariant(it.status)} className="text-[11px]">
+                      <Badge variant={statusVariant(it.status)} className="text-2xs">
                         {it.status === "processing" && <Spinner size="xs" className="mr-1" />}
                         {t(
                           `contents.status${it.status.charAt(0).toUpperCase()}${it.status.slice(1)}`,
@@ -1601,7 +1601,7 @@ function TeacherContents() {
                       </Badge>
                       {it.status === "failed" && it.error && (
                         <div
-                          className="text-[10px] text-destructive mt-1 max-w-xs truncate"
+                          className="text-3xs text-destructive mt-1 max-w-xs truncate"
                           title={it.error}
                         >
                           {t("contents.errorPrefix")}: {it.error}
@@ -1629,7 +1629,7 @@ function TeacherContents() {
                           <Eye className="h-3.5 w-3.5 mr-1" />
                           <Badge
                             variant="secondary"
-                            className="h-5 px-1.5 text-[10px] tabular-nums"
+                            className="h-5 px-1.5 text-3xs tabular-nums"
                           >
                             {it.files.length}
                           </Badge>
@@ -1863,7 +1863,7 @@ function TeacherContents() {
                     <div className="font-medium text-sm">
                       {m === "curso_completo" ? t("contents.modeFull") : t("contents.modeSingle")}
                     </div>
-                    <div className="text-[11px] text-muted-foreground">
+                    <div className="text-2xs text-muted-foreground">
                       {m === "curso_completo"
                         ? t("contents.modeFullDesc")
                         : t("contents.modeSingleDesc")}
@@ -1907,7 +1907,7 @@ function TeacherContents() {
                     setDurationInput(String(v));
                   }}
                 />
-                <p className="text-[11px] text-muted-foreground">{t("contents.durationHelper")}</p>
+                <p className="text-2xs text-muted-foreground">{t("contents.durationHelper")}</p>
               </div>
             </div>
 
@@ -1961,13 +1961,13 @@ function TeacherContents() {
                         <div className="font-medium text-sm">{opt.label}</div>
                         {active && <CheckSquareIcon className="h-3.5 w-3.5 text-primary" />}
                       </div>
-                      <div className="text-[10px] text-muted-foreground">{opt.desc}</div>
+                      <div className="text-3xs text-muted-foreground">{opt.desc}</div>
                     </button>
                   );
                 })}
               </div>
               {tags.length === 0 && (
-                <p className="text-[11px] text-destructive">{t("contents.tagsRequired")}</p>
+                <p className="text-2xs text-destructive">{t("contents.tagsRequired")}</p>
               )}
             </div>
 
@@ -2068,7 +2068,7 @@ function TeacherContents() {
             <DialogTitle>{t("contents.raw")}</DialogTitle>
             <DialogDescription>{rawItem?.topic}</DialogDescription>
           </DialogHeader>
-          <pre className="text-[11px] whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-muted/30 p-3 rounded">
+          <pre className="text-2xs whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-muted/30 p-3 rounded">
             {rawItem?.raw_output ?? ""}
           </pre>
         </DialogContent>
@@ -2086,10 +2086,10 @@ function TeacherContents() {
             </DialogTitle>
             <DialogDescription>{items.find((i) => i.id === errorForId)?.topic}</DialogDescription>
           </DialogHeader>
-          <pre className="text-[11px] whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
+          <pre className="text-2xs whitespace-pre-wrap max-h-[60dvh] overflow-y-auto bg-destructive/5 border border-destructive/30 p-3 rounded text-destructive-foreground/90 select-text">
             {items.find((i) => i.id === errorForId)?.error ?? ""}
           </pre>
-          <p className="text-[11px] text-muted-foreground">{t("contents.errorDialogHint")}</p>
+          <p className="text-2xs text-muted-foreground">{t("contents.errorDialogHint")}</p>
         </DialogContent>
       </Dialog>
 
@@ -2631,7 +2631,7 @@ function CreateAssessmentDialog({
                   }`}
                 >
                   <div className="font-medium text-sm">{t("contents.scopeWholeCourse")}</div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-3xs text-muted-foreground">
                     {t("contents.scopeWholeCourseHint")}
                   </div>
                 </button>
@@ -2647,13 +2647,13 @@ function CreateAssessmentDialog({
                   <div className="font-medium text-sm">
                     {t("contents.scopePerCut", { count: courseCuts.length })}
                   </div>
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-3xs text-muted-foreground">
                     {t("contents.scopePerCutHint")}
                   </div>
                 </button>
               </div>
               {scope === "per_cut" && (
-                <p className="text-[11px] text-muted-foreground">
+                <p className="text-2xs text-muted-foreground">
                   {t("contents.scopePerCutPreview", {
                     names: courseCuts.map((c) => c.name).join(", "),
                   })}
@@ -2668,7 +2668,7 @@ function CreateAssessmentDialog({
               la descripción inyectada se restringe a esas. Para
               material_individual no hay clases que filtrar. */}
           {classes.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground">{t("contents.noClassesDetected")}</p>
+            <p className="text-2xs text-muted-foreground">{t("contents.noClassesDetected")}</p>
           ) : (
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
@@ -2678,7 +2678,7 @@ function CreateAssessmentDialog({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[11px]"
+                    className="h-6 text-2xs"
                     onClick={selectAll}
                   >
                     {t("contents.selectAllClasses")}
@@ -2687,14 +2687,14 @@ function CreateAssessmentDialog({
                     type="button"
                     variant="ghost"
                     size="sm"
-                    className="h-6 text-[11px]"
+                    className="h-6 text-2xs"
                     onClick={selectNone}
                   >
                     {t("contents.selectNoneClasses")}
                   </Button>
                 </div>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-2xs text-muted-foreground">
                 {isFull
                   ? t("contents.scopeFullHint")
                   : t("contents.classesSelectedSummary", {
@@ -2715,7 +2715,7 @@ function CreateAssessmentDialog({
                         checked ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
                       }`}
                     >
-                      <div className="flex items-center gap-1.5 font-medium text-[12px]">
+                      <div className="flex items-center gap-1.5 font-medium text-xs">
                         <input
                           type="checkbox"
                           checked={checked}
@@ -2726,7 +2726,7 @@ function CreateAssessmentDialog({
                       </div>
                       {title && (
                         <div
-                          className="text-[10px] text-muted-foreground mt-0.5 truncate"
+                          className="text-3xs text-muted-foreground mt-0.5 truncate"
                           title={title}
                         >
                           {title}
@@ -2737,7 +2737,7 @@ function CreateAssessmentDialog({
                 })}
               </div>
               {noneSelected && (
-                <p className="text-[11px] text-destructive">{t("contents.classesRequired")}</p>
+                <p className="text-2xs text-destructive">{t("contents.classesRequired")}</p>
               )}
             </div>
           )}
@@ -2750,7 +2750,7 @@ function CreateAssessmentDialog({
             <Textarea
               value={previewText}
               readOnly
-              className="font-mono text-[11px] min-h-[120px] max-h-[180px]"
+              className="font-mono text-2xs min-h-[120px] max-h-[180px]"
             />
           </div>
         </div>
@@ -3174,19 +3174,19 @@ function MaterializeCourseDialog({
                     />
                     <div className="flex-1 min-w-0 space-y-1.5">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge variant="outline" className="text-[10px]">
+                        <Badge variant="outline" className="text-3xs">
                           {p.type === "workshop"
                             ? t("contents.assessmentWorkshop")
                             : p.type === "exam"
                               ? t("contents.assessmentExam")
                               : t("contents.assessmentProject")}
                         </Badge>
-                        <span className="text-[11px] text-muted-foreground">{p.cutName}</span>
-                        <Badge variant="secondary" className="text-[10px]">
+                        <span className="text-2xs text-muted-foreground">{p.cutName}</span>
+                        <Badge variant="secondary" className="text-3xs">
                           {t("contents.materializeWeight", { weight: p.weight })}
                         </Badge>
                         {p.classNumbers.length > 0 && (
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-3xs">
                             {t("contents.materializeClasses", {
                               classes: p.classNumbers.join(", "),
                             })}
@@ -3203,7 +3203,7 @@ function MaterializeCourseDialog({
                         placeholder={p.title}
                       />
                       {p.disabled && (
-                        <p className="text-[10px] text-amber-700 dark:text-amber-400">
+                        <p className="text-3xs text-amber-700 dark:text-amber-400">
                           {t("contents.materializeNoClassesInRange")}
                         </p>
                       )}
@@ -3902,12 +3902,12 @@ function FilesByClassDialog({
                           <TableCell className="hidden md:table-cell">
                             {sessionsByClass[0] ? (
                               <div className="flex flex-col gap-0.5">
-                                <div className="flex items-center gap-1 text-[11px]">
+                                <div className="flex items-center gap-1 text-2xs">
                                   <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
                                   <DateCell value={sessionsByClass[0].date} variant="date" />
                                 </div>
                                 {sessionsByClass[0].title && (
-                                  <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
+                                  <span className="text-2xs text-muted-foreground truncate max-w-[120px]">
                                     {sessionsByClass[0].title}
                                   </span>
                                 )}
@@ -3915,7 +3915,7 @@ function FilesByClassDialog({
                             ) : (
                               <Badge
                                 variant="outline"
-                                className="text-[10px] font-normal text-muted-foreground"
+                                className="text-3xs font-normal text-muted-foreground"
                                 title={t("contents.classNoSessionHint")}
                               >
                                 {t("contents.classNoSession")}
@@ -3934,7 +3934,7 @@ function FilesByClassDialog({
                                   })}
                                 >
                                   <MoreHorizontal className="h-3.5 w-3.5" />
-                                  <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">
+                                  <span className="ml-1 tabular-nums text-3xs text-muted-foreground">
                                     {intro.length}
                                   </span>
                                 </Button>
@@ -3977,12 +3977,12 @@ function FilesByClassDialog({
                             <TableCell className="hidden md:table-cell">
                               {session ? (
                                 <div className="flex flex-col gap-0.5">
-                                  <div className="flex items-center gap-1 text-[11px]">
+                                  <div className="flex items-center gap-1 text-2xs">
                                     <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
                                     <DateCell value={session.date} variant="date" />
                                   </div>
                                   {session.title && (
-                                    <span className="text-[11px] text-muted-foreground truncate max-w-[120px]">
+                                    <span className="text-2xs text-muted-foreground truncate max-w-[120px]">
                                       {session.title}
                                     </span>
                                   )}
@@ -3990,7 +3990,7 @@ function FilesByClassDialog({
                               ) : (
                                 <Badge
                                   variant="outline"
-                                  className="text-[10px] font-normal text-muted-foreground"
+                                  className="text-3xs font-normal text-muted-foreground"
                                   title={t("contents.classNoSessionHint")}
                                 >
                                   {t("contents.classNoSession")}
@@ -4010,7 +4010,7 @@ function FilesByClassDialog({
                                       })}
                                     >
                                       <MoreHorizontal className="h-3.5 w-3.5" />
-                                      <span className="ml-1 tabular-nums text-[10px] text-muted-foreground">
+                                      <span className="ml-1 tabular-nums text-3xs text-muted-foreground">
                                         {sectionFiles.length}
                                       </span>
                                     </Button>
@@ -4022,7 +4022,7 @@ function FilesByClassDialog({
                                   </PopoverContent>
                                 </Popover>
                               ) : (
-                                <span className="text-[11px] text-muted-foreground/60">
+                                <span className="text-2xs text-muted-foreground/60">
                                   {t("contents.viewFilesByClassEmpty")}
                                 </span>
                               )}

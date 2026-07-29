@@ -913,7 +913,7 @@ function WhiteboardEditorInner({
           explicita. pointer-events-none para no bloquear interacción
           con el canvas (zoom, pan, export). */}
       {readOnly && (
-        <div className="absolute top-2 right-2 z-10 pointer-events-none rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1 text-[11px] text-muted-foreground inline-flex items-center gap-1 shadow-sm">
+        <div className="absolute top-2 right-2 z-10 pointer-events-none rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1 text-2xs text-muted-foreground inline-flex items-center gap-1 shadow-sm">
           <Eye className="h-3 w-3" />
           {t("hc_modulesWhiteboardWhiteboardEditor.readOnly", { defaultValue: "Solo lectura" })}
         </div>
@@ -926,7 +926,7 @@ function WhiteboardEditorInner({
       {collabActive && (
         <div
           className={cn(
-            "absolute z-10 pointer-events-none rounded-md border border-sky-300 bg-sky-50/90 dark:bg-sky-950/80 backdrop-blur-sm px-2 py-1 text-[11px] text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 shadow-sm",
+            "absolute z-10 pointer-events-none rounded-md border border-sky-300 bg-sky-50/90 dark:bg-sky-950/80 backdrop-blur-sm px-2 py-1 text-2xs text-sky-700 dark:text-sky-300 inline-flex items-center gap-1 shadow-sm",
             // Si también hay badge readOnly arriba-derecha, este va debajo.
             readOnly ? "top-10 right-2" : "top-2 right-2",
           )}
@@ -949,7 +949,7 @@ function WhiteboardEditorInner({
               <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
                 <div className="min-w-0">
                   <span className="text-xs font-semibold">{t("hc_modulesWhiteboardWhiteboardEditor.shapesPanelTitle", { defaultValue: "Figuras por tipo de diagrama" })}</span>
-                  <p className="text-[10px] text-muted-foreground">{t("hc_modulesWhiteboardWhiteboardEditor.shapesPanelHint", { defaultValue: "Toca una para insertarla en el centro." })}</p>
+                  <p className="text-3xs text-muted-foreground">{t("hc_modulesWhiteboardWhiteboardEditor.shapesPanelHint", { defaultValue: "Toca una para insertarla en el centro." })}</p>
                 </div>
                 <button
                   type="button"
@@ -982,11 +982,11 @@ function WhiteboardEditorInner({
                         <CatIcon className="h-4 w-4 shrink-0 text-primary" />
                         <span className="min-w-0 flex-1">
                           <span className="block text-xs font-semibold leading-tight">{cat.label}</span>
-                          <span className="block text-[10px] text-muted-foreground leading-tight truncate">
+                          <span className="block text-3xs text-muted-foreground leading-tight truncate">
                             {cat.description}
                           </span>
                         </span>
-                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-[10px] tabular-nums text-muted-foreground">
+                        <span className="shrink-0 rounded-full bg-muted px-1.5 text-3xs tabular-nums text-muted-foreground">
                           {cat.items.length}
                         </span>
                       </button>
@@ -1001,7 +1001,7 @@ function WhiteboardEditorInner({
                               className="flex flex-col items-center gap-1 rounded-md border border-border/60 bg-card/40 p-1.5 hover:border-primary/50 hover:bg-muted active:bg-muted/70 transition-colors"
                             >
                               <ShapePreview item={item} />
-                              <span className="w-full truncate text-center text-[10px] leading-tight text-muted-foreground">
+                              <span className="w-full truncate text-center text-3xs leading-tight text-muted-foreground">
                                 {shortLibraryItemName(item.name as string)}
                               </span>
                             </button>
@@ -1123,7 +1123,7 @@ export function WhiteboardEditor(props: Props) {
             })}
           </p>
           {error?.message && (
-            <code className="max-w-md truncate text-[11px] text-muted-foreground">
+            <code className="max-w-md truncate text-2xs text-muted-foreground">
               {error.message}
             </code>
           )}

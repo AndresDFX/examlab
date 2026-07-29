@@ -404,7 +404,7 @@ export function PollQuestionsEditor({
                     </div>
                   )}
                   {q.locked && (
-                    <span className="flex items-center gap-1 text-[11px] text-amber-700 dark:text-amber-400">
+                    <span className="flex items-center gap-1 text-2xs text-amber-700 dark:text-amber-400">
                       <Lock className="h-3 w-3" />
                       {t("pollQuestions.lockedNote", {
                         defaultValue: "Con respuestas — tipo y opciones no editables",

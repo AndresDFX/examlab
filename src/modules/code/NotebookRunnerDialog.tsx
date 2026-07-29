@@ -116,7 +116,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
             <NotebookPen className="h-4 w-4 text-orange-500 shrink-0" />
             <span className="truncate">{file?.name}</span>
           </DialogTitle>
-          <DialogDescription className="text-[11px]">
+          <DialogDescription className="text-2xs">
             {notebook
               ? t("notebookRunner.descHasCells", { cells: notebook.cells.length, codeCells: codeCellCount })
               : t("notebookRunner.descUnreadable")}
@@ -135,12 +135,12 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
                 {t("notebookRunner.btnRunAll")}
               </Button>
               {codeCellCount === 0 && (
-                <span className="text-[11px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   {t("notebookRunner.noCellsHint")}
                 </span>
               )}
               {codeCellCount > 0 && !isPython && (
-                <span className="text-[11px] text-amber-600 dark:text-amber-400">
+                <span className="text-2xs text-amber-600 dark:text-amber-400">
                   {t("notebookRunner.nonPythonHint", {
                     lang: notebook.language,
                     defaultValue: "Kernel {{lang}}: solo se ejecutan notebooks de Python.",
@@ -164,7 +164,7 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
                   return (
                     <pre
                       key={idx}
-                      className="text-[12px] font-mono bg-muted/40 rounded-md p-2 whitespace-pre-wrap break-words"
+                      className="text-xs font-mono bg-muted/40 rounded-md p-2 whitespace-pre-wrap break-words"
                     >
                       {cell.source}
                     </pre>
@@ -175,11 +175,11 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
                 return (
                   <div key={idx} className="rounded-md border overflow-hidden">
                     <div className="flex items-center gap-1.5 px-2 py-1 bg-muted/40 border-b">
-                      <Badge variant="secondary" className="text-[9px]">
+                      <Badge variant="secondary" className="text-3xs">
                         {t("notebookRunner.cellCode")}
                       </Badge>
                     </div>
-                    <pre className="text-[12px] font-mono p-2 overflow-x-auto whitespace-pre">
+                    <pre className="text-xs font-mono p-2 overflow-x-auto whitespace-pre">
                       {cell.source}
                     </pre>
                   </div>
@@ -189,8 +189,8 @@ export function NotebookRunnerDialog({ file, onOpenChange, auditId }: Props) {
 
             {output !== undefined && (
               <div className="border-t pt-2">
-                <div className="text-[11px] font-medium text-muted-foreground mb-1">{t("notebookRunner.outputTitle")}</div>
-                <pre className="text-[12px] font-mono bg-foreground/[0.04] rounded-md p-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">
+                <div className="text-2xs font-medium text-muted-foreground mb-1">{t("notebookRunner.outputTitle")}</div>
+                <pre className="text-xs font-mono bg-foreground/[0.04] rounded-md p-2 max-h-48 overflow-auto whitespace-pre-wrap break-words">
                   {output}
                 </pre>
               </div>

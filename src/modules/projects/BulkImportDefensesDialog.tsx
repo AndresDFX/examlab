@@ -390,7 +390,7 @@ export function BulkImportDefensesDialog({
                 defaultValue: "1. Descarga la plantilla",
               })}
             </div>
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-2xs text-muted-foreground">
               {t("hc_bulkImportDefenses.step1Hint", {
                 defaultValue:
                   "Columnas: student_email (obligatorio), defense_factor (0..1, obligatorio, decimal con PUNTO — ej. 0.8), defense_notes (opcional, máx. 2000 chars), defense_video_url (opcional). Para grupos, basta UN miembro por grupo.",
@@ -430,7 +430,7 @@ export function BulkImportDefensesDialog({
                 })}
               </Button>
               {hasFile && (
-                <span className="text-[11px] text-muted-foreground truncate">
+                <span className="text-2xs text-muted-foreground truncate">
                   {fileName}
                 </span>
               )}
@@ -453,7 +453,7 @@ export function BulkImportDefensesDialog({
                 })}
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 text-[11px]">
+              <div className="flex flex-wrap items-center gap-2 text-2xs">
                 <Badge variant="outline" className="gap-1">
                   <CheckCircle2 className="h-3 w-3 text-emerald-600" />
                   {t("hc_bulkImportDefenses.readyCount", {
@@ -483,12 +483,12 @@ export function BulkImportDefensesDialog({
               {/* Errores de validación */}
               {parseErrors.length > 0 && (
                 <div className="rounded-md border border-destructive/30 bg-destructive/5 p-2 space-y-1">
-                  <div className="text-[11px] font-medium text-destructive">
+                  <div className="text-2xs font-medium text-destructive">
                     {t("hc_bulkImportDefenses.validationErrors", {
                       defaultValue: "Errores de validación",
                     })}
                   </div>
-                  <ul className="text-[11px] text-destructive space-y-0.5 max-h-32 overflow-y-auto">
+                  <ul className="text-2xs text-destructive space-y-0.5 max-h-32 overflow-y-auto">
                     {parseErrors.slice(0, 20).map((err, i) => (
                       <li key={i}>{err.message}</li>
                     ))}
@@ -507,14 +507,14 @@ export function BulkImportDefensesDialog({
               {/* Emails sin entrega */}
               {emailsNoSubmission.length > 0 && (
                 <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 space-y-1">
-                  <div className="text-[11px] font-medium text-amber-700 dark:text-amber-500">
+                  <div className="text-2xs font-medium text-amber-700 dark:text-amber-500">
                     {t("hc_bulkImportDefenses.noSubmissionTitle", {
                       defaultValue:
                         "Estudiantes sin entrega previa ({{count}}) — no se les puede aplicar sustentación",
                       count: emailsNoSubmission.length,
                     })}
                   </div>
-                  <ul className="text-[11px] text-amber-700 dark:text-amber-500 space-y-0.5 max-h-24 overflow-y-auto">
+                  <ul className="text-2xs text-amber-700 dark:text-amber-500 space-y-0.5 max-h-24 overflow-y-auto">
                     {emailsNoSubmission.slice(0, 10).map((r, i) => (
                       <li key={i}>
                         {t("hc_bulkImportDefenses.lineEmail", {
@@ -539,14 +539,14 @@ export function BulkImportDefensesDialog({
               {/* Emails sin nota IA/manual previa */}
               {emailsNoGrade.length > 0 && (
                 <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-2 space-y-1">
-                  <div className="text-[11px] font-medium text-amber-700 dark:text-amber-500">
+                  <div className="text-2xs font-medium text-amber-700 dark:text-amber-500">
                     {t("hc_bulkImportDefenses.noGradeTitle", {
                       defaultValue:
                         "Entregas sin nota base ({{count}}) — califica los archivos primero",
                       count: emailsNoGrade.length,
                     })}
                   </div>
-                  <ul className="text-[11px] text-amber-700 dark:text-amber-500 space-y-0.5 max-h-24 overflow-y-auto">
+                  <ul className="text-2xs text-amber-700 dark:text-amber-500 space-y-0.5 max-h-24 overflow-y-auto">
                     {emailsNoGrade.slice(0, 10).map((r, i) => (
                       <li key={i}>
                         {t("hc_bulkImportDefenses.lineEmail", {
@@ -563,14 +563,14 @@ export function BulkImportDefensesDialog({
               {/* Duplicados de grupo */}
               {duplicateGroup.length > 0 && (
                 <div className="rounded-md border border-sky-500/30 bg-sky-500/5 p-2 space-y-1">
-                  <div className="text-[11px] font-medium text-sky-700 dark:text-sky-400">
+                  <div className="text-2xs font-medium text-sky-700 dark:text-sky-400">
                     {t("hc_bulkImportDefenses.duplicateGroupTitle", {
                       defaultValue:
                         "Miembros del mismo grupo ignorados ({{count}}) — solo se aplica al primero del CSV",
                       count: duplicateGroup.length,
                     })}
                   </div>
-                  <ul className="text-[11px] text-sky-700 dark:text-sky-400 space-y-0.5 max-h-24 overflow-y-auto">
+                  <ul className="text-2xs text-sky-700 dark:text-sky-400 space-y-0.5 max-h-24 overflow-y-auto">
                     {duplicateGroup.slice(0, 10).map((r, i) => (
                       <li key={i}>
                         {t("hc_bulkImportDefenses.lineEmail", {
@@ -586,7 +586,7 @@ export function BulkImportDefensesDialog({
 
               {/* Preview de filas listas */}
               {readyToApply.length > 0 && !hasAnyIssue && (
-                <div className="text-[11px] text-muted-foreground">
+                <div className="text-2xs text-muted-foreground">
                   {t("hc_bulkImportDefenses.allReadyHint", {
                     defaultValue:
                       "Todas las filas están listas. Al aplicar, se actualizará la sustentación de {{count}} entregas.",

@@ -17,7 +17,7 @@ export const Route = createFileRoute("/app/admin/system")({
 function AdminSystem() {
   const { t } = useTranslation();
   return (
-    <div className="container mx-auto space-y-6 p-4 sm:p-6">
+    <div className="space-y-6">
       <PageHeader
         icon={<Wrench className="h-6 w-6" />}
         title={t("adminSystem.pageTitle", { defaultValue: "Sistema" })}
