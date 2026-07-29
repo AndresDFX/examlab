@@ -140,6 +140,15 @@ TIMESTAMP="$(date -u +%Y%m%d-%H%M%S)"
 UNIQUE_TAG="${TIMESTAMP}-${GIT_SHA}"
 PRIMARY_TAG="${CUSTOM_TAG:-latest}"
 SSM_API_KEY_NAME="/${STACK_NAME}/api-key"
+# En Git Bash (Windows) MSYS reescribe cualquier argumento que PAREZCA una ruta
+# POSIX absoluta antes de pasarlo a un .exe: `/examlab-code-runner/api-key` se
+# convierte en `C:/Program Files/Git/examlab-code-runner/api-key` y AWS lo
+# rechaza con "Parameter name must be a fully qualified name" — el deploy moría
+# después de pushear las imágenes, dejando el stack sin actualizar.
+# `MSYS2_ARG_CONV_EXCL` excluye SOLO ese argumento de la conversión.
+# `MSYS_NO_PATHCONV=1` NO sirve como alternativa: es global y rompe la
+# resolución del propio ejecutable `aws`, que en Windows es un script de Python.
+export MSYS2_ARG_CONV_EXCL="$SSM_API_KEY_NAME"
 
 # ── Cuenta + URI ──
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
