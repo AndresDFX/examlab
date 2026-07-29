@@ -275,6 +275,10 @@ export function SessionWhiteboardDialog({
               // Viewport persistido en localStorage por sesión — al cerrar
               // y reabrir el dialog, el zoom/pan se mantienen donde quedaron.
               viewportStorageKey={`examlab_wb_view:session:${sessionId}`}
+              // Puntero láser: señalar en clase sin dejar marca. El trazo se
+              // desvanece y NO entra a la escena, así que no se persiste ni
+              // se broadcastea. También lo tiene el alumno en solo lectura.
+              enableLaser
               // Canal Realtime activo solo cuando shared=true. Tanto el
               // docente como los alumnos se enchufan al mismo canal, y
               // los broadcasts se filtran por clientId para no eco.

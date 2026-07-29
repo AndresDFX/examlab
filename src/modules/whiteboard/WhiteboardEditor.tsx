@@ -51,6 +51,7 @@ import {
   Network,
   AlertTriangle,
   RefreshCw,
+  Pointer,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { Button } from "@/components/ui/button";
@@ -222,6 +223,49 @@ interface Props {
    *  y vuelven, leen el último scene de DB.
    *  Ejemplo: `wb_session:<session_id>` para una pizarra de sesión. */
   realtimeChannelName?: string;
+  /** Auto-guardado. `true` (default) = comportamiento histórico: debounce de
+   *  1500ms + flush al desmontar. `false` = modo EDITOR: el editor NO
+   *  persiste nada por su cuenta; el padre recibe cada cambio por
+   *  `onSceneChange` y decide cuándo guardar (y si guarda).
+   *  Se usa para "rayar una presentación": el docente decide al final si
+   *  guarda las anotaciones o las descarta, así que un autosave las
+   *  escribiría sin permiso. */
+  autoPersist?: boolean;
+  /** Se invoca en CADA cambio de contenido (sin debounce), con la escena
+   *  completa. Independiente de `onPersist`: sirve para que el padre lleve
+   *  el estado "dirty" y guarde bajo demanda. */
+  onSceneChange?: (scene: WhiteboardScene) => void;
+  /** Se invoca cuando cambia el viewport (pan/zoom). Lo usa el escenario de
+   *  anotación para que la diapositiva de fondo siga al canvas. */
+  onViewportChange?: (viewport: { scrollX: number; scrollY: number; zoom: number }) => void;
+  /** Expone el ExcalidrawAPI al padre (para `setActiveTool`, `updateScene`…). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  onApiReady?: (api: any) => void;
+  /** appState extra para el PRIMER render (Excalidraw ignora initialData
+   *  después del mount). Tiene PRECEDENCIA sobre el appState de la escena —
+   *  así el overlay de anotación fuerza `viewBackgroundColor: "transparent"`
+   *  aunque una escena vieja traiga un fondo opaco. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  initialAppState?: Record<string, any>;
+  /** Muestra el botón de PUNTERO LÁSER (trazo efímero de Excalidraw: no
+   *  crea elementos, no se guarda ni se sincroniza). Opt-in para no cambiar
+   *  las pantallas que ya existen. */
+  enableLaser?: boolean;
+  /** Elemento que entra en PANTALLA COMPLETA al pulsar el botón. Por defecto
+   *  es la raíz del editor, que es lo correcto cuando el canvas es todo lo que
+   *  hay que ver (pizarra de sesión, hojas del multi-página).
+   *
+   *  Opt-in para el escenario de ANOTACIÓN de diapositivas: ahí el canvas es
+   *  TRANSPARENTE y la diapositiva es un HERMANO suyo, así que proyectar solo
+   *  la raíz del editor pinta los trazos sobre negro, sin diapositiva — el
+   *  botón que existe para proyectar rompía justo la proyección. El padre pasa
+   *  el ancestro que contiene ambas capas. */
+  fullscreenTargetRef?: { readonly current: HTMLElement | null };
+  /** Fuerza el tema del canvas ignorando el de la app. El overlay de
+   *  anotación lo fija en "light" porque el tema oscuro de Excalidraw
+   *  INVIERTE los colores del canvas y un trazo negro sobre una
+   *  diapositiva blanca quedaría invisible. */
+  themeOverride?: "light" | "dark";
 }
 
 /** Forma persistida del viewport en localStorage. Excalidraw entiende
@@ -302,6 +346,14 @@ function WhiteboardEditorInner({
   className,
   viewportStorageKey,
   realtimeChannelName,
+  autoPersist = true,
+  onSceneChange,
+  onViewportChange,
+  onApiReady,
+  initialAppState,
+  enableLaser,
+  themeOverride,
+  fullscreenTargetRef,
 }: Props) {
   const { t } = useTranslation();
   const [Component, setComponent] = useState<ComponentType<Record<string, unknown>> | null>(
@@ -346,7 +398,10 @@ function WhiteboardEditorInner({
       ((document as any).webkitFullscreenEnabled ?? false));
 
   const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current as
+    // El padre puede pedir que el fullscreen abarque un ANCESTRO (ver
+    // `fullscreenTargetRef`): proyectar el canvas solo, cuando es transparente
+    // y la imagen de fondo es un hermano, muestra los trazos sobre negro.
+    const el = (fullscreenTargetRef?.current ?? containerRef.current) as
       | (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void })
       | null;
     if (!el) return;
@@ -370,7 +425,7 @@ function WhiteboardEditorInner({
     } catch (err) {
       console.warn("[WhiteboardEditor] fullscreen toggle error", err);
     }
-  }, []);
+  }, [fullscreenTargetRef]);
   // Sincronizar state con el evento del navegador — el usuario puede
   // salir del fullscreen con Esc (no podemos interceptar Esc directo)
   // o desde el menú del browser. Sin este listener, el botón
@@ -470,6 +525,31 @@ function WhiteboardEditorInner({
   // necesaria para llamar `updateScene` cuando llega un broadcast remoto.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const excalidrawAPIRef = useRef<any>(null);
+
+  // ── Puntero láser (nativo de Excalidraw) ──
+  // `activeTool.type === "laser"` dibuja un trazo que se DESVANECE solo y que
+  // NO entra a `elements`: por diseño de la librería no se persiste, no se
+  // broadcastea y no ensucia el estado "hay cambios sin guardar". Eso es
+  // exactamente lo que se pide de un láser (señalar en clase sin dejar marca),
+  // así que no reimplementamos nada.
+  // El botón es NUESTRO y no el nativo porque: (a) el nativo vive dentro del
+  // dropdown "más herramientas", que Excalidraw ESCONDE en `viewModeEnabled` y
+  // en mobile solo muestra el láser cuando cree que hay colaboración;
+  // (b) la UI de Excalidraw no está traducida en este proyecto.
+  const [activeToolType, setActiveToolType] = useState<string>("");
+  const laserActive = activeToolType === "laser";
+  const toggleLaser = useCallback(() => {
+    const api = excalidrawAPIRef.current;
+    if (!api || typeof api.setActiveTool !== "function") return;
+    try {
+      api.setActiveTool({ type: laserActive ? "selection" : "laser" });
+      // Optimista: si el onChange de Excalidraw no llega (no cambió nada más),
+      // el botón igual refleja el estado nuevo.
+      setActiveToolType(laserActive ? "selection" : "laser");
+    } catch (err) {
+      console.warn("[WhiteboardEditor] setActiveTool(laser) failed", err);
+    }
+  }, [laserActive]);
   // Canal Realtime activo. Lo guardamos para emitir broadcasts desde
   // handleChange sin pasar el canal por args.
   const channelRef = useRef<RealtimeChannel | null>(null);
@@ -552,24 +632,34 @@ function WhiteboardEditorInner({
   const handleChange = useCallback(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (elements: readonly any[], appState: Record<string, any>, files?: Record<string, any>) => {
-      // Persistir viewport en localStorage (no a DB) ANTES del early-return
-      // de readOnly: cuando el alumno ve una pizarra read-only y panea/zoom,
-      // queremos que al volver mantenga su vista. Independiente del save de
+      // Herramienta activa — solo nos interesa para pintar el botón de láser
+      // como "activo". El setState con el MISMO valor no re-renderiza, así que
+      // esto no agrega renders mientras se dibuja.
+      if (enableLaser) {
+        const tool = typeof appState.activeTool?.type === "string" ? appState.activeTool.type : "";
+        setActiveToolType((prev) => (prev === tool ? prev : tool));
+      }
+
+      // Viewport (pan/zoom) ANTES del early-return de readOnly: cuando el
+      // alumno ve una pizarra read-only y panea/zoom, queremos que al volver
+      // mantenga su vista, y el escenario de anotación necesita mover la
+      // diapositiva de fondo con el canvas. Independiente del save de
       // contenido — el viewport es local al device del usuario.
-      if (viewportStorageKey) {
-        const vp: PersistedViewport = {
-          scrollX: typeof appState.scrollX === "number" ? appState.scrollX : 0,
-          scrollY: typeof appState.scrollY === "number" ? appState.scrollY : 0,
-          zoom:
-            typeof appState.zoom === "number"
-              ? appState.zoom
-              : typeof appState.zoom?.value === "number"
-                ? appState.zoom.value
-                : 1,
-        };
-        const serialized = JSON.stringify(vp);
-        if (serialized !== lastViewportRef.current) {
-          lastViewportRef.current = serialized;
+      const vp: PersistedViewport = {
+        scrollX: typeof appState.scrollX === "number" ? appState.scrollX : 0,
+        scrollY: typeof appState.scrollY === "number" ? appState.scrollY : 0,
+        zoom:
+          typeof appState.zoom === "number"
+            ? appState.zoom
+            : typeof appState.zoom?.value === "number"
+              ? appState.zoom.value
+              : 1,
+      };
+      const serializedVp = JSON.stringify(vp);
+      if (serializedVp !== lastViewportRef.current) {
+        lastViewportRef.current = serializedVp;
+        onViewportChange?.(vp);
+        if (viewportStorageKey) {
           if (viewportTimerRef.current) clearTimeout(viewportTimerRef.current);
           viewportTimerRef.current = setTimeout(() => {
             viewportTimerRef.current = null;
@@ -578,7 +668,8 @@ function WhiteboardEditorInner({
         }
       }
 
-      if (readOnly || !onPersist) return;
+      if (readOnly) return;
+      if (!onPersist && !onSceneChange) return;
       // Filtramos `appState` para no guardar info de sesión que cambia
       // todo el tiempo (cursor, zoom, scroll). Mantenemos solo lo que
       // afecta la apariencia persistente del board. El viewport viaja
@@ -614,6 +705,11 @@ function WhiteboardEditorInner({
         files: files && Object.keys(files).length > 0 ? files : undefined,
       };
 
+      // Modo EDITOR: el padre lleva el estado y decide cuándo guardar. Se
+      // notifica SIEMPRE (también cuando hay onPersist) — es información, no
+      // persistencia.
+      onSceneChange?.(next);
+
       // Broadcast en vivo: SOLO elements+appState (sin files). Reenviar MB de
       // base64 en cada broadcast (cada 200ms mientras se dibuja) saturaría
       // Realtime y rompería el sync del trazo. Los peers ven las imágenes al
@@ -628,6 +724,11 @@ function WhiteboardEditorInner({
           void channel.send({ type: "broadcast", event: "scene_update", payload });
         }, 200);
       }
+      // Sin auto-guardado (modo editor) terminamos acá: NADA se escribe a DB
+      // sin que el padre lo pida. Tampoco dejamos escena pendiente, así el
+      // flush-on-unmount no tiene nada que guardar al cerrar el diálogo.
+      if (!onPersist || !autoPersist) return;
+
       // Guardamos la escena pendiente en ref para que el cleanup del
       // unmount pueda hacer flush si el timer no alcanzó a dispararse.
       pendingSceneRef.current = next;
@@ -647,7 +748,15 @@ function WhiteboardEditorInner({
         });
       }, 1500);
     },
-    [readOnly, onPersist, viewportStorageKey],
+    [
+      readOnly,
+      onPersist,
+      viewportStorageKey,
+      autoPersist,
+      onSceneChange,
+      onViewportChange,
+      enableLaser,
+    ],
   );
 
   // Inserta una figura del panel categorizado en el CENTRO del viewport
@@ -732,7 +841,10 @@ function WhiteboardEditorInner({
         // En fullscreen el div toma 100vh/100vw (Fullscreen API ya
         // expande, pero forzamos bg para que no se vea transparente
         // sobre la página subyacente en algunos navegadores).
-        isFullscreen && "bg-background",
+        // Solo cuando el elemento en fullscreen es ESTE: con un
+        // `fullscreenTargetRef` el editor queda DENTRO del elemento proyectado
+        // y un fondo opaco acá taparía la diapositiva.
+        isFullscreen && !fullscreenTargetRef && "bg-background",
         className,
       )}
     >
@@ -742,6 +854,7 @@ function WhiteboardEditorInner({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         excalidrawAPI={(api: any) => {
           excalidrawAPIRef.current = api;
+          onApiReady?.(api);
         }}
         initialData={(() => {
           // Restauramos viewport (scrollX/scrollY/zoom) desde localStorage
@@ -766,19 +879,22 @@ function WhiteboardEditorInner({
           // localStorage agregadas por su cuenta, Excalidraw las
           // muestra junto a estas (no las pisa — `initialData` es
           // additive en este campo).
-          if (!scene && !viewport) {
+          if (!scene && !viewport && !initialAppState) {
             return { libraryItems: DEFAULT_LIBRARY_ITEMS };
           }
           return {
             elements: scene?.elements ?? [],
-            appState: mergedAppState,
+            // `initialAppState` va ÚLTIMO: es el override explícito del padre
+            // (fondo transparente / zoom de encaje del escenario de anotación)
+            // y tiene que ganarle a lo que traiga la escena guardada.
+            appState: { ...mergedAppState, ...(initialAppState ?? {}) },
             files: scene?.files,
             libraryItems: DEFAULT_LIBRARY_ITEMS,
           };
         })()}
         onChange={handleChange}
         viewModeEnabled={!!readOnly}
-        theme={resolvedTheme === "dark" ? "dark" : "light"}
+        theme={themeOverride ?? (resolvedTheme === "dark" ? "dark" : "light")}
         UIOptions={{
           canvasActions: {
             // Sacamos botones de "guardar/cargar archivo" porque
@@ -828,20 +944,6 @@ function WhiteboardEditorInner({
           ni el zoom de Excalidraw (abajo-izquierda). */}
       {!readOnly && (
         <>
-          <button
-            type="button"
-            onClick={() => setPaletteOpen((o) => !o)}
-            aria-label={t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}
-            aria-expanded={paletteOpen}
-            title={t("hc_modulesWhiteboardWhiteboardEditor.shapesButtonTitle", { defaultValue: "Figuras por tipo de diagrama (clases, flujo, E-R…)" })}
-            className={cn(
-              "absolute bottom-2 right-12 z-20 inline-flex items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
-              paletteOpen && "text-foreground bg-background",
-            )}
-          >
-            <Shapes className="h-4 w-4" />
-            <span className="hidden sm:inline">{t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}</span>
-          </button>
           {paletteOpen && (
             <div className="absolute bottom-12 right-2 z-30 w-72 max-w-[calc(100vw-1rem)] max-h-[72%] overflow-y-auto rounded-md border border-border bg-background shadow-lg">
               <div className="sticky top-0 z-10 flex items-center justify-between gap-2 border-b border-border bg-background px-3 py-2">
@@ -914,22 +1016,66 @@ function WhiteboardEditorInner({
           )}
         </>
       )}
-      {/* Botón de pantalla completa — abajo-derecha para no competir con
-          el toolbar de Excalidraw (arriba) ni el "Solo lectura" badge.
-          Z-index alto para flotar sobre el canvas. El icono cambia
-          según el estado actual (escapamos con Esc → fullscreenchange
-          listener actualiza isFullscreen). */}
-      {fullscreenSupported && (
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
-          title={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
-          className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
-        >
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
-      )}
+      {/* Botones flotantes abajo-derecha — una sola fila flex para que no
+          haya que calcular offsets `right-*` a mano cada vez que se agrega
+          uno (antes Figuras iba en right-12 y pantalla completa en right-2).
+          Van abajo-derecha para no competir con el toolbar de Excalidraw
+          (arriba), el zoom (abajo-izquierda) ni los badges (arriba-derecha).
+          Todos con hit zone de 32px para que sean usables en tablet. */}
+      <div className="absolute bottom-2 right-2 z-20 flex items-center gap-1.5">
+        {enableLaser && (
+          <button
+            type="button"
+            onClick={toggleLaser}
+            aria-pressed={laserActive}
+            aria-label={t("hc_modulesWhiteboardWhiteboardEditor.laser", {
+              defaultValue: "Puntero láser",
+            })}
+            title={t("hc_modulesWhiteboardWhiteboardEditor.laserHint", {
+              defaultValue: "Puntero láser: el trazo se desvanece y no se guarda",
+            })}
+            className={cn(
+              "inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
+              laserActive &&
+                "border-red-400 bg-red-50 text-red-600 dark:bg-red-950/60 dark:text-red-300",
+            )}
+          >
+            <Pointer className="h-4 w-4" />
+            <span className="hidden sm:inline">
+              {t("hc_modulesWhiteboardWhiteboardEditor.laser", { defaultValue: "Puntero láser" })}
+            </span>
+          </button>
+        )}
+        {!readOnly && (
+          <button
+            type="button"
+            onClick={() => setPaletteOpen((o) => !o)}
+            aria-label={t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}
+            aria-expanded={paletteOpen}
+            title={t("hc_modulesWhiteboardWhiteboardEditor.shapesButtonTitle", { defaultValue: "Figuras por tipo de diagrama (clases, flujo, E-R…)" })}
+            className={cn(
+              "inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background/90 backdrop-blur-sm px-2 text-xs text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm",
+              paletteOpen && "text-foreground bg-background",
+            )}
+          >
+            <Shapes className="h-4 w-4" />
+            <span className="hidden sm:inline">{t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}</span>
+          </button>
+        )}
+        {/* El icono cambia según el estado actual (al salir con Esc, el
+            listener de fullscreenchange actualiza isFullscreen). */}
+        {fullscreenSupported && (
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            aria-label={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
+            title={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
+          >
+            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        )}
+      </div>
     </div>
   );
 }

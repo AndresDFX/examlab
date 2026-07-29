@@ -888,6 +888,10 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             // El whiteboardId queda implícito en el page_id (UUID único
             // global), no necesitamos prefijar.
             viewportStorageKey={`examlab_wb_view:page:${activePage.id}`}
+            // Puntero láser: señalar sobre la hoja en clase sin dejar marca
+            // (el trazo se desvanece y no entra a la escena, así que el
+            // auto-guardado no lo ve).
+            enableLaser
           />
         )}
       </div>

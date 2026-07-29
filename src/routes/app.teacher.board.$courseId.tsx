@@ -81,6 +81,7 @@ import {
   Layers,
   CalendarPlus,
   CalendarClock,
+  Highlighter,
 } from "lucide-react";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
@@ -97,6 +98,8 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { RowAction } from "@/components/ui/row-action";
 import { DatePicker } from "@/components/ui/date-picker";
 import { ManageContentCoursesDialog } from "@/modules/contents/ManageContentCoursesDialog";
+import { SlideAnnotationsDialog } from "@/modules/contents/SlideAnnotationsDialog";
+import { buildSlideDeck, type ContentFileLike } from "@/modules/contents/slide-deck";
 import { useTranslation } from "react-i18next";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -153,6 +156,13 @@ interface BoardContentItem {
   /** Curso ancla (`generated_contents.course_id`). null = contenido genérico
    *  sin curso. Usado por "Asignar a cursos" para fijar el ancla. */
   anchorCourseId: string | null;
+  /** `files[]` del contenido — lo consume "Presentar y anotar" para armar el
+   *  deck de diapositivas. */
+  files: ContentFileLike[];
+  /** Cuántas diapositivas ANOTABLES tiene (presentación de IA + imágenes).
+   *  0 ⇒ la acción de anotar queda deshabilitada (un .pptx/.pdf binario no se
+   *  puede rasterizar en el cliente). */
+  slideCount: number;
 }
 
 interface AvailableContent {
@@ -389,6 +399,8 @@ function CourseBoardPage() {
   const [allCourses, setAllCourses] = useState<{ id: string; name: string }[]>([]);
   // Contenido cuyo destino multi-curso se está gestionando (null = cerrado).
   const [manageCoursesFor, setManageCoursesFor] = useState<BoardContentItem | null>(null);
+  /** Contenido cuyas diapositivas se están presentando/anotando. */
+  const [annotateFor, setAnnotateFor] = useState<BoardContentItem | null>(null);
   const [uploadingContent, setUploadingContent] = useState(false);
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadDest, setUploadDest] = useState<UploadDest>("global");
@@ -566,15 +578,22 @@ function CourseBoardPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         ((contentsRes.data ?? []) as any[])
           .filter((g) => g.course_id === courseId || ccaIdSet.has(g.id as string))
-          .map((g) => ({
-            id: g.id as string,
-            displayName: ((g.display_name as string) ?? "").trim() || (g.topic as string),
-            createdAt: (g.created_at as string) ?? null,
-            isPublished: !!g.is_published,
-            fileCount: Array.isArray(g.files) ? g.files.length : 0,
-            isAnchored: g.course_id === courseId,
-            anchorCourseId: (g.course_id as string | null) ?? null,
-          }))
+          .map((g) => {
+            const contentFiles: ContentFileLike[] = Array.isArray(g.files)
+              ? (g.files as ContentFileLike[])
+              : [];
+            return {
+              id: g.id as string,
+              displayName: ((g.display_name as string) ?? "").trim() || (g.topic as string),
+              createdAt: (g.created_at as string) ?? null,
+              isPublished: !!g.is_published,
+              fileCount: contentFiles.length,
+              isAnchored: g.course_id === courseId,
+              anchorCourseId: (g.course_id as string | null) ?? null,
+              files: contentFiles,
+              slideCount: buildSlideDeck(contentFiles).length,
+            };
+          })
           .sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? "")),
       );
       setAssignedToCourse(
@@ -1437,6 +1456,25 @@ function CourseBoardPage() {
                 <span className="hidden sm:block text-[10px] text-muted-foreground shrink-0">
                   <DateCell value={c.createdAt} variant="auto" />
                 </span>
+                {/* Presentar y anotar: proyecta las diapositivas y deja
+                    rayarlas encima (con puntero láser). Se deshabilita cuando
+                    el contenido no tiene nada renderizable — un .pptx/.pdf
+                    binario no se puede dibujar encima sin rasterizarlo. */}
+                <RowAction
+                  icon={Highlighter}
+                  label={
+                    c.slideCount > 0
+                      ? t("slideAnnotations.openAction", {
+                          defaultValue: "Presentar y anotar",
+                        })
+                      : t("slideAnnotations.openActionUnavailable", {
+                          defaultValue:
+                            "Sin diapositivas anotables (subí imágenes de las diapositivas)",
+                        })
+                  }
+                  disabled={c.slideCount === 0}
+                  onClick={() => setAnnotateFor(c)}
+                />
                 <RowAction
                   icon={Layers}
                   label={t("contents.manageCoursesAction", { defaultValue: "Asignar a cursos" })}
@@ -1881,6 +1919,19 @@ function CourseBoardPage() {
         courses={allCourses}
         onClose={() => setManageCoursesFor(null)}
         onSaved={() => setReloadNonce((n) => n + 1)}
+      />
+
+      {/* "Presentar y anotar" — capa de dibujo sobre las diapositivas del
+          contenido, con puntero láser y guardado explícito (el propio diálogo
+          confirma si se descartan las marcas al cerrar). */}
+      <SlideAnnotationsDialog
+        open={annotateFor != null}
+        onOpenChange={(o) => {
+          if (!o) setAnnotateFor(null);
+        }}
+        contentId={annotateFor?.id ?? null}
+        contentName={annotateFor?.displayName ?? ""}
+        files={annotateFor?.files ?? []}
       />
     </div>
   );

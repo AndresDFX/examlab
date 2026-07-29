@@ -55,9 +55,9 @@ import {
 import {
   parseSlideBlock,
   serializeSlides,
-  stripInlineMarkdown,
   type ParsedSlide,
 } from "@/modules/contents/contents-pptx";
+import { SlideMockup } from "@/modules/contents/SlideMockup";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { useTranslation } from "react-i18next";
@@ -320,69 +320,18 @@ export function PptxViewerDialog({
                       />
                     </div>
                   ) : (
-                    // Preview "tipo slide" — aspect 16:9, fondo claro,
-                    // título grande en accent + bullets/código abajo. Es
-                    // un mockup HTML/CSS de cómo se ve la slide en el
-                    // .pptx descargado, no un embed binario (los slides
-                    // se generan client-side con pptxgenjs al descargar).
-                    // El visor real de Office se puede abrir con el
-                    // botón "Abrir en visor Office" del footer.
-                    <div className="rounded-md border bg-white text-slate-900 shadow-sm aspect-video w-full overflow-hidden">
-                      <div className="p-5 flex flex-col h-full">
-                        {slide.isCover ? (
-                          <div className="flex-1 flex flex-col items-center justify-center text-center gap-2">
-                            <h2 className="text-2xl font-bold text-primary leading-tight">
-                              {stripInlineMarkdown(slide.title) || t("pptxViewer.cover")}
-                            </h2>
-                            {slide.bullets.filter(Boolean).length > 0 && (
-                              <p className="text-sm text-slate-600 max-w-md">
-                                {slide.bullets.map(stripInlineMarkdown).filter(Boolean).join(" · ")}
-                              </p>
-                            )}
-                          </div>
-                        ) : (
-                          <>
-                            <h3 className="text-lg font-bold text-primary border-b border-primary/30 pb-1.5 mb-2 leading-tight">
-                              {stripInlineMarkdown(slide.title) || t("pptxViewer.untitled")}
-                            </h3>
-                            <div className="flex-1 overflow-y-auto space-y-1.5 text-sm pr-1">
-                              {slide.bullets.filter(Boolean).length > 0 && (
-                                <ul className="list-disc pl-5 space-y-1">
-                                  {slide.bullets
-                                    .map(stripInlineMarkdown)
-                                    .filter((b) => b.trim().length > 0)
-                                    .map((b, bi) => (
-                                      <li key={bi}>{b}</li>
-                                    ))}
-                                </ul>
-                              )}
-                              {(slide.codeBlocks ?? []).map((cb, ci) => (
-                                <pre
-                                  key={ci}
-                                  className="rounded bg-slate-100 border border-slate-200 p-2 text-[10px] font-mono whitespace-pre overflow-x-auto text-slate-800"
-                                >
-                                  {cb.lang ? (
-                                    <div className="text-[9px] uppercase tracking-wide text-slate-500 mb-1">
-                                      {cb.lang}
-                                    </div>
-                                  ) : null}
-                                  <code>{cb.code}</code>
-                                </pre>
-                              ))}
-                              {slide.bullets.filter(Boolean).length === 0 &&
-                                (slide.codeBlocks?.length ?? 0) === 0 && (
-                                  <p className="text-xs text-slate-400 italic">
-                                    {t("pptxViewer.noBullets")}
-                                  </p>
-                                )}
-                            </div>
-                          </>
-                        )}
-                        <div className="text-[10px] text-slate-400 text-right mt-2 tabular-nums">
-                          {idx + 1} / {slides.length}
-                        </div>
-                      </div>
-                    </div>
+                    // Preview "tipo slide" — mockup HTML/CSS de cómo se ve la
+                    // slide en el .pptx descargado, no un embed binario (los
+                    // slides se generan client-side con pptxgenjs al
+                    // descargar). El MISMO componente se usa como fondo de la
+                    // capa de anotación (SlideAnnotationsDialog) para que el
+                    // docente raye sobre exactamente este layout.
+                    <SlideMockup
+                      slide={slide}
+                      index={idx}
+                      total={slides.length}
+                      className="rounded-md border shadow-sm aspect-video w-full"
+                    />
                   )}
                   {editing && (
                     <div className="pt-1">

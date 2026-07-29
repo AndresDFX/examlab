@@ -359,6 +359,30 @@ iframe[src*="gpteng"] {
 }
 
 /* ────────────────────────────────────────────────────────────────────
+ * Utility: .projection-stage — escenario PROYECTADO en pantalla completa
+ * ────────────────────────────────────────────────────────────────────
+ * El botón "Pantalla completa" del editor de pizarra proyecta el escenario de
+ * anotación de diapositivas (fondo con la diapositiva + canvas transparente
+ * encima + barra de navegación). Ese bloque está pensado para vivir DENTRO de
+ * un diálogo: fondo semitransparente, borde y esquinas redondeadas. Cuando el
+ * navegador lo promueve al top layer pinta detrás un ::backdrop NEGRO, así que
+ * el fondo translúcido dejaría la diapositiva flotando sobre negro y el marco
+ * no tiene sentido (el elemento ES la pantalla).
+ *
+ * Dos reglas separadas a propósito: un selector con `:fullscreen,
+ * :-webkit-full-screen` se descarta COMPLETO en el navegador que no conoce uno
+ * de los dos (Safari necesita el prefijado).
+ */
+.projection-stage:fullscreen {
+  background-color: var(--background);
+  padding: 0.5rem;
+}
+.projection-stage:-webkit-full-screen {
+  background-color: var(--background);
+  padding: 0.5rem;
+}
+
+/* ────────────────────────────────────────────────────────────────────
  * Salto de página visible en el EDITOR VISUAL de informes (contentEditable)
  * ────────────────────────────────────────────────────────────────────
  * El importador de .docx inserta `<div class="examlab-page-break">` donde el
