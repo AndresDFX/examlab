@@ -64,7 +64,7 @@ Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace 
 
 ## Stack
 
-- React 18 + TanStack Router v1 + TypeScript
+- React 19 + TanStack Router v1 + TypeScript
 - UI: shadcn/ui (Card, Button, Badge, Dialog, Alert…) + design system propio (ver abajo)
 - DB: Supabase (PostgreSQL + RLS)
 - i18n: react-i18next (es-CO default)
@@ -85,7 +85,7 @@ edge o interacción que toque pantallas/textos/estado/datos, invocá el **agente
   (sidebar ↔ PageHeader ↔ tour; acciones de fila; StatusBadge).
 - **Traducción (i18n)** — todo texto visible por `t(...)`; paridad es↔en; sin inglés filtrado en
   es-CO; convenciones de marca ("institución" no "tenant", "Reto en vivo" no "Kahoot", naming del
-  asistente); fechas por `src/lib/format.ts`.
+  asistente); fechas por `src/shared/lib/format.ts`.
 - **Persistencia** — claves `examlab*` únicas (paginación/orden/tema/override); sin lectura de
   browser APIs en initializers de `useState` (hidratación #418); effects con guard `cancelled`;
   migraciones defensivas + scope de tenant.
@@ -221,13 +221,13 @@ Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
 | `src/routes/app.student.grades.tsx`                         | Vista de notas por curso del estudiante                                                                                                                 |
 | `src/routes/app.teacher.gradebook.tsx`                      | Gradebook docente con consolidado por corte + export CSV                                                                                                |
 | `src/routes/app.teacher.monitor.$examId.tsx`                | Monitor en vivo del examen                                                                                                                              |
-| `src/components/ExternalGradesEditor.tsx`                   | Notas de actividades externas (presencial / otra plataforma)                                                                                            |
-| `src/components/FraudPanel.tsx`                             | Análisis IA + detección de copia entre estudiantes                                                                                                      |
+| `src/modules/grading/ExternalGradesEditor.tsx`                   | Notas de actividades externas (presencial / otra plataforma)                                                                                            |
+| `src/modules/exams/FraudPanel.tsx`                             | Análisis IA + detección de copia entre estudiantes                                                                                                      |
 | `src/integrations/supabase/types.ts`                        | Tipos generados de Supabase (no editar a mano)                                                                                                          |
-| `src/lib/offline-sync.ts`                                   | IndexedDB sync (`clearLocalAnswers`, `setupOfflineSync`)                                                                                                |
-| `src/lib/format.ts`                                         | Helpers de formato de fechas/duraciones (es-CO)                                                                                                         |
-| `src/utils/proctoring.ts`                                   | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious`                                                                                                |
-| `src/utils/grade.ts`                                        | `computeWeightedGrade(items)` — núcleo del cálculo de notas                                                                                             |
+| `src/modules/exams/offline-sync.ts`                                   | IndexedDB sync (`clearLocalAnswers`, `setupOfflineSync`)                                                                                                |
+| `src/shared/lib/format.ts`                                         | Helpers de formato de fechas/duraciones (es-CO)                                                                                                         |
+| `src/modules/exams/proctoring.ts`                                   | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious`                                                                                                |
+| `src/modules/grading/grade.ts`                                        | `computeWeightedGrade(items)` — núcleo del cálculo de notas                                                                                             |
 | `src/modules/ai/AiCronPage.tsx`                             | Página del módulo "Cron" con tabs IA (cola grading) + Generaciones (cola generación) + Supabase (pg_cron)                                               |
 | `src/modules/ai/AiGenerationQueuePanel.tsx`                 | Panel de cola de generación IA (tab "Generaciones"); botón Zap para pending vs RefreshCw para failed                                                    |
 | `supabase/functions/ai-generation-worker/`                  | Worker que drena `ai_generation_queue`; auto-retry transitorio (429/5xx/timeout) hasta `MAX_ATTEMPTS=3`                                                 |
@@ -889,7 +889,7 @@ Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `sr
 
 ## Convenciones de código
 
-- **Toda fecha visible al usuario** debe pasar por los helpers de `src/lib/format.ts`. NO usar `new Date(x).toLocaleString()` directo en JSX.
+- **Toda fecha visible al usuario** debe pasar por los helpers de `src/shared/lib/format.ts`. NO usar `new Date(x).toLocaleString()` directo en JSX.
 - **Decimales en inputs de notas**: usar `<DecimalInput>`. Texto de ayuda "Decimales con coma (ej. 4,5)" cerca del input.
 - **Acciones de fila en tablas/grids**: `<RowAction label icon onClick />`. NO `<Button variant="ghost" title>`.
 - **Loaders**: `<Spinner size>` o `<SectionLoader>` / `<PageLoader>`. NO `<Loader2 className="h-4 w-4 animate-spin">` directo.
