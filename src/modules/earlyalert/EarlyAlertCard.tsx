@@ -108,20 +108,37 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
 
   // Umbrales de la institución. Si la query falla o la migración no corrió,
   // se cae a los defaults del código: el panel NUNCA queda vacío por esto.
+  //
+  // Se filtra por el tenant DEL CURSO, no por el del usuario. Para Docente y
+  // Admin da lo mismo (es su propio tenant), pero un SuperAdmin ve todas las
+  // filas de `app_settings` (su RLS incluye `is_super_admin()`): sin el filtro,
+  // `maybeSingle()` fallaría con varias filas y el panel caería a los defaults
+  // → el SA vería una clasificación distinta a la que ve el Admin de esa
+  // institución, con los mismos datos.
   useEffect(() => {
     let cancelled = false;
+    const courseId = ds.course.id;
     void (async () => {
       try {
+        const { data: courseRow } = await supabase
+          .from("courses")
+          .select("tenant_id")
+          .eq("id", courseId)
+          .maybeSingle();
+        if (cancelled) return;
         // `supabase as any`: `types.ts` se genera desde la DB y no conoce
         // estas columnas hasta que la migración se publique. Mismo patrón que
         // usa `AdminGeneralSettingsPanel` (`const db = supabase as any`).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data } = await (supabase as any)
+        let q = (supabase as any)
           .from("app_settings")
           .select(
             "early_alert_min_attendance_rate, early_alert_max_failed, early_alert_max_missing",
-          )
-          .maybeSingle();
+          );
+        const tenantId = (courseRow as { tenant_id?: string | null } | null)
+          ?.tenant_id;
+        if (tenantId) q = q.eq("tenant_id", tenantId);
+        const { data } = await q.maybeSingle();
         if (cancelled) return;
         setThresholds(thresholdsFromSettings(data ?? null));
       } catch {
@@ -133,7 +150,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [ds.course.id]);
 
   // Nombres en query aparte: `course_enrollments.user_id` no se puede
   // embeber a `profiles` de forma confiable (convención del proyecto).
