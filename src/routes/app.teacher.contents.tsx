@@ -1385,7 +1385,7 @@ function TeacherContents() {
                   <SortableHead sortKey="name" sort={sort} className="max-w-[320px]">
                     {t("contents.topicColumn")}
                   </SortableHead>
-                  <SortableHead sortKey="mode" sort={sort} className="w-32">
+                  <SortableHead sortKey="mode" sort={sort} className="w-32 hidden lg:table-cell">
                     {t("contents.modeColumn")}
                   </SortableHead>
                   <SortableHead sortKey="course" sort={sort} className="w-32">
@@ -1394,10 +1394,10 @@ function TeacherContents() {
                   <SortableHead sortKey="status" sort={sort} className="w-24">
                     {t("common.status")}
                   </SortableHead>
-                  <SortableHead sortKey="files" sort={sort} className="w-20">
+                  <SortableHead sortKey="files" sort={sort} className="w-20 hidden sm:table-cell">
                     {t("contents.filesColumn")}
                   </SortableHead>
-                  <SortableHead sortKey="created_at" sort={sort} className="w-32">
+                  <SortableHead sortKey="created_at" sort={sort} className="w-32 hidden md:table-cell">
                     {t("contents.createdColumn")}
                   </SortableHead>
                   <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
@@ -1581,7 +1581,7 @@ function TeacherContents() {
                       })()}
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden lg:table-cell">
                       <Badge variant="outline" className="text-2xs">
                         {it.mode === "curso_completo"
                           ? `${t("contents.modeFull")} (${it.n_classes})`
@@ -1616,7 +1616,7 @@ function TeacherContents() {
                         </div>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden sm:table-cell">
                       {/* Antes mostrábamos hasta 3 botones de descarga
                           inline + "+X archivos más" — saturaba la fila
                           en cursos completos (15-25 archivos). Ahora un
@@ -1644,7 +1644,7 @@ function TeacherContents() {
                         </Button>
                       )}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="hidden md:table-cell">
                       <DateCell value={it.created_at} variant="datetime" />
                     </TableCell>
                     <TableCell className="text-right">
