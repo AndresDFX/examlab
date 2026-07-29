@@ -22,7 +22,7 @@ VM (el ruteo lo manda a otro provider) · — sin soporte.
 | Lenguaje | VM propia (`aws_lambda` = Judge0) | JDoodle | OnlineCompiler.io | CheerpJ | Ofrecido en la UI |
 |---|---|---|---|---|---|
 | **Java** | ✅ `id 62` | ✅ `java v4` | ✅ `openjdk-25` | ✅ (navegador) | ✅ |
-| **Kotlin** | ✅ `id 78` | ✅ `kotlin v3` | — | — | ✅ |
+| **Kotlin** | ⛔ `id 78` (instalado, **no habilitado** — ver nota) | ✅ `kotlin v3` | — | — | ✅ |
 | **Python** | ✅ `id 71` | ✅ `python3 v4` | ✅ `python-3.14` | — | ✅ |
 | **JavaScript** | ⚪ `id 63` | ✅ `nodejs v4` | ✅ `typescript-deno` | — | ✅ |
 | **TypeScript** | ⚪ `id 74` | ✅ `typescript v1` | ✅ `typescript-deno` | — | — |
@@ -40,6 +40,16 @@ VM (el ruteo lo manda a otro provider) · — sin soporte.
 *puede* correr; exponer 14 lenguajes en el editor del alumno es una decisión de producto aparte. Para
 habilitar uno, agregalo a `UI_EXECUTABLE_LANGUAGES` — el resto de la app lo toma solo (los 6
 selectores se generan desde esa lista).
+
+**Por qué Kotlin está ⛔ en la VM aunque el compilador esté instalado:** medido a 1 vCPU
+(1769 MB, el shape que se despliega), `kotlinc` cuesta **13–18 s+ solo en compilar**. Un `println`
+pasó en 13,3 s, pero un programa de 40 líneas y el estilo `object`/`@JvmStatic` murieron en el
+timeout de 18 s. Contra el cap de **29 s de API Gateway** y con cold start encima, no es usable en
+un examen. Subir a 2 vCPU no mejoró (medido). El JVM del compilador arranca de cero en cada request
+y no se calienta entre invocaciones, así que el costo es estructural. El ruteo manda Kotlin a
+**JDoodle**, que lo soporta y es rápido; el código del runner queda listo para el día que haya un
+daemon de compilación caliente o un shape con más CPU — se vuelve a declarar en
+`AWS_LAMBDA_LANGUAGES` y funciona.
 
 **Por qué la VM tiene ⚪ y no ✅ en 11 lenguajes:** Judge0 los conoce, pero lo que la VM tenga
 realmente instalado es una cuestión de despliegue. Declararlos todos haría que el ruteo mandara, por

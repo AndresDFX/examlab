@@ -69,3 +69,7 @@ docker/restore.env
 
 # Windows Explorer folder config (ruido en docs/demos/*)
 desktop.ini
+
+# Bytecode de Python generado por py_compile en el runner AWS
+__pycache__/
+*.pyc

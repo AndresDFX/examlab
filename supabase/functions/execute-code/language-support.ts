@@ -167,15 +167,20 @@ export const JDOODLE_ID: Partial<Record<CodeLanguage, { language: string; versio
  * ejemplo, Haskell a la VM y fallara ahí en vez de irse a un proveedor que sí lo
  * corre. Se amplía a medida que se confirma cada lenguaje en la VM.
  *
- * Kotlin ESTÁ incluido porque es el objetivo de esta integración; requiere que
- * el lenguaje esté habilitado en la VM (`GET /languages` debe listar Kotlin).
- * Si no lo está, el ruteo lo manda a JDoodle, que también lo soporta.
+ * Kotlin NO está, aunque el runner SÍ trae el compilador instalado. Motivo
+ * medido, no supuesto: a 1 vCPU (1769 MB, el shape que se despliega) `kotlinc`
+ * cuesta 13-18s+ solo en compilar — un `println` pasó en 13,3s pero un programa
+ * de 40 líneas y el estilo `object`/`@JvmStatic` murieron en el timeout de 18s.
+ * Contra el cap de 29s de API Gateway y con cold start encima, no es una
+ * experiencia usable en un examen. Subir a 2 vCPU no mejoró (medido). El JVM del
+ * compilador arranca de cero en cada request y no se calienta entre
+ * invocaciones, así que el costo es estructural, no de calentamiento.
+ *
+ * Consecuencia: el ruteo manda Kotlin a JDoodle, que lo soporta y es rápido. El
+ * código del runner queda listo para el día que haya un daemon de compilación
+ * caliente o un shape con más CPU — se vuelve a agregar acá y funciona.
  */
-export const AWS_LAMBDA_LANGUAGES: readonly CodeLanguage[] = [
-  "java",
-  "python",
-  "kotlin",
-] as const;
+export const AWS_LAMBDA_LANGUAGES: readonly CodeLanguage[] = ["java", "python"] as const;
 
 /** CheerpJ corre bytecode JVM en el navegador. No existe `kotlinc` en el
  *  navegador, así que Kotlin NO entra — solo Java. */

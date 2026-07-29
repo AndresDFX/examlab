@@ -93,10 +93,12 @@ describe("providersForLanguage", () => {
     expect(out).toContain("jdoodle");
   });
 
-  it("Kotlin: runner propio y JDoodle, nunca OnlineCompiler", () => {
+  it("Kotlin: solo JDoodle — ni el runner propio ni OnlineCompiler", () => {
     const out = providersForLanguage("kotlin");
-    expect(out).toContain("aws_lambda");
     expect(out).toContain("jdoodle");
+    // El runner propio tiene kotlinc pero compilar cuesta 13-18s a 1 vCPU: se
+    // pasa del timeout, así que no se ofrece.
+    expect(out).not.toContain("aws_lambda");
     // OnlineCompiler.io no tiene Kotlin: ofrecerlo era mandar al alumno a un
     // compilador que no lo conoce.
     expect(out).not.toContain("onlinecompiler");

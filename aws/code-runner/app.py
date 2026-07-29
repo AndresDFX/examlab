@@ -171,7 +171,14 @@ KOTLIN_SOURCE_STEM = "Main"
 # HOME=/tmp porque en Lambda el filesystem es read-only salvo /tmp: si
 # alguna versión del compilador intenta escribir algo bajo $HOME, cae en
 # la única ruta escribible en lugar de fallar.
-KOTLIN_COMPILE_ENV = {"JAVA_OPTS": "-Xmx512m", "HOME": "/tmp"}
+# `-XX:TieredStopAtLevel=1` limita el JIT del COMPILADOR a C1: kotlinc corre una
+# sola vez por request y termina, así que compilar su propio bytecode a C2 es
+# trabajo que nunca se amortiza. Medido a 1 vCPU baja un `println` de 16-26s a
+# 8,7-11,8s. OJO: medido en una máquina de 12 cores el flag parecía EMPEORAR —
+# ahí el JIT se paraleliza y el costo se esconde; a 1 vCPU, que es el shape real,
+# el trabajo de CPU es el wall. No lo apliques al JVM de EJECUCIÓN: ahí el código
+# del alumno sí puede beneficiarse de C2.
+KOTLIN_COMPILE_ENV = {"JAVA_OPTS": "-Xmx512m -XX:TieredStopAtLevel=1", "HOME": "/tmp"}
 # Descriptor JVM de `main(String[])`. Se compara contra el descriptor
 # REAL de cada método de la tabla `methods[]` del .class (ver
 # `_class_main_entry`), no como subcadena del archivo.

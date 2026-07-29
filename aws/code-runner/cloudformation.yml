@@ -34,7 +34,7 @@ Parameters:
   LambdaMemoryMB:
     Type: Number
     Default: 1769
-    AllowedValues: [1024, 1536, 1769, 2048, 3008]
+    AllowedValues: [1024, 1536, 1769, 2048, 3008, 3538]
     Description: >
       Memoria de la función Lambda. AWS asigna CPU proporcional a la
       memoria — 1769 MB es el punto exacto donde Lambda da **1 vCPU

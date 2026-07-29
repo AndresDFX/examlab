@@ -59,10 +59,12 @@ describe("mapeo lenguaje × compilador", () => {
     );
   });
 
-  it("Kotlin corre en la VM propia (Judge0) y en JDoodle, pero NO en OnlineCompiler ni CheerpJ", () => {
-    // `aws_lambda` ES la VM de Judge0: un solo slot self-hosted, no dos.
-    expect(providerSupports("aws_lambda", "kotlin")).toBe(true);
+  it("Kotlin lo ejecuta JDoodle; el runner propio NO lo declara (compilar cuesta 13-18s a 1 vCPU)", () => {
     expect(providerSupports("jdoodle", "kotlin")).toBe(true);
+    // El runner TIENE kotlinc instalado, pero a 1 vCPU compilar se pasa del
+    // timeout. El mapeo declara lo que se puede EJECUTAR, no lo que está
+    // instalado — si declarara Kotlin, el ruteo lo mandaría ahí a morir.
+    expect(providerSupports("aws_lambda", "kotlin")).toBe(false);
     // OnlineCompiler.io no tiene Kotlin confirmado: no se le inventa un id.
     expect(providerSupports("onlinecompiler", "kotlin")).toBe(false);
     // No existe kotlinc en el navegador → CheerpJ no puede compilarlo.
@@ -73,10 +75,11 @@ describe("mapeo lenguaje × compilador", () => {
     // El caso que motivó el ruteo: un tenant con OnlineCompiler por default
     // pidiendo Kotlin. Antes el fallback era `onlinecompiler` hardcodeado y
     // habría mandado Kotlin a un compilador que no lo conoce.
-    expect(resolveProviderFor("kotlin", "onlinecompiler")).toBe("aws_lambda");
-    expect(resolveProviderFor("kotlin", "cheerp")).toBe("aws_lambda");
-    // Y si el default YA es la VM propia, se queda ahí.
-    expect(resolveProviderFor("kotlin", "aws_lambda")).toBe("aws_lambda");
+    expect(resolveProviderFor("kotlin", "onlinecompiler")).toBe("jdoodle");
+    expect(resolveProviderFor("kotlin", "cheerp")).toBe("jdoodle");
+    // Incluso si el default es el runner propio: no declara Kotlin, así que se
+    // rutea igual. Es el caso que produjo el 500 en producción.
+    expect(resolveProviderFor("kotlin", "aws_lambda")).toBe("jdoodle");
   });
 
   it("respeta el compilador configurado cuando SÍ soporta el lenguaje", () => {
@@ -126,8 +129,8 @@ describe("mapeo lenguaje × compilador", () => {
   });
 
   it("los sets del Lambda y CheerpJ no prometen lenguajes sin runtime", () => {
-    // La VM (Judge0) tiene habilitados estos tres; se amplía al confirmar más.
-    expect([...AWS_LAMBDA_LANGUAGES].sort()).toEqual(["java", "kotlin", "python"]);
+    // Solo lo que la imagen ejecuta en tiempo usable a 1 vCPU.
+    expect([...AWS_LAMBDA_LANGUAGES].sort()).toEqual(["java", "python"]);
     expect([...CHEERP_LANGUAGES]).toEqual(["java"]);
   });
 });
