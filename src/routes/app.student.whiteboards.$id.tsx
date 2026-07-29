@@ -94,14 +94,14 @@ function StudentWhiteboardViewer() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-7rem)] gap-3">
+    <div className="flex flex-col md:h-[calc(100dvh-7rem)] gap-3">
       <PageHeader
         icon={<Palette className="h-6 w-6 text-violet-500" />}
         backTo="/app/student/whiteboards"
         title={wb.name}
         subtitle={t("studentWhiteboards.viewerSubtitle")}
       />
-      <div className="flex-1 min-h-0 rounded-md border overflow-hidden bg-background">
+      <div className="flex-1 min-h-[65dvh] md:min-h-0 rounded-md border overflow-hidden bg-background">
         <MultiPageWhiteboard whiteboardId={id} readOnly className="w-full h-full" />
       </div>
     </div>

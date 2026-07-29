@@ -79,10 +79,28 @@ describe("providersForLanguage", () => {
     expect(out).toHaveLength(3);
   });
 
-  it("JavaScript excluye cheerp también", () => {
+  it("JavaScript: ni cheerp ni el runner propio (no tiene runtime de Node)", () => {
     const out = providersForLanguage("javascript");
     expect(out).not.toContain("cheerp");
-    expect(out).toHaveLength(3);
+    // La expectativa vieja era `toHaveLength(3)`, o sea que los TRES proveedores
+    // server-side sirven cualquier lenguaje. Es falso y era el bug: la imagen del
+    // runner propio solo trae JDK y Python, así que no puede ejecutar JavaScript
+    // — el selector lo ofrecía igual y la corrida fallaba con un error de
+    // proveedor que no explicaba nada. Ahora la lista sale del mapeo oficial,
+    // el mismo que usa el edge para rutear.
+    expect(out).not.toContain("aws_lambda");
+    expect(out).toContain("onlinecompiler");
+    expect(out).toContain("jdoodle");
+  });
+
+  it("Kotlin: runner propio y JDoodle, nunca OnlineCompiler", () => {
+    const out = providersForLanguage("kotlin");
+    expect(out).toContain("aws_lambda");
+    expect(out).toContain("jdoodle");
+    // OnlineCompiler.io no tiene Kotlin: ofrecerlo era mandar al alumno a un
+    // compilador que no lo conoce.
+    expect(out).not.toContain("onlinecompiler");
+    expect(out).not.toContain("cheerp");
   });
 
   it("nunca devuelve duplicados", () => {

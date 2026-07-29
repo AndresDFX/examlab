@@ -30,7 +30,8 @@ import i18n from "@/i18n";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { MultiPageWhiteboard } from "@/modules/whiteboard/MultiPageWhiteboard";
-import { Palette, Share2, Check } from "lucide-react";
+import { Palette, Share2, Check, ChevronDown } from "lucide-react";
+import { cn } from "@/shared/lib/utils";
 
 export const Route = createFileRoute("/app/teacher/whiteboards/$id")({
   component: WhiteboardEditorPage,
@@ -66,6 +67,8 @@ function WhiteboardEditorPage() {
   const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
   // Form local de meta — controlled inputs para nombre, curso, share.
   const [metaName, setMetaName] = useState("");
+  // Colapso de la barra de ajustes en MÓVIL (en md+ siempre visible).
+  const [metaOpen, setMetaOpen] = useState(false);
   const [metaCourse, setMetaCourse] = useState<string>("none");
   const [metaShared, setMetaShared] = useState(false);
   // NOTA: el indicador `autoSaving` legacy + `persistScene` + ref de
@@ -238,7 +241,7 @@ function WhiteboardEditorPage() {
   }
 
   return (
-    <div className="flex flex-col h-[calc(100dvh-7rem)] gap-3">
+    <div className="flex flex-col md:h-[calc(100dvh-7rem)] gap-3">
       <PageHeader
         icon={<Palette className="h-6 w-6 text-primary" />}
         backTo="/app/teacher/whiteboards"
@@ -249,7 +252,31 @@ function WhiteboardEditorPage() {
       {/* Meta: renombrar + compartir con curso. Compacto en una sola fila. */}
       <Card>
         <CardContent className="p-3">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+          {/* En móvil estos 3 campos se apilan y comen ~400px de una pantalla de
+              ~700px, así que la HOJA —lo que el docente vino a usar— quedaba
+              debajo del pliegue. Se colapsan por defecto y se abren a pedido.
+              En md+ el grid es de 3 columnas y no molesta: ahí no hay botón ni
+              colapso. Estado inicial determinista (no lee storage) para no
+              arriesgar un mismatch de hidratación. */}
+          <button
+            type="button"
+            onClick={() => setMetaOpen((v) => !v)}
+            aria-expanded={metaOpen}
+            className="md:hidden w-full flex items-center justify-between gap-2 text-sm font-medium"
+          >
+            <span className="truncate">
+              {metaName?.trim() || t("hc_routesAppTeacherWhiteboardsId.nameLabel")}
+            </span>
+            <ChevronDown
+              className={cn("h-4 w-4 shrink-0 transition-transform", metaOpen && "rotate-180")}
+            />
+          </button>
+          <div
+            className={cn(
+              "grid grid-cols-1 md:grid-cols-3 gap-3 items-end",
+              metaOpen ? "mt-3 md:mt-0" : "hidden md:grid",
+            )}
+          >
             <div>
               <Label>{t("hc_routesAppTeacherWhiteboardsId.nameLabel")}</Label>
               <Input
@@ -324,7 +351,7 @@ function WhiteboardEditorPage() {
           inutilizado — el editor ahora persiste en whiteboard_pages.
           Mantenemos persistScene en el código por si en algún flujo
           futuro se necesita la columna legacy (ej. snapshot final). */}
-      <div className="flex-1 min-h-0 rounded-md border overflow-hidden bg-background">
+      <div className="flex-1 min-h-[65dvh] md:min-h-0 rounded-md border overflow-hidden bg-background">
         <MultiPageWhiteboard whiteboardId={id} className="w-full h-full" />
       </div>
     </div>

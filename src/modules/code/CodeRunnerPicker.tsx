@@ -33,10 +33,14 @@ import {
 } from "@/components/ui/select";
 import { Cpu } from "lucide-react";
 import type { CodeLanguage } from "@/modules/code/CodeEditor";
+import {
+  providersForLanguage as providersForLanguageCanonical,
+  type CodeProvider,
+} from "@/modules/code/language-support";
 
-export type CodeRunnerProvider = "onlinecompiler" | "jdoodle" | "cheerp" | "aws_lambda";
-
-const ALL_PROVIDERS: CodeRunnerProvider[] = ["aws_lambda", "onlinecompiler", "cheerp", "jdoodle"];
+// El tipo viene del MAPEO OFICIAL para que no existan dos nociones de
+// "proveedor" que puedan divergir.
+export type CodeRunnerProvider = CodeProvider;
 
 const LABELS: Record<CodeRunnerProvider, string> = {
   aws_lambda: "AWS Lambda",
@@ -45,12 +49,20 @@ const LABELS: Record<CodeRunnerProvider, string> = {
   jdoodle: "JDoodle",
 };
 
-/** Devuelve los providers válidos para un lenguaje dado. cheerp solo
- *  funciona con Java (corre en WebAssembly desde el navegador, no soporta
- *  otros runtimes). El resto soporta multi-lenguaje. */
+/**
+ * Providers válidos para un lenguaje. DELEGA al mapeo oficial
+ * (`language-support.ts`), que es el mismo que usa el edge para rutear.
+ *
+ * WHY se reemplazó la lógica que vivía acá: era "todos menos cheerp si no es
+ * java", lo que asumía que los tres proveedores server-side soportan cualquier
+ * lenguaje. Es falso — OnlineCompiler.io NO ejecuta Kotlin. El selector lo
+ * ofrecía igual, el alumno lo elegía y la corrida fallaba con un error de
+ * proveedor que no explica nada. Ahora la lista sale de la misma tabla que
+ * decide el ruteo real, así que lo que se ofrece es exactamente lo que puede
+ * ejecutar.
+ */
 export function providersForLanguage(language: CodeLanguage): CodeRunnerProvider[] {
-  if (language === "java") return ALL_PROVIDERS;
-  return ALL_PROVIDERS.filter((p) => p !== "cheerp");
+  return providersForLanguageCanonical(language);
 }
 
 interface Props {
@@ -97,7 +109,7 @@ export function CodeRunnerPicker({
         <SelectContent>
           <SelectItem value={RESET_KEY}>
             Por defecto
-            {ALL_PROVIDERS.includes(defaultProvider as CodeRunnerProvider) && (
+            {LABELS[defaultProvider as CodeRunnerProvider] !== undefined && (
               <span className="text-muted-foreground ml-1">
                 — {LABELS[defaultProvider as CodeRunnerProvider] ?? defaultProvider}
               </span>

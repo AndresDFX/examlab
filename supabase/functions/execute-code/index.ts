@@ -807,7 +807,38 @@ Deno.serve(async (req) => {
             reason: provErr instanceof Error ? provErr.message : String(provErr),
           },
         });
-        result = await runWithProvider(backup);
+        try {
+          result = await runWithProvider(backup);
+        } catch (backupErr) {
+          // El respaldo TAMBIÉN falló (típico: soporta el lenguaje pero sus
+          // secretos no están configurados). Antes su error crudo llegaba al
+          // usuario: un docente veía "JDOODLE_CLIENT_ID o
+          // JDOODLE_SECRET no configurados en el servidor" al ejecutar Kotlin,
+          // que no le dice nada y expone internals. El detalle técnico de AMBOS
+          // fallos queda en el audit; al usuario se le da algo accionable.
+          const detail1 = provErr instanceof Error ? provErr.message : String(provErr);
+          const detail2 = backupErr instanceof Error ? backupErr.message : String(backupErr);
+          void auditFromEdge(admin, {
+            actorId: u.user.id,
+            action: "code.no_provider_available",
+            category: "system",
+            severity: "error",
+            entityType: "code_execution",
+            entityId: questionId,
+            metadata: {
+              ...requestContext,
+              language,
+              failed_provider: effectiveProvider,
+              failed_reason: detail1,
+              backup_provider: backup,
+              backup_reason: detail2,
+            },
+          });
+          throw new Error(
+            `No hay ningún compilador disponible para ejecutar ${language} en este momento. ` +
+              `Avisá al administrador de la institución para que revise la configuración de compiladores.`,
+          );
+        }
       } else {
         throw provErr;
       }

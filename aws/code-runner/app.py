@@ -44,6 +44,7 @@ import json
 import logging
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import time
@@ -87,7 +88,17 @@ API_KEY = os.environ.get("API_KEY", "")
 # Timeouts en segundos. En warm (container ya inicializado) javac
 # compila <2s. En cold start con 1 vCPU (1769 MB) la primera invocación
 # del día puede tardar 8-12s solo en cargar el container + JVM init.
-# Combinados deben caber en el timeout de Lambda (50s por CF default).
+#
+# OJO con el techo REAL: no son los 50s del timeout de Lambda sino los
+# **29s de API Gateway** (`cloudformation.yml` → `TimeoutInMillis: 29000`,
+# que es el máximo que el servicio HTTP API acepta). Si el handler tarda
+# más, API Gateway corta con 504 y el alumno ve "Error del runner (HTTP
+# 504)" en vez del mensaje amable de "¿bucle infinito?" que preparamos
+# acá. Cualquier timeout nuevo se dimensiona contra 29s, NO contra 50s.
+# Estos dos (25+20=45s) se mantienen por compatibilidad con el
+# comportamiento histórico de las ramas Java/Python; la rama Kotlin usa
+# los suyos, dimensionados para cerrar por debajo del cap (ver
+# KOTLIN_TOTAL_BUDGET_S).
 COMPILE_TIMEOUT_S = 25
 EXECUTE_TIMEOUT_S = 20
 MAX_SOURCE_BYTES = 100_000  # 100 KB
@@ -161,10 +172,138 @@ KOTLIN_SOURCE_STEM = "Main"
 # alguna versión del compilador intenta escribir algo bajo $HOME, cae en
 # la única ruta escribible en lugar de fallar.
 KOTLIN_COMPILE_ENV = {"JAVA_OPTS": "-Xmx512m", "HOME": "/tmp"}
-# Descriptor JVM de `main(String[])` tal como aparece en el constant pool
-# de un .class. Lo usamos para descubrir la clase de entrada en el
-# bytecode COMPILADO (más fiable que adivinarla con regex sobre el fuente).
-KOTLIN_MAIN_DESCRIPTOR = b"([Ljava/lang/String;)V"
+# Descriptor JVM de `main(String[])`. Se compara contra el descriptor
+# REAL de cada método de la tabla `methods[]` del .class (ver
+# `_class_main_entry`), no como subcadena del archivo.
+KOTLIN_MAIN_DESCRIPTOR = "([Ljava/lang/String;)V"
+
+# ── Presupuesto de tiempo de Kotlin ──────────────────────────────────
+# El techo NO son los 50s del Lambda: son los **29s de API Gateway**
+# (`cloudformation.yml` → `TimeoutInMillis: 29000`, máximo del servicio).
+# Pasarse = 504 y el alumno pierde la corrida con un error de infra en
+# lugar del mensaje amable de "¿bucle infinito?".
+#
+# Kotlin es MUCHO más caro de compilar que Java: `kotlinc` levanta una JVM
+# y carga `kotlin-compiler.jar` (58 MB) por invocación. Medido a 1 vCPU /
+# 1769 MB: 6-9s un `println` de 3 líneas, 13-16s un programa de ~250
+# líneas. Con los timeouts de Java (25+20=45s) un bucle infinito en Kotlin
+# se comía el cap de API Gateway y devolvía 504.
+#
+# Reparto 18s compilar + 8s ejecutar (no 15+10) porque el riesgo NO está
+# repartido parejo: compilar es el costo grande y ESCALA con el tamaño del
+# programa (un archivo de 250 líneas midió 13-16s), mientras que un
+# programa de consola correcto ejecuta en bastante menos de 1s — los 8s
+# solo tienen que alcanzar para DETECTAR el bucle infinito, no para
+# correr lógica real. Con 15s de compilación un programa de 250 líneas
+# perfectamente válido moría con "excedió el tiempo límite".
+KOTLIN_COMPILE_TIMEOUT_S = 18
+KOTLIN_EXECUTE_TIMEOUT_S = 8
+# Techo del handler completo (compilar + ejecutar). Si la compilación se
+# fue larga (cold start: page-in del jar de 58 MB), el timeout de
+# ejecución se RECORTA con lo que quede del presupuesto — así el wall
+# total nunca se acerca a los 29s, aunque la compilación haya tardado el
+# máximo permitido.
+#
+# 24 y no 26-28: los 29s de API Gateway se cuentan desde que invoca al
+# Lambda, así que el presupuesto tiene que dejar afuera el init del
+# container en cold start (imagen de ~2 GB) + la serialización de la
+# respuesta. Peor caso del handler = 18s (timeout de compilación) o
+# ~24s (compilación al filo + ejecución recortada a ~6s) → ~5s de
+# colchón para el cold start.
+KOTLIN_TOTAL_BUDGET_S = 24
+# Piso del recorte: por debajo de esto la ejecución no alcanza ni a
+# arrancar la JVM, así que preferimos dejarlo correr y que el cap del
+# presupuesto lo cierre.
+KOTLIN_MIN_EXECUTE_TIMEOUT_S = 3
+
+
+class RunnerInfraError(RuntimeError):
+    """Falla de INFRAESTRUCTURA del runner, no del código del alumno.
+
+    La distinción decide si el alumno pierde la corrida o si se rutea
+    sola: el edge (`execute-code`) solo cae al siguiente proveedor
+    (JDoodle, que también soporta Kotlin) cuando el executor LANZA o
+    responde un status NO-2xx. Un 200 con `exitCode != 0` es, para el
+    edge, "el runner funcionó y el código del alumno falló" → no hay
+    fallback y el intento queda persistido como fallido.
+
+    Por eso todo lo que sea "este container no puede compilar Kotlin"
+    (compilador ausente, stdlib ausente) se propaga como 5xx en lugar de
+    devolver un 200 con un mensaje amable: preferimos que la corrida se
+    rutee a otro proveedor antes que culpar al alumno.
+    """
+
+
+def _killpg(proc: "subprocess.Popen") -> None:
+    """Mata el GRUPO de procesos de `proc`, no solo al hijo directo.
+
+    `subprocess.run(timeout=…)` mata únicamente al hijo. Cuando ese hijo
+    es un script que a su vez lanza otro proceso (el caso de `kotlinc`,
+    que es bash y levanta la JVM del compilador), matar al bash deja al
+    NIETO vivo: la JVM sobrevive re-parentada a pid 1 con 512 MB de heap
+    quemando el único vCPU. Lambda REUTILIZA el container, así que ese
+    huérfano revive en la invocación siguiente y compite con ella —
+    cascada de lentitud para el próximo alumno.
+
+    Requiere que el Popen se haya creado con `start_new_session=True`
+    (hace setsid → el hijo es líder de su propio grupo, y el grupo cubre
+    a todos sus descendientes).
+    """
+    try:
+        os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except (ProcessLookupError, PermissionError, OSError):
+        # Ya murió, o nunca llegó a tener grupo propio. El kill directo
+        # de abajo es el respaldo.
+        pass
+    try:
+        proc.kill()
+    except Exception:  # noqa: BLE001
+        pass
+
+
+def _run_isolated(
+    cmd: "list[str]",
+    *,
+    timeout: float,
+    cwd: "str | None" = None,
+    env: "dict | None" = None,
+    input_text: "str | None" = None,
+) -> "subprocess.CompletedProcess":
+    """`subprocess.run(...)` pero matando TODO el árbol al vencer el timeout.
+
+    Misma firma de retorno que `subprocess.run(capture_output=True,
+    text=True)` y re-lanza `subprocess.TimeoutExpired` igual, así que los
+    `except` del caller no cambian. Lo único distinto es que antes de
+    re-lanzar limpia el grupo de procesos completo (ver `_killpg`).
+    """
+    proc = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE if input_text is not None else subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+        env=env,
+        text=True,
+        # `errors="replace"` y no el strict por default: un programa que
+        # imprime bytes que no son UTF-8 válido haría explotar el decode
+        # con UnicodeDecodeError. Con la distinción infra-vs-alumno de
+        # `RunnerInfraError` eso se traduciría en un 5xx, o sea que un bug
+        # del alumno se reportaría como falla de plataforma.
+        errors="replace",
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(input=input_text, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        _killpg(proc)
+        # Drena los pipes del proceso ya muerto para no dejar fds ni un
+        # zombie colgando en el container warm.
+        try:
+            proc.communicate(timeout=2)
+        except Exception:  # noqa: BLE001
+            pass
+        raise
+    return subprocess.CompletedProcess(cmd, proc.returncode, stdout, stderr)
 
 
 def _resp(status: int, body: dict) -> dict:
@@ -732,73 +871,243 @@ def _handle_python_run(
             }
 
 
-def _class_declares_main(class_path: str) -> bool:
-    """¿Este .class declara `main(String[])`?
+# Tamaño en bytes del payload de cada tag del constant pool (JVMS §4.4).
+# El tag 1 (Utf8) es de largo variable y se maneja aparte. Los tags 5
+# (Long) y 6 (Double) ocupan DOS slots del pool — la rareza histórica de
+# la JVM que rompe cualquier parser que asuma un slot por entrada.
+_CP_PAYLOAD_SIZE = {
+    3: 4,   # Integer
+    4: 4,   # Float
+    5: 8,   # Long      (2 slots)
+    6: 8,   # Double    (2 slots)
+    7: 2,   # Class
+    8: 2,   # String
+    9: 4,   # Fieldref
+    10: 4,  # Methodref
+    11: 4,  # InterfaceMethodref
+    12: 4,  # NameAndType
+    15: 3,  # MethodHandle
+    16: 2,  # MethodType
+    17: 4,  # Dynamic
+    18: 4,  # InvokeDynamic
+    19: 2,  # Module
+    20: 2,  # Package
+}
+_ACC_PUBLIC = 0x0001
+_ACC_STATIC = 0x0008
+_CLASS_MAGIC = b"\xca\xfe\xba\xbe"
 
-    Chequeo sobre los BYTES del .class: el constant pool guarda tanto el
-    nombre del método (`main`) como su descriptor
-    (`([Ljava/lang/String;)V`) como strings UTF-8 planos. Si ambos
-    aparecen, la clase declara (o al menos referencia) ese método.
 
-    WHY así y no `javap`: javap levanta una JVM por invocación (~400ms)
-    y acá corremos dentro del presupuesto de un Lambda de 50s donde
-    kotlinc ya se comió varios segundos. WHY no regex sobre el fuente:
-    el nombre de la clase de entrada en Kotlin depende de reglas del
-    compilador (top-level → `<Archivo>Kt`, `object`/`companion` con
-    `@JvmStatic` → el nombre del object/clase); leer el bytecode ya
-    compilado es la única fuente de verdad.
+def _class_main_entry(class_path: str) -> "tuple[str, bool] | None":
+    """¿Este .class DECLARA `static main(String[])`? → (nombre FQ, es_public).
 
-    Falso positivo posible: una clase que solo LLAMA al main de otra
-    también tiene ambos strings. En código de un alumno eso es raro, y
-    el orden de preferencia de `_find_kotlin_main_class` desempata.
+    Parsea el .class de verdad (JVMS §4.1): constant pool → `this_class`
+    → tabla `methods[]`, y compara el nombre y el descriptor REALES de
+    cada método declarado. Devuelve None si la clase no declara ese
+    método, y levanta ValueError/IndexError si el archivo no es un .class
+    parseable (el caller lo trata como "no sé", no como "no tiene main").
+
+    WHY parsear en vez del chequeo por subcadena que había antes
+    (`b"main" in data and descriptor in data`): esa versión matcheaba
+    CUALQUIER aparición de "main" en el archivo — el nombre de la propia
+    clase, un literal de string, otro método cuyo nombre la contenga — y
+    el descriptor aparece en el pool de toda clase que solo LLAME a un
+    main ajeno. Con el desempate alfabético eso elegía la clase
+    equivocada y la JVM respondía "Main method not found in class X",
+    culpando al alumno de un `main` que SÍ había escrito. Dos programas
+    correctos que fallaban:
+        object Domain { fun run(a: Array<String>) {…} }    // "Domain" ⊃ "main"
+        object Aardvark { fun mainMenu(a: Array<String>) {…} }  // ordena antes
+    Basta el estilo `object`/`companion` (el que trae quien viene de
+    Java) + una clase auxiliar que ordene antes y contenga la subcadena.
+
+    WHY no `javap`: levanta una JVM (~400ms) y acá el presupuesto ya se
+    lo comió kotlinc. WHY no regex sobre el fuente: el nombre de la clase
+    de entrada lo decide el compilador (top-level → `<Archivo>Kt`, con
+    `package` → FQN, `object`/`companion` con `@JvmStatic` → el nombre
+    del object). El bytecode es la única fuente de verdad. Parsear es
+    ~1ms y sin dependencias.
     """
-    try:
-        with open(class_path, "rb") as f:
-            data = f.read()
-    except OSError:
-        return False
-    return b"main" in data and KOTLIN_MAIN_DESCRIPTOR in data
+    with open(class_path, "rb") as f:
+        data = f.read()
+    if len(data) < 10 or data[:4] != _CLASS_MAGIC:
+        raise ValueError("no es un .class (magic inválido)")
+
+    def u2(at: int) -> int:
+        if at + 2 > len(data):
+            raise IndexError("truncado")
+        return int.from_bytes(data[at : at + 2], "big")
+
+    # ── Constant pool ──
+    # Solo guardamos lo que necesitamos: los Utf8 (para resolver nombres y
+    # descriptores) y el índice de nombre de cada entrada Class (para
+    # resolver `this_class`).
+    pos = 8  # magic(4) + minor(2) + major(2)
+    cp_count = u2(pos)
+    pos += 2
+    utf8: "dict[int, str]" = {}
+    class_name_ref: "dict[int, int]" = {}
+    idx = 1
+    while idx < cp_count:
+        if pos >= len(data):
+            raise IndexError("constant pool truncado")
+        tag = data[pos]
+        pos += 1
+        if tag == 1:  # Utf8
+            length = u2(pos)
+            pos += 2
+            raw = data[pos : pos + length]
+            if len(raw) < length:
+                raise IndexError("Utf8 truncado")
+            # "Modified UTF-8"; para nombres/descriptores (ASCII) es
+            # idéntico al UTF-8 normal. `replace` evita explotar por un
+            # identificador exótico que no vamos a comparar igual.
+            utf8[idx] = raw.decode("utf-8", "replace")
+            pos += length
+        elif tag == 7:  # Class → apunta a un Utf8 con el nombre interno
+            class_name_ref[idx] = u2(pos)
+            pos += 2
+        else:
+            size = _CP_PAYLOAD_SIZE.get(tag)
+            if size is None:
+                raise ValueError(f"tag desconocido en constant pool: {tag}")
+            pos += size
+        idx += 2 if tag in (5, 6) else 1
+
+    pos += 2  # access_flags de la clase
+    this_class_idx = u2(pos)
+    pos += 2
+    pos += 2  # super_class
+    interfaces_count = u2(pos)
+    pos += 2 + 2 * interfaces_count
+
+    def skip_members(at: int) -> int:
+        """Salta fields[] o methods[] completos (incluidos sus atributos)."""
+        count = u2(at)
+        at += 2
+        for _ in range(count):
+            at += 6  # access_flags + name_index + descriptor_index
+            attrs = u2(at)
+            at += 2
+            for _ in range(attrs):
+                at += 2  # attribute_name_index
+                if at + 4 > len(data):
+                    raise IndexError("atributo truncado")
+                at += 4 + int.from_bytes(data[at : at + 4], "big")
+        return at
+
+    pos = skip_members(pos)  # fields[] — no nos interesan, pero hay que saltarlos
+
+    # ── methods[] ──
+    methods_count = u2(pos)
+    pos += 2
+    found_public = False
+    found_any_static = False
+    for _ in range(methods_count):
+        access_flags = u2(pos)
+        name_index = u2(pos + 2)
+        descriptor_index = u2(pos + 4)
+        pos += 6
+        attrs = u2(pos)
+        pos += 2
+        for _ in range(attrs):
+            pos += 2
+            if pos + 4 > len(data):
+                raise IndexError("atributo de método truncado")
+            pos += 4 + int.from_bytes(data[pos : pos + 4], "big")
+        if (
+            access_flags & _ACC_STATIC
+            and utf8.get(name_index) == "main"
+            and utf8.get(descriptor_index) == KOTLIN_MAIN_DESCRIPTOR
+        ):
+            found_any_static = True
+            if access_flags & _ACC_PUBLIC:
+                found_public = True
+
+    if not found_any_static:
+        return None
+
+    internal_name = utf8.get(class_name_ref.get(this_class_idx, -1))
+    if not internal_name:
+        raise ValueError("no se pudo resolver this_class")
+    # Nombre interno de la JVM (`com/demo/app/MainKt`) → binario para el
+    # launcher (`com.demo.app.MainKt`). Esto resuelve el caso `package`
+    # sin depender del layout de directorios que kotlinc haya generado.
+    return internal_name.replace("/", "."), found_public
 
 
 def _find_kotlin_main_class(out_dir: str) -> "str | None":
     """Descubre la clase de entrada en el bytecode que kotlinc generó.
 
-    Cubre los dos patrones que un alumno puede escribir:
-      - `fun main() { ... }` top-level en `Main.kt`  → clase `MainKt`
-      - `object App { @JvmStatic fun main(args: Array<String>) { ... } }`
-        (o el `companion object` de una clase)       → clase `App`
+    Cubre los patrones que un alumno puede escribir:
+      - `fun main()` top-level en `Main.kt`            → clase `MainKt`
+      - lo mismo con `package com.demo.app`            → `com.demo.app.MainKt`
+      - `object App { @JvmStatic fun main(…) }`        → `App`
+      - `class C { companion object { @JvmStatic fun main(…) } }` → `C`
 
-    Orden de preferencia cuando hay varias candidatas:
-      1. `MainKt` (el archivo que le pasamos a kotlinc) — es el caso común.
-      2. Clases sin `$` en el nombre (las que tienen `$` son sintéticas:
-         lambdas, closures, `MainKt$main$1`…).
-      3. Cualquier otra, para no fallar por un layout inesperado.
+    Orden de preferencia cuando hay varias candidatas (ej. un `fun main`
+    top-level Y un `object` con `@JvmStatic main`):
+      1. Simple name == `MainKt` — el archivo que le pasamos a kotlinc,
+         o sea el `main` top-level que el alumno escribió.
+      2. Clases no sintéticas (las que tienen `$` son lambdas/closures:
+         `MainKt$main$1`…).
+      3. `public` antes que no-public (el launcher de la JVM exige
+         public; un `private fun main` top-level compila pero no arranca).
+      4. Orden alfabético como último desempate, para que la elección sea
+         determinista entre invocaciones.
 
     Devuelve None si NINGUNA clase declara `main(String[])` — el caller
     responde con un mensaje explícito en lugar de dejar que la JVM tire
     un `ClassNotFoundException` pelado, que no le dice nada al alumno.
     """
-    candidates: "list[str]" = []
+    candidates: "list[tuple[str, bool]]" = []
+    # Clases que no pudimos parsear (bytecode con algo inesperado). Se usan
+    # SOLO si el parseo estricto no encontró nada: es mejor darle a la JVM
+    # un candidato dudoso que decirle "no tenés main" a un programa válido.
+    unparsed: "list[str]" = []
     for root, _dirs, files in os.walk(out_dir):
         for name in files:
             if not name.endswith(".class"):
                 continue
             path = os.path.join(root, name)
-            if not _class_declares_main(path):
+            try:
+                entry = _class_main_entry(path)
+            except (OSError, ValueError, IndexError) as e:
+                logger.info("kotlin: .class no parseable %s (%s)", name, e)
+                unparsed.append(path)
                 continue
-            rel = os.path.relpath(path, out_dir)[: -len(".class")]
-            candidates.append(rel.replace(os.sep, ".").replace("/", "."))
+            if entry is not None:
+                candidates.append(entry)
+
+    if not candidates and unparsed:
+        # Último recurso: el chequeo laxo por subcadena sobre los archivos
+        # que no pudimos parsear.
+        for path in unparsed:
+            try:
+                with open(path, "rb") as f:
+                    blob = f.read()
+            except OSError:
+                continue
+            if b"main" in blob and KOTLIN_MAIN_DESCRIPTOR.encode() in blob:
+                rel = os.path.relpath(path, out_dir)[: -len(".class")]
+                candidates.append((rel.replace(os.sep, ".").replace("/", "."), True))
 
     if not candidates:
         return None
 
-    preferred = f"{KOTLIN_SOURCE_STEM}Kt"
-    if preferred in candidates:
-        return preferred
-    plain = sorted(c for c in candidates if "$" not in c)
-    if plain:
-        return plain[0]
-    return sorted(candidates)[0]
+    preferred_simple = f"{KOTLIN_SOURCE_STEM}Kt"
+
+    def rank(item: "tuple[str, bool]") -> tuple:
+        fqn, is_public = item
+        simple = fqn.rsplit(".", 1)[-1]
+        return (
+            0 if simple == preferred_simple else 1,
+            1 if "$" in simple else 0,
+            0 if is_public else 1,
+            fqn,
+        )
+
+    return sorted(candidates, key=rank)[0][0]
 
 
 def _handle_kotlin_run(
@@ -821,7 +1130,28 @@ def _handle_kotlin_run(
     Las WARNINGS de una compilación exitosa se descartan, igual que hace
     la rama Java con las de javac — el contrato de la respuesta es la
     salida del programa.
+
+    Levanta `RunnerInfraError` cuando este container NO PUEDE compilar
+    Kotlin (falta el compilador o la stdlib). El caller lo traduce a 5xx
+    para que el edge haga fallback a otro proveedor en vez de cobrarle
+    al alumno una corrida perdida.
     """
+    # ── Pre-flight de infra ──
+    # Si la capa de Kotlin no entró en la imagen, esto tiene que ser un
+    # 5xx (fallback) y no un 200 con "avisá al equipo": JDoodle también
+    # soporta Kotlin, así que la corrida se salva sola.
+    if not os.path.isfile(KOTLINC_BIN):
+        raise RunnerInfraError(
+            f"El compilador de Kotlin no está instalado en este runner ({KOTLINC_BIN})."
+        )
+    if not os.path.isfile(KOTLIN_STDLIB):
+        # Sin la stdlib el programa compila pero muere en ejecución con
+        # NoClassDefFoundError de kotlin/jvm/internal/Intrinsics — un
+        # exitCode != 0 que parecería culpa del alumno.
+        raise RunnerInfraError(
+            f"Falta la stdlib de Kotlin en este runner ({KOTLIN_STDLIB})."
+        )
+
     with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
         source_path = os.path.join(tmp, f"{KOTLIN_SOURCE_STEM}.kt")
         out_dir = os.path.join(tmp, "out")
@@ -830,17 +1160,22 @@ def _handle_kotlin_run(
             f.write(source)
 
         # ── Compilar ──
-        # kotlinc levanta su propia JVM para compilar (varios segundos en
-        # cold start), así que consume una tajada grande del
-        # COMPILE_TIMEOUT_S. No lo subimos porque compile+execute deben
-        # caber en el timeout de Lambda (50s por default del CF).
+        # `kotlinc` levanta su propia JVM y carga kotlin-compiler.jar
+        # (58 MB) por invocación: 6-9s medidos a 1 vCPU para un `println`,
+        # 13-16s para ~250 líneas. Por eso tiene su propio timeout y no
+        # el de Java — el techo a respetar son los 29s de API Gateway
+        # (ver KOTLIN_TOTAL_BUDGET_S), no los 50s del Lambda.
+        #
+        # `_run_isolated` (start_new_session + killpg) es OBLIGATORIO acá:
+        # `kotlinc` es un script bash que lanza la JVM, así que matar solo
+        # al hijo directo dejaría la JVM del compilador huérfana quemando
+        # el vCPU del container warm → la invocación siguiente compite
+        # con ella.
         env = {**os.environ, **KOTLIN_COMPILE_ENV}
         try:
-            compile_proc = subprocess.run(
+            compile_proc = _run_isolated(
                 [KOTLINC_BIN, "-nowarn", "-d", out_dir, source_path],
-                capture_output=True,
-                text=True,
-                timeout=COMPILE_TIMEOUT_S,
+                timeout=KOTLIN_COMPILE_TIMEOUT_S,
                 cwd=tmp,
                 env=env,
             )
@@ -853,26 +1188,26 @@ def _handle_kotlin_run(
             )
             return {
                 "stdout": "",
-                "stderr": f"Compilación de Kotlin excedió el tiempo límite ({COMPILE_TIMEOUT_S}s).",
+                "stderr": (
+                    "La compilación de Kotlin excedió el tiempo límite "
+                    f"({KOTLIN_COMPILE_TIMEOUT_S}s). Si el programa es muy grande, "
+                    "probá con menos código; si no, volvé a intentar."
+                ),
                 "exitCode": 124,
                 "executionTimeMs": time_ms,
             }
-        except FileNotFoundError:
-            time_ms = int((time.time() - start) * 1000)
+        except FileNotFoundError as e:
+            # El pre-flight de arriba ya cubre el caso "no existe", así
+            # que llegar acá significa que el binario desapareció entre
+            # medio o no es ejecutable: sigue siendo infra → 5xx.
             logger.error(
                 "◀ RESPONSE id=%s phase=kotlin_compiler_missing path=%s",
                 request_id,
                 KOTLINC_BIN,
             )
-            return {
-                "stdout": "",
-                "stderr": (
-                    "El compilador de Kotlin no está disponible en este runner "
-                    f"(no existe {KOTLINC_BIN}). Avisá al equipo de la plataforma."
-                ),
-                "exitCode": 1,
-                "executionTimeMs": time_ms,
-            }
+            raise RunnerInfraError(
+                f"No se pudo ejecutar el compilador de Kotlin ({KOTLINC_BIN}): {e}"
+            ) from e
 
         if compile_proc.returncode != 0:
             stderr_text = _truncate(compile_proc.stderr or "Error de compilación")
@@ -929,13 +1264,21 @@ def _handle_kotlin_run(
         # hasta un `println` muere con NoClassDefFoundError de
         # kotlin/jvm/internal/Intrinsics.
         classpath = os.pathsep.join([out_dir, KOTLIN_STDLIB])
+        # Recorte del timeout de ejecución con lo que quede del presupuesto
+        # total: si la compilación se fue larga (cold start), la ejecución
+        # cede tiempo para que el wall del handler no se acerque a los 29s
+        # de API Gateway. Sin esto, compile lento + execute al máximo daba
+        # 504 y el alumno perdía la corrida.
+        elapsed_s = time.time() - start
+        execute_timeout_s = max(
+            KOTLIN_MIN_EXECUTE_TIMEOUT_S,
+            min(KOTLIN_EXECUTE_TIMEOUT_S, KOTLIN_TOTAL_BUDGET_S - elapsed_s),
+        )
         try:
-            run_proc = subprocess.run(
+            run_proc = _run_isolated(
                 ["java", "-Xmx512m", "-cp", classpath, main_class],
-                input=stdin,
-                capture_output=True,
-                text=True,
-                timeout=EXECUTE_TIMEOUT_S,
+                input_text=stdin,
+                timeout=execute_timeout_s,
                 cwd=tmp,
             )
             stdout_text = _truncate(run_proc.stdout or "")
@@ -962,19 +1305,21 @@ def _handle_kotlin_run(
                 "executionTimeMs": time_ms,
             }
         except subprocess.TimeoutExpired:
+            time_ms = int((time.time() - start) * 1000)
             logger.warning(
-                "◀ RESPONSE id=%s phase=kotlin_execute_timeout time_ms=%d",
+                "◀ RESPONSE id=%s phase=kotlin_execute_timeout time_ms=%d timeout_s=%.1f",
                 request_id,
-                EXECUTE_TIMEOUT_S * 1000,
+                time_ms,
+                execute_timeout_s,
             )
             return {
                 "stdout": "",
                 "stderr": (
-                    f"Ejecución excedió el tiempo límite ({EXECUTE_TIMEOUT_S}s). "
-                    "¿Bucle infinito o input que nunca recibe stdin?"
+                    f"La ejecución excedió el tiempo límite ({execute_timeout_s:.0f}s). "
+                    "¿Bucle infinito o un `readLine()` que espera datos que nunca llegan?"
                 ),
                 "exitCode": 124,
-                "executionTimeMs": EXECUTE_TIMEOUT_S * 1000,
+                "executionTimeMs": time_ms,
             }
 
 
@@ -1188,8 +1533,14 @@ def _handle_diagnose() -> dict:
     import glob
 
     def run(cmd: list) -> str:
+        # `_run_isolated` en lugar de `subprocess.run`: uno de los comandos
+        # que diagnosticamos es `kotlinc -version`, que es un script bash
+        # lanzando una JVM. Si vence el timeout, matar solo al bash dejaría
+        # la JVM huérfana en el container warm — el mismo leak que la rama
+        # de compilación. Un diagnóstico no puede degradar la invocación
+        # siguiente.
         try:
-            r = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            r = _run_isolated(cmd, timeout=10)
             return (
                 (r.stdout or "")
                 + ("\n[stderr]\n" + r.stderr if r.stderr else "")
@@ -1371,7 +1722,24 @@ def handler(event, _context):
     # Comparte la JVM con Java: solo cambia el compilador (`kotlinc`) y la
     # resolución de la clase de entrada.
     if language == "kotlin":
-        result = _handle_kotlin_run(source, stdin, request_id, start)
+        try:
+            result = _handle_kotlin_run(source, stdin, request_id, start)
+        except RunnerInfraError as e:
+            # 503 (NO 200): el edge `execute-code` solo hace fallback a
+            # otro proveedor cuando el status no es 2xx. Devolver 200 con
+            # un mensaje amable anulaba ese fallback y mataba TODAS las
+            # corridas de Kotlin del examen, aunque JDoodle las soporta.
+            logger.error(
+                "◀ RESPONSE id=%s phase=kotlin_infra_error err=%s", request_id, e
+            )
+            return _resp(
+                503,
+                {
+                    "error": str(e),
+                    "retryable": True,
+                    "language": "kotlin",
+                },
+            )
         return _resp(200, result)
 
     # ── Dispatch run mode (Java) — flujo legacy ──
