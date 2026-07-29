@@ -1469,7 +1469,7 @@ function TeacherContents() {
                           encogen (shrink-0). */}
                       <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
                         <span
-                          className="font-medium truncate min-w-0"
+                          className="font-medium truncate min-w-0 flex-1"
                           title={
                             it.display_name && it.display_name !== it.topic
                               ? `${it.display_name} — ${it.topic}`
@@ -1527,7 +1527,15 @@ function TeacherContents() {
                         const total = d.sessions + d.exams + d.workshops + d.projects;
                         if (total === 0) return null;
                         return (
-                          <div className="flex gap-1 overflow-hidden shrink-0">
+                          // Los badges derivados (sesiones/examenes/talleres/
+                          // proyectos que salieron de este contenido) son
+                          // CONTEXTO, no el identificador de la fila. Con
+                          // `shrink-0` y 4 de ellos, el nombre —que es lo que
+                          // identifica la fila— quedaba con ~30px: la jerarquia
+                          // invertida en el CSS. Se ocultan donde no hay espacio
+                          // en lugar de recortarse a medias (un badge cortado
+                          // por overflow se ve roto).
+                          <div className="hidden lg:flex gap-1 overflow-hidden shrink-0">
                             {d.sessions > 0 && (
                               <Badge
                                 variant="outline"
