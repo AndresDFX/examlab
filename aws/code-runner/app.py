@@ -1,5 +1,5 @@
 """
-AWS Lambda handler — compila y ejecuta código del estudiante (Java o Python).
+AWS Lambda handler — compila y ejecuta código del estudiante (Java, Kotlin o Python).
 
 Invocado vía API Gateway HTTP API. Los edge functions de Supabase
 (`execute-code`, `execute-java-gui-screenshot`, `execute-python-gui-screenshot`)
@@ -9,6 +9,9 @@ Modos (en el body, campo `mode`):
  - `run` (default): ejecuta código por consola. El `language` del body
    determina el toolchain:
      - `language='java'` (default): javac + java.
+     - `language='kotlin'`: kotlinc + java (mismo JVM; la clase de
+       entrada se descubre en el bytecode — `fun main()` top-level en
+       `Main.kt` compila a `MainKt`, NO a `Main`).
      - `language='python'`: python3 (AL2023 system python, /usr/bin/python3).
    Retorna stdout/stderr/exitCode. Es lo que usa una pregunta tipo
    `codigo` cuando el admin elige AWS Lambda como provider.
@@ -131,6 +134,37 @@ PYTHON_BIN = "/usr/bin/python3"
 # Timeout de ejecución para Python (consola). Mismo orden que Java; los
 # scripts del alumno no deberían tardar más que esto.
 PYTHON_EXECUTE_TIMEOUT_S = 20
+
+# ── Kotlin runner ─────────────────────────────────────────────────────
+# Kotlin compila a bytecode JVM: usamos `kotlinc` para compilar y el
+# MISMO `java` que la rama Java para ejecutar. Lo único extra en tiempo
+# de ejecución es `kotlin-stdlib.jar` en el classpath — sin él, cualquier
+# programa (incluso un `println`) muere con
+#   NoClassDefFoundError: kotlin/jvm/internal/Intrinsics
+#
+# Las rutas vienen del entorno (las setea el Dockerfile) con fallback al
+# mismo valor, para que un upgrade del compilador se resuelva cambiando
+# SOLO el Dockerfile.
+KOTLIN_HOME = os.environ.get("KOTLIN_HOME") or "/opt/kotlinc"
+KOTLINC_BIN = os.path.join(KOTLIN_HOME, "bin", "kotlinc")
+KOTLIN_STDLIB = os.environ.get("KOTLIN_STDLIB") or os.path.join(
+    KOTLIN_HOME, "lib", "kotlin-stdlib.jar"
+)
+# Nombre del archivo fuente que le pasamos a kotlinc. Determina el nombre
+# de la clase que Kotlin genera para las funciones top-level: `Main.kt`
+# con `fun main()` top-level compila a la clase **MainKt** (no `Main`).
+KOTLIN_SOURCE_STEM = "Main"
+# Opciones de JVM para el proceso de COMPILACIÓN (el script `kotlinc` las
+# lee de JAVA_OPTS). El default del wrapper es angosto para un compilador;
+# 512m evita OOM en fuentes grandes sin comerse la memoria del Lambda.
+# HOME=/tmp porque en Lambda el filesystem es read-only salvo /tmp: si
+# alguna versión del compilador intenta escribir algo bajo $HOME, cae en
+# la única ruta escribible en lugar de fallar.
+KOTLIN_COMPILE_ENV = {"JAVA_OPTS": "-Xmx512m", "HOME": "/tmp"}
+# Descriptor JVM de `main(String[])` tal como aparece en el constant pool
+# de un .class. Lo usamos para descubrir la clase de entrada en el
+# bytecode COMPILADO (más fiable que adivinarla con regex sobre el fuente).
+KOTLIN_MAIN_DESCRIPTOR = b"([Ljava/lang/String;)V"
 
 
 def _resp(status: int, body: dict) -> dict:
@@ -698,6 +732,252 @@ def _handle_python_run(
             }
 
 
+def _class_declares_main(class_path: str) -> bool:
+    """¿Este .class declara `main(String[])`?
+
+    Chequeo sobre los BYTES del .class: el constant pool guarda tanto el
+    nombre del método (`main`) como su descriptor
+    (`([Ljava/lang/String;)V`) como strings UTF-8 planos. Si ambos
+    aparecen, la clase declara (o al menos referencia) ese método.
+
+    WHY así y no `javap`: javap levanta una JVM por invocación (~400ms)
+    y acá corremos dentro del presupuesto de un Lambda de 50s donde
+    kotlinc ya se comió varios segundos. WHY no regex sobre el fuente:
+    el nombre de la clase de entrada en Kotlin depende de reglas del
+    compilador (top-level → `<Archivo>Kt`, `object`/`companion` con
+    `@JvmStatic` → el nombre del object/clase); leer el bytecode ya
+    compilado es la única fuente de verdad.
+
+    Falso positivo posible: una clase que solo LLAMA al main de otra
+    también tiene ambos strings. En código de un alumno eso es raro, y
+    el orden de preferencia de `_find_kotlin_main_class` desempata.
+    """
+    try:
+        with open(class_path, "rb") as f:
+            data = f.read()
+    except OSError:
+        return False
+    return b"main" in data and KOTLIN_MAIN_DESCRIPTOR in data
+
+
+def _find_kotlin_main_class(out_dir: str) -> "str | None":
+    """Descubre la clase de entrada en el bytecode que kotlinc generó.
+
+    Cubre los dos patrones que un alumno puede escribir:
+      - `fun main() { ... }` top-level en `Main.kt`  → clase `MainKt`
+      - `object App { @JvmStatic fun main(args: Array<String>) { ... } }`
+        (o el `companion object` de una clase)       → clase `App`
+
+    Orden de preferencia cuando hay varias candidatas:
+      1. `MainKt` (el archivo que le pasamos a kotlinc) — es el caso común.
+      2. Clases sin `$` en el nombre (las que tienen `$` son sintéticas:
+         lambdas, closures, `MainKt$main$1`…).
+      3. Cualquier otra, para no fallar por un layout inesperado.
+
+    Devuelve None si NINGUNA clase declara `main(String[])` — el caller
+    responde con un mensaje explícito en lugar de dejar que la JVM tire
+    un `ClassNotFoundException` pelado, que no le dice nada al alumno.
+    """
+    candidates: "list[str]" = []
+    for root, _dirs, files in os.walk(out_dir):
+        for name in files:
+            if not name.endswith(".class"):
+                continue
+            path = os.path.join(root, name)
+            if not _class_declares_main(path):
+                continue
+            rel = os.path.relpath(path, out_dir)[: -len(".class")]
+            candidates.append(rel.replace(os.sep, ".").replace("/", "."))
+
+    if not candidates:
+        return None
+
+    preferred = f"{KOTLIN_SOURCE_STEM}Kt"
+    if preferred in candidates:
+        return preferred
+    plain = sorted(c for c in candidates if "$" not in c)
+    if plain:
+        return plain[0]
+    return sorted(candidates)[0]
+
+
+def _handle_kotlin_run(
+    source: str,
+    stdin: str,
+    request_id: str,
+    start: float,
+) -> dict:
+    """Compila y ejecuta Kotlin. Mismo contrato que la rama Java.
+
+    Kotlin produce bytecode JVM, así que la fase de ejecución es
+    literalmente la de Java (`java -Xmx512m -cp …`) con dos diferencias:
+      - `kotlin-stdlib.jar` DEBE estar en el classpath de ejecución (no
+        solo de compilación).
+      - La clase de entrada no es el nombre del archivo: se descubre en
+        el bytecode compilado (ver `_find_kotlin_main_class`).
+
+    Un `returncode != 0` de kotlinc es un error del ALUMNO (no de
+    infra): devolvemos su stderr tal cual, que trae archivo:línea:columna.
+    Las WARNINGS de una compilación exitosa se descartan, igual que hace
+    la rama Java con las de javac — el contrato de la respuesta es la
+    salida del programa.
+    """
+    with tempfile.TemporaryDirectory(dir="/tmp") as tmp:
+        source_path = os.path.join(tmp, f"{KOTLIN_SOURCE_STEM}.kt")
+        out_dir = os.path.join(tmp, "out")
+        os.makedirs(out_dir, exist_ok=True)
+        with open(source_path, "w", encoding="utf-8") as f:
+            f.write(source)
+
+        # ── Compilar ──
+        # kotlinc levanta su propia JVM para compilar (varios segundos en
+        # cold start), así que consume una tajada grande del
+        # COMPILE_TIMEOUT_S. No lo subimos porque compile+execute deben
+        # caber en el timeout de Lambda (50s por default del CF).
+        env = {**os.environ, **KOTLIN_COMPILE_ENV}
+        try:
+            compile_proc = subprocess.run(
+                [KOTLINC_BIN, "-nowarn", "-d", out_dir, source_path],
+                capture_output=True,
+                text=True,
+                timeout=COMPILE_TIMEOUT_S,
+                cwd=tmp,
+                env=env,
+            )
+        except subprocess.TimeoutExpired:
+            time_ms = int((time.time() - start) * 1000)
+            logger.warning(
+                "◀ RESPONSE id=%s phase=kotlin_compile_timeout time_ms=%d",
+                request_id,
+                time_ms,
+            )
+            return {
+                "stdout": "",
+                "stderr": f"Compilación de Kotlin excedió el tiempo límite ({COMPILE_TIMEOUT_S}s).",
+                "exitCode": 124,
+                "executionTimeMs": time_ms,
+            }
+        except FileNotFoundError:
+            time_ms = int((time.time() - start) * 1000)
+            logger.error(
+                "◀ RESPONSE id=%s phase=kotlin_compiler_missing path=%s",
+                request_id,
+                KOTLINC_BIN,
+            )
+            return {
+                "stdout": "",
+                "stderr": (
+                    "El compilador de Kotlin no está disponible en este runner "
+                    f"(no existe {KOTLINC_BIN}). Avisá al equipo de la plataforma."
+                ),
+                "exitCode": 1,
+                "executionTimeMs": time_ms,
+            }
+
+        if compile_proc.returncode != 0:
+            stderr_text = _truncate(compile_proc.stderr or "Error de compilación")
+            time_ms = int((time.time() - start) * 1000)
+            logger.info(
+                "◀ RESPONSE id=%s phase=kotlin_compile_error exit=%d time_ms=%d",
+                request_id,
+                compile_proc.returncode,
+                time_ms,
+            )
+            _log_preview("RESPONSE.compile_stderr", stderr_text, max_chars=1000)
+            return {
+                "stdout": "",
+                "stderr": stderr_text,
+                "exitCode": compile_proc.returncode,
+                "executionTimeMs": time_ms,
+            }
+
+        compile_ms = int((time.time() - start) * 1000)
+
+        # ── Resolver la clase de entrada ──
+        main_class = _find_kotlin_main_class(out_dir)
+        if not main_class:
+            logger.info(
+                "◀ RESPONSE id=%s phase=kotlin_no_main compile_ms=%d",
+                request_id,
+                compile_ms,
+            )
+            return {
+                "stdout": "",
+                "stderr": (
+                    "El código compiló pero no tiene punto de entrada: no se encontró "
+                    "ninguna función `main(args: Array<String>)`.\n"
+                    "Agregá una función main en el nivel superior del archivo:\n"
+                    "    fun main() {\n"
+                    "        println(\"Hola\")\n"
+                    "    }\n"
+                    "o, si preferís un objeto: "
+                    "`object Main { @JvmStatic fun main(args: Array<String>) { … } }`"
+                ),
+                "exitCode": 1,
+                "executionTimeMs": compile_ms,
+            }
+
+        logger.info(
+            "id=%s kotlin compiled ok in %dms → main class %s",
+            request_id,
+            compile_ms,
+            main_class,
+        )
+
+        # ── Ejecutar ──
+        # `kotlin-stdlib.jar` va en el classpath de EJECUCIÓN: sin él,
+        # hasta un `println` muere con NoClassDefFoundError de
+        # kotlin/jvm/internal/Intrinsics.
+        classpath = os.pathsep.join([out_dir, KOTLIN_STDLIB])
+        try:
+            run_proc = subprocess.run(
+                ["java", "-Xmx512m", "-cp", classpath, main_class],
+                input=stdin,
+                capture_output=True,
+                text=True,
+                timeout=EXECUTE_TIMEOUT_S,
+                cwd=tmp,
+            )
+            stdout_text = _truncate(run_proc.stdout or "")
+            stderr_text = _truncate(run_proc.stderr or "")
+            time_ms = int((time.time() - start) * 1000)
+            logger.info(
+                "◀ RESPONSE id=%s phase=kotlin_executed class=%s exit=%d time_ms=%d "
+                "compile_ms=%d stdout_len=%d stderr_len=%d",
+                request_id,
+                main_class,
+                run_proc.returncode,
+                time_ms,
+                compile_ms,
+                len(stdout_text),
+                len(stderr_text),
+            )
+            _log_preview("RESPONSE.stdout", stdout_text, max_chars=2000)
+            if stderr_text:
+                _log_preview("RESPONSE.stderr", stderr_text, max_chars=1000)
+            return {
+                "stdout": stdout_text,
+                "stderr": stderr_text,
+                "exitCode": run_proc.returncode,
+                "executionTimeMs": time_ms,
+            }
+        except subprocess.TimeoutExpired:
+            logger.warning(
+                "◀ RESPONSE id=%s phase=kotlin_execute_timeout time_ms=%d",
+                request_id,
+                EXECUTE_TIMEOUT_S * 1000,
+            )
+            return {
+                "stdout": "",
+                "stderr": (
+                    f"Ejecución excedió el tiempo límite ({EXECUTE_TIMEOUT_S}s). "
+                    "¿Bucle infinito o input que nunca recibe stdin?"
+                ),
+                "exitCode": 124,
+                "executionTimeMs": EXECUTE_TIMEOUT_S * 1000,
+            }
+
+
 def _handle_tkinter_screenshot(
     source: str,
     delay_ms: int,
@@ -927,6 +1207,14 @@ def _handle_diagnose() -> dict:
         "mode": "diagnose",
         "java_version": run(["java", "-version"]),
         "javac_version": run(["javac", "-version"]),
+        # Kotlin: `kotlinc -version` levanta una JVM (2-4s), por eso el
+        # timeout de 10s de `run()` alcanza justo. Si acá aparece un
+        # timeout o un FileNotFoundError, la rama `run`+`language=kotlin`
+        # va a fallar igual y este es el dato que lo explica.
+        "kotlinc_version": run([KOTLINC_BIN, "-version"]),
+        "kotlinc_path": KOTLINC_BIN,
+        "kotlin_stdlib_path": KOTLIN_STDLIB,
+        "kotlin_stdlib_exists": os.path.isfile(KOTLIN_STDLIB),
         "libawt_xawt_path": libawt_xawt_path,
         "libawt_xawt_ldd": run(["ldd", libawt_xawt_path]) if libawt_xawt_path else "(no encontrado)",
         "libawt_xawt_listing": run(
@@ -1007,10 +1295,10 @@ def handler(event, _context):
             400,
             {"error": f"mode inválido: {mode}. Opciones: run, gui_screenshot, tkinter_screenshot, diagnose."},
         )
-    if mode == "run" and language not in ("java", "python"):
+    if mode == "run" and language not in ("java", "kotlin", "python"):
         return _resp(
             400,
-            {"error": f"language inválido para mode=run: {language}. Opciones: java, python."},
+            {"error": f"language inválido para mode=run: {language}. Opciones: java, kotlin, python."},
         )
     if not isinstance(source, str) or not source.strip():
         return _resp(400, {"error": "sourceCode requerido"})
@@ -1077,6 +1365,13 @@ def handler(event, _context):
     # ── Dispatch run mode (Python) ──
     if language == "python":
         result = _handle_python_run(source, stdin, request_id, start)
+        return _resp(200, result)
+
+    # ── Dispatch run mode (Kotlin) ──
+    # Comparte la JVM con Java: solo cambia el compilador (`kotlinc`) y la
+    # resolución de la clase de entrada.
+    if language == "kotlin":
+        result = _handle_kotlin_run(source, stdin, request_id, start)
         return _resp(200, result)
 
     # ── Dispatch run mode (Java) — flujo legacy ──

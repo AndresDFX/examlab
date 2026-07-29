@@ -5,7 +5,9 @@
 # repos de AL2023 sin firma de terceros.
 #
 # Capacidades:
-#  - Modo `run` (default): compila + ejecuta Java por consola.
+#  - Modo `run` (default): compila + ejecuta Java, Kotlin o Python por
+#    consola. Kotlin reusa la MISMA JVM (solo agrega el compilador
+#    `kotlinc`, ver bloque KOTLIN abajo).
 #  - Modo `gui_screenshot`: ejecuta Java Swing/AWT bajo Xvfb (display
 #    virtual sin pantalla) y captura un PNG del frame, base64 al cliente.
 #  - Modo `gui_screenshot` con `framework=javafx`: ejecuta JavaFX
@@ -274,7 +276,52 @@ COPY TkinterBootstrap.py /opt/TkinterBootstrap.py
 RUN /usr/bin/python3 -c "import py_compile; py_compile.compile('/opt/TkinterBootstrap.py', doraise=True)" \
  && ls -la /opt/TkinterBootstrap.py
 
-# Handler de Lambda (Python wrapper que llama a javac + java + python).
+# ── KOTLIN (compilador CLI `kotlinc`) ────────────────────────────────
+# La JVM ya está instalada arriba (Corretto 21), así que Kotlin solo
+# necesita el compilador: `kotlinc` produce bytecode JVM normal y el
+# `java` que ya usamos lo ejecuta. NO se instala un "runtime Kotlin"
+# aparte — lo único que hace falta en tiempo de EJECUCIÓN es tener
+# `kotlin-stdlib.jar` en el classpath (ver ENV KOTLIN_STDLIB abajo).
+#
+# VERSIÓN FIJA a propósito (no "latest"): la imagen de Lambda debe ser
+# reproducible. Un compilador que se actualiza solo entre builds
+# convierte cualquier cambio de comportamiento (warnings nuevos, un
+# `error:` que antes no salía, bytecode con otro target) en un fallo
+# imposible de correlacionar con un commit. Subir de versión es un
+# cambio explícito de este ARG.
+#
+# El zip oficial (release de GitHub de JetBrains/kotlin) descomprime a
+# `/opt/kotlinc/` con `bin/kotlinc` + `lib/*.jar`. Lo agregamos al PATH.
+#
+# KOTLIN_STDLIB se expone como ENV para que `app.py` NO tenga que
+# adivinar la ruta ni hardcodear una que el próximo upgrade rompa: el
+# handler la lee del entorno con un fallback al mismo valor.
+#
+# Tamaño: ~110MB (el grueso es `lib/kotlin-compiler.jar`, que SÍ se
+# necesita en runtime porque compilamos por invocación). Se borra el zip
+# y lo que no se usa en Lambda (scripts .bat de Windows, jars de
+# sources) en la MISMA capa RUN para que no queden en la imagen final.
+ARG KOTLIN_VERSION=2.1.20
+ENV KOTLIN_HOME=/opt/kotlinc
+ENV KOTLIN_STDLIB=/opt/kotlinc/lib/kotlin-stdlib.jar
+ENV PATH=/opt/kotlinc/bin:${PATH}
+RUN curl -fSL -o /tmp/kotlin-compiler.zip \
+      "https://github.com/JetBrains/kotlin/releases/download/v${KOTLIN_VERSION}/kotlin-compiler-${KOTLIN_VERSION}.zip" \
+ && unzip -q /tmp/kotlin-compiler.zip -d /opt \
+ && rm -f /tmp/kotlin-compiler.zip \
+ && rm -f "$KOTLIN_HOME"/bin/*.bat \
+ && rm -f "$KOTLIN_HOME"/lib/*-sources.jar \
+ # Sanity de build: si el layout del zip cambia (o el nombre del jar de
+ # la stdlib), queremos que falle ACÁ y no en runtime con un
+ # NoClassDefFoundError de kotlin/jvm/internal/Intrinsics.
+ && test -f "$KOTLIN_STDLIB" \
+ && test -x "$KOTLIN_HOME/bin/kotlinc" \
+ # `kotlinc -version` levanta la JVM y carga el compilador: valida de
+ # una que el binario, el bash del script wrapper y la JVM se hablan.
+ && kotlinc -version \
+ && du -sh "$KOTLIN_HOME"
+
+# Handler de Lambda (Python wrapper que llama a javac + java + kotlinc + python).
 COPY app.py ${LAMBDA_TASK_ROOT}/
 
 # Lambda invoca este módulo:función al recibir un request.

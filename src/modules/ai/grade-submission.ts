@@ -21,7 +21,7 @@
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
-import { parseV86Answer } from "@/modules/serverconsole/v86-answer";
+import { parseV86Answer, stripAnsi } from "@/modules/serverconsole/v86-answer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -85,9 +85,15 @@ export function buildWorkshopItems(
         type: q.type,
         content: q.content,
         rubric: q.expected_rubric ?? "",
-        userAnswer: parsed.commands.length ? parsed.commands.join("\n") : parsed.transcript,
+        // El transcript como RESPUESTA (caso del alumno que no tecleó comandos)
+        // también va sin escapes: crudo, la IA recibiría los códigos de color
+        // como si fueran parte de lo que el alumno escribió.
+        userAnswer: parsed.commands.length
+          ? parsed.commands.join("\n")
+          : stripAnsi(parsed.transcript),
         maxPoints: Number(q.points) || 0,
-        executionOutput: parsed.transcript,
+        // Sin stripAnsi el prompt recibe los escapes de color crudos del serial.
+        executionOutput: stripAnsi(parsed.transcript),
       });
       continue;
     }

@@ -78,7 +78,8 @@ import {
 } from "@/modules/network/scenario";
 import { gradeNetwork } from "@/modules/network/grading";
 import { V86Console } from "@/modules/serverconsole/V86Console";
-import { isV86AnswerBlank, parseV86Answer } from "@/modules/serverconsole/v86-answer";
+import { isV86AnswerBlank, parseV86Answer, stripAnsi } from "@/modules/serverconsole/v86-answer";
+import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
 
 export type WorkshopQuestion = {
   id: string;
@@ -951,9 +952,13 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="java">Java</SelectItem>
-                  <SelectItem value="python">Python</SelectItem>
-                  <SelectItem value="javascript">JavaScript</SelectItem>
+                  {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                      una línea en language-support.ts, no 6 pantallas. */}
+                  {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {LANGUAGE_LABEL[l]}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -1149,9 +1154,13 @@ export function TeacherWorkshopQuestionsEditor({
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="java">Java</SelectItem>
-                        <SelectItem value="python">Python</SelectItem>
-                        <SelectItem value="javascript">JavaScript</SelectItem>
+                        {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                            una línea en language-support.ts, no 6 pantallas. */}
+                        {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                          <SelectItem key={l} value={l}>
+                            {LANGUAGE_LABEL[l]}
+                          </SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -2311,9 +2320,16 @@ export function StudentWorkshopTaker({
               type: q.type,
               content: String(q.content ?? ""),
               rubric: String(q.expected_rubric ?? ""),
-              userAnswer: parsed.commands.length ? parsed.commands.join("\n") : parsed.transcript,
+              // El transcript como RESPUESTA (caso del alumno que no tecleó
+              // comandos) también va sin escapes: crudo, la IA recibiría los
+              // códigos de color como si fueran parte de lo que escribió.
+              // INVARIANTE: idéntico a grade-submission.ts (ver CLAUDE.md).
+              userAnswer: parsed.commands.length
+                ? parsed.commands.join("\n")
+                : stripAnsi(parsed.transcript),
               maxPoints: Number(q.points) || 0,
-              executionOutput: parsed.transcript,
+              // Sin stripAnsi el prompt recibe los escapes de color crudos del serial.
+              executionOutput: stripAnsi(parsed.transcript),
             });
           }
         } else {
