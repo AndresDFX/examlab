@@ -79,6 +79,32 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+/**
+ * Tinte por CORTE, para que el ojo siga la columna correcta en una matriz de
+ * 93 alumnos × N actividades.
+ *
+ * Eran 4 tonos y se reciclaban: con 5 cortes, el primero y el quinto salían
+ * IGUALES, que es peor que no tener tinte —dos cortes distintos que se ven
+ * iguales invitan a capturar la nota en la columna equivocada—. Son 6, que
+ * cubre el rango realista (lo habitual son 3-4 cortes; más de 6 en un semestre
+ * es raro). Más allá de 6 sigue ciclando: en algún punto tiene que hacerlo.
+ *
+ * Acá los hues crudos de Tailwind son legítimos y NO violan el principio P3:
+ * el color ES el dato (distingue cortes), no decoración de pantalla — la misma
+ * excepción que los dots por tipo de evento del calendario.
+ *
+ * Vive a nivel de módulo y no dentro del `map` para no recrear el array en cada
+ * render de cada encabezado.
+ */
+const CUT_TINTS = [
+  "bg-indigo-500/5 dark:bg-indigo-500/10 border-l-2 border-indigo-500/30",
+  "bg-emerald-500/5 dark:bg-emerald-500/10 border-l-2 border-emerald-500/30",
+  "bg-amber-500/5 dark:bg-amber-500/10 border-l-2 border-amber-500/30",
+  "bg-cyan-500/5 dark:bg-cyan-500/10 border-l-2 border-cyan-500/30",
+  "bg-fuchsia-500/5 dark:bg-fuchsia-500/10 border-l-2 border-fuchsia-500/30",
+  "bg-lime-500/5 dark:bg-lime-500/10 border-l-2 border-lime-500/30",
+];
+
 export const Route = createFileRoute("/app/teacher/gradebook")({ component: Gradebook });
 
 type Course = {
@@ -2138,25 +2164,16 @@ function Gradebook() {
               {t("hc_routesAppTeacherGradebook.readOnly")}
             </Badge>
           </div>
-          <CardContent className="p-0 overflow-x-auto">
+          <CardContent className="p-0 max-h-[70dvh] overflow-auto">
             <Table>
-              <TableHeader>
+              <TableHeader sticky>
                 <TableRow>
                   <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
                     {t("gradebook.studentColumn")}
                   </TableHead>
                   {cuts.map((c, idx) => {
                     const itemCount = (columnsByCut.get(c.id) ?? []).length;
-                    // Tinte distintivo por corte para que el ojo siga la
-                    // columna correcta cuando hay 3+ cortes. Cycle de 4
-                    // tonos suaves que funcionan en light y dark.
-                    const TINTS = [
-                      "bg-indigo-500/5 dark:bg-indigo-500/10 border-l-2 border-indigo-500/30",
-                      "bg-emerald-500/5 dark:bg-emerald-500/10 border-l-2 border-emerald-500/30",
-                      "bg-amber-500/5 dark:bg-amber-500/10 border-l-2 border-amber-500/30",
-                      "bg-cyan-500/5 dark:bg-cyan-500/10 border-l-2 border-cyan-500/30",
-                    ];
-                    const tint = TINTS[idx % TINTS.length];
+                    const tint = CUT_TINTS[idx % CUT_TINTS.length];
                     return (
                       <TableHead key={c.id} className={`text-center min-w-28 sm:min-w-32 ${tint}`}>
                         <div className="flex flex-col items-center gap-1 py-1">
@@ -2631,9 +2648,9 @@ function renderCutDetailGrouped({
       )}
 
       <div className="rounded-md border overflow-hidden">
-        <CardContent className="p-0 overflow-x-auto">
+        <CardContent className="p-0 max-h-[70dvh] overflow-auto">
           <Table>
-            <TableHeader>
+            <TableHeader sticky>
               <TableRow>
                 <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
                   {i18next.t("gradebook.studentColumn")}
@@ -3058,9 +3075,9 @@ function renderEditableGrid({
   selectedCourse: Course | undefined;
 }) {
   return (
-    <CardContent className="p-0 overflow-x-auto">
+    <CardContent className="p-0 max-h-[70dvh] overflow-auto">
       <Table>
-        <TableHeader>
+        <TableHeader sticky>
           <TableRow>
             <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
               <span className="inline-flex items-center gap-1.5">

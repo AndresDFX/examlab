@@ -316,8 +316,24 @@ Table.displayName = "Table";
 
 const TableHeader = React.forwardRef<
   HTMLTableSectionElement,
-  React.HTMLAttributes<HTMLTableSectionElement>
->(({ className, ...props }, ref) => (
+  React.HTMLAttributes<HTMLTableSectionElement> & {
+    /**
+     * Encabezado FIJO al hacer scroll vertical. Para tablas largas donde
+     * pasada la fila ~12 se pierde de vista qué columna es cuál — el caso
+     * canónico es el gradebook con 93 alumnos (~5.600px de scroll), donde sin
+     * esto se capturan notas en columnas anónimas.
+     *
+     * Se aplica `sticky` a los `<th>` y NO al `<thead>`: es lo que soportan
+     * todos los navegadores de forma consistente.
+     *
+     * El `z-20` va en el `<thead>`, que ya es un contexto de apilamiento
+     * (`relative`). Tiene que ser MAYOR que el `z-10` de las columnas sticky
+     * laterales del cuerpo (gradebook, asistencia), o al hacer scroll vertical
+     * la primera columna pasaría por encima del encabezado.
+     */
+    sticky?: boolean;
+  }
+>(({ className, sticky, ...props }, ref) => (
   // `bg-background` + `relative z-[1]` tapa el gradient `scroll-hint-x`
   // que el wrapper pinta para insinuar overflow horizontal. Sin este
   // background, el gradient (var(--color-background) → transparente en
@@ -326,7 +342,14 @@ const TableHeader = React.forwardRef<
   // viewport con devtools abierto.
   <thead
     ref={ref}
-    className={cn("[&_tr]:border-b bg-background relative z-[1]", className)}
+    className={cn(
+      "[&_tr]:border-b bg-background relative z-[1]",
+      // Los `<th>` necesitan su PROPIO fondo: cuando quedan pegados arriba
+      // salen de la caja del `<thead>`, así que el fondo del thead ya no los
+      // cubre y el contenido del cuerpo se vería a través.
+      sticky && "[&_th]:sticky [&_th]:top-0 [&_th]:bg-background z-20",
+      className,
+    )}
     {...props}
   />
 ));
