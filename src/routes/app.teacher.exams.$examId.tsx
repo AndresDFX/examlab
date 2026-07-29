@@ -63,6 +63,7 @@ import { Library } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import i18n from "@/i18n";
+import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -1685,9 +1686,13 @@ function ExamEditor() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="java">Java</SelectItem>
-                            <SelectItem value="python">Python</SelectItem>
-                            <SelectItem value="javascript">JavaScript</SelectItem>
+                            {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                                una línea en language-support.ts, no 6 pantallas. */}
+                            {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                              <SelectItem key={l} value={l}>
+                                {LANGUAGE_LABEL[l]}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
                       </div>
@@ -1833,9 +1838,13 @@ function ExamEditor() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="java">Java</SelectItem>
-                      <SelectItem value="python">Python</SelectItem>
-                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                          una línea en language-support.ts, no 6 pantallas. */}
+                      {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                        <SelectItem key={l} value={l}>
+                          {LANGUAGE_LABEL[l]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

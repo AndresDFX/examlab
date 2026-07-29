@@ -13,8 +13,18 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Play, Terminal, Info, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import {
+  LANGUAGE_LABEL,
+  MONACO_LANGUAGE,
+  UI_EXECUTABLE_LANGUAGES,
+  type CodeLanguage,
+} from "./language-support";
 
-export type CodeLanguage = "java" | "python" | "javascript";
+// El tipo y la lista de lenguajes vienen del MAPEO OFICIAL
+// (`language-support.ts`), que es lo que también consume el edge. Se re-exporta
+// `CodeLanguage` porque varios módulos ya lo importaban desde acá; así no hay
+// dos definiciones que puedan divergir.
+export type { CodeLanguage };
 
 /**
  * Plantilla por defecto para preguntas de tipo `codigo` con
@@ -46,6 +56,15 @@ if __name__ == "__main__":
 const JAVASCRIPT_STARTER = `console.log("¡Hola, mundo!");`;
 
 /**
+ * Kotlin: `fun main()` sin argumentos es la forma idiomática y la que se enseña
+ * primero. Se evita `fun main(args: Array<String>)` (herencia de Java) porque
+ * agrega ruido que la pregunta no evalúa.
+ */
+const KOTLIN_STARTER = `fun main() {
+    println("¡Hola, mundo!")
+}`;
+
+/**
  * Devuelve el starter code por defecto para un lenguaje. Lo usan los
  * takers (alumno) y los formularios (docente) como fallback cuando la
  * pregunta no tiene `starter_code` propio. Mismo template que ve el
@@ -63,6 +82,8 @@ export function getStarterCode(language: CodeLanguage | string | null | undefine
       return PYTHON_STARTER;
     case "javascript":
       return JAVASCRIPT_STARTER;
+    case "kotlin":
+      return KOTLIN_STARTER;
     default:
       return "";
   }
@@ -100,10 +121,10 @@ interface CodeEditorProps {
   hideHints?: boolean;
 }
 
-const LANGUAGE_CONFIG: Record<
+const LANGUAGE_CONFIG: Partial<Record<
   CodeLanguage,
   { label: string; monacoLang: string; defaultCode: string }
-> = {
+>> = {
   java: {
     label: "Java",
     monacoLang: "java",
@@ -118,6 +139,11 @@ const LANGUAGE_CONFIG: Record<
     label: "JavaScript",
     monacoLang: "javascript",
     defaultCode: JAVASCRIPT_STARTER,
+  },
+  kotlin: {
+    label: "Kotlin",
+    monacoLang: "kotlin",
+    defaultCode: KOTLIN_STARTER,
   },
 };
 
@@ -166,7 +192,15 @@ export function CodeEditor({
   // LANGUAGE_CONFIG (p. ej. valor heredado de migraciones, "html",
   // null o un typo). Sin esto config queda undefined y el render
   // crashea con "Cannot read properties of undefined (reading 'label')".
-  const config = LANGUAGE_CONFIG[language] ?? LANGUAGE_CONFIG.java;
+  const config =
+    LANGUAGE_CONFIG[language as keyof typeof LANGUAGE_CONFIG] ??
+    (LANGUAGE_LABEL[language as keyof typeof LANGUAGE_LABEL]
+      ? {
+          label: LANGUAGE_LABEL[language as keyof typeof LANGUAGE_LABEL],
+          monacoLang: MONACO_LANGUAGE[language as keyof typeof MONACO_LANGUAGE],
+          defaultCode: "",
+        }
+      : LANGUAGE_CONFIG.java!);
 
   // Reactive dark mode detection
   const [isDark, setIsDark] = useState(false);
@@ -187,9 +221,11 @@ export function CodeEditor({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="java">Java</SelectItem>
-              <SelectItem value="python">Python</SelectItem>
-              <SelectItem value="javascript">JavaScript</SelectItem>
+              {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                <SelectItem key={l} value={l}>
+                  {LANGUAGE_LABEL[l]}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         )}

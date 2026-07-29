@@ -48,6 +48,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { formatTime } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { Code2, Plus, Trash2, Copy, Check, X } from "lucide-react";
+import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -685,9 +686,13 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="java">Java</SelectItem>
-                      <SelectItem value="python">Python</SelectItem>
-                      <SelectItem value="javascript">JavaScript</SelectItem>
+                      {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                          una línea en language-support.ts, no 6 pantallas. */}
+                      {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                        <SelectItem key={l} value={l}>
+                          {LANGUAGE_LABEL[l]}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 )}

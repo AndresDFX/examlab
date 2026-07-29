@@ -3,13 +3,38 @@
  * Ejecuta código según el proveedor activo en code_execution_settings.
  *
  * Proveedores soportados:
+ *   aws_lambda     — Runner PROPIO. Es la VM donde corre JUDGE0: si `JUDGE0_URL`
+ *                    está configurada se habla su API (`/submissions`); si no,
+ *                    el protocolo propio de `aws/code-runner/app.py`
+ *                    (AWS_RUNNER_URL + AWS_RUNNER_API_KEY). Judge0 NO es un
+ *                    proveedor aparte — es la implementación de este.
  *   onlinecompiler — OnlineCompiler.io (sync REST, ONLINE_COMPILER_API_KEY)
  *   jdoodle        — JDoodle REST API  (JDOODLE_CLIENT_ID + JDOODLE_CLIENT_SECRET)
- *   cheerp         — CheerpJ browser-side (Java en cliente); para otros lenguajes
- *                    cae en OnlineCompiler.io igual que el provider "onlinecompiler".
+ *   cheerp         — CheerpJ browser-side (Java en cliente); server-side se
+ *                    resuelve a otro proveedor.
+ *
+ * QUÉ LENGUAJE PUEDE CADA UNO: mapeo oficial en `./language-support.ts`
+ * (réplica de `src/modules/code/language-support.ts`). Ese archivo es la fuente
+ * única — acá NO se declaran tablas de lenguajes. El proveedor efectivo lo
+ * decide `resolveProviderFor(language, configurado)`, así que un lenguaje que el
+ * proveedor configurado no soporta se rutea al que sí, en vez de fallar.
+ *
+ * El proveedor configurado se resuelve con el RPC
+ * `get_active_code_execution_settings()`: override de la institución → default
+ * de plataforma → defaults duros. La UI llama al MISMO RPC, así que el
+ * "compilador por defecto" es uno solo en toda la app.
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
+import {
+  AWS_LAMBDA_LANGUAGES as AWS_LANGS,
+  JDOODLE_ID,
+  JUDGE0_LANGUAGE_ID,
+  ONLINECOMPILER_ID,
+  resolveProviderFor,
+  type CodeLanguage,
+  type CodeProvider,
+} from "./language-support.ts";
 
 /** Un archivo de código: nombre lógico + contenido. */
 interface CodeFile {
@@ -152,25 +177,10 @@ async function fetchWithTimeout(
 // ──────────────────────────────────────────────
 // OnlineCompiler.io
 // ──────────────────────────────────────────────
-const ONLINECOMPILER_MAP: Record<string, string> = {
-  // Versión soportada por OnlineCompiler.io. Probamos openjdk-21 antes
-  // (más LTS-friendly) pero su API responde HTTP 400 — solo aceptan
-  // openjdk-25 actualmente. Los compile errors opacos los limpiamos en
-  // el parser de respuesta (isOpaqueApiMessage) + en el cliente.
-  java: "openjdk-25",
-  python: "python-3.14",
-  javascript: "typescript-deno",
-  typescript: "typescript-deno",
-  c: "gcc-15",
-  cpp: "g++-15",
-  csharp: "dotnet-csharp-9",
-  fsharp: "dotnet-fsharp-9",
-  go: "go-1.26",
-  rust: "rust-1.93",
-  php: "php-8.5",
-  ruby: "ruby-4.0",
-  haskell: "haskell-9.12",
-};
+// Los ids de cada compilador viven en `./language-support.ts` — mapeo OFICIAL,
+// réplica exacta de `src/modules/code/language-support.ts` (Deno no puede
+// importar de src/). Estos alias mantienen los usos de abajo sin cambios.
+const ONLINECOMPILER_MAP = ONLINECOMPILER_ID as Record<string, string>;
 
 async function executeWithOnlineCompiler(
   sourceCode: string,
@@ -298,21 +308,7 @@ async function executeWithOnlineCompiler(
 // ──────────────────────────────────────────────
 // JDoodle
 // ──────────────────────────────────────────────
-const JDOODLE_MAP: Record<string, { language: string; versionIndex: string }> = {
-  java: { language: "java", versionIndex: "4" },
-  python: { language: "python3", versionIndex: "4" },
-  javascript: { language: "nodejs", versionIndex: "4" },
-  typescript: { language: "typescript", versionIndex: "1" },
-  c: { language: "c", versionIndex: "5" },
-  cpp: { language: "cpp17", versionIndex: "1" },
-  csharp: { language: "csharp", versionIndex: "4" },
-  fsharp: { language: "fsharp", versionIndex: "1" },
-  go: { language: "go", versionIndex: "4" },
-  rust: { language: "rust", versionIndex: "4" },
-  php: { language: "php", versionIndex: "4" },
-  ruby: { language: "ruby", versionIndex: "4" },
-  haskell: { language: "haskell", versionIndex: "3" },
-};
+const JDOODLE_MAP = JDOODLE_ID as Record<string, { language: string; versionIndex: string }>;
 
 async function executeWithJDoodle(
   sourceCode: string,
@@ -391,20 +387,136 @@ async function executeWithJDoodle(
 // ejecuta. Soporta Java (javac + java) y Python (python3 AL2023 con
 // tkinter incluido). Para lenguajes que el runner no soporta cae
 // automáticamente a OnlineCompiler.io más abajo.
-const AWS_LAMBDA_LANGUAGES = new Set(["java", "python"]);
+const AWS_LAMBDA_LANGUAGES = new Set<string>(AWS_LANGS);
+
+/**
+ * Judge0 self-hosted (VM propia). Es el único proveedor de infraestructura
+ * propia que ejecuta Kotlin, y no cobra por corrida ni tiene cuota de terceros.
+ *
+ * Soporta las DOS formas de la API a propósito, porque el modo síncrono depende
+ * de la config de la VM (`ENABLE_WAIT_RESULT` en judge0.conf):
+ *   - `?wait=true` → la respuesta ya trae el resultado.
+ *   - si la instancia lo tiene deshabilitado devuelve solo un `token` → se
+ *     consulta el resultado por polling.
+ * Sin este doble camino, una VM con la config por defecto haría fallar TODAS
+ * las corridas con un error que no dice nada útil.
+ */
+async function executeWithJudge0(
+  sourceCode: string,
+  language: string,
+  stdin: string,
+): Promise<ExecutionResult> {
+  const baseRaw = Deno.env.get("JUDGE0_URL");
+  if (!baseRaw) {
+    throw new Error(
+      "JUDGE0_URL no configurado en el servidor (Lovable → Edge Function Secrets).",
+    );
+  }
+  const base = baseRaw.replace(/\/+$/, "");
+  const authToken = Deno.env.get("JUDGE0_AUTH_TOKEN"); // opcional: solo si la VM lo exige
+
+  const languageId = JUDGE0_LANGUAGE_ID[language as CodeLanguage];
+  if (!languageId) throw new Error(`Lenguaje no soportado por Judge0: ${language}`);
+
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (authToken) headers["X-Auth-Token"] = authToken;
+
+  const started = Date.now();
+  const createRes = await fetch(`${base}/submissions?base64_encoded=false&wait=true`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ source_code: sourceCode, language_id: languageId, stdin: stdin || "" }),
+  });
+
+  const createText = await createRes.text();
+  if (!createRes.ok) {
+    // Errores de INFRA/config (VM caída, token inválido, id de lenguaje
+    // inexistente). Se LANZA para que el caller aplique el fallback a otro
+    // proveedor — los errores de CÓDIGO del alumno no pasan por acá.
+    throw new Error(`Judge0 HTTP ${createRes.status}: ${createText.slice(0, 300)}`);
+  }
+
+  let payload: Record<string, unknown>;
+  try {
+    payload = JSON.parse(createText) as Record<string, unknown>;
+  } catch {
+    throw new Error(`Judge0 devolvió una respuesta no-JSON: ${createText.slice(0, 200)}`);
+  }
+
+  // Modo asíncrono: llegó solo el token → polling hasta que salga de la cola.
+  // status.id 1=In Queue, 2=Processing; cualquier otro es terminal.
+  if (payload.status === undefined && typeof payload.token === "string") {
+    const token = payload.token;
+    const DEADLINE_MS = 20_000;
+    const POLL_MS = 600;
+    while (Date.now() - started < DEADLINE_MS) {
+      await new Promise((r) => setTimeout(r, POLL_MS));
+      const pollRes = await fetch(`${base}/submissions/${token}?base64_encoded=false`, { headers });
+      if (!pollRes.ok) continue; // reintenta hasta el deadline
+      const pollJson = (await pollRes.json()) as Record<string, unknown>;
+      const statusId = (pollJson.status as { id?: number } | undefined)?.id ?? 0;
+      if (statusId > 2) {
+        payload = pollJson;
+        break;
+      }
+    }
+    if (payload.status === undefined) {
+      throw new Error("Judge0 no devolvió resultado antes del tiempo límite.");
+    }
+  }
+
+  const status = (payload.status ?? {}) as { id?: number; description?: string };
+  const stdout = typeof payload.stdout === "string" ? payload.stdout : "";
+  const stderrRaw = typeof payload.stderr === "string" ? payload.stderr : "";
+  // `compile_output` es DONDE aparece el error de compilación, y para Kotlin
+  // (compilado) es lo único que el alumno necesita leer. Sin volcarlo a stderr
+  // el alumno veía una salida vacía ante un error de sintaxis.
+  const compileOutput = typeof payload.compile_output === "string" ? payload.compile_output : "";
+  const message = typeof payload.message === "string" ? payload.message : "";
+
+  const stderr = [compileOutput, stderrRaw, status.id !== 3 ? message : ""]
+    .filter((s) => s && s.trim())
+    .join("\n")
+    .trim();
+
+  // `time` viene en segundos como string ("0.032").
+  const reportedMs = Number(payload.time) > 0 ? Math.round(Number(payload.time) * 1000) : null;
+
+  return {
+    stdout,
+    stderr,
+    // status.id 3 = Accepted. Todo lo demás (6 = Compilation Error,
+    // 5 = Time Limit Exceeded, 7-12 = runtime) es fallo del código del alumno.
+    exitCode: typeof payload.exit_code === "number" ? payload.exit_code : status.id === 3 ? 0 : 1,
+    executionTimeMs: reportedMs ?? Date.now() - started,
+    rawResponse: payload,
+    httpStatus: createRes.status,
+  };
+}
 
 async function executeWithAwsLambda(
   sourceCode: string,
   language: string,
   stdin: string,
 ): Promise<ExecutionResult> {
+  // Judge0 corre EN esta misma VM: `aws_lambda` es el slot del runner propio y
+  // Judge0 su implementación, no un proveedor aparte. Si está configurado,
+  // hablamos su API; si no, seguimos con el protocolo propio (`mode: run`) del
+  // handler en `aws/code-runner/app.py`. El doble camino existe para que
+  // migrar la VM a Judge0 no requiera un deploy coordinado del edge.
+  if (Deno.env.get("JUDGE0_URL")) {
+    return executeWithJudge0(sourceCode, language, stdin);
+  }
+
   if (!AWS_LAMBDA_LANGUAGES.has(language)) {
-    // Fallback transparente para lenguajes que el runner no soporta
-    // (javascript, c, cpp, etc.). El admin que elige aws_lambda como
-    // default sigue usando OnlineCompiler para esos lenguajes sin
-    // necesidad de configurar otro provider — coherencia con el
-    // comportamiento previo cuando solo Java estaba soportado.
-    return executeWithOnlineCompiler(sourceCode, language, stdin);
+    // Lenguaje sin runtime en el runner propio. El fallback lo decide el MAPEO,
+    // no una constante: antes era `onlinecompiler` fijo, y con Kotlin eso
+    // rompía —OnlineCompiler.io no lo soporta— mandándolo a un compilador que
+    // no lo conoce.
+    const alt = resolveProviderFor(language as CodeLanguage, "onlinecompiler" as CodeProvider);
+    if (alt === "jdoodle") return executeWithJDoodle(sourceCode, language, stdin);
+    if (alt === "onlinecompiler") return executeWithOnlineCompiler(sourceCode, language, stdin);
+    throw new Error(`Ningún compilador configurado ejecuta ${language}.`);
   }
   const url = Deno.env.get("AWS_RUNNER_URL");
   const apiKey = Deno.env.get("AWS_RUNNER_API_KEY");
@@ -614,23 +726,41 @@ Deno.serve(async (req) => {
     // sobreescribirlo vía `provider` en el body (caso "Lambda caído →
     // estudiante elige onlinecompiler manualmente para no perder la
     // pregunta"). En cualquier caso registramos AMBOS para auditoría.
-    const { data: execSettings } = await admin
-      .from("code_execution_settings")
-      .select("provider")
-      .eq("is_active", true)
-      .maybeSingle();
-
-    const defaultProvider: string = execSettings?.provider ?? "onlinecompiler";
+    // El ajuste efectivo lo resuelve el RPC, NO un SELECT directo: precedencia
+    // override de la institución → default de plataforma → defaults duros.
+    // Así el "compilador por defecto" es el mismo que ve la UI (que llama al
+    // mismo RPC) en vez de dos lecturas que pueden discrepar.
+    // Se invoca con el cliente del USUARIO para que `current_tenant_id()`
+    // resuelva su institución; con `admin` (service_role) daría NULL y todos
+    // caerían al default de plataforma.
+    const { data: effSettings } = await userClient.rpc("get_active_code_execution_settings");
+    const settingsRow = (Array.isArray(effSettings) ? effSettings[0] : effSettings) as
+      | { provider?: string }
+      | null;
+    const defaultProvider: string = settingsRow?.provider ?? "onlinecompiler";
     const provider: string = overrideRequested ? requestedProvider! : defaultProvider;
-    // 'cheerp' corre client-side, así que del lado server cae al
-    // onlinecompiler para los lenguajes no-Java (Python, C, etc.).
-    // El override del cliente NO acepta 'cheerp' (filtrado por la
-    // whitelist arriba), pero si el default del admin es 'cheerp'
-    // seguimos aplicando ese fallback.
-    const effectiveProvider = provider === "cheerp" ? "onlinecompiler" : provider;
+
+    // El proveedor efectivo lo decide el MAPEO, no una constante. Antes el
+    // fallback era `onlinecompiler` hardcodeado, lo que con Kotlin se rompe:
+    // OnlineCompiler.io no lo soporta, así que una institución con ese default
+    // habría mandado Kotlin a un compilador que no lo conoce. `cheerp` también
+    // se resuelve acá (corre client-side; server-side siempre va a otro).
+    const routed = resolveProviderFor(language as CodeLanguage, provider as CodeProvider);
+    if (!routed) {
+      // Ningún compilador soporta el lenguaje: error EXPLÍCITO, no un intento
+      // a ciegas que termina en un 500 opaco.
+      return new Response(
+        JSON.stringify({
+          error: `El lenguaje "${language}" no está soportado por ningún compilador configurado.`,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    const effectiveProvider: string = routed;
     requestContext.provider = effectiveProvider;
     requestContext.default_provider = defaultProvider;
     requestContext.provider_overridden = overrideRequested;
+    requestContext.provider_routed = effectiveProvider !== provider;
 
     const runWithProvider = (p: string): Promise<ExecutionResult> =>
       p === "jdoodle"
@@ -651,8 +781,18 @@ Deno.serve(async (req) => {
     try {
       result = await runWithProvider(effectiveProvider);
     } catch (provErr) {
-      if (effectiveProvider !== "onlinecompiler") {
-        usedProvider = "onlinecompiler";
+      // El proveedor de respaldo debe SOPORTAR el lenguaje. Antes se reintentaba
+      // con `onlinecompiler` fijo: para Kotlin eso cambiaba un fallo de infra por
+      // un "lenguaje no soportado", que es peor porque confunde al alumno.
+      const backup = ((): string | null => {
+        for (const cand of ["aws_lambda", "jdoodle", "onlinecompiler"] as CodeProvider[]) {
+          if (cand === effectiveProvider) continue;
+          if (resolveProviderFor(language as CodeLanguage, cand) === cand) return cand;
+        }
+        return null;
+      })();
+      if (backup) {
+        usedProvider = backup;
         void auditFromEdge(admin, {
           actorId: u.user.id,
           action: "code.provider_fallback",
@@ -663,11 +803,11 @@ Deno.serve(async (req) => {
           metadata: {
             ...requestContext,
             failed_provider: effectiveProvider,
-            fallback_provider: "onlinecompiler",
+            fallback_provider: backup,
             reason: provErr instanceof Error ? provErr.message : String(provErr),
           },
         });
-        result = await runWithProvider("onlinecompiler");
+        result = await runWithProvider(backup);
       } else {
         throw provErr;
       }

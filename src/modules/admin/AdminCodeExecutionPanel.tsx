@@ -47,7 +47,7 @@ type ProviderRow = {
 
 export function AdminCodeExecutionPanel() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [activeRow, setActiveRow] = useState<ProviderRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<CodeProvider>("onlinecompiler");
   const [draftJavaGui, setDraftJavaGui] = useState<JavaGuiProvider>("cheerp");
@@ -168,11 +168,13 @@ export function AdminCodeExecutionPanel() {
   const load = async () => {
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
-      .from("code_execution_settings")
-      .select("id, provider, java_gui_provider, python_gui_provider, is_active")
-      .eq("is_active", true)
-      .maybeSingle();
+    // El ajuste EFECTIVO lo da el RPC: override de la institución → default de
+    // plataforma → defaults duros. Es el MISMO que consume el edge, así que lo
+    // que se muestra acá es lo que realmente se va a usar al ejecutar. Un
+    // SELECT sobre `is_active=true` ya no sirve: con una fila por institución
+    // puede devolver varias y `maybeSingle()` falla.
+    const { data: rpcData, error } = await db.rpc("get_active_code_execution_settings");
+    const data = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as ProviderRow | null;
     if (error) {
       setLoadError(
         friendlyError(
@@ -210,11 +212,21 @@ export function AdminCodeExecutionPanel() {
     if (!user) return;
     setSaving(true);
     try {
-      // Desactivar todas las activas
-      const { error: deactErr } = await db
+      // Ámbito de escritura: un Admin de institución tiene `tenant_id`, el
+      // SuperAdmin lo tiene NULL. Escribir con ese mismo valor da la semántica
+      // correcta sin chequear roles: el Admin edita SU institución, el
+      // SuperAdmin el default de plataforma. La RLS lo enforza igual
+      // (mig 20261560000000).
+      const scopeTenantId: string | null = profile?.tenant_id ?? null;
+
+      // Desactivar la activa DEL MISMO ÁMBITO (no las de otras instituciones).
+      const deactQuery = db
         .from("code_execution_settings")
         .update({ is_active: false, updated_by: user.id })
         .eq("is_active", true);
+      const { error: deactErr } = await (scopeTenantId
+        ? deactQuery.eq("tenant_id", scopeTenantId)
+        : deactQuery.is("tenant_id", null));
       if (deactErr) {
         toast.error(friendlyError(deactErr));
         return;
@@ -227,6 +239,7 @@ export function AdminCodeExecutionPanel() {
         python_gui_provider: draftPythonGui,
         is_active: true,
         updated_by: user.id,
+        tenant_id: scopeTenantId,
       });
       if (insErr) {
         toast.error(friendlyError(insErr));

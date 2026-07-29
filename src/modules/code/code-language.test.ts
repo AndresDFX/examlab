@@ -21,10 +21,23 @@ describe("getStarterCode", () => {
     expect(getStarterCode("javascript")).toBe(`console.log("¡Hola, mundo!");`);
   });
 
+  it("Kotlin retorna un fun main() sin argumentos", () => {
+    // Kotlin ERA un lenguaje desconocido (este test lo listaba junto a "html"
+    // esperando vacío). Al integrarlo como lenguaje ejecutable pasó a tener
+    // starter propio, así que la expectativa vieja quedó obsoleta — el cambio
+    // de comportamiento es intencional, no un bug.
+    // Se usa `fun main()` sin `args: Array<String>`: es la forma idiomática y
+    // la que se enseña primero; el parámetro es herencia de Java y agrega
+    // ruido que la pregunta no evalúa.
+    const out = getStarterCode("kotlin");
+    expect(out).toContain("fun main()");
+    expect(out).toContain("println(");
+    expect(out).not.toContain("Array<String>");
+  });
+
   it("lenguaje desconocido (string libre) retorna vacío", () => {
     // CodeLanguage está tipado pero el código real recibe strings de la DB
-    // que pueden ser "html", "kotlin", "" o legacy raros. NO debe romper.
-    expect(getStarterCode("kotlin" as CodeLanguage)).toBe("");
+    // que pueden ser "html", "" o legacy raros. NO debe romper.
     expect(getStarterCode("html" as CodeLanguage)).toBe("");
     expect(getStarterCode("" as CodeLanguage)).toBe("");
   });
