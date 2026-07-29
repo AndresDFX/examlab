@@ -684,6 +684,52 @@ UPDATE profiles
  WHERE id = '<user_id>';
 ```
 
+### Alerta temprana (semáforo de riesgo por estudiante)
+
+Panel que le dice al docente **a quién buscar esta semana y por qué**. Vive dentro de
+`CourseDashboard` ([app.teacher.statistics.tsx](src/routes/app.teacher.statistics.tsx)), así que
+aparece igual en Estadísticas del Docente y del Admin sin duplicar código, y **arriba de las
+gráficas** a propósito: es lo accionable de la pantalla.
+
+- **Clasificador PURO** ([src/shared/lib/early-alert.ts](src/shared/lib/early-alert.ts), 35 tests):
+  consume el `CourseDataset` que `statistics.ts` ya carga → **cero queries extra** para calcular.
+  `classifyCourse(...)` devuelve `StudentRisk[]` ordenado de mayor a menor riesgo.
+- **Motivos, no puntaje**: cada estudiante acumula motivos discretos y verificables
+  (`inasistencia`, `reprobadas`, `no_entregadas`, `promedio_bajo`) y el nivel se deriva de CUÁNTOS
+  se cruzaron: 0 → `sin_riesgo`, 1 → `en_observacion`, 2+ → `en_riesgo`. **Que hagan falta DOS
+  señales independientes para el rojo es el corazón del diseño**: evita que un curso exigente donde
+  media clase reprobó un parcial amanezca todo en rojo y el docente deje de mirar el panel. Un score
+  0..100 se descartó: un número opaco no dice qué hacer y cuando no se entiende, no se le cree.
+- **Tres reglas de justicia en la asistencia** (si se rompen, el docente deja de confiar en el
+  semáforo — no cambiarlas sin motivo): `tarde` cuenta como que ASISTIÓ (es disciplina, no
+  deserción); `justificado` **sale del denominador** (una ausencia excusada no puede empujar a nadie
+  al rojo); y solo cuentan las sesiones donde el estudiante TIENE registro (si el docente no tomó
+  asistencia no hay filas, y tratar "sin registro" como ausente marcaría al curso entero). Sin
+  registros → `attendanceRate = null`, que es **ausencia de dato, NO 0% de asistencia**.
+- **`promedio_bajo` no tiene umbral propio**: usa `courses.passing_grade`, que YA es el umbral que la
+  institución definió. Tener dos sería pedir configurar dos veces lo mismo y dejarlos contradecirse.
+- **Umbrales por institución** (mig [20261580000000](supabase/migrations/20261580000000_early_alert_thresholds.sql)):
+  3 columnas en `app_settings` (singleton POR institución, ya con `tenant_id`, ya provisionada por
+  `tg_provision_tenant_defaults`, ya con RLS scopeada) → **sin tabla ni RLS nueva**. `NULL` = usar el
+  default del código; `thresholdsFromSettings` cae campo por campo, así que una institución a medio
+  configurar funciona igual. La asistencia se guarda como **fracción 0..1** y se pide en **%** en el
+  panel (`AdminGeneralSettingsPanel` → Configuración → General).
+- **Solo se listan los que requieren atención**: los `sin_riesgo` se cuentan en el resumen pero no se
+  enumeran — un listado de 90 filas donde 85 están bien entierra a los 5 que importan.
+- **`RiskBadge` no usa `StatusBadge` a propósito**: ese centraliza estados de
+  exam/workshop/project/submission sobre las 4 variantes de Badge y **ninguna expresa ámbar ni
+  verde**; un semáforo sin ámbar deja de ser semáforo. La regla de "no badges de estado ad-hoc por
+  pantalla" se respeta manteniendo el mapeo de tonos en un solo lugar (`RISK_TONE`).
+- **Ícono `TrendingDown`** (rendimiento en declive). NO `LifeBuoy` — ese es el módulo Soporte.
+- **Limitación conocida**: el universo de actividades se deriva de las entregas existentes, así que
+  una actividad que **nadie** entregó no cuenta como "no entregada". Es aceptable porque en ese caso
+  el faltante es igual para todo el curso y no distingue a nadie; el caso que importa (todos
+  entregaron menos este) sí queda cubierto.
+- **Pendiente (V2)**: notificación automática al docente y persistencia del nivel para ver su
+  evolución. Requiere replicar el clasificador server-side (SQL o Deno) + dedup por
+  "empeoró desde el último snapshot" + cadencia de digest. Se dejó afuera a propósito: sería la 15ª
+  invariante cross-file del proyecto y hacerla mal genera spam, que es peor que no tenerla.
+
 ### Papelera (soft-delete) — `/app/trash`
 
 Sistema de "borrado reversible" para 8 entidades padre: `courses`, `exams`, `workshops`, `projects`, `attendance_sessions`, `whiteboards`, `generated_contents`, `polls`. Toda eliminación de estas entidades pasa por el flujo soft → trash → purge a 30 días.

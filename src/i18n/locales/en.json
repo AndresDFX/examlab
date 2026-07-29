@@ -2608,7 +2608,9 @@
       "maxGradeMustExceedMin": "The maximum grade must be greater than the minimum",
       "openAnswerCharsOutOfRange": "Max. open-answer characters must be between 100 and 50000",
       "savedOk": "Settings saved",
-      "dueReminderLeadOutOfRange": "The submission reminder must be between 1 and 168 hours before."
+      "dueReminderLeadOutOfRange": "The submission reminder must be between 1 and 168 hours before.",
+      "earlyAlertAttendanceOutOfRange": "Minimum attendance must be between 0 and 100%.",
+      "earlyAlertCountsOutOfRange": "Tolerated activities (failed and missing) must be between 0 and 100."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Specify a model",
@@ -4840,7 +4842,15 @@
     "hintOpenCharsPrefix": "Only affects ",
     "hintOpenCharsSuffix": " questions. Code, diagram, java_gui, python_gui and multiple-choice questions have their own limits.",
     "thresholdPlaceholder": "0 = disabled",
-    "loadErrorFallback": "We couldn't load the parameters."
+    "loadErrorFallback": "We couldn't load the parameters.",
+    "earlyAlertTitle": "Early alert",
+    "earlyAlertNote": "Two distinct reasons are required for a student to be at risk. Low average uses the course passing grade, not a separate threshold.",
+    "labelMinAttendance": "Minimum attendance (%)",
+    "labelMinAttendanceHint": "Below this percentage the attendance reason is flagged. Excused absences do not count and late arrivals count as attended.",
+    "labelMaxFailed": "Failed activities tolerated",
+    "labelMaxFailedHint": "How many activities a student may fail before the reason is flagged. With 2, it flags from the third onward.",
+    "labelMaxMissing": "Missing activities tolerated",
+    "labelMaxMissingHint": "How many activities may be left unsubmitted before the reason is flagged. With 2, it flags from the third onward."
   },
   "superadminSupport": {
     "title": "Support",
@@ -9612,5 +9622,33 @@
     "loadingSlide": "Loading slide…",
     "emptyTitle": "This content has no slides that can be annotated",
     "emptyHint": "AI-generated presentations and images (PNG/JPG) can be annotated. An uploaded .pptx or .pdf cannot be drawn on: export its slides as images and upload them to the content."
+  },
+  "earlyAlert": {
+    "title": "Early alert",
+    "description": "Students who need attention. Two distinct signals are required to reach at-risk, so a demanding course does not flag half the class.",
+    "level": {
+      "sin_riesgo": "No risk",
+      "en_observacion": "Watch list",
+      "en_riesgo": "At risk"
+    },
+    "reason": {
+      "inasistencia": "Attended {{pct}}% (minimum {{min}}%)",
+      "reprobadas_one": "Failed {{count}} activity",
+      "reprobadas_other": "Failed {{count}} activities",
+      "noEntregadas_one": "Missed {{count}} activity",
+      "noEntregadas_other": "Missed {{count}} activities",
+      "promedioBajo": "Average {{avg}} (passing is {{passing}})"
+    },
+    "colStudent": "Student",
+    "colLevel": "Level",
+    "colReasons": "Reasons",
+    "colAttendance": "Attendance",
+    "colAverage": "Average",
+    "ofStudents_one": "of {{count}} student",
+    "ofStudents_other": "of {{count}} students",
+    "emptyTitle": "Nobody needs attention",
+    "emptyHint": "No student crossed the thresholds configured for this institution.",
+    "unknownStudent": "Unnamed student",
+    "noAttendanceData": "This course has no attendance records"
   }
 }

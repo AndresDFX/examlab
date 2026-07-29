@@ -29,7 +29,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Save, Info, Mail, FileText, GraduationCap, BellRing } from "lucide-react";
+import { Save, Info, Mail, FileText, GraduationCap, BellRing, TrendingDown } from "lucide-react";
+import { DEFAULT_RISK_THRESHOLDS } from "@/shared/lib/early-alert";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -55,6 +56,13 @@ interface AppSettings {
    *  entrega de taller/proyecto). Default 1. El cron revisa cada 15 min y
    *  manda UN solo aviso por entrega. */
   due_reminder_lead_hours: number;
+  /** Alerta temprana. Se guardan como FRACCIÓN (0..1) la asistencia y como
+   *  conteo los otros dos. En DB son NULL-ables (NULL = "usar el default del
+   *  código"), pero acá se coalescen a número para que los Input queden
+   *  controlados. */
+  early_alert_min_attendance_rate: number;
+  early_alert_max_failed: number;
+  early_alert_max_missing: number;
   updated_at: string;
 }
 
@@ -87,7 +95,21 @@ export function AdminGeneralSettingsPanel() {
     if (data) {
       // Coalesce de campos que pueden faltar si la migración aún no se publicó
       // (mantiene el Input controlado y no rompe el panel pre-Publish).
-      const r = { ...data, due_reminder_lead_hours: data.due_reminder_lead_hours ?? 1 } as AppSettings;
+      const r = {
+        ...data,
+        due_reminder_lead_hours: data.due_reminder_lead_hours ?? 1,
+        // Los umbrales de alerta temprana son NULL hasta que el Admin los
+        // toca por primera vez; se muestran los defaults del clasificador.
+        early_alert_min_attendance_rate:
+          data.early_alert_min_attendance_rate ??
+          DEFAULT_RISK_THRESHOLDS.minAttendanceRate,
+        early_alert_max_failed:
+          data.early_alert_max_failed ??
+          DEFAULT_RISK_THRESHOLDS.maxFailedActivities,
+        early_alert_max_missing:
+          data.early_alert_max_missing ??
+          DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
+      } as AppSettings;
       setRow(r);
       setDraft(r);
     }
@@ -142,6 +164,33 @@ export function AdminGeneralSettingsPanel() {
       );
       return;
     }
+    // Los CHECK de la migración rechazarían esto igual, pero el error de
+    // Postgres no dice CUÁL campo está mal. Validar acá da el mensaje útil.
+    if (
+      draft.early_alert_min_attendance_rate < 0 ||
+      draft.early_alert_min_attendance_rate > 1
+    ) {
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.earlyAlertAttendanceOutOfRange", {
+          defaultValue: "La asistencia mínima debe estar entre 0 y 100 %.",
+        }),
+      );
+      return;
+    }
+    if (
+      draft.early_alert_max_failed < 0 ||
+      draft.early_alert_max_failed > 100 ||
+      draft.early_alert_max_missing < 0 ||
+      draft.early_alert_max_missing > 100
+    ) {
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.earlyAlertCountsOutOfRange", {
+          defaultValue:
+            "Las actividades toleradas (reprobadas y no entregadas) deben estar entre 0 y 100.",
+        }),
+      );
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await db
@@ -161,6 +210,9 @@ export function AdminGeneralSettingsPanel() {
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
           due_reminder_lead_hours: draft.due_reminder_lead_hours,
+          early_alert_min_attendance_rate: draft.early_alert_min_attendance_rate,
+          early_alert_max_failed: draft.early_alert_max_failed,
+          early_alert_max_missing: draft.early_alert_max_missing,
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -519,6 +571,84 @@ export function AdminGeneralSettingsPanel() {
               {t("adminGeneralSettings.alertCronNote")}
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <TrendingDown className="h-4 w-4 text-rose-500" />
+            {t("adminGeneralSettings.earlyAlertTitle")}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <Label className="flex items-center gap-1.5">
+                {t("adminGeneralSettings.labelMinAttendance")}
+                <HelpHint>
+                  {t("adminGeneralSettings.labelMinAttendanceHint")}
+                </HelpHint>
+              </Label>
+              {/* Se guarda como fracción 0..1 pero se pide en % porque es
+                  como lo piensa un coordinador académico. */}
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={Math.round(draft.early_alert_min_attendance_rate * 100)}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    early_alert_min_attendance_rate: Number(e.target.value) / 100,
+                  })
+                }
+              />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1.5">
+                {t("adminGeneralSettings.labelMaxFailed")}
+                <HelpHint>
+                  {t("adminGeneralSettings.labelMaxFailedHint")}
+                </HelpHint>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={draft.early_alert_max_failed}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    early_alert_max_failed: Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+            <div>
+              <Label className="flex items-center gap-1.5">
+                {t("adminGeneralSettings.labelMaxMissing")}
+                <HelpHint>
+                  {t("adminGeneralSettings.labelMaxMissingHint")}
+                </HelpHint>
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                max={100}
+                value={draft.early_alert_max_missing}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    early_alert_max_missing: Number(e.target.value),
+                  })
+                }
+              />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            {t("adminGeneralSettings.earlyAlertNote")}
+          </p>
         </CardContent>
       </Card>
 

@@ -63,6 +63,7 @@ import {
   type CourseDataset,
   type SubmissionLike,
 } from "@/shared/lib/statistics";
+import { EarlyAlertCard } from "@/modules/earlyalert/EarlyAlertCard";
 import { formatDateShort } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/teacher/statistics")({
@@ -303,6 +304,11 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
           accent="text-zinc-500"
         />
       </div>
+
+      {/* Alerta temprana — va ANTES de las gráficas a propósito: es lo
+          accionable de la pantalla (a quién hay que buscar esta semana),
+          mientras las gráficas son diagnóstico agregado. */}
+      <EarlyAlertCard ds={ds} />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">

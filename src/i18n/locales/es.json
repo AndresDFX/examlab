@@ -2608,7 +2608,9 @@
       "maxGradeMustExceedMin": "La nota máxima debe ser mayor a la mínima",
       "openAnswerCharsOutOfRange": "Máx. caracteres de respuesta abierta debe estar entre 100 y 50000",
       "savedOk": "Parámetros guardados",
-      "dueReminderLeadOutOfRange": "El recordatorio de entregas debe estar entre 1 y 168 horas antes."
+      "dueReminderLeadOutOfRange": "El recordatorio de entregas debe estar entre 1 y 168 horas antes.",
+      "earlyAlertAttendanceOutOfRange": "La asistencia mínima debe estar entre 0 y 100 %.",
+      "earlyAlertCountsOutOfRange": "Las actividades toleradas (reprobadas y no entregadas) deben estar entre 0 y 100."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Especifica un modelo",
@@ -4840,7 +4842,15 @@
     "hintOpenCharsPrefix": "Solo afecta preguntas ",
     "hintOpenCharsSuffix": ". Las de código, diagrama, java_gui, python_gui y opción múltiple tienen sus propios límites.",
     "thresholdPlaceholder": "0 = desactivado",
-    "loadErrorFallback": "No pudimos cargar los parámetros."
+    "loadErrorFallback": "No pudimos cargar los parámetros.",
+    "earlyAlertTitle": "Alerta temprana",
+    "earlyAlertNote": "Hacen falta dos motivos distintos para que un estudiante quede en riesgo. El promedio bajo usa la nota de aprobación del curso, no un umbral aparte.",
+    "labelMinAttendance": "Asistencia mínima (%)",
+    "labelMinAttendanceHint": "Por debajo de este porcentaje se marca el motivo de inasistencia. Las ausencias justificadas no cuentan y las llegadas tarde cuentan como asistencia.",
+    "labelMaxFailed": "Actividades reprobadas toleradas",
+    "labelMaxFailedHint": "Cuántas actividades puede reprobar un estudiante sin que se marque el motivo. Con 2, se marca a partir de la tercera.",
+    "labelMaxMissing": "Actividades no entregadas toleradas",
+    "labelMaxMissingHint": "Cuántas actividades puede dejar sin entregar sin que se marque el motivo. Con 2, se marca a partir de la tercera."
   },
   "superadminSupport": {
     "title": "Soporte",
@@ -9612,5 +9622,33 @@
     "loadingSlide": "Cargando diapositiva…",
     "emptyTitle": "Este contenido no tiene diapositivas que se puedan anotar",
     "emptyHint": "Se pueden anotar las presentaciones generadas con IA y las imágenes (PNG/JPG). Un .pptx o .pdf subido no se puede dibujar encima: exporta sus diapositivas como imágenes y súbelas al contenido."
+  },
+  "earlyAlert": {
+    "title": "Alerta temprana",
+    "description": "Estudiantes que necesitan atención. Hacen falta dos señales distintas para llegar a riesgo, así un curso exigente no marca a media clase.",
+    "level": {
+      "sin_riesgo": "Sin riesgo",
+      "en_observacion": "En observación",
+      "en_riesgo": "En riesgo"
+    },
+    "reason": {
+      "inasistencia": "Asistió al {{pct}}% (mínimo {{min}}%)",
+      "reprobadas_one": "Reprobó {{count}} actividad",
+      "reprobadas_other": "Reprobó {{count}} actividades",
+      "noEntregadas_one": "No entregó {{count}} actividad",
+      "noEntregadas_other": "No entregó {{count}} actividades",
+      "promedioBajo": "Promedio {{avg}} (aprueba con {{passing}})"
+    },
+    "colStudent": "Estudiante",
+    "colLevel": "Nivel",
+    "colReasons": "Motivos",
+    "colAttendance": "Asistencia",
+    "colAverage": "Promedio",
+    "ofStudents_one": "de {{count}} estudiante",
+    "ofStudents_other": "de {{count}} estudiantes",
+    "emptyTitle": "Nadie requiere atención",
+    "emptyHint": "Ningún estudiante cruzó los umbrales configurados para esta institución.",
+    "unknownStudent": "Estudiante sin nombre",
+    "noAttendanceData": "Este curso no registró asistencia"
   }
 }
