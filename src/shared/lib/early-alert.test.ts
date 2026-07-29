@@ -9,12 +9,7 @@ import {
   thresholdsFromSettings,
   type RiskReasonKind,
 } from "./early-alert";
-import type {
-  AttendanceRecord,
-  AttendanceSession,
-  CourseInfo,
-  SubmissionLike,
-} from "./statistics";
+import type { AttendanceRecord, AttendanceSession, CourseInfo, SubmissionLike } from "./statistics";
 
 const course: CourseInfo = {
   id: "c1",
@@ -57,8 +52,7 @@ function rec(sessionId: string, userId: string, status: string): AttendanceRecor
   return { session_id: sessionId, user_id: userId, status };
 }
 
-const kinds = (r: { reasons: Array<{ kind: RiskReasonKind }> }) =>
-  r.reasons.map((x) => x.kind);
+const kinds = (r: { reasons: Array<{ kind: RiskReasonKind }> }) => r.reasons.map((x) => x.kind);
 
 describe("computeStudentAttendance — las tres reglas de justicia", () => {
   const sessions = [session("s1"), session("s2"), session("s3"), session("s4")];
@@ -142,13 +136,7 @@ describe("levelForReasons — hacen falta 2 señales para el rojo", () => {
 describe("classifyStudent", () => {
   it("estudiante al día → sin riesgo y sin motivos", () => {
     const subs = [sub("e1", "u1", 4.5), sub("e2", "u1", 4)];
-    const r = classifyStudent(
-      "u1",
-      subs,
-      [session("s1")],
-      [rec("s1", "u1", "presente")],
-      course,
-    );
+    const r = classifyStudent("u1", subs, [session("s1")], [rec("s1", "u1", "presente")], course);
     expect(r.level).toBe("sin_riesgo");
     expect(r.reasons).toEqual([]);
     expect(r.averageGrade).toBeCloseTo(4.25);
@@ -174,12 +162,7 @@ describe("classifyStudent", () => {
 
   it("dos señales independientes → en riesgo", () => {
     // No entregó 3 + asistencia 40%
-    const subs = [
-      sub("e1", "u1", 5),
-      sub("e2", "u2", 4),
-      sub("e3", "u2", 4),
-      sub("e4", "u2", 4),
-    ];
+    const subs = [sub("e1", "u1", 5), sub("e2", "u2", 4), sub("e3", "u2", 4), sub("e4", "u2", 4)];
     const sessions = [session("s1"), session("s2"), session("s3")];
     const records = [
       rec("s1", "u1", "presente"),
@@ -369,11 +352,7 @@ describe("classifyCourse", () => {
   it("un curso exigente NO pinta a todos en rojo con una sola señal", () => {
     // La razón de ser del diseño: 3 estudiantes reprueban el mismo parcial
     // difícil, pero asisten y entregan todo. Ninguno debe llegar a rojo.
-    const subs = [
-      sub("e1", "u1", 2.9),
-      sub("e1", "u2", 2.8),
-      sub("e1", "u3", 2.5),
-    ];
+    const subs = [sub("e1", "u1", 2.9), sub("e1", "u2", 2.8), sub("e1", "u3", 2.5)];
     const sessions = [session("s1")];
     const records = [
       rec("s1", "u1", "presente"),
@@ -417,12 +396,8 @@ describe("thresholdsFromSettings", () => {
       early_alert_max_missing: undefined,
     });
     expect(out.minAttendanceRate).toBe(0.5);
-    expect(out.maxFailedActivities).toBe(
-      DEFAULT_RISK_THRESHOLDS.maxFailedActivities,
-    );
-    expect(out.maxMissingActivities).toBe(
-      DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
-    );
+    expect(out.maxFailedActivities).toBe(DEFAULT_RISK_THRESHOLDS.maxFailedActivities);
+    expect(out.maxMissingActivities).toBe(DEFAULT_RISK_THRESHOLDS.maxMissingActivities);
   });
 
   it("respeta el 0 explícito (no lo confunde con ausente)", () => {

@@ -34,11 +34,7 @@ export const RISK_LEVELS = ["sin_riesgo", "en_observacion", "en_riesgo"] as cons
 
 export type RiskLevel = (typeof RISK_LEVELS)[number];
 
-export type RiskReasonKind =
-  | "inasistencia"
-  | "reprobadas"
-  | "no_entregadas"
-  | "promedio_bajo";
+export type RiskReasonKind = "inasistencia" | "reprobadas" | "no_entregadas" | "promedio_bajo";
 
 export type RiskReason = {
   kind: RiskReasonKind;
@@ -276,9 +272,7 @@ export function classifyCourse(
 ): StudentRisk[] {
   const out: StudentRisk[] = [];
   for (const uid of enrolledIds) {
-    out.push(
-      classifyStudent(uid, allSubs, sessions, records, course, thresholds),
-    );
+    out.push(classifyStudent(uid, allSubs, sessions, records, course, thresholds));
   }
   // Más riesgo primero; a igual nivel, más motivos primero; luego por
   // promedio ascendente para que arriba quede el caso más urgente.
@@ -317,12 +311,9 @@ export function thresholdsFromSettings(
 ): RiskThresholds {
   return {
     minAttendanceRate:
-      row?.early_alert_min_attendance_rate ??
-      DEFAULT_RISK_THRESHOLDS.minAttendanceRate,
-    maxFailedActivities:
-      row?.early_alert_max_failed ?? DEFAULT_RISK_THRESHOLDS.maxFailedActivities,
+      row?.early_alert_min_attendance_rate ?? DEFAULT_RISK_THRESHOLDS.minAttendanceRate,
+    maxFailedActivities: row?.early_alert_max_failed ?? DEFAULT_RISK_THRESHOLDS.maxFailedActivities,
     maxMissingActivities:
-      row?.early_alert_max_missing ??
-      DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
+      row?.early_alert_max_missing ?? DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
   };
 }

@@ -14,13 +14,7 @@ import { useTranslation } from "react-i18next";
 import type { TFunction } from "i18next";
 import { AlertTriangle, ShieldCheck, TrendingDown } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
   TableBody,
@@ -54,12 +48,9 @@ import type { CourseDataset } from "@/shared/lib/statistics";
  * pantalla — se respeta manteniendo el mapeo acá, en un solo lugar.
  */
 const RISK_TONE: Record<RiskLevel, string> = {
-  en_riesgo:
-    "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400",
-  en_observacion:
-    "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
-  sin_riesgo:
-    "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
+  en_riesgo: "border-rose-500/40 bg-rose-500/10 text-rose-600 dark:text-rose-400",
+  en_observacion: "border-amber-500/40 bg-amber-500/10 text-amber-600 dark:text-amber-400",
+  sin_riesgo: "border-emerald-500/40 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
 };
 
 function RiskBadge({ level }: { level: RiskLevel }) {
@@ -135,8 +126,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
           .select(
             "early_alert_min_attendance_rate, early_alert_max_failed, early_alert_max_missing",
           );
-        const tenantId = (courseRow as { tenant_id?: string | null } | null)
-          ?.tenant_id;
+        const tenantId = (courseRow as { tenant_id?: string | null } | null)?.tenant_id;
         if (tenantId) q = q.eq("tenant_id", tenantId);
         const { data } = await q.maybeSingle();
         if (cancelled) return;
@@ -164,10 +154,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
     }
     void (async () => {
       try {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, full_name")
-          .in("id", ids);
+        const { data } = await supabase.from("profiles").select("id, full_name").in("id", ids);
         if (cancelled) return;
         const map: Record<string, string> = {};
         for (const p of data ?? []) {
@@ -186,10 +173,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
     };
   }, [enrolledIds]);
 
-  const allSubs = useMemo(
-    () => [...ds.examSubs, ...ds.workshopSubs, ...ds.projectSubs],
-    [ds],
-  );
+  const allSubs = useMemo(() => [...ds.examSubs, ...ds.workshopSubs, ...ds.projectSubs], [ds]);
 
   const risks = useMemo(() => {
     if (!thresholds) return [];
@@ -208,10 +192,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
   // Solo se listan los que requieren atención. Los "sin riesgo" se cuentan
   // en el resumen pero no se enumeran: un listado de 90 filas donde 85 están
   // bien entierra a los 5 que importan.
-  const flagged = useMemo(
-    () => risks.filter((r) => r.level !== "sin_riesgo"),
-    [risks],
-  );
+  const flagged = useMemo(() => risks.filter((r) => r.level !== "sin_riesgo"), [risks]);
 
   const busy = loading || !thresholds;
 
@@ -233,34 +214,22 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
         ) : (
           <>
             <div className="grid grid-cols-3 gap-2">
-              <RiskTally
-                level="en_riesgo"
-                count={summary.en_riesgo}
-                total={enrolledIds.size}
-              />
+              <RiskTally level="en_riesgo" count={summary.en_riesgo} total={enrolledIds.size} />
               <RiskTally
                 level="en_observacion"
                 count={summary.en_observacion}
                 total={enrolledIds.size}
               />
-              <RiskTally
-                level="sin_riesgo"
-                count={summary.sin_riesgo}
-                total={enrolledIds.size}
-              />
+              <RiskTally level="sin_riesgo" count={summary.sin_riesgo} total={enrolledIds.size} />
             </div>
 
             <div className="max-h-96 overflow-y-auto overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="min-w-32">
-                      {t("earlyAlert.colStudent")}
-                    </TableHead>
+                    <TableHead className="min-w-32">{t("earlyAlert.colStudent")}</TableHead>
                     <TableHead>{t("earlyAlert.colLevel")}</TableHead>
-                    <TableHead className="min-w-48">
-                      {t("earlyAlert.colReasons")}
-                    </TableHead>
+                    <TableHead className="min-w-48">{t("earlyAlert.colReasons")}</TableHead>
                     <TableHead className="hidden sm:table-cell">
                       {t("earlyAlert.colAttendance")}
                     </TableHead>
@@ -278,9 +247,7 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
                       hint={t("earlyAlert.emptyHint")}
                     />
                   ) : (
-                    flagged.map((r) => (
-                      <RiskRow key={r.userId} risk={r} name={names[r.userId]} />
-                    ))
+                    flagged.map((r) => <RiskRow key={r.userId} risk={r} name={names[r.userId]} />)
                   )}
                 </TableBody>
               </Table>
@@ -292,22 +259,12 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
   );
 }
 
-function RiskTally({
-  level,
-  count,
-  total,
-}: {
-  level: RiskLevel;
-  count: number;
-  total: number;
-}) {
+function RiskTally({ level, count, total }: { level: RiskLevel; count: number; total: number }) {
   const { t } = useTranslation();
   return (
     <div className={cn("rounded-md border p-2.5", RISK_TONE[level])}>
       <div className="text-xl font-semibold tabular-nums">{count}</div>
-      <div className="text-[11px] leading-tight opacity-90">
-        {t(`earlyAlert.level.${level}`)}
-      </div>
+      <div className="text-[11px] leading-tight opacity-90">{t(`earlyAlert.level.${level}`)}</div>
       <div className="text-[10px] opacity-70 tabular-nums">
         {t("earlyAlert.ofStudents", { count: total })}
       </div>
@@ -319,9 +276,7 @@ function RiskRow({ risk, name }: { risk: StudentRisk; name?: string }) {
   const { t } = useTranslation();
   return (
     <TableRow>
-      <TableCell className="font-medium">
-        {name || t("earlyAlert.unknownStudent")}
-      </TableCell>
+      <TableCell className="font-medium">{name || t("earlyAlert.unknownStudent")}</TableCell>
       <TableCell>
         <RiskBadge level={risk.level} />
       </TableCell>
