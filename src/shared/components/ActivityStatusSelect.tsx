@@ -13,7 +13,19 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
-import type { ActivityStatusFilter } from "@/shared/lib/status-filter";
+import {
+  ACTIVITY_STATUS_OPTIONS,
+  type ActivityStatusFilter,
+} from "@/shared/lib/status-filter";
+
+/** Etiqueta por opción. Se resuelven con `t()` dentro del componente. */
+const LABEL_KEY: Record<ActivityStatusFilter, { key: string; es: string }> = {
+  activos: { key: "activityStatus.activos", es: "Activos y borradores" },
+  borradores: { key: "activityStatus.borradores", es: "Solo borradores" },
+  publicados: { key: "activityStatus.publicados", es: "Solo publicados" },
+  cerrados: { key: "activityStatus.cerrados", es: "Cerrados" },
+  todos: { key: "activityStatus.todos", es: "Todos" },
+};
 
 export function ActivityStatusSelect({
   value,
@@ -29,13 +41,13 @@ export function ActivityStatusSelect({
         <SelectValue />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="activos">
-          {t("activityStatus.activos", { defaultValue: "Activos y borradores" })}
-        </SelectItem>
-        <SelectItem value="cerrados">
-          {t("activityStatus.cerrados", { defaultValue: "Cerrados" })}
-        </SelectItem>
-        <SelectItem value="todos">{t("common.all", { defaultValue: "Todos" })}</SelectItem>
+        {/* Se generan desde ACTIVITY_STATUS_OPTIONS: agregar un estado es una
+            línea en status-filter.ts, no tocar este componente ni los 4 grids. */}
+        {ACTIVITY_STATUS_OPTIONS.map((opt) => (
+          <SelectItem key={opt} value={opt}>
+            {t(LABEL_KEY[opt].key, { defaultValue: LABEL_KEY[opt].es })}
+          </SelectItem>
+        ))}
       </SelectContent>
     </Select>
   );

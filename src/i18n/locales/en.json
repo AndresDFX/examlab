@@ -9328,7 +9328,9 @@
     "exitFullscreen": "Exit fullscreen",
     "enterFullscreen": "Fullscreen",
     "crashTitle": "We could not open the whiteboard",
-    "crashHint": "The saved content could not be loaded in the editor. You can retry; if it keeps failing, let your administrator know."
+    "crashHint": "The saved content could not be loaded in the editor. You can retry; if it keeps failing, let your administrator know.",
+    "laser": "Laser pointer",
+    "laserHint": "Laser pointer: the trail fades and is never saved"
   },
   "hc_modulesSchedulesWeeklyScheduleView": {
     "title": "My week",
@@ -9358,7 +9360,10 @@
   },
   "activityStatus": {
     "activos": "Active and drafts",
-    "cerrados": "Closed"
+    "cerrados": "Closed",
+    "borradores": "Drafts only",
+    "publicados": "Published only",
+    "todos": "All"
   },
   "materialStatus": {
     "activos": "Active",
@@ -9576,5 +9581,33 @@
   },
   "dbBackups": {
     "entityNamePlural": "backups"
+  },
+  "slideAnnotations": {
+    "openAction": "Present and annotate",
+    "openActionUnavailable": "No annotatable slides (upload the slides as images)",
+    "subtitle": "Draw on top of each slide. The laser pointer leaves a trail that fades and is never saved. Nothing is saved until you press Save.",
+    "subtitleReadOnly": "Annotations the teacher left on the slides. Read only.",
+    "position": "{{current}} / {{total}}",
+    "annotatedCount_one": "{{count}} annotated",
+    "annotatedCount_other": "{{count}} annotated",
+    "prev": "Previous",
+    "next": "Next",
+    "fit": "Fit",
+    "fitHint": "Fit the slide back into the screen",
+    "clearSlide": "Clear marks",
+    "clearSlideHint": "Clear this slide's marks (not saved yet)",
+    "save": "Save annotations",
+    "savedToast": "Annotations saved.",
+    "unsaved": "You have unsaved changes.",
+    "tooBig": "The annotations for this content are too large (5 MB max). Clear the marks on a slide and try again.",
+    "discardTitle": "Discard the annotations?",
+    "discardDesc": "There are unsaved marks on the slides. If you close now they are lost. This action cannot be undone.",
+    "discardConfirm": "Discard and close",
+    "discardCancel": "Keep annotating",
+    "loadErrorTitle": "We couldn't load the annotations",
+    "imageLoadError": "We couldn't load the slide image.",
+    "loadingSlide": "Loading slide…",
+    "emptyTitle": "This content has no slides that can be annotated",
+    "emptyHint": "AI-generated presentations and images (PNG/JPG) can be annotated. An uploaded .pptx or .pdf cannot be drawn on: export its slides as images and upload them to the content."
   }
 }

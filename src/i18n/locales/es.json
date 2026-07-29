@@ -9328,7 +9328,9 @@
     "exitFullscreen": "Salir de pantalla completa",
     "enterFullscreen": "Pantalla completa",
     "crashTitle": "No pudimos abrir la pizarra",
-    "crashHint": "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador."
+    "crashHint": "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador.",
+    "laser": "Puntero láser",
+    "laserHint": "Puntero láser: el trazo se desvanece y no se guarda"
   },
   "hc_modulesSchedulesWeeklyScheduleView": {
     "title": "Mi semana",
@@ -9358,7 +9360,10 @@
   },
   "activityStatus": {
     "activos": "Activos y borradores",
-    "cerrados": "Cerrados"
+    "cerrados": "Cerrados",
+    "borradores": "Solo borradores",
+    "publicados": "Solo publicados",
+    "todos": "Todos"
   },
   "materialStatus": {
     "activos": "Activos",
@@ -9576,5 +9581,33 @@
   },
   "dbBackups": {
     "entityNamePlural": "backups"
+  },
+  "slideAnnotations": {
+    "openAction": "Presentar y anotar",
+    "openActionUnavailable": "Sin diapositivas anotables (subí imágenes de las diapositivas)",
+    "subtitle": "Raya encima de cada diapositiva. El puntero láser deja un trazo que se desvanece y no se guarda. Nada se guarda hasta que pulses Guardar.",
+    "subtitleReadOnly": "Anotaciones que dejó el docente sobre las diapositivas. Solo lectura.",
+    "position": "{{current}} / {{total}}",
+    "annotatedCount_one": "{{count}} anotada",
+    "annotatedCount_other": "{{count}} anotadas",
+    "prev": "Anterior",
+    "next": "Siguiente",
+    "fit": "Ajustar",
+    "fitHint": "Volver a encajar la diapositiva en pantalla",
+    "clearSlide": "Borrar marcas",
+    "clearSlideHint": "Borrar las marcas de esta diapositiva (aún sin guardar)",
+    "save": "Guardar anotaciones",
+    "savedToast": "Anotaciones guardadas.",
+    "unsaved": "Hay cambios sin guardar.",
+    "tooBig": "Las anotaciones de este contenido pesan demasiado (máximo 5 MB). Borra las marcas de alguna diapositiva e intenta de nuevo.",
+    "discardTitle": "¿Descartar las anotaciones?",
+    "discardDesc": "Hay marcas sin guardar sobre las diapositivas. Si cierras ahora se pierden. Esta acción no se puede deshacer.",
+    "discardConfirm": "Descartar y cerrar",
+    "discardCancel": "Seguir anotando",
+    "loadErrorTitle": "No pudimos cargar las anotaciones",
+    "imageLoadError": "No pudimos cargar la imagen de la diapositiva.",
+    "loadingSlide": "Cargando diapositiva…",
+    "emptyTitle": "Este contenido no tiene diapositivas que se puedan anotar",
+    "emptyHint": "Se pueden anotar las presentaciones generadas con IA y las imágenes (PNG/JPG). Un .pptx o .pdf subido no se puede dibujar encima: exporta sus diapositivas como imágenes y súbelas al contenido."
   }
 }
