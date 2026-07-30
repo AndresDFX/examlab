@@ -636,7 +636,10 @@ function StudentGrades() {
         actions={
           courses.length > 0 ? (
             <Select value={courseId} onValueChange={setCourseId}>
-              <SelectTrigger className="w-64">
+              {/* w-full en móvil (el selector es el control principal de la
+                  pantalla y a 375px un ancho fijo deja el tap target corto);
+                  ancho fijo desde sm. Mismo patrón que Asistencia. */}
+              <SelectTrigger className="w-full sm:w-64">
                 <SelectValue placeholder={t("common.course")} />
               </SelectTrigger>
               <SelectContent>
@@ -913,7 +916,12 @@ function KindGroup({
         <TableHeader>
           <TableRow>
             <TableHead>{i18n.t("studentGrades.colActivity")}</TableHead>
-            <TableHead className="text-right w-32">{i18n.t("common.weight")}</TableHead>
+            {/* Peso por item: se oculta bajo `sm` porque el peso del bucket ya
+                está en el encabezado del grupo y en móvil lo decisivo es
+                Puntaje/Nota. El TableCell usa el MISMO breakpoint. */}
+            <TableHead className="hidden sm:table-cell text-right w-32">
+              {i18n.t("common.weight")}
+            </TableHead>
             <TableHead className="text-right">{i18n.t("studentGrades.colScore")}</TableHead>
             <TableHead className="text-right">
               {i18n.t("studentGrades.colGrade")} ({gradeScaleMin}–{gradeScaleMax})
@@ -926,7 +934,7 @@ function KindGroup({
           {items.map((it) => (
             <TableRow key={`${it.kind}-${it.id}`}>
               <TableCell className="font-medium">{it.title}</TableCell>
-              <TableCell className="text-right text-xs tabular-nums text-muted-foreground">
+              <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums text-muted-foreground">
                 {it.weight != null ? `${Number(it.weight).toFixed(1)}%` : "—"}
               </TableCell>
               <TableCell className="text-right tabular-nums">

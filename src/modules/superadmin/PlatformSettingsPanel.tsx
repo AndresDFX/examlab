@@ -147,7 +147,7 @@ export function PlatformSettingsPanel() {
             {t("hc_modulesSuperadminPlatformSettingsPanel.cardTitle", { defaultValue: "Configuración de plataforma" })}
           </CardTitle>
           <p className="text-xs text-muted-foreground mt-1">
-            {t("hc_modulesSuperadminPlatformSettingsPanel.cardSubtitle", { defaultValue: "Controles cross-tenant exclusivos del SuperAdmin. Aplican a TODAS las instituciones." })}
+            {t("hc_modulesSuperadminPlatformSettingsPanel.cardSubtitle", { defaultValue: "Controles exclusivos del SuperAdmin. Aplican a TODAS las instituciones." })}
           </p>
         </CardHeader>
         <CardContent className="space-y-4">

@@ -2089,6 +2089,18 @@ function MessagesPage() {
                                   isSelected && "ring-2 ring-primary ring-offset-1",
                                   selectMode && eligibleForBulk && "cursor-pointer",
                                 )}
+                                // Click como CONVENIENCIA de puntero nada más. Acá
+                                // NO va `role="button"`: ARIA vuelve
+                                // PRESENTACIONALES a los hijos de un role=button,
+                                // y este bubble contiene los chips de etiqueta
+                                // (<Link>) y <MessageAttachments> con sus
+                                // controles de descarga — en modo selección un
+                                // lector de pantalla los perdería.
+                                //
+                                // El camino accesible ya existe y está a UNA
+                                // parada de tab: el <button> hermano de arriba,
+                                // que se renderiza bajo la MISMA condición y ya
+                                // trae aria-label + aria-pressed.
                                 onClick={onBubbleClick}
                               >
                                 {isEditing ? (
@@ -2455,7 +2467,10 @@ function MessagesPage() {
                             type="button"
                             variant="ghost"
                             size="icon"
-                            className="h-5 w-5 shrink-0 text-destructive hover:text-destructive"
+                            // h-8 w-8: quitar un adjunto es una acción real y a
+                            // 20px el área táctil quedaba por debajo del piso
+                            // de 32px en móvil.
+                            className="h-8 w-8 p-0 shrink-0 text-destructive hover:text-destructive"
                             onClick={() => removePendingFile(idx)}
                             disabled={sending}
                             title={t("hc_routesAppMessages.remove")}

@@ -858,25 +858,5 @@ function StudentProjects() {
   );
 }
 
-/** @deprecated — reemplazado por `<StatCard />` del design system.
- *  Inline original que workshops/exams usaban. Réplica del `EmailStatTile`
- *  del dashboard admin para que los tres listados del estudiante usen
- *  el mismo vocabulario visual (bg tintado + número grande + label). */
-function StatTile({
-  label,
-  value,
-  color,
-  bg,
-}: {
-  label: string;
-  value: number;
-  color: string;
-  bg: string;
-}) {
-  return (
-    <div className={`rounded-md p-2.5 ${bg}`}>
-      <div className={`text-2xl font-semibold tabular-nums ${color}`}>{value}</div>
-      <div className="text-3xs text-muted-foreground mt-0.5">{label}</div>
-    </div>
-  );
-}
+// StatTile local fue removida — ahora usamos el `<StatCard />` del
+// design system (igual que exámenes y talleres del estudiante).

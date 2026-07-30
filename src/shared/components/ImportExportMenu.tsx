@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Download, Upload, FileDown, FileUp, FileSpreadsheet } from "lucide-react";
+import { Download, FileDown, FileUp, FileSpreadsheet } from "lucide-react";
 import { downloadCSV, parseCSV, readCsvFile } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { toast } from "sonner";

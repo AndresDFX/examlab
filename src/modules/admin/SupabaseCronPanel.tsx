@@ -47,7 +47,6 @@ import {
   ChevronDown,
   ChevronRight,
   Pencil,
-  AlertTriangle,
   CheckCircle2,
   FileText,
 } from "lucide-react";

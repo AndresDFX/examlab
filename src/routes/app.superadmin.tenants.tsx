@@ -750,7 +750,7 @@ function SuperAdminTenantsPage() {
     setTenantOverride(null);
     toast.success(
       i18n.t("superadminTenants.backToCrossTenant", {
-        defaultValue: "Volviste al modo cross-tenant",
+        defaultValue: "Volviste a la vista de plataforma",
       }),
     );
   };

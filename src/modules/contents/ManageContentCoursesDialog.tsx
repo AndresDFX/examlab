@@ -31,7 +31,6 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";

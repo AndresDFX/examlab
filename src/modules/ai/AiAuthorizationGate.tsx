@@ -48,7 +48,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Zap, Clock, X, KeyRound } from "lucide-react";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { readOverrideExpiry, getProcessingMode, resolveAiGateDecision } from "@/modules/ai/ai-grading";

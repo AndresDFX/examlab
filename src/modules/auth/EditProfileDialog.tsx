@@ -25,7 +25,7 @@
  */
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth, type Profile } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -290,7 +290,3 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
     </Dialog>
   );
 }
-
-// Helper para forzar a TS a tipar `Profile` aunque el state se inicialice
-// vacío. No exportado, solo referenciado por claridad de tipos.
-export type _ProfileShape = Profile;

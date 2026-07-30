@@ -2147,7 +2147,11 @@ function AdminUsers() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={userDirty.guardOpenChange(setDialogOpen)}>
-        <DialogContent data-tour-id="dialog-user">
+        {/* sm:max-w-2xl: con rol Estudiante el form suma ~17 controles y la
+            sección "Identidad estudiantil" es un grid de 2 columnas — en los
+            512px del default cada columna quedaba en ~230px. En móvil manda el
+            w-[calc(100%-1rem)] del DialogContent base. */}
+        <DialogContent data-tour-id="dialog-user" className="sm:max-w-2xl">
           <DialogHeader>
             <DialogTitle>{editing?.id ? t("adminUsers.dialogTitleEdit") : t("adminUsers.dialogTitleNew")}</DialogTitle>
           </DialogHeader>
@@ -2515,7 +2519,7 @@ function AdminUsers() {
           </DialogHeader>
           {importReport && (
             <div className="space-y-3">
-              <div className="grid grid-cols-3 gap-2 text-center">
+              <div className="grid grid-cols-1 xs:grid-cols-3 gap-2 text-center">
                 <div className="rounded-md border p-2">
                   <p className="text-lg font-semibold tabular-nums">{importReport.ok}</p>
                   <p className="text-2xs text-muted-foreground">

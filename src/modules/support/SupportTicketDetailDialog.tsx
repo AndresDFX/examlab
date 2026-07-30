@@ -39,7 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
-import { Send, Paperclip, Download, X, UserCheck, CheckCircle2, Trash2, Sparkles } from "lucide-react";
+import { Send, Paperclip, Download, UserCheck, CheckCircle2, Trash2, Sparkles } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatDateTime } from "@/shared/lib/format";

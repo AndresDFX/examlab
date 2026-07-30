@@ -524,7 +524,7 @@ function StudentAttendance() {
       <div className="space-y-5">
         <PageHeader
           title={t("nav.studentAttendance", { defaultValue: "Asistencia" })}
-          icon={<CalendarCheck className="h-6 w-6 text-primary" />}
+          icon={<CalendarCheck className="h-6 w-6" />}
         />
         <ErrorState
           message={t("studentAttendance.loadErrorTitle", {
@@ -544,7 +544,7 @@ function StudentAttendance() {
         subtitle={t("studentAttendance.subtitle", {
           defaultValue: "Registro de asistencia que el docente ha cargado para tus cursos.",
         })}
-        icon={<CalendarCheck className="h-6 w-6 text-primary" />}
+        icon={<CalendarCheck className="h-6 w-6" />}
         actions={
           courses.length > 0 ? (
             <div className="w-full sm:w-56">
@@ -699,7 +699,14 @@ function StudentAttendance() {
                         <TableHead>{t("studentAttendance.colSession")}</TableHead>
                         <TableHead>{t("common.status", { defaultValue: "Estado" })}</TableHead>
                         <TableHead>{t("studentAttendance.colRecording")}</TableHead>
-                        <TableHead>{t("studentAttendance.colTeacherNote")}</TableHead>
+                        {/* La nota del docente es texto libre y secundario:
+                            se oculta bajo `md` para que Fecha/Sesión/Estado y
+                            los accesos (video, código, pizarra) no se
+                            compriman en móvil. El TableCell usa el MISMO
+                            breakpoint — si divergen, la fila queda desalineada. */}
+                        <TableHead className="hidden md:table-cell">
+                          {t("studentAttendance.colTeacherNote")}
+                        </TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -722,6 +729,16 @@ function StudentAttendance() {
                                 </span>
                                 <SessionTypeBadge type={s.session_type} />
                               </div>
+                              {/* La columna "Nota del docente" se oculta bajo
+                                  `md`; su contenido se repliega acá para que en
+                                  móvil el alumno no PIERDA la observación
+                                  (mismo patrón que el email bajo el nombre en
+                                  el grid de Usuarios). */}
+                              {rec?.note && (
+                                <p className="md:hidden mt-1 text-2xs text-muted-foreground">
+                                  {t("studentAttendance.colTeacherNote")}: {rec.note}
+                                </p>
+                              )}
                             </TableCell>
                             <TableCell>
                               <Badge variant="outline" className={`${meta.className} text-xs`}>
@@ -863,7 +880,7 @@ function StudentAttendance() {
                                   )}
                               </div>
                             </TableCell>
-                            <TableCell className="text-sm text-muted-foreground">
+                            <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                               {rec?.note ? rec.note : "—"}
                             </TableCell>
                           </TableRow>
@@ -1021,10 +1038,29 @@ function CheckInDialog({
     <div
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
+      // El backdrop es solo una superficie de cierre por click: no es una
+      // fila/entidad, así que NO lleva role="button" + tabIndex. Lo marcamos
+      // como presentacional para que el nodo interactivo anunciado sea el
+      // panel de abajo (role="dialog"), no el fondo.
+      role="presentation"
     >
       <div
         className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4 max-h-[85dvh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
+        // `role="dialog"` + `aria-label` es mejora neta. Lo que NO va acá es
+        // `aria-modal="true"`: le indica a la tecnología asistiva que trate
+        // como inerte todo lo de AFUERA, pero este diálogo es artesanal y no
+        // mueve el foco adentro (no hay portal, ni focus trap, ni Escape, ni
+        // restauración). El cursor virtual quedaría afuera, en contenido que la
+        // AT ya suprimió: callejón sin salida, y justo en la pantalla que el
+        // alumno abre con el celular en clase.
+        //
+        // El arreglo de fondo es migrarlo al Dialog del design system (Radix ya
+        // da portal, focus trap, Esc y restauración), pero eso cambia
+        // comportamiento y monta la cámara del escáner adentro, así que pide
+        // prueba en dispositivo.
+        role="dialog"
+        aria-label={title}
       >
         <div className="text-base font-semibold mb-3">{title}</div>
         {children}

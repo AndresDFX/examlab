@@ -351,7 +351,7 @@ function AuthPage() {
           setLoading(false);
           toast.error(
             t("auth.crossTenantOnlySuperAdmin", {
-              defaultValue: "Solo SuperAdmin puede acceder en modo cross-tenant.",
+              defaultValue: "Solo SuperAdmin puede acceder a la vista de plataforma.",
             }),
           );
           return;
@@ -553,7 +553,7 @@ function AuthPage() {
                     {platformViewShown && (
                       <SelectItem value={SUPERADMIN_CROSS_TENANT}>
                         {t("auth.crossTenantOption", {
-                          defaultValue: "— SuperAdmin: vista cross-tenant —",
+                          defaultValue: "— SuperAdmin: vista de plataforma —",
                         })}
                       </SelectItem>
                     )}

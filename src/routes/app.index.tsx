@@ -5,7 +5,7 @@ import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
-import { formatDate, formatDateOnly, formatDateTime } from "@/shared/lib/format";
+import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import { sessionIsUpcoming } from "@/shared/lib/session-time";
 import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
@@ -28,20 +28,13 @@ import {
   FileText,
   Hammer,
   FolderKanban,
-  Clock,
   AlertTriangle,
   ArrowRight,
-  Play,
   Send,
-  MessageSquareText,
   Reply,
-  Inbox,
   CalendarClock,
-  Bot,
   ShieldEllipsis,
-  Search,
   ListOrdered,
-  RefreshCw,
   Building2,
   Users as UsersIcon,
   BookOpen,

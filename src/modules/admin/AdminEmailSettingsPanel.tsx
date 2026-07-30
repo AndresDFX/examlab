@@ -28,7 +28,6 @@ import {
   FileText,
   Hammer,
   FolderKanban,
-  Award,
   ClipboardList,
   MessageSquareText,
   Send,

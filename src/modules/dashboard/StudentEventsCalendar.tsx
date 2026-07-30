@@ -46,7 +46,7 @@ import {
   CheckCircle2,
   Lock,
 } from "lucide-react";
-import { formatDate, formatDateOnly } from "@/shared/lib/format";
+import { formatDateOnly } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

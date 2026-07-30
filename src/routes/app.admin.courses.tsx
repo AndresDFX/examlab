@@ -8,8 +8,7 @@ import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { isValidDateRange } from "@/shared/lib/date-range";
-import { toCSV, downloadCSV, parseCSV } from "@/shared/lib/csv";
-import { SESSIONS_TEMPLATE, parseSessionsCsv } from "@/modules/sessions/csv";
+import { toCSV } from "@/shared/lib/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -24,11 +23,6 @@ import {
   deriveCourseDisplayState,
   summarizeCourses,
 } from "@/modules/courses/course-status";
-import {
-  nextBoardContentName,
-  uploadBoardContent,
-  BOARD_ACCEPTED_EXTENSIONS,
-} from "@/modules/contents/board-content-upload";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { Input } from "@/components/ui/input";
@@ -63,7 +57,6 @@ import {
   Pencil,
   Copy,
   UserCog,
-  CheckSquare,
   ChevronDown,
   ChevronRight,
   BookOpen,
@@ -71,14 +64,8 @@ import {
   CalendarClock,
   Archive,
   FileText,
-  Hammer,
-  FolderKanban,
-  Link2,
-  Upload,
-  Download,
   MessageSquareText,
   Award,
-  Video,
   RefreshCw,
   Stethoscope,
   Play,
@@ -86,7 +73,6 @@ import {
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
-import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
 import {
   Select,
   SelectContent,
@@ -94,9 +80,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { classNumberFromFilename, isTeacherOnlyFile } from "@/modules/contents/contents-extract";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { HelpHint } from "@/components/ui/help-hint";
 import { useConfirm } from "@/shared/components/ConfirmDialog";

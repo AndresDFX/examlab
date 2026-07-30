@@ -26,7 +26,6 @@ import {
   CheckCheck,
   FileText,
   Hammer,
-  Award,
   ClipboardList,
   Info,
   AlertTriangle,

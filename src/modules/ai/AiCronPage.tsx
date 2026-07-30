@@ -82,7 +82,6 @@ import {
   MessageSquareWarning,
   CheckCheck,
   Archive,
-  Wand2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { formatDateTime } from "@/shared/lib/format";

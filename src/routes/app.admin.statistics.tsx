@@ -43,7 +43,6 @@ import {
   Users,
   CalendarCheck,
   AlertTriangle,
-  ArrowLeft,
 } from "lucide-react";
 import {
   loadCourseDataset,

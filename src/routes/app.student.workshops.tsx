@@ -140,8 +140,6 @@ function getWorkshopDisplayStatus(row: WorkshopRow, now: number): WorkshopDispla
   return "closed";
 }
 
-const ALL_STATUSES = "__all_status__";
-
 function StudentWorkshops() {
   const { user } = useAuth();
   const { t } = useTranslation();

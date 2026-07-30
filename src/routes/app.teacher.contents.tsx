@@ -89,8 +89,6 @@ import { PptxViewerDialog } from "@/modules/contents/PptxViewerDialog";
 import { MediaViewerDialog } from "@/modules/contents/MediaViewerDialog";
 import { ImageEditorDialog } from "@/modules/contents/ImageEditorDialog";
 import {
-  isImageFile,
-  isPdfFile,
   isEditableImageFile,
   isViewableMedia,
 } from "@/modules/contents/media-files";
