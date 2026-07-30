@@ -213,7 +213,10 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-3 gap-2">
+            {/* 1 columna abajo de 480px: tres contadores en fila a 375px dan ~110px
+                cada uno, y "En observación" no entra en una línea. `xs` es el
+                breakpoint propio del proyecto (30rem, en styles.css). */}
+            <div className="grid grid-cols-1 xs:grid-cols-3 gap-2">
               <RiskTally level="en_riesgo" count={summary.en_riesgo} total={enrolledIds.size} />
               <RiskTally
                 level="en_observacion"
@@ -229,7 +232,9 @@ export function EarlyAlertCard({ ds }: { ds: CourseDataset }) {
                   <TableRow>
                     <TableHead className="min-w-32">{t("earlyAlert.colStudent")}</TableHead>
                     <TableHead>{t("earlyAlert.colLevel")}</TableHead>
-                    <TableHead className="min-w-48">{t("earlyAlert.colReasons")}</TableHead>
+                    <TableHead className="min-w-[160px] sm:min-w-48">
+                      {t("earlyAlert.colReasons")}
+                    </TableHead>
                     <TableHead className="hidden sm:table-cell">
                       {t("earlyAlert.colAttendance")}
                     </TableHead>

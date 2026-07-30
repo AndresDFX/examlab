@@ -9674,6 +9674,6 @@
     "empty": "Sin resultados.",
     "groupModules": "Ir a",
     "groupCourses": "Mis cursos",
-    "openLabel": "Abrir el buscador (Ctrl+K)"
+    "openLabel": "Abrir el buscador ({{shortcut}})"
   }
 }

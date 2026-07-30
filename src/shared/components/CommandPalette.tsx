@@ -62,6 +62,11 @@ export function CommandPalette({
   const staff = isStaffActive(activeRole, roles);
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  // El atajo se ANUNCIA segun la plataforma: mostrar "⌘K" en Windows manda al
+  // usuario a buscar una tecla Cmd que no existe. Arranca en false
+  // (deterministico) y se resuelve post-mount: leer `navigator` en el
+  // initializer de useState rompe la hidratacion (React #418).
+  const [isMac, setIsMac] = useState(false);
 
   // Atajo global. El listener se registra en un effect (no en el render) y se
   // limpia al desmontar; `metaKey` cubre macOS y `ctrlKey` el resto.
@@ -74,6 +79,11 @@ export function CommandPalette({
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    const ua = `${navigator.platform ?? ""} ${navigator.userAgent ?? ""}`;
+    setIsMac(/mac|iphone|ipad|ipod/i.test(ua));
   }, []);
 
   // Los cursos se cargan al ABRIR, no al montar: son un dato secundario y no
@@ -100,6 +110,8 @@ export function CommandPalette({
       cancelled = true;
     };
   }, [open, user, staff, courses.length]);
+
+  const shortcut = isMac ? "⌘K" : "Ctrl+K";
 
   const go = (to: string) => {
     setOpen(false);
@@ -131,14 +143,15 @@ export function CommandPalette({
         type="button"
         onClick={() => setOpen(true)}
         className="flex w-full items-center gap-2 rounded-md border border-sidebar-foreground/25 bg-sidebar-foreground/5 px-2 py-1.5 text-2xs text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
-        aria-label={t("palette.openLabel")}
+        aria-label={t("palette.openLabel", { shortcut })}
       >
         <Search className="h-3.5 w-3.5 shrink-0" />
         <span className="flex-1 truncate text-left">{t("palette.trigger")}</span>
         {/* El atajo se muestra en el disparador: si no se anuncia, nadie lo
             descubre y la paleta no existe para el usuario. */}
+        {/* Oculto en movil a proposito: ahi no hay teclado que anunciar. */}
         <kbd className="hidden rounded border border-sidebar-foreground/25 px-1 font-mono text-3xs text-sidebar-foreground/70 sm:inline">
-          ⌘K
+          {shortcut}
         </kbd>
       </button>
 

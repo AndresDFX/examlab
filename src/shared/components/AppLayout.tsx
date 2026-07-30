@@ -1507,6 +1507,23 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 )
               )}
 
+              {/* Buscador también en el drawer: el sidebar de escritorio es
+                  `hidden md:flex`, así que en móvil la paleta quedaba
+                  INALCANZABLE — no hay botón ni teclado físico para el atajo. Y
+                  es donde más hace falta: el drawer lista los 22 ítems con tap
+                  targets altos, o sea todavía más scroll que en escritorio. */}
+              {!isTakingExam && (
+                <div className="px-3 pt-3">
+                  <CommandPalette
+                    destinations={visibleNav.map((n) => ({
+                      to: n.to,
+                      label: t(n.labelKey),
+                      icon: n.icon,
+                    }))}
+                  />
+                </div>
+              )}
+
               {/* Full nav inside drawer — taller tap targets than desktop */}
               <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5">
                 {visibleNav.map((item) => {
