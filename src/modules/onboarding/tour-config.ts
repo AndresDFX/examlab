@@ -621,14 +621,6 @@ export const TEACHER_TOUR: TourStep[] = [
     align: "start",
   },
   {
-    element: '[data-tour-id="workshop-field-group-mode"]',
-    title: "Modo de trabajo",
-    description:
-      "Individual, grupal (todos en grupo) o mixto (quien tenga grupo entrega en grupo, los demás solos). Los grupos los administrás desde el botón <em>Grupos</em> del grid.",
-    side: "left",
-    align: "start",
-  },
-  {
     element: '[data-tour-id="workshop-field-title"]',
     title: "Título",
     description:
@@ -641,6 +633,18 @@ export const TEACHER_TOUR: TourStep[] = [
     title: "Curso(s)",
     description:
       "Curso(s) donde aplica. Podés asociarlo a varios — un solo registro de taller que viven N alumnos de distintos cursos.",
+    side: "left",
+    align: "start",
+  },
+  // El modo de trabajo ya no es un paso propio: vive dentro de la sección
+  // colapsada "Cómo se entrega", y un `data-tour-id` bajo un
+  // `CollapsibleContent` cerrado no existe en el DOM (Radix desmonta el
+  // contenido) — el paso se filtraría en silencio. Anclamos a la sección.
+  {
+    element: '[data-tour-id="workshop-section-delivery"]',
+    title: "Cómo se entrega",
+    description:
+      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Abrila solo si querés cambiar algo — los grupos los administrás desde el botón <em>Grupos</em> del grid.",
     side: "left",
     align: "start",
   },

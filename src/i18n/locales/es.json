@@ -4072,7 +4072,11 @@
     "gradingReviewAccordion": "Revisar respuestas por pregunta ({{count}})",
     "groupsDialogTitle": "Grupos del taller",
     "questionsDialogTitle": "Preguntas del taller",
-    "bulkDeleteWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados."
+    "bulkDeleteWarning": "Se eliminarán también todas las preguntas, asignaciones y entregas de los talleres seleccionados.",
+    "sectionWhatTitle": "Qué evalúa",
+    "sectionWhenTitle": "Cuándo",
+    "sectionHowTitle": "Cómo se entrega",
+    "sectionHowHint": "Modo de trabajo, intentos, videos y link externo. Ya vienen configurados."
   },
   "adminUsers": {
     "needsRole": "Necesitas rol Admin.",

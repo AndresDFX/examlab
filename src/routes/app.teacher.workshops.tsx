@@ -434,6 +434,9 @@ function TeacherWorkshops() {
   );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
+  /** Sección "Cómo se entrega" del form: arranca cerrada porque todos sus
+   *  campos ya traen un default razonable (ver `openNew`). */
+  const [deliveryOpen, setDeliveryOpen] = useState(false);
   /** Lista N de videos introductorios del taller. Vive separada del
    *  `form` porque se persiste en otra tabla (`workshop_intro_videos`).
    *  Se hidrata vía useEffect cuando `form.id` cambia (apertura para
@@ -3319,506 +3322,298 @@ function TeacherWorkshops() {
                 onCheckedChange={(v) => setForm({ ...form, is_external: v } as any)}
               />
             </div>
-            {/*
-             * Toggle "Trabajo en grupo": cuando está activo, los
-             * estudiantes entregan en grupo. La asignación de grupos se
-             * configura desde el botón "Grupos" en el grid del taller
-             * (sólo modo teacher_assigned por ahora).
-             */}
-            {/* Modo de trabajo del taller. NO aplica en externos. Tres
-                opciones: 'individual' (cada estudiante entrega solo),
-                'group_required' (todos deben estar en un grupo para
-                entregar) y 'teacher_assigned' (Mixto: quien tenga grupo
-                entrega en grupo, los demas individual). */}
-            {!(form as any).is_external && (
-              <div className="space-y-1" data-tour-id="workshop-field-group-mode">
-                <Label>{t("teacherWorkshops.fieldGroupMode")}</Label>
-                <Select
-                  value={(form as any).group_mode ?? "individual"}
-                  onValueChange={(v) =>
-                    setForm({
-                      ...form,
-                      group_mode: v as Workshop["group_mode"],
-                    } as any)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="individual">
-                      {t("teacherWorkshops.groupModeIndividual")}
-                    </SelectItem>
-                    <SelectItem value="group_required">
-                      {t("teacherWorkshops.groupModeRequired")}
-                    </SelectItem>
-                    <SelectItem value="teacher_assigned">
-                      {t("teacherWorkshops.groupModeMixed")}
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <p className="text-2xs text-muted-foreground leading-tight">
-                  {t("teacherWorkshops.groupModeHint")}
-                </p>
+            {/* Qué evalúa: identidad del taller — qué es, en qué cursos
+                vive y cuánto pesa en cada uno. Primera decisión del docente. */}
+            <div className="rounded-md border p-3 space-y-3">
+              <p className="text-sm font-medium">
+                {t("teacherWorkshops.sectionWhatTitle")}
+              </p>
+              <div data-tour-id="workshop-field-title">
+                <Label required>{t("teacherWorkshops.fieldTitle")}</Label>
+                <Input
+                  value={form.title ?? ""}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                />
               </div>
-            )}
-            <div data-tour-id="workshop-field-title">
-              <Label required>{t("teacherWorkshops.fieldTitle")}</Label>
-              <Input
-                value={form.title ?? ""}
-                onChange={(e) => setForm({ ...form, title: e.target.value })}
-              />
-            </div>
-            <div data-tour-id="workshop-field-courses">
-              <Label required>
-                {t("teacherWorkshops.fieldCourses")}{" "}
-                <span className="text-xs text-muted-foreground font-normal">
-                  {t("teacherWorkshops.fieldCoursesHint")}
-                </span>
-              </Label>
-              {/* Tanto en NEW como en EDIT usamos checkboxes M:N. El
-                  taller es UN registro con N workshop_courses; el form
-                  permite agregar/quitar cursos de un taller existente. */}
-              <CoursePicker courses={courses} selectedIds={selectedCourseIds} onToggle={toggleCourse} />
-              {selectedCourseIds.size > 1 && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  {form.id
-                    ? t("teacherWorkshops.fieldCoursesMultiEdit")
-                    : t("teacherWorkshops.fieldCoursesMultiNew")}
-                </p>
-              )}
-              {form.id && selectedCourseIds.size === 0 && (
-                <p className="text-xs text-destructive mt-1">
-                  {t("teacherWorkshops.fieldCoursesMin1")}
-                </p>
-              )}
-            </div>
-            {/* Corte y peso: tabla per-curso cuando hay múltiples cursos
-                (creación O edición — paridad con projects). */}
-            {selectedCourseIds.size > 1 ? (
-              <div className="space-y-2">
-                <Label>
-                  {t("teacherWorkshops.cutPerCourse")}{" "}
-                  <HelpHint>{t("help.courseWeightBudgetValidation")}</HelpHint>
+              <div data-tour-id="workshop-field-courses">
+                <Label required>
+                  {t("teacherWorkshops.fieldCourses")}{" "}
+                  <span className="text-xs text-muted-foreground font-normal">
+                    {t("teacherWorkshops.fieldCoursesHint")}
+                  </span>
                 </Label>
-                {[...selectedCourseIds].map((cid) => {
-                  const course = courses.find((c) => c.id === cid);
-                  const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
-                  const cutsForCourse = cuts.filter((c) => c.course_id === cid);
-                  const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
-                  const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
-                  // Excluir el taller en edición del cómputo del bucket
-                  // disponible — sino su propio peso se contaría doble.
-                  const sumOthers = workshops
-                    .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id)
-                    .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
-                  const wsMax = Math.max(0, wsBucket - sumOthers);
-                  const overBucket = !!cc.cut_id && Number(cc.weight) > wsMax + 0.01;
-                  return (
-                    <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
-                      <p className="text-sm font-medium">{course?.name ?? cid}</p>
-                      {/* Pair Corte/Peso dentro de Card con p-3 — el
-                          ancho útil en mobile (~330px) dividido en 2
-                          deja a cada Select en ~155px y los nombres de
-                          corte se truncan. Stack en mobile. */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.cutColLabel")}</Label>
-                          <Select
-                            value={cc.cut_id ?? "__none__"}
-                            onValueChange={(v) =>
-                              setCourseCuts((prev) => ({
-                                ...prev,
-                                [cid]: {
-                                  ...(prev[cid] ?? { weight: 1 }),
-                                  cut_id: v === "__none__" ? null : v,
-                                },
-                              }))
-                            }
-                          >
-                            <SelectTrigger className="mt-1 h-8 text-sm">
-                              <SelectValue placeholder={t("teacherWorkshops.cutNone")} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="__none__">{t("teacherWorkshops.cutNone")}</SelectItem>
-                              {cutsForCourse.map((c) => (
-                                <SelectItem key={c.id} value={c.id}>
-                                  {c.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                          {cutsForCourse.length === 0 && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {t("teacherWorkshops.cutNoCuts")}
-                            </p>
-                          )}
-                        </div>
-                        <div>
-                          <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.weightColLabel")}</Label>
-                          <div className="relative mt-1">
-                            <DecimalInput
-                              min={0}
-                              max={wsMax > 0 ? wsMax : undefined}
-                              placeholder="1,0"
-                              className="pr-7 h-8 text-sm"
-                              disabled={!cc.cut_id}
-                              value={cc.weight}
-                              onChange={(v) =>
+                {/* Tanto en NEW como en EDIT usamos checkboxes M:N. El
+                    taller es UN registro con N workshop_courses; el form
+                    permite agregar/quitar cursos de un taller existente. */}
+                <CoursePicker courses={courses} selectedIds={selectedCourseIds} onToggle={toggleCourse} />
+                {selectedCourseIds.size > 1 && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {form.id
+                      ? t("teacherWorkshops.fieldCoursesMultiEdit")
+                      : t("teacherWorkshops.fieldCoursesMultiNew")}
+                  </p>
+                )}
+                {form.id && selectedCourseIds.size === 0 && (
+                  <p className="text-xs text-destructive mt-1">
+                    {t("teacherWorkshops.fieldCoursesMin1")}
+                  </p>
+                )}
+              </div>
+              {/* Corte y peso: tabla per-curso cuando hay múltiples cursos
+                  (creación O edición — paridad con projects). */}
+              {selectedCourseIds.size > 1 ? (
+                <div className="space-y-2">
+                  <Label>
+                    {t("teacherWorkshops.cutPerCourse")}{" "}
+                    <HelpHint>{t("help.courseWeightBudgetValidation")}</HelpHint>
+                  </Label>
+                  {[...selectedCourseIds].map((cid) => {
+                    const course = courses.find((c) => c.id === cid);
+                    const cc = courseCuts[cid] ?? { cut_id: null, weight: 1 };
+                    const cutsForCourse = cuts.filter((c) => c.course_id === cid);
+                    const selectedCut = cc.cut_id ? cuts.find((c) => c.id === cc.cut_id) : null;
+                    const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
+                    // Excluir el taller en edición del cómputo del bucket
+                    // disponible — sino su propio peso se contaría doble.
+                    const sumOthers = workshops
+                      .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id)
+                      .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+                    const wsMax = Math.max(0, wsBucket - sumOthers);
+                    const overBucket = !!cc.cut_id && Number(cc.weight) > wsMax + 0.01;
+                    return (
+                      <div key={cid} className="rounded-md border bg-muted/30 p-3 space-y-2">
+                        <p className="text-sm font-medium">{course?.name ?? cid}</p>
+                        {/* Pair Corte/Peso dentro de Card con p-3 — el
+                            ancho útil en mobile (~330px) dividido en 2
+                            deja a cada Select en ~155px y los nombres de
+                            corte se truncan. Stack en mobile. */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.cutColLabel")}</Label>
+                            <Select
+                              value={cc.cut_id ?? "__none__"}
+                              onValueChange={(v) =>
                                 setCourseCuts((prev) => ({
                                   ...prev,
-                                  [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                  [cid]: {
+                                    ...(prev[cid] ?? { weight: 1 }),
+                                    cut_id: v === "__none__" ? null : v,
+                                  },
                                 }))
                               }
+                            >
+                              <SelectTrigger className="mt-1 h-8 text-sm">
+                                <SelectValue placeholder={t("teacherWorkshops.cutNone")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__none__">{t("teacherWorkshops.cutNone")}</SelectItem>
+                                {cutsForCourse.map((c) => (
+                                  <SelectItem key={c.id} value={c.id}>
+                                    {c.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {cutsForCourse.length === 0 && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {t("teacherWorkshops.cutNoCuts")}
+                              </p>
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-xs text-muted-foreground">{t("teacherWorkshops.weightColLabel")}</Label>
+                            <div className="relative mt-1">
+                              <DecimalInput
+                                min={0}
+                                max={wsMax > 0 ? wsMax : undefined}
+                                placeholder="1,0"
+                                className="pr-7 h-8 text-sm"
+                                disabled={!cc.cut_id}
+                                value={cc.weight}
+                                onChange={(v) =>
+                                  setCourseCuts((prev) => ({
+                                    ...prev,
+                                    [cid]: { ...(prev[cid] ?? { cut_id: null }), weight: v ?? 1 },
+                                  }))
+                                }
+                              />
+                              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                                %
+                              </span>
+                            </div>
+                            {selectedCut && (
+                              <p
+                                className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
+                              >
+                                {t("teacherWorkshops.weightAvailable", { max: wsMax.toFixed(1), bucket: wsBucket, others: sumOthers.toFixed(1) })}
+                                {overBucket && (
+                                  <span className="block">{t("teacherWorkshops.weightExceedsBucket")}</span>
+                                )}
+                              </p>
+                            )}
+                            {!cc.cut_id && (
+                              <p className="text-xs text-muted-foreground mt-1">
+                                {t("teacherWorkshops.weightAssignCut")}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <>
+                  <div>
+                    <Label>
+                      {t("teacherWorkshops.cutSingle")}{" "}
+                      <HelpHint>{t("help.cutAssignmentGradeCalculationWorkshop")}</HelpHint>
+                    </Label>
+                    {(() => {
+                      const targetCourseIds = form.id
+                        ? form.course_id
+                          ? [form.course_id]
+                          : []
+                        : [...selectedCourseIds];
+                      const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
+                      return (
+                        <Select
+                          value={form.cut_id ?? "__none__"}
+                          onValueChange={(v) =>
+                            setForm({ ...form, cut_id: v === "__none__" ? null : v })
+                          }
+                        >
+                          <SelectTrigger className="mt-1">
+                            <SelectValue placeholder={t("teacherWorkshops.cutSingleNone")} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">{t("teacherWorkshops.cutSingleNone")}</SelectItem>
+                            {availableCuts.map((c) => (
+                              <SelectItem key={c.id} value={c.id}>
+                                {c.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      );
+                    })()}
+                    {(form.id || selectedCourseIds.size === 1) &&
+                      cuts.filter((c) =>
+                        form.id ? c.course_id === form.course_id : selectedCourseIds.has(c.course_id),
+                      ).length === 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {t("teacherWorkshops.cutSingleNoCuts")}
+                        </p>
+                      )}
+                  </div>
+                  {/*
+                   * Peso del taller dentro del bucket de talleres del corte.
+                   * Cap = cut.workshop_weight - sum(otros talleres del corte).
+                   */}
+                  <div>
+                    {(() => {
+                      const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
+                      const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
+                      const editingId = (form as any).id as string | undefined;
+                      const otherWorkshopsSum = workshops
+                        .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
+                        .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+                      const wsMax = workshopWeightMax ?? 0;
+                      const currentWeight = Number((form as any).weight ?? 1) || 0;
+                      const bucketFull = wsMax === 0 && wsBucket > 0;
+                      return (
+                        <>
+                          <Label>{t("teacherWorkshops.weightLabel")}</Label>
+                          <div className="relative mt-1 w-32">
+                            <DecimalInput
+                              min={0}
+                              max={wsMax || undefined}
+                              placeholder="1,0"
+                              className="pr-7"
+                              disabled={!selectedCut || bucketFull}
+                              value={(form as any).weight ?? 1}
+                              onChange={(v) => {
+                                const raw = v == null ? 1 : v;
+                                const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
+                                setForm({ ...form, weight: capped } as any);
+                              }}
                             />
                             <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
                               %
                             </span>
                           </div>
-                          {selectedCut && (
-                            <p
-                              className={`text-xs mt-1 ${overBucket ? "text-destructive" : "text-muted-foreground"}`}
-                            >
-                              {t("teacherWorkshops.weightAvailable", { max: wsMax.toFixed(1), bucket: wsBucket, others: sumOthers.toFixed(1) })}
-                              {overBucket && (
-                                <span className="block">{t("teacherWorkshops.weightExceedsBucket")}</span>
-                              )}
-                            </p>
-                          )}
-                          {!cc.cut_id && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              {t("teacherWorkshops.weightAssignCut")}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <>
-                <div>
-                  <Label>
-                    {t("teacherWorkshops.cutSingle")}{" "}
-                    <HelpHint>{t("help.cutAssignmentGradeCalculationWorkshop")}</HelpHint>
-                  </Label>
-                  {(() => {
-                    const targetCourseIds = form.id
-                      ? form.course_id
-                        ? [form.course_id]
-                        : []
-                      : [...selectedCourseIds];
-                    const availableCuts = cuts.filter((c) => targetCourseIds.includes(c.course_id));
-                    return (
-                      <Select
-                        value={form.cut_id ?? "__none__"}
-                        onValueChange={(v) =>
-                          setForm({ ...form, cut_id: v === "__none__" ? null : v })
-                        }
-                      >
-                        <SelectTrigger className="mt-1">
-                          <SelectValue placeholder={t("teacherWorkshops.cutSingleNone")} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__none__">{t("teacherWorkshops.cutSingleNone")}</SelectItem>
-                          {availableCuts.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    );
-                  })()}
-                  {(form.id || selectedCourseIds.size === 1) &&
-                    cuts.filter((c) =>
-                      form.id ? c.course_id === form.course_id : selectedCourseIds.has(c.course_id),
-                    ).length === 0 && (
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {t("teacherWorkshops.cutSingleNoCuts")}
-                      </p>
-                    )}
-                </div>
-                {/*
-                 * Peso del taller dentro del bucket de talleres del corte.
-                 * Cap = cut.workshop_weight - sum(otros talleres del corte).
-                 */}
-                <div>
-                  {(() => {
-                    const selectedCut = form.cut_id ? cuts.find((c) => c.id === form.cut_id) : null;
-                    const wsBucket = Number(selectedCut?.workshop_weight ?? 0);
-                    const editingId = (form as any).id as string | undefined;
-                    const otherWorkshopsSum = workshops
-                      .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
-                      .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
-                    const wsMax = workshopWeightMax ?? 0;
-                    const currentWeight = Number((form as any).weight ?? 1) || 0;
-                    const bucketFull = wsMax === 0 && wsBucket > 0;
-                    return (
-                      <>
-                        <Label>{t("teacherWorkshops.weightLabel")}</Label>
-                        <div className="relative mt-1 w-32">
-                          <DecimalInput
-                            min={0}
-                            max={wsMax || undefined}
-                            placeholder="1,0"
-                            className="pr-7"
-                            disabled={!selectedCut || bucketFull}
-                            value={(form as any).weight ?? 1}
-                            onChange={(v) => {
-                              const raw = v == null ? 1 : v;
-                              const capped = wsMax > 0 ? Math.min(raw, wsMax) : raw;
-                              setForm({ ...form, weight: capped } as any);
-                            }}
-                          />
-                          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                            %
-                          </span>
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {selectedCut ? (
-                            <>
-                              {t("teacherWorkshops.weightBucketDesc", {
-                                cutName: selectedCut.name,
-                                bucket: wsBucket,
-                                others: otherWorkshopsSum.toFixed(1),
-                                max: wsMax.toFixed(1),
-                              })}
-                              {currentWeight > 0 && wsMax > 0 && (
-                                <>{t("teacherWorkshops.weightCurrent", { current: currentWeight.toFixed(1) })}</>
-                              )}
-                              .
-                              {bucketFull && (
-                                <span className="block text-destructive mt-1">
-                                  {t("teacherWorkshops.weightFull")}
-                                </span>
-                              )}
-                            </>
-                          ) : (
-                            t("teacherWorkshops.weightNoCut")
-                          )}
-                        </p>
-                      </>
-                    );
-                  })()}
-                </div>
-              </>
-            )}
-            <div>
-              <Label>{t("teacherWorkshops.fieldDescription")}</Label>
-              <Textarea
-                value={form.description ?? ""}
-                onChange={(e) => setForm({ ...form, description: e.target.value })}
-              />
-            </div>
-            {!(form as any).is_external && (
-              <div>
-                <Label>{t("teacherWorkshops.fieldInstructions")}</Label>
-                <Textarea
-                  rows={4}
-                  value={form.instructions ?? ""}
-                  onChange={(e) => setForm({ ...form, instructions: e.target.value })}
-                />
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div>
-                <Label>{t("teacherWorkshops.fieldExternalLink")}</Label>
-                <Input
-                  placeholder="https://..."
-                  value={form.external_link ?? ""}
-                  onChange={(e) => setForm({ ...form, external_link: e.target.value })}
-                />
-              </div>
-            )}
-            {!(form as any).is_external && (
-              <div className="space-y-2">
-                <Label className="flex items-center gap-1.5">
-                  {t("teacherWorkshops.fieldVideos")}
-                  <HelpHint>{t("help.introVideosSequentialUnlockWorkshop")}</HelpHint>
-                </Label>
-                {formIntroVideos.length === 0 && (
-                  <p className="text-2xs text-muted-foreground italic">
-                    {t("teacherWorkshops.fieldVideosEmpty")}
-                  </p>
-                )}
-                <div className="space-y-2">
-                  {formIntroVideos.map((video, idx) => {
-                    const moveUp = () => {
-                      if (idx === 0) return;
-                      const next = [...formIntroVideos];
-                      [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
-                      setFormIntroVideos(next);
-                    };
-                    const moveDown = () => {
-                      if (idx === formIntroVideos.length - 1) return;
-                      const next = [...formIntroVideos];
-                      [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
-                      setFormIntroVideos(next);
-                    };
-                    const removeRow = () => {
-                      setFormIntroVideos(formIntroVideos.filter((_, i) => i !== idx));
-                    };
-                    const update = (patch: Partial<(typeof formIntroVideos)[number]>) => {
-                      const next = [...formIntroVideos];
-                      next[idx] = { ...next[idx], ...patch };
-                      setFormIntroVideos(next);
-                    };
-                    return (
-                      <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
-                            {idx + 1}
-                          </Badge>
-                          <Input
-                            placeholder={t("hc_routesAppTeacherWorkshops.videoTitlePlaceholder")}
-                            value={video.title}
-                            onChange={(e) => update({ title: e.target.value })}
-                            className="text-xs h-8"
-                          />
-                          <div className="flex items-center gap-0.5 shrink-0">
-                            <RowAction
-                              label={t("teacherWorkshops.videoMoveUp")}
-                              icon={ChevronUp}
-                              onClick={moveUp}
-                              disabled={idx === 0}
-                            />
-                            <RowAction
-                              label={t("teacherWorkshops.videoMoveDown")}
-                              icon={ChevronDown}
-                              onClick={moveDown}
-                              disabled={idx === formIntroVideos.length - 1}
-                            />
-                            <RowAction
-                              label={t("teacherWorkshops.videoRemove")}
-                              icon={Trash2}
-                              tone="destructive"
-                              onClick={removeRow}
-                            />
-                          </div>
-                        </div>
-                        <Select
-                          value={video.library_id ?? "__custom"}
-                          onValueChange={(v) => {
-                            if (v === "__custom") {
-                              update({ library_id: null });
-                            } else {
-                              const found = videoLibrary.find((vl) => vl.id === v);
-                              update({
-                                library_id: v,
-                                url: found?.url ?? video.url,
-                                title: video.title || found?.title || "",
-                              });
-                            }
-                          }}
-                        >
-                          <SelectTrigger className="h-8 text-xs">
-                            <SelectValue placeholder={t("teacherWorkshops.videoLibraryOrUrl")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__custom">
-                              {t("teacherWorkshops.videoCustomUrl")}
-                            </SelectItem>
-                            {videoLibrary.map((vl) => (
-                              <SelectItem key={vl.id} value={vl.id}>
-                                {vl.title} · {vl.provider.toUpperCase()}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <Input
-                          placeholder={t("hc_routesAppTeacherWorkshops.videoUrlPlaceholder")}
-                          value={video.url}
-                          onChange={(e) => update({ url: e.target.value, library_id: null })}
-                          className="text-xs h-8"
-                        />
-                      </div>
-                    );
-                  })}
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() =>
-                    setFormIntroVideos([
-                      ...formIntroVideos,
-                      { library_id: null, url: "", title: "" },
-                    ])
-                  }
-                >
-                  <Plus className="h-3.5 w-3.5 mr-1" />
-                  {t("teacherWorkshops.videoAddBtn")}
-                </Button>
-                <p className="text-2xs text-muted-foreground">
-                  {t("teacherWorkshops.videoTip")}
-                </p>
-              </div>
-            )}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1 block">{t("teacherWorkshops.fieldDates")}</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {!(form as any).is_external && (
-                  <div>
-                    <Label className="text-xs">{t("teacherWorkshops.fieldVisibleFrom")}</Label>
-                    <DateTimePicker
-                      value={(form as any).start_date ?? ""}
-                      onChange={(v) => setForm({ ...form, start_date: v } as any)}
-                      className="mt-1"
-                    />
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {selectedCut ? (
+                              <>
+                                {t("teacherWorkshops.weightBucketDesc", {
+                                  cutName: selectedCut.name,
+                                  bucket: wsBucket,
+                                  others: otherWorkshopsSum.toFixed(1),
+                                  max: wsMax.toFixed(1),
+                                })}
+                                {currentWeight > 0 && wsMax > 0 && (
+                                  <>{t("teacherWorkshops.weightCurrent", { current: currentWeight.toFixed(1) })}</>
+                                )}
+                                .
+                                {bucketFull && (
+                                  <span className="block text-destructive mt-1">
+                                    {t("teacherWorkshops.weightFull")}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              t("teacherWorkshops.weightNoCut")
+                            )}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
-                )}
-                <div>
-                  <Label className="text-xs">
-                    {(form as any).is_external ? t("teacherWorkshops.fieldExternalDate") : t("teacherWorkshops.fieldDueDate")}
-                  </Label>
-                  <DateTimePicker
-                    value={(form.due_date as any) ?? ""}
-                    onChange={(v) => setForm({ ...form, due_date: v })}
-                    className="mt-1"
-                  />
-                </div>
+                </>
+              )}
+              <div>
+                <Label>{t("teacherWorkshops.fieldDescription")}</Label>
+                <Textarea
+                  value={form.description ?? ""}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
               </div>
               {!(form as any).is_external && (
-                <ActivitySessionSelect
-                  courseId={
-                    (form.course_id as string) ??
-                    (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
-                  }
-                  value={(form as any).attendance_session_id ?? null}
-                  onChange={(sid) =>
-                    setForm((f) => ({ ...(f as any), attendance_session_id: sid }))
-                  }
-                />
+                <div>
+                  <Label>{t("teacherWorkshops.fieldInstructions")}</Label>
+                  <Textarea
+                    rows={4}
+                    value={form.instructions ?? ""}
+                    onChange={(e) => setForm({ ...form, instructions: e.target.value })}
+                  />
+                </div>
               )}
             </div>
-            {!(form as any).is_external && (form as any).id && form.status === "closed" && (
-              <ReopenClosedBanner
-                message={t("hc_routesAppTeacherWorkshops.reopenBannerMessage")}
-                hint={t("hc_routesAppTeacherWorkshops.reopenBannerHint")}
-                onReopen={() => {
-                  const current = (form.due_date as string) ?? "";
-                  const currentDate = current ? new Date(current) : null;
-                  const isFuture =
-                    currentDate != null &&
-                    !isNaN(currentDate.getTime()) &&
-                    currentDate.getTime() > Date.now();
-                  const nextDue = isFuture
-                    ? current
-                    : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-                  setForm({ ...form, status: "published", due_date: nextDue });
-                }}
-              />
-            )}
-            {!(form as any).is_external && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="rounded-md border p-3 space-y-3">
+              <p className="text-sm font-medium">
+                {t("teacherWorkshops.sectionWhenTitle")}
+              </p>
+              {!(form as any).is_external && (form as any).id && form.status === "closed" && (
+                <ReopenClosedBanner
+                  message={t("hc_routesAppTeacherWorkshops.reopenBannerMessage")}
+                  hint={t("hc_routesAppTeacherWorkshops.reopenBannerHint")}
+                  onReopen={() => {
+                    const current = (form.due_date as string) ?? "";
+                    const currentDate = current ? new Date(current) : null;
+                    const isFuture =
+                      currentDate != null &&
+                      !isNaN(currentDate.getTime()) &&
+                      currentDate.getTime() > Date.now();
+                    const nextDue = isFuture
+                      ? current
+                      : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
+                    setForm({ ...form, status: "published", due_date: nextDue });
+                  }}
+                />
+              )}
+              {!(form as any).is_external && (
                 <div>
-                  {/* Labels uniformes en la grid: `text-xs` matchea las
-                      del row "Fechas" de arriba, y `flex items-center
-                      h-5` reserva el mismo alto en ambas columnas
-                      (la del HelpHint del lado derecho no descoloca). */}
-                  <Label className="text-xs flex items-center gap-1.5 h-5">{t("teacherWorkshops.fieldStatus")}</Label>
+                  <Label className="text-xs">{t("teacherWorkshops.fieldStatus")}</Label>
                   <Select
                     value={form.status ?? "draft"}
                     onValueChange={(v) => setForm({ ...form, status: v })}
@@ -3833,27 +3628,266 @@ function TeacherWorkshops() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div>
-                  <Label className="text-xs flex items-center gap-1.5 h-5">
-                    {t("teacherWorkshops.fieldMaxAttempts")}
-                    <HelpHint>{t("hc_routesAppTeacherWorkshops.maxAttemptsHelp")}</HelpHint>
-                  </Label>
-                  <Input
-                    type="number"
-                    min={1}
-                    max={10}
-                    placeholder={t("teacherWorkshops.fieldMaxAttemptsPlaceholder")}
-                    value={form.max_attempts ?? ""}
-                    onChange={(e) =>
-                      setForm({
-                        ...form,
-                        max_attempts: e.target.value ? Number(e.target.value) : null,
-                      })
-                    }
-                    className="mt-1"
-                  />
+              )}
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1 block">{t("teacherWorkshops.fieldDates")}</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {!(form as any).is_external && (
+                    <div>
+                      <Label className="text-xs">{t("teacherWorkshops.fieldVisibleFrom")}</Label>
+                      <DateTimePicker
+                        value={(form as any).start_date ?? ""}
+                        onChange={(v) => setForm({ ...form, start_date: v } as any)}
+                        className="mt-1"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <Label className="text-xs">
+                      {(form as any).is_external ? t("teacherWorkshops.fieldExternalDate") : t("teacherWorkshops.fieldDueDate")}
+                    </Label>
+                    <DateTimePicker
+                      value={(form.due_date as any) ?? ""}
+                      onChange={(v) => setForm({ ...form, due_date: v })}
+                      className="mt-1"
+                    />
+                  </div>
                 </div>
+                {!(form as any).is_external && (
+                  <ActivitySessionSelect
+                    courseId={
+                      (form.course_id as string) ??
+                      (selectedCourseIds.size === 1 ? [...selectedCourseIds][0] : null)
+                    }
+                    value={(form as any).attendance_session_id ?? null}
+                    onChange={(sid) =>
+                      setForm((f) => ({ ...(f as any), attendance_session_id: sid }))
+                    }
+                  />
+                )}
               </div>
+            </div>
+            {/* Cómo se entrega: TODO lo de acá trae un default razonable
+                (individual, intentos heredados de la institución, sin videos
+                ni link), así que arranca COLAPSADO. Son campos del taller EN
+                LÍNEA, así que el condicional envuelve la sección entera en vez
+                de repetirse campo por campo. */}
+            {!(form as any).is_external && (
+              <Collapsible
+                open={deliveryOpen}
+                onOpenChange={setDeliveryOpen}
+                className="rounded-md border p-3"
+                data-tour-id="workshop-section-delivery"
+              >
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex w-full items-center justify-between gap-2 text-left"
+                  >
+                    <span>
+                      <span className="text-sm font-medium">
+                        {t("teacherWorkshops.sectionHowTitle")}
+                      </span>
+                      <span className="block text-2xs text-muted-foreground leading-tight">
+                        {t("teacherWorkshops.sectionHowHint")}
+                      </span>
+                    </span>
+                    {deliveryOpen ? (
+                      <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    )}
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-3 pt-3">
+                  {/* Modo de trabajo del taller. NO aplica en externos (la
+                      sección entera está gateada). Tres opciones:
+                      'individual' (cada estudiante entrega solo),
+                      'group_required' (todos deben estar en un grupo para
+                      entregar) y 'teacher_assigned' (Mixto: quien tenga
+                      grupo entrega en grupo, los demas individual). */}
+                  <div className="space-y-1">
+                    <Label>{t("teacherWorkshops.fieldGroupMode")}</Label>
+                    <Select
+                      value={(form as any).group_mode ?? "individual"}
+                      onValueChange={(v) =>
+                        setForm({
+                          ...form,
+                          group_mode: v as Workshop["group_mode"],
+                        } as any)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">
+                          {t("teacherWorkshops.groupModeIndividual")}
+                        </SelectItem>
+                        <SelectItem value="group_required">
+                          {t("teacherWorkshops.groupModeRequired")}
+                        </SelectItem>
+                        <SelectItem value="teacher_assigned">
+                          {t("teacherWorkshops.groupModeMixed")}
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <p className="text-2xs text-muted-foreground leading-tight">
+                      {t("teacherWorkshops.groupModeHint")}
+                    </p>
+                  </div>
+                  <div>
+                    <Label className="flex items-center gap-1.5">
+                      {t("teacherWorkshops.fieldMaxAttempts")}
+                      <HelpHint>{t("hc_routesAppTeacherWorkshops.maxAttemptsHelp")}</HelpHint>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={10}
+                      placeholder={t("teacherWorkshops.fieldMaxAttemptsPlaceholder")}
+                      value={form.max_attempts ?? ""}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          max_attempts: e.target.value ? Number(e.target.value) : null,
+                        })
+                      }
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("teacherWorkshops.fieldExternalLink")}</Label>
+                    <Input
+                      placeholder="https://..."
+                      value={form.external_link ?? ""}
+                      onChange={(e) => setForm({ ...form, external_link: e.target.value })}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="flex items-center gap-1.5">
+                      {t("teacherWorkshops.fieldVideos")}
+                      <HelpHint>{t("help.introVideosSequentialUnlockWorkshop")}</HelpHint>
+                    </Label>
+                    {formIntroVideos.length === 0 && (
+                      <p className="text-2xs text-muted-foreground italic">
+                        {t("teacherWorkshops.fieldVideosEmpty")}
+                      </p>
+                    )}
+                    <div className="space-y-2">
+                      {formIntroVideos.map((video, idx) => {
+                        const moveUp = () => {
+                          if (idx === 0) return;
+                          const next = [...formIntroVideos];
+                          [next[idx - 1], next[idx]] = [next[idx], next[idx - 1]];
+                          setFormIntroVideos(next);
+                        };
+                        const moveDown = () => {
+                          if (idx === formIntroVideos.length - 1) return;
+                          const next = [...formIntroVideos];
+                          [next[idx + 1], next[idx]] = [next[idx], next[idx + 1]];
+                          setFormIntroVideos(next);
+                        };
+                        const removeRow = () => {
+                          setFormIntroVideos(formIntroVideos.filter((_, i) => i !== idx));
+                        };
+                        const update = (patch: Partial<(typeof formIntroVideos)[number]>) => {
+                          const next = [...formIntroVideos];
+                          next[idx] = { ...next[idx], ...patch };
+                          setFormIntroVideos(next);
+                        };
+                        return (
+                          <div key={idx} className="rounded-md border bg-card p-2.5 space-y-2">
+                            <div className="flex items-center gap-2">
+                              <Badge variant="outline" className="text-3xs tabular-nums shrink-0">
+                                {idx + 1}
+                              </Badge>
+                              <Input
+                                placeholder={t("hc_routesAppTeacherWorkshops.videoTitlePlaceholder")}
+                                value={video.title}
+                                onChange={(e) => update({ title: e.target.value })}
+                                className="text-xs h-8"
+                              />
+                              <div className="flex items-center gap-0.5 shrink-0">
+                                <RowAction
+                                  label={t("teacherWorkshops.videoMoveUp")}
+                                  icon={ChevronUp}
+                                  onClick={moveUp}
+                                  disabled={idx === 0}
+                                />
+                                <RowAction
+                                  label={t("teacherWorkshops.videoMoveDown")}
+                                  icon={ChevronDown}
+                                  onClick={moveDown}
+                                  disabled={idx === formIntroVideos.length - 1}
+                                />
+                                <RowAction
+                                  label={t("teacherWorkshops.videoRemove")}
+                                  icon={Trash2}
+                                  tone="destructive"
+                                  onClick={removeRow}
+                                />
+                              </div>
+                            </div>
+                            <Select
+                              value={video.library_id ?? "__custom"}
+                              onValueChange={(v) => {
+                                if (v === "__custom") {
+                                  update({ library_id: null });
+                                } else {
+                                  const found = videoLibrary.find((vl) => vl.id === v);
+                                  update({
+                                    library_id: v,
+                                    url: found?.url ?? video.url,
+                                    title: video.title || found?.title || "",
+                                  });
+                                }
+                              }}
+                            >
+                              <SelectTrigger className="h-8 text-xs">
+                                <SelectValue placeholder={t("teacherWorkshops.videoLibraryOrUrl")} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="__custom">
+                                  {t("teacherWorkshops.videoCustomUrl")}
+                                </SelectItem>
+                                {videoLibrary.map((vl) => (
+                                  <SelectItem key={vl.id} value={vl.id}>
+                                    {vl.title} · {vl.provider.toUpperCase()}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <Input
+                              placeholder={t("hc_routesAppTeacherWorkshops.videoUrlPlaceholder")}
+                              value={video.url}
+                              onChange={(e) => update({ url: e.target.value, library_id: null })}
+                              className="text-xs h-8"
+                            />
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() =>
+                        setFormIntroVideos([
+                          ...formIntroVideos,
+                          { library_id: null, url: "", title: "" },
+                        ])
+                      }
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" />
+                      {t("teacherWorkshops.videoAddBtn")}
+                    </Button>
+                    <p className="text-2xs text-muted-foreground">
+                      {t("teacherWorkshops.videoTip")}
+                    </p>
+                  </div>
+                </CollapsibleContent>
+              </Collapsible>
             )}
             {/* Rúbrica IA del taller: OCULTA del form principal. Antes
                 era un Textarea de JSON crudo que el docente no entendía.

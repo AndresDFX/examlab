@@ -4072,7 +4072,11 @@
     "gradingReviewAccordion": "Review answers by question ({{count}})",
     "groupsDialogTitle": "Workshop groups",
     "questionsDialogTitle": "Workshop questions",
-    "bulkDeleteWarning": "All questions, assignments and submissions for the selected workshops will also be deleted."
+    "bulkDeleteWarning": "All questions, assignments and submissions for the selected workshops will also be deleted.",
+    "sectionWhatTitle": "What it assesses",
+    "sectionWhenTitle": "When",
+    "sectionHowTitle": "How it is submitted",
+    "sectionHowHint": "Work mode, attempts, videos and external link. Already preset."
   },
   "adminUsers": {
     "needsRole": "You need the Admin role.",
