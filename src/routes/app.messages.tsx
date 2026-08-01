@@ -1681,6 +1681,19 @@ function MessagesPage() {
                       <li key={c.conv.id} className="relative group">
                         <button
                           type="button"
+                          // En modo selección la fila ES la casilla, así que se
+                          // anuncia como tal: `aria-pressed` da el estado y el
+                          // aria-label dice qué va a pasar. Antes el estado lo
+                          // llevaba un <button> anidado de 16px (HTML inválido);
+                          // ahora vive en el control que de verdad se toca.
+                          aria-pressed={inSelectionMode ? isSelected : undefined}
+                          aria-label={
+                            inSelectionMode
+                              ? isSelected
+                                ? t("hc_routesAppMessages.deselect")
+                                : t("hc_routesAppMessages.select")
+                              : undefined
+                          }
                           onClick={() => {
                             // En modo selección, click togglea selección
                             // en vez de abrir el chat (patrón estándar tipo
@@ -1714,42 +1727,30 @@ function MessagesPage() {
                                 En md+ usamos hover para no recargar la lista
                                 con dos columnas visibles. */}
                             {inSelectionMode ? (
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  toggleConvSelected(c.conv.id);
-                                }}
-                                className="shrink-0 flex items-center justify-center w-4 h-4 rounded"
-                                aria-label={
-                                  isSelected
-                                    ? t("hc_routesAppMessages.deselect")
-                                    : t("hc_routesAppMessages.select")
-                                }
-                              >
+                              // INDICADOR, no botón: en modo selección el click
+                              // en cualquier parte de la fila ya togglea, así que
+                              // este control era redundante — y un <button>
+                              // dentro de otro <button> es HTML inválido: el
+                              // navegador puede ignorar el click interno y los
+                              // lectores de pantalla anuncian mal la fila.
+                              //
+                              // El estado lo comunica el `aria-pressed` de la
+                              // fila (que además es el control real y tiene área
+                              // táctil completa, contra los 16px que tenía este).
+                              <span className="shrink-0 flex items-center justify-center w-4 h-4" aria-hidden="true">
                                 {isSelected ? (
                                   <CheckSquare className="h-4 w-4 text-primary" />
                                 ) : (
                                   <Square className="h-4 w-4 text-muted-foreground" />
                                 )}
-                              </button>
+                              </span>
                             ) : (
-                              <>
-                                {/* mobile: ícono rol siempre visible.
-                                    desktop: checkbox aparece en hover. */}
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    toggleConvSelected(c.conv.id);
-                                  }}
-                                  className="hidden md:group-hover:flex md:focus-visible:flex shrink-0 items-center justify-center w-4 h-4 rounded"
-                                  aria-label={t("hc_routesAppMessages.select")}
-                                >
-                                  <Square className="h-4 w-4 text-muted-foreground" />
-                                </button>
-                                <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 md:group-hover:hidden" />
-                              </>
+                              // El ícono de rol RESERVA el espacio siempre. Al
+                              // pasar el mouse en escritorio se vuelve
+                              // `invisible` (no `hidden`) para que el checkbox
+                              // hermano —que vive FUERA de este botón, ver abajo
+                              // — lo tape sin que el nombre se corra de lugar.
+                              <RoleIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0 md:group-hover:invisible" />
                             )}
                             <span className="font-medium text-sm truncate flex-1">
                               {c.other.full_name ?? c.other.email ?? t("hc_routesAppMessages.user")}
@@ -1792,6 +1793,29 @@ function MessagesPage() {
                             </p>
                           )}
                         </button>
+                        {/* Atajo de escritorio para ENTRAR en modo selección.
+                            Vive FUERA del botón de fila —como el kebab de abajo—
+                            porque un <button> dentro de otro <button> es HTML
+                            inválido: el navegador puede ignorar el click interno
+                            y los lectores de pantalla anuncian mal la fila.
+                            Se posiciona sobre el ícono de rol (que en hover se
+                            vuelve `invisible` pero conserva su espacio), y el
+                            área táctil sube de 16px a 32px, el piso del
+                            proyecto. En móvil no aparece: ahí se entra por el
+                            kebab, como ya documentaba el comentario original. */}
+                        {!inSelectionMode && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleConvSelected(c.conv.id);
+                            }}
+                            className="absolute left-0.5 top-1.5 hidden h-8 w-8 items-center justify-center rounded md:group-hover:flex md:focus-visible:flex"
+                            aria-label={t("hc_routesAppMessages.select")}
+                          >
+                            <Square className="h-4 w-4 text-muted-foreground" />
+                          </button>
+                        )}
                         {/* Kebab por conv: solo visible si no hay selección
                             activa (cuando hay, la toolbar arriba toma el
                             control y el kebab confunde). */}
