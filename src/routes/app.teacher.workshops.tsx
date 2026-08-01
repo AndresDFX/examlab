@@ -4772,7 +4772,11 @@ function TeacherWorkshops() {
                                               <CollapsibleTrigger asChild>
                                                 <button
                                                   type="button"
-                                                  className="w-full flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
+                                                  // `py-2` no es decoración: sin padding vertical la altura del botón era el
+                                                  // line-height de text-2xs (~16px), la mitad del piso
+                                                  // táctil de 32px del proyecto. Es un encabezado
+                                                  // colapsable que el docente toca en el celular.
+                                                  className="w-full flex items-center gap-2 py-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
                                                 >
                                                   <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                                                   <Bot className="h-3 w-3" />
@@ -4914,7 +4918,11 @@ function TeacherWorkshops() {
                                               <CollapsibleTrigger asChild>
                                                 <button
                                                   type="button"
-                                                  className="w-full flex items-center gap-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
+                                                  // `py-2` no es decoración: sin padding vertical la altura del botón era el
+                                                  // line-height de text-2xs (~16px), la mitad del piso
+                                                  // táctil de 32px del proyecto. Es un encabezado
+                                                  // colapsable que el docente toca en el celular.
+                                                  className="w-full flex items-center gap-2 py-2 text-2xs font-medium text-amber-700 dark:text-amber-300 group"
                                                 >
                                                   <ChevronRight className="h-3 w-3 transition-transform group-data-[state=open]:rotate-90" />
                                                   <Users className="h-3 w-3" />
