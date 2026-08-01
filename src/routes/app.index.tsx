@@ -467,10 +467,17 @@ function AdminDashboard() {
                 .is("ai_grade", null)
                 .in("project_id", diagProjectIds)
             : Promise.resolve({ data: [] }),
-          dbAny
-            .from("course_enrollments")
-            .select("course_id, user_id")
-            .in("course_id", tenantCourseIds),
+          // Guard OBLIGATORIO igual que sus dos vecinos de arriba: un
+          // `.in(col, [])` en PostgREST devuelve TODAS las filas, no ninguna.
+          // Sin esto, una institución SIN cursos traía las matrículas de TODAS
+          // las demás y el conteo de "pendientes de calificación" del panel se
+          // inflaba con datos de otras instituciones.
+          tenantCourseIds.length
+            ? dbAny
+                .from("course_enrollments")
+                .select("course_id, user_id")
+                .in("course_id", tenantCourseIds)
+            : Promise.resolve({ data: [] }),
         ]);
         if (cancelled) return;
         // Set de matriculados por curso — no contar entregas de estudiantes

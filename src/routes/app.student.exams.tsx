@@ -120,7 +120,18 @@ function StudentExams() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
-  const [now, setNow] = useState(Date.now());
+  // Reloj para clasificar el estado de cada examen (próximo / abierto / cerrado).
+  // Arranca en 0 y NO en Date.now(): el initializer de useState corre también en
+  // el pre-render del servidor, y dos relojes distintos a ambos lados de un borde
+  // de inicio/fin producen árboles distintos → hydration mismatch (React #418),
+  // que es exactamente lo que GlobalErrorLogger termina mandando al log de
+  // auditoría. El 0 es inobservable porque `rows` arranca vacío: nada que dependa
+  // de `now` se pinta hasta que la query resuelve, y el effect de abajo ya lo
+  // puso en hora.
+  //
+  // La línea de `statusFilter`, unas pocas más abajo, ya citaba esta regla — acá
+  // se había colado la misma clase de defecto.
+  const [now, setNow] = useState(0);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
   // Default: "available" (ventana abierta = lo que el alumno puede tomar
@@ -147,6 +158,10 @@ function StudentExams() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Poner el reloj en hora en el primer tick POST-MOUNT, sin esperar los 30s:
+    // si no, con now=0 todo examen daría `now < start` y se vería como "próximo"
+    // hasta el primer intervalo.
+    setNow(Date.now());
     const t = setInterval(() => setNow(Date.now()), 30000);
     return () => clearInterval(t);
   }, []);
