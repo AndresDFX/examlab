@@ -485,10 +485,21 @@ export function SystemDiagnosticsPanel() {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setHc({ state: "error", message, latencyMs: 0 });
+      // `warning`, NO `error`. Una sonda de diagnóstico que falla es el panel
+      // FUNCIONANDO: detectar y mostrar la falla es su único propósito, y el
+      // `setHc({state:"error"})` de arriba ya se lo pone al Admin delante de los
+      // ojos. Registrarlo además como `error` llenaba el módulo Errores —que
+      // muestra SOLO severity='error' y es donde se busca "qué está roto que
+      // tengo que arreglar"— de ruido no accionable: en el log real estas sondas
+      // eran 23 de 25 entradas de error (92%), tapando las 2 que sí eran un
+      // defecto de la aplicación.
+      //
+      // El historial NO se pierde: Auditoría lista todas las severidades, así
+      // que "¿el edge estaba caído a las 3pm?" se sigue respondiendo ahí.
       void logEvent({
         action: "system.diagnostic.edge_function_failed",
         category: "system",
-        severity: "error",
+        severity: "warning",
         metadata: { check: "health-check", error: message },
       });
     }
@@ -508,10 +519,13 @@ export function SystemDiagnosticsPanel() {
     } catch (e) {
       const message = e instanceof Error ? e.message : String(e);
       setDb({ state: "error", message, latencyMs: 0 });
+      // Misma razón que la sonda del edge de arriba: el resultado negativo de un
+      // diagnóstico es el panel funcionando, y ya se muestra en pantalla. Va a
+      // Auditoría como `warning`, no al canal de errores accionables.
       void logEvent({
         action: "system.diagnostic.db_failed",
         category: "system",
-        severity: "error",
+        severity: "warning",
         metadata: { check: "courses-count", error: message },
       });
     }
