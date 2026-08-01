@@ -13,7 +13,7 @@
  * "sin registro".
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -1034,6 +1034,59 @@ function CheckInDialog({
   onClose: () => void;
   children: React.ReactNode;
 }) {
+  const panelRef = useRef<HTMLDivElement | null>(null);
+
+  // Teclado y foco a mano, SIN migrar a Radix: el escáner QR se monta acá dentro
+  // con Suspense y pide cámara, así que cambiar el contenedor obliga a probar en
+  // dispositivo. Esto da las tres piezas que faltaban con cero riesgo de remonte.
+  useEffect(() => {
+    // Quién tenía el foco antes de abrir, para devolvérselo al cerrar. Si no, al
+    // cerrar el foco cae al <body> y quien navega por teclado tiene que
+    // recorrer la página entera de nuevo.
+    const prev = document.activeElement as HTMLElement | null;
+    panelRef.current?.focus();
+
+    const focusables = () =>
+      Array.from(
+        panelRef.current?.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      ).filter((el) => el.offsetParent !== null);
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // La lista se consulta EN CADA Tab, no una vez al montar: el escáner llega
+      // por Suspense después, así que un set calculado al abrir dejaría afuera
+      // justo sus controles.
+      const items = focusables();
+      if (items.length === 0) {
+        e.preventDefault();
+        panelRef.current?.focus();
+        return;
+      }
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+        e.preventDefault();
+        last.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      prev?.focus?.();
+    };
+  }, [onClose]);
+
   return (
     <div
       className="fixed inset-0 z-50 bg-background/80 backdrop-blur-sm flex items-center justify-center p-4"
@@ -1045,21 +1098,24 @@ function CheckInDialog({
       role="presentation"
     >
       <div
-        className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4 max-h-[85dvh] overflow-y-auto"
+        ref={panelRef}
+        // tabIndex -1: el panel no entra en el orden de tabulación pero SÍ puede
+        // recibir el foco por código, que es lo que necesita el effect al abrir.
+        tabIndex={-1}
+        className="bg-card border rounded-lg shadow-lg w-full max-w-sm p-4 max-h-[85dvh] overflow-y-auto outline-none"
         onClick={(e) => e.stopPropagation()}
-        // `role="dialog"` + `aria-label` es mejora neta. Lo que NO va acá es
-        // `aria-modal="true"`: le indica a la tecnología asistiva que trate
-        // como inerte todo lo de AFUERA, pero este diálogo es artesanal y no
-        // mueve el foco adentro (no hay portal, ni focus trap, ni Escape, ni
-        // restauración). El cursor virtual quedaría afuera, en contenido que la
-        // AT ya suprimió: callejón sin salida, y justo en la pantalla que el
-        // alumno abre con el celular en clase.
+        // Ahora `aria-modal` SÍ corresponde. Antes lo saqué a propósito: le dice
+        // a la tecnología asistiva que trate como inerte todo lo de afuera, y
+        // como el foco nunca entraba, el cursor virtual quedaba atrapado afuera
+        // en contenido ya suprimido. Con el effect de arriba —foco al abrir,
+        // trampa en Tab, Escape y restauración al cerrar— la promesa que hace
+        // este atributo se cumple de verdad.
         //
-        // El arreglo de fondo es migrarlo al Dialog del design system (Radix ya
-        // da portal, focus trap, Esc y restauración), pero eso cambia
-        // comportamiento y monta la cámara del escáner adentro, así que pide
-        // prueba en dispositivo.
+        // Sigue sin ser el Dialog del design system (que además daría portal);
+        // no se migró porque el escáner QR se monta acá dentro con Suspense y
+        // cámara, y eso pide prueba en dispositivo.
         role="dialog"
+        aria-modal="true"
         aria-label={title}
       >
         <div className="text-base font-semibold mb-3">{title}</div>
