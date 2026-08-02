@@ -62,10 +62,14 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import {
   TRASH_TABLE_LABEL,
   TRASH_NAME_COL,
+  TRASH_COURSE_COL,
   restoreItem,
   hardDeleteItem,
   type TrashTable,
 } from "@/modules/trash/soft-delete";
+import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -128,21 +132,46 @@ function TrashPage() {
   const [bulkBusy, setBulkBusy] = useState(false);
   const [retryNonce, setRetryNonce] = useState(0);
 
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const load = useCallback(async () => {
     setLoading(true);
     setLoadError(null);
     try {
+      // El docente ve SOLO lo borrado de los cursos que dicta. Acá había un
+      // comentario que decía "RLS aplica: docente ve lo de sus cursos", y es
+      // FALSO: las policies de estas tablas están scopeadas por TENANT. Un
+      // docente veía lo borrado de toda la institución y podía restaurarlo o
+      // eliminarlo definitivo — el mismo bug de visibilidad del resto de las
+      // pantallas, pero con consecuencia de borrado (ver course-scope.ts).
+      const scope = await scopedCourseIds(activeRole, roles, user?.id);
       // 8 queries en paralelo, una por tabla. Cada una trae solo lo
       // borrado y solo las columnas mínimas necesarias para el render.
-      // RLS aplica: docente ve lo de sus cursos, admin lo de su tenant.
       const results = await Promise.all(
         TABLES.map(async (table) => {
           const nameCol = TRASH_NAME_COL[table];
-          const { data, error } = await db
+          const courseCol = TRASH_COURSE_COL[table];
+          const cols = `id, ${nameCol}, deleted_at, deleted_by`;
+          let q = db
             .from(table)
-            .select(`id, ${nameCol}, deleted_at, deleted_by`)
+            .select(courseCol && courseCol !== "id" ? `${cols}, ${courseCol}` : cols)
             .not("deleted_at", "is", null)
             .order("deleted_at", { ascending: false });
+          if (scope && courseCol) {
+            if (scope.length === 0) {
+              // Docente sin cursos: no consultar. Un `.in(col, [])` en
+              // PostgREST devuelve TODAS las filas, no ninguna.
+              return [];
+            }
+            // `or` en vez de `in` para dejar pasar lo que NO tiene curso
+            // (pizarras y contenidos personales): no se le puede atribuir el
+            // curso de otro docente, así que esconderlo sería el error caro.
+            q =
+              courseCol === "id"
+                ? q.in("id", scope)
+                : q.or(`${courseCol}.in.(${scope.join(",")}),${courseCol}.is.null`);
+          }
+          const { data, error } = await q;
           if (error) {
             // No abortamos el load entero por un error en una tabla
             // — algunas pueden no existir en entornos viejos.
@@ -190,7 +219,7 @@ function TrashPage() {
       );
       setLoading(false);
     }
-  }, [t]);
+  }, [t, activeRole, roles, user?.id]);
 
   useEffect(() => {
     void load();

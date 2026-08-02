@@ -58,6 +58,31 @@ export const TRASH_NAME_COL: Record<TrashTable, string> = {
 };
 
 /**
+ * Columna por la que se atribuye cada item a un curso.
+ *
+ * Existe para que la Papelera pueda acotarse al docente. El comentario que había
+ * en la página afirmaba que "la RLS aplica: docente ve lo de sus cursos", y es
+ * falso: las policies de estas tablas están scopeadas por TENANT, no por
+ * `course_teachers`. O sea que un docente veía lo borrado de toda la institución
+ * y podía restaurarlo o eliminarlo definitivo — el mismo bug de visibilidad que
+ * el resto de las pantallas, pero con consecuencia de borrado (ver course-scope).
+ *
+ * En `courses` la clave es el propio `id`: el item ES el curso. `tenants` no se
+ * acota — solo el SuperAdmin llega a esas filas.
+ */
+export const TRASH_COURSE_COL: Record<TrashTable, string | null> = {
+  courses: "id",
+  exams: "course_id",
+  workshops: "course_id",
+  projects: "course_id",
+  attendance_sessions: "course_id",
+  whiteboards: "course_id",
+  generated_contents: "course_id",
+  polls: "course_id",
+  tenants: null,
+};
+
+/**
  * Error de Supabase/Postgres preservando `code`/`details`/`hint` — NO solo el
  * `message`. Sin el `code`, `friendlyError()` no puede mapear el SQLSTATE
  * (RLS 42501, FK 23503, RAISE P0001…) y cae al fallback genérico

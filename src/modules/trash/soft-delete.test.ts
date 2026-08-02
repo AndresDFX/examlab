@@ -9,7 +9,12 @@
  * (RPC con SECURITY INVOKER + RLS) es la que importa.
  */
 import { describe, expect, it } from "vitest";
-import { TRASH_TABLE_LABEL, TRASH_NAME_COL, type TrashTable } from "./soft-delete";
+import {
+  TRASH_TABLE_LABEL,
+  TRASH_NAME_COL,
+  TRASH_COURSE_COL,
+  type TrashTable,
+} from "./soft-delete";
 
 /** Set canónico de tablas de papelera — alineado con las migraciones SQL
  *  20260816000000 (8 entidades base) y 20260818000000 (tenants). Si
@@ -84,5 +89,43 @@ describe("TRASH_NAME_COL", () => {
     expect(TRASH_NAME_COL.generated_contents).toBe("topic");
     expect(TRASH_NAME_COL.polls).toBe("title");
     expect(TRASH_NAME_COL.tenants).toBe("name");
+  });
+});
+
+/**
+ * La Papelera se acota al docente por esta columna. El comentario que había en la
+ * página afirmaba que "la RLS aplica: docente ve lo de sus cursos" — es falso, las
+ * policies están scopeadas por TENANT. Sin este mapa, un docente veía lo borrado
+ * de toda la institución y podía restaurarlo o eliminarlo definitivo.
+ */
+describe("TRASH_COURSE_COL", () => {
+  it("cubre TODAS las tablas del set canónico", () => {
+    EXPECTED_TABLES.forEach((tbl) => {
+      expect(TRASH_COURSE_COL).toHaveProperty(tbl);
+    });
+  });
+
+  it("en `courses` la clave es el propio id (el item ES el curso)", () => {
+    expect(TRASH_COURSE_COL.courses).toBe("id");
+  });
+
+  it("las 6 entidades que cuelgan de un curso se atribuyen por course_id", () => {
+    (
+      [
+        "exams",
+        "workshops",
+        "projects",
+        "attendance_sessions",
+        "whiteboards",
+        "generated_contents",
+        "polls",
+      ] as const
+    ).forEach((tbl) => {
+      expect(TRASH_COURSE_COL[tbl]).toBe("course_id");
+    });
+  });
+
+  it("`tenants` NO se acota: solo el SuperAdmin llega a esas filas", () => {
+    expect(TRASH_COURSE_COL.tenants).toBeNull();
   });
 });

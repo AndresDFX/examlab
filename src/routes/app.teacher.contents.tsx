@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -601,16 +602,18 @@ function TeacherContents() {
         db.from("content_brand_config").select("*").maybeSingle(),
         // Cursos visibles para este usuario. Antes filtrábamos via
         // `course_teachers`, pero esa tabla no siempre tiene una fila
-        // por docente (en orgs chicas o cuando los cursos los crea Admin
-        // sin asignación explícita queda vacía). Ahora pedimos `courses`
-        // directo y dejamos que la RLS de la tabla recorte.
-        // `db` (untyped): la columna `courses.status` aún no está en los
-        // types generados de Supabase; el cliente tipado la rechaza.
-        db
-          .from("courses")
-          .select("id, name, status, start_date, end_date")
-          .is("deleted_at", null)
-          .order("name"),
+        // por docente porque `course_teachers` a veces queda vacía. Pero
+        // "dejar que la RLS recorte" NO recorta al docente: la policy de
+        // `courses` deja ver TODO el tenant, así que el dialog "Asignar a
+        // cursos" ofrecía cursos ajenos. Se vuelve a acotar por ROL ACTIVO, y
+        // el caso "sin asignaciones" ahora se explica con un aviso accionable
+        // en vez de una lista misteriosamente vacía (ver course-scope.ts).
+        fetchScopedCourses<CourseLite>(
+          activeRole,
+          roles,
+          user.id,
+          "id, name, status, start_date, end_date",
+        ),
         // Tenants — solo el SuperAdmin ve >1. Para Admin/Docente la RLS
         // recorta al suyo y el array queda en 1 → el Select abajo no se
         // renderiza (`tenants.length > 0` gate).

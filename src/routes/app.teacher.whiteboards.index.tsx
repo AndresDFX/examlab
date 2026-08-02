@@ -17,6 +17,8 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -117,7 +119,8 @@ interface Whiteboard {
 
 function TeacherWhiteboards() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [items, setItems] = useState<Whiteboard[]>([]);
@@ -276,7 +279,17 @@ function TeacherWhiteboards() {
     if (!user) return;
     setLoading(true);
     setLoadError(null);
-    const { data, error } = await db
+    // El docente ve SUS pizarras y las COMPARTIDAS con los cursos que dicta.
+    // Antes se traía el tenant completo: la RLS de `whiteboards` está scopeada
+    // por institución, no por docente, así que el grid mezclaba las pizarras de
+    // los colegas (ver course-scope.ts). Es la misma decisión que ya tomaba
+    // Contenidos, que filtra su listado por `teacher_id`.
+    //
+    // La rama de compartidas NO se puede omitir: dos docentes que dictan el
+    // mismo curso comparten pizarra, y filtrar solo por `owner_id` le
+    // escondería al co-docente una pizarra que sí es de su clase.
+    const scope = await scopedCourseIds(activeRole, roles, user.id);
+    let q = db
       .from("whiteboards")
       .select(
         "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at)",
@@ -284,6 +297,17 @@ function TeacherWhiteboards() {
       // Ocultar pizarras en papelera de la lista del docente.
       .is("deleted_at", null)
       .order("updated_at", { ascending: false });
+    if (scope) {
+      q =
+        scope.length === 0
+          ? // Sin cursos asignados quedan solo las propias. No se usa
+            // `.in("course_id", [])`: en PostgREST eso devuelve TODAS las filas.
+            q.eq("owner_id", user.id)
+          : q.or(
+              `owner_id.eq.${user.id},and(is_shared_with_course.eq.true,course_id.in.(${scope.join(",")}))`,
+            );
+    }
+    const { data, error } = await q;
     if (error) {
       setLoadError(
         friendlyError(error, i18n.t("hc_routesAppTeacherWhiteboardsIndex.loadErrorFallback")),
@@ -293,7 +317,7 @@ function TeacherWhiteboards() {
     }
     setItems((data ?? []) as Whiteboard[]);
     setLoading(false);
-  }, [user]);
+  }, [user, activeRole, roles]);
 
   useEffect(() => {
     void load();
