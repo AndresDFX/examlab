@@ -2,6 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { needsTeacherScope } from "@/modules/courses/course-scope";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -147,6 +149,7 @@ type CourseLite = { id: string; name: string; period: string | null };
 
 function TeacherAIPrompts() {
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const { t } = useTranslation();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
@@ -185,18 +188,19 @@ function TeacherAIPrompts() {
     (async () => {
       setLoadingCourses(true);
       setCoursesError(null);
-      // Para Docente solo ver cursos donde es teacher.
-      // Hacemos un join via course_teachers para limitar (Admin verá todos
-      // por RLS si así se desea, pero en esta vista filtramos a "mis cursos").
+      // El docente ve SOLO los cursos que dicta. La RLS de `courses` no lo
+      // puede dar: deja ver todo el tenant a cualquier autenticado.
       let q = db
         .from("courses")
         .select("id, name, period")
         .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
-      if (roles.includes("Docente") && !roles.includes("Admin") && user) {
-        // Con RLS, el docente solo ve sus cursos; igual añadimos filtro
-        // explícito para Admin actuando como Docente.
+      // El comentario que había acá decía que el filtro cubría al "Admin
+      // actuando como Docente", y la condición hacía lo contrario: excluía a
+      // quien POSEE Admin, que es justo el caso del reporte. Decide el rol
+      // ACTIVO (ver course-scope.ts).
+      if (needsTeacherScope(activeRole, roles) && user) {
         const { data: ct } = await db
           .from("course_teachers")
           .select("course_id")
@@ -227,7 +231,7 @@ function TeacherAIPrompts() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTeacher, user?.id, retryNonce]);
+  }, [isTeacher, user?.id, retryNonce, activeRole, roles]);
 
   // Carga prompts globales + overrides del curso seleccionado.
   const loadPrompts = async (cid: string) => {

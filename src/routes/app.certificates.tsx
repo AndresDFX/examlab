@@ -18,6 +18,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { PageLoader } from "@/components/ui/loaders";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
@@ -206,8 +207,22 @@ function CertificatesAdmin() {
           return;
         }
       }
+      // El docente ve SOLO los certificados de los cursos que dicta. La RLS de
+      // `certificates` está scopeada por institución, no por docente, así que
+      // sin esto veía los de los alumnos de sus colegas (ver course-scope.ts).
+      // No choca con `courseIdsFilter`: ese es del SuperAdmin, que nunca se acota.
+      const scope = await scopedCourseIds(activeRole, roles, user?.id);
+      if (cancelled) return;
+      if (scope && scope.length === 0) {
+        // Sin cursos asignados no hay certificados que mostrar. No se consulta:
+        // un `.in("course_id", [])` en PostgREST devuelve TODAS las filas.
+        setItems([]);
+        setLoading(false);
+        return;
+      }
       let q = db.from("certificates").select("*").order("issued_at", { ascending: false });
       if (courseIdsFilter) q = q.in("course_id", courseIdsFilter);
+      if (scope) q = q.in("course_id", scope);
       const { data, error } = await q;
       if (cancelled) return;
       if (error) {
@@ -220,11 +235,11 @@ function CertificatesAdmin() {
     return () => {
       cancelled = true;
     };
-  }, [user, retryNonce, isSuperAdminCaller, tenantFilter]);
+  }, [user, retryNonce, isSuperAdminCaller, tenantFilter, activeRole, roles]);
 
-  // Lista derivada (course_id, nombre) para alimentar el selector. Como
-  // los certificados ya están filtrados por RLS al alcance del usuario,
-  // los cursos disponibles son justo los que tiene certificados emitidos.
+  // Lista derivada (course_id, nombre) para alimentar el selector: los cursos
+  // disponibles son justo los que tienen certificados emitidos. Se apoya en que
+  // `items` ya viene acotado arriba — NO en la RLS, que solo acota al tenant.
   const courseOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of items) {
