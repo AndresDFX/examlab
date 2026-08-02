@@ -895,7 +895,7 @@ function TeacherExams() {
                 <SortableHead
                   sortKey="weight"
                   sort={sort}
-                  className="text-right hidden md:table-cell w-16"
+                  className="text-right hidden xl:table-cell w-16"
                 >
                   {t("hc_routesAppTeacherExamsIndex.colWeight")}
                 </SortableHead>
@@ -905,16 +905,16 @@ function TeacherExams() {
                 <SortableHead sortKey="end_time" sort={sort} className="hidden sm:table-cell w-28">
                   {t("exam.columns.end")}
                 </SortableHead>
-                <SortableHead sortKey="duration" sort={sort} className="hidden lg:table-cell w-24">
+                <SortableHead sortKey="duration" sort={sort} className="hidden xl:table-cell w-24">
                   {t("exam.columns.duration")}
                 </SortableHead>
-                <SortableHead sortKey="kind" sort={sort} className="hidden md:table-cell w-24">
+                <SortableHead sortKey="kind" sort={sort} className="hidden xl:table-cell w-24">
                   {t("exam.columns.type")}
                 </SortableHead>
                 <SortableHead sortKey="status" sort={sort} className="w-24">
                   {t("hc_routesAppTeacherExamsIndex.colStatus")}
                 </SortableHead>
-                <SortableHead sortKey="navigation" sort={sort} className="hidden lg:table-cell w-28">
+                <SortableHead sortKey="navigation" sort={sort} className="hidden xl:table-cell w-28">
                   {t("exam.columns.navigation")}
                 </SortableHead>
                 <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
@@ -998,7 +998,7 @@ function TeacherExams() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right hidden md:table-cell">
+                  <TableCell className="text-sm tabular-nums text-right hidden xl:table-cell">
                     {e.cut_id != null && e.weight != null
                       ? `${formatPercent(Number(e.weight))}%`
                       : "—"}
@@ -1022,13 +1022,13 @@ function TeacherExams() {
                     })()}
                   </TableCell>
                   <TableCell
-                    className="text-sm hidden lg:table-cell tabular-nums whitespace-nowrap"
+                    className="text-sm hidden xl:table-cell tabular-nums whitespace-nowrap"
                     truncate
                     title={formatDuration(e.time_limit_minutes)}
                   >
                     {formatDuration(e.time_limit_minutes)}
                   </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell className="hidden xl:table-cell">
                     {(e as any).is_external ? (
                       <Badge variant="outline" className="text-3xs">
                         {t("exam.kindExternal")}
@@ -1042,7 +1042,7 @@ function TeacherExams() {
                   <TableCell>
                     <StatusBadge status={(e as any).status ?? "published"} />
                   </TableCell>
-                  <TableCell className="hidden lg:table-cell">
+                  <TableCell className="hidden xl:table-cell">
                     <Badge variant="secondary" className="text-3xs">
                       {e.navigation_type === "secuencial"
                         ? t("exam.navigationSequential")

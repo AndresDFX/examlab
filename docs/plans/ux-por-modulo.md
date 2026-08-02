@@ -39,18 +39,28 @@ Tres falsos positivos que el script tuvo y que conviene no volver a perseguir:
 - **Un `h-3` dentro de un botón** suele ser el ícono, no el botón. Hay que mirar si el botón declara
   su propio alto o padding.
 
-## Lo que queda: densidad de columnas (P7)
+## Densidad de columnas (P7) — cerrado
 
 P7 pide **≤ 8 columnas visibles en `lg`**. Medido por bloque `<TableHeader>`, no por archivo — un
 archivo puede tener 3 tablas y el número sumado no dice nada:
 
-| Grid | Total | Visibles en móvil | Estado |
-|---|---|---|---|
-| `exams` — [app.teacher.exams.index.tsx:881](../../src/routes/app.teacher.exams.index.tsx) | **12** | 4 | pendiente |
-| `tenants` — [app.superadmin.tenants.tsx:1025](../../src/routes/app.superadmin.tenants.tsx) | 9 | 6 | pendiente |
-| `users` — [app.admin.users.tsx:1900](../../src/routes/app.admin.users.tsx) | 9 | 5 | pendiente |
-| `workshops` — [app.teacher.workshops.tsx:3063](../../src/routes/app.teacher.workshops.tsx) | 9 | 4 | pendiente |
-| `projects` — [app.teacher.projects.tsx:2613](../../src/routes/app.teacher.projects.tsx) | 9 | 4 | pendiente |
+| Grid | Total | En `lg` | Ancho en `lg` | Estado |
+|---|---|---|---|---|
+| `exams` — [app.teacher.exams.index.tsx:881](../../src/routes/app.teacher.exams.index.tsx) | 12 | **8** | 856px | ✅ |
+| `tenants` — [app.superadmin.tenants.tsx:1025](../../src/routes/app.superadmin.tenants.tsx) | 9 | 7 | 736px | ✅ ya cumplía |
+| `users` — [app.admin.users.tsx:1900](../../src/routes/app.admin.users.tsx) | 9 | 7 | 440px | ✅ ya cumplía |
+| `workshops` — [app.teacher.workshops.tsx:3063](../../src/routes/app.teacher.workshops.tsx) | 9 | **8** | 664px | ✅ |
+| `projects` — [app.teacher.projects.tsx:2613](../../src/routes/app.teacher.projects.tsx) | 9 | **8** | 664px | ✅ |
+
+**Frente P7 cerrado**: los 5 grids con ≤ 8 columnas en `lg` y ancho declarado bajo los 900px.
+
+Lo que se movió a `xl` es, en los tres casos, **configuración que el docente fijó una vez al crear**
+y que la vista de detalle ya muestra: duración, navegación, tipo y peso en exámenes; el peso en
+talleres y proyectos. No se borró ninguna columna — a partir de `xl` vuelven a estar, y en móvil
+nada cambió.
+
+Medir **por grid y no por archivo** cambió el diagnóstico: `tenants` y `users` ya cumplían. Su "9"
+era el total de columnas del archivo, no las visibles en `lg` (ya tenían 2 en `xl` cada uno).
 
 **El móvil ya está bien resuelto en todos**: 4-6 columnas visibles gracias al ocultamiento
 progresivo. Lo que falta es la densidad en pantalla grande, y el síntoma es el que describe el
@@ -66,22 +76,22 @@ filas son puertas (P5) y su flujo, no solo cuando pasa los checks mecánicos.
 |---|---|---|---|
 | `messages` | ✅ | ✅ | Botones anidados en la fila de conversación (HTML inválido) → la casilla en modo selección pasó a indicador con `aria-pressed` en la fila, y el checkbox de hover salió como hermano absoluto. Falta: `hover:bg-muted/40` vs `hover:bg-accent` de P5 (visual, toda la bandeja) |
 | `attendance` | ✅ | ✅ | Diálogo de check-in con Escape, foco al abrir, trampa de Tab y restauración; `aria-modal` recuperado. Falta: migrarlo al `Dialog` del design system (pide prueba con cámara en dispositivo) |
-| `workshops` | ✅ | 🔶 | Formulario agrupado en 3 secciones (P8); 2 encabezados colapsables pasaron de ~16px a 32px táctiles. Falta: grid de 9 columnas |
-| `exams` | ✅ | 🔶 | Formulario agrupado en 3 secciones (P8). Falta: grid de **12** columnas — el peor del programa |
+| `workshops` | ✅ | ✅ | Formulario agrupado en 3 secciones (P8); 2 encabezados colapsables de ~16px a 32px táctiles; grid a 8 columnas en `lg` |
+| `exams` | ✅ | ✅ | Formulario agrupado en 3 secciones (P8); grid de 12 a **8** columnas en `lg` (856px) |
 | `contents` | ✅ | 🔶 | Celda de nombre con `flex-1` y badges que ya no le roban ancho; 3 columnas con ocultamiento progresivo. Falta: partir los 14 ítems del menú de fila |
 | `gradebook` | ✅ | 🔶 | Encabezado fijo (`sticky`) + región acotada, tinte de corte de 4 a 6 tonos. Falta: decidir si orden/paginación aplican a una superficie de EDICIÓN |
 | `grades` | ✅ | 🔶 | Selector de curso a ancho completo en móvil, columna Peso oculta en móvil. Falta: P4 — es pantalla de lectura, 0 botones primarios; documentar como excepción |
-| `users` | ✅ | ⬜ | Diálogo a `sm:max-w-2xl`, grid de 3 columnas con `xs:`. Falta: grid de 9 columnas; 2 campos de contraseña sin `PasswordInput` |
+| `users` | ✅ | 🔶 | Diálogo a `sm:max-w-2xl`, grid de 3 columnas con `xs:`; el grid ya cumplía P7. Falta: 2 campos de contraseña sin `PasswordInput` |
 | `dashboard` | ✅ | ⬜ | Bloqueado: §4.1 y §4.2 del plan piden **dos decisiones de producto** (si el ranking del Reto sale del inicio del alumno; si el calendario de mes se reduce a una tira de 7 días) |
-| `projects` | ✅ | ⬜ | Falta: grid de 9 columnas; cards que no son puerta (P5) |
-| `tenants` | ✅ | ⬜ | Falta: grid de 9 columnas |
+| `projects` | ✅ | 🔶 | Grid a 8 columnas en `lg`. Falta: cards que no son puerta (P5) |
+| `tenants` | ✅ | 🔶 | El grid ya cumplía P7 (7 en `lg`). Falta: pase de flujo |
 | Los otros 19 | ✅ | ⬜ | Sin hallazgos mecánicos; falta el pase de flujo |
 
 ## Cómo retomarlo
 
 1. Correr el script de checks mecánicos. Si algún módulo dejó de estar en 0, es una regresión y va
    primero.
-2. Seguir por el frente de P7 en el orden de la tabla (arranca por `exams`, 12 columnas).
+2. El frente de P7 está cerrado. Lo siguiente es el pase de flujo de los 19 módulos sin revisar.
 3. Para cada módulo, la revisión manual mira lo que el script no ve: ¿hay **una** acción primaria
    sobre el pliegue? ¿la fila entera es la puerta a su entidad? ¿el formulario está agrupado si pasa
    de 8 campos?

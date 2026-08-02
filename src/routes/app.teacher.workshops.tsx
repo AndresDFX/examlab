@@ -3077,7 +3077,7 @@ function TeacherWorkshops() {
                 <SortableHead
                   sortKey="weight"
                   sort={sort}
-                  className="hidden lg:table-cell text-right w-16"
+                  className="hidden xl:table-cell text-right w-16"
                 >
                   {t("common.weight")}
                 </SortableHead>
@@ -3181,7 +3181,7 @@ function TeacherWorkshops() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right hidden lg:table-cell">
+                  <TableCell className="text-sm tabular-nums text-right hidden xl:table-cell">
                     {(ws as any).cut_id != null && (ws as any).weight != null
                       ? `${formatPercent(Number((ws as any).weight))}%`
                       : "—"}
