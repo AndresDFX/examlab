@@ -5,6 +5,8 @@ import i18next from "i18next";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent } from "@/components/ui/card";
@@ -212,7 +214,8 @@ type EditMap = Record<string, string>;
 function Gradebook() {
   const { t } = useTranslation();
 
-  const { roles, loading: authLoading } = useAuth();
+  const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -306,13 +309,28 @@ function Gradebook() {
     let cancelled = false;
     void (async () => {
       try {
-        const { data, error } = await supabase
+        // Acotado por ROL ACTIVO: un docente ve SOLO los cursos que dicta. La
+        // RLS de `courses` deja ver TODO el tenant a cualquier autenticado, así
+        // que el filtro no lo puede dar la base — ver course-scope.ts. Reporte:
+        // "desde el rol docente puede ver cursos de los que no es docente".
+        const ids = await scopedCourseIds(activeRole, roles, user?.id);
+        if (cancelled) return;
+        if (ids && ids.length === 0) {
+          // Sin cursos asignados: lista vacía SIN consultar (un `.in("id", [])`
+          // en PostgREST devuelve TODAS las filas).
+          setCourses([]);
+          setLoadError(null);
+          return;
+        }
+        let q = supabase
           .from("courses")
           .select(
             "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status",
           )
           .is("deleted_at", null)
           .order("name");
+        if (ids) q = q.in("id", ids);
+        const { data, error } = await q;
         if (cancelled) return;
         if (error) {
           setLoadError(friendlyError(error, t("hc_routesAppTeacherGradebook.couldNotLoadCourses")));
@@ -332,7 +350,7 @@ function Gradebook() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, activeRole, roles, user?.id]);
 
   // Guard de staleness/desmontaje: el docente cambia de curso rápido y
   // `loadCourse` también se llama imperativamente (tras guardar notas). Sin

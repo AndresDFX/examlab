@@ -11,7 +11,7 @@
  * desincronizan en el primer módulo nuevo.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "@tanstack/react-router";
 import { GraduationCap, Search } from "lucide-react";
@@ -27,6 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { isStaffActive } from "@/shared/lib/roles";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 
 /** Destino ya resuelto (label traducido) que la paleta puede ofrecer. */
 export type PaletteDestination = {
@@ -62,6 +63,10 @@ export function CommandPalette({
   const staff = isStaffActive(activeRole, roles);
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<CourseOption[]>([]);
+  // Rol con el que se cargó la lista. Sin esto, un usuario multi-rol que pasa de
+  // Admin a Docente seguía viendo la lista cacheada del tenant completo: el
+  // cambio de rol tiene que invalidarla.
+  const fetchedForRole = useRef<string | null>(null);
   // El atajo se ANUNCIA segun la plataforma: mostrar "⌘K" en Windows manda al
   // usuario a buscar una tecla Cmd que no existe. Arranca en false
   // (deterministico) y se resuelve post-mount: leer `navigator` en el
@@ -89,19 +94,36 @@ export function CommandPalette({
   // Los cursos se cargan al ABRIR, no al montar: son un dato secundario y no
   // deben costarle una query a cada carga de página.
   useEffect(() => {
-    if (!open || !user || !staff || courses.length > 0) return;
+    if (!open || !user || !staff) return;
+    if (fetchedForRole.current === (activeRole ?? "")) return;
     let cancelled = false;
     void (async () => {
       try {
-        // La RLS acota lo que cada rol ve; acá solo se excluye la papelera.
-        const { data } = await supabase
+        // El comentario que había acá decía que "la RLS acota lo que cada rol ve".
+        // Es FALSO para `courses`: su policy deja ver todos los cursos del
+        // tenant a cualquier autenticado, así que un docente veía en el buscador
+        // cursos que no dicta — y podía navegar a su tablero. El scoping por rol
+        // ACTIVO tiene que hacerlo el cliente (ver course-scope.ts).
+        const ids = await scopedCourseIds(activeRole, roles, user.id);
+        if (cancelled) return;
+        if (ids && ids.length === 0) {
+          // Docente sin cursos: lista vacía SIN consultar. Un `.in("id", [])` en
+          // PostgREST devuelve TODAS las filas, no ninguna.
+          setCourses([]);
+          fetchedForRole.current = activeRole ?? "";
+          return;
+        }
+        let q = supabase
           .from("courses")
           .select("id, name, period")
           .is("deleted_at", null)
           .order("name")
           .limit(MAX_COURSES);
+        if (ids) q = q.in("id", ids);
+        const { data } = await q;
         if (cancelled) return;
         setCourses((data as CourseOption[]) ?? []);
+        fetchedForRole.current = activeRole ?? "";
       } catch {
         // Sin cursos la paleta sigue sirviendo para los módulos.
       }
@@ -109,7 +131,7 @@ export function CommandPalette({
     return () => {
       cancelled = true;
     };
-  }, [open, user, staff, courses.length]);
+  }, [open, user, staff, activeRole, roles]);
 
   const shortcut = isMac ? "⌘K" : "Ctrl+K";
 

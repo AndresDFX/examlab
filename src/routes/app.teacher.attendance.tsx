@@ -3,6 +3,8 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
@@ -208,6 +210,7 @@ const STATUS_OPTIONS = [
 
 function TeacherAttendance() {
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -346,26 +349,46 @@ function TeacherAttendance() {
 
   // Load courses
   useEffect(() => {
-    supabase
-      .from("courses")
-      .select("id, name, period, status")
-      // Ocultar cursos en papelera del Select de curso del tablero.
-      .is("deleted_at", null)
-      .order("name")
-      .then(({ data, error }) => {
-        if (error) {
-          setLoadError(friendlyError(error, t("teacherAttendance.loadCoursesErrorHint")));
-          return;
-        }
+    // Acotado por ROL ACTIVO: un docente ve SOLO los cursos que dicta. La RLS de
+    // `courses` deja ver TODO el tenant a cualquier autenticado, así que este
+    // filtro no lo puede dar la base de datos — ver course-scope.ts. Reporte:
+    // "desde el rol docente puede ver cursos de los que no es docente".
+    let cancelled = false;
+    void (async () => {
+      const ids = await scopedCourseIds(activeRole, roles, user?.id);
+      if (cancelled) return;
+      if (ids && ids.length === 0) {
+        // Sin cursos asignados: lista vacía SIN consultar. Un `.in("id", [])` en
+        // PostgREST devuelve TODAS las filas, no ninguna.
+        setCourses([]);
         setLoadError(null);
-        // `as unknown as`: types.ts generado aún no incluye `courses.status`
-        // (columna existente en DB) → el cliente tipado la ve como error.
-        const rows = (data ?? []) as unknown as Course[];
-        setCourses(rows);
-        if (rows[0]) setCourseId(rows[0].id);
-      });
+        return;
+      }
+      let q = supabase
+        .from("courses")
+        .select("id, name, period, status")
+        // Ocultar cursos en papelera del Select de curso del tablero.
+        .is("deleted_at", null)
+        .order("name");
+      if (ids) q = q.in("id", ids);
+      const { data, error } = await q;
+      if (cancelled) return;
+      if (error) {
+        setLoadError(friendlyError(error, t("teacherAttendance.loadCoursesErrorHint")));
+        return;
+      }
+      setLoadError(null);
+      // `as unknown as`: types.ts generado aún no incluye `courses.status`
+      // (columna existente en DB) → el cliente tipado la ve como error.
+      const rows = (data ?? []) as unknown as Course[];
+      setCourses(rows);
+      if (rows[0]) setCourseId(rows[0].id);
+    })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, activeRole, roles, user?.id]);
 
   // Load data for selected course.
   // `isActive` permite al effect abortar los setState cuando el docente
