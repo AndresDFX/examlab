@@ -5,6 +5,11 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import {
+  fetchScopedCourses,
+  visibleForScopedCourses,
+} from "@/modules/courses/course-scope";
 import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -271,6 +276,7 @@ function TeacherWorkshops() {
   const { t } = useTranslation();
 
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   // Gate IA: cubre los tres handlers que invocan IA acá —
   // aiRegradeAnswer (re-grade pregunta), gradeOneWithAI (calificar
@@ -665,20 +671,21 @@ function TeacherWorkshops() {
     setLoading(true);
     try {
     const [
-      { data: cs, error: csErr },
+      { data: cs, error: csErr, scopedIds: courseScope },
       { data: ws, error: wsErr },
       { data: cuts },
       { data: aiErr },
       { data: wcRows },
     ] = await Promise.all([
-      supabase
-        .from("courses")
-        .select(
-          "id, name, period, grade_scale_min, grade_scale_max, passing_grade, end_date, status",
-        )
-        // Ocultar cursos en papelera del Select de curso del form/filtro.
-        .is("deleted_at", null)
-        .order("name"),
+      // El docente ve SOLO los cursos que dicta. Este Select no es solo un
+      // filtro: es también el del formulario, así que sin acotar se podía
+      // crear contenido en un curso ajeno (ver course-scope.ts).
+      fetchScopedCourses<Course>(
+        activeRole,
+        roles,
+        user?.id,
+        "id, name, period, grade_scale_min, grade_scale_max, passing_grade, end_date, status",
+      ),
       supabase
         .from("workshops")
         .select("*, course:courses(name, period)")
@@ -718,7 +725,6 @@ function TeacherWorkshops() {
     // `as unknown`: courses.status existe en la DB pero types.ts (generado) aún
     // no lo incluye — Lovable regenera en Publish. El cast evita el falso TS2352.
     setCourses((cs ?? []) as unknown as Course[]);
-    setWorkshops((ws ?? []) as any);
     setCuts((cuts ?? []) as Cut[]);
     const errMap: Record<string, number> = {};
     for (const row of (aiErr ?? []) as Array<{ workshop_id: string; error_count: number }>) {
@@ -746,6 +752,15 @@ function TeacherWorkshops() {
     }
     setWorkshopCourses(wcMap);
     setWorkshopCourseCuts(wcCutsMap);
+    // La lista se acota a los cursos del docente, igual que el Select. Se
+    // filtra ACÁ y no en `filtered*` para que los tiles de conteo y los
+    // diálogos hereden el mismo conjunto: si no, la tarjeta decía
+    // "37 publicados" sobre una tabla de 4 filas.
+    // El mapa M:N va como 3er argumento: un taller creado en otro curso pero
+    // COMPARTIDO al mío es mío y tiene que verse (ver course-scope.ts).
+    setWorkshops(
+      visibleForScopedCourses((ws ?? []) as any[], courseScope, wcMap) as any,
+    );
     } finally {
       setLoading(false);
     }
@@ -753,7 +768,7 @@ function TeacherWorkshops() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, activeRole, roles, user?.id]);
 
   // Deep-link desde notificación o modal de Conversaciones abiertas:
   //   ?workshop=WS_ID&submission=SUB_ID&question=Q_ID  (vista profunda)

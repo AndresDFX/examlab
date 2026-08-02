@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -75,6 +77,7 @@ type CourseOpt = { id: string; name: string; period: string | null };
 function TeacherStatistics() {
   const { t } = useTranslation();
   const { roles, user, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
@@ -85,31 +88,24 @@ function TeacherStatistics() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
-  // Cargar cursos del docente. Admin ve todos.
+  // Cargar cursos. El docente ve SOLO los que dicta; Admin ve todos.
+  //
+  // Acá vivía el bug reportado ("desde el rol docente puede ver cursos de los
+  // que no es docente"): el gate era `!roles.includes("Admin")`, y los roles de
+  // `useAuth` son los POSEÍDOS. Un usuario con Docente + Admin entraba por la
+  // rama de Admin aunque en la UI estuviera actuando como Docente, y se llevaba
+  // los cursos de toda la institución. Lo que manda es el rol ACTIVO.
   useEffect(() => {
     if (!user) return;
     let cancelled = false;
     (async () => {
       setLoadError(null);
-      let q = supabase
-        .from("courses")
-        .select("id, name, period")
-        .is("deleted_at", null)
-        .order("name");
-      if (!roles.includes("Admin")) {
-        const { data: ct } = await supabase
-          .from("course_teachers")
-          .select("course_id")
-          .eq("user_id", user.id);
-        const ids = (ct ?? []).map((r: { course_id: string }) => r.course_id);
-        if (cancelled) return;
-        if (ids.length === 0) {
-          setCourses([]);
-          return;
-        }
-        q = q.in("id", ids);
-      }
-      const { data, error } = await q;
+      const { data, error } = await fetchScopedCourses<CourseOpt>(
+        activeRole,
+        roles,
+        user.id,
+        "id, name, period",
+      );
       if (cancelled) return;
       if (error) {
         setLoadError(friendlyError(error, "No pudimos cargar tus cursos."));
@@ -123,7 +119,7 @@ function TeacherStatistics() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, roles.join(","), retryNonce]);
+  }, [user, activeRole, roles.join(","), retryNonce]);
 
   // Cargar dataset del curso seleccionado.
   // Guard `cancelled` evita race condition cuando el docente cambia

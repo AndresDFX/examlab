@@ -7,6 +7,11 @@ import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import {
+  fetchScopedCourses,
+  visibleForScopedCourses,
+} from "@/modules/courses/course-scope";
 import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
@@ -135,6 +140,7 @@ type Exam = {
 
 function TeacherExams() {
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const navigate = useNavigate();
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -370,14 +376,21 @@ function TeacherExams() {
   const load = async () => {
     setLoading(true);
     try {
-    const [{ data: cs, error: csErr }, { data: es, error: esErr }, { data: cs2 }] =
+    const [
+      { data: cs, error: csErr, scopedIds: courseScope },
+      { data: es, error: esErr },
+      { data: cs2 },
+    ] =
       await Promise.all([
-        supabase
-          .from("courses")
-          .select("id, name, period, end_date, status")
-          // Ocultar cursos en papelera del selector de filtro.
-          .is("deleted_at", null)
-          .order("name"),
+        // El docente ve SOLO los cursos que dicta. Este Select no es solo un
+        // filtro: es también el del formulario, así que sin acotar se podía
+        // crear contenido en un curso ajeno (ver course-scope.ts).
+        fetchScopedCourses<Course>(
+          activeRole,
+          roles,
+          user?.id,
+          "id, name, period, end_date, status",
+        ),
         supabase
           .from("exams")
           .select("*, course:courses(name, period)")
@@ -399,7 +412,11 @@ function TeacherExams() {
     // `as unknown`: courses.status existe en la DB pero types.ts (generado) aún
     // no lo incluye — Lovable regenera en Publish. El cast evita el falso TS2352.
     setCourses((cs ?? []) as unknown as Course[]);
-    setExams((es ?? []) as any);
+    // La lista se acota a los cursos del docente, igual que el Select. Se
+    // filtra ACÁ y no en `filtered*` para que los tiles de conteo y los
+    // diálogos hereden el mismo conjunto: si no, la tarjeta decía
+    // "37 publicados" sobre una tabla de 4 filas.
+    setExams(visibleForScopedCourses((es ?? []) as any[], courseScope) as any);
     setCuts((cs2 ?? []) as Cut[]);
     } finally {
       setLoading(false);
@@ -408,7 +425,7 @@ function TeacherExams() {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, activeRole, roles, user?.id]);
 
   // Cap dinámico del peso del examen para validación single-curso.
   const examWeightMax = useMemo(() => {

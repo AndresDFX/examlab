@@ -26,6 +26,7 @@
  * `[ids]` = docente con cursos: filtrar por esos ids.
  */
 
+import type { PostgrestError } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
 export type ActiveRoleLike = string | null | undefined;
@@ -81,4 +82,72 @@ export async function scopedCourseIds(
   if (!userId) return null;
   if (!needsTeacherScope(activeRole, roles)) return null;
   return fetchTeacherCourseIds(userId);
+}
+
+/**
+ * Lista de cursos YA acotada, sin papelera y ordenada por nombre.
+ *
+ * Existe porque el patrón de arriba (pedir los ids, cortar si vienen vacíos,
+ * aplicar `.in`) son cuatro pasos fáciles de hacer a medias, y casi todas las
+ * pantallas del docente cargan sus cursos dentro de un `Promise.all` donde ese
+ * `if` intermedio no cabe. Acá el corte de la lista vacía queda del lado del
+ * helper, así que la pantalla solo elige la proyección.
+ *
+ * El `select` es lo único que varía entre pantallas (unas necesitan la escala de
+ * notas, otras solo `id, name`). Si una necesita otro orden o filtros extra, que
+ * use `scopedCourseIds` y arme su query.
+ */
+export async function fetchScopedCourses<T>(
+  activeRole: ActiveRoleLike,
+  roles: readonly string[] | null | undefined,
+  userId: string | null | undefined,
+  select: string,
+): Promise<{ data: T[]; error: PostgrestError | null; scopedIds: string[] | null }> {
+  const ids = await scopedCourseIds(activeRole, roles, userId);
+  // Docente sin cursos: lista vacía SIN consultar. Es la diferencia entre `[]` y
+  // `null` que documenta el encabezado — un `.in("id", [])` devolvería TODO.
+  if (ids && ids.length === 0) return { data: [], error: null, scopedIds: ids };
+  const base = supabase
+    .from("courses")
+    .select(select)
+    .is("deleted_at", null)
+    .order("name");
+  const { data, error } = await (ids ? base.in("id", ids) : base);
+  // `scopedIds` sale acá para que la pantalla filtre TAMBIÉN su lista de
+  // contenido sin repetir la consulta a `course_teachers`. Sin eso, acotar solo
+  // el Select deja una incoherencia peor que el bug: el filtro ofrece 2 cursos
+  // y la tabla de al lado muestra el contenido de 12.
+  return { data: (data ?? []) as unknown as T[], error, scopedIds: ids };
+}
+
+/**
+ * Filtra contenido (exámenes, talleres, proyectos) a los cursos del docente.
+ *
+ * `scopedIds === null` devuelve la lista intacta: es Admin/SuperAdmin y la RLS ya
+ * acotó al tenant.
+ *
+ * Talleres y proyectos son **M:N** (`workshop_courses` / `project_courses`): el
+ * mismo taller puede estar compartido en varios cursos, y el `course_id` de la
+ * fila es solo el ancla. Filtrar por el ancla escondería un taller compartido a
+ * MI curso pero creado desde otro — por eso `sharedCourseIds` (que la pantalla ya
+ * tiene cargado en memoria). Los exámenes no lo necesitan: son de un curso.
+ */
+export function visibleForScopedCourses<
+  T extends { id: string; course_id?: string | null },
+>(
+  items: readonly T[],
+  scopedIds: readonly string[] | null,
+  sharedCourseIds?: ReadonlyMap<string, readonly string[]>,
+): T[] {
+  if (!scopedIds) return [...items];
+  const mine = new Set(scopedIds);
+  return items.filter((it) => {
+    if (it.course_id && mine.has(it.course_id)) return true;
+    const shared = sharedCourseIds?.get(it.id);
+    if (shared?.some((cid) => mine.has(cid))) return true;
+    // Contenido sin curso y sin comparticiones: se DEJA visible a propósito. No
+    // se le puede atribuir el curso de otro docente, así que esconderlo sería el
+    // error caro (el docente pierde su propio trabajo) frente a mostrarlo de más.
+    return !it.course_id && !shared?.length;
+  });
 }

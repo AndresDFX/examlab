@@ -19,6 +19,11 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import {
+  fetchScopedCourses,
+  visibleForScopedCourses,
+} from "@/modules/courses/course-scope";
 import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
@@ -207,6 +212,7 @@ type Project = {
 
 function TeacherProjects() {
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const { t } = useTranslation();
   const confirm = useConfirm();
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
@@ -595,14 +601,21 @@ function TeacherProjects() {
     // migración faltante) no esconda los datos que SÍ podemos cargar. Antes
     // un solo `Promise.all` rechazaba el load entero y la tabla quedaba
     // vacía sin mensaje, lo que bloqueaba el diagnóstico.
+    // Cursos del docente, si aplica. Se declara fuera del try porque el bloque
+    // que carga los proyectos —más abajo— también lo necesita.
+    let courseScope: string[] | null = null;
     try {
-      const cs = await db
-        .from("courses")
-        .select("id, name, period, language, grade_scale_max, end_date, status")
-        .is("deleted_at", null)
-        .order("name");
+      // El docente ve SOLO los cursos que dicta (ver course-scope.ts): este
+      // Select alimenta también el formulario de creación.
+      const cs = await fetchScopedCourses<Course>(
+        activeRole,
+        roles,
+        user?.id,
+        "id, name, period, language, grade_scale_max, end_date, status",
+      );
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
       setCourses((cs.data ?? []) as Course[]);
+      courseScope = cs.scopedIds;
     } catch (e) {
       console.error("[projects] courses load failed", e);
       toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.errorLoadingCourses")));
@@ -715,7 +728,11 @@ function TeacherProjects() {
           _course_cuts: cutsMapByProject.get(p.id) ?? {},
         };
       });
-      setProjects(enriched);
+      // La lista se acota a los cursos del docente, igual que el Select. Se
+      // filtra ACÁ y no en `filteredProjects` para que los tiles de conteo y
+      // los diálogos hereden el mismo conjunto. `linkMap` (M:N) hace que un
+      // proyecto creado en otro curso pero COMPARTIDO al mío siga siendo mío.
+      setProjects(visibleForScopedCourses(enriched, courseScope, linkMap));
       // Cargar counts de errores IA por proyecto (mismo patrón que exam/workshop).
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: aiErr } = await (supabase as any).rpc("count_ai_errors_per_project");
@@ -742,7 +759,7 @@ function TeacherProjects() {
     if (!isTeacher) return;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isTeacher, retryNonce]);
+  }, [isTeacher, retryNonce, activeRole, roles, user?.id]);
 
   // Deep-link desde notificación o modal de Conversaciones abiertas:
   //   ?project=PROJECT_ID&submission=SUB_ID&file=FILE_ID

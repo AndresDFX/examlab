@@ -20,6 +20,8 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -94,7 +96,8 @@ interface Props {
 
 export function ActasManager({ onPrintActa }: Props) {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [actas, setActas] = useState<Acta[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -124,7 +127,8 @@ export function ActasManager({ onPrintActa }: Props) {
           "id, course_id, curso_nombre, docente_nombre, periodo_codigo, total_estudiantes, total_aprobados, total_reprobados, generated_at, integrity_hash",
         )
         .order("generated_at", { ascending: false }),
-      db.from("courses").select("id, name").is("deleted_at", null).order("name"),
+      // El docente ve SOLO los cursos que dicta (ver course-scope.ts).
+      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name"),
     ]);
     if (isCancelled?.()) return;
     if (aErr) {
@@ -149,7 +153,7 @@ export function ActasManager({ onPrintActa }: Props) {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, retryNonce]);
+  }, [user, activeRole, roles, retryNonce]);
 
   // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
   // Un docente/Admin con muchos cursos acumula un acta por curso y por

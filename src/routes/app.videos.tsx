@@ -17,6 +17,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -256,12 +257,15 @@ function VideoLibrary() {
   useEffect(() => {
     void load();
     void (async () => {
-      // Excluir cursos en papelera del selector de curso del form de video.
-      const { data } = await db
-        .from("courses")
-        .select("id, name, status, start_date, end_date")
-        .is("deleted_at", null)
-        .order("name");
+      // El docente ve SOLO los cursos que dicta: este Select elige a qué curso
+      // se asocia el video, y ofrecer un curso ajeno lo dejaría publicando ahí
+      // (ver course-scope.ts). Excluye también los cursos en papelera.
+      const { data } = await fetchScopedCourses<CourseOption>(
+        activeRole,
+        roles,
+        user?.id,
+        "id, name, status, start_date, end_date",
+      );
       setCourses((data ?? []) as CourseOption[]);
     })();
     // Tenants — solo el SuperAdmin los necesita para el Select.
@@ -276,7 +280,7 @@ function VideoLibrary() {
       })();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce, tenantFilter, isSuperAdminActive]);
+  }, [retryNonce, tenantFilter, isSuperAdminActive, activeRole, roles, user?.id]);
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
   // talleres / exámenes / pizarras / contenidos / encuestas.

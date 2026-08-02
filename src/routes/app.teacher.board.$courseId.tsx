@@ -18,6 +18,7 @@ import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { toCSV } from "@/shared/lib/csv";
@@ -374,7 +375,7 @@ type UploadDest = "global" | string;
 function CourseBoardPage() {
   const { courseId } = Route.useParams();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [course, setCourse] = useState<{ id: string; name: string } | null>(null);
@@ -525,9 +526,16 @@ function CourseBoardPage() {
           .select("id, title, due_date, attendance_session_id")
           .eq("course_id", courseId)
           .is("deleted_at", null),
-        // Cursos visibles para el docente (RLS recorta al tenant). Para el
-        // dialog "Asignar a cursos" del grid de contenidos.
-        db.from("courses").select("id, name").is("deleted_at", null).order("name"),
+        // Cursos del docente para el dialog "Asignar a cursos" del grid de
+        // contenidos. El comentario anterior decía que "la RLS recorta al
+        // tenant": es cierto, pero recorta a TODO el tenant, así que ofrecía
+        // asignar material a cursos ajenos (ver course-scope.ts).
+        fetchScopedCourses<{ id: string; name: string }>(
+          activeRole,
+          roles,
+          user?.id,
+          "id, name",
+        ),
         // Cortes del curso (grade_cuts no está en types.ts auto-generado).
         db
           .from("grade_cuts")
@@ -640,7 +648,7 @@ function CourseBoardPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [courseId, reloadNonce]);
+  }, [courseId, reloadNonce, activeRole, roles, user?.id]);
 
   /** Items asociados EXPLÍCITAMENTE por el docente a esta sesión. */
   const itemsForSession = (s: SessionRow): ScheduledItem[] =>

@@ -19,6 +19,8 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -195,7 +197,8 @@ function TeacherReports() {
 
 function Inner() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
 
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -293,7 +296,8 @@ function Inner() {
           "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id, updated_at",
         )
         .order("name"),
-      db.from("courses").select("id, name").is("deleted_at", null).order("name"),
+      // El docente ve SOLO los cursos que dicta (ver course-scope.ts).
+      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name"),
     ]);
     if (isCancelled?.()) return;
     if (tErr) {
@@ -350,7 +354,7 @@ function Inner() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, retryNonce]);
+  }, [user, activeRole, roles, retryNonce]);
 
   const courseNameById = useMemo(() => {
     const m = new Map<string, string>();
