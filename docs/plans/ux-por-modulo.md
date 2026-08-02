@@ -62,10 +62,10 @@ nada cambió.
 Medir **por grid y no por archivo** cambió el diagnóstico: `tenants` y `users` ya cumplían. Su "9"
 era el total de columnas del archivo, no las visibles en `lg` (ya tenían 2 en `xl` cada uno).
 
-**El móvil ya está bien resuelto en todos**: 4-6 columnas visibles gracias al ocultamiento
-progresivo. Lo que falta es la densidad en pantalla grande, y el síntoma es el que describe el
-problema 7 de `ux-mejoras.md`: con `table-fixed` y 12 columnas, el **título** —el dato que identifica
-la fila— se comprime a ~18 caracteres.
+**El móvil nunca fue el problema acá**: ya tenía 4-6 columnas visibles gracias al ocultamiento
+progresivo, y sigue igual. Lo que se corrigió es la densidad en pantalla grande, cuyo síntoma
+describe el problema 7 de `ux-mejoras.md`: con `table-fixed` y 12 columnas, el **título** —el dato
+que identifica la fila— se comprimía a ~18 caracteres.
 
 ## Revisión manual por módulo
 
