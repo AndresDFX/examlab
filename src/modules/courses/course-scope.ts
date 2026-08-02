@@ -41,14 +41,22 @@ export type ActiveRoleLike = string | null | undefined;
  *
  * El SuperAdmin queda excluido incluso si su rol activo dijera Docente: opera
  * cross-tenant para soporte y necesita ver todo.
+ *
+ * Cuando el rol activo TODAVÍA no resolvió (primer render, antes de que el
+ * switcher publique su valor) se cae a los roles POSEÍDOS — el mismo patrón que
+ * `isStaffActive`. Y ahí la respuesta segura NO es "no acotar": un docente puro
+ * vería la institución completa durante ese render. Solo se deja sin acotar a
+ * quien PUEDE ser Admin, porque para él ver todo es legítimo y el switcher
+ * corregirá el caso contrario en cuanto resuelva.
  */
 export function needsTeacherScope(
   activeRole: ActiveRoleLike,
   roles: readonly string[] | null | undefined,
 ): boolean {
-  if (activeRole !== "Docente") return false;
-  if ((roles ?? []).includes("SuperAdmin")) return false;
-  return true;
+  const owned = roles ?? [];
+  if (owned.includes("SuperAdmin")) return false;
+  if (activeRole) return activeRole === "Docente";
+  return owned.includes("Docente") && !owned.includes("Admin");
 }
 
 /** Ids de los cursos donde el usuario figura en `course_teachers`. */

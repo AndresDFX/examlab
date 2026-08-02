@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
@@ -326,6 +327,9 @@ function TeacherAttendance() {
   // Carga del tablero del curso (sesiones + matriculados + registros).
   // Antes no había estado: la grilla se pintaba vacía y el docente veía
   // "Sin estudiantes matriculados" hasta que llegaban los datos.
+  // Distingue "todavía no cargó" de "no tiene cursos": sin esta bandera el
+  // aviso de "no tenés cursos asignados" parpadea un instante en cada carga.
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
   const [loadingCourse, setLoadingCourse] = useState(false);
   const [courseError, setCourseError] = useState<string | null>(null);
   const [courseRetryNonce, setCourseRetryNonce] = useState(0);
@@ -362,6 +366,7 @@ function TeacherAttendance() {
         // PostgREST devuelve TODAS las filas, no ninguna.
         setCourses([]);
         setLoadError(null);
+        setCoursesLoaded(true);
         return;
       }
       let q = supabase
@@ -382,6 +387,7 @@ function TeacherAttendance() {
       // (columna existente en DB) → el cliente tipado la ve como error.
       const rows = (data ?? []) as unknown as Course[];
       setCourses(rows);
+      setCoursesLoaded(true);
       if (rows[0]) setCourseId(rows[0].id);
     })();
     return () => {
@@ -1573,6 +1579,8 @@ function TeacherAttendance() {
           </div>
         }
       />
+
+      <NoAssignedCoursesNotice courseCount={courses.length} loading={!coursesLoaded} />
 
       {/* Legend (above the grid) */}
       <Card className="bg-muted/30 border-dashed">

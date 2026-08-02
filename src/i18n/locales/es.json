@@ -1134,7 +1134,9 @@
     "nameFromSubjectHint": "Se prellena con la asignatura del plan; puedes personalizarlo para esta versión del curso (ej. grupo, jornada o cohorte).",
     "programFromSubjectPlaceholder": "Se toma de la asignatura del plan",
     "subjectRequiredPlaceholder": "Elige una asignatura del plan",
-    "noSubjectsHint": "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos."
+    "noSubjectsHint": "No hay asignaturas en el plan. Créalas primero en Académico → Asignaturas para poder crear cursos.",
+    "noAssignedTitle": "No tenés cursos asignados",
+    "noAssignedHint": "Pedile al Admin de la institución que te asigne a un curso para empezar."
   },
   "contents": {
     "title": "Contenidos",
@@ -5223,9 +5225,7 @@
     "disabledTitle": "Módulo de preguntas deshabilitado",
     "disabledDescription": "El administrador desactivó este módulo. Contacta al admin si necesitas usarlo.",
     "courseLabel": "Curso",
-    "noCoursesAssigned": "No tenés cursos asignados",
     "selectCoursePlaceholder": "Selecciona un curso",
-    "noCoursesHint": "Pedile al Admin de la institución que te asigne a un curso para empezar.",
     "typeLabel": "Tipo",
     "allTypes": "Todos los tipos",
     "difficultyLabel": "Dificultad",

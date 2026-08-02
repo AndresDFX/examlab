@@ -7,6 +7,7 @@ import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
+import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import {
   fetchScopedCourses,
@@ -798,6 +799,8 @@ function TeacherExams() {
           </>
         }
       />
+
+      <NoAssignedCoursesNotice courseCount={courses.length} loading={loading} />
 
       {/* Stats 4-card — siempre visible, mismo patrón que el resto. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">

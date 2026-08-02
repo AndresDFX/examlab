@@ -40,14 +40,29 @@ describe("needsTeacherScope", () => {
     expect(needsTeacherScope("Estudiante", ["Estudiante"])).toBe(false);
   });
 
-  it("rol activo nulo (primer render antes de resolver) → NO se acota", () => {
-    // Devolver `true` acá haría que la pantalla parpadee vacía mientras el
-    // switcher resuelve; la RLS sigue acotando al tenant, así que es seguro.
-    expect(needsTeacherScope(null, ["Docente"])).toBe(false);
-    expect(needsTeacherScope(undefined, ["Docente"])).toBe(false);
+  // ── Rol activo sin resolver (primer render) ──
+  // Acá NO alcanza con "no acotar": un docente puro vería la institución completa
+  // durante ese render. Se cae a los roles poseídos, y solo se deja pasar a quien
+  // PUEDE ser Admin (para él ver todo es legítimo, y el switcher corrige después).
+
+  it("rol activo nulo + Docente puro → SÍ se acota (no mostrar de más ni un render)", () => {
+    expect(needsTeacherScope(null, ["Docente"])).toBe(true);
+    expect(needsTeacherScope(undefined, ["Docente"])).toBe(true);
   });
 
-  it("roles nulo o vacío no revienta", () => {
+  it("rol activo nulo + Docente que TAMBIÉN es Admin → NO se acota todavía", () => {
+    // No se puede saber la intención hasta que el switcher resuelva, y para un
+    // Admin ver todo es correcto. Si resuelve en Docente, el caso de arriba manda.
+    expect(needsTeacherScope(null, ["Docente", "Admin"])).toBe(false);
+  });
+
+  it("rol activo nulo + roles vacíos (auth cargando) → NO se acota", () => {
+    // Acotar acá dejaría la pantalla vacía por no saber todavía quién es.
+    expect(needsTeacherScope(null, [])).toBe(false);
+    expect(needsTeacherScope(null, null)).toBe(false);
+  });
+
+  it("roles nulo o vacío con rol activo Docente no revienta y acota", () => {
     expect(needsTeacherScope("Docente", null)).toBe(true);
     expect(needsTeacherScope("Docente", undefined)).toBe(true);
     expect(needsTeacherScope("Docente", [])).toBe(true);

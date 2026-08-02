@@ -1134,7 +1134,9 @@
     "nameFromSubjectHint": "Prefilled from the plan subject; customize it for this version of the course (e.g. group, shift or cohort).",
     "programFromSubjectPlaceholder": "Taken from the plan subject",
     "subjectRequiredPlaceholder": "Choose a plan subject",
-    "noSubjectsHint": "There are no plan subjects. Create them first in Academic → Subjects to be able to create courses."
+    "noSubjectsHint": "There are no plan subjects. Create them first in Academic → Subjects to be able to create courses.",
+    "noAssignedTitle": "You have no courses assigned",
+    "noAssignedHint": "Ask your institution Admin to assign you to a course to get started."
   },
   "contents": {
     "title": "Contents",
@@ -5223,9 +5225,7 @@
     "disabledTitle": "Questions module disabled",
     "disabledDescription": "The administrator disabled this module. Contact your admin if you need to use it.",
     "courseLabel": "Course",
-    "noCoursesAssigned": "You have no courses assigned",
     "selectCoursePlaceholder": "Select a course",
-    "noCoursesHint": "Ask your institution Admin to assign you to a course to get started.",
     "typeLabel": "Type",
     "allTypes": "All types",
     "difficultyLabel": "Difficulty",

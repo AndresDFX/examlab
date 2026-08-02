@@ -19,6 +19,7 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { useAuth } from "@/hooks/use-auth";
+import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import {
   fetchScopedCourses,
@@ -2534,6 +2535,8 @@ function TeacherProjects() {
           </>
         }
       />
+
+      <NoAssignedCoursesNotice courseCount={courses.length} loading={loading} />
 
       {/* Stats 4-card — siempre visible. */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

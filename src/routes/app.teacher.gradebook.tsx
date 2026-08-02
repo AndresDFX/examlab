@@ -5,6 +5,7 @@ import i18next from "i18next";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
+import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { isStaffRole } from "@/shared/lib/roles";
@@ -246,6 +247,9 @@ function Gradebook() {
   // Carga de los datos del curso (grilla + consolidado). Antes NO existía:
   // mientras `loadCourse` corría (14 queries) la pantalla quedaba vacía sin
   // spinner, y si una query fallaba quedaba vacía PARA SIEMPRE sin error.
+  // Distingue "todavía no cargó" de "no tiene cursos": sin esta bandera el
+  // aviso de "no tenés cursos asignados" parpadea un instante en cada carga.
+  const [coursesLoaded, setCoursesLoaded] = useState(false);
   const [loadingCourse, setLoadingCourse] = useState(false);
   // Error de la carga de datos del curso. Separado de `loadError` (que es el
   // de la LISTA de cursos y pinta la página completa): así el docente
@@ -320,6 +324,7 @@ function Gradebook() {
           // en PostgREST devuelve TODAS las filas).
           setCourses([]);
           setLoadError(null);
+          setCoursesLoaded(true);
           return;
         }
         let q = supabase
@@ -340,6 +345,7 @@ function Gradebook() {
         // `as unknown as`: types.ts generado aún no incluye `courses.status`.
         const rows = (data ?? []) as unknown as Course[];
         setCourses(rows);
+        setCoursesLoaded(true);
         if (rows[0]) setCourseId(rows[0].id);
       } catch (e) {
         if (cancelled) return;
@@ -2058,6 +2064,8 @@ function Gradebook() {
           </div>
         }
       />
+
+      <NoAssignedCoursesNotice courseCount={courses.length} loading={!coursesLoaded} />
 
       {selectedCourse && (
         <div className="flex flex-wrap items-center gap-4 rounded-md border p-3 bg-muted/30">

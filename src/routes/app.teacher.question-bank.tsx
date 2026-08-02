@@ -14,6 +14,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
+import { needsTeacherScope } from "@/modules/courses/course-scope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -157,6 +159,7 @@ const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);
 function QuestionBankPage() {
   const { t } = useTranslation();
   const { user, roles, loading: authLoading } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const aiGate = useAiAuthorizationGate();
 
@@ -232,6 +235,11 @@ function QuestionBankPage() {
   // branch de course_teachers y veía 0 cursos, dejando el banco inservible
   // pese a estar en su nav.
   const isAdminLike = isAdminLikeRole(roles);
+  // El alcance de la lista de cursos NO se decide con los roles POSEÍDOS: un
+  // usuario con Docente + Admin entraba por la rama de Admin aunque estuviera
+  // actuando como Docente, y se llevaba los cursos de toda la institución
+  // (mismo reporte que cerró el resto de las pantallas — ver course-scope.ts).
+  const scopeToMyCourses = needsTeacherScope(activeRole, roles);
 
   // Cargar cursos del docente
   useEffect(() => {
@@ -239,7 +247,7 @@ function QuestionBankPage() {
     let cancelled = false;
     (async () => {
       let query;
-      if (isAdminLike) {
+      if (!scopeToMyCourses) {
         query = db
           .from("courses")
           .select("id, name, status")
@@ -269,7 +277,7 @@ function QuestionBankPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user]);
+  }, [user, scopeToMyCourses]);
 
   // Cargar preguntas del banco para el curso seleccionado
   const load = async () => {
@@ -804,7 +812,7 @@ function QuestionBankPage() {
                 disabled={courses.length === 0}
                 placeholder={
                   courses.length === 0
-                    ? t("questionBank.noCoursesAssigned")
+                    ? t("courses.noAssignedTitle")
                     : t("questionBank.selectCoursePlaceholder")
                 }
               />
@@ -816,7 +824,7 @@ function QuestionBankPage() {
                 // POR CURSO (RLS lo enforza), así que sin curso no
                 // hay forma de crear.
                 <p className="text-2xs text-muted-foreground mt-1">
-                  {t("questionBank.noCoursesHint")}
+                  {t("courses.noAssignedHint")}
                 </p>
               )}
             </div>
