@@ -11,6 +11,11 @@ tratarlos juntos:
 |---|---|---|
 | **Más lenguajes** (Go, Rust, C, C++, C#, PHP, Ruby, TS, Haskell, F#) | **Ya está construido.** La UI expone 4 de 14 a propósito | Horas. Es destrabar una lista |
 | **Frameworks con preview** (React, Vue, Node…) | No existe, y la infraestructura actual **no puede** darlo | Semanas, y obliga a elegir infraestructura nueva |
+| **Entornos completos efímeros embebidos** (tipo Codespaces) | Codespaces **no se puede embeber** (verificado por cabeceras). StackBlitz/CodeSandbox sí | Días, si se acepta que el código pase por un tercero |
+
+Y sobre embeber Codespaces en particular: **no se puede**, y no es una limitación sorteable — lo
+prohíben sus propias cabeceras HTTP. Hay dos alternativas que sí se embeben y una de ellas encaja
+exactamente con "completo pero efímero" (parte 3).
 
 La conclusión incómoda del análisis es que **"tipo CodeSandbox" y "más lenguajes" no se resuelven con
 lo mismo**: el runner actual es un ejecutor por lotes (entra código, sale texto) y CodeSandbox es un
@@ -129,7 +134,10 @@ Y la consola v86 tampoco es la respuesta, aunque parezca: es Linux real, pero **
 
 Así que frameworks obliga a **infraestructura nueva**. Evalué cuatro caminos.
 
-### Opción A — WebContainers de StackBlitz: **descartada**
+### Opción A — WebContainers de StackBlitz **auto-hospedado**: descartada
+
+> ⚠️ Esto aplica solo a instalar `@webcontainer/api` en nuestra propia página. **Embeber
+> stackblitz.com es otra cosa y sí es viable** — ver la [parte 3](#parte-3--entornos-completos-y-efímeros-embebidos).
 
 Corre Node.js entero en el navegador vía WASM. Es la tecnología correcta y la experiencia es
 excelente, pero exige **aislamiento cross-origin** (headers `COOP`/`COEP` para habilitar
@@ -148,7 +156,13 @@ Dos problemas, y el segundo es el que decide:
    el de Java gráfico".
 
 Sumado a que el uso comercial de la API de WebContainer requiere licencia (**a verificar**), no es el
-camino.
+camino **para auto-hospedar**.
+
+El detalle que cambia todo, y que verifiqué después: StackBlitz no ejecuta el motor en el mismo origen
+que su editor, lo corre en `w-corp-staticblitz.com`, que manda sus propios
+`Cross-Origin-Embedder-Policy: require-corp` + `Cross-Origin-Opener-Policy: same-origin`. **El
+aislamiento es suyo, no nuestro.** Por eso embeber su producto no nos obliga a aislar nuestra página —
+que es justo lo que hacía imposible auto-hospedarlo.
 
 ### Opción B — Sandpack (el componente open source de CodeSandbox): **viable, con reservas**
 
@@ -196,6 +210,87 @@ frontend. Si es "quiero que el pipeline de build sea parte de la nota", entonces
 
 ---
 
+---
+
+## Parte 3 — Entornos completos y efímeros, embebidos
+
+> Pregunta concreta: *"¿hay forma de embeber algo con GitHub Codespaces o similar? La idea es hacer
+> proyectos completos pero efímeros."*
+
+### La respuesta corta sobre Codespaces: no, y no es negociable
+
+Un servicio se puede embeber o no según sus cabeceras HTTP. Las medí el 2026-08-03:
+
+| Servicio | Cabecera que decide | ¿Embebible? |
+|---|---|---|
+| **github.dev** | `Content-Security-Policy: frame-ancestors 'none'` | **No** |
+| **vscode.dev** | `frame-ancestors 'none'` + `COOP: same-origin` + `COEP: require-corp` | **No** |
+| **github.com/codespaces** | `X-Frame-Options: deny` | **No** |
+| **gitpod.io** | `frame-ancestors 'self' https://*.gitpod.io` | **No** (solo en su dominio) |
+| **replit.com** | `X-Frame-Options: DENY` | **No** |
+| **stackblitz.com/edit/…?embed=1** | sin restricción de framing | **Sí** |
+| **codesandbox.io/embed/…** y **/p/devbox/…** | sin restricción de framing | **Sí** |
+
+`frame-ancestors 'none'` no se sortea desde el cliente: lo aplica el navegador. No hay proxy, flag ni
+truco — y usar uno sería, además, evadir a propósito una política de seguridad de GitHub.
+
+Y hay un segundo bloqueo, operativo, que sería el problema **aunque** se pudiera embeber: Codespaces
+necesita **una cuenta de GitHub por alumno**, y la identidad de ExamLab es Google/Azure/contraseña
+([`auth.index.tsx`](../src/routes/auth.index.tsx) solo tiene `google` y `azure`). Para el curso que hay
+hoy en producción —93 alumnos importados por CSV— eso es aprovisionar 93 cuentas de GitHub más
+asientos de organización y facturación por hora-núcleo. Es un proyecto institucional, no una
+funcionalidad.
+
+**Codespaces sí sirve fuera del iframe**: un enlace "Abrir en Codespaces" en pestaña nueva, desde un
+repo plantilla. Pero eso no es embeber, y arrastra el mismo requisito de cuentas.
+
+### Lo que sí se puede embeber, y encaja con "efímero"
+
+**StackBlitz vía su SDK** es la única opción donde **completo + efímero + sin cuenta** se cumplen a la
+vez. `embedProject(elemento, { files })` arma el proyecto **desde archivos en memoria**: no hay repo,
+no hay cuenta, no queda nada del lado del servidor salvo que el alumno guarde. Corre `npm install` de
+verdad, así que Vite, React, Vue, Angular, Svelte, Next y backends de Node funcionan.
+
+Su límite es real y hay que decirlo: WebContainers es **Node.js compilado a WASM**, no un contenedor.
+No hay binarios nativos — **nada de Java, Python, Postgres ni Docker**. Es el ecosistema JS/TS y nada
+más.
+
+**CodeSandbox Devboxes** sí son VMs reales (Docker, cualquier lenguaje) y su URL es embebible. El
+precio es el inverso: hacen falta cuentas y créditos, y el entorno persiste.
+
+### El punto de diseño que hace que "efímero" no sea un problema
+
+Un entorno efímero y una nota son incompatibles si no se resuelve una cosa: **la evaluación necesita un
+artefacto que sobreviva al entorno.** Si el contenedor muere y no quedó nada, no hay qué calificar ni
+con qué defender un reclamo.
+
+Y esa pieza **ya existe en la plataforma**: `codigo_zip` recibe un proyecto completo en ZIP y la IA lo
+califica leyendo el código. Así que el diseño correcto es:
+
+> entorno efímero para **trabajar** → al entregar, se captura el sistema de archivos y se guarda como
+> el ZIP que ya sabemos calificar.
+
+El SDK de StackBlitz expone el sistema de archivos de la VM (`vm.getFsSnapshot()` — **verificar contra
+la versión del SDK**), así que la captura es posible sin pedirle al alumno que descargue y vuelva a
+subir. El entorno se muere, la evidencia queda en nuestro Storage. Eso convierte lo efímero de un
+riesgo en una ventaja: no hay que hospedar ni respaldar entornos de 93 alumnos.
+
+### Tres cosas que hay que decidir antes, no después
+
+1. **El código del alumno sale hacia un tercero.** Con StackBlitz o CodeSandbox, el proyecto se procesa
+   en su infraestructura. Para una institución educativa es una decisión de tratamiento de datos, y
+   conviene que la tome quien firma, no el código.
+2. **No va en un examen con proctoring.** Un IDE embebido con `npm install` es red abierta y un lugar
+   donde pegar cualquier cosa. Va en talleres, proyectos y práctica. En examen, el runner actual —sin
+   red— sigue siendo el correcto.
+3. **Si el requisito es "cualquier lenguaje, en nuestra infraestructura"**, entonces ninguna de las
+   embebibles alcanza y la respuesta es un servidor propio (**code-server**, **openvscode-server** o
+   **Coder**). Ahí las cabeceras las ponemos nosotros, así que embeber es decisión propia — pero
+   pasamos a ser dueños del ciclo de vida de un contenedor por alumno, su costo y su aislamiento. Es la
+   opción más potente y la más cara; no la tomaría sin datos de uso de la fase 2.
+
+---
+
 ## Recomendación
 
 **Fase 1 — Lenguajes (esta semana, riesgo bajo).**
@@ -206,8 +301,15 @@ TypeScript en modo un-archivo. Es la única parte que da valor inmediato sin dec
 Un tipo de pregunta `web` con `srcdoc` + `sandbox`. Abre los cursos de frontend, no toca
 infraestructura, no manda código a terceros.
 
-**Fase 3 — Recién ahí decidir Sandpack o runner propio**, con la fase 2 en producción y datos reales
-de cuánto se usa.
+**Fase 3 — Proyectos completos efímeros: StackBlitz embebido, cerrando el círculo con `codigo_zip`.**
+Un tipo de entrega donde el docente define los archivos iniciales, el alumno trabaja en el iframe con
+`npm install` real, y al entregar se captura el sistema de archivos al ZIP que la IA ya califica. Es la
+única combinación de completo + efímero + sin cuenta, y no exige infraestructura nueva. Requiere la
+decisión de datos del punto 1 de arriba.
+
+**Fase 4 — Solo si la fase 3 muestra que hace falta lo que no da**: cualquier lenguaje o Docker
+(CodeSandbox Devboxes) o todo en nuestra infraestructura (code-server / Coder). Con datos de uso, no
+antes.
 
 ### Dos restricciones de diseño que valen para las fases 2 y 3
 
