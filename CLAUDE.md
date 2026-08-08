@@ -30,7 +30,7 @@ bun run dev              # localhost:5173
 - **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Tenía los 3 roles → útil para validar flows Admin/Docente/Estudiante con el mismo user. **⚠️ La contraseña `WyEBPdxMCRZVFp` YA NO funciona** (verificado 2026-07-19: "Invalid login credentials"): la cuenta migró a SSO el 2026-06-12, así que NO sirve para login por password/REST. Para testing programático por REST necesitás otra cuenta con password auth.
 
 **Tenant FESNA — estado** (snapshot 2026-06-08):
-- 1 curso activo: `Paradigmas de Programación Junio 2026` (id `01b397a3-e74f-4f66-becf-c63b643f247f`).
+- 1 curso activo: `Paradigmas de Programación-2682V` (id `01b397a3-e74f-4f66-becf-c63b643f247f`) — el nombre cambió; verificado por REST el 2026-08-07.
 - 93 estudiantes importados del CSV de "La Nueva América" (`*@lanuevaamerica.edu.co`), todos matriculados al curso de arriba.
 - `ai_model_settings.processing_mode = sync` (necesario para que la generación con IA del docente funcione inline sin pedir código).
 - `email_settings.enabled_kinds.welcome = false` (no manda welcome email al bulk import).
@@ -1051,7 +1051,11 @@ El docente puede duplicar la mayoría de las entidades eligiendo QUÉ informaci�
 
 ### Sessions import/export — 7 columnas (round-trip preservado)
 
-`SESSIONS_TEMPLATE` extendido en [app.teacher.attendance.tsx](src/routes/app.teacher.attendance.tsx) a `session_date, title, cut_name, start_time, duration_minutes, meeting_url, recording_url`. Importer parsea start_time (HH:MM o HH:MM:SS), duration_minutes (int >= 0), URLs (tal cual). Filas con session_date inválido se descartan; filas con campos opcionales inválidos NO abortan (los campos quedan null).
+`SESSIONS_TEMPLATE` vive en [src/modules/sessions/csv.ts](src/modules/sessions/csv.ts) (NO en la ruta) y hoy tiene **8 columnas**:
+`session_date, title, start_time, end_time, meeting_url, cut_name, recording_url, session_type`. El importer parsea
+horas en HH:MM o HH:MM:SS; `end_time` SIN `start_time` aborta la fila; y `duration_minutes` quedó como **columna
+legacy** de fallback (si no viene `end_time` se deriva `end = start + duration`). Filas con `session_date` inválido se
+descartan; campos opcionales inválidos NO abortan (quedan null). `session_type ∈ presencial|virtual|autonoma`.
 
 Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `src/modules/contents/`.
 

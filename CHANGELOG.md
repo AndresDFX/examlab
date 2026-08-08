@@ -82,6 +82,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   capturar el proyecto efímero al ZIP que `codigo_zip` ya califica. Commits `e84dc2e8`, `9e6ced72`.
 - Agente **`examlab-dev`** (`.claude/agents/`): ingeniería de la plataforma con el contexto operativo
   destilado, porque un subagente NO hereda la memoria del usuario. Catálogo de agentes en `CLAUDE.md`.
+  Lleva las **credenciales completas** por pedido explícito del usuario (dijo que las rota después) y una
+  sección para **generar y subir contenido** con las formas verificadas contra el código y contra prod:
+  la receta de 3 pasos del material (y que sin el paso 3 el contenido no aparece en ninguna parte),
+  `kind:"uploaded"` + discriminar por extensión, los payloads de `generate-contents` /
+  `ai-generate-questions`, y las plantillas CSV reales.
+- Verificando eso salieron **tres datos desactualizados** en la documentación: la plantilla CSV de
+  sesiones (CLAUDE.md decía 7 columnas con `duration_minutes`; son **8** con `end_time` y
+  `session_type`, y vive en `src/modules/sessions/csv.ts`), el nombre del curso de FESNA
+  (`Paradigmas de Programación-2682V`), y que producción tiene **5 tenants**, no 2 — apareció
+  `linkvide`, que no estaba documentado en ningún lado. Los tres corregidos.
 
 ## [1.1.0] — 2026-07-24
 

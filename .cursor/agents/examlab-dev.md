@@ -66,40 +66,60 @@ matchea nunca. Usá la herramienta Edit, o detectá el salto (`nl = "\r\n" if "\
 "\n"`) y afirmá el conteo antes de escribir. Los warnings de git "LF will be replaced by CRLF"
 son ruido normal.
 
-## Credenciales — el MAPA, no las copias
+## Credenciales
 
-**No pegues secretos nuevos en archivos del repo.** Esto dice dónde está cada cosa:
+Van completas acá por pedido explícito del usuario. Con esto podés autenticarte y operar contra
+producción sin depender de nadie.
 
-| Qué | Dónde | Notas |
+| Qué | Valor | Notas |
 |---|---|---|
-| Supabase URL + anon key + VAPID | `.env` (no commiteado) | La anon key es pública (va en el bundle). El `.env` se recrea con el bloque de CLAUDE.md § "Setup en una máquina nueva" |
-| Cuenta **SuperAdmin** (cross-tenant) | `CLAUDE.md` § "Cuentas de testing" | `castano.julian@correounivalle.edu.co`. Es la que sirve para verificar prod por REST |
-| API keys de IA (Gemini/OpenAI/Lovable) | **Lovable → Edge Function Secrets** | NUNCA en la DB ni en el panel admin. `ai_model_settings` solo elige provider+modelo |
-| `JUDGE0_URL` / `JUDGE0_AUTH_TOKEN` | Edge Function Secrets | El runner propio de código |
-| SMTP (5 secrets) | Edge Function Secrets | `SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM` |
-| Credenciales de grabación de demos | `.env.recording` (no commiteado) | Solo si se re-graban videos |
-
-Proyecto Supabase de producción: **`uxxpzfsfcnqiwwdxoelm`**. El usuario **sí** tiene acceso al
-dashboard: para diagnósticos, dale queries SQL de una sola pasada para que las corra en el SQL
-Editor.
-
-**Verificación de campo por REST** (sin browser) — el patrón que más se usa:
+| Cuenta **SuperAdmin** | `castano.julian@correounivalle.edu.co` / `Tester#12345` | Cross-tenant (`tenant_id=NULL`, bypassa RLS vía `is_super_admin()`). La que se usa para verificar producción por REST |
+| Docentes demo (tenant **ExamLab Demo**, el que se entrega) | `docente1@demo-examlab.co` … `docente5@…` / `ExamlabDemo2026` | Doble rol Docente+Estudiante, `must_change_password=false` |
+| Cuenta de grabación (tenant **Demo Global Corp**) | `test-demo-global-corp@examlab.test` / `sZhrnEu4N6XsYD` | Multi-rol. user_id `c6bda09b-ce49-4fe0-b83b-722560ab9928` |
+| Clave temporal de CUALQUIER usuario nuevo | `Temporal#123` | Fija para todos, ver abajo |
+| ~~`test-fesna@examlab.test`~~ | — | **MUERTA**: migró a SSO el 2026-06-12. CLAUDE.md todavía la documenta; no la uses |
 
 ```bash
-TOKEN=$(curl -s -X POST "https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/token?grant_type=password" \
-  -H 'Content-Type: application/json' -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" \
-  -d '{"email":"...","password":"..."}' | jq -r .access_token)
-curl -s "https://uxxpzfsfcnqiwwdxoelm.supabase.co/rest/v1/courses?select=id,name" \
-  -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $TOKEN"
+export SUPABASE_URL="https://uxxpzfsfcnqiwwdxoelm.supabase.co"
+export ANON="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV4eHB6ZnNmY25xaXd3ZHhvZWxtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgzNDIyODksImV4cCI6MjA5MzkxODI4OX0.EdZ_3KlDGVSQ-i026ZriHu4FbLFJLwghkW-FlfcTlkE"
 ```
 
-⚠️ La cuenta `test-fesna@examlab.test` que CLAUDE.md documenta **ya no sirve por contraseña**:
-migró a SSO el 2026-06-12. El patrón sigue válido, la cuenta no.
+La anon key **es pública por diseño** (viaja en el bundle del cliente): la RLS es lo que protege, no
+ella. VAPID: la pública es `BAg2gqFTm-P9_gNuumcJPQF7fj-6e2XjlSDZJGTGa2YMvZSDdKD6C6S3pc88UM7mvBNrlcebXUXeJzqKp4bROVo`
+y la **privada** (secreto real, `VITE_PRIVATE_KEY` del `.env`) es `AhDJkUu6s6o2kk30X5TseNS4axtWIp1YB9wovRiQ53o`.
 
-**Contraseña temporal fija: `Temporal#123`** para CUALQUIER usuario nuevo (import masivo o alta
-individual). Es una decisión explícita del usuario del 2026-07-14 —prefiere una clave uniforme
-que el docente pueda dictar en clase, aunque sea insegura— tras detectar que nadie sabía su
-clave con las aleatorias. NO generes aleatorias.
+**IDs que se necesitan seguido** — los 5 tenants de producción, verificados por REST el 2026-08-07:
+
+| Qué | Id |
+|---|---|
+| Tenant `uniaj` — Universidad Antonio José Camacho. El más antiguo: tiene los seeds históricos de `ai_prompts` globales | `b35d1bd2-8e9b-4ba3-9ede-545262b9520d` |
+| Tenant `fesna` — FESNA | `231c9e47-e50d-45a9-8782-af38087656a4` |
+| Tenant `demo-global-corp` — grabación de videos, NO se entrega | `f1dcfedc-3c98-4b5c-9d11-2a922c7eb018` |
+| Tenant `examlab-demo` — **el que SE ENTREGA**, viene vacío | `729b3114-bf5d-4433-ac0e-d1e3aedb1358` |
+| Tenant `linkvide` | `af3135b1-2b8e-400c-ac5e-ae941d23ca45` |
+| Curso FESNA "Paradigmas de Programación-2682V" | `01b397a3-e74f-4f66-becf-c63b643f247f` |
+
+**NO existe un tenant `slug='default'`** — ver la sección de producción más abajo, es una trampa de
+migraciones. Y verificá la lista antes de confiar en ella: `linkvide` no estaba documentado en ningún
+lado hasta que se consultó producción, así que la fuente de verdad es la DB, no este archivo.
+
+**Lo que NO está acá y no podés conseguir por tu cuenta** — vive solo en *Lovable → Edge Function
+Secrets*, ni en la DB ni en el repo: `SUPABASE_SERVICE_ROLE_KEY`, API keys de IA (`GEMINI_API_KEY` /
+`OPENAI_API_KEY` / `LOVABLE_API_KEY`), `JUDGE0_URL` + `JUDGE0_AUTH_TOKEN`, y los 5 secrets de SMTP
+(`SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM`). Si una tarea los necesita, **pedíselos al usuario**:
+no los derives ni improvises un fallback. Las de grabación de demos están en `.env.recording`.
+
+El usuario **sí** tiene acceso al dashboard de Supabase: para diagnósticos, dale queries SQL de una
+sola pasada para que las corra en el SQL Editor.
+
+**Contraseña temporal fija `Temporal#123`** para CUALQUIER usuario nuevo (import masivo o alta
+individual). Decisión explícita del usuario del 2026-07-14: prefiere una clave uniforme que el docente
+dicte en clase, aunque sea insegura, en vez de una aleatoria por estudiante que nunca se comunicaba.
+NO generes aleatorias.
+
+> **A rotar** (el usuario dijo que lo hace después): la contraseña del SuperAdmin, `sZhrnEu4N6XsYD`,
+> `ExamlabDemo2026` y el **VAPID privado**. Y algo que no se deshace: estos valores quedan en el
+> **historial de git**, así que rotarlos no es opcional. La anon key solo si se rota el proyecto.
 
 ## Producción: lo que hay que saber antes de escribir una migración
 
@@ -190,6 +210,136 @@ no tengas que redescubrirlo.
 - **Videos demo**: un módulo de la plataforma por video, narración autocontenida y reordenable
   (nada de "en el siguiente módulo…"). El pipeline propio graba la app real con Playwright + voz
   edge-tts + mux ffmpeg; HeyGen quedó deprecado.
+
+## Generar y subir contenido a ExamLab
+
+Se puede hacer todo **sin browser**, por REST, actuando como un usuario real (la RLS aplica). Las
+formas de abajo están verificadas contra el código; no las inventes de nuevo.
+
+### Autenticarse
+
+**`jq` NO está instalado en este entorno** (Git Bash en Windows) — un pipe a `jq` falla con
+`command not found`, así que usá Python, que sí está:
+
+```python
+import json, urllib.request
+URL  = "https://uxxpzfsfcnqiwwdxoelm.supabase.co"
+ANON = "…"   # la de la sección de credenciales
+def api(path, token, method="GET", body=None, extra=None):
+    h = {"apikey": ANON, "Authorization": "Bearer " + token, "Content-Type": "application/json"}
+    if extra: h.update(extra)                       # p.ej. {"Prefer": "return=representation"}
+    req = urllib.request.Request(URL + "/rest/v1/" + path, method=method,
+                                data=json.dumps(body).encode() if body else None, headers=h)
+    return json.load(urllib.request.urlopen(req, timeout=30))
+
+req = urllib.request.Request(URL + "/auth/v1/token?grant_type=password",
+        data=json.dumps({"email": "…", "password": "…"}).encode(),
+        headers={"Content-Type": "application/json", "apikey": ANON})
+TOKEN = json.load(urllib.request.urlopen(req))["access_token"]
+```
+
+Verificado el 2026-08-07: las tres cuentas de la tabla de credenciales autentican OK.
+
+Para escribir contenido hace falta una cuenta **Docente del curso** (o Admin/SA). El SuperAdmin sirve
+para todo, pero ojo: las filas quedan a nombre SUYO, y el material se lista por `teacher_id`.
+
+### Subir material — receta de 3 pasos, y el paso 3 no es opcional
+
+Bucket **`generated-contents`**, tabla **`generated_contents`**.
+
+1. **INSERT la fila** con `files: []`, `status: "done"`, `is_published: true`, `course_id` = curso
+   ancla, más `display_name`, `topic`, `mode`, `language`, `modality`.
+2. **Subir cada archivo** a Storage en el path **`<user_id>/<content_id>/<nombre-slug>`**.
+3. **UPDATE `files`** con los que subieron bien: `{ name, path, kind: "uploaded", body? }`.
+
+Forma real de una fila de producción (verificada 2026-08-07):
+
+```json
+{ "kind": "uploaded", "name": "material-prueba-tablero.md",
+  "path": "c6bda09b-…/59257394-…/material-prueba-tablero.md" }
+```
+
+Si te salteás el 3, la fila existe y los archivos también, pero **el material no aparece en ninguna
+parte**: `files[]` es lo único que la UI lee. Y si NINGÚN upload funcionó, borrá la fila (es lo que
+hace la app) para no dejarla huérfana.
+
+Detalles que ya causaron bugs:
+
+- **`kind` es SIEMPRE `"uploaded"`** en material subido (`md` / `txt` / `pptx-source` son kinds de lo
+  generado por IA). El tipo TS declara solo esos tres, así que **discriminá por EXTENSIÓN del path,
+  nunca por `kind`** — un whitelist por `kind` fue exactamente el bug que hacía que el tutor
+  contestara "solo tengo el título".
+- **`body` inline** para `.java .py .js .ipynb .csv`: se guarda el texto en la fila para que el
+  visor/runner no baje de Storage. Tope **500.000 chars**, y los `.ipynb` pasan por
+  `stripNotebookOutputs` antes (saca outputs y figuras base64).
+- **`display_name` es único**: colisión → **23505**, con mensaje accionable, no genérico.
+- **El path embebe el `content_id`**, así que el path solo identifica el archivo. Es la clave estable
+  que usan las anotaciones de slides y el progreso de material ⇒ **"nueva versión" = `upsert` al MISMO
+  path**. No hay historial de versiones en NINGÚN flujo de contenido.
+- **Bucket nuevo ⇒ policies INSERT + UPDATE + SELECT.** Sin la de SELECT el upload devuelve **403**,
+  porque el INSERT usa `RETURNING`. No es caché.
+- Multi-curso: `content_course_assignments`. Ligar a una sesión:
+  `attendance_sessions.content_id` + `class_index`.
+
+### Generar con IA
+
+**El modo global manda**: el RPC `get_active_processing_mode()` devuelve `sync` o `async`. En `async`
+la generación se **encola** en `ai_generation_queue` y la drena el cron; en `sync` corre inline. Si
+encolás, el worker se autoexcluye del drain mientras el modo siga `async` — es deliberado, no un bug.
+
+**`generate-contents`** (material didáctico) — la fila de `generated_contents` **ya tiene que existir**;
+la edge la rellena:
+
+```json
+{ "id": "<content_id>", "target_class": 3, "class_topic": "…", "class_instructions": "…" }
+```
+
+Sin `target_class` genera el contenido completo; con `target_class` regenera SOLO esa clase. Ojo: un
+regen COMPLETO reescribe `files[]` con paths nuevos y deja huérfanas las filas de progreso.
+
+**`ai-generate-questions`** (preguntas) — modo por defecto:
+
+```json
+{ "topics": "…", "type": "codigo", "count": 5, "examId": "…",
+  "targetTable": "questions", "language": "es" }
+```
+
+`targetTable ∈ questions | workshop_questions | project_files | kahoot_questions | question_bank`; un
+valor desconocido **se rechaza** en vez de caer al insert por defecto. Modos especiales, por flag en el
+body: `projectDescriptionGeneration`, `projectStatement`, `projectQuestionsAutoGeneration` (fuerza
+exactamente 1 pregunta `codigo_zip` + entre 2 y 5 más) y `projectFilesGeneration`.
+
+Ambas edges tienen `verify_jwt=false` y validan adentro (aceptan el service_role del worker **o** un
+JWT de usuario). No es descuido: el service_role nuevo (`sb_secret_*`) no es un JWT parseable y el
+gateway lo rebotaba con 401 antes de llegar al handler.
+
+**Tipos de pregunta**: `abierta`, `multiple`, `cerrada`, `diagrama`, `codigo`, `codigo_zip`,
+`java_gui`, `python_gui`, `so_consola`. Agregar uno toca el CHECK de **4 tablas** (`questions`,
+`workshop_questions`, `project_files`, `question_bank`) — con guard `to_regclass`, que `question_bank`
+puede no existir.
+
+### Importar por CSV (las plantillas REALES)
+
+```
+sesiones     session_date,title,start_time,end_time,meeting_url,cut_name,recording_url,session_type
+             session_type ∈ presencial|virtual|autonoma · end_time SIN start_time aborta la fila ·
+             duration_minutes es columna LEGACY de fallback (end = start + duration)
+exámenes     course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
+talleres     course_name,title,description,instructions,external_link,due_date,status
+asistencia   email,session_date,status,note
+```
+
+La de sesiones vive en `src/modules/sessions/csv.ts` (no en la ruta). Filas con `session_date` inválido
+se descartan; un campo opcional inválido NO aborta la fila (queda null).
+
+**Usuarios** (edge `bulk-import-users`): `roles` es un **STRING separado por `|`**, NO un array —
+`"Docente|Estudiante"`. Con un array por curl explota con `TypeError: split is not a function`. Default
+`"Estudiante"`; clave `Temporal#123`.
+
+### Antes de decir que algo quedó cargado
+
+Verificalo por REST, y **filtrá `deleted_at`**: si el curso o el contenido está en papelera no se ve en
+ningún flujo aunque la fila exista. Es la causa más común de "lo subí y no aparece".
 
 ## Al cerrar cualquier tarea
 
