@@ -56,7 +56,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Requiere **Publish en Lovable**. Sin migraciones: es todo cliente.
+> Requiere **Publish en Lovable**. Incluye **una migración** (`20261600000000_bd_sql_support.sql`,
+> defensiva con `to_regclass`); el resto es cliente.
+
+### 🎉 Novedades
+
+- **Preguntas de base de datos con PostgreSQL real.** El estudiante escribe SQL y lo ejecuta contra un
+  Postgres de verdad que corre **en su propio navegador** — sin instalar nada, sin cuenta y sin conexión
+  a ningún servidor de base de datos. El docente define el esquema y los datos de partida; cada
+  ejecución arranca de una base limpia, así que correr dos veces da el mismo resultado. Sirve en
+  exámenes, talleres, proyectos y banco de preguntas, y la IA la califica leyendo la consulta **y las
+  tablas que devolvió**. La primera ejecución descarga el motor (~16 MB): conviene probarlo antes de la
+  clase si el WiFi del salón es lento.
 
 ### 🔧 Correcciones
 
