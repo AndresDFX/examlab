@@ -22,6 +22,7 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
 import { parseV86Answer, stripAnsi } from "@/modules/serverconsole/v86-answer";
+import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -94,6 +95,25 @@ export function buildWorkshopItems(
         maxPoints: Number(q.points) || 0,
         // Sin stripAnsi el prompt recibe los escapes de color crudos del serial.
         executionOutput: stripAnsi(parsed.transcript),
+      });
+      continue;
+    }
+    // Base de datos (bd_sql): la respuesta es el SQL y la evidencia es lo que
+    // la base devolvió. Van por el MISMO par de campos que so_consola —
+    // userAnswer = SQL, executionOutput = tablas de resultado— porque la base
+    // era EFÍMERA: si esto no se hubiera persistido al entregar, acá no habría
+    // nada que recalificar. INVARIANTE: idéntico a WorkshopQuestions.tsx.
+    if (q.type === "bd_sql") {
+      const sqlText = sqlSourceForDisplay(a?.answer_text ?? null);
+      if (!sqlText) continue;
+      items.push({
+        qid: q.id,
+        type: q.type,
+        content: q.content,
+        rubric: q.expected_rubric ?? "",
+        userAnswer: sqlText,
+        maxPoints: Number(q.points) || 0,
+        executionOutput: sqlResultsForDisplay(a?.answer_text ?? null),
       });
       continue;
     }

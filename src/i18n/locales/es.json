@@ -9675,5 +9675,20 @@
     "groupModules": "Ir a",
     "groupCourses": "Mis cursos",
     "openLabel": "Abrir el buscador ({{shortcut}})"
+  },
+  "bdSql": {
+    "engineLabel": "PostgreSQL real, en tu navegador · base temporal",
+    "run": "Ejecutar SQL",
+    "running": "Ejecutando…",
+    "firstRunHint": "La primera ejecución descarga el motor de base de datos (~16 MB). Puede tardar; las siguientes son inmediatas.",
+    "engineLoadError": "No se pudo cargar el motor de base de datos: {{error}}. Revisá tu conexión y volvé a intentar.",
+    "setupErrorTitle": "El esquema de esta pregunta tiene un error (no es tu SQL):",
+    "statementN": "Sentencia {{n}}",
+    "affectedRows": "OK — {{count}} fila(s) afectada(s)",
+    "truncated": "Se muestran las primeras {{max}} filas.",
+    "typeLabel": "Base de datos (SQL)",
+    "setupSqlLabel": "Esquema y datos de partida (SQL)",
+    "setupSqlHint": "Se ejecuta ANTES del SQL del estudiante, en una base limpia. Acá van los CREATE TABLE e INSERT del ejercicio.",
+    "noSetupHint": "Sin esquema de partida: el estudiante trabaja sobre una base vacía."
   }
 }

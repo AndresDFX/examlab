@@ -109,7 +109,8 @@ type QuestionType =
   | "java_gui"
   | "python_gui"
   | "red_consola"
-  | "red_gui";
+  | "red_gui"
+  | "bd_sql";
 
 interface BankRow {
   id: string;
@@ -152,6 +153,7 @@ const TYPE_LABEL_KEY: Record<QuestionType, string> = {
   python_gui: "questionBank.type.pythonGui",
   red_consola: "questionBank.type.redConsola",
   red_gui: "questionBank.type.redGui",
+  bd_sql: "bdSql.typeLabel",
 };
 
 const typeLabel = (type: QuestionType): string => i18n.t(TYPE_LABEL_KEY[type]);

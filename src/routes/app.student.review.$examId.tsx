@@ -21,7 +21,8 @@ import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
-import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
+import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
+import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { SectionLoader } from "@/components/ui/loaders";
 import { isAiGradePending } from "@/modules/ai/ai-grading";
@@ -596,7 +597,21 @@ function StudentExamReview() {
                   </div>
                 )}
 
-                {q.type === "red_consola" || q.type === "red_gui" ? (
+                {q.type === "bd_sql" ? (
+                  // Solo lectura: el SQL que escribió y lo que la base devolvió.
+                  // La base era efímera, así que esto es la ÚNICA evidencia que
+                  // queda de la ejecución (ver modules/database/sql-answer.ts).
+                  <div className="space-y-2">
+                    <pre className="overflow-x-auto rounded-md border bg-muted/30 p-2 font-mono text-2xs">
+                      {sqlSourceForDisplay(ans) ?? t("exam.review.notAnswered")}
+                    </pre>
+                    {sqlResultsForDisplay(ans) && (
+                      <pre className="overflow-x-auto rounded-md border bg-muted/30 p-2 font-mono text-2xs">
+                        {sqlResultsForDisplay(ans)}
+                      </pre>
+                    )}
+                  </div>
+                ) : q.type === "red_consola" || q.type === "red_gui" ? (
                   <NetworkAnswerReview
                     options={q.options}
                     value={ans}

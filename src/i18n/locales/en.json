@@ -9675,5 +9675,20 @@
     "groupModules": "Go to",
     "groupCourses": "My courses",
     "openLabel": "Open search ({{shortcut}})"
+  },
+  "bdSql": {
+    "engineLabel": "Real PostgreSQL, in your browser · temporary database",
+    "run": "Run SQL",
+    "running": "Running…",
+    "firstRunHint": "The first run downloads the database engine (~16 MB). It may take a moment; later runs are instant.",
+    "engineLoadError": "Could not load the database engine: {{error}}. Check your connection and try again.",
+    "setupErrorTitle": "This question's schema has an error (not your SQL):",
+    "statementN": "Statement {{n}}",
+    "affectedRows": "OK — {{count}} row(s) affected",
+    "truncated": "Showing the first {{max}} rows.",
+    "typeLabel": "Database (SQL)",
+    "setupSqlLabel": "Starting schema and data (SQL)",
+    "setupSqlHint": "Runs BEFORE the student's SQL, on a clean database. Put the exercise's CREATE TABLE and INSERT here.",
+    "noSetupHint": "No starting schema: the student works on an empty database."
   }
 }

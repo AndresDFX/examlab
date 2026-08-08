@@ -911,6 +911,47 @@ test para "hacerlo pasar" — arreglar la inconsistencia real.
 9. Clave `nav.*` en `src/i18n/locales/{es,en}.json` para el label del sidebar.
 10. Correr `bun test` — el guardrail valida 2–5 automáticamente.
 
+### Base de datos en el navegador — tipo de pregunta `bd_sql` (PostgreSQL real vía WASM)
+
+El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre en su propia pestaña
+(**PGlite** compilado a WASM). No hay servidor de base de datos, ni contenedor, ni red: la base es
+**efímera** y muere con la pestaña.
+
+- **Por qué un tipo aparte y no `codigo` con `language='sql'`**: el tipo `codigo` va al runner de
+  Judge0/Lambda, que ejecuta un proceso y devuelve stdout. SQL necesita un motor **con estado**
+  (esquema + datos sembrados) y devuelve **conjuntos de filas**, no texto. Mismo criterio por el que
+  `so_consola` es un tipo y no un `language`. **`sql` NO se agrega a `CodeLanguage`** — eso implicaría
+  que corre en el runner, y no corre ahí.
+- **Carga por CDN, no dependencia npm** ([pglite-loader.ts](src/modules/database/pglite-loader.ts)):
+  mismo patrón que CheerpJ, v86 y xterm — el lockfile es `bun.lock` y agregar deps obliga a
+  regenerarlo. Versión **pineada**. Se importa la **ruta directa del dist**, NO `/+esm`: PGlite resuelve
+  sus assets con `new URL(..., import.meta.url)` e importa chunks relativos, y el bundle `/+esm`
+  rompería esa resolución (el mismo tipo de fallo mudo que el BIOS de v86 en una ref móvil).
+- **Pesa ~16 MB** (`pglite.wasm` 9,9 MB + `pglite.data` 6,1 MB + `initdb.wasm`). El SW hace **bypass
+  total de jsdelivr**, así que los cachea el navegador por HTTP, no el SW: primera carga costosa,
+  siguientes instantáneas, **sin offline**. Por eso la base se crea al pulsar **Ejecutar y no al montar**:
+  un examen con 5 preguntas SQL no debe bajar 16 MB antes de que el alumno escriba una letra.
+- **Cada corrida arranca una base LIMPIA** (se cierra la anterior). Es lo contrario de una consola: en
+  SQL, dejar estado entre corridas hace que un `INSERT` ejecutado dos veces duplique filas y el alumno
+  vea resultados que su script no explica. Base limpia + `setupSql` ⇒ ejecutar dos veces da el MISMO
+  resultado, que es lo que hace calificable el ejercicio.
+- **Sin columnas nuevas**: el esquema/datos de partida del docente va en `options.db.setupSql`; la
+  respuesta (SQL **+ lo que devolvió la base**) se serializa a JSON en la columna de respuesta
+  existente ([sql-answer.ts](src/modules/database/sql-answer.ts), 20 tests). **El resultado se persiste**
+  a propósito: la base es efímera, así que sin eso la evidencia se pierde al cerrar la pestaña y no hay
+  con qué calificar ni con qué responder un reclamo.
+- **El error del `setupSql` se muestra como error del ENUNCIADO**, no del alumno. Si el docente se
+  equivoca en el esquema, el estudiante tiene que poder distinguirlo de su propio error.
+- **Calificación por IA** reusando el pipeline existente: el SQL va como `userAnswer` y las tablas de
+  resultado por `executionOutput` — el **mismo campo** que usa `so_consola` para su transcript. La
+  directiva del edge fija 5 reglas: un error de Postgres no es 0 automático, 0 filas no es un error,
+  SQL sin ejecutar se califica leyéndolo, hay muchas formas correctas, y el resultado puede venir
+  recortado.
+- **Flujos cubiertos** (13 archivos): exámenes (editor + toma + revisión), talleres (editor + toma +
+  calificación), proyectos, banco de preguntas, importación desde el banco, y el re-grade del docente.
+  Al agregar un tipo nuevo, el `Record<QuestionType, string>` del diálogo de importación **rompe el
+  build** si falta su label — es el guardrail que ya existe, no lo silencies.
+
 ### Snippets de código por sesión
 
 Cada `attendance_session` puede tener N snippets de código (Java/Python/JavaScript) que el docente prepara en clase y los alumnos ven (y opcionalmente ejecutan) desde su vista de asistencia.

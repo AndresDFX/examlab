@@ -111,7 +111,8 @@ export type ProjectFile = {
     | "python_gui"
     | "codigo_zip"
     | "red_consola"
-    | "red_gui";
+    | "red_gui"
+    | "bd_sql";
   /** Scaffolding flujo ZIP único: cuando true (y type=codigo_zip), el
    *  estudiante sube UN .zip en vez de varios archivos sueltos, y la
    *  IA califica sin minificar. Default false (multi-file). */
@@ -946,6 +947,7 @@ export function TeacherProjectFilesEditor({
                   <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFiles")}</SelectItem>
                   <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                   <SelectItem value="red_gui">{t("projectFiles.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
+                  <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1282,6 +1284,7 @@ export function TeacherProjectFilesEditor({
                       <SelectItem value="codigo_zip">{t("projectFiles.typeCodeFilesShort")}</SelectItem>
                       <SelectItem value="red_consola">{t("projectFiles.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                   <SelectItem value="red_gui">{t("projectFiles.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
+                  <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

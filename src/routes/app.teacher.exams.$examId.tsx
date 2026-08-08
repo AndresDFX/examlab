@@ -1673,6 +1673,7 @@ function ExamEditor() {
                           <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                           <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                           <SelectItem value="red_gui">{t("hc_routesAppTeacherExamsExamId.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
+                          <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1814,6 +1815,7 @@ function ExamEditor() {
                       <SelectItem value="python_gui">{t("hc_routesAppTeacherExamsExamId.typePythonGui")}</SelectItem>
                       <SelectItem value="red_consola">{t("hc_routesAppTeacherExamsExamId.typeNetworkConsole", { defaultValue: "Red (consola)" })}</SelectItem>
                       <SelectItem value="red_gui">{t("hc_routesAppTeacherExamsExamId.typeNetworkGui", { defaultValue: "Red (diagrama)" })}</SelectItem>
+                          <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

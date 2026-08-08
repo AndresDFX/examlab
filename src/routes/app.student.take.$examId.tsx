@@ -35,7 +35,8 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
-import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
+import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
+import { SqlRunner } from "@/modules/database/SqlRunner";
 import { type NetworkScenario, parseScenario, parseNetworkAnswer } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
@@ -88,6 +89,7 @@ const QUESTION_TYPE_LABEL_KEY: Record<string, string> = {
   python_gui: "questionBank.type.pythonGui",
   red_consola: "questionBank.type.redConsola",
   red_gui: "questionBank.type.redGui",
+  bd_sql: "bdSql.typeLabel",
 };
 
 type Question = {
@@ -2478,6 +2480,15 @@ function TakeExam() {
                       })}
                     </p>
                   )
+                ) : q.type === "bd_sql" ? (
+                  <div onBlur={saveAnswersNow}>
+                    <SqlRunner
+                      value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                      onChange={(v) => updateAnswer(q.id, v)}
+                      setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
+                      starterSql={q.starter_code}
+                    />
+                  </div>
                 ) : q.type === "red_gui" ? (
                   networkScenarios[q.id] ? (
                     <div onBlur={saveAnswersNow}>

@@ -205,6 +205,27 @@ function itemDirectiveForType(it: BatchItem): string {
       `el transcript, no en lo que el estudiante "debería" haber hecho.\n`
     );
   }
+  if (t === "bd_sql") {
+    return (
+      `[TIPO DE RESPUESTA: SQL ejecutado contra PostgreSQL real]\n` +
+      `En "RESPUESTA DEL ESTUDIANTE" ves el SQL que escribió; en "SALIDA DE EJECUCIÓN / SESIÓN DE ` +
+      `CONSOLA" ves las TABLAS que devolvió cada sentencia (o el error de Postgres). Evalúa: si la ` +
+      `consulta responde lo que pide el enunciado, si el resultado lo EVIDENCIA, y la calidad del ` +
+      `SQL (JOIN vs subconsulta, GROUP BY con agregados, filtros en WHERE vs HAVING, índices o ` +
+      `EXPLAIN si la rúbrica lo pide).\n` +
+      `REGLAS IMPORTANTES:\n` +
+      `1. Un ERROR de Postgres NO es automáticamente 0: leé el mensaje y evaluá qué tan cerca ` +
+      `estaba. Un nombre de columna mal tipeado con la lógica correcta vale mucho más que una ` +
+      `consulta que corre pero responde otra pregunta.\n` +
+      `2. Un resultado de 0 filas NO es un error: puede ser la respuesta correcta. Distinguí ` +
+      `"no encontró nada" de "la consulta está mal".\n` +
+      `3. Si NO hay salida de ejecución, el estudiante escribió el SQL sin probarlo. Calificá el ` +
+      `SQL leyéndolo — NO pongas 0 por no haber ejecutado, pero podés descontar por no verificar.\n` +
+      `4. Hay MUCHAS formas correctas de escribir la misma consulta. No exijas una redacción ` +
+      `concreta: evaluá corrección y resultado, no estilo.\n` +
+      `5. El resultado puede venir RECORTADO a las primeras filas — no penalices por eso.\n`
+    );
+  }
   if (t === "diagrama") {
     return (
       `[TIPO DE RESPUESTA: diagrama (sintaxis Mermaid, PlantUML o ASCII)]\n` +

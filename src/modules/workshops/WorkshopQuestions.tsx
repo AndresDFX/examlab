@@ -79,6 +79,12 @@ import {
 import { gradeNetwork } from "@/modules/network/grading";
 import { V86Console } from "@/modules/serverconsole/V86Console";
 import { isV86AnswerBlank, parseV86Answer, stripAnsi } from "@/modules/serverconsole/v86-answer";
+import { SqlRunner } from "@/modules/database/SqlRunner";
+import {
+  isSqlAnswerBlank,
+  parseSqlAnswer,
+  sqlResultsForDisplay,
+} from "@/modules/database/sql-answer";
 import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
 
 export type WorkshopQuestion = {
@@ -95,7 +101,8 @@ export type WorkshopQuestion = {
     | "codigo_zip"
     | "red_consola"
     | "red_gui"
-    | "so_consola";
+    | "so_consola"
+    | "bd_sql";
   content: string;
   options: any;
   position: number;
@@ -188,6 +195,10 @@ export function TeacherWorkshopQuestionsEditor({
   const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
     JSON.stringify(defaultScenario(), null, 2),
   );
+  // Esquema + datos de partida de una pregunta `bd_sql`. Se persiste en
+  // `options.db.setupSql` y se ejecuta ANTES del SQL del alumno, sobre una base
+  // limpia. Vacío es válido: el alumno trabaja sobre una base vacía.
+  const [qSetupSql, setQSetupSql] = useState<string>("");
 
   const resetForm = () => {
     setEditingId(null);
@@ -204,6 +215,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQZipSingle(false);
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
+    setQSetupSql("");
   };
 
   const loadIntoForm = (q: WorkshopQuestion) => {
@@ -229,6 +241,8 @@ export function TeacherWorkshopQuestionsEditor({
     setQNetworkScenario(
       net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
     );
+    const setup = (q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql;
+    setQSetupSql(typeof setup === "string" ? setup : "");
     setActiveTab("manual");
   };
 
@@ -345,7 +359,9 @@ export function TeacherWorkshopQuestionsEditor({
             ? { java_framework: qJavaFramework }
             : qType === "red_consola" || qType === "red_gui"
               ? networkOptions
-              : null;
+              : qType === "bd_sql"
+                ? { db: { setupSql: qSetupSql } }
+                : null;
     const language =
       qType === "codigo" || qType === "codigo_zip"
         ? qLanguage
@@ -838,6 +854,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <SelectItem value="red_gui">
                     {t("workshopQuestions.typeNetworkGui", { defaultValue: "Red (diagrama)" })}
                   </SelectItem>
+                  <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -1033,6 +1050,30 @@ export function TeacherWorkshopQuestionsEditor({
               </div>
             </div>
           )}
+          {qType === "bd_sql" && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                {t("bdSql.setupSqlLabel")}
+                <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
+              </Label>
+              <Textarea
+                value={qSetupSql}
+                onChange={(e) => setQSetupSql(e.target.value)}
+                rows={10}
+                spellCheck={false}
+                className="font-mono text-xs"
+                placeholder={`CREATE TABLE cliente (
+  id serial PRIMARY KEY,
+  nombre text NOT NULL
+);
+
+INSERT INTO cliente (nombre) VALUES ('Ana'), ('Luis');`}
+              />
+              {!qSetupSql.trim() && (
+                <p className="text-2xs text-muted-foreground">{t("bdSql.noSetupHint")}</p>
+              )}
+            </div>
+          )}
           {(qType === "red_consola" || qType === "red_gui") && (
             <div className="space-y-2">
               <Label className="flex items-center gap-1.5">
@@ -1141,6 +1182,7 @@ export function TeacherWorkshopQuestionsEditor({
                       <SelectItem value="red_gui">
                         {t("workshopQuestions.typeNetworkGui", { defaultValue: "Red (diagrama)" })}
                       </SelectItem>
+                      <SelectItem value="bd_sql">{t("bdSql.typeLabel")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1677,6 +1719,9 @@ export function StudentWorkshopTaker({
       } else if (q.type === "so_consola") {
         // Vacía si no interactuó con la consola Linux (sin comandos ni salida).
         isBlank = isV86AnswerBlank(a);
+      } else if (q.type === "bd_sql") {
+        // Vacía solo si NO escribió SQL. Escribirlo y no ejecutarlo ES responder.
+        isBlank = isSqlAnswerBlank(a);
       } else {
         isBlank = !String(a ?? "").trim();
       }
@@ -2330,6 +2375,38 @@ export function StudentWorkshopTaker({
               maxPoints: Number(q.points) || 0,
               // Sin stripAnsi el prompt recibe los escapes de color crudos del serial.
               executionOutput: stripAnsi(parsed.transcript),
+            });
+          }
+        } else if (q.type === "bd_sql") {
+          // Base de datos: la respuesta es el SQL, y lo que la base devolvió es
+          // la EVIDENCIA de que ese SQL hace lo que dice. Van por separado —
+          // `userAnswer` el SQL, `executionOutput` las tablas de resultado— por
+          // el MISMO campo que usa so_consola, así que el prompt ya sabe leerlo.
+          //
+          // SQL sin ejecutar NO es 0: es una respuesta que el alumno no probó, y
+          // la IA puede evaluar si la consulta es correcta leyéndola. Solo es 0
+          // cuando no escribió SQL.
+          const parsedSql = parseSqlAnswer(raw);
+          const sqlText = parsedSql?.sql?.trim() ?? "";
+          if (!sqlText) {
+            payload.ai_grade = 0;
+            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
+            breakdown.push({
+              qid: q.id,
+              type: q.type,
+              points: q.points,
+              earned: 0,
+              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
+            });
+          } else {
+            batchItems.push({
+              qid: q.id,
+              type: q.type,
+              content: String(q.content ?? ""),
+              rubric: String(q.expected_rubric ?? ""),
+              userAnswer: sqlText,
+              maxPoints: Number(q.points) || 0,
+              executionOutput: sqlResultsForDisplay(raw),
             });
           }
         } else {
@@ -3008,6 +3085,14 @@ export function StudentWorkshopTaker({
                   })}
                 </p>
               ))}
+            {q.type === "bd_sql" && (
+              <SqlRunner
+                value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
+                onChange={(v) => updateAnswer(q.id, v)}
+                setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
+                starterSql={q.starter_code}
+              />
+            )}
             {q.type === "so_consola" && (
               // El terminal xterm se renderiza con columnas fijas (~800px), más
               // ancho que la Card de la pregunta en el modal: sin scroll propio
