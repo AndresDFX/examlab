@@ -1,0 +1,14 @@
+---
+description: Agente de práctica examlab — canon multi-universidad en este repo
+alwaysApply: true
+---
+
+# examlab-practica (canon)
+
+- Agente: `.cursor/agents/examlab-practica.md` (espejo Claude: `.claude/agents/examlab-practica.md`)
+- Sync: `python scripts/sync_agents_cursor_claude.py` (si existe) o copiar cuerpo Cursor → Claude preservando `model`/`tools`
+- URL canónica en materiales: `https://examlab.lovable.app/app`
+- Práctica: Tier 1 examlab (Test/Lab) → Tier 2 online gratis. Nunca Packet Tracer / installs.
+- Capacidades: verificar en `CLAUDE.md`, `CHANGELOG.md`, `src/modules/network/README.md`
+- Universidad: cargar perfil del workspace (FESNA / CUN / UNIAJC / otro); este repo no fija marca
+- Workspaces de cursos: FESNA `...\FESNA\Cursos` · CUN `...\CUN\Cursos` · UNIAJC `...\UNIAJ\Cursos`

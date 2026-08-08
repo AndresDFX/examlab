@@ -74,6 +74,20 @@ Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace 
 
 ---
 
+## Agentes del proyecto (`.claude/agents/`)
+
+Tres, con alcances que NO se solapan. El cuerpo se edita en `.cursor/agents/` y se espeja con
+`python scripts/sync_agents_cursor_claude.py` (preserva `model`/`tools` del lado Claude).
+
+| Agente | Para qué | Cuándo |
+|---|---|---|
+| **`examlab-dev`** | Ingeniería de la plataforma: features, bugs, migraciones, diagnóstico de prod. Trae destilado el contexto operativo (despliegue, mapa de credenciales, tenants reales, trampas conocidas) porque **un subagente NO hereda la memoria del usuario** | Trabajo sobre el código |
+| **`consistencia`** | Revisor READ-ONLY de iconos, i18n, persistencia y coherencia | Al terminar una funcionalidad, antes de commitear |
+| **`examlab-practica`** | Diseño de la parte PRÁCTICA de un curso sobre la plataforma | Contenido pedagógico, no código |
+
+Al cambiar convenciones de este archivo, revisá si `examlab-dev` las repite: lo que está duplicado
+ahí es lo que un subagente no puede deducir solo, y se desincroniza en silencio.
+
 ## Regla de consistencia (OBLIGATORIA al terminar una funcionalidad)
 
 Al terminar (o antes de commitear) **cualquier** funcionalidad nueva, cambio de UI, migración,
@@ -1164,7 +1178,7 @@ Pipeline en [docs/demos/admin/pipeline/](docs/demos/admin/pipeline/) (los 3 role
 
 ### Tests
 
-- `bun test` corre 81 archivos, 1415 tests (target). Algunos tests requieren jsdom (`document is not defined` con el runtime bun puro — siempre usar el runner vitest).
+- `bun test` corre **138 archivos / 2467 tests** (2026-08-07). En entornos sin bun: `node ./node_modules/vitest/vitest.mjs run`. Algunos tests requieren jsdom (`document is not defined` con el runtime bun puro — siempre usar el runner vitest).
 - Tests pure helpers: `src/modules/sessions/csv.ts`, `src/modules/contents/upload-external-helpers.ts`, `src/shared/lib/roles.ts`, `src/modules/onboarding/tour-config.ts`. Si necesitás testear un helper nuevo, extraelo del componente React a su propio módulo y agregale tests sin mocks de DOM.
 
 ### Pendiente (no urgente)

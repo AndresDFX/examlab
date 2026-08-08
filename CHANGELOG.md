@@ -22,7 +22,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 - **Roles / cursos**
   - Al loguearse, un usuario multi-rol abre por DEFECTO como **Docente** (Docente > Admin > Estudiante). Admin puro abre como Admin. (`AppLayout`, commit `523ffb5`)
-  - Un **Docente ve sólo SUS cursos** (los de `course_teachers`) cuando el rol ACTIVO es Docente; Admin/SuperAdmin ven todo el tenant. (`app.admin.courses.tsx`, `fb40899`)
+  - Un **Docente ve sólo SUS cursos** (los de `course_teachers`) cuando el rol ACTIVO es Docente; Admin/SuperAdmin ven todo el tenant. Vale para los cursos **y para todo lo que cuelga de ellos** (exámenes, talleres, proyectos, pizarras, certificados, papelera…). La regla vive en **`src/modules/courses/course-scope.ts`** y NO se reimplementa por pantalla: estaba repetida en 12 y por eso se omitió en la mitad. Tres detalles que la hacen frágil si se copia a mano: `[]` no es `null` (un `.in(col, [])` en PostgREST devuelve TODAS las filas), hay que filtrar en la INGESTA y no en `filtered*` (si no, los tiles de conteo mienten), y talleres/proyectos son M:N — filtrar por el curso ancla le esconde al docente su propio trabajo compartido. (`app.admin.courses.tsx` `fb40899` → generalizado `35fa57d8`…`16aaeb97`)
   - Un Docente **no puede auto-asignarse** como docente de un curso existente (RLS `20260966` + filtro UI por rol activo `520a40b`). PERO un Docente que **crea** un curso queda como su docente automáticamente (trigger `tg_course_add_creator_teacher`, `20260963`, SECURITY DEFINER).
 - **Estados de curso** (`courses.status`: `borrador | en_curso | finalizado`, mig `20260964`, commit `afbaf99`)
   - `finalizado` se llega SÓLO explícitamente (manual vía `set_course_status`, o cron diario `auto_finalize_courses` cuando `end_date` pasó). NO se infiere "finalizado" de una fecha pasada en la vista.
@@ -53,6 +53,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Desde 2026-07-24 el Historial se versiona por release (`## [X.Y.Z] — fecha`, un Publish = una versión).
 > Proceso y reglas de bump: **[docs/RELEASING.md](docs/RELEASING.md)**. Las entradas fechadas de abajo
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
+
+## [Sin publicar]
+
+> Requiere **Publish en Lovable**. Sin migraciones: es todo cliente.
+
+### 🔧 Correcciones
+
+- **Un docente ya no ve cursos ni material de cursos que no dicta.** Reporte: *"un usuario que es docente
+  y administrador, desde el rol docente puede ver cursos de los que no es docente"*. Afectaba a cualquier
+  docente —la combinación con Admin solo lo hizo evidente— y llegaba más lejos de lo reportado: en
+  Exámenes, Talleres y Proyectos el selector de curso **también era el del formulario**, así que se podía
+  crear contenido en un curso ajeno; y en la **papelera** se podía restaurar o eliminar definitivamente el
+  material de un colega.
+
+### Interno (equipo)
+
+- Causa raíz: la policy de `courses` deja ver todo el tenant **a propósito** (matrícula/gestión), así que el
+  alcance del docente no lo puede dar la base; y `has_role()` tampoco, porque los roles son **poseídos** —
+  un Docente+Admin pasa la rama Admin aunque actúe como Docente. El gate es de cliente y lo decide el rol
+  **ACTIVO**. Centralizado en `src/modules/courses/course-scope.ts` (+ `NoAssignedCoursesNotice`), 16
+  pantallas migradas, 19 tests. Tres comentarios del código afirmaban lo contrario de lo que pasaba ("la RLS
+  acota lo que cada rol ve"). Commits `35fa57d8`, `8fabe164`, `9265c4a2`, `446f6a66`, `16aaeb97`.
+- Documentos de viabilidad nuevos: **`docs/viabilidad-lenguajes-frameworks.md`** — los 14 lenguajes ya están
+  mapeados y la UI expone 4 a propósito (ampliarlos es horas, no semanas, pero solo 3 corren en la VM propia);
+  "tipo CodeSandbox" es otro problema (el runner es por lotes, sin red); y **Codespaces NO se puede embeber**,
+  verificado por cabeceras (`frame-ancestors 'none'`). StackBlitz/CodeSandbox sí, y el cierre del círculo es
+  capturar el proyecto efímero al ZIP que `codigo_zip` ya califica. Commits `e84dc2e8`, `9e6ced72`.
+- Agente **`examlab-dev`** (`.claude/agents/`): ingeniería de la plataforma con el contexto operativo
+  destilado, porque un subagente NO hereda la memoria del usuario. Catálogo de agentes en `CLAUDE.md`.
 
 ## [1.1.0] — 2026-07-24
 
