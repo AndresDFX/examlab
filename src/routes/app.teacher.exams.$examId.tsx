@@ -157,6 +157,10 @@ function ExamEditor() {
   // options.java_framework. Misma semántica que workshops/projects.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
   // Escenario JSON para preguntas `red_consola` (persiste en options.network).
+  // Esquema + datos de partida de una pregunta `bd_sql`. Se persiste en
+  // `options.db.setupSql` y se ejecuta ANTES del SQL del alumno, sobre una base
+  // limpia. Vacío es válido: el alumno trabaja sobre una base vacía.
+  const [qSetupSql, setQSetupSql] = useState<string>("");
   const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
     JSON.stringify(defaultScenario(), null, 2),
   );
@@ -175,6 +179,7 @@ function ExamEditor() {
     setQLanguage("java");
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
+    setQSetupSql("");
   };
 
   const loadQIntoForm = (q: Question) => {
@@ -199,6 +204,8 @@ function ExamEditor() {
     setQNetworkScenario(
       net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
     );
+    const setupDb = (q as any).options?.db?.setupSql;
+    setQSetupSql(typeof setupDb === "string" ? setupDb : "");
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
@@ -628,7 +635,9 @@ function ExamEditor() {
             : qType === "red_consola" || qType === "red_gui"
               ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
                 (networkOptions as any)
-              : null;
+              : qType === "bd_sql"
+                ? { db: { setupSql: qSetupSql } }
+                : null;
     // language implícito por tipo: java_gui → java, python_gui → python.
     // Para 'codigo' usamos lo que eligió el docente.
     const language =
@@ -1871,6 +1880,24 @@ function ExamEditor() {
                       ? t("hc_routesAppTeacherExamsExamId.frameworkJavafxHint")
                       : t("hc_routesAppTeacherExamsExamId.frameworkSwingHint")}
                   </p>
+                </div>
+              )}
+              {qType === "bd_sql" && (
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-1.5">
+                    {t("bdSql.setupSqlLabel")}
+                    <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
+                  </Label>
+                  <Textarea
+                    value={qSetupSql}
+                    onChange={(e) => setQSetupSql(e.target.value)}
+                    rows={10}
+                    spellCheck={false}
+                    className="font-mono text-xs"
+                  />
+                  {!qSetupSql.trim() && (
+                    <p className="text-2xs text-muted-foreground">{t("bdSql.noSetupHint")}</p>
+                  )}
                 </div>
               )}
               {(qType === "red_consola" || qType === "red_gui") && (

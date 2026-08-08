@@ -169,6 +169,9 @@ export function TeacherProjectFilesEditor({
   // en options.java_framework. Misma semántica que WorkshopQuestions.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
   // Escenario JSON para preguntas `red_consola` (persiste en options.network).
+  // Esquema + datos de partida de una pregunta `bd_sql` (options.db.setupSql).
+  // Se ejecuta ANTES del SQL del alumno, sobre una base limpia.
+  const [qSetupSql, setQSetupSql] = useState<string>("");
   const [qNetworkScenario, setQNetworkScenario] = useState<string>(() =>
     JSON.stringify(defaultScenario(), null, 2),
   );
@@ -188,6 +191,7 @@ export function TeacherProjectFilesEditor({
     setQZipSingle(false);
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
+    setQSetupSql("");
   };
 
   const loadIntoForm = (q: ProjectFile) => {
@@ -213,6 +217,8 @@ export function TeacherProjectFilesEditor({
     setQNetworkScenario(
       net ? JSON.stringify(net, null, 2) : JSON.stringify(defaultScenario(), null, 2),
     );
+    const setupDb = (q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql;
+    setQSetupSql(typeof setupDb === "string" ? setupDb : "");
     setActiveTab("manual");
   };
 
@@ -357,7 +363,9 @@ export function TeacherProjectFilesEditor({
             ? { java_framework: qJavaFramework }
             : qType === "red_consola" || qType === "red_gui"
               ? networkOptions
-              : null;
+              : qType === "bd_sql"
+                ? { db: { setupSql: qSetupSql } }
+                : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
@@ -1129,6 +1137,24 @@ export function TeacherProjectFilesEditor({
                 <Switch id="qZipSingle" checked={qZipSingle} onCheckedChange={setQZipSingle} />
               </div>
             </>
+          )}
+          {qType === "bd_sql" && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1.5">
+                {t("bdSql.setupSqlLabel")}
+                <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
+              </Label>
+              <Textarea
+                value={qSetupSql}
+                onChange={(e) => setQSetupSql(e.target.value)}
+                rows={10}
+                spellCheck={false}
+                className="font-mono text-xs"
+              />
+              {!qSetupSql.trim() && (
+                <p className="text-2xs text-muted-foreground">{t("bdSql.noSetupHint")}</p>
+              )}
+            </div>
           )}
           {(qType === "red_consola" || qType === "red_gui") && (
             <div className="space-y-2">
