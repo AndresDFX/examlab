@@ -56,8 +56,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Requiere **Publish en Lovable**. Incluye **una migración** (`20261600000000_bd_sql_support.sql`,
-> defensiva con `to_regclass`); el resto es cliente.
+> Requiere **Publish en Lovable**. Incluye **dos migraciones** (`20261600000000_bd_sql_support.sql`,
+> `20261610000000_whiteboard_pages_sql.sql`, ambas defensivas con `to_regclass`); el resto es cliente.
 
 ### 🎉 Novedades
 
@@ -68,9 +68,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   exámenes, talleres, proyectos y banco de preguntas, y la IA la califica leyendo la consulta **y las
   tablas que devolvió**. La primera ejecución descarga el motor (~16 MB): conviene probarlo antes de la
   clase si el WiFi del salón es lento.
+- **Hoja SQL en la pizarra.** Tercera hoja "ejecutable" junto a código y consola: el docente muestra una
+  consulta SQL en vivo contra el mismo motor PostgreSQL real (PGlite/WASM) de la pregunta `bd_sql`, sin
+  crear un examen ni un taller. Incluye un panel colapsable de "Esquema y datos de partida" (mismos
+  CREATE TABLE / INSERT que el docente pondría en una pregunta). El alumno que ve la pizarra compartida
+  puede ejecutar la consulta para probarla, pero ni el esquema ni la corrida se persisten desde su lado
+  — mismo trade-off que las hojas de código/consola. Reusa `SqlRunner`/`sql-answer.ts` tal cual (mig
+  `20261610000000_whiteboard_pages_sql.sql`, columnas `sql_setup`/`sql_answer` en `whiteboard_pages`).
 
 ### 🔧 Correcciones
 
+- **Duplicar una pizarra ahora preserva el contenido de las hojas de código/consola/SQL.** El agente de
+  consistencia detectó que `duplicateWhiteboard` (`app.teacher.whiteboards.index.tsx`) solo copiaba
+  `scene_json`/`page_type` desde que se introdujeron las hojas 'code'/'console' (mig `20261410000000`) —
+  una pizarra duplicada con esas hojas nacía con el editor en blanco, perdiendo el lenguaje/fuente de
+  código y el esquema SQL preparado por el docente. Ahora copia también `text_content`, `code_language`,
+  `code_source` y `sql_setup` (el CONTENIDO reutilizable), pero deliberadamente NO copia la evidencia de
+  ejecución (`last_stdout/stderr/exit_code/executed_at`, `console_transcript`, `sql_answer`) — mismo
+  criterio que "Duplicar sesión" (`copySnippets` excluye su caché `last_*`): la copia es una plantilla,
+  no el historial de una corrida puntual.
 - **Un docente ya no ve cursos ni material de cursos que no dicta.** Reporte: *"un usuario que es docente
   y administrador, desde el rol docente puede ver cursos de los que no es docente"*. Afectaba a cualquier
   docente —la combinación con Admin solo lo hizo evidente— y llegaba más lejos de lo reportado: en
@@ -80,6 +96,11 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### Interno (equipo)
 
+- `SqlRunner` (motor de `bd_sql`) suma el prop `readOnlyAllowRun`: con `readOnly`, deja el botón Ejecutar
+  visible y funcional (no persiste) en vez de esconderlo entero — lo necesitaba la hoja SQL de la pizarra
+  para que el alumno pueda probar la consulta del docente sin poder editarla. Backward-compatible: ningún
+  caller existente (examen/taller) pasaba `readOnly=true`, así que el comportamiento de esos flujos no
+  cambia.
 - Causa raíz: la policy de `courses` deja ver todo el tenant **a propósito** (matrícula/gestión), así que el
   alcance del docente no lo puede dar la base; y `has_role()` tampoco, porque los roles son **poseídos** —
   un Docente+Admin pasa la rama Admin aunque actúe como Docente. El gate es de cliente y lo decide el rol

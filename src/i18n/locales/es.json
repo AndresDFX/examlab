@@ -6892,6 +6892,10 @@
     "codePageHint": "Editor + compilador para mostrar código en vivo",
     "consolePage": "Hoja de consola (Linux)",
     "consolePageHint": "Terminal Linux real para demostrar comandos",
+    "sqlPage": "Hoja SQL",
+    "sqlPageHint": "PostgreSQL real en el navegador para demostrar consultas",
+    "newSqlPageTitle": "Nueva hoja SQL",
+    "sqlPagePlaceholder": "Ej: Consulta con JOIN",
     "newCodePageTitle": "Nueva hoja de código",
     "newConsolePageTitle": "Nueva hoja de consola",
     "codePagePlaceholder": "Ej: Ejemplo de bucle for",
@@ -6903,6 +6907,9 @@
     "textPagePlaceholder": "Ej: Notas de la clase",
     "drawingPagePlaceholder": "Ej: Diagrama de flujo",
     "createPage": "Crear hoja"
+  },
+  "hc_modulesWhiteboardSqlPageEditor": {
+    "setupPlaceholder": "CREATE TABLE ...\nINSERT INTO ..."
   },
   "hc_modulesWorkshopsWorkshopGroupsEditor": {
     "deleteGroupTitle": "Eliminar grupo \"{{name}}\"",

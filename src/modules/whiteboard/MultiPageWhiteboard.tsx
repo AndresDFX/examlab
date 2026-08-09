@@ -7,11 +7,14 @@
  *   - 'text': markdown editor → renderiza `<TextPageEditor>`.
  *   - 'code': editor + compilador → renderiza `<CodePageEditor>` (mig 20261410000000).
  *   - 'console': consola Linux real (v86) → renderiza `<V86Console>` (mig 20261410000000).
+ *   - 'sql': PostgreSQL real en el navegador → renderiza `<SqlPageEditor>` (mig 20261610000000),
+ *      reusa `SqlRunner`/`sql-answer.ts` (mismo motor que la pregunta `bd_sql`).
  *
- * Schema (migs 20260811000000 + 20260812000000 + 20261410000000):
+ * Schema (migs 20260811000000 + 20260812000000 + 20261410000000 + 20261610000000):
  *   - `whiteboard_pages(id, whiteboard_id, position, name, scene_json,
  *      page_type, text_content, code_language, code_source, last_stdout,
- *      last_stderr, last_exit_code, last_executed_at, console_transcript)`
+ *      last_stderr, last_exit_code, last_executed_at, console_transcript,
+ *      sql_setup, sql_answer)`
  *   - Cada pizarra = N hojas. Position 0-indexed, gaps tolerados.
  *
  * UX cuando hay muchas hojas (rediseño V2):
@@ -56,6 +59,7 @@ import {
   FileText,
   Code2,
   Terminal,
+  Database,
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -64,6 +68,7 @@ import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/Whi
 import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
 import { CodePageEditor } from "@/modules/whiteboard/CodePageEditor";
 import { V86Console } from "@/modules/serverconsole/V86Console";
+import { SqlPageEditor } from "@/modules/whiteboard/SqlPageEditor";
 import { getStarterCode } from "@/modules/code/CodeEditor";
 import {
   DropdownMenu,
@@ -77,7 +82,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PageType = "drawing" | "text" | "code" | "console";
+type PageType = "drawing" | "text" | "code" | "console" | "sql";
 
 interface WhiteboardPage {
   id: string;
@@ -96,11 +101,22 @@ interface WhiteboardPage {
   last_executed_at: string | null;
   // Hojas 'console' (Linux real v86) — transcript de la sesión.
   console_transcript: string | null;
+  // Hojas 'sql' (PostgreSQL real vía PGlite) — mig 20261610000000.
+  sql_setup: string | null;
+  sql_answer: string | null;
 }
 
 /** Icono lucide por tipo de hoja (sidebar tab + dropdown de lista). */
 function pageIcon(pt: PageType) {
-  return pt === "text" ? FileText : pt === "code" ? Code2 : pt === "console" ? Terminal : Palette;
+  return pt === "text"
+    ? FileText
+    : pt === "code"
+      ? Code2
+      : pt === "console"
+        ? Terminal
+        : pt === "sql"
+          ? Database
+          : Palette;
 }
 /** Color del icono por tipo de hoja — ancla visual consistente. */
 function pageIconColor(pt: PageType) {
@@ -110,7 +126,9 @@ function pageIconColor(pt: PageType) {
       ? "text-indigo-500"
       : pt === "console"
         ? "text-emerald-500"
-        : "text-violet-500";
+        : pt === "sql"
+          ? "text-cyan-600"
+          : "text-violet-500";
 }
 
 interface Props {
@@ -124,7 +142,7 @@ interface Props {
 }
 
 const PAGE_SELECT_COLS =
-  "id, whiteboard_id, position, name, page_type, scene_json, text_content, code_language, code_source, last_stdout, last_stderr, last_exit_code, last_executed_at, console_transcript";
+  "id, whiteboard_id, position, name, page_type, scene_json, text_content, code_language, code_source, last_stdout, last_stderr, last_exit_code, last_executed_at, console_transcript, sql_setup, sql_answer";
 
 const EMPTY_SCENE: WhiteboardScene = { elements: [], appState: {} };
 
@@ -264,10 +282,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
     [activePageId, t],
   );
 
-  /** Persist de hoja CODE/CONSOLE — patch multi-campo (source/lenguaje/cache de
-   *  ejecución para code; transcript para console). Actualiza el state local
-   *  además de la DB para que el cache sobreviva un cambio de hoja + vuelta
-   *  (cada hoja re-monta por `key`, leyendo de `pages`). */
+  /** Persist de hoja CODE/CONSOLE/SQL — patch multi-campo (source/lenguaje/cache de
+   *  ejecución para code; transcript para console; setup/respuesta serializada
+   *  para sql). Actualiza el state local además de la DB para que el cache
+   *  sobreviva un cambio de hoja + vuelta (cada hoja re-monta por `key`,
+   *  leyendo de `pages`). */
   const persistCodePage = useCallback(
     async (patch: Record<string, unknown>) => {
       if (!activePageId) return;
@@ -309,6 +328,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
         insertPayload.code_source = getStarterCode("java");
       }
       // 'console' no requiere init: el VM arranca fresco y console_transcript queda NULL.
+      // 'sql' tampoco: sql_setup/sql_answer quedan NULL, SqlRunner arranca en blanco.
       const { data, error } = await db
         .from("whiteboard_pages")
         .insert(insertPayload)
@@ -813,6 +833,24 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                   </span>
                 </div>
               </DropdownMenuItem>
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("sql");
+                }}
+              >
+                <Database className="h-4 w-4 mr-2 text-cyan-600" />
+                <div className="flex flex-col">
+                  <span className="text-sm">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.sqlPage", { defaultValue: "Hoja SQL" })}
+                  </span>
+                  <span className="text-2xs text-muted-foreground">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.sqlPageHint", {
+                      defaultValue: "PostgreSQL real en el navegador para demostrar consultas",
+                    })}
+                  </span>
+                </div>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         )}
@@ -851,6 +889,16 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             stderr={activePage.last_stderr}
             exitCode={activePage.last_exit_code}
             executedAt={activePage.last_executed_at}
+            onPersist={persistCodePage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
+        ) : activePage.page_type === "sql" ? (
+          <SqlPageEditor
+            key={activePage.id}
+            pageId={activePage.id}
+            setupSql={activePage.sql_setup}
+            answer={activePage.sql_answer}
             onPersist={persistCodePage}
             readOnly={readOnly}
             className="w-full h-full"
@@ -923,7 +971,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                     ? t("hc_modulesWhiteboardMultiPageWhiteboard.newConsolePageTitle", {
                         defaultValue: "Nueva hoja de consola",
                       })
-                    : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
+                    : newPageKind === "sql"
+                      ? t("hc_modulesWhiteboardMultiPageWhiteboard.newSqlPageTitle", {
+                          defaultValue: "Nueva hoja SQL",
+                        })
+                      : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
             </DialogTitle>
             <DialogDescription>{t("hc_modulesWhiteboardMultiPageWhiteboard.namePageDescription")}</DialogDescription>
           </DialogHeader>
@@ -953,7 +1005,11 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
                       ? t("hc_modulesWhiteboardMultiPageWhiteboard.consolePagePlaceholder", {
                           defaultValue: "Ej. Comandos de permisos",
                         })
-                      : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
+                      : newPageKind === "sql"
+                        ? t("hc_modulesWhiteboardMultiPageWhiteboard.sqlPagePlaceholder", {
+                            defaultValue: "Ej. Consulta con JOIN",
+                          })
+                        : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
               }
             />
           </div>

@@ -56,6 +56,16 @@ interface Props {
   setupSql?: string | null;
   /** SQL inicial sugerido (`starter_code`). */
   starterSql?: string | null;
+  /**
+   * Con `readOnly`, deja el botón Ejecutar visible y funcional (el alumno
+   * puede correr la consulta fija del docente para ver el resultado) pero
+   * SIN persistir — la corrida queda solo en memoria local. Mismo contrato
+   * que `CodePageEditor`/`V86Console` en la pizarra: "puede ejecutar para
+   * probar, pero su salida no se persiste". Sin esto, `readOnly` esconde el
+   * botón entero (comportamiento de revisión post-hoc, que es lo único que
+   * usan hoy los flujos de examen/taller).
+   */
+  readOnlyAllowRun?: boolean;
 }
 
 /** Convierte el resultado crudo de PGlite a nuestra forma serializable. */
@@ -79,6 +89,7 @@ export function SqlRunner({
   className,
   setupSql,
   starterSql,
+  readOnlyAllowRun,
 }: Props) {
   const { t } = useTranslation();
   const parsed = parseSqlAnswer(value);
@@ -116,6 +127,10 @@ export function SqlRunner({
   );
 
   const onSqlChange = (next: string) => {
+    // Defensivo: con Monaco en readOnly el usuario no puede tipear, así que
+    // esto no debería dispararse — pero si algún caller cambia `readOnly` en
+    // caliente, no queremos persistir un cambio que no debió pasar.
+    if (readOnly) return;
     setSql(next);
     // Se guarda el SQL aunque no se haya ejecutado: escribir y no probar ES una
     // respuesta (ver `isSqlAnswerBlank`). Los resultados viejos se conservan.
@@ -172,7 +187,10 @@ export function SqlRunner({
       }
       if (cancelledRef.current) return;
       setResults(next);
-      persist(sql, next, true);
+      // En modo readOnly (alumno probando la consulta fija del docente en la
+      // pizarra) la corrida NO se persiste — mismo trade-off que el output
+      // local de CodePageEditor.
+      if (!readOnly) persist(sql, next, true);
     } catch (e) {
       if (cancelledRef.current) return;
       // Acá solo caen fallos de CARGA del motor (red/CDN), no errores de SQL.
@@ -190,7 +208,7 @@ export function SqlRunner({
             <Database className="h-3.5 w-3.5 shrink-0" />
             {t("bdSql.engineLabel")}
           </span>
-          {!readOnly && (
+          {(!readOnly || readOnlyAllowRun) && (
             <Button size="sm" onClick={() => void run()} disabled={running || !sql.trim()}>
               {running ? <Spinner size="xs" className="mr-1" /> : <Play className="mr-1 h-4 w-4" />}
               {running ? t("bdSql.running") : t("bdSql.run")}

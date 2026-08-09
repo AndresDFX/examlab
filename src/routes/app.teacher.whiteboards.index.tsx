@@ -685,9 +685,17 @@ function TeacherWhiteboards() {
     const newId = created.id as string;
 
     if (opts.copyContent) {
+      // Copiamos el CONTENIDO preparado por el docente de cada tipo de hoja
+      // (dibujo/texto/lenguaje+fuente de código/esquema SQL), pero NO la
+      // evidencia de ejecución (last_stdout/stderr/exit_code/executed_at,
+      // console_transcript, sql_answer) — mismo criterio que "Duplicar
+      // sesión" (copySnippets excluye su caché `last_*`): la copia es una
+      // plantilla reutilizable, no el historial de una corrida puntual. Las
+      // hojas 'console'/'sql' nacen "frescas" (transcript/respuesta en NULL),
+      // igual que al crearlas desde cero.
       const { data: pages, error: pagesErr } = await db
         .from("whiteboard_pages")
-        .select("position, name, scene_json, page_type")
+        .select("position, name, scene_json, page_type, text_content, code_language, code_source, sql_setup")
         .eq("whiteboard_id", w.id)
         .order("position");
       if (pagesErr) {
@@ -700,6 +708,10 @@ function TeacherWhiteboards() {
         name: string | null;
         scene_json: unknown;
         page_type: string | null;
+        text_content: string | null;
+        code_language: string | null;
+        code_source: string | null;
+        sql_setup: string | null;
       }>;
       if (rows.length > 0) {
         const { error: copyErr } = await db.from("whiteboard_pages").insert(
@@ -709,6 +721,10 @@ function TeacherWhiteboards() {
             name: p.name,
             scene_json: p.scene_json,
             page_type: p.page_type,
+            text_content: p.text_content,
+            code_language: p.code_language,
+            code_source: p.code_source,
+            sql_setup: p.sql_setup,
           })),
         );
         if (copyErr) {

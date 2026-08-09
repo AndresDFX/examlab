@@ -6892,6 +6892,10 @@
     "codePageHint": "Editor + compiler to show code live",
     "consolePage": "Console page (Linux)",
     "consolePageHint": "Real Linux terminal to demo commands",
+    "sqlPage": "SQL page",
+    "sqlPageHint": "Real PostgreSQL in the browser to demo queries",
+    "newSqlPageTitle": "New SQL page",
+    "sqlPagePlaceholder": "E.g.: Query with JOIN",
     "newCodePageTitle": "New code page",
     "newConsolePageTitle": "New console page",
     "codePagePlaceholder": "E.g.: For loop example",
@@ -6903,6 +6907,9 @@
     "textPagePlaceholder": "E.g.: Class notes",
     "drawingPagePlaceholder": "E.g.: Flowchart",
     "createPage": "Create page"
+  },
+  "hc_modulesWhiteboardSqlPageEditor": {
+    "setupPlaceholder": "CREATE TABLE ...\nINSERT INTO ..."
   },
   "hc_modulesWorkshopsWorkshopGroupsEditor": {
     "deleteGroupTitle": "Delete group \"{{name}}\"",
