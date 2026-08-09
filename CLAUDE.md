@@ -59,7 +59,7 @@ Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace 
 - Flujo de despliegue: `git push origin main` → usuario da click en **Publish** en Lovable.
 - Las migraciones van en `supabase/migrations/*.sql` — Lovable las aplica en Publish.
 - **Defensiva clave**: cada migración nueva DEBE envolver `ALTER TABLE` en `DO $$ BEGIN IF to_regclass('public.X') IS NOT NULL THEN ... END IF; END $$` por si la tabla NO existe en el entorno del usuario. Lovable a veces marca migraciones como aplicadas aunque el CREATE TABLE no haya corrido — sin el guard, la migración falla y se aborta todo el deploy. Patrón confirmado al fallar `question_bank` en 20260813000000.
-- Remote git: `git@github-vivetori:vivetori/examlab.git` (nombre: `origin`)
+- Remote git: `https://github.com/AndresDFX/examlab` (nombre: `origin`). Lovable Publish lee de este repo — confirmado 2026-08-09 (antes este documento decía `vivetori/examlab`, dato incorrecto que causó un push al repo equivocado).
 - Lockfile: el repo usa **`bun.lock`** (NO `package-lock.json` ni `pnpm-lock.yaml`). Cualquier cambio en `package.json` requiere `bun install` para regenerar el lockfile y commitear AMBOS — el CI valida sincronía.
 
 ## Stack
