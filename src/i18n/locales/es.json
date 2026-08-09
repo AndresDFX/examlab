@@ -4797,6 +4797,7 @@
     "filterModuleTutor": "Tutor del curso",
     "filterModuleReports": "Informes",
     "filterModuleSupport": "Asistente IA",
+    "filterModuleWhiteboards": "Pizarras",
     "showingCount": "Mostrando {{shown}} de {{total}}",
     "brandingTitle": "Marca institucional",
     "brandingHelpHint": "Estos valores se inyectan al prompt de Generación de contenidos como {{university_name}}, {{logo_url}}, {{primary_color}} y {{secondary_color}}. Aparecen también en la portada del .pptx generado.",
@@ -9697,5 +9698,26 @@
     "setupSqlLabel": "Esquema y datos de partida (SQL)",
     "setupSqlHint": "Se ejecuta ANTES del SQL del estudiante, en una base limpia. Acá van los CREATE TABLE e INSERT del ejercicio.",
     "noSetupHint": "Sin esquema de partida: el estudiante trabaja sobre una base vacía."
+  },
+  "sqlAssistant": {
+    "title": "Generar SQL con IA",
+    "hint": "Describí en español lo que querés mostrar y la IA arma el SQL comentado, listo para explicar. Si ya hay un esquema de partida, lo usa como referencia para no inventar tablas.",
+    "placeholder": "Ej.: una tabla de clientes y otra de pedidos con 10 filas de ejemplo",
+    "generate": "Generar",
+    "generating": "Generando…",
+    "waitHint": "Puede tardar unos segundos. Podés seguir escribiendo en el editor mientras tanto.",
+    "errorTitle": "No se pudo generar:",
+    "genericError": "No se pudo generar el SQL. Volvé a intentar en unos segundos.",
+    "emptyResult": "La IA no devolvió ninguna sentencia. Reformulá la petición con más detalle.",
+    "useAsSetup": "Usar como esquema de partida",
+    "insertInEditor": "Insertar en el editor",
+    "copy": "Copiar",
+    "copied": "SQL copiado",
+    "copyFailed": "No se pudo copiar",
+    "setAsSetup": "Listo: quedó como esquema de partida",
+    "appendedToSetup": "Se agregó al final del esquema de partida",
+    "setInEditor": "Listo: quedó en el editor",
+    "appendedToEditor": "Se agregó al final del editor",
+    "appendNote": "Se agrega al final de lo que ya escribiste; no reemplaza nada."
   }
 }

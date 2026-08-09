@@ -352,7 +352,13 @@ function WhiteboardEditorPage() {
           Mantenemos persistScene en el código por si en algún flujo
           futuro se necesita la columna legacy (ej. snapshot final). */}
       <div className="flex-1 min-h-[65dvh] md:min-h-0 rounded-md border overflow-hidden bg-background">
-        <MultiPageWhiteboard whiteboardId={id} className="w-full h-full" />
+        {/* `metaCourse` (no `wb.course_id`) para que al re-vincular la pizarra
+            a otro curso la hoja SQL tome el contexto nuevo sin recargar. */}
+        <MultiPageWhiteboard
+          whiteboardId={id}
+          courseId={metaCourse === "none" ? null : metaCourse}
+          className="w-full h-full"
+        />
       </div>
     </div>
   );

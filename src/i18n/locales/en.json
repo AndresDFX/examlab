@@ -4797,6 +4797,7 @@
     "filterModuleTutor": "Course tutor",
     "filterModuleReports": "Reports",
     "filterModuleSupport": "AI Assistant",
+    "filterModuleWhiteboards": "Whiteboards",
     "showingCount": "Showing {{shown}} of {{total}}",
     "brandingTitle": "Institutional branding",
     "brandingHelpHint": "These values are injected into the Content Generation prompt as {{university_name}}, {{logo_url}}, {{primary_color}} and {{secondary_color}}. They also appear on the cover of the generated .pptx.",
@@ -9697,5 +9698,26 @@
     "setupSqlLabel": "Starting schema and data (SQL)",
     "setupSqlHint": "Runs BEFORE the student's SQL, on a clean database. Put the exercise's CREATE TABLE and INSERT here.",
     "noSetupHint": "No starting schema: the student works on an empty database."
+  },
+  "sqlAssistant": {
+    "title": "Generate SQL with AI",
+    "hint": "Describe what you want to show and the AI writes the commented SQL, ready to explain. If there is a starting schema, it uses it as reference so it does not invent tables.",
+    "placeholder": "e.g. a customers table and an orders table with 10 sample rows",
+    "generate": "Generate",
+    "generating": "Generating…",
+    "waitHint": "This may take a few seconds. You can keep typing in the editor meanwhile.",
+    "errorTitle": "Could not generate:",
+    "genericError": "Could not generate the SQL. Try again in a few seconds.",
+    "emptyResult": "The AI returned no statement. Rephrase your request with more detail.",
+    "useAsSetup": "Use as starting schema",
+    "insertInEditor": "Insert into the editor",
+    "copy": "Copy",
+    "copied": "SQL copied",
+    "copyFailed": "Could not copy",
+    "setAsSetup": "Done: set as the starting schema",
+    "appendedToSetup": "Added at the end of the starting schema",
+    "setInEditor": "Done: placed in the editor",
+    "appendedToEditor": "Added at the end of the editor",
+    "appendNote": "It is appended after what you already wrote; nothing is replaced."
   }
 }

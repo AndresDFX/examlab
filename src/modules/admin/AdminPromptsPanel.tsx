@@ -42,6 +42,9 @@ import {
   PLATFORM_SUPPORT_DOCENTE_FALLBACK,
   PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK,
 } from "@/modules/support-assistant/support-prompt";
+// Byte-idéntico con el seed SQL (20261620000000) y el FALLBACK del edge
+// `ai-generate-sql` — ver invariante en CLAUDE.md.
+import { SQL_GENERATION_FALLBACK } from "@/modules/database/sql-generation-prompt";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -67,7 +70,8 @@ type UseCase =
   | "report_generation"
   | "platform_support"
   | "platform_support_docente"
-  | "platform_support_estudiante";
+  | "platform_support_estudiante"
+  | "sql_generation";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
@@ -88,7 +92,8 @@ type PromptModule =
   | "branding"
   | "tutor"
   | "reports"
-  | "support";
+  | "support"
+  | "whiteboards";
 
 type UseCaseDef = {
   key: UseCase;
@@ -109,6 +114,7 @@ const MODULE_LABEL_KEYS: Record<PromptModule, string> = {
   tutor: "adminPromptsPanel.filterModuleTutor",
   reports: "adminPromptsPanel.filterModuleReports",
   support: "adminPromptsPanel.filterModuleSupport",
+  whiteboards: "adminPromptsPanel.filterModuleWhiteboards",
 };
 
 // Sincronizado con seeds de la migración 20260508100000_ai_prompts.sql.
@@ -300,6 +306,14 @@ const USE_CASES: UseCaseDef[] = [
     description:
       "System prompt del Asistente IA para el rol ESTUDIANTE. Mismo asistente, plantilla adaptada a lo que un estudiante puede hacer. Placeholders: {{user_name}}, {{tenant_name}}, {{current_datetime}} y {{platform_kb}}. El edge añade barandas de seguridad NO editables (un estudiante no obtiene instrucciones de funciones de rol superior aunque las pida). Byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: PLATFORM_SUPPORT_ESTUDIANTE_FALLBACK,
+  },
+  {
+    key: "sql_generation",
+    module: "whiteboards",
+    label: "Generar SQL con IA (pizarra)",
+    description:
+      "System prompt de la caja 'Generar SQL con IA' de la hoja SQL de la pizarra. El docente escribe en lenguaje natural lo que quiere mostrar en clase (crear tablas con datos de ejemplo, una consulta, un permiso) y recibe SQL comentado para insertar como esquema de partida o en el editor. Los datos dinámicos (la petición y el esquema de partida actual) los inyecta el código en el mensaje del usuario — este prompt define el ROL, el entorno (PostgreSQL real en el navegador, base temporal que arranca limpia) y el formato de salida. Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
+    defaultPrompt: SQL_GENERATION_FALLBACK,
   },
 ];
 
@@ -715,6 +729,7 @@ export function AdminPromptsPanel() {
                   "tutor",
                   "reports",
                   "support",
+                  "whiteboards",
                   "branding",
                 ] as const
               ).map((m) => (

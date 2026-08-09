@@ -136,6 +136,10 @@ interface Props {
   /** Si true, deshabilita edición — alumno viendo pizarra compartida.
    *  Los tabs siguen siendo navegables pero no se puede add/delete/rename. */
   readOnly?: boolean;
+  /** Curso al que está vinculada la pizarra, si tiene. Hoy solo lo consume la
+   *  hoja SQL, para darle contexto de curso a la generación de SQL con IA
+   *  (prompt propio del curso + resolución del modelo por tenant). */
+  courseId?: string | null;
   /** Clase Tailwind del contenedor. Se pasa al div root del wrapper;
    *  el editor interno toma h-full del flex-1. */
   className?: string;
@@ -169,7 +173,7 @@ function writeStoredActivePage(whiteboardId: string, pageId: string | null) {
   }
 }
 
-export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props) {
+export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, className }: Props) {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [pages, setPages] = useState<WhiteboardPage[]>([]);
@@ -899,6 +903,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, className }: Props
             pageId={activePage.id}
             setupSql={activePage.sql_setup}
             answer={activePage.sql_answer}
+            courseId={courseId ?? null}
             onPersist={persistCodePage}
             readOnly={readOnly}
             className="w-full h-full"

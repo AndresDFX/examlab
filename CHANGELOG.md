@@ -56,10 +56,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Requiere **Publish en Lovable**. Incluye **dos migraciones** (`20261600000000_bd_sql_support.sql`,
-> `20261610000000_whiteboard_pages_sql.sql`, ambas defensivas con `to_regclass`); el resto es cliente.
+> Requiere **Publish en Lovable**. Incluye **tres migraciones** (`20261600000000_bd_sql_support.sql`,
+> `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`, las tres defensivas
+> con `to_regclass`) y **una edge function nueva** (`ai-generate-sql`); el resto es cliente.
 
 ### 🎉 Novedades
+
+- **Generar SQL con IA mientras se dicta la clase.** En la hoja SQL de la pizarra el docente ahora tiene
+  una caja donde pide en español lo que quiere mostrar —"una tabla de clientes y otra de pedidos con 10
+  filas", "la consulta del cliente con más pedidos", "un permiso de solo lectura"— y recibe el SQL **ya
+  comentado**, listo para explicar línea por línea. Con dos botones lo lleva a donde lo necesita: *Usar
+  como esquema de partida* (para armar la base de prueba) o *Insertar en el editor* (para ejecutarlo).
+  Cubre creación de tablas, inserción y modificación de datos, consultas (uniones, agrupaciones,
+  subconsultas, funciones de ventana) y permisos. Si ya hay un esquema de partida escrito, la IA lo usa
+  como referencia para no inventar tablas que no existen. Lo generado **se agrega al final** de lo que ya
+  estaba: nunca reemplaza el trabajo del docente. El texto que guía a la IA es editable desde
+  Configuración → Prompts (categoría **Pizarras**), como el resto de los prompts de la plataforma.
 
 - **Preguntas de base de datos con PostgreSQL real.** El estudiante escribe SQL y lo ejecuta contra un
   Postgres de verdad que corre **en su propio navegador** — sin instalar nada, sin cuenta y sin conexión
@@ -96,6 +108,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### Interno (equipo)
 
+- **Generador de SQL con IA (`sql_generation`)**: edge nueva `ai-generate-sql` (síncrona por diseño — NO
+  respeta `processing_mode='async'` ni encola, como `tutor-chat`; el docente está proyectando en vivo),
+  `verify_jwt=true` + gate de rol server-side (Docente/Admin/SA) porque no hay caller service_role, rate
+  limit `ai.generate_sql` 60/h, y `aiChatCompletionFailover` para la lista de keys con failover. El system
+  prompt se resuelve con la jerarquía habitual (curso → tenant → platform → FALLBACK) y su texto entra a la
+  tabla de invariantes cross-file de `CLAUDE.md`: **byte-idéntico en 3 lados** — seed de
+  `20261620000000_ai_prompt_sql_generation.sql` ↔ `FALLBACK_SQL_GENERATION_PROMPT` del edge ↔
+  `SQL_GENERATION_FALLBACK` (`src/modules/database/sql-generation-prompt.ts`, que el `AdminPromptsPanel`
+  consume como `defaultPrompt`). El texto no puede contener backticks, barras invertidas ni `${` porque los
+  3 lados lo embeben literal. Categoría nueva `whiteboards` ("Pizarras") en el filtro del panel de Prompts.
+  Los datos dinámicos (petición + esquema de partida) van en el mensaje del USUARIO, no como placeholders.
 - `SqlRunner` (motor de `bd_sql`) suma el prop `readOnlyAllowRun`: con `readOnly`, deja el botón Ejecutar
   visible y funcional (no persiste) en vez de esconderlo entero — lo necesitaba la hoja SQL de la pizarra
   para que el alumno pueda probar la consulta del docente sin poder editarla. Backward-compatible: ningún

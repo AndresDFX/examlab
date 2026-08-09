@@ -173,6 +173,16 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# Generador de SQL con IA de la hoja SQL de la pizarra (docente en clase).
+# verify_jwt = TRUE a propósito: a diferencia de ai-generate-questions /
+# generate-contents, acá NO hay caller service_role (ningún worker la invoca —
+# es síncrona por diseño). El único caller es el frontend con el JWT del
+# docente, así que dejamos que el gateway valide y el handler además exige
+# rol Docente/Admin/SuperAdmin.
+[functions."ai-generate-sql"]
+enabled = true
+verify_jwt = true
+
 [logging]
 vector_enabled = false
 postgres_enabled = false
