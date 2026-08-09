@@ -165,15 +165,22 @@ async function callAi(
  * tiene nada que ver con lo que el docente está explicando.
  */
 function stripCodeFences(raw: string): string {
-  let s = (raw ?? "").trim();
-  const fence = "```";
-  if (!s.startsWith(fence)) return s;
-  // Primera línea: la cerca de apertura (con o sin lenguaje: ```sql / ```).
-  const firstBreak = s.indexOf("\n");
-  s = firstBreak === -1 ? "" : s.slice(firstBreak + 1);
-  const closing = s.lastIndexOf(fence);
-  if (closing !== -1) s = s.slice(0, closing);
-  return s.trim();
+  const s = (raw ?? "").trim();
+  if (!s.includes("```")) return s;
+  // Se extrae el CONTENIDO de cada bloque cercado, en vez de asumir que la
+  // cerca abre en el primer carácter: el modelo suele anteponer una frase
+  // ("Aquí tienes el SQL que pediste:") aunque el prompt lo prohíba, y con esa
+  // frase adelante una versión anclada al inicio no limpiaba nada — la prosa y
+  // las cercas terminaban insertadas en el editor. Varios bloques se unen
+  // porque el modelo a veces separa el DDL de la consulta.
+  const blocks = [...s.matchAll(/```[^\S\n]*[a-zA-Z]*[^\S\n]*\n?([\s\S]*?)```/g)]
+    .map((m) => m[1].trim())
+    .filter(Boolean);
+  if (blocks.length) return blocks.join("\n\n");
+  // Cerca de apertura sin cierre (respuesta truncada por límite de tokens):
+  // se descarta la línea de apertura y cualquier cerca suelta.
+  const nl = s.indexOf("\n", s.indexOf("```"));
+  return nl === -1 ? "" : s.slice(nl + 1).replaceAll("```", "").trim();
 }
 
 Deno.serve(async (req: Request) => {
