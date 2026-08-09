@@ -52,6 +52,43 @@ curl -s "https://uxxpzfsfcnqiwwdxoelm.supabase.co/rest/v1/courses?select=id,name
 
 Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace sin tener que abrir un browser. La cuenta test-fesna tiene los 3 roles, así que sirve para validar flows Admin/Docente/Estudiante con el mismo token.
 
+## Contenido académico de universidades (submódulos independientes)
+
+`universidades/<nombre>/` (ej. `universidades/CUN/`, `universidades/UNIAJ/`) son **submódulos
+de Git**, cada uno el repo real de esa universidad, con material fuente auténtico
+(presentaciones, manuales, apuntes, sílabos). Cada universidad tiene su propio historial,
+sus propios commits y su propio ciclo de vida — completamente separado del de Examlab.
+
+**Por qué existen acá dentro**: Examlab necesita poder LEER ese material como contexto para
+generar contenido dentro de la plataforma (bancos de preguntas, resúmenes, material
+interactivo vía IA — ver `ai-generate-questions`, `generate-contents`) sin que ese material
+viva desperdigado fuera del repo o haya que ir a buscarlo a mano cada vez. El submódulo lo
+trae adentro del checkout de Examlab sin fusionar los dos mundos.
+
+**Regla dura, la que no se negocia**: las universidades son **fuente de contexto, NUNCA
+dependencias de software**.
+
+- Examlab no importa código de `universidades/*` en ningún `import`, no lo empaqueta, no lo
+  ejecuta, no lo referencia desde `src/` ni desde `supabase/functions/`. Es contenido para
+  LEER como insumo (a mano, o pegado al armar un prompt de generación), no para requerir.
+- Nunca edites nada DENTRO de `universidades/<nombre>/` desde una sesión de trabajo en
+  Examlab. Si un documento de una universidad hay que corregirlo, se entra a SU propio repo
+  (`cd universidades/<nombre>` o clonándolo aparte) y se commitea ahí — nunca desde acá.
+- Para traer la versión más reciente de cada universidad, correr
+  **`scripts/update-universidades.sh`**. No corras `git submodule update`/`add` a mano: el
+  script deja además un commit en Examlab (`chore: actualizar contenido de universidades
+  <fecha>`) para que quede trazable CUÁNDO se sincronizó cada una — sin eso, un `git log` de
+  Examlab no dice nada sobre qué versión del material de cada universidad se usó para generar
+  qué.
+- Cada submódulo sigue la rama `main` del repo de la universidad (no un commit fijo), vía
+  `git submodule set-branch --branch main`. El estado y las URLs de cada universidad —incluidas
+  las que quedaron pendientes de agregar— están en
+  [`universidades/README.md`](universidades/README.md).
+
+`universidades/*/` está en `.gitignore` — no oculta los submódulos ya registrados (eso es un
+gitlink en el índice, `.gitignore` no toca lo que ya está tracked), es para que no se cuelen
+archivos sueltos si alguien deja algo directo en esa carpeta antes de que sea un submódulo real.
+
 ## Plataforma y despliegue
 
 - **Hospedado en Lovable** (lovable.dev). Lovable gestiona Supabase automáticamente.

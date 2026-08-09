@@ -73,3 +73,11 @@ desktop.ini
 # Bytecode de Python generado por py_compile en el runner AWS
 __pycache__/
 *.pyc
+
+# universidades/<nombre>/ son submódulos de Git (repo real de cada
+# universidad, versionado aparte) — esto NO los ignora a ellos, un submódulo
+# ya registrado es un gitlink en el índice y .gitignore no toca lo que ya
+# está tracked. Es para que Git no levante ruido con archivos sueltos
+# (temporales, exports, carpetas de universidades aún sin agregar como
+# submódulo) que alguien deje caer directo en universidades/<nombre>/.
+universidades/*/
