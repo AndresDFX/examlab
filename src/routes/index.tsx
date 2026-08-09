@@ -145,7 +145,6 @@ function Home() {
 
       <footer className="border-t py-6 text-center text-xs text-muted-foreground">
         <div>© <CurrentYear /> {t("hc_routesIndex.footerBrand")}</div>
-        <div className="mt-1">Holaa soy nuevo</div>
         <Link to="/privacy" className="mt-1 inline-block hover:text-foreground">
           {t("hc_routesIndex.privacyPolicy")}
         </Link>
