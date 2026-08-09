@@ -12,27 +12,24 @@ a mano: usá `scripts/update-universidades.sh`.
 
 | Universidad | Repo | Estado |
 |---|---|---|
-| CUN | `https://github.com/AndresDFX/CUN` | ⏳ **Pendiente** — el repo existe pero no tiene ningún commit todavía. |
-| UNIAJ | `https://github.com/AndresDFX/UNIAJ` | ⏳ **Pendiente** — el repo existe pero no tiene ningún commit todavía. |
+| CUN | `https://github.com/AndresDFX/CUN` | ✅ Conectada como submódulo, sigue `main`. |
+| UNIAJ | `https://github.com/AndresDFX/UNIAJ` | ✅ Conectada como submódulo, sigue `main`. |
 
-### Por qué están pendientes
+Para traer lo más nuevo de cada una: `scripts/update-universidades.sh`.
 
-Un submódulo de Git referencia un **commit concreto** de la rama seguida; un repo sin commits
-no tiene ninguno al que apuntar, así que `git submodule add -b main <url> universidades/<nombre>`
-falla con `fatal: 'origin/main' is not a commit`. No es un problema de URL ni de permisos —
-ambos repos son accesibles — es que están vacíos.
+### Si se agrega una universidad nueva
 
-### Cómo se destraba
-
-En cuanto CUN o UNIAJ tengan un primer commit en `main` (subido desde DENTRO de cada repo, no
-desde acá), correr una vez por universidad:
+Cuando el repo de la universidad ya tenga al menos un commit en `main` (un submódulo referencia
+un commit concreto — no se puede agregar un repo vacío), correr una vez:
 
 ```bash
-git submodule add -b main https://github.com/AndresDFX/CUN universidades/CUN
-git submodule set-branch --branch main universidades/CUN
-git add .gitmodules universidades/CUN
-git commit -m "chore: agregar universidades/CUN como submódulo"
+git submodule add -f -b main https://github.com/AndresDFX/<Nombre> universidades/<Nombre>
+git submodule set-branch --branch main universidades/<Nombre>
+git add .gitmodules universidades/<Nombre>
+git commit -m "chore: agregar universidades/<Nombre> como submódulo"
 ```
 
-(análogo para UNIAJ). De ahí en adelante, `scripts/update-universidades.sh` las mantiene al
-día automáticamente.
+El `-f` es necesario porque `universidades/*/` está en `.gitignore` (para no levantar ruido de
+archivos sueltos) — no bloquea al submódulo una vez agregado, solo el `add` inicial. De ahí en
+adelante, `scripts/update-universidades.sh` la mantiene al día automáticamente junto con las
+demás.

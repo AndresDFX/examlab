@@ -1,0 +1,8 @@
+[submodule "universidades/CUN"]
+	path = universidades/CUN
+	url = https://github.com/AndresDFX/CUN
+	branch = main
+[submodule "universidades/UNIAJ"]
+	path = universidades/UNIAJ
+	url = https://github.com/AndresDFX/UNIAJ
+	branch = main
