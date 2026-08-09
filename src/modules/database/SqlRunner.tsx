@@ -24,12 +24,21 @@
  * error del ENUNCIADO, no del alumno.** Si el docente se equivoca en el esquema,
  * el estudiante tiene que poder distinguirlo de su propio error; si no, se lleva
  * la culpa de algo que no hizo.
+ *
+ * **Si hay texto seleccionado, se ejecuta SOLO eso.** Es el gesto que espera
+ * cualquiera que venga de un cliente SQL (DBeaver, pgAdmin, DataGrip): en una
+ * hoja con el esquema, los INSERT y varias consultas, correr el archivo entero
+ * para ver UNA consulta significa recrear la base cada vez y leer la respuesta
+ * al final de una lista de resultados. El docente que explica en vivo necesita
+ * justo lo contrario: parar en una línea, correrla y hablar sobre ella. El
+ * `setupSql` SIEMPRE corre antes, incluso con selección, porque la base es
+ * limpia por corrida y sin esquema la selección no tendría contra qué correr.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Play, Database, AlertTriangle } from "lucide-react";
-import Editor from "@monaco-editor/react";
+import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -100,6 +109,16 @@ export function SqlRunner({
   const [setupError, setSetupError] = useState<string | null>(null);
   const dbRef = useRef<PgliteDb | null>(null);
   const cancelledRef = useRef(false);
+  /** Instancia de Monaco: es la única fuente de la selección del usuario. */
+  const editorRef = useRef<Parameters<OnMount>[0] | null>(null);
+  /** Solo para la etiqueta del botón; el texto real se relee al ejecutar. */
+  const [hasSelection, setHasSelection] = useState(false);
+  /**
+   * El atajo Ctrl/Cmd+Enter se registra en Monaco UNA sola vez al montar, así
+   * que capturaría el `run` de ese primer render (con el `sql` vacío y el
+   * `setupSql` viejo). La ref lo mantiene apuntando a la versión actual.
+   */
+  const runRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -137,8 +156,52 @@ export function SqlRunner({
     persist(next, results, false);
   };
 
+  /**
+   * Texto seleccionado en el editor, o `""` si no hay selección real.
+   *
+   * Se leen TODAS las selecciones (Monaco permite multi-cursor con Alt+clic) y
+   * se unen en el orden en que están en el documento, no en el orden en que se
+   * hicieron los clics: si no, dos líneas elegidas de abajo hacia arriba se
+   * ejecutarían al revés y un INSERT correría antes que su CREATE TABLE.
+   */
+  const selectedSql = useCallback((): string => {
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    if (!editor || !model) return "";
+    const ranges = (editor.getSelections() ?? [])
+      .filter((r) => !r.isEmpty())
+      .sort((a, b) =>
+        a.startLineNumber !== b.startLineNumber
+          ? a.startLineNumber - b.startLineNumber
+          : a.startColumn - b.startColumn,
+      );
+    return ranges
+      .map((r) => model.getValueInRange(r))
+      .join("\n")
+      .trim();
+  }, []);
+
+  const handleMount: OnMount = useCallback(
+    (editor, monaco) => {
+      editorRef.current = editor;
+      // La etiqueta del botón tiene que decir la verdad sobre lo que va a
+      // correr, así que el estado se sincroniza con cada cambio de selección.
+      editor.onDidChangeCursorSelection(() => {
+        setHasSelection(!!selectedSql());
+      });
+      // Ctrl/Cmd+Enter: el atajo que ya trae aprendido quien usa un cliente SQL.
+      editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
+        void runRef.current();
+      });
+    },
+    [selectedSql],
+  );
+
   const run = async () => {
-    if (running || !sql.trim()) return;
+    // Con selección se corre SOLO eso; sin selección, la hoja entera.
+    const selected = selectedSql();
+    const sqlToRun = selected || sql;
+    if (running || !sqlToRun.trim()) return;
     setRunning(true);
     setLoadError(null);
     setSetupError(null);
@@ -172,13 +235,14 @@ export function SqlRunner({
       //    leer el mensaje de error es parte de aprender SQL.
       let next: SqlStatementResult[];
       try {
-        const out = await db.exec(sql);
-        next = (out ?? []).map((r, i) => toStatementResult(nthStatement(sql, i), r));
-        if (next.length === 0) next = [{ sql: sql.trim(), columns: [], rows: [], affectedRows: 0 }];
+        const out = await db.exec(sqlToRun);
+        next = (out ?? []).map((r, i) => toStatementResult(nthStatement(sqlToRun, i), r));
+        if (next.length === 0)
+          next = [{ sql: sqlToRun.trim(), columns: [], rows: [], affectedRows: 0 }];
       } catch (e) {
         next = [
           {
-            sql: sql.trim(),
+            sql: sqlToRun.trim(),
             columns: [],
             rows: [],
             error: e instanceof Error ? e.message : String(e),
@@ -190,6 +254,10 @@ export function SqlRunner({
       // En modo readOnly (alumno probando la consulta fija del docente en la
       // pizarra) la corrida NO se persiste — mismo trade-off que el output
       // local de CodePageEditor.
+      // Se persiste la hoja COMPLETA como respuesta (es lo que el alumno
+      // escribió) junto con los resultados de lo que realmente corrió; cada
+      // resultado ya lleva su propia sentencia, así que la evidencia sigue
+      // diciendo qué produjo cada tabla aunque se haya corrido una selección.
       if (!readOnly) persist(sql, next, true);
     } catch (e) {
       if (cancelledRef.current) return;
@@ -200,6 +268,10 @@ export function SqlRunner({
     }
   };
 
+  useEffect(() => {
+    runRef.current = run;
+  });
+
   return (
     <div className={className}>
       <div className="space-y-2">
@@ -209,9 +281,18 @@ export function SqlRunner({
             {t("bdSql.engineLabel")}
           </span>
           {(!readOnly || readOnlyAllowRun) && (
-            <Button size="sm" onClick={() => void run()} disabled={running || !sql.trim()}>
+            <Button
+              size="sm"
+              onClick={() => void run()}
+              disabled={running || !sql.trim()}
+              title={t("bdSql.runShortcut")}
+            >
               {running ? <Spinner size="xs" className="mr-1" /> : <Play className="mr-1 h-4 w-4" />}
-              {running ? t("bdSql.running") : t("bdSql.run")}
+              {running
+                ? t("bdSql.running")
+                : hasSelection
+                  ? t("bdSql.runSelection")
+                  : t("bdSql.run")}
             </Button>
           )}
         </div>
@@ -221,12 +302,19 @@ export function SqlRunner({
           <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>
         )}
 
+        {/* Que se pueda correr un fragmento no se descubre solo: sin este
+            aviso el usuario asume que el botón siempre corre la hoja entera. */}
+        {!running && hasSelection && (
+          <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
+        )}
+
         <div className="overflow-hidden rounded-md border">
           <Editor
             height="14rem"
             language="sql"
             value={sql}
             onChange={(v) => onSqlChange(v ?? "")}
+            onMount={handleMount}
             options={{
               readOnly: !!readOnly,
               minimap: { enabled: false },
