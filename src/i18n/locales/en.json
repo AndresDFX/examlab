@@ -3290,6 +3290,7 @@
       "calendarNotAccessible": "The selected calendar is no longer accessible in Google. Choose another and sync again."
     },
     "routes_app_teacher_contents": {
+      "contentFromUrlMissing": "The content you were looking for no longer exists or you don't have access to it.",
       "displayNameRequired": "Enter a unique name for this content.",
       "displayNameTooLong": "The name is too long (max 120 characters).",
       "generationEnqueued": "Generation queued. Once you have an instant AI code or an administrator processes it, the content will appear in your list. You can view it under \"AI Queue → Generations\".",

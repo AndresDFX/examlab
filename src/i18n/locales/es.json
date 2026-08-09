@@ -3290,6 +3290,7 @@
       "calendarNotAccessible": "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar."
     },
     "routes_app_teacher_contents": {
+      "contentFromUrlMissing": "El material que buscaste ya no existe o no tienes acceso a él.",
       "displayNameRequired": "Indica un nombre único para este contenido.",
       "displayNameTooLong": "El nombre es demasiado largo (máx 120 caracteres).",
       "generationEnqueued": "Generación encolada. Cuando tengas un código de IA inmediata o un administrador la procese, el contenido aparecerá en tu lista. Puedes verla en \"Cola IA → Generaciones\".",
