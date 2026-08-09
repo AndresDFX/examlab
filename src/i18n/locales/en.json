@@ -9677,11 +9677,20 @@
     "noAttendanceData": "This course has no attendance records"
   },
   "palette": {
-    "trigger": "Search module or course…",
-    "placeholder": "Type to search…",
-    "empty": "No results.",
+    "trigger": "Search the platform…",
+    "placeholder": "Search a course, exam, workshop, project…",
+    "empty": "Type at least 2 letters to search.",
+    "searching": "Searching…",
+    "noMatches": "Nothing matches “{{query}}”.",
+    "searchError": "We couldn't complete the search. You can still browse the modules.",
     "groupModules": "Go to",
-    "groupCourses": "My courses",
+    "groupCourses": "Courses",
+    "groupExams": "Exams",
+    "groupWorkshops": "Workshops",
+    "groupProjects": "Projects",
+    "groupContents": "Contents",
+    "groupWhiteboards": "Whiteboards",
+    "groupUsers": "Users",
     "openLabel": "Open search ({{shortcut}})"
   },
   "bdSql": {

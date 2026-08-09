@@ -85,7 +85,15 @@ import {
 } from "@/components/ui/multi-select";
 import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
 
-export const Route = createFileRoute("/app/admin/users")({ component: AdminUsers });
+export const Route = createFileRoute("/app/admin/users")({
+  component: AdminUsers,
+  // `?q=<texto>` lo manda el buscador global (⌘K). No hay ruta de detalle por
+  // usuario — las acciones viven en la fila del grid —, así que el resultado
+  // abre el módulo con el filtro ya escrito y la persona a la vista.
+  validateSearch: (s: Record<string, unknown>): { q?: string } => ({
+    q: typeof s.q === "string" ? s.q : undefined,
+  }),
+});
 
 type StudentEstado = "activo" | "retirado" | "graduado" | "aplazado";
 
@@ -226,6 +234,18 @@ function AdminUsers() {
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // `?q=` del buscador global. Se aplica POST-mount (nunca en el initializer de
+  // `useState`: leer la URL ahí rompe la hidratación, React #418) y se limpia
+  // de la URL para que recargar no reimponga un filtro que el usuario ya borró.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q");
+    if (!q) return;
+    setSearch(q);
+    const url = new URL(window.location.href);
+    url.searchParams.delete("q");
+    window.history.replaceState({}, "", url.toString());
+  }, []);
   // Programas activos para el dropdown de identidad estudiantil.
   // Se cargan en `load` junto con los perfiles.
   const [programs, setPrograms] = useState<Array<{ id: string; name: string }>>([]);

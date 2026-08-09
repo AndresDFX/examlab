@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -128,7 +128,15 @@ import {
 } from "@/shared/lib/material-status";
 import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 
-export const Route = createFileRoute("/app/teacher/contents")({ component: TeacherContents });
+export const Route = createFileRoute("/app/teacher/contents")({
+  component: TeacherContents,
+  // `?content=<id>` lo manda el buscador global (⌘K): abre directo el visor de
+  // archivos de ese material en vez de dejar al docente buscándolo otra vez en
+  // el grid. Sin el param, la pantalla se comporta igual que siempre.
+  validateSearch: (s: Record<string, unknown>): { content?: string } => ({
+    content: typeof s.content === "string" ? s.content : undefined,
+  }),
+});
 
 // El tipo `generated_contents` aún no está reflejado en los types
 // generados de Supabase (se acaba de crear su migración). Usamos any
@@ -705,6 +713,29 @@ function TeacherContents() {
       cancelled = true;
     };
   }, [load]);
+
+  // Deep-link `?content=<id>` del buscador global. Corre cuando la lista ya
+  // está cargada (antes no habría con qué resolver el id) y una sola vez: el
+  // param se borra de la URL para que recargar no reabra el visor.
+  const consumedContentParam = useRef(false);
+  useEffect(() => {
+    if (consumedContentParam.current || items.length === 0) return;
+    const params = new URLSearchParams(window.location.search);
+    const wanted = params.get("content");
+    if (!wanted) return;
+    consumedContentParam.current = true;
+    const found = items.find((i) => i.id === wanted);
+    if (found) setFilesViewerFor(found);
+    else
+      toast.info(
+        i18n.t("toast.routes_app_teacher_contents.contentFromUrlMissing", {
+          defaultValue: "El material que buscaste ya no existe o no tienes acceso a él.",
+        }),
+      );
+    const url = new URL(window.location.href);
+    url.searchParams.delete("content");
+    window.history.replaceState({}, "", url.toString());
+  }, [items]);
 
   // Polling suave: si hay items en queued/processing, recargamos cada
   // 5s para reflejar el cambio de estado sin que el docente recargue

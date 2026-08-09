@@ -9677,11 +9677,20 @@
     "noAttendanceData": "Este curso no registró asistencia"
   },
   "palette": {
-    "trigger": "Buscar módulo o curso…",
-    "placeholder": "Escribí para buscar…",
-    "empty": "Sin resultados.",
+    "trigger": "Buscar en la plataforma…",
+    "placeholder": "Buscá un curso, examen, taller, proyecto…",
+    "empty": "Escribí al menos 2 letras para buscar.",
+    "searching": "Buscando…",
+    "noMatches": "Nada coincide con «{{query}}».",
+    "searchError": "No pudimos completar la búsqueda. Podés seguir navegando por los módulos.",
     "groupModules": "Ir a",
-    "groupCourses": "Mis cursos",
+    "groupCourses": "Cursos",
+    "groupExams": "Exámenes",
+    "groupWorkshops": "Talleres",
+    "groupProjects": "Proyectos",
+    "groupContents": "Contenidos",
+    "groupWhiteboards": "Pizarras",
+    "groupUsers": "Usuarios",
     "openLabel": "Abrir el buscador ({{shortcut}})"
   },
   "bdSql": {

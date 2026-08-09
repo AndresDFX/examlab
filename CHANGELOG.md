@@ -62,6 +62,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El buscador (⌘K) ahora encuentra cosas, no solo módulos.** Antes solo ofrecía las opciones del
+  menú lateral: escribir el nombre de un examen o de un taller no daba nada y había que entrar al
+  módulo y volver a buscar adentro. Ahora, con dos letras, busca **cursos, exámenes, talleres,
+  proyectos, material y pizarras** (y usuarios, si sos administrador) y te lleva directo al que
+  elegiste. Cada resultado muestra el curso al que pertenece, porque dos talleres se pueden llamar
+  igual en cursos distintos. Además ya no importan las tildes ni las mayúsculas: escribir
+  "matematicas" encuentra "Matemáticas". El estudiante busca lo que tiene asignado y las pizarras
+  compartidas con sus cursos; el docente, lo de los cursos que dicta.
+
 - **Generar SQL con IA mientras se dicta la clase.** En la hoja SQL de la pizarra el docente ahora tiene
   una caja donde pide en español lo que quiere mostrar —"una tabla de clientes y otra de pedidos con 10
   filas", "la consulta del cliente con más pedidos", "un permiso de solo lectura"— y recibe el SQL **ya
@@ -107,6 +116,37 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   material de un colega.
 
 ### Interno (equipo)
+
+- **Buscador global (⌘K) — búsqueda de entidades server-side.** `CommandPalette` pasa a
+  `shouldFilter={false}` (cmdk filtraba con un `includes` crudo, incompatible con resultados que ya
+  vienen del servidor) y delega en dos módulos nuevos: `src/modules/search/search-text.ts` (PURO, con
+  tests: normalización sin acentos, `matchesQuery` por palabras, `relevanceScore`, y
+  `ilikePatternFor`) y `src/modules/search/global-search.ts` (las consultas + el alcance). Tres
+  decisiones que conviene no revertir sin leer el encabezado de cada archivo:
+  - **Acentos**: `ILIKE` de Postgres NO ignora diacríticos y `unaccent` no está instalado. El patrón
+    del servidor reemplaza por `_` las letras que pueden llevar tilde (`_` matchea también la letra
+    sin tilde ⇒ es un SUPERCONJUNTO del literal), se sobre-trae (`FETCH_LIMIT=40`) y el filtro exacto
+    lo hace el cliente. El aflojado solo se aplica desde 4 caracteres: con 2-3 el patrón quedaría tan
+    laxo que el `limit` se llenaría de basura. El patrón además **sanea** la entrada (todo lo que no
+    es `[a-z0-9 ]` pasa a `_`), así que la consulta del usuario nunca se cuela como sintaxis de
+    PostgREST — importa porque el grupo de usuarios usa `.or(...)`.
+  - **Alcance**: el scope (cursos del docente / asignaciones del alumno / permisos por rol) se
+    resuelve UNA vez por apertura y se cachea en un ref keyeado por `userId + rol activo + roles`;
+    el texto no lo recalcula. Usa `course-scope.ts` (`scopedCourseIds` + `visibleForScopedCourses`
+    con el mapa de comparticiones M:N de `workshop_courses`/`project_courses`), y corta sin consultar
+    cuando la lista de ids es `[]`.
+  - **Destinos**: solo se ofrece lo que pasa el RBAC del rol ACTIVO — pizarras a Docente/SuperAdmin
+    (el Admin no pasa `/app/teacher/whiteboards`) y usuarios a Admin/SuperAdmin. Al estudiante los
+    exámenes lo llevan a la LISTA, nunca a `/app/student/take/$examId`: empezar a rendir no puede ser
+    el resultado de una búsqueda. Dos destinos nuevos que no existían: `?content=<id>` en
+    `/app/teacher/contents` (abre el visor de archivos de ese material) y `?q=<texto>` en
+    `/app/admin/users` (rellena el filtro; no hay ruta de detalle por usuario). Ambos consumen el
+    param POST-mount y lo borran de la URL.
+  - Papelera: además de `deleted_at IS NULL` en cada entidad, se descarta lo que cuelga de un CURSO en
+    papelera — el soft-delete del curso no cascadea.
+  - De paso: la lista de cursos precargada navegaba con la URL interpolada
+    (`/app/teacher/board/<id>`), que es justo el patrón que falla mudo en TanStack; ahora va por
+    `params`.
 
 - **Generador de SQL con IA (`sql_generation`)**: edge nueva `ai-generate-sql` (síncrona por diseño — NO
   respeta `processing_mode='async'` ni encola, como `tutor-chat`; el docente está proyectando en vivo),
