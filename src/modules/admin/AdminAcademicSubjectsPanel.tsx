@@ -508,9 +508,9 @@ export function AdminAcademicSubjectsPanel() {
             <Table fixed resizable>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="max-w-[260px]">{t("academic.subjects.colName")}</TableHead>
+                  <TableHead className="max-w-[320px]">{t("academic.subjects.colName")}</TableHead>
                   <TableHead className="hidden sm:table-cell w-24">{t("academic.subjects.colCode")}</TableHead>
-                  <TableHead className="hidden md:table-cell">{t("academic.subjects.colProgram")}</TableHead>
+                  <TableHead className="hidden md:table-cell w-40">{t("academic.subjects.colProgram")}</TableHead>
                   <TableHead className="hidden sm:table-cell w-20 text-center">{t("academic.subjects.colGrade")}</TableHead>
                   <TableHead className="hidden sm:table-cell w-20 text-center">{t("academic.subjects.colCredits")}</TableHead>
                   <TableHead className="w-20 text-center">{t("academic.subjects.colCourses")}</TableHead>
