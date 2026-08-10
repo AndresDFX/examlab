@@ -52,7 +52,10 @@ git commit -m "chore: actualizar contenido de universidades ${fecha}"
 
 echo ""
 echo "Universidades actualizadas:"
-diff <(echo "$before") <(echo "$after") \
+# `|| true`: diff sale 1 cuando encuentra diferencias — que es justo el caso
+# esperado acá. Sin esto, `set -o pipefail` lo propaga y el script termina en
+# 1 después de haber hecho su trabajo bien.
+{ diff <(echo "$before") <(echo "$after") || true; } \
   | grep -E '^>' \
   | awk '{print $3}' \
   | sed 's#^universidades/##' \
