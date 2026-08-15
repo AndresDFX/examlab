@@ -301,7 +301,7 @@ function StudentExamReview() {
 
   if (loadError) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -321,7 +321,7 @@ function StudentExamReview() {
 
   if (error === "no_assignment") {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />
@@ -339,7 +339,7 @@ function StudentExamReview() {
 
   if (error === "not_found" || !exam) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/exams">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" />

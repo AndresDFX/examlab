@@ -19,7 +19,7 @@ export const Route = createFileRoute("/app/privacy")({ component: PrivacyPage })
 function PrivacyPage() {
   const { t } = useTranslation();
   return (
-    <div className="p-4 sm:p-8">
+    <div className="space-y-5">
       <PageHeader
         backTo="/app"
         title={t("privacy.title", { defaultValue: "Política de Privacidad" })}

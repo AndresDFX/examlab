@@ -116,6 +116,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Barrido de los nueve principios de UI.** El calendario del docente se veía más angosto y con más
+  aire arriba que el resto de los módulos, porque repetía por su cuenta el margen que ya pone la
+  aplicación. Lo mismo, en menor medida, en la política de privacidad, la calculadora de precios y
+  tres pantallas de detalle del estudiante. Y en la toma de examen el margen se sumaba dos veces.
+  Ahora todas parten del mismo margen, así que el contenido no salta al cambiar de módulo.
+
+- **Dos grids tenían una columna de más.** En Cursos, la *Escala* de notas, y en Banco de preguntas,
+  los *Puntos*: las dos son configuración que se fija una vez y no ayudan a decidir sobre una fila,
+  pero comprimían el nombre —el dato que sí identifica la fila—. Ahora aparecen solo en pantallas
+  anchas. En monitores grandes no cambia nada.
+
+
 - **El módulo de Errores no mostraba nada, y ahora además solo muestra lo que importa.** Eran dos
   cosas. Primero, la lista fallaba entera: pedía un dato con un tipo equivocado y la consulta se
   caía antes de devolver la primera fila, así que Admin y SuperAdmin veían el módulo vacío en todas

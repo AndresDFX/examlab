@@ -254,7 +254,7 @@ function StudentWorkshopDetail() {
 
   if (loadError) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
@@ -273,7 +273,7 @@ function StudentWorkshopDetail() {
 
   if (error === "no_assignment") {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
@@ -290,7 +290,7 @@ function StudentWorkshopDetail() {
 
   if (error === "not_found" || !workshop) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/workshops">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}

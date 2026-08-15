@@ -160,7 +160,13 @@ de las rutas. Antes de cerrar un cambio de UI, correr los checks de los principi
 
 El shell ya aplica `px-4 md:px-8 py-5 md:py-8` ([AppLayout.tsx:1723](src/shared/components/AppLayout.tsx)); si la ruta lo repite, el contenido salta ~24px al navegar entre módulos y unas pantallas capean el ancho mientras otras van full-width.
 **Regla:** el `<div>` raíz de una ruta lleva SOLO `space-y-*` (más `flex`/`grid` si hace falta). Prohibido `p-*`, `px-*`, `py-*`, `container`, `mx-auto`, `max-w-screen-*`.
-**Check:** `grep -rn 'container mx-auto' src/routes` → 0 resultados.
+**Check:** `grep -rnE '<div className="[^"]*(container|mx-auto|(^| )(p|px|py)-[0-9])' src/routes` → 0 en la
+raíz de una ruta. **Ojo:** el check original buscaba `'container mx-auto'` y por eso dejó pasar
+`app.teacher.calendar.tsx`, que decía `container max-w-4xl py-6` (sin `mx-auto`) — el calendario se
+veía más angosto y desplazado que el resto de los módulos. Grepear la combinación exacta no sirve:
+hay que buscar cada token por separado. Excepciones legítimas: rutas FUERA del shell (`/auth/*`,
+`asistencia`, `reto/$pin`, `verify/$shortCode`, las vistas de juego a pantalla completa) sí deben
+poner su propio padding, porque no hay shell que lo provea.
 
 ### P2 — Tres tamaños de texto bajo `text-sm`, todos con nombre
 
@@ -180,6 +186,12 @@ Sin token, cada pantalla nueva inventa su tamaño: 9, 10 y 11px en la misma tabl
 Una pantalla donde todo es `variant="ghost" size="sm"` no dice qué se vino a hacer: el usuario lee "Pendientes de calificación: 37", no encuentra el botón, y aprende en 5 segundos que la pantalla no sirve.
 **Regla:** toda pantalla de trabajo tiene exactamente **un** `<Button>` sin `variant` (o `variant="default"`) por encima del pliegue, y es la tarea que el usuario vino a hacer. Los tiles de conteo NO cuentan como acción.
 **Check:** `grep -n '<Button' <archivo-de-la-ruta>` → de los hits que se ven sin scroll, exactamente **1** no declara `variant` (o declara `variant="default"`). 0 primarios = la pantalla no tiene acción; ≥2 = no tiene jerarquía.
+**Ojo — punto ciego del check:** grepear SOLO el archivo de la ruta da falsos positivos, porque la
+acción primaria suele vivir en el componente hijo. `app.student.workshop.$workshopId` y
+`app.student.project.$projectId` aparecen con 0 primarios, pero el botón de Entregar es primario
+dentro de `WorkshopQuestions` / `ProjectFiles`. Hay que grepear la ruta **y** los componentes que
+renderiza. Y hay pantallas legítimamente sin primario: el dashboard (es un hub, no una pantalla de
+trabajo), el calendario (se viene a mirar) y la papelera (las acciones son por fila seleccionada).
 
 ### P5 — Si una fila representa algo, la fila entera es la puerta
 

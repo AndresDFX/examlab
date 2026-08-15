@@ -922,7 +922,7 @@ function QuestionBankPage() {
                   <SortableHead
                     sortKey="suggested_points"
                     sort={sort}
-                    className="hidden sm:table-cell text-center"
+                    className="hidden xl:table-cell text-center"
                   >
                     {t("questionBank.colPoints")}
                   </SortableHead>
@@ -1009,7 +1009,7 @@ function QuestionBankPage() {
                       <TableCell className="hidden sm:table-cell text-center text-xs tabular-nums">
                         {r.difficulty ?? "—"}
                       </TableCell>
-                      <TableCell className="hidden sm:table-cell text-center text-xs tabular-nums">
+                      <TableCell className="hidden xl:table-cell text-center text-xs tabular-nums">
                         {r.suggested_points}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell text-center text-xs tabular-nums">

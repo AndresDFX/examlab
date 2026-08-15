@@ -225,7 +225,7 @@ function PricingCalculatorPage() {
   if (!roles.includes("SuperAdmin")) return <Navigate to="/app" />;
 
   return (
-    <div className="space-y-5 pb-8">
+    <div className="space-y-5">
       <PageHeader
         icon={<Calculator className="h-6 w-6" />}
         title={t("pricingCalculator.title", { defaultValue: "Calculadora de precios" })}

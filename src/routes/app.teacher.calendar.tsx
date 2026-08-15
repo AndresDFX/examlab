@@ -366,7 +366,7 @@ function CalendarPage() {
   const connected = !!status?.connected;
 
   return (
-    <div className="container max-w-4xl py-6 space-y-6">
+    <div className="space-y-6">
       <PageHeader
         title={t("calendar.title")}
         subtitle={t("calendar.subtitle")}

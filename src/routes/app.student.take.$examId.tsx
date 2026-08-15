@@ -2009,7 +2009,7 @@ function TakeExam() {
 
   if (loadError && !exam) {
     return (
-      <div className="max-w-2xl mx-auto py-10">
+      <div className="max-w-2xl mx-auto">
         <ErrorState
           message={t("hc_routesAppStudentTakeExamId.examLoadErrorTitle", {
             defaultValue: "No pudimos cargar tu examen",
@@ -2028,7 +2028,7 @@ function TakeExam() {
 
   if (blockedBySession) {
     return (
-      <div className="max-w-2xl mx-auto py-10">
+      <div className="max-w-2xl mx-auto">
         <Card>
           <CardContent className="p-6 space-y-4 text-center">
             <AlertTriangle className="h-10 w-10 text-destructive mx-auto" />
@@ -2049,7 +2049,7 @@ function TakeExam() {
 
   if (!started) {
     return (
-      <div className="max-w-2xl mx-auto py-10">
+      <div className="max-w-2xl mx-auto">
         <Card>
           <CardContent className="p-6 space-y-4">
             <h1 className="text-2xl font-semibold">{exam.title}</h1>

@@ -2070,7 +2070,7 @@ export function AdminCourses() {
                 <SortableHead sortKey="status" sort={sort} className="hidden sm:table-cell w-28">
                   {t("hc_routesAppAdminCourses.statusColumn")}
                 </SortableHead>
-                <SortableHead sortKey="scale" sort={sort} className="hidden sm:table-cell w-24">
+                <SortableHead sortKey="scale" sort={sort} className="hidden xl:table-cell w-24">
                   {t("common.scale")}
                 </SortableHead>
                 <SortableHead sortKey="start_date" sort={sort} className="hidden md:table-cell w-28">
@@ -2184,7 +2184,7 @@ export function AdminCourses() {
                       {statusBusyId === c.id && <Spinner size="xs" />}
                     </span>
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell">
+                  <TableCell className="hidden xl:table-cell">
                     <div className="text-xs tabular-nums">
                       <span className="font-medium">
                         {c.grade_scale_min}–{c.grade_scale_max}

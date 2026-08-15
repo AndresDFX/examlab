@@ -313,7 +313,7 @@ function StudentProjectDetail() {
 
   if (loadError) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
@@ -330,7 +330,7 @@ function StudentProjectDetail() {
 
   if (error === "no_assignment") {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
@@ -347,7 +347,7 @@ function StudentProjectDetail() {
 
   if (error === "not_found" || !project) {
     return (
-      <div className="space-y-4 p-2">
+      <div className="space-y-4">
         <Link to="/app/student/projects">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
