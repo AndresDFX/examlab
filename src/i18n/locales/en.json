@@ -9695,7 +9695,7 @@
     "openLabel": "Open search ({{shortcut}})"
   },
   "bdSql": {
-    "engineLabel": "Real PostgreSQL, in your browser · temporary database",
+    "engineLabel": "Real PostgreSQL in your browser · every run starts from a fresh database",
     "run": "Run SQL",
     "running": "Running…",
     "runSelection": "Run selection",
@@ -9710,7 +9710,18 @@
     "typeLabel": "Database (SQL)",
     "setupSqlLabel": "Starting schema and data (SQL)",
     "setupSqlHint": "Runs BEFORE the student's SQL, on a clean database. Put the exercise's CREATE TABLE and INSERT here.",
-    "noSetupHint": "No starting schema: the student works on an empty database."
+    "noSetupHint": "No starting schema: the student works on an empty database.",
+    "queryLabel": "Query",
+    "queryHint": "What you write here runs against the schema above. Every run recreates the database from scratch: rows you insert in one run are not there in the next.",
+    "emptyHint": "Write a query and press Run to see the result.",
+    "stepSetup": "1 · Schema",
+    "stepQuery": "2 · Query",
+    "schemaTables": "Tables:",
+    "schemaViews": "Views:",
+    "schemaFromSetup": "Detected in the schema above. Postgres defines the real list when you run.",
+    "setupSqlHintBoard": "Runs BEFORE your query, on a clean database. Put the CREATE TABLE and INSERT you want ready for class here.",
+    "noSetupHintBoard": "With no starting schema the query runs on an empty database: define at least one table above.",
+    "firstRunHintIdle": "The first run downloads the engine (~16 MB). Worth testing before class."
   },
   "sqlAssistant": {
     "title": "Generate SQL with AI",

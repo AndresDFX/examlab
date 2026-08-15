@@ -53,6 +53,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
 import { SqlRunner } from "@/modules/database/SqlRunner";
 import { parseSqlAnswer, serializeSqlAnswer } from "@/modules/database/sql-answer";
+import { hasSchemaSummary, summarizeSetupSql } from "@/modules/database/sql-schema";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -94,6 +95,11 @@ export function SqlPageEditor({
   const { t } = useTranslation();
   const [setup, setSetup] = useState<string>(setupSql ?? "");
   const [setupOpen, setSetupOpen] = useState<boolean>(!!setupSql?.trim());
+
+  // Resumen de tablas/vistas del esquema. Derivado en cada render a propósito:
+  // son unas regex sobre un texto corto, y memoizarlo agregaría una dependencia
+  // que hay que mantener sincronizada por un ahorro imperceptible.
+  const schema = summarizeSetupSql(setup);
 
   // Respuesta serializada de la hoja. `answerRef` sigue el valor vigente
   // (lo escribe el propio SqlRunner en cada tecla, sin re-renderizar este
@@ -306,17 +312,26 @@ export function SqlPageEditor({
 
       {/* Esquema/datos de partida — solo el docente lo edita. El alumno corre
           contra el esquema TAL COMO lo dejó el docente (setup en solo lectura
-          via prop `setup`, sin UI de edición). */}
+          via prop `setup`, sin UI de edición).
+
+          Los pasos van NUMERADOS ("1 · Esquema" / "2 · Consulta") porque la hoja
+          tiene DOS editores de SQL y nada indicaba cuál se escribe primero ni
+          que el de arriba corre antes que el de abajo. Sin la numeración se leen
+          como dos cajas independientes — era el motivo principal de que la hoja
+          no se entendiera. */}
       {!readOnly && (
         <div className="rounded-md border">
           <button
             type="button"
             onClick={() => setSetupOpen((o) => !o)}
-            className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground"
+            className="flex w-full items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium hover:text-foreground"
           >
-            {setupOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-            {t("bdSql.setupSqlLabel")}
-            <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
+            {setupOpen ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+            {t("bdSql.stepSetup")}
+            {/* Hint propio de la PIZARRA: el compartido dice "antes del SQL del
+                estudiante", y acá no hay estudiante — el docente escribe su
+                propia demostración. */}
+            <HelpHint>{t("bdSql.setupSqlHintBoard")}</HelpHint>
           </button>
           {setupOpen && (
             <Textarea
@@ -330,7 +345,40 @@ export function SqlPageEditor({
               })}
             />
           )}
-          {!setup.trim() && <p className="px-2.5 pb-2 text-2xs text-muted-foreground">{t("bdSql.noSetupHint")}</p>}
+          {/* Qué tablas quedó definiendo el esquema. Con 30 líneas de DDL hay que
+              releerlas para recordar si la tabla es `cliente` o `clientes`; acá
+              se ve de un vistazo y confirma que el esquema se leyó bien ANTES de
+              ejecutar. Se oculta si no se detecta nada (ver sql-schema.ts). */}
+          {hasSchemaSummary(schema) && (
+            <div className="flex flex-wrap items-center gap-1.5 px-2.5 pb-2 pt-1.5 text-2xs text-muted-foreground">
+              {schema.tables.length > 0 && (
+                <>
+                  <span className="font-medium">{t("bdSql.schemaTables")}</span>
+                  {schema.tables.map((n) => (
+                    <code key={`t-${n}`} className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {n}
+                    </code>
+                  ))}
+                </>
+              )}
+              {schema.views.length > 0 && (
+                <>
+                  <span className="font-medium">{t("bdSql.schemaViews")}</span>
+                  {schema.views.map((n) => (
+                    <code key={`v-${n}`} className="rounded bg-muted px-1 py-0.5 font-mono">
+                      {n}
+                    </code>
+                  ))}
+                </>
+              )}
+              <HelpHint>{t("bdSql.schemaFromSetup")}</HelpHint>
+            </div>
+          )}
+          {!setup.trim() && (
+            <p className="px-2.5 pb-2 text-2xs text-muted-foreground">
+              {t("bdSql.noSetupHintBoard")}
+            </p>
+          )}
         </div>
       )}
       <SqlRunner
@@ -340,6 +388,7 @@ export function SqlPageEditor({
         setupSql={setup}
         readOnly={readOnly}
         readOnlyAllowRun
+        queryLabel={readOnly ? undefined : t("bdSql.stepQuery")}
         className="flex-1"
       />
     </div>

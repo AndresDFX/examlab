@@ -62,6 +62,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **La hoja de SQL de la pizarra ahora se entiende.** Tenía dos editores de SQL y nada decía cuál
+  era cuál: uno se titulaba por su contenido ("Esquema y datos de partida") y el otro por su
+  tecnología ("PostgreSQL real, en tu navegador"), así que no quedaba claro dónde escribir ni que
+  el de arriba se ejecuta antes que el de abajo. Ahora los pasos van numerados —**1 · Esquema** y
+  **2 · Consulta**—, debajo del esquema aparecen **las tablas que quedaste definiendo** (con 30
+  líneas de CREATE TABLE ya no hay que releerlas para recordar si la tabla era `cliente` o
+  `clientes`), y el editor vacío dice qué hacer en vez de no mostrar nada.
+
+  Además se hizo visible lo que más desconcertaba: **cada ejecución empieza con una base nueva**.
+  Quien insertaba una fila y en la corrida siguiente no la encontraba no tenía nada en pantalla que
+  se lo explicara. Y el aviso de que la primera ejecución descarga el motor (~16 MB) ahora se ve
+  ANTES de pulsar Ejecutar, no recién durante la espera.
+
+  Dos textos de la hoja hablaban del "estudiante" (venían de los exámenes) cuando ahí no hay
+  estudiante: es el docente escribiendo su propia demostración. Corregidos.
+
+
 - **El buscador (⌘K) ahora encuentra cosas, no solo módulos.** Antes solo ofrecía las opciones del
   menú lateral: escribir el nombre de un examen o de un taller no daba nada y había que entrar al
   módulo y volver a buscar adentro. Ahora, con dos letras, busca **cursos, exámenes, talleres,

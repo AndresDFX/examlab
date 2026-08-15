@@ -9695,7 +9695,7 @@
     "openLabel": "Abrir el buscador ({{shortcut}})"
   },
   "bdSql": {
-    "engineLabel": "PostgreSQL real, en tu navegador · base temporal",
+    "engineLabel": "PostgreSQL real en tu navegador · cada ejecución empieza con una base nueva",
     "run": "Ejecutar SQL",
     "running": "Ejecutando…",
     "runSelection": "Ejecutar selección",
@@ -9710,7 +9710,18 @@
     "typeLabel": "Base de datos (SQL)",
     "setupSqlLabel": "Esquema y datos de partida (SQL)",
     "setupSqlHint": "Se ejecuta ANTES del SQL del estudiante, en una base limpia. Acá van los CREATE TABLE e INSERT del ejercicio.",
-    "noSetupHint": "Sin esquema de partida: el estudiante trabaja sobre una base vacía."
+    "noSetupHint": "Sin esquema de partida: el estudiante trabaja sobre una base vacía.",
+    "queryLabel": "Consulta",
+    "queryHint": "Lo que escribas acá se ejecuta contra el esquema de arriba. Cada vez que ejecutás, la base se vuelve a crear desde cero: si insertás filas en una corrida, no siguen ahí en la siguiente.",
+    "emptyHint": "Escribí una consulta y pulsá Ejecutar para ver el resultado.",
+    "stepSetup": "1 · Esquema",
+    "stepQuery": "2 · Consulta",
+    "schemaTables": "Tablas:",
+    "schemaViews": "Vistas:",
+    "schemaFromSetup": "Detectadas en el esquema de arriba. La lista real la define Postgres al ejecutar.",
+    "setupSqlHintBoard": "Se ejecuta ANTES de tu consulta, sobre una base limpia. Acá van los CREATE TABLE e INSERT que quieras tener listos para la clase.",
+    "noSetupHintBoard": "Sin esquema de partida la consulta corre sobre una base vacía: definí al menos una tabla acá arriba.",
+    "firstRunHintIdle": "La primera ejecución descarga el motor (~16 MB). Conviene probarla antes de la clase."
   },
   "sqlAssistant": {
     "title": "Generar SQL con IA",

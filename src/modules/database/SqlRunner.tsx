@@ -41,6 +41,7 @@ import { Play, Database, AlertTriangle } from "lucide-react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { HelpHint } from "@/components/ui/help-hint";
 import {
   createEphemeralDb,
   type PgliteDb,
@@ -75,6 +76,13 @@ interface Props {
    * usan hoy los flujos de examen/taller).
    */
   readOnlyAllowRun?: boolean;
+  /**
+   * Rótulo del editor. Default: "Consulta". La hoja de la pizarra pasa
+   * "2 · Consulta" porque ahí ARRIBA hay otro editor (el del esquema, "1 ·
+   * Esquema") y los números son lo que comunica que uno corre antes del otro.
+   * En examen/taller el runner es el único editor, así que no lleva número.
+   */
+  queryLabel?: string;
 }
 
 /** Convierte el resultado crudo de PGlite a nuestra forma serializable. */
@@ -99,6 +107,7 @@ export function SqlRunner({
   setupSql,
   starterSql,
   readOnlyAllowRun,
+  queryLabel,
 }: Props) {
   const { t } = useTranslation();
   const parsed = parseSqlAnswer(value);
@@ -276,9 +285,15 @@ export function SqlRunner({
     <div className={className}>
       <div className="space-y-2">
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-1.5 text-2xs text-muted-foreground">
-            <Database className="h-3.5 w-3.5 shrink-0" />
-            {t("bdSql.engineLabel")}
+          {/* El encabezado nombra la TAREA ("Consulta"), no la tecnología. Antes
+              la única etiqueta era el motor ("PostgreSQL real en tu navegador"),
+              así que en la hoja de la pizarra —donde arriba hay OTRO editor de
+              SQL, el del esquema— no había forma de saber cuál era cuál. El dato
+              del motor sigue visible debajo, que es donde importa. */}
+          <span className="flex items-center gap-1.5 text-xs font-medium">
+            <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+            {queryLabel ?? t("bdSql.queryLabel")}
+            <HelpHint>{t("bdSql.queryHint")}</HelpHint>
           </span>
           {(!readOnly || readOnlyAllowRun) && (
             <Button
@@ -297,9 +312,25 @@ export function SqlRunner({
           )}
         </div>
 
+        {/* El motor y —lo que más confunde— que la base se recrea en CADA
+            ejecución. Ese comportamiento estaba documentado solo en un comentario
+            del código: el usuario que insertaba una fila y en la corrida siguiente
+            no la encontraba no tenía NADA en pantalla que lo explicara. */}
+        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
+          <Database className="mt-0.5 h-3 w-3 shrink-0" />
+          {t("bdSql.engineLabel")}
+        </p>
+
         {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
         {running && (
           <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>
+        )}
+
+        {/* Antes de la primera corrida el aviso de los 16 MB no se veía (solo
+            aparecía DURANTE la ejecución), así que la espera larga llegaba sin
+            explicación. Acá se anticipa, y solo mientras no haya resultados. */}
+        {!running && results.length === 0 && (
+          <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHintIdle")}</p>
         )}
 
         {/* Que se pueda correr un fragmento no se descubre solo: sin este
@@ -336,6 +367,14 @@ export function SqlRunner({
           <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
             <strong>{t("bdSql.setupErrorTitle")}</strong> {setupError}
           </div>
+        )}
+
+        {/* Estado vacío: sin esto, debajo del editor no había NADA y no quedaba
+            claro que hubiera que pulsar Ejecutar para ver algo. */}
+        {results.length === 0 && !loadError && !setupError && (
+          <p className="rounded-md border border-dashed p-3 text-center text-2xs text-muted-foreground">
+            {t("bdSql.emptyHint")}
+          </p>
         )}
 
         {results.length > 0 && (
