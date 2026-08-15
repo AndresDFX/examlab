@@ -358,7 +358,11 @@ Deno.serve(async (req: Request) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const { data: row, error: rowErr } = await (adminClient as any)
     .from("notifications")
-    .select("id, user_id, title, body, link, kind, related_user_id")
+    // `email_retry_count` se lee para decidir la SEVERIDAD del audit log de
+    // fallo: un 4xx transitorio que el cron va a reintentar no es un error
+    // accionable, pero el mismo 4xx cuando ya se agotaron los reintentos SÍ
+    // (ese correo se perdió). Ver `failureSeverity` más abajo.
+    .select("id, user_id, title, body, link, kind, related_user_id, email_retry_count")
     .eq("id", notificationId)
     .maybeSingle();
 
@@ -785,7 +789,31 @@ Deno.serve(async (req: Request) => {
       }
     }
   }
-  await auditEmail(notificationId, "email.failed", "error", {
+  // ── Severidad: `error` SOLO si el correo se perdió de verdad ──────────
+  //
+  // Este audit log alimenta el módulo de Errores. Marcar TODO fallo como
+  // `error` lo volvió inservible: al 2026-08-15 había 3.334 filas de severidad
+  // error y **2.936 (88%) eran `email.failed`**, casi todas `421 4.3.0
+  // Temporary System Problem` y `454 4.7.0 Too many login attempts` de Gmail —
+  // transitorios que el cron `retry_failed_email_notifications` reintenta solo
+  // (hasta 5 veces con backoff exponencial, ver mig 20261320000000). El
+  // operador no tiene NADA que hacer con ellas, y entre tanto ruido un fallo
+  // real (buzón inexistente, SMTP mal configurado) es invisible.
+  //
+  // Un fallo transitorio se sigue registrando —no se pierde la traza— pero como
+  // `warning`. Se marca `error` cuando el correo YA no se va a reintentar:
+  //   · rebote PERMANENTE (5.x.x): esa dirección no recibe más, punto.
+  //   · transitorio con los reintentos del cron AGOTADOS: se perdió.
+  // El umbral es el MISMO que el del cron; si allá cambia, acá también.
+  const CRON_MAX_RETRIES = 5;
+  const retryCount = Number(row.email_retry_count ?? 0);
+  const willBeRetried =
+    (isTransientSmtpError(truncated) || isLoginThrottleError(truncated)) &&
+    !isPermanentMailboxError(truncated) &&
+    retryCount < CRON_MAX_RETRIES;
+  const failureSeverity: "warning" | "error" = willBeRetried ? "warning" : "error";
+
+  await auditEmail(notificationId, "email.failed", failureSeverity, {
     reason: "provider_error",
     error: truncated,
     smtp_host: host,
@@ -793,9 +821,13 @@ Deno.serve(async (req: Request) => {
     smtp_source: smtpSource,
     smtp_ms: Date.now() - smtpStartMs,
     auto_suppressed: autoSuppressed,
-    // Cuántos intentos se hicieron + si se reintentó (transitorio).
+    // Cuántos intentos se hicieron DENTRO de esta invocación + si se reintentó.
     attempts: attemptsMade,
     retried: attemptsMade > 1,
+    // Reintentos del CRON ya consumidos y si queda alguno. Sin esto, al leer el
+    // log no se puede saber si el correo se perdió o está en camino.
+    cron_retry_count: retryCount,
+    will_be_retried: willBeRetried,
   });
   return jsonError(`SMTP send failed: ${truncated}`, 500);
 });

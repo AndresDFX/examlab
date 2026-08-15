@@ -99,6 +99,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **El módulo de Errores no mostraba nada, y ahora además solo muestra lo que importa.** Eran dos
+  cosas. Primero, la lista fallaba entera: pedía un dato con un tipo equivocado y la consulta se
+  caía antes de devolver la primera fila, así que Admin y SuperAdmin veían el módulo vacío en todas
+  las instituciones. Segundo, el 88% de lo que se registraba como error eran correos que el propio
+  sistema iba a reintentar solo (Gmail responde "probá más tarde" cuando se le manda una ráfaga):
+  3.334 entradas, de las cuales 2.936 no requerían que nadie hiciera nada, y entre tanto ruido un
+  problema real —un buzón que no existe, el correo mal configurado— pasaba desapercibido. Ahora un
+  fallo que se va a reintentar queda como advertencia y se marca como error solo cuando el correo
+  de verdad se perdió; el registro completo se conserva igual.
+
 - **Al cerrar un curso ya se cierra TODO lo suyo, incluidas las actividades externas.** Reporte:
   exámenes de cursos del periodo anterior seguían apareciendo como **Publicado** en el grid del docente,
   mezclados con los borradores del periodo nuevo. Eran dos cosas distintas: las actividades marcadas como
