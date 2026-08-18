@@ -213,6 +213,31 @@ export function formatDuration(minutes: number | null | undefined): string {
  * Pensado para mostrar pesos de items / cortes / buckets con decimales
  * que el docente entiende: 33,33% se ve como en pantalla, no 33.33%.
  */
+/**
+ * Formatea un NÚMERO para mostrarlo al usuario, con el mismo criterio que las
+ * fechas: locale es-CO fijo (separador de miles `.`, decimal `,`) para que la
+ * app se vea igual sin importar el navegador ni el SO.
+ *
+ * Existía el hueco: las fechas, los porcentajes y los tamaños de archivo ya
+ * estaban centralizados, pero los números sueltos se escribían a mano con
+ * `toLocaleString("es-CO")` repartido en 6 archivos — y en `chart.tsx` alguien
+ * lo escribió SIN el locale, así que el tooltip de las gráficas mostraba
+ * `1,234` en un equipo en inglés y `1.234` en uno en español, en la misma
+ * pantalla. Ese es exactamente el problema que este módulo existe para evitar.
+ *
+ * `options` se pasa tal cual a `Intl`, así que es un reemplazo fiel de
+ * `n.toLocaleString("es-CO", options)` — incluido el default de JS de mostrar
+ * hasta 3 decimales cuando no se especifica nada.
+ */
+export function formatNumber(
+  value: number | null | undefined,
+  options?: Intl.NumberFormatOptions,
+  fallback = "—",
+): string {
+  if (value == null || !Number.isFinite(value)) return fallback;
+  return value.toLocaleString(LOCALE, options);
+}
+
 export function formatPercent(n: number | null | undefined): string {
   if (n == null || !Number.isFinite(n)) return "0";
   return n.toLocaleString("es-CO", { maximumFractionDigits: 2 });

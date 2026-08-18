@@ -116,6 +116,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Los números de las gráficas se veían distinto según el idioma del equipo.** En el detalle de una
+  gráfica, un valor como 1234 aparecía «1,234» en un computador configurado en inglés y «1.234» en uno
+  en español, en la misma pantalla. Ahora todos los números usan el formato de Colombia, igual que ya
+  hacían las fechas y los porcentajes.
+
+
 - **Barrido de los nueve principios de UI.** El calendario del docente se veía más angosto y con más
   aire arriba que el resto de los módulos, porque repetía por su cuenta el margen que ya pone la
   aplicación. Lo mismo, en menor medida, en la política de privacidad, la calculadora de precios y
