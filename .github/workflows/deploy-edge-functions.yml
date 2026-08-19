@@ -183,6 +183,43 @@ jobs:
           # Pasamos como string separado por espacios (parseable abajo).
           echo "targets=${targets[*]}" >> "$GITHUB_OUTPUT"
 
+      # ── Guardia de sintaxis ANTES de desplegar ────────────────────────
+      # Por que existe (2026-08-19): un import mal formado en tutor-chat
+      # llego a produccion porque `bun tsc --noEmit` NO cubre
+      # supabase/functions (son modulos Deno, fuera del tsconfig del front).
+      # El deploy recorre las funciones una por una, asi que subio 40 y
+      # recien fallo en la 41: el proyecto quedo con un despliegue a medias
+      # y el error visible solo al final del log.
+      # Ahora se valida TODO antes de tocar el proyecto remoto: si algo no
+      # parsea, no se despliega nada.
+      - name: Setup Deno
+        if: steps.detect.outputs.deploy_mode != 'skip'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Validar que las funciones parsean
+        if: steps.detect.outputs.deploy_mode != 'skip'
+        run: |
+          set -euo pipefail
+          # `deno lint --json` separa dos cosas en su salida:
+          #   .errors[]      -> el archivo NO parsea (esto rompe el deploy)
+          #   .diagnostics[] -> hallazgos de estilo (no-explicit-any, etc.)
+          # Solo fallamos por .errors: el repo tiene hallazgos de estilo
+          # preexistentes y bloquear el deploy por ellos seria ruido.
+          # Se valida TODO supabase/functions, no solo lo que cambio: un
+          # cambio en _shared puede romper el parseo de quien lo importa.
+          # `|| true` porque lint sale 1 tambien por los hallazgos de estilo.
+          deno lint --no-config --json supabase/functions/ > /tmp/lint.json 2>/dev/null || true
+
+          errors=$(jq '.errors | length' /tmp/lint.json)
+          if [ "$errors" -gt 0 ]; then
+            echo "::error::$errors funcion(es) no parsean — no se despliega nada."
+            jq -r '.errors[] | "::error::\(.file_path)\n\(.message)"' /tmp/lint.json
+            exit 1
+          fi
+          echo "Sintaxis OK en todas las funciones ($(jq '.diagnostics | length' /tmp/lint.json) hallazgo(s) de estilo, no bloquean)."
+
       - name: Setup Supabase CLI
         # Skip CLI setup si no hay nada que desplegar (evita hit a la API
         # de GitHub releases — la causa del rate-limit anterior).

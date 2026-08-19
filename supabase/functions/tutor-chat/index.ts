@@ -22,8 +22,8 @@ import {
   getActiveAiModel as resolveActiveModel,
   aiChatCompletionFailover,
 } from "../_shared/ai-model.ts";
-import {
 import { SECRET_FOR_PROVIDER } from "../_shared/ai-error.ts";
+import {
   docxXmlToText,
   isNotebook,
   isOfficeDoc,

@@ -50,13 +50,42 @@ BEGIN
     'Región AWS del endpoint de Bedrock. NULL → us-east-1.';
 
   -- ── 2) El CHECK admite 'bedrock' ──────────────────────────────────
-  -- Se recrea preservando el set vigente (mig 20260824000000 dejó
-  -- openai + gemini tras deprecar 'lovable').
-  ALTER TABLE public.ai_model_settings
-    DROP CONSTRAINT IF EXISTS ai_model_settings_provider_check;
-  ALTER TABLE public.ai_model_settings
-    ADD CONSTRAINT ai_model_settings_provider_check
-    CHECK (provider IN ('openai', 'gemini', 'bedrock'));
+  -- El nombre del CHECK **no se puede asumir**: nació sin nombre en
+  -- 20260507110000 (auto-nombrado `ai_model_settings_provider_check`) y
+  -- 20260824000000 lo dropeó buscándolo DINÁMICAMENTE para deprecar
+  -- 'lovable', recreándolo como `chk_ai_model_settings_provider`. Un
+  -- `DROP CONSTRAINT IF EXISTS <nombre-viejo>` no encuentra nada, no falla,
+  -- y deja vivo el CHECK real — que después rechaza el INSERT de más abajo
+  -- (`violates check constraint "chk_ai_model_settings_provider"`).
+  --
+  -- Por eso se buscan TODOS los CHECK que restrinjan la columna `provider`
+  -- y se dropean por nombre real, cualquiera sea. Se conserva el nombre
+  -- vigente en producción para que futuras migraciones lo encuentren.
+  DECLARE
+    r RECORD;
+    v_provider_attnum SMALLINT;
+  BEGIN
+    SELECT attnum INTO v_provider_attnum
+      FROM pg_attribute
+     WHERE attrelid = 'public.ai_model_settings'::regclass
+       AND attname = 'provider'
+       AND NOT attisdropped;
+
+    FOR r IN
+      SELECT con.conname, pg_get_constraintdef(con.oid) AS def
+        FROM pg_constraint con
+       WHERE con.conrelid = 'public.ai_model_settings'::regclass
+         AND con.contype = 'c'
+         AND v_provider_attnum = ANY (con.conkey)
+    LOOP
+      RAISE NOTICE 'Dropeando CHECK % → %', r.conname, r.def;
+      EXECUTE format('ALTER TABLE public.ai_model_settings DROP CONSTRAINT %I', r.conname);
+    END LOOP;
+
+    ALTER TABLE public.ai_model_settings
+      ADD CONSTRAINT chk_ai_model_settings_provider
+      CHECK (provider IN ('openai', 'gemini', 'bedrock'));
+  END;
 END $$;
 
 -- ── 3) Fila PLATFORM-DEFAULT (tenant_id IS NULL) ────────────────────
