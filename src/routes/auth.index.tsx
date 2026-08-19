@@ -28,6 +28,7 @@ import { toast } from "sonner";
 import { GraduationCap, KeyRound, Mail, Eye, EyeOff, Building2, Chrome } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { getTenantSlugFromUrl } from "@/modules/tenants/url";
+import { subdomainTenantSlug } from "@/modules/tenants/subdomain";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { requestBrowserSaveCredential } from "@/shared/lib/credential-store";
 import { consumeReturnTo } from "@/shared/lib/return-to";
@@ -126,6 +127,15 @@ function AuthPage() {
   // recordado, y eso pasa POST-mount en el efecto "hydrate-remember".
   const [platformViewShown, setPlatformViewShown] = useState(false);
 
+  // Institución que dicta el SUBDOMINIO (`uniaj.midominio.co`). Cuando existe,
+  // el selector no se muestra: la dirección ya dijo a cuál se entra, que es el
+  // punto de tener subdominios. Ver `docs/subdominios-cloudflare.md`.
+  //
+  // Se llena POST-MOUNT, no en el initializer, por lo mismo que email /
+  // rememberMe / selectedSlug: leer `window.location` en el primer render
+  // rompe la hidratación (React #418).
+  const [hostSlug, setHostSlug] = useState<string | null>(null);
+
   // Post-mount: leer flags / URL / storage y poblar email, rememberMe,
   // selectedSlug. Corre UNA sola vez tras el primer render — el árbol
   // React ya está hidratado, así que cambiar el state acá es seguro y
@@ -144,9 +154,18 @@ function AuthPage() {
     // Slug: URL gana sobre storage. El segundo useEffect (más abajo) lo
     // re-confirma cuando la lista de tenants carga, para descartar slugs
     // de URLs viejas que apunten a tenants borrados.
+    const fromHost = subdomainTenantSlug(window.location.hostname);
+    setHostSlug(fromHost);
+
+    // Prioridad: URL explícita > subdominio > "Recordarme". El subdominio le
+    // gana al storage porque la dirección que el usuario ABRIÓ es evidencia más
+    // fuerte que la institución de su última sesión (caso real: entra por el
+    // enlace de otra institución en el mismo navegador).
     const fromUrl = getTenantSlugFromUrl();
     if (fromUrl) {
       setSelectedSlug(fromUrl);
+    } else if (fromHost) {
+      setSelectedSlug(fromHost);
     } else {
       try {
         if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
@@ -166,6 +185,12 @@ function AuthPage() {
       }
     }
   }, []);
+
+  // La institución del subdominio, ya CONFIRMADA contra la lista real. Un
+  // subdominio que no corresponde a ninguna institución (renombrada, mal
+  // escrita) deja `null` y el selector vuelve a aparecer: es preferible pedir
+  // que elija a dejarlo sin forma de entrar.
+  const hostTenant = hostSlug ? tenants.find((tn) => tn.slug === hostSlug) : undefined;
 
   // Cargar instituciones al montar. Cualquier usuario anon puede leer
   // esta lista (la RPC filtra a `is_active=true` y expone solo branding).
@@ -195,8 +220,10 @@ function AuthPage() {
     const fromUrl = getTenantSlugFromUrl();
     if (fromUrl && tenants.some((tn) => tn.slug === fromUrl)) {
       setSelectedSlug(fromUrl);
+    } else if (hostSlug && tenants.some((tn) => tn.slug === hostSlug)) {
+      setSelectedSlug(hostSlug);
     }
-  }, [tenantsLoading, tenants]);
+  }, [tenantsLoading, tenants, hostSlug]);
 
   const openForgot = () => {
     setForgotEmail(email);
@@ -520,6 +547,19 @@ function AuthPage() {
                 hidden
                 aria-hidden="true"
               />
+              {/* Con subdominio propio el selector desaparece y se muestra la
+                  institución como dato: el enlace ya la eligió. Vuelve a
+                  aparecer si el usuario pide la vista de plataforma
+                  (SuperAdmin), o quedaría sin manera de llegar a ella. */}
+              {hostTenant && !platformViewShown ? (
+                <div className="space-y-1.5">
+                  <Label>{t("auth.institution", { defaultValue: "Institución" })}</Label>
+                  <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
+                    <Building2 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                    <span className="truncate font-medium">{hostTenant.name}</span>
+                  </div>
+                </div>
+              ) : (
               <div className="space-y-1.5">
                 <Label htmlFor="li-tenant" required>
                   {t("auth.institution", { defaultValue: "Institución" })}
@@ -560,6 +600,7 @@ function AuthPage() {
                   </SelectContent>
                 </Select>
               </div>
+              )}
               <div className="space-y-1.5">
                 <Label htmlFor="li-email" required>
                   {t("auth.institutionalEmail")}

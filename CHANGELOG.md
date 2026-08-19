@@ -39,6 +39,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Informes: Plantilla ≠ Informe generado** (mig `20260975`). La **Plantilla** (`report_templates`) es el blueprint reutilizable; el **Informe generado** (`generated_reports`) es la instancia con datos reales (snapshot HTML, descargable Word/PDF), persistida con historial. "Generar" produce el archivo descargable (Word vía MSO-HTML `.doc` o PDF vía impresión), es acción de DOCENTE (RLS: docente del curso / Admin del tenant / SA; el estudiante nunca lo ve; inmutable). Los saltos de página de Word se preservan al importar `.docx` y se ven como divisor "Salto de página" en pantalla + corte real en PDF/Word (marcador `.examlab-page-break`). UI del docente en 2 tabs: "Plantillas" / "Informes generados". **Importar `.docx`** captura cuerpo + **cabecera + pie** con **imágenes embebidas como data URI** (`parseDocxBundle` → `header_html`/`footer_html`/`body_html`); el preview del editor se renderiza como **hojas de página** ("Página X de N") con las **variables YA RESUELTAS** (datos de muestra o la marca real del tenant — el logo se ve, no `{{tokens}}`), y la exportación incluye el documento original completo + las `{{variables}}` (no sólo lo nuevo). La **Generación IA** vive en el panel de Variables disponibles (derecha) e inserta el contenido EXACTAMENTE en el cursor (`onAiGenerate` + `RichTextEditor.insertHtml`), NO como botón global que reemplaza el cuerpo. Su system prompt es **configurable** (`ai_prompts.use_case='report_generation'`, mig `20260976`), resuelto por el edge `ai-generate-report` (course→tenant→platform→FALLBACK). El texto default DEBE quedar **byte-idéntico** en 4 lugares: `DEFAULT_REPORT_GENERATION_PROMPT` (template-engine.ts), el seed de la mig `20260976`, el `FALLBACK_REPORT_PROMPT` del edge, y el `defaultPrompt` del `AdminPromptsPanel`. La generación inline manda `draftText:""` (fragmento, no reescritura) para no exceder el tope de 200K del edge (`prompt_too_large`). El **preview usa DATOS REALES** de un curso/estudiante elegido (selector en la pestaña Vista previa; estudiante seleccionable en scope estudiante), no mock. La **descarga Word es `.docx` OOXML real** (`html-to-docx.ts`): cabecera en `word/header1.xml` (área de encabezado, se repite por página), pie en `word/footer1.xml`, imágenes en `word/media/*`, tablas con `tblGrid`/`gridSpan`. El PDF pone header/footer `position:fixed` en `@media print`. En el editor visual, las variables/IA insertadas se marcan con `.examlab-added` (color sólo en el editor). Nombres de plantilla únicos (auto-sufijo) + nombre de archivo de informe con `fileStamp`.
 - **Item compartido (M:N) en >1 curso**: su nota debe verse en CADA curso al que pertenece (`workshop_courses`/`project_courses`), no solo en el curso ancla; el peso/corte es por curso. *(en refinamiento — #30/#31)*
 - **Contenido**: el label de un contenido en el tablero ES el **nombre (`display_name`)**, no el tema (`topic`) — `display_name?.trim() || topic`. El contenido puede asociarse a >1 curso (`content_course_assignments`, vía `ManageContentCoursesDialog`) y a la sección "General" del curso (sin sesión, destino del upload del tablero). El grid de Contenidos muestra filas de **altura estándar** (una línea: nombre + estado + conteos; sin subtítulo del tema). (`f4c396d` + #22)
+- **Resolución de la institución: override del SuperAdmin → SUBDOMINIO → `profile.tenant_id`** (`src/modules/tenants/subdomain.ts` + paso 2 de `use-tenant.ts`). El orden NO es negociable: "ver como X" es una acción deliberada y le gana a la dirección. El subdominio **se saltea para un SuperAdmin sin override**, porque el modo cross-tenant se define como `SuperAdmin && !override` (invariante compartida `AppLayout` ↔ `TenantThemeProvider`) y fijarle institución por el host le mostraría su nombre con el tema por defecto. Un subdominio inexistente **no es error**: cae al perfil y el selector reaparece. Nunca leer el hostname en un initializer de `useState` (React #418) — se lee post-mount. El subdominio es **pista de UI, no control de seguridad**: el aislamiento lo da la RLS. Hosts de plataforma (`*.lovable.app`, `*.pages.dev`…) NO se interpretan como institución: si no, `examlab.lovable.app` resolvería `examlab`. Manual: `docs/subdominios-cloudflare.md`.
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
 - **Demo**: tenant `ExamLab Demo` (`729b3114-…`) tiene un curso "Curso de pruebas" con TODOS sus usuarios como docentes (mig `20260965`) — porque los docentes no pueden auto-asignarse.
 - **IA Compartida es el DEFAULT** (mig `20261340000000`, commit `1ecee536`). `tenants.ai_mode`: `shared` (default al crear institución) → usa la IA de la plataforma (fila activa SA `tenant_id IS NULL` + env), el tenant NO configura key propia; `own` → exige su key (sin ella, error accionable, no consume la cuota compartida); `managed` → compartida + medición/cobro aparte. `getActiveAiModel` (`_shared/ai-model.ts`) lo enforza. Un tenant que traiga su key DEBE quedar en `ai_mode='own'` desde el panel comercial.
@@ -56,11 +57,30 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Requiere **Publish en Lovable**. Incluye **tres migraciones** (`20261600000000_bd_sql_support.sql`,
-> `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`, las tres defensivas
-> con `to_regclass`) y **una edge function nueva** (`ai-generate-sql`); el resto es cliente.
+> Requiere **Publish en Lovable**. Incluye **cinco migraciones** (`20261600000000_bd_sql_support.sql`,
+> `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
+> `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
+> todas defensivas con `to_regclass`) y **una edge function nueva** (`ai-generate-sql`); el resto es cliente.
+>
+> Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** en
+> Lovable → Edge Function Secrets (no viaja en las migraciones, a propósito).
 
 ### 🎉 Novedades
+
+- **Una dirección propia por institución (`uniaj.midominio.co`), sin selector.** Hasta ahora, al
+  entrar había que elegir la institución en una lista, y el enlace no decía a cuál se entraba: no se
+  podía mandar "este es el acceso de tu universidad". Ahora, cuando la plataforma se sirve con un
+  subdominio por institución, la dirección la define y **el selector desaparece** — en su lugar se
+  muestra el nombre de la institución como dato.
+
+  Es **aditivo**: sin subdominio (hoy, `examlab.lovable.app`) todo funciona exactamente igual, con
+  su selector. Un subdominio que no corresponde a ninguna institución tampoco deja a nadie afuera:
+  vuelve a aparecer el selector.
+
+  El manual de configuración —incluida una vía **sin costo**— está en
+  **[docs/subdominios-cloudflare.md](docs/subdominios-cloudflare.md)**. No hace falta abandonar
+  Lovable: los dos pueden convivir porque la base de datos es la misma.
+
 
 - **Amazon Bedrock como proveedor de IA.** Se suma a Google Gemini y OpenAI en Configuración → Modelo
   IA: se elige el proveedor, el modelo y la región, y se puede poner una API key propia por
@@ -179,6 +199,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   material de un colega.
 
 ### Interno (equipo)
+
+- **El deploy de funciones ya no puede subir un despliegue a medias.** Un import mal formado en
+  `tutor-chat` llegó a producción: `bun tsc --noEmit` NO cubre `supabase/functions` (son módulos
+  Deno, fuera del tsconfig del front), así que el error de sintaxis recién apareció en el deploy —
+  y como el workflow despliega función por función, subió 40 y falló en la 41.
+
+  Ahora el workflow valida el parseo de **todas** las funciones ANTES de tocar el proyecto remoto:
+  si algo no parsea, no se despliega nada. Usa `deno lint --json`, que separa los fallos de parseo
+  (`.errors`) de los hallazgos de estilo (`.diagnostics`) — solo los primeros bloquean, porque el
+  repo tiene 117 hallazgos de estilo preexistentes y bloquear por ellos sería ruido. Verificado
+  contra una reproducción del error: reporta el mismo mensaje que dio el deploy y sale con código 1.
+
+- **La migración de Bedrock asumía el nombre de una constraint y fallaba.** Hacía
+  `DROP CONSTRAINT IF EXISTS ai_model_settings_provider_check`, pero en producción ese CHECK se
+  llama `chk_ai_model_settings_provider` desde `20260824000000` (que lo recreó al deprecar
+  'lovable'). El `IF EXISTS` no encontraba nada, no fallaba, y dejaba viva la constraint real, que
+  después rechazaba el INSERT de la fila platform-default con `violates check constraint`.
+
+  Ahora busca los CHECK que restringen la columna `provider` en `pg_constraint` y los dropea por su
+  nombre real, cualquiera sea — el mismo enfoque dinámico que ya usaba `20260824000000`. Probada
+  contra un Postgres 15 con el esquema y el nombre de constraint reales de producción: aplica limpio,
+  es re-ejecutable y no duplica la fila platform-default ni toca las filas de las instituciones.
+
 
 - **Buscador global (⌘K) — búsqueda de entidades server-side.** `CommandPalette` pasa a
   `shouldFilter={false}` (cmdk filtraba con un `includes` crudo, incompatible con resultados que ya

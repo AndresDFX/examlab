@@ -4,8 +4,14 @@
  * Estrategia (en orden):
  *   1. Override de SuperAdmin via localStorage `examlab_tenant_override`
  *      (slug). Si el rol incluye SuperAdmin y eligió "Ver como X",
- *      resolvemos a ESE tenant.
- *   2. profile.tenant_id del useAuth. Resuelve a la institución del
+ *      resolvemos a ESE tenant. Gana sobre el subdominio: "ver como X" es una
+ *      acción deliberada y tiene que poder más que la dirección.
+ *   2. SUBDOMINIO del host (`uniaj.midominio.co` → slug `uniaj`), cuando el
+ *      despliegue usa un subdominio por institución, y el caller NO es
+ *      SuperAdmin (para preservar `isSuperAdminCrossTenant`). Así un enlace a
+ *      la institución abre en ella sin pasar por el selector. Ver
+ *      `modules/tenants/subdomain.ts` y `docs/subdominios-cloudflare.md`.
+ *   3. profile.tenant_id del useAuth. Resuelve a la institución del
  *      usuario autenticado.
  *
  * **Nota:** el plan original era poner el slug en la URL (`/t/<slug>/...`)
@@ -22,6 +28,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import type { Tenant } from "@/modules/tenants/tenant";
 import { isValidTenantSlug } from "@/modules/tenants/tenant";
+import { subdomainTenantSlug } from "@/modules/tenants/subdomain";
 
 const OVERRIDE_KEY = "examlab_tenant_override";
 
@@ -89,6 +96,13 @@ export function useTenant(): UseTenantResult {
       setLoading(true);
       setError(null);
 
+      // Subdominio del host. Se LEE acá pero se USA en el paso 2, más abajo:
+      // el override tiene early-returns y no conviene repetir la lectura.
+      // Solo aplica si el despliegue usa subdominios; en `examlab.lovable.app`
+      // y en localhost devuelve null y todo sigue exactamente como hoy.
+      const hostSlug =
+        typeof window !== "undefined" ? subdomainTenantSlug(window.location.hostname) : null;
+
       // 1) Override del SuperAdmin via localStorage.
       const override = roles.includes("SuperAdmin") ? readTenantOverride() : null;
       if (override) {
@@ -117,7 +131,34 @@ export function useTenant(): UseTenantResult {
         }
       }
 
-      // 2) Fallback al profile.tenant_id.
+      // 2) Institución que dicta el SUBDOMINIO.
+      //
+      // Se salta a propósito para un SuperAdmin SIN override: el modo
+      // cross-tenant se define como `activeRole === "SuperAdmin" && !override`
+      // (invariante compartida entre AppLayout y TenantThemeProvider). Si el
+      // host le fijara una institución acá, `tenant` diría "uniaj" mientras esas
+      // dos pantallas siguen creyendo que está cross-tenant, y vería el nombre
+      // de una institución con el tema por defecto. Para "ver como X" ya existe
+      // el override, que es explícito.
+      if (hostSlug && !roles.includes("SuperAdmin")) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data, error: dbErr } = await (supabase as any)
+          .from("tenants")
+          .select("*")
+          .eq("slug", hostSlug)
+          .maybeSingle();
+        if (cancelled) return;
+        // Un subdominio inexistente NO es un error fatal: se cae al
+        // profile.tenant_id, que es el comportamiento de hoy. Así un enlace
+        // viejo a una institución renombrada sigue abriendo la app.
+        if (!dbErr && data) {
+          setTenant(data as Tenant);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3) Fallback al profile.tenant_id.
       if (!profile?.tenant_id) {
         setTenant(null);
         setError(profile ? "missing_tenant" : null);
