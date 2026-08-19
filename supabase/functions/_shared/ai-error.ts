@@ -16,11 +16,20 @@
  * con sus propias particularidades de manejo de respuestas).
  */
 
-export type AiProvider = "openai" | "gemini";
+// El tipo canónico vive en `ai-model-normalize.ts`. Acá se IMPORTA en vez de
+// redeclararlo: la copia local decía `"openai" | "gemini"` y al sumar Bedrock
+// quedó desincronizada en silencio, así que `describeAiError` rechazaba un
+// provider válido. Con el import, agregar un provider rompe el build acá —
+// que es justo lo que se quiere.
+import type { AiProvider } from "./ai-model-normalize.ts";
+export type { AiProvider };
 
-const SECRET_FOR_PROVIDER: Record<AiProvider, string> = {
+/** Nombre del secret de Edge Functions por proveedor. FUENTE ÚNICA: los edges
+ *  deben leer de acá y no construir el nombre con un ternario inline. */
+export const SECRET_FOR_PROVIDER: Record<AiProvider, string> = {
   openai: "OPENAI_API_KEY",
   gemini: "GEMINI_API_KEY",
+  bedrock: "AWS_BEARER_TOKEN_BEDROCK",
 };
 
 /**

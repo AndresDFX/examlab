@@ -17,15 +17,23 @@
  * vivan en un solo lugar.
  */
 
-export type AiProvider = "openai" | "gemini";
+export type AiProvider = "openai" | "gemini" | "bedrock";
 
 /**
- * Cualquier provider distinto de 'openai' cae a 'gemini' — incluyendo
- * 'lovable' legacy, valores vacíos o strings desconocidos. Alineado
- * con el CHECK constraint post-mig (provider IN ('openai', 'gemini')).
+ * Mapea el valor crudo de `ai_model_settings.provider` a un provider soportado.
+ * Cualquier valor desconocido —'lovable' legacy, vacío, basura— cae a 'gemini',
+ * que es el default histórico. Alineado con el CHECK post-mig
+ * (provider IN ('openai', 'gemini', 'bedrock')).
+ *
+ * OJO: se enumeran los providers EXPLÍCITAMENTE en vez de "todo lo que no sea
+ * openai es gemini". Con la forma anterior, agregar 'bedrock' al CHECK habría
+ * hecho que un tenant configurado en Bedrock se resolviera en silencio como
+ * Gemini y usara la key equivocada.
  */
 export function normalizeProvider(raw: string | null | undefined): AiProvider {
-  return raw === "openai" ? "openai" : "gemini";
+  if (raw === "openai") return "openai";
+  if (raw === "bedrock") return "bedrock";
+  return "gemini";
 }
 
 /**
@@ -35,6 +43,8 @@ export function normalizeProvider(raw: string | null | undefined): AiProvider {
  * sufre — sus modelos no llevan prefijo.
  */
 export function normalizeModel(raw: string, prov: AiProvider): string {
+  // Bedrock usa ids con punto y dos puntos ("openai.gpt-oss-120b-1:0"): no se
+  // les quita ningún prefijo.
   if (prov === "gemini" && raw.startsWith("google/")) {
     return raw.slice("google/".length);
   }

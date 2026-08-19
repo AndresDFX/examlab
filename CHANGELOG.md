@@ -62,6 +62,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Amazon Bedrock como proveedor de IA.** Se suma a Google Gemini y OpenAI en Configuración → Modelo
+  IA: se elige el proveedor, el modelo y la región, y se puede poner una API key propia por
+  institución. Si una institución no pone la suya, usa la de la plataforma sin configurar nada. Los
+  modelos disponibles son `openai.gpt-oss-120b-1:0` y `openai.gpt-oss-20b-1:0`.
+
+  Mantiene todo lo que ya existía: la lista de keys de respaldo con rotación automática cuando una
+  falla, y el diagnóstico del sistema que avisa si falta la key del proveedor activo.
+
+
 - **La hoja de SQL de la pizarra ahora se entiende.** Tenía dos editores de SQL y nada decía cuál
   era cuál: uno se titulaba por su contenido ("Esquema y datos de partida") y el otro por su
   tecnología ("PostgreSQL real, en tu navegador"), así que no quedaba claro dónde escribir ni que

@@ -23,6 +23,7 @@ import {
   aiChatCompletionFailover,
 } from "../_shared/ai-model.ts";
 import {
+import { SECRET_FOR_PROVIDER } from "../_shared/ai-error.ts";
   docxXmlToText,
   isNotebook,
   isOfficeDoc,
@@ -354,7 +355,7 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
     throw new Error(
       `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
         `Pídele al administrador que actualice el secret correspondiente ` +
-        `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
+        `(${SECRET_FOR_PROVIDER[m.provider]}) ` +
         `o que cambie el proveedor activo desde Admin → IA → Modelo.`,
     );
   }

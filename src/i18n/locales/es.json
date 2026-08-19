@@ -1679,7 +1679,13 @@
     "sharedConfirmBody": "Tu institución volverá a usar la IA compartida de la plataforma. Tu API key quedará guardada, pero no se usará mientras estés en modo compartido.",
     "sharedConfirmCta": "Usar la compartida",
     "sharedConfirmTitle": "Volver a la IA compartida",
-    "sharedDone": "Ahora tu institución usa la IA compartida."
+    "sharedDone": "Ahora tu institución usa la IA compartida.",
+    "apiKeyLabelBedrock": "API key de Amazon Bedrock",
+    "bedrockKeyHint": "Se genera en la consola de Amazon Bedrock (Access → API keys). Es un token que empieza con ABSK.",
+    "bedrockModelsHint": "Modelos disponibles: openai.gpt-oss-120b-1:0 y openai.gpt-oss-20b-1:0.",
+    "bedrockKeyHelp": "Sin key propia se usa la de la plataforma.",
+    "bedrockRegionLabel": "Región de AWS",
+    "bedrockRegionHint": "Va dentro de la URL del endpoint, así que debe ser el código exacto (us-east-1, us-west-2). Si se deja vacío se usa us-east-1."
   },
   "certSettings": {
     "resolutionHelp": "Cómo se resuelve cada campo al emitir:",

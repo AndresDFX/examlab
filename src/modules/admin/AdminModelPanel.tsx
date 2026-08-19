@@ -43,7 +43,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type Provider = "openai" | "gemini";
+type Provider = "openai" | "gemini" | "bedrock";
 
 type ModelRow = {
   id: string;
@@ -52,26 +52,39 @@ type ModelRow = {
   is_active: boolean;
   openai_api_key: string | null;
   gemini_api_key: string | null;
+  bedrock_api_key: string | null;
+  /** Región AWS del endpoint de Bedrock. NULL → us-east-1. */
+  bedrock_region: string | null;
   // Listas de keys de respaldo (failover). El edge intenta la principal y, si
   // falla (429/401/402/403/5xx), rota a estas en orden.
   gemini_fallback_keys: string[] | null;
   openai_fallback_keys: string[] | null;
+  bedrock_fallback_keys: string[] | null;
 };
 
 const PROVIDER_LABELS: Record<Provider, string> = {
   openai: "OpenAI",
   gemini: "Google Gemini (directo)",
+  bedrock: "Amazon Bedrock",
 };
 
 const MODEL_SUGGESTIONS: Record<Provider, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini"],
   gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
+  // Solo la familia `gpt-oss`: se comprobó contra la cuenta real que el endpoint
+  // compatible con OpenAI de Bedrock responde 404 para los modelos de Anthropic
+  // ("doesn't support this API"), que viven en la API nativa /converse.
+  bedrock: ["openai.gpt-oss-120b-1:0", "openai.gpt-oss-20b-1:0"],
 };
 
 const SECRET_NAME: Record<Provider, string> = {
   openai: "OPENAI_API_KEY",
   gemini: "GEMINI_API_KEY",
+  bedrock: "AWS_BEARER_TOKEN_BEDROCK",
 };
+
+/** Región por defecto del endpoint de Bedrock cuando la fila no define una. */
+const BEDROCK_DEFAULT_REGION = "us-east-1";
 
 export function AdminModelPanel() {
   const { t } = useTranslation();
@@ -94,11 +107,14 @@ export function AdminModelPanel() {
   // Cualquier otro string la reemplaza; "" la borra.
   const [draftOpenaiKey, setDraftOpenaiKey] = useState<string>("__keep");
   const [draftGeminiKey, setDraftGeminiKey] = useState<string>("__keep");
+  const [draftBedrockKey, setDraftBedrockKey] = useState<string>("__keep");
+  const [draftBedrockRegion, setDraftBedrockRegion] = useState<string>(BEDROCK_DEFAULT_REGION);
   // Listas de keys de respaldo (failover) por provider. Se cargan con los
   // valores reales (el Admin tiene RLS de lectura sobre su fila); el
   // PasswordInput las oculta por defecto. Al guardar se escriben completas.
   const [draftGeminiFallback, setDraftGeminiFallback] = useState<string[]>([]);
   const [draftOpenaiFallback, setDraftOpenaiFallback] = useState<string[]>([]);
+  const [draftBedrockFallback, setDraftBedrockFallback] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -120,7 +136,7 @@ export function AdminModelPanel() {
     let q = db
       .from("ai_model_settings")
       .select(
-        "id, provider, model, is_active, openai_api_key, gemini_api_key, gemini_fallback_keys, openai_fallback_keys",
+        "id, provider, model, is_active, openai_api_key, gemini_api_key, bedrock_api_key, bedrock_region, gemini_fallback_keys, openai_fallback_keys, bedrock_fallback_keys",
       )
       .eq("is_active", true);
     if (isGlobalScope) {
@@ -140,7 +156,11 @@ export function AdminModelPanel() {
       // arranque consistente (la migración 20260824000000 ya hizo el
       // backfill server-side, pero si quedó algo viejo, lo manejamos).
       const normalized: Provider =
-        row.provider === "openai" ? "openai" : "gemini";
+        row.provider === "openai"
+          ? "openai"
+          : row.provider === "bedrock"
+            ? "bedrock"
+            : "gemini";
       const normalizedModel =
         normalized === "gemini" && row.model.startsWith("google/")
           ? row.model.slice("google/".length)
@@ -152,6 +172,8 @@ export function AdminModelPanel() {
       setDraftGeminiKey("__keep");
       setDraftGeminiFallback(row.gemini_fallback_keys ?? []);
       setDraftOpenaiFallback(row.openai_fallback_keys ?? []);
+      setDraftBedrockFallback(row.bedrock_fallback_keys ?? []);
+      setDraftBedrockRegion(row.bedrock_region ?? BEDROCK_DEFAULT_REGION);
     } else {
       // Sin fila para este scope — limpiar el activeRow para que el
       // formulario muestre los defaults y la siguiente save haga INSERT
@@ -204,7 +226,11 @@ export function AdminModelPanel() {
     draftOpenaiKey !== "__keep" ||
     draftGeminiKey !== "__keep" ||
     !listsEqual(draftGeminiFallback, activeRow.gemini_fallback_keys ?? []) ||
-    !listsEqual(draftOpenaiFallback, activeRow.openai_fallback_keys ?? []);
+    !listsEqual(draftOpenaiFallback, activeRow.openai_fallback_keys ?? []) ||
+    !listsEqual(draftBedrockFallback, activeRow.bedrock_fallback_keys ?? []) ||
+    draftBedrockKey !== "__keep" ||
+    (draftBedrockRegion || BEDROCK_DEFAULT_REGION) !==
+      (activeRow.bedrock_region ?? BEDROCK_DEFAULT_REGION);
 
   // Helper para mostrar "••••XXXX" cuando hay una key guardada pero el
   // admin no la está editando. Si la key no existe, muestra placeholder.
@@ -216,9 +242,17 @@ export function AdminModelPanel() {
   // global (SuperAdmin) sigue permitiendo key NULL — su row es solo para
   // jobs internos de la plataforma; los tenants ya no heredan.
   const activeProviderKeyDraft =
-    draftProvider === "openai" ? draftOpenaiKey : draftGeminiKey;
+    draftProvider === "openai"
+      ? draftOpenaiKey
+      : draftProvider === "bedrock"
+        ? draftBedrockKey
+        : draftGeminiKey;
   const activeProviderKeyStored =
-    draftProvider === "openai" ? activeRow?.openai_api_key : activeRow?.gemini_api_key;
+    draftProvider === "openai"
+      ? activeRow?.openai_api_key
+      : draftProvider === "bedrock"
+        ? activeRow?.bedrock_api_key
+        : activeRow?.gemini_api_key;
   const resolvedKeyAfterSave =
     activeProviderKeyDraft === "__keep" ? activeProviderKeyStored : activeProviderKeyDraft || null;
   // La key SOLO es obligatoria cuando el tenant usa su PROPIA IA ('own'). En
@@ -265,10 +299,21 @@ export function AdminModelPanel() {
         draftGeminiKey === "__keep" ? (activeRow?.gemini_api_key ?? null) : draftGeminiKey || null;
       // Listas de respaldo: limpiadas (sin vacíos/duplicados). Array vacío → null
       // para no guardar `{}` en la columna text[].
+      const nextBedrockKey =
+        draftBedrockKey === "__keep"
+          ? (activeRow?.bedrock_api_key ?? null)
+          : draftBedrockKey || null;
       const cleanedGeminiFallback = cleanKeyList(draftGeminiFallback);
       const cleanedOpenaiFallback = cleanKeyList(draftOpenaiFallback);
+      const cleanedBedrockFallback = cleanKeyList(draftBedrockFallback);
       const nextGeminiFallback = cleanedGeminiFallback.length ? cleanedGeminiFallback : null;
       const nextOpenaiFallback = cleanedOpenaiFallback.length ? cleanedOpenaiFallback : null;
+      const nextBedrockFallback = cleanedBedrockFallback.length ? cleanedBedrockFallback : null;
+      // La región se normaliza a minúsculas sin espacios: va DENTRO de la URL del
+      // endpoint, así que un " US-East-1 " pegado a mano produciría un host
+      // inexistente y un error de red imposible de diagnosticar desde el panel.
+      const nextBedrockRegion =
+        draftBedrockRegion.trim().toLowerCase() || BEDROCK_DEFAULT_REGION;
 
       // UPSERT correcto: si la fila del scope ya existe, hacemos UPDATE.
       // Si no, INSERT. Antes hacíamos UPDATE-to-false + INSERT, que con
@@ -285,8 +330,11 @@ export function AdminModelPanel() {
             updated_by: user.id,
             openai_api_key: nextOpenaiKey,
             gemini_api_key: nextGeminiKey,
+            bedrock_api_key: nextBedrockKey,
+            bedrock_region: nextBedrockRegion,
             gemini_fallback_keys: nextGeminiFallback,
             openai_fallback_keys: nextOpenaiFallback,
+            bedrock_fallback_keys: nextBedrockFallback,
           })
           .eq("id", activeRow.id);
         if (updErr) {
@@ -301,8 +349,11 @@ export function AdminModelPanel() {
           updated_by: user.id,
           openai_api_key: nextOpenaiKey,
           gemini_api_key: nextGeminiKey,
+          bedrock_api_key: nextBedrockKey,
+          bedrock_region: nextBedrockRegion,
           gemini_fallback_keys: nextGeminiFallback,
           openai_fallback_keys: nextOpenaiFallback,
+          bedrock_fallback_keys: nextBedrockFallback,
         };
         if (isGlobalScope) insertPayload.tenant_id = null;
         const { error: insErr } = await db.from("ai_model_settings").insert(insertPayload);
@@ -524,6 +575,7 @@ export function AdminModelPanel() {
             <SelectContent>
               <SelectItem value="gemini">{PROVIDER_LABELS.gemini}</SelectItem>
               <SelectItem value="openai">{PROVIDER_LABELS.openai}</SelectItem>
+              <SelectItem value="bedrock">{PROVIDER_LABELS.bedrock}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -638,6 +690,67 @@ export function AdminModelPanel() {
             keys={draftOpenaiFallback}
             onChange={setDraftOpenaiFallback}
           />
+        )}
+        {draftProvider === "bedrock" && (
+          <>
+            <ApiKeyInput
+              label={t("aiModel.apiKeyLabelBedrock", { defaultValue: "API key de Amazon Bedrock" })}
+              stored={activeRow?.bedrock_api_key ?? null}
+              value={draftBedrockKey}
+              onChange={setDraftBedrockKey}
+              maskFn={maskKey}
+              isGlobalScope={isGlobalScope}
+              placeholderEmptyGlobal={t("aiModel.apiKeyEmptyGlobal", {
+                defaultValue:
+                  "Sin configurar — las tareas internas de la plataforma caen al env secret",
+              })}
+              placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
+                defaultValue: "Pegá tu API key (obligatorio)",
+              })}
+              helpHint={
+                <div className="space-y-1">
+                  <p>
+                    {t("aiModel.bedrockKeyHint", {
+                      defaultValue:
+                        "Se genera en la consola de Amazon Bedrock (Access → API keys). Es un token que empieza con ABSK.",
+                    })}
+                  </p>
+                  <p>
+                    {t("aiModel.bedrockModelsHint", {
+                      defaultValue:
+                        "Modelos disponibles: openai.gpt-oss-120b-1:0 y openai.gpt-oss-20b-1:0.",
+                    })}
+                  </p>
+                </div>
+              }
+              help={t("aiModel.bedrockKeyHelp", {
+                defaultValue: "Sin key propia se usa la de la plataforma.",
+              })}
+            />
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                {t("aiModel.bedrockRegionLabel", { defaultValue: "Región de AWS" })}
+                <HelpHint>
+                  {t("aiModel.bedrockRegionHint", {
+                    defaultValue:
+                      "Va dentro de la URL del endpoint, así que debe ser el código exacto (us-east-1, us-west-2). Si se deja vacío se usa us-east-1.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Input
+                value={draftBedrockRegion}
+                onChange={(e) => setDraftBedrockRegion(e.target.value)}
+                placeholder={BEDROCK_DEFAULT_REGION}
+                spellCheck={false}
+                className="max-w-56 font-mono text-xs"
+              />
+            </div>
+            <FallbackKeysEditor
+              providerLabel={PROVIDER_LABELS.bedrock}
+              keys={draftBedrockFallback}
+              onChange={setDraftBedrockFallback}
+            />
+          </>
         )}
         {draftProvider === "gemini" && (
           <ApiKeyInput

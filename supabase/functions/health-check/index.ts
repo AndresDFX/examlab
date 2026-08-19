@@ -295,6 +295,9 @@ Deno.serve(async (req) => {
     const map: Record<string, string> = {
       openai: "OPENAI_API_KEY",
       gemini: "GEMINI_API_KEY",
+      // Sin esta entrada, un tenant con Bedrock activo NO veía reportado el
+      // secret faltante: el diagnóstico decía "todo bien" con la IA caída.
+      bedrock: "AWS_BEARER_TOKEN_BEDROCK",
     };
     requiredAiSecretName = map[aiSettings.provider] ?? null;
     if (requiredAiSecretName) {

@@ -33,11 +33,16 @@ export interface ActiveModel {
   /** API key PRINCIPAL per-tenant. NULL → la edge cae al env legacy. */
   gemini_api_key: string | null;
   openai_api_key: string | null;
+  bedrock_api_key: string | null;
   /** Lista ORDENADA de candidatos por provider = [principal, ...respaldo].
    *  El failover (`aiChatCompletionFailover`) las intenta en orden y, al
    *  final, agrega la env key legacy como último recurso. NO incluye la env. */
   gemini_api_keys: string[];
   openai_api_keys: string[];
+  bedrock_api_keys: string[];
+  /** Región de AWS del endpoint de Bedrock. NULL → us-east-1. Solo aplica a
+   *  provider='bedrock'; los otros ignoran este campo. */
+  bedrock_region: string | null;
   /** Tenant resolved (null si fallback hardcoded). Útil para logging. */
   tenant_id: string | null;
 }
@@ -49,8 +54,11 @@ const DEFAULT_MODEL: ActiveModel = {
   model: "gemini-2.5-flash",
   gemini_api_key: null,
   openai_api_key: null,
+  bedrock_api_key: null,
   gemini_api_keys: [],
   openai_api_keys: [],
+  bedrock_api_keys: [],
+  bedrock_region: null,
   tenant_id: null,
 };
 
@@ -127,8 +135,11 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     model: string;
     gemini_api_key: string | null;
     openai_api_key: string | null;
+    bedrock_api_key: string | null;
     gemini_fallback_keys: string[] | null;
     openai_fallback_keys: string[] | null;
+    bedrock_fallback_keys: string[] | null;
+    bedrock_region: string | null;
   };
   const toActive = (row: Row, scope: "tenant" | "platform"): ActiveModel => {
     const p = normalizeProvider(row.provider);
@@ -137,9 +148,15 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       model: normalizeModel(row.model, p),
       gemini_api_key: row.gemini_api_key,
       openai_api_key: row.openai_api_key,
+      bedrock_api_key: row.bedrock_api_key,
       // Lista ordenada [principal, ...respaldo] sin vacíos ni duplicados.
       gemini_api_keys: dedupeNonEmpty([row.gemini_api_key, ...(row.gemini_fallback_keys ?? [])]),
       openai_api_keys: dedupeNonEmpty([row.openai_api_key, ...(row.openai_fallback_keys ?? [])]),
+      bedrock_api_keys: dedupeNonEmpty([
+        row.bedrock_api_key,
+        ...(row.bedrock_fallback_keys ?? []),
+      ]),
+      bedrock_region: row.bedrock_region,
       tenant_id: scope === "tenant" ? tenantId : null,
     };
   };
@@ -151,7 +168,7 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     const { data } = await adminClient
       .from("ai_model_settings")
       .select(
-        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+        "provider, model, gemini_api_key, openai_api_key, bedrock_api_key, gemini_fallback_keys, openai_fallback_keys, bedrock_fallback_keys, bedrock_region",
       )
       .eq("is_active", true)
       .is("tenant_id", null)
@@ -187,7 +204,7 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       const { data } = await adminClient
         .from("ai_model_settings")
         .select(
-          "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+          "provider, model, gemini_api_key, openai_api_key, bedrock_api_key, gemini_fallback_keys, openai_fallback_keys, bedrock_fallback_keys, bedrock_region",
         )
         .eq("is_active", true)
         .eq("tenant_id", tenantId)
@@ -219,7 +236,7 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
     const { data: ownRow } = await adminClient
       .from("ai_model_settings")
       .select(
-        "provider, model, gemini_api_key, openai_api_key, gemini_fallback_keys, openai_fallback_keys",
+        "provider, model, gemini_api_key, openai_api_key, bedrock_api_key, gemini_fallback_keys, openai_fallback_keys, bedrock_fallback_keys, bedrock_region",
       )
       .eq("is_active", true)
       .eq("tenant_id", tenantId)
@@ -235,6 +252,13 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
         ...shared.openai_api_keys,
         ...(own?.openai_api_keys ?? []),
       ]),
+      bedrock_api_keys: dedupeNonEmpty([
+        ...shared.bedrock_api_keys,
+        ...(own?.bedrock_api_keys ?? []),
+      ]),
+      // La región de la institución gana sobre la de la plataforma; si ninguna la
+      // define, `bedrockChatUrl` cae a us-east-1.
+      bedrock_region: own?.bedrock_region ?? shared.bedrock_region,
       tenant_id: tenantId,
     };
     cache.set(tenantId, resolved);
@@ -272,13 +296,47 @@ const GEMINI_CHAT_URL =
 const OPENAI_CHAT_URL = "https://api.openai.com/v1/chat/completions";
 
 /**
+ * Endpoint COMPATIBLE CON OPENAI de Amazon Bedrock. Verificado contra la cuenta
+ * real: acepta `Authorization: Bearer <API key de Bedrock>`, `max_tokens` y
+ * —lo que decidía la viabilidad— `tools` + `tool_choice`, que es de lo que
+ * dependen los edges de generación para su salida estructurada.
+ *
+ * Por eso Bedrock entra SIN traductor: el payload que ya se arma para
+ * Gemini/OpenAI viaja idéntico y solo cambian la URL y la key.
+ *
+ * Límite REAL medido (no supuesto): este endpoint sirve la familia
+ * `openai.gpt-oss-*`. Los modelos de Anthropic en Bedrock responden 404 acá
+ * ("doesn't support this API") — viven en la API nativa `/converse`, que NO
+ * habla chat-completions. Si algún día se quieren, hace falta un traductor.
+ */
+const BEDROCK_DEFAULT_REGION = "us-east-1";
+function bedrockChatUrl(region: string | null | undefined): string {
+  const r = (region ?? "").trim() || BEDROCK_DEFAULT_REGION;
+  return `https://bedrock-runtime.${r}.amazonaws.com/openai/v1/chat/completions`;
+}
+
+/**
  * Lista de candidatos de key para el provider del modelo: principal +
  * respaldo (de DB) + env legacy, deduplicada y sin vacíos.
  */
 export function candidateKeysFor(model: ActiveModel): string[] {
-  const fromDb = model.provider === "openai" ? model.openai_api_keys : model.gemini_api_keys;
-  const envKey = Deno.env.get(model.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY");
-  return dedupeNonEmpty([...fromDb, envKey]);
+  const fromDb =
+    model.provider === "openai"
+      ? model.openai_api_keys
+      : model.provider === "bedrock"
+        ? model.bedrock_api_keys
+        : model.gemini_api_keys;
+  // La env es el ÚLTIMO recurso y a la vez la key POR DEFECTO: una institución
+  // sin key propia en la fila usa la de la plataforma sin configurar nada, y la
+  // que sí puso la suya la usa antes. Para Bedrock el nombre del secret es el
+  // que AWS documenta para sus API keys.
+  const envName =
+    model.provider === "openai"
+      ? "OPENAI_API_KEY"
+      : model.provider === "bedrock"
+        ? "AWS_BEARER_TOKEN_BEDROCK"
+        : "GEMINI_API_KEY";
+  return dedupeNonEmpty([...fromDb, Deno.env.get(envName)]);
 }
 
 /**
@@ -294,10 +352,20 @@ export async function aiChatCompletionFailover(
   // deno-lint-ignore no-explicit-any
   payload: Record<string, any>,
 ): Promise<Response> {
-  const url = model.provider === "openai" ? OPENAI_CHAT_URL : GEMINI_CHAT_URL;
+  const url =
+    model.provider === "openai"
+      ? OPENAI_CHAT_URL
+      : model.provider === "bedrock"
+        ? bedrockChatUrl(model.bedrock_region)
+        : GEMINI_CHAT_URL;
   const keys = candidateKeysFor(model);
   if (keys.length === 0) {
-    const name = model.provider === "openai" ? "OpenAI" : "Gemini";
+    const name =
+      model.provider === "openai"
+        ? "OpenAI"
+        : model.provider === "bedrock"
+          ? "Bedrock"
+          : "Gemini";
     throw new Error(`Falta la API key de ${name}. Configúrala en Configuración → Modelo IA.`);
   }
   const body = JSON.stringify(payload);

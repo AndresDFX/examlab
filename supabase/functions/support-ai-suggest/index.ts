@@ -37,6 +37,7 @@ import {
   type ActiveModel,
 } from "../_shared/ai-model.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { SECRET_FOR_PROVIDER } from "../_shared/ai-error.ts";
 
 // Presupuesto de la documentación (KB) que va al prompt — mismo criterio
 // que platform-support-chat: tope por doc + tope global.
@@ -104,7 +105,7 @@ async function callAi(
     throw new Error(
       `La API key del proveedor de IA (${m.provider}) está inválida o expirada. ` +
         `Actualiza el secret correspondiente ` +
-        `(${m.provider === "openai" ? "OPENAI_API_KEY" : "GEMINI_API_KEY"}) ` +
+        `(${SECRET_FOR_PROVIDER[m.provider]}) ` +
         `o cambia el proveedor activo desde Configuración → Modelo IA.`,
     );
   }
