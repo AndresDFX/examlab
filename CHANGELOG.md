@@ -211,6 +211,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   repo tiene 117 hallazgos de estilo preexistentes y bloquear por ellos sería ruido. Verificado
   contra una reproducción del error: reporta el mismo mensaje que dio el deploy y sale con código 1.
 
+  **Y un segundo fallo silencioso, encontrado al desplegar el arreglo anterior:** el workflow
+  clonaba con `fetch-depth: 2`, así que en un push de dos o más commits el commit base quedaba
+  fuera del clon, `git diff <base> HEAD` fallaba con "unknown revision", y el `|| echo ""` del paso
+  de detección convertía ese error en **"sin cambios detectados"**. El deploy terminaba en verde sin
+  desplegar nada — dejando la función rota en producción con la apariencia de estar arreglada. Ahora
+  el clon trae el historial completo, el `|| echo ""` se quitó (que muera el paso antes que mentir),
+  y si el commit base no está en el clon —force-push— se despliega **todo** con un aviso: un deploy
+  de más es barato, uno que no ocurre y no avisa no.
+
 - **La migración de Bedrock asumía el nombre de una constraint y fallaba.** Hacía
   `DROP CONSTRAINT IF EXISTS ai_model_settings_provider_check`, pero en producción ese CHECK se
   llama `chk_ai_model_settings_provider` desde `20260824000000` (que lo recreó al deprecar

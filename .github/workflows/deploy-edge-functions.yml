@@ -79,11 +79,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v5
         with:
-          # Necesitamos al menos el commit anterior para `git diff` y
-          # detectar qué funciones cambiaron. fetch-depth: 0 trae todo el
-          # historial — para repos chicos es OK; si crece mucho, podemos
-          # bajar a fetch-depth: 2 (commit actual + previo).
-          fetch-depth: 2
+          # `fetch-depth: 0` (historial completo) y NO 2.
+          #
+          # Con `fetch-depth: 2` el clon shallow solo trae HEAD y su padre.
+          # Un push con DOS o mas commits deja el commit base (`event.before`)
+          # FUERA del clon, `git diff <base> HEAD` falla con "unknown
+          # revision"... y el `|| echo ""` del paso de deteccion convertia ese
+          # error en "sin cambios detectados": el workflow terminaba en verde
+          # sin desplegar nada. Paso de verdad el 2026-08-19 — se pushearon el
+          # fix de tutor-chat y la feature de subdominios juntos, y el deploy
+          # se saltó entero dejando la funcion rota en produccion.
+          fetch-depth: 0
 
       - name: Validar secrets
         env:
@@ -129,12 +135,24 @@ jobs:
           elif [ -z "$BEFORE_SHA" ] || [ "$BEFORE_SHA" = "0000000000000000000000000000000000000000" ]; then
             echo "No hay commit previo (primer push o force-push): desplegando todas."
             deploy_mode="all"
+          elif ! git cat-file -e "${BEFORE_SHA}^{commit}" 2>/dev/null; then
+            # El commit base no esta en el clon (force-push, o un shallow que
+            # no lo alcanzo). NO se puede diffear, asi que se despliega TODO.
+            #
+            # Antes esto caia en el `|| echo ""` del git diff y se leia como
+            # "sin cambios": el workflow pasaba en verde SIN desplegar. Un
+            # deploy de mas es barato; un deploy que no ocurre y no avisa
+            # deja produccion rota creyendo que se arreglo.
+            echo "::warning::El commit base $BEFORE_SHA no esta en el clon — desplegando todas por seguridad."
+            deploy_mode="all"
           else
             # Diff entre BEFORE_SHA y HEAD. Filtramos solo paths bajo
             # supabase/functions/ y el workflow propio.
+            # SIN `|| echo ""`: si el diff falla, queremos que el paso muera
+            # (set -e) en vez de degradar el error a "no hay cambios".
             changed_files=$(git diff --name-only "$BEFORE_SHA" HEAD -- \
               'supabase/functions/' \
-              '.github/workflows/deploy-edge-functions.yml' || echo "")
+              '.github/workflows/deploy-edge-functions.yml')
 
             if [ -z "$changed_files" ]; then
               echo "Sin cambios detectados — nada que desplegar."
