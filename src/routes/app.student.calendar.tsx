@@ -5,9 +5,12 @@
  * proyectos, sesiones de asistencia. Agrupado por mes con filtros por
  * tipo, búsqueda y "ver solo próximos / todos".
  *
- * Incluye sección "Suscribir" con el URL .ics (token privado) para que
- * el estudiante lo agregue a Google/Outlook/Apple Calendar. Botón
- * "Regenerar URL" rota el token si lo compartió accidentalmente.
+ * La suscripción .ics (URL con token privado + "Regenerar URL") se quitó
+ * de esta pantalla por decisión del dueño del producto: era el bloque de
+ * mayor jerarquía visual y mostraba mecanismo, no la tarea del alumno
+ * (P6). El edge `student-calendar-ics` y los RPC del token siguen vivos
+ * server-side; quien ya se suscribió sigue recibiendo sus eventos, pero
+ * hoy NO hay punto de entrada en el UI para obtener ni rotar esa URL.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
@@ -16,31 +19,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { StudentEventsCalendar } from "@/modules/dashboard/StudentEventsCalendar";
 import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { HelpHint } from "@/components/ui/help-hint";
-import { toast } from "sonner";
 import {
   CalendarDays as CalendarIcon,
-  Copy,
-  RefreshCw,
   FileText,
   Hammer,
   FolderKanban,
   Presentation,
   Search,
-  Info,
   ExternalLink,
 } from "lucide-react";
 import { formatDateTime, formatWeekday } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
-import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/student/calendar")({ component: StudentCalendar });
 
@@ -94,9 +90,6 @@ function StudentCalendar() {
     new Set(["exam", "workshop", "project", "session"]),
   );
   const [showPast, setShowPast] = useState(false);
-  const [token, setToken] = useState<string | null>(null);
-  const [tokenLoading, setTokenLoading] = useState(false);
-  const [regenerating, setRegenerating] = useState(false);
 
   // Load events
   useEffect(() => {
@@ -248,27 +241,6 @@ function StudentCalendar() {
     };
   }, [user, retryNonce]);
 
-  // Load token (creates if not exists)
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    (async () => {
-      setTokenLoading(true);
-      const { data, error } = await db.rpc("get_or_create_calendar_token");
-      if (cancelled) return;
-      if (error) {
-        toast.error(friendlyError(error));
-      } else {
-        const row = Array.isArray(data) ? data[0] : data;
-        if (row?.token) setToken(row.token);
-      }
-      setTokenLoading(false);
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
-
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const now = Date.now();
@@ -304,42 +276,6 @@ function StudentCalendar() {
     });
   };
 
-  const icsUrl = useMemo(() => {
-    if (!token) return null;
-    const supaUrl = (import.meta as { env: Record<string, string> }).env.VITE_SUPABASE_URL ?? "";
-    if (!supaUrl) return null;
-    return `${supaUrl}/functions/v1/student-calendar-ics?token=${token}`;
-  }, [token]);
-
-  const webcalUrl = useMemo(
-    () => (icsUrl ? icsUrl.replace(/^https?:\/\//, "webcal://") : null),
-    [icsUrl],
-  );
-
-  const handleRegenerate = async () => {
-    setRegenerating(true);
-    try {
-      const { data, error } = await db.rpc("regenerate_calendar_token");
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-      const row = Array.isArray(data) ? data[0] : data;
-      if (row?.token) {
-        setToken(row.token);
-        toast.success(i18n.t("toast.routes_app_student_calendar.urlRegenerated", { defaultValue: "URL regenerada. El link anterior dejó de funcionar." }));
-      }
-    } finally {
-      setRegenerating(false);
-    }
-  };
-
-  const handleCopy = () => {
-    if (!icsUrl) return;
-    void navigator.clipboard.writeText(icsUrl);
-    toast.success(i18n.t("toast.routes_app_student_calendar.urlCopied", { defaultValue: "URL copiada" }));
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
@@ -348,160 +284,130 @@ function StudentCalendar() {
         subtitle={t("hc_routesAppStudentCalendar.pageSubtitle")}
       />
 
-      {/* Vista mensual (overview visual). Reusa el componente del dashboard;
-          los días con eventos abren un popover con detalle clickeable. */}
-      <StudentEventsCalendar userId={user?.id} />
-
-      {/* Bloque de suscripción .ics */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4 text-blue-500" />
-            {t("hc_routesAppStudentCalendar.subscribeTitle")}
-            <HelpHint>{t("help.privateUrlWarning")}</HelpHint>
-          </CardTitle>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("hc_routesAppStudentCalendar.subscribeHint")}
-          </p>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {tokenLoading ? (
-            <div className="text-sm text-muted-foreground flex items-center gap-2">
-              <Spinner size="sm" inline /> {t("hc_routesAppStudentCalendar.generatingUrl")}
-            </div>
-          ) : icsUrl ? (
-            <>
-              <div className="flex flex-wrap items-center gap-2">
-                <Input value={icsUrl} readOnly className="font-mono text-xs flex-1 min-w-[180px] sm:min-w-64" />
-                <Button size="sm" variant="outline" onClick={handleCopy}>
-                  <Copy className="h-3.5 w-3.5 mr-1" />
-                  {t("hc_routesAppStudentCalendar.copy")}
-                </Button>
-                {webcalUrl && (
-                  <Button size="sm" variant="outline" asChild>
-                    <a href={webcalUrl}>
-                      <ExternalLink className="h-3.5 w-3.5 mr-1" />
-                      {t("hc_routesAppStudentCalendar.openInMyCalendar")}
-                    </a>
-                  </Button>
-                )}
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => void handleRegenerate()}
-                  disabled={regenerating}
-                  className="text-amber-700 dark:text-amber-300"
-                >
-                  {regenerating ? (
-                    <Spinner size="sm" className="mr-1" />
-                  ) : (
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                  )}
-                  {t("hc_routesAppStudentCalendar.regenerateUrl")}
-                </Button>
-              </div>
-              <Alert>
-                <Info className="h-4 w-4" />
-                <AlertDescription className="text-xs">
-                  {t("hc_routesAppStudentCalendar.refreshNotice")}
-                </AlertDescription>
-              </Alert>
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {t("hc_routesAppStudentCalendar.urlGenerateFailed")}
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* Filtros */}
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative flex-1 min-w-[160px] sm:min-w-48">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder={t("hc_routesAppStudentCalendar.searchPlaceholder")}
-                className="pl-8"
-              />
-            </div>
-            <Button
-              size="sm"
-              variant={showPast ? "default" : "outline"}
-              onClick={() => setShowPast((v) => !v)}
-            >
-              {showPast
-                ? t("hc_routesAppStudentCalendar.showingAll")
-                : t("hc_routesAppStudentCalendar.onlyUpcoming")}
-            </Button>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {(["exam", "workshop", "project", "session"] as const).map((k) => {
-              const Icon = KIND_ICON[k];
-              const active = activeKinds.has(k);
-              return (
-                <Button
-                  key={k}
-                  size="sm"
-                  variant={active ? "default" : "outline"}
-                  onClick={() => toggleKind(k)}
-                  className="h-7 text-2xs"
-                >
-                  <Icon className="h-3 w-3 mr-1" />
-                  {t(KIND_LABEL_KEY[k])}
-                </Button>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Eventos por mes */}
-      {loading ? (
-        <Card>
-          <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
-            <Spinner size="md" /> {t("hc_routesAppStudentCalendar.loadingEvents")}
-          </CardContent>
-        </Card>
-      ) : loadError ? (
-        <ErrorState
-          message={t("hc_routesAppStudentCalendar.errorStateMessage")}
-          hint={loadError}
-          onRetry={() => setRetryNonce((n) => n + 1)}
-        />
-      ) : groups.length === 0 ? (
-        <Card>
-          <CardContent className="p-0">
-            <TableEmpty
-              title={t("hc_routesAppStudentCalendar.emptyTitle")}
-              description={
-                showPast
-                  ? t("hc_routesAppStudentCalendar.emptyDescriptionAll")
-                  : t("hc_routesAppStudentCalendar.emptyDescriptionUpcoming")
-              }
-              icon={CalendarIcon}
-            />
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="space-y-6">
-          {groups.map(([monthKey, evs]) => (
-            <section key={monthKey}>
-              <h2 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
-                {monthLabel(monthKey)}
-              </h2>
-              <div className="space-y-2">
-                {evs.map((e) => (
-                  <EventRow key={e.id} event={e} />
-                ))}
-              </div>
-            </section>
-          ))}
+      {/* Dos columnas asimétricas: el mes a la izquierda, los filtros + la
+          lista de eventos a la derecha. Antes iban apilados a ancho completo
+          y en un monitor de 1920 cada celda del mes medía ~218×40px (5,4:1):
+          eso no se lee como calendario, se lee como una tabla vacía. Acotado
+          a esta columna la celda queda ~50×40px, la misma proporción que el
+          calendario del panel del estudiante ya usa desde hace meses.
+          `items-start` NO es decorativo: es lo que le deja recorrido al
+          sticky de la columna izquierda — con el stretch por default el
+          sticky muere en silencio. El breakpoint es `xl` (1280px) y no `lg`
+          a propósito: a 1024px la lista se quedaría en ~260px y el título de
+          cada evento truncaría a ~10 caracteres. */}
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,420px)_minmax(0,1fr)] gap-4 xl:gap-6 items-start">
+        {/* Vista mensual (overview visual). Reusa el componente del dashboard;
+            los días con eventos abren un popover con detalle clickeable.
+            El cap de ancho y el sticky viven ACÁ, en la ruta, y NO en el
+            componente: `StudentEventsCalendar` lo comparten dos usos del
+            panel (app.index.tsx) que lo estiran con su propio className, y
+            cambiar su default rompería ese layout. Debajo de `xl` el mes se
+            apila, y ahí el cap de 768px es lo que evita volver a la celda
+            achatada de ancho completo. */}
+        <div className="w-full max-w-3xl xl:max-w-none xl:sticky xl:top-6">
+          <StudentEventsCalendar userId={user?.id} />
         </div>
-      )}
+
+        {/* Filtros + lista. `min-w-0` es obligatorio: sin él el `truncate`
+            del título en EventRow no funciona dentro de una columna de grid
+            y las filas largas empujan el ancho. */}
+        <div className="space-y-4 min-w-0">
+          {/* Filtros. Van ADENTRO de esta columna a propósito: filtran la
+              LISTA, no los puntos del mes (que trae su propia data y su
+              propio navegador de meses). Full-width arriba de todo se leerían
+              como filtros de la pantalla entera, y el alumno reportaría como
+              bug que el mes "no les hace caso" — de ahí el hint al pie. */}
+          <Card>
+            <CardContent className="p-4 space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="relative flex-1 min-w-[160px] sm:min-w-48">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t("hc_routesAppStudentCalendar.searchPlaceholder")}
+                    className="pl-8"
+                  />
+                </div>
+                <Button
+                  size="sm"
+                  variant={showPast ? "default" : "outline"}
+                  onClick={() => setShowPast((v) => !v)}
+                >
+                  {showPast
+                    ? t("hc_routesAppStudentCalendar.showingAll")
+                    : t("hc_routesAppStudentCalendar.onlyUpcoming")}
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {(["exam", "workshop", "project", "session"] as const).map((k) => {
+                  const Icon = KIND_ICON[k];
+                  const active = activeKinds.has(k);
+                  return (
+                    <Button
+                      key={k}
+                      size="sm"
+                      variant={active ? "default" : "outline"}
+                      onClick={() => toggleKind(k)}
+                      className="h-7 text-2xs"
+                    >
+                      <Icon className="h-3 w-3 mr-1" />
+                      {t(KIND_LABEL_KEY[k])}
+                    </Button>
+                  );
+                })}
+              </div>
+              <p className="text-2xs text-muted-foreground">
+                {t("hc_routesAppStudentCalendar.filtersScopeHint")}
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Eventos por mes */}
+          {loading ? (
+            <Card>
+              <CardContent className="p-4 sm:p-8 text-center text-muted-foreground">
+                <Spinner size="md" /> {t("hc_routesAppStudentCalendar.loadingEvents")}
+              </CardContent>
+            </Card>
+          ) : loadError ? (
+            <ErrorState
+              message={t("hc_routesAppStudentCalendar.errorStateMessage")}
+              hint={loadError}
+              onRetry={() => setRetryNonce((n) => n + 1)}
+            />
+          ) : groups.length === 0 ? (
+            <Card>
+              <CardContent className="p-0">
+                <TableEmpty
+                  title={t("hc_routesAppStudentCalendar.emptyTitle")}
+                  description={
+                    showPast
+                      ? t("hc_routesAppStudentCalendar.emptyDescriptionAll")
+                      : t("hc_routesAppStudentCalendar.emptyDescriptionUpcoming")
+                  }
+                  icon={CalendarIcon}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-6">
+              {groups.map(([monthKey, evs]) => (
+                <section key={monthKey}>
+                  <h2 className="text-sm font-semibold text-muted-foreground mb-2 uppercase tracking-wide">
+                    {monthLabel(monthKey)}
+                  </h2>
+                  <div className="space-y-2">
+                    {evs.map((e) => (
+                      <EventRow key={e.id} event={e} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

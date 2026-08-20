@@ -1786,7 +1786,6 @@
     "reportScopeHelp": "\"Per student\" = one report per student. \"Per course\" = a consolidated one iterating over {{#each estudiantes}}.",
     "edgeFunctionSecretsDescription": "Environment variables visible to Supabase edge functions. Edit API keys here (Gemini, OpenAI, OnlineCompiler, AWS Runner, etc.) without going to the Supabase dashboard or redeploying.",
     "backupSnapshotsExplanation": "Logical snapshots of the tables to a ZIP in Storage. The cron `db-backup-weekly` runs on Sundays at 03:05 UTC and creates one with all tables; the \"Create backup\" button lets you generate a manual one choosing which tables to include. There is NO restore from the UI for safety reasons — download the ZIP and apply it via SQL if needed.",
-    "privateUrlWarning": "This URL is PRIVATE — anyone who has it can see your events. If you shared it by mistake press \"Regenerate URL\".",
     "retentionHelp": "Defines how many days to keep records of each severity level. 0 = no limit (default). Purging is triggered by a monthly cron configured in Supabase.",
     "dueReminderLead": "How long before the deadline the student is notified (workshop/project not yet submitted). The system checks every 15 minutes and sends a SINGLE reminder per submission — it does not repeat.",
     "maxOpenAnswerChars": "Cap on characters a student can write in an \"open\" question. Applied at the frontend level (Textarea with maxLength). Default 500 — forces concise answers (1-2 paragraphs) and keeps AI grading token cost low. Raise up to 50000 if you need long essays. Allowed range: 100..50000."
@@ -3198,10 +3197,6 @@
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "The code must be 6 digits",
       "markedAsPresent": "Marked as present!"
-    },
-    "routes_app_student_calendar": {
-      "urlRegenerated": "URL regenerated. The previous link no longer works.",
-      "urlCopied": "URL copied"
     },
     "routes_app_student_certificates": {
       "downloadLocked": "You cannot download this certificate yet. It will be available from {{date}}.",
@@ -7213,14 +7208,7 @@
     "sessionDefaultTitle": "Class session",
     "pageTitle": "Calendar",
     "pageSubtitle": "All your academic events in one place",
-    "subscribeTitle": "Subscribe to your calendar",
-    "subscribeHint": "Add this URL to Google Calendar, Outlook, or Apple Calendar to see your events automatically.",
-    "generatingUrl": "Generating URL…",
-    "copy": "Copy",
-    "openInMyCalendar": "Open in my calendar",
-    "regenerateUrl": "Regenerate URL",
-    "refreshNotice": "External calendars refresh periodically (every few hours depending on the provider), not in real time.",
-    "urlGenerateFailed": "Could not generate the subscription URL.",
+    "filtersScopeHint": "Search and filters apply to the event list, not to the month.",
     "searchPlaceholder": "Search by title or course…",
     "showingAll": "Showing all",
     "onlyUpcoming": "Upcoming only",

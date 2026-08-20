@@ -1786,7 +1786,6 @@
     "reportScopeHelp": "\"Por estudiante\" = un informe por alumno. \"Por curso\" = un consolidado iterando sobre {{#each estudiantes}}.",
     "edgeFunctionSecretsDescription": "Variables de entorno que ven las edge functions de Supabase. Aquí editas API keys\n              (Gemini, OpenAI, OnlineCompiler, AWS Runner, etc.) sin tener que ir al dashboard de\n              Supabase ni redeployar.",
     "backupSnapshotsExplanation": "Snapshots lógicos de las tablas a un ZIP en Storage. El cron `db-backup-weekly` corre los domingos 03:05 UTC y crea uno con todas las tablas; el botón \"Crear backup\" deja generar uno manual eligiendo qué tablas incluir. NO hay restore desde la UI por seguridad — descargá el ZIP y aplicá vía SQL si hace falta.",
-    "privateUrlWarning": "Esta URL es PRIVADA — quien la tenga ve tus eventos. Si la compartiste por error\n              presiona \"Regenerar URL\".",
     "retentionHelp": "Define cuántos días conservar registros de cada severidad. 0 = sin límite (default).\n              La purga la dispara un cron mensual configurado en Supabase.",
     "dueReminderLead": "Cuánto tiempo antes del vencimiento se avisa al alumno (taller/proyecto que aún no entrega). El sistema revisa cada 15 minutos y manda UN solo recordatorio por entrega — no se repite.",
     "maxOpenAnswerChars": "Tope de caracteres que el alumno puede escribir en una pregunta tipo \"abierta\". Aplica a nivel frontend (Textarea con maxLength). Default 500 — fuerza respuestas concisas (1-2 párrafos) y mantiene bajo el costo de tokens de la IA al calificar. Subir hasta 50000 si necesitas ensayos largos. Rango permitido: 100..50000."
@@ -3198,10 +3197,6 @@
     "routes_app_student_attendance": {
       "codeMustBe6Digits": "El código debe tener 6 dígitos",
       "markedAsPresent": "¡Marcado como presente!"
-    },
-    "routes_app_student_calendar": {
-      "urlRegenerated": "URL regenerada. El link anterior dejó de funcionar.",
-      "urlCopied": "URL copiada"
     },
     "routes_app_student_certificates": {
       "downloadLocked": "Aún no puedes descargar este certificado. Estará disponible desde el {{date}}.",
@@ -7213,14 +7208,7 @@
     "sessionDefaultTitle": "Sesión de clase",
     "pageTitle": "Calendario",
     "pageSubtitle": "Todos tus eventos académicos en un solo lugar",
-    "subscribeTitle": "Suscribir a tu calendario",
-    "subscribeHint": "Agrega esta URL a Google Calendar, Outlook o Apple Calendar para ver tus eventos automáticamente.",
-    "generatingUrl": "Generando URL…",
-    "copy": "Copiar",
-    "openInMyCalendar": "Abrir en mi calendario",
-    "regenerateUrl": "Regenerar URL",
-    "refreshNotice": "Los calendarios externos se actualizan periódicamente (cada pocas horas según el proveedor), no en tiempo real.",
-    "urlGenerateFailed": "No se pudo generar la URL de suscripción.",
+    "filtersScopeHint": "La búsqueda y los filtros aplican a la lista de eventos, no al mes.",
     "searchPlaceholder": "Buscar por título o curso…",
     "showingAll": "Mostrando todos",
     "onlyUpcoming": "Solo próximos",
