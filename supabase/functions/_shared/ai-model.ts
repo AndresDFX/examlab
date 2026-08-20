@@ -63,7 +63,17 @@ const DEFAULT_MODEL: ActiveModel = {
 };
 
 // Cache por tenant_id. Una entrada `null` cachea el "no tenant resolved".
-const cache = new Map<string | null, ActiveModel>();
+//
+// TTL corto A PROPÓSITO. Sin él, una entrada vivía TODO lo que viviera la
+// instancia del edge: cambiar el proveedor o rotar una key solo surtía efecto
+// cuando la plataforma reciclaba esa instancia, sin cota conocida y sin forma de
+// forzarlo desde el panel (`clearAiModelCache` existe pero corre en OTRO proceso
+// que el que sirve la request, así que no alcanza). Eso también demora la
+// RECUPERACIÓN de una configuración equivocada, que es cuando más molesta.
+// 60s acota la desactualización a algo explicable y cuesta, como máximo, una
+// consulta por minuto por instancia.
+const CACHE_TTL_MS = 60_000;
+const cache = new Map<string | null, { at: number; value: ActiveModel }>();
 
 export interface ResolveOptions {
   tenantId?: string | null;
@@ -128,7 +138,8 @@ async function resolveTenantId(opts: ResolveOptions): Promise<string | null> {
 export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<ActiveModel> {
   const tenantId = await resolveTenantId(opts);
 
-  if (cache.has(tenantId)) return cache.get(tenantId)!;
+  const hit = cache.get(tenantId);
+  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value;
 
   type Row = {
     provider: string;
@@ -211,14 +222,14 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
         .maybeSingle();
       if (data) {
         const resolved = toActive(data as Row, "tenant");
-        cache.set(tenantId, resolved);
+        cache.set(tenantId, { at: Date.now(), value: resolved });
         return resolved;
       }
       // Sin row del tenant en modo 'own' → DEFAULT_MODEL con keys NULL.
       // El wrapper de cada edge detecta la falta de key y tira el error
       // accionable ("Configúrala en Admin → IA → Modelo").
       const stub: ActiveModel = { ...DEFAULT_MODEL, tenant_id: tenantId };
-      cache.set(tenantId, stub);
+      cache.set(tenantId, { at: Date.now(), value: stub });
       console.warn(
         `[ai-model] tenant ${tenantId} ai_mode=own sin fila en ai_model_settings; ` +
           `el caller verá error pidiendo configurar la API key.`,
@@ -261,18 +272,20 @@ export async function getActiveAiModel(opts: ResolveOptions = {}): Promise<Activ
       bedrock_region: own?.bedrock_region ?? shared.bedrock_region,
       tenant_id: tenantId,
     };
-    cache.set(tenantId, resolved);
+    cache.set(tenantId, { at: Date.now(), value: resolved });
     return resolved;
   }
 
   // 2) Caller sin tenant resolvable (jobs internos, cron, etc.) → IA
   // compartida de la plataforma.
   const resolved = await platformShared();
-  cache.set(null, resolved);
+  cache.set(null, { at: Date.now(), value: resolved });
   return resolved;
 }
 
-/** Limpia el cache. Útil cuando el admin cambia el provider del tenant. */
+/** Limpia el cache de ESTA instancia. Con el TTL de arriba ya no hace falta
+ *  para que un cambio de configuración propague; queda para los tests y para
+ *  forzar una relectura dentro de una misma invocación. */
 export function clearAiModelCache(): void {
   cache.clear();
 }

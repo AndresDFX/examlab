@@ -42,7 +42,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Resolución de la institución: override del SuperAdmin → SUBDOMINIO → `profile.tenant_id`** (`src/modules/tenants/subdomain.ts` + paso 2 de `use-tenant.ts`). El orden NO es negociable: "ver como X" es una acción deliberada y le gana a la dirección. El subdominio **se saltea para un SuperAdmin sin override**, porque el modo cross-tenant se define como `SuperAdmin && !override` (invariante compartida `AppLayout` ↔ `TenantThemeProvider`) y fijarle institución por el host le mostraría su nombre con el tema por defecto. Un subdominio inexistente **no es error**: cae al perfil y el selector reaparece. Nunca leer el hostname en un initializer de `useState` (React #418) — se lee post-mount. El subdominio es **pista de UI, no control de seguridad**: el aislamiento lo da la RLS. Hosts de plataforma (`*.lovable.app`, `*.pages.dev`…) NO se interpretan como institución: si no, `examlab.lovable.app` resolvería `examlab`. Manual: `docs/subdominios-cloudflare.md`.
 - **Multi-tenant / RLS**: nunca `USING(true)` ni `has_role()` sin scope de tenant en tablas con datos de tenant (ver `CLAUDE.md`). Migraciones envuelven `ALTER` en guard `to_regclass`.
 - **Demo**: tenant `ExamLab Demo` (`729b3114-…`) tiene un curso "Curso de pruebas" con TODOS sus usuarios como docentes (mig `20260965`) — porque los docentes no pueden auto-asignarse.
-- **IA Compartida es el DEFAULT** (mig `20261340000000`, commit `1ecee536`). `tenants.ai_mode`: `shared` (default al crear institución) → usa la IA de la plataforma (fila activa SA `tenant_id IS NULL` + env), el tenant NO configura key propia; `own` → exige su key (sin ella, error accionable, no consume la cuota compartida); `managed` → compartida + medición/cobro aparte. `getActiveAiModel` (`_shared/ai-model.ts`) lo enforza. Un tenant que traiga su key DEBE quedar en `ai_mode='own'` desde el panel comercial.
+- **IA Compartida es el DEFAULT** (mig `20261340000000`, commit `1ecee536`). `tenants.ai_mode`: `shared` (default al crear institución) → usa la IA de la plataforma (fila activa SA `tenant_id IS NULL` + env), el tenant NO configura key propia; `own` → exige su key (sin ella, error accionable, no consume la cuota compartida); `managed` → compartida + medición/cobro aparte. `getActiveAiModel` (`_shared/ai-model.ts`) lo enforza. Un tenant que traiga su key DEBE quedar en `ai_mode='own'` desde el panel comercial. **En `shared` el PROVIDER y el MODELO de la fila platform-default gobiernan a TODAS las instituciones** (`{...shared}` en `getActiveAiModel`): lo que NO se hereda son las keys, el proveedor sí. Consecuencia dura: **nunca activar en esa fila un proveedor cuya key no esté cargada** (ni en la fila ni en su env secret) — la cadena de candidatos queda vacía, `runKeyFailover` lanza *"lista de keys vacía"* y se cae la IA de toda la plataforma (tutor, calificación y generación). Pasó el 2026-08-19 al sembrar la fila con `bedrock` antes de cargar `AWS_BEARER_TOKEN_BEDROCK`, con las 5 instituciones en `shared`; sus keys propias de Gemini quedaron ignoradas porque el provider activo era otro. Orden correcto para activar un proveedor nuevo: **1)** cargar el secret / la key, **2)** verificarlo en Diagnósticos, **3)** recién ahí cambiar el proveedor. El caché de `getActiveAiModel` tiene TTL de 60s, así que un cambio (o su reversión) propaga en ≤1 min sin depender de que se recicle la instancia del edge.
 - **Borrado de usuario = LÓGICO, no físico** (edge `admin-delete-user`, `1facb8cc`; mig `20261340000000`). Setea `profiles.deleted_at`+`is_active=false`+ban en Auth. `current_tenant_id()` retorna NULL para usuarios desactivados/eliminados y para tenants con `subscription_status IN (suspended,expired,cancelled)` o `is_active=false` → la RLS los bloquea en TODA la app. Al agregar una tabla que dependa del tenant, esto ya la cubre por `current_tenant_id()`.
 - **Suscripción/facturación del tenant** (mig `20261350000000`). `process_tenant_subscriptions()` (cron diario `tenant-subscription-check-daily`) reactiva/suspende/marca past_due según `billing_end` + gracia en **días hábiles** (`add_business_days` excluye sábados/domingos + `platform_holidays`, SA-only). `auto_suspend` por tenant decide si el cron suspende al vencer la gracia. Solo el SuperAdmin edita lo comercial (RLS `tenants` UPDATE = `is_super_admin()` + guard `tg_guard_tenant_commercial_columns`).
 - **Naming visible del asistente** (auditoría 2026-07-20): "Asistente de la plataforma" = asistente de plataforma (`/app/assistant`, todos los roles); "Asistente de IA" = vista unificada del estudiante; "Tutor del curso" = tutor por curso. En texto visible a **quien NO es SuperAdmin** nunca "tenant" → siempre "institución". "Kahoot" nunca visible → "Reto en vivo" (identificadores internos siguen `kahoot`).
@@ -199,6 +199,47 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   material de un colega.
 
 ### Interno (equipo)
+
+- **La IA de toda la plataforma estuvo caída ~5 h por la fila platform-default de Bedrock.** Al crear
+  esa fila apuntando a `bedrock` sin tener cargado `AWS_BEARER_TOKEN_BEDROCK`, y estando las 5
+  instituciones en `ai_mode='shared'` —el default—, `getActiveAiModel` empezó a resolver
+  `provider='bedrock'` para todas: en modo compartido el `{...shared}` toma el PROVEEDOR de esa fila,
+  no solo las keys. La cadena de candidatos quedó vacía y `runKeyFailover` lanzaba
+  *"lista de keys vacía"* en tutor, calificación y generación. Las keys propias de Gemini de cada
+  institución seguían ahí, pero no se usaban porque el proveedor activo era otro.
+
+  Corregido en producción (fila platform-default de vuelta a `gemini`/`gemini-2.5-flash`, con las
+  columnas de Bedrock intactas) y **verificado con una llamada real a la IA**, no solo mirando la
+  fila. Tres ajustes para que no vuelva a pasar:
+
+  - **La migración siembra la fila con Gemini, no con Bedrock.** Una migración no puede saber si el
+    secret está cargado en el entorno, así que no debe apostar a que lo esté. Bedrock queda
+    disponible —columnas, failover, UI y región— pero se activa deliberadamente desde el panel
+    DESPUÉS de cargar la key. Probado contra Postgres 15 con el esquema real: aplica, es
+    re-ejecutable y no toca la fila si ya existe.
+  - **El panel avisa antes de repetirlo desde la interfaz.** Cambiar el proveedor de la plataforma a
+    uno sin key en la fila ahora muestra una advertencia con el radio de impacto ("las instituciones
+    con IA compartida toman el proveedor de esta configuración"). Avisa, no bloquea: el env secret es
+    una fuente legítima y el panel no puede verlo. Solo aparece al CAMBIAR el proveedor — en el
+    estado normal (Gemini tomando la key del env) un aviso permanente no se leería.
+  - **Se corrigió el comentario que hacía repetible el error**: decía que "los tenants ya no heredan"
+    de la fila global, cuando heredan proveedor y modelo. Era la fuente de la suposición equivocada.
+
+- **El diagnóstico de la key de IA miraba una fila arbitraria.** `health-check` tomaba "la fila más
+  recientemente actualizada" de `ai_model_settings`, que con N instituciones es azar: si una guarda su
+  configuración después de la de plataforma, el diagnóstico reporta el proveedor de esa institución y
+  puede dar **verde con la IA compartida caída**; y una institución en `own` con su key en la base
+  puede hacerlo reclamar un secret que la plataforma no necesita. Ahora lee la fila platform-default
+  (`tenant_id IS NULL`), que es la que decide si la IA compartida funciona, y cae a la más reciente
+  solo en entornos sin esa fila.
+
+- **El caché de configuración de IA no tenía TTL.** Una entrada vivía lo que viviera la instancia del
+  edge, así que cambiar de proveedor o rotar una key surtía efecto en un momento indeterminado — y lo
+  mismo la RECUPERACIÓN de una configuración equivocada, que es cuando peor cae. `clearAiModelCache`
+  existía pero **no lo llamaba nadie**, y no podría ayudar: corre en otro proceso que el que sirve la
+  request. Ahora hay TTL de 60s: la desactualización queda acotada a algo explicable, al costo de una
+  consulta por minuto por instancia.
+
 
 - **El deploy de funciones ya no puede subir un despliegue a medias.** Un import mal formado en
   `tutor-chat` llegó a producción: `bun tsc --noEmit` NO cubre `supabase/functions` (son módulos

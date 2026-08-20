@@ -69,11 +69,27 @@ async function fetchAiSettings(): Promise<AiSettings | null> {
     const supa = createClient(url, key, {
       auth: { autoRefreshToken: false, persistSession: false },
     });
-    // Multi-tenant: con N tenants activos hay N filas is_active=true.
-    // Health-check es diagnostico cross-tenant para el operador (SuperAdmin);
-    // queremos saber "¿hay configuración en algún lado?". Usamos limit(1)
-    // + order updated_at para mostrar la más reciente sin romper con
-    // multiples filas.
+    // Multi-tenant: con N instituciones activas hay N filas is_active=true.
+    // Este diagnóstico es de PLATAFORMA, así que la fila que importa es la
+    // platform-default (`tenant_id IS NULL`): en `ai_mode='shared'` —el
+    // default— es SU provider el que gobierna a todas las instituciones, y por
+    // lo tanto su secret el que decide si la IA compartida funciona.
+    //
+    // Antes se tomaba "la fila más recientemente actualizada", que es
+    // arbitraria y miente en las dos direcciones: si una institución guarda su
+    // configuración DESPUÉS de la de plataforma, el diagnóstico reporta el
+    // provider de esa institución y puede dar verde con la IA compartida caída;
+    // y una institución en 'own' con su key en la DB puede hacerlo reclamar un
+    // secret que la plataforma no necesita.
+    const platform = await supa
+      .from("ai_model_settings")
+      .select("provider, model, updated_at")
+      .eq("is_active", true)
+      .is("tenant_id", null)
+      .maybeSingle();
+    if (platform.data) return platform.data as AiSettings;
+    // Sin fila de plataforma (entornos previos a la migración 20261650000000):
+    // se cae a la más reciente para no dejar el diagnóstico sin nada que decir.
     const { data } = await supa
       .from("ai_model_settings")
       .select("provider, model, updated_at")

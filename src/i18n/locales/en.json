@@ -1685,7 +1685,8 @@
     "bedrockModelsHint": "Available models: openai.gpt-oss-120b-1:0 and openai.gpt-oss-20b-1:0.",
     "bedrockKeyHelp": "Without your own key, the platform key is used.",
     "bedrockRegionLabel": "AWS region",
-    "bedrockRegionHint": "It goes inside the endpoint URL, so it must be the exact code (us-east-1, us-west-2). Left empty it uses us-east-1."
+    "bedrockRegionHint": "It goes inside the endpoint URL, so it must be the exact code (us-east-1, us-west-2). Left empty it uses us-east-1.",
+    "platformSwitchWithoutKeyAlert": "You're about to switch to <strong>{{provider}}</strong> without its own key, so it will rely on the <code>{{secret}}</code> secret. Institutions using shared AI take the provider from this setting: if that secret isn't loaded, AI stops working for <strong>all</strong> of them. Check Diagnostics before saving."
   },
   "certSettings": {
     "resolutionHelp": "How each field is resolved when issuing:",

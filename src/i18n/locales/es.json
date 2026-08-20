@@ -1685,7 +1685,8 @@
     "bedrockModelsHint": "Modelos disponibles: openai.gpt-oss-120b-1:0 y openai.gpt-oss-20b-1:0.",
     "bedrockKeyHelp": "Sin key propia se usa la de la plataforma.",
     "bedrockRegionLabel": "Región de AWS",
-    "bedrockRegionHint": "Va dentro de la URL del endpoint, así que debe ser el código exacto (us-east-1, us-west-2). Si se deja vacío se usa us-east-1."
+    "bedrockRegionHint": "Va dentro de la URL del endpoint, así que debe ser el código exacto (us-east-1, us-west-2). Si se deja vacío se usa us-east-1.",
+    "platformSwitchWithoutKeyAlert": "Vas a activar <strong>{{provider}}</strong> sin key propia, así que dependerá del secret <code>{{secret}}</code>. Las instituciones que usan la IA compartida toman el proveedor de esta configuración: si ese secret no está cargado, la IA deja de funcionar en <strong>todas</strong>. Confirmalo en Diagnósticos antes de guardar."
   },
   "certSettings": {
     "resolutionHelp": "Cómo se resuelve cada campo al emitir:",

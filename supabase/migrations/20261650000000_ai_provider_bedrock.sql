@@ -27,6 +27,17 @@
 --
 -- Defensiva: todo va dentro de `DO` con guard `to_regclass` — si la tabla no
 -- existe en el entorno, se omite en vez de abortar el deploy completo.
+--
+-- ── Nota de historia (leer antes de "arreglar" esto otra vez) ──────────
+-- Esta migración YA SE APLICÓ en producción, y en el modelo de despliegue del
+-- proyecto una migración aplicada es inmutable: editarla NO la vuelve a correr.
+-- El paso 3 se editó DESPUÉS de aplicarse, y es a propósito: sirve para que un
+-- entorno NUEVO no reproduzca la caída que sí ocurrió en producción (ver el
+-- comentario del paso 3). **Producción se corrigió a mano**, poniendo la fila
+-- platform-default de vuelta en Gemini, y se verificó con una llamada real a la
+-- IA — no por esta edición. Si estás leyendo esto en un entorno ya migrado, el
+-- estado correcto de la fila `tenant_id IS NULL` es el proveedor cuya key esté
+-- efectivamente cargada, y eso se cambia desde Configuración → Modelo IA.
 -- ──────────────────────────────────────────────────────────────────────
 
 DO $$
@@ -90,10 +101,29 @@ END $$;
 
 -- ── 3) Fila PLATFORM-DEFAULT (tenant_id IS NULL) ────────────────────
 -- `getActiveAiModel()` la usa como modelo compartido de la plataforma y como
--- base sobre la que se mezcla la fila de cada institución. Hoy NO existía:
--- las 5 instituciones tenían su propia fila y no había default global, así que
--- un tenant nuevo sin fila caía al hardcoded del código. Se crea apuntando a
--- Bedrock, que es lo pedido para el cross-tenant.
+-- base sobre la que se mezcla la fila de cada institución. No existía: las
+-- instituciones tenían su propia fila y no había default global, así que un
+-- tenant sin fila caía al `DEFAULT_MODEL` hardcoded (Gemini).
+--
+-- ⚠ SE CREA CON **GEMINI**, NO CON BEDROCK, Y ESO ES DELIBERADO.
+--
+-- `ai_mode` default es 'shared', y en ese modo `getActiveAiModel` hace
+-- `{...shared}`: el **provider sale de ESTA fila** para TODAS las instituciones.
+-- Si acá se pone un proveedor cuya key todavía no está cargada, la cadena de
+-- candidatos queda vacía y `runKeyFailover` LANZA ("lista de keys vacía") →
+-- se cae la IA de toda la plataforma: tutor, calificación y generación.
+--
+-- No es hipotético: se creó con 'bedrock' y tumbó la IA de las 5 instituciones
+-- (todas en 'shared', todas con key propia de Gemini que quedó ignorada porque
+-- el provider activo pasó a ser Bedrock). Una migración NO puede saber si el
+-- secret `AWS_BEARER_TOKEN_BEDROCK` está cargado en el entorno, así que no debe
+-- apostar a que lo esté.
+--
+-- Activar Bedrock es entonces una acción DELIBERADA y en este orden:
+--   1. cargar el secret (o la key propia de la institución en el panel);
+--   2. recién ahí cambiar el proveedor desde Configuración → Modelo IA.
+-- Todo lo que Bedrock necesita —columnas, failover de keys, UI y región— queda
+-- listo por esta migración; lo único que no se hace es activarlo a ciegas.
 --
 -- Idempotente: si alguien ya la creó, NO se le pisa el provider — cambiar en
 -- silencio el proveedor de una fila existente es justo lo que no debe hacer una
@@ -109,11 +139,13 @@ BEGIN
   IF v_exists THEN
     RAISE NOTICE 'La fila platform-default ya existe — no se toca su provider.';
   ELSE
+    -- `bedrock_region` se siembra igual: no activa nada por sí sola y evita
+    -- tener que recordarla cuando se active Bedrock.
     INSERT INTO public.ai_model_settings
       (tenant_id, provider, model, bedrock_region, is_active, processing_mode)
     VALUES
-      (NULL, 'bedrock', 'openai.gpt-oss-120b-1:0', 'us-east-1', TRUE, 'sync');
-    RAISE NOTICE 'Fila platform-default creada con Bedrock (openai.gpt-oss-120b-1:0).';
+      (NULL, 'gemini', 'gemini-2.5-flash', 'us-east-1', TRUE, 'sync');
+    RAISE NOTICE 'Fila platform-default creada con Gemini (Bedrock queda disponible, sin activar).';
   END IF;
 END $$;
 

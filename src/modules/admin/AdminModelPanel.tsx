@@ -238,9 +238,19 @@ export function AdminModelPanel() {
     k && k.length > 4 ? `••••${k.slice(-4)}` : "";
 
   // Para el scope tenant: ¿esta save dejaría al tenant SIN key del provider
-  // activo? Si sí, bloqueamos guardado y mostramos error claro. El scope
-  // global (SuperAdmin) sigue permitiendo key NULL — su row es solo para
-  // jobs internos de la plataforma; los tenants ya no heredan.
+  // activo? Si sí, bloqueamos guardado y mostramos error claro.
+  //
+  // El scope global (SuperAdmin) sigue permitiendo key NULL, porque el env
+  // secret es una fuente legítima y este panel no puede ver si está cargado.
+  // Pero OJO —y acá había un comentario que decía justo lo contrario, que "los
+  // tenants ya no heredan"—: `ai_mode` default es 'shared', y en ese modo
+  // `getActiveAiModel` hace `{...shared}`, así que el PROVIDER y el MODELO de
+  // esta fila gobiernan a TODAS las instituciones que no traen su propia IA.
+  // Lo que no se hereda son las KEYS (cada tenant en 'own' pone la suya); el
+  // proveedor sí. Si acá se activa un proveedor sin key en la fila y su secret
+  // no está cargado, la cadena de candidatos queda vacía, `runKeyFailover`
+  // lanza y se cae la IA de toda la plataforma (pasó el 2026-08-19 al poner
+  // Bedrock antes de cargar su secret).
   const activeProviderKeyDraft =
     draftProvider === "openai"
       ? draftOpenaiKey
@@ -258,6 +268,14 @@ export function AdminModelPanel() {
   // La key SOLO es obligatoria cuando el tenant usa su PROPIA IA ('own'). En
   // 'shared'/'managed' usa la IA de la plataforma → la key es opcional.
   const tenantNeedsKey = !isGlobalScope && aiMode === "own" && !resolvedKeyAfterSave;
+  // Momento riesgoso del scope global: CAMBIAR el proveedor de la plataforma a
+  // uno que no tiene key en la fila. Se avisa, no se bloquea (el secret puede
+  // estar cargado y el panel no lo sabe). Se condiciona al cambio de proveedor
+  // a propósito: mostrarlo también en el estado estable —Gemini sin key en la
+  // fila, tomándola del env, que es la configuración normal— lo volvería un
+  // aviso permanente, y un aviso que está siempre encendido no se lee.
+  const platformSwitchWithoutKey =
+    isGlobalScope && !!activeRow && draftProvider !== activeRow.provider && !resolvedKeyAfterSave;
 
   const handleProviderChange = (p: Provider) => {
     setDraftProvider(p);
@@ -797,6 +815,23 @@ export function AdminModelPanel() {
             keys={draftGeminiFallback}
             onChange={setDraftGeminiFallback}
           />
+        )}
+
+        {platformSwitchWithoutKey && (
+          <Alert className="border-warning/40 bg-warning/10">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription className="text-xs">
+              <Trans
+                i18nKey="aiModel.platformSwitchWithoutKeyAlert"
+                values={{
+                  provider: PROVIDER_LABELS[draftProvider],
+                  secret: SECRET_NAME[draftProvider],
+                }}
+                defaults="Vas a activar <strong>{{provider}}</strong> sin key propia, así que dependerá del secret <code>{{secret}}</code>. Las instituciones que usan la IA compartida toman el proveedor de esta configuración: si ese secret no está cargado, la IA deja de funcionar en <strong>todas</strong>. Confirmalo en Diagnósticos antes de guardar."
+                components={{ strong: <strong />, code: <code /> }}
+              />
+            </AlertDescription>
+          </Alert>
         )}
 
         {tenantNeedsKey && (
