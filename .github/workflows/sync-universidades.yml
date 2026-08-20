@@ -1,0 +1,148 @@
+# Sincroniza los submodulos de universidades/ con la rama main de cada
+# universidad, automaticamente, y deja el commit de trazabilidad en Examlab.
+#
+# ── Por que este workflow ─────────────────────────────────────────────
+# El material de cada universidad vive en `universidades/<nombre>/` como
+# submodulo, y su contenido lo edita el docente en Google Drive / en el repo de
+# la universidad. El submodulo NO se actualiza solo: queda congelado en el
+# ultimo `scripts/update-universidades.sh` que alguien haya corrido a mano.
+#
+# El 2026-08-20 eso costo caro: el submodulo llevaba 10 dias sin sincronizar, y
+# una validacion de los 4 cursos UNIAJ 2026-2 se hizo contra ese snapshot viejo.
+# El informe salio COMPLETAMENTE INVERTIDO —decia que el periodo era 10/08 con 15
+# clases presenciales cuando los documentos vigentes dicen 24/08 con 13 sesiones
+# virtuales— y seguirlo habria desalineado los 4 cursos a cuatro dias del inicio
+# de clases. El material desactualizado no da error: da respuestas equivocadas
+# con cara de correctas.
+#
+# ── Que hace ──────────────────────────────────────────────────────────
+# Reutiliza `scripts/update-universidades.sh`, que ya es la fuente unica de la
+# semantica del sync (`--remote --merge`, commit de trazabilidad, y salir sin
+# hacer nada si no hubo cambios). El workflow NO reimplementa esa logica: solo
+# le da el entorno (checkout con submodulos + identidad de git) y publica el
+# resultado. Si el dia de manana cambia como se sincroniza, se cambia en UN lugar.
+#
+# ── Detalles que importan ─────────────────────────────────────────────
+#   · Los submodulos deben ser PUBLICOS o accesibles con el GITHUB_TOKEN. Si uno
+#     vuelve a privado, el checkout falla RUIDOSAMENTE — que es lo correcto:
+#     preferimos un run rojo antes que sincronizar a medias en silencio.
+#   · Un push hecho con GITHUB_TOKEN **no dispara otros workflows**, asi que este
+#     no se puede autoinvocar en bucle. Y como solo toca gitlinks bajo
+#     `universidades/`, tampoco activaria los filtros `paths` de los deploys.
+#   · Sin cambios NO hay commit: el script sale antes. Nada de commits vacios
+#     ensuciando el historial todos los dias.
+name: Sync Universidades
+
+on:
+  schedule:
+    # 06:20 UTC = 01:20 en Colombia. Diario y de madrugada: el material se edita
+    # de dia, asi que a esa hora se recoge lo del dia anterior ya estable.
+    - cron: "20 6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Solo mostrar si hay cambios, sin commitear ni pushear"
+        required: false
+        type: boolean
+        default: false
+
+# Dos runs simultaneos pelearian por el push. No se cancela el que ya corre:
+# un sync a medio camino es peor que esperar.
+concurrency:
+  group: sync-universidades
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout con submodulos
+        uses: actions/checkout@v5
+        with:
+          # `recursive` para que traiga el contenido, no solo el gitlink.
+          submodules: recursive
+          # Historial completo: el script commitea, y despues hay que rebasar
+          # sobre origin/main si alguien pusheo mientras corriamos.
+          fetch-depth: 0
+
+      - name: Identidad de git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Estado ANTES del sync
+        id: antes
+        run: |
+          set -euo pipefail
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "### Submodulos antes del sync" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          git submodule status -- universidades >> "$GITHUB_STEP_SUMMARY" || echo "(sin submodulos)" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sincronizar (scripts/update-universidades.sh)
+        id: sync
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/update-universidades.sh ]; then
+            echo "::error::Falta scripts/update-universidades.sh — es la fuente unica de la semantica del sync."
+            exit 1
+          fi
+          # El script ya decide si hay que commitear; su salida se guarda para
+          # el resumen del run.
+          bash scripts/update-universidades.sh | tee /tmp/sync.out
+          if [ "$(git rev-parse HEAD)" != "${{ steps.antes.outputs.sha }}" ]; then
+            echo "cambio=si" >> "$GITHUB_OUTPUT"
+          else
+            echo "cambio=no" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publicar el commit de trazabilidad
+        if: steps.sync.outputs.cambio == 'si' && inputs.dry_run != true
+        run: |
+          set -euo pipefail
+          # Si alguien pusheo mientras corriamos, rebasamos y reintentamos UNA
+          # vez. Nunca --force: este workflow no es dueño de la rama.
+          for intento in 1 2; do
+            if git push origin HEAD:main; then
+              echo "Push OK en el intento $intento."
+              exit 0
+            fi
+            echo "::warning::El push fallo (intento $intento). Rebasando sobre origin/main…"
+            git fetch origin main
+            git rebase origin/main
+          done
+          echo "::error::No se pudo pushear el sync de universidades tras rebasar."
+          exit 1
+
+      - name: Resumen
+        if: always()
+        run: |
+          {
+            echo "### Resultado"
+            if [ "${{ steps.sync.outputs.cambio }}" = "si" ]; then
+              if [ "${{ inputs.dry_run }}" = "true" ]; then
+                echo "Hay cambios, pero \`dry_run\` estaba activo: **no se commiteo ni se pusheo**."
+              else
+                echo "Universidades actualizadas y commit publicado en \`main\`."
+              fi
+            else
+              echo "Sin cambios: todas las universidades ya estaban al dia."
+            fi
+            echo ""
+            echo "Salida del script:"
+            echo '```'
+            cat /tmp/sync.out 2>/dev/null || echo "(sin salida)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deshacer el commit local si fue dry_run
+        # Sin esto el runner se descarta igual, pero dejarlo explicito evita que
+        # alguien lea el log y crea que el commit quedo publicado.
+        if: steps.sync.outputs.cambio == 'si' && inputs.dry_run == true
+        run: |
+          git reset --hard "${{ steps.antes.outputs.sha }}"
+          echo "dry_run: commit local descartado. Nada se publico."

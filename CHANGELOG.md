@@ -237,6 +237,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### Interno (equipo)
 
+- **Los submódulos de `universidades/` ahora se sincronizan solos, todos los días.** Antes dependían de
+  que alguien corriera `scripts/update-universidades.sh` a mano, así que el material podía quedar
+  semanas atrás sin que nada avisara. El 2026-08-20 eso costó caro: el submódulo llevaba 10 días sin
+  sincronizar y una validación de los 4 cursos UNIAJ 2026-2 se hizo contra ese snapshot. El informe
+  salió **completamente invertido** —afirmaba que el periodo era 10/08 con 15 clases presenciales
+  cuando los documentos vigentes dicen 24/08 con 13 sesiones virtuales— y seguirlo habría desalineado
+  los 4 cursos a cuatro días del inicio de clases. **El material desactualizado no da error: da
+  respuestas equivocadas con cara de correctas.**
+
+  El workflow nuevo (`sync-universidades.yml`, diario a las 06:20 UTC + manual) **reutiliza el script**
+  en vez de reimplementar la lógica: el script sigue siendo la fuente única de la semántica del sync
+  (`--remote --merge`, commit de trazabilidad, salir sin hacer nada si no hubo cambios) y el workflow
+  solo le da el entorno y publica. Si mañana cambia cómo se sincroniza, se cambia en un solo lugar.
+
+  Tres cosas que se cuidaron: sin cambios **no hay commit** (nada de commits vacíos diarios); un push
+  con `GITHUB_TOKEN` **no dispara otros workflows**, así que no se puede autoinvocar en bucle; y si un
+  submódulo vuelve a privado el checkout **falla ruidosamente**, que es preferible a sincronizar a
+  medias en silencio. Tiene `dry_run` para probarlo sin publicar.
+
+  Medido antes de confiarle el pipeline: la ruta más larga del material es de **215 caracteres** y el
+  componente más largo de **97**, ambos muy por debajo de los límites de Linux (4096 / 255). El clon
+  recursivo falla en Windows solo cuando la carpeta destino agrega prefijo suficiente para pasar los
+  260 caracteres — es un límite del sistema local, no del runner.
+
+
 - **El cron que drena la cola de generación de IA no existía, y se encontró por qué.** La migración
   `20260603080000` debía crear `ai-generation-worker-hourly`, pero de los 25 jobs de pg_cron en
   producción ese no estaba: cuando un docente pedía "generar con IA" en modo async, el job quedaba en
