@@ -67,6 +67,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El estudiante ya ve en qué grupo está y cómo se evalúa el curso.** Al entrar a un curso solo veía
+  el nombre, el periodo y el rango de fechas: ni su **grupo** —y dos cursos de la misma asignatura se
+  distinguen SOLO por el grupo— ni cómo se reparte la nota. Ahora la cabecera muestra **Grupo**,
+  **código de la asignatura** y **semestre** junto al periodo, y debajo aparece **"Cómo se evalúa este
+  curso"**: una tarjeta por corte con su porcentaje, su ventana de fechas y el desglose por tipo
+  (exámenes, talleres, proyecto, asistencia), más la escala y la nota de aprobación.
+
+  Los porcentajes se presentan **como % de la nota FINAL del curso**, que es el modelo real de
+  ExamLab, y el texto lo dice explícitamente: mostrarlos como si fueran relativos al corte le mentiría
+  al alumno sobre cuánto vale cada cosa. Los rubros que valen 0% no se listan (el corte 3 no lleva
+  talleres porque ese peso lo toma el proyecto).
+
+  **Por qué no alcanzaba lo que ya existía:** la sección "Evaluación por cohorte" se alimenta del RPC
+  `get_course_cohort_weights`, que exige **filas de asignación** por estudiante
+  (`exam_assignments` / `workshop_assignments` / `project_assignments`). Verificado con token de
+  estudiante real en los 4 cursos de UNIAJ: devuelve **0 filas**, así que la sección no se renderizaba
+  y el alumno no veía ningún porcentaje. Son dos preguntas distintas —"¿cómo se divide la nota?" vs.
+  "¿qué me asignaron a mí?"— y ahora la primera se responde siempre, desde el primer día del semestre.
+  Nada nuevo en la base: `courses.grupo/code/semestre` y `grade_cuts` ya existían y el estudiante ya
+  los podía leer.
+
+
 - **Una dirección propia por institución (`uniaj.midominio.co`), sin selector.** Hasta ahora, al
   entrar había que elegir la institución en una lista, y el enlace no decía a cuál se entraba: no se
   podía mandar "este es el acceso de tu universidad". Ahora, cuando la plataforma se sirve con un

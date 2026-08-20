@@ -106,6 +106,33 @@ type CourseRow = {
   /** Ciclo de vida del curso. Un curso `finalizado` (y todo su material)
    *  se considera "cerrado": oculto en la vista activa por defecto. */
   status: string | null;
+  // Identidad académica del curso. El alumno la necesita para saber en qué
+  // grupo está matriculado (dos cursos pueden llamarse igual y diferir solo
+  // en el grupo) y para citar el código de la asignatura en un trámite.
+  // Verificado con token de estudiante: la RLS de `courses` las devuelve.
+  code: string | null;
+  grupo: string | null;
+  semestre: number | null;
+  // Escala de calificación del curso, para poder decir "aprueba con 3 de 5"
+  // sin que el alumno tenga que suponerlo.
+  grade_scale_max: number | null;
+  passing_grade: number | null;
+};
+
+/** Corte del curso con su peso y el desglose por tipo de actividad.
+ *  OJO: los pesos son **% de la nota FINAL del curso**, no relativos al
+ *  corte (ver "Modelo de pesos / cortes" en CLAUDE.md). La UI lo dice
+ *  explícitamente: presentarlos como relativos le mentiría al alumno. */
+type CutRow = {
+  id: string;
+  name: string;
+  weight: number | null;
+  exam_weight: number | null;
+  workshop_weight: number | null;
+  project_weight: number | null;
+  attendance_weight: number | null;
+  start_date: string | null;
+  end_date: string | null;
 };
 
 /** Fila del RPC `get_my_course_continuity`: el último material que el alumno
@@ -241,7 +268,9 @@ function StudentCourses() {
       // types generados de Supabase; el cliente tipado la rechaza.
       const { data } = await db
         .from("courses")
-        .select("id, name, description, period, start_date, end_date, language, status")
+        .select(
+          "id, name, description, period, start_date, end_date, language, status, code, grupo, semestre, grade_scale_max, passing_grade",
+        )
         .in("id", courseIds)
         .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
@@ -504,6 +533,30 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   // actividades y % aplican a cada cohorte. Requiere leer asignaciones/cohortes
   // de otros alumnos → vía RPC SECURITY DEFINER get_course_cohort_weights.
   const [cohortWeights, setCohortWeights] = useState<CohortWeightGroup[]>([]);
+  // Cortes del curso: el alumno tiene que poder ver cómo se evalúa sin
+  // depender de que el docente le haya ASIGNADO items. El RPC
+  // `get_course_cohort_weights` responde otra pregunta ("qué me toca a mí") y
+  // devuelve 0 filas cuando no hay filas de asignación — que es el caso normal
+  // al arrancar el semestre, y por eso el alumno no veía nada.
+  const [cuts, setCuts] = useState<CutRow[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data } = await db
+        .from("grade_cuts")
+        .select(
+          "id, name, weight, exam_weight, workshop_weight, project_weight, attendance_weight, start_date, end_date",
+        )
+        .eq("course_id", course.id)
+        .order("start_date", { ascending: true });
+      if (cancelled) return;
+      setCuts((data as CutRow[]) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id]);
 
   useEffect(() => {
     let cancelled = false;
@@ -868,6 +921,30 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                     {course.period}
                   </Badge>
                 )}
+                {/* Grupo y código: dos cursos de la misma asignatura se
+                    distinguen SOLO por el grupo, así que sin esto el alumno no
+                    puede confirmar que está en el que le corresponde. */}
+                {course.grupo && (
+                  <Badge variant="outline" className="text-2xs">
+                    {t("courseBoard.groupBadge", {
+                      grupo: course.grupo,
+                      defaultValue: "Grupo {{grupo}}",
+                    })}
+                  </Badge>
+                )}
+                {course.code && (
+                  <Badge variant="outline" className="text-2xs font-mono">
+                    {course.code}
+                  </Badge>
+                )}
+                {course.semestre != null && (
+                  <Badge variant="outline" className="text-2xs">
+                    {t("courseBoard.semesterBadge", {
+                      semestre: course.semestre,
+                      defaultValue: "Semestre {{semestre}}",
+                    })}
+                  </Badge>
+                )}
                 <Badge variant="outline" className="text-2xs tabular-nums">
                   {course.start_date ? formatDateOnly(course.start_date) : "—"}
                   {" → "}
@@ -940,6 +1017,104 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
       {/* #33 — Desglose de evaluación POR COHORTE: qué actividades y % aplican
           a cada cohorte (las cohortes pueden tener actividades asignadas
           distintas). Solo aparece si el curso usa cohortes con actividades. */}
+      {/* Cómo se evalúa el curso. Va ANTES de "Evaluación por cohorte" porque
+          responde la pregunta general ("¿cómo me califican?") mientras esa otra
+          responde una particular ("¿qué me asignaron a mí?") y solo aparece
+          cuando existen filas de asignación.
+
+          Los pesos son **% de la nota FINAL del curso**, no relativos al corte
+          (ver "Modelo de pesos / cortes" en CLAUDE.md). El texto lo dice
+          explícitamente: presentarlo como relativo le mentiría al alumno sobre
+          cuánto vale cada cosa. Por eso también se muestra la suma. */}
+      {cuts.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold">
+              {t("courseBoard.gradingTitle", { defaultValue: "Cómo se evalúa este curso" })}
+            </h3>
+          </div>
+          <p className="text-2xs text-muted-foreground">
+            {t("courseBoard.gradingHint", {
+              defaultValue:
+                "Cada porcentaje es sobre la nota final del curso, no sobre el corte.",
+            })}
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {cuts.map((cut) => {
+              const partes: Array<{ label: string; value: number }> = [
+                {
+                  label: t("courseBoard.gradingExams", { defaultValue: "Exámenes" }),
+                  value: Number(cut.exam_weight ?? 0),
+                },
+                {
+                  label: t("courseBoard.gradingWorkshops", { defaultValue: "Talleres" }),
+                  value: Number(cut.workshop_weight ?? 0),
+                },
+                {
+                  label: t("courseBoard.gradingProjects", { defaultValue: "Proyecto" }),
+                  value: Number(cut.project_weight ?? 0),
+                },
+                {
+                  label: t("courseBoard.gradingAttendance", { defaultValue: "Asistencia" }),
+                  value: Number(cut.attendance_weight ?? 0),
+                },
+              ];
+              // Un 0% no se lista: ocupa espacio y no aporta. Ej. el corte 3
+              // no tiene talleres porque su peso lo toma el proyecto.
+              const visibles = partes.filter((p) => p.value > 0);
+              return (
+                <Card key={cut.id}>
+                  <CardContent className="p-4 space-y-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium text-sm truncate">{cut.name}</span>
+                      <Badge variant="secondary" className="text-2xs shrink-0 tabular-nums">
+                        {t("courseBoard.gradingCutTotal", {
+                          defaultValue: "{{total}}% de la nota final",
+                          total: Number(cut.weight ?? 0),
+                        })}
+                      </Badge>
+                    </div>
+                    {(cut.start_date || cut.end_date) && (
+                      <p className="text-2xs text-muted-foreground tabular-nums">
+                        {cut.start_date ? formatDateOnly(cut.start_date) : "—"}
+                        {" → "}
+                        {cut.end_date ? formatDateOnly(cut.end_date) : "—"}
+                      </p>
+                    )}
+                    {visibles.length > 0 ? (
+                      <ul className="space-y-1 pt-1">
+                        {visibles.map((p) => (
+                          <li key={p.label} className="flex items-center justify-between text-2xs">
+                            <span className="text-muted-foreground">{p.label}</span>
+                            <span className="tabular-nums font-medium">{p.value}%</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="text-2xs text-muted-foreground">
+                        {t("courseBoard.gradingNoBreakdown", {
+                          defaultValue: "El docente aún no repartió este corte por actividad.",
+                        })}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          {course.grade_scale_max != null && (
+            <p className="text-2xs text-muted-foreground">
+              {t("courseBoard.gradingScale", {
+                defaultValue: "Escala de 0 a {{max}}; se aprueba con {{passing}}.",
+                max: course.grade_scale_max,
+                passing: course.passing_grade ?? "—",
+              })}
+            </p>
+          )}
+        </div>
+      )}
+
       {cohortWeights.length > 0 && (
         <div className="space-y-2">
           <CardTitle className="text-base">

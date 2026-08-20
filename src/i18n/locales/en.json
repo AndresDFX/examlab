@@ -1419,7 +1419,18 @@
     "attendanceSummary": "Attendance: {{attended}}/{{total}} sessions ({{pct}}%)",
     "meeting": "Meeting",
     "materialOpened": "You opened {{viewed}} of {{total}} material files",
-    "resumeHint": "You left off at: {{label}}"
+    "resumeHint": "You left off at: {{label}}",
+    "groupBadge": "Group {{grupo}}",
+    "semesterBadge": "Semester {{semestre}}",
+    "gradingTitle": "How this course is graded",
+    "gradingHint": "Each percentage is of the course final grade, not of the term.",
+    "gradingExams": "Exams",
+    "gradingWorkshops": "Workshops",
+    "gradingProjects": "Project",
+    "gradingAttendance": "Attendance",
+    "gradingCutTotal": "{{total}}% of the final grade",
+    "gradingNoBreakdown": "The teacher hasn't split this term by activity yet.",
+    "gradingScale": "Scale 0 to {{max}}; passing grade is {{passing}}."
   },
   "manageCourses": {
     "title": "Assign to courses",

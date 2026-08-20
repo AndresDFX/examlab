@@ -1419,7 +1419,18 @@
     "attendanceSummary": "Asistencia: {{attended}}/{{total}} sesiones ({{pct}}%)",
     "meeting": "Reunión",
     "materialOpened": "Abriste {{viewed}} de {{total}} archivos del material",
-    "resumeHint": "Seguías en: {{label}}"
+    "resumeHint": "Seguías en: {{label}}",
+    "groupBadge": "Grupo {{grupo}}",
+    "semesterBadge": "Semestre {{semestre}}",
+    "gradingTitle": "Cómo se evalúa este curso",
+    "gradingHint": "Cada porcentaje es sobre la nota final del curso, no sobre el corte.",
+    "gradingExams": "Exámenes",
+    "gradingWorkshops": "Talleres",
+    "gradingProjects": "Proyecto",
+    "gradingAttendance": "Asistencia",
+    "gradingCutTotal": "{{total}}% de la nota final",
+    "gradingNoBreakdown": "El docente aún no repartió este corte por actividad.",
+    "gradingScale": "Escala de 0 a {{max}}; se aprueba con {{passing}}."
   },
   "manageCourses": {
     "title": "Asignar a cursos",
