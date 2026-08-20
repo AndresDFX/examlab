@@ -173,12 +173,22 @@ function StudentExams() {
     if (!user) return;
     setLoading(true);
     try {
+      // El descarte de borrador / externo / papelera va en la CONSULTA
+      // (`!inner` + filtros sobre el embed), no solo en el `.filter` de abajo:
+      // la RLS decide con los roles POSEÍDOS, no con el rol activo, así que a un
+      // usuario multi-rol (docente que además es alumno del curso, para probar
+      // la vista del estudiante) la base le mandaba los exámenes sin publicar y
+      // el `.filter` los escondía recién en el navegador. Ver el comentario
+      // equivalente en `app.student.workshops.tsx`.
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .neq("exam.status", "draft")
+        .is("exam.deleted_at", null)
+        .is("exam.is_external", false);
       if (asgErr) {
         setLoadError(friendlyError(asgErr, t("hc_routesAppStudentExams.loadErrorFallback")));
         return;
@@ -190,6 +200,9 @@ function StudentExams() {
       //   - closed: SÍ se muestra (con badge "Cerrado") para que el alumno
       //     vea sus intentos/notas previas. Coherente con workshops/projects.
       //     La toma queda bloqueada server-side por app.student.take.
+      // Redundante con los filtros de la consulta y conservado a propósito: si
+      // alguien reescribe el `select` y pierde el `!inner`, la pantalla sigue
+      // sin mostrar borradores.
       const exams = (asg ?? [])
         .map((a: any) => a.exam)
         .filter(

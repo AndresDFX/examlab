@@ -219,12 +219,27 @@ function StudentWorkshops() {
     if (appCfg?.default_workshop_max_attempts != null) {
       setGlobalWorkshopMax(Number(appCfg.default_workshop_max_attempts) || 1);
     }
+    // El descarte de borrador / externo / papelera va en la CONSULTA (`!inner`
+    // + filtros sobre el embed), no solo en el `.filter` de abajo.
+    //
+    // Por qué importa: la RLS decide con los roles que el usuario POSEE, no con
+    // el rol activo del selector (eso vive en el cliente y por eso nunca puede
+    // ser una frontera de seguridad). A un alumno común la base ya no le manda
+    // borradores; a un usuario MULTI-ROL —docente que además es alumno del
+    // curso, algo que se usa para probar la vista del estudiante— sí se los
+    // mandaba, y el enunciado completo del taller sin publicar viajaba al
+    // navegador para que un `.filter` lo escondiera después. Pedir solo lo que
+    // el alumno puede ver es más barato y no depende de acordarse del filtro.
+    // Mismo criterio que ya usaba `app.student.projects.tsx` (`.neq("status", "draft")`).
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
       )
-      .eq("user_id", uid);
+      .eq("user_id", uid)
+      .neq("workshop.status", "draft")
+      .is("workshop.deleted_at", null)
+      .is("workshop.is_external", false);
     if (asgErr) {
       setLoadError(friendlyError(asgErr, t("hc_routesAppStudentWorkshops.loadWorkshopsError")));
       return;
@@ -236,6 +251,10 @@ function StudentWorkshops() {
     // Draft tampoco se lista: el docente aún no lo publicó. Closed sí
     // se muestra (con badge "Cerrado") para que el estudiante vea sus
     // entregas/notas previas — coherente con projects.
+    //
+    // Redundante con los filtros de la consulta de arriba, y se conserva a
+    // propósito: si alguien reescribe el `select` y pierde el `!inner`, la
+    // pantalla sigue sin mostrar borradores.
     const workshops = (asg ?? [])
       .map((a: any) => a.workshop)
       .filter(

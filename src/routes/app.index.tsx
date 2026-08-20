@@ -1371,12 +1371,19 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // Assigned exams — solo published. Draft (sin publicar) y closed
       // (cerrado manualmente por el docente) no aparecen en el dashboard
       // del estudiante. Mismo criterio que workshops/projects.
+      // El descarte de no-publicados y de papelera va en la CONSULTA: la RLS
+      // decide con los roles POSEÍDOS, no con el rol activo, así que a un
+      // usuario multi-rol le llegaban los borradores y el filtro de abajo los
+      // escondía recién en el navegador. Mismo criterio que las listas del
+      // estudiante (ver `app.student.exams.tsx`).
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams(id, title, start_time, end_time, time_limit_minutes, status, deleted_at, course:courses(name))",
+          "exam:exams!inner(id, title, start_time, end_time, time_limit_minutes, status, deleted_at, course:courses(name))",
         )
-        .eq("user_id", userId);
+        .eq("user_id", userId)
+        .eq("exam.status", "published")
+        .is("exam.deleted_at", null);
       const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
       const { data: doneSubs } = examIds.length
         ? await supabase
@@ -1410,10 +1417,15 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // (due_date >= hoy) + el alumno aún no entregó. Antes incluíamos
       // talleres ya cerrados y ya entregados, lo que inflaba el count
       // y confundía al alumno.
+      // Igual que arriba: publicado y no-papelera se piden a la base.
       const { data: wasg } = await supabase
         .from("workshop_assignments")
-        .select("workshop:workshops(id, title, due_date, status, start_date, deleted_at, course:courses(name))")
-        .eq("user_id", userId);
+        .select(
+          "workshop:workshops!inner(id, title, due_date, status, start_date, deleted_at, course:courses(name))",
+        )
+        .eq("user_id", userId)
+        .eq("workshop.status", "published")
+        .is("workshop.deleted_at", null);
       const todayISO = new Date().toISOString();
       const candidateWs = (wasg ?? [])
         .map((a: any) => a.workshop)
