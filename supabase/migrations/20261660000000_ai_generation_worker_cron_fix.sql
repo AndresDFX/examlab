@@ -115,6 +115,13 @@ GRANT EXECUTE ON FUNCTION public.trigger_ai_generation_worker() TO service_role;
 -- ── El job de cron ────────────────────────────────────────────────────
 -- El comando es una llamada a la función (patrón de los 23 jobs que SÍ
 -- funcionan), no un http_post inline (patrón de los 2 que fallan).
+-- ⚠ `cron.schedule` / `cron.unschedule` / `cron.job` van SIN el prefijo
+-- `extensions.`. Un nombre de TRES partes lo interpreta Postgres como
+-- `base.esquema.objeto` y responde "cross-database references are not
+-- implemented". Es el mismo error que rompe a `calendar-recordings-sync-6h`
+-- (con `extensions.net.http_post`) y el que hizo fallar la PRIMERA versión de
+-- esta migración: arreglé el `net.` y dejé el `cron.`, que es la misma trampa
+-- dos veces. Las 8 migraciones que crearon crons vivos usan la forma corta.
 DO $$
 BEGIN
   IF to_regclass('public.ai_generation_queue') IS NULL THEN
@@ -122,19 +129,22 @@ BEGIN
     RETURN;
   END IF;
 
-  -- pg_cron es lo único que legítimamente puede no estar; se tolera SOLO eso.
-  IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
-    RAISE NOTICE 'pg_cron no instalado — el worker de generación queda en manual ("Procesar todos" del módulo Cron)';
+  -- Se pregunta si `cron.schedule` es INVOCABLE, no si la extensión figura en
+  -- pg_extension: es lo que de verdad hace falta, y así el guard se puede
+  -- ejercitar en una base de prueba con un stub del schema `cron` (con el guard
+  -- anterior, el test nunca entraba acá y por eso no vio el error de arriba).
+  IF to_regprocedure('cron.schedule(text,text,text)') IS NULL THEN
+    RAISE NOTICE 'pg_cron no disponible — el worker de generación queda en manual ("Procesar todos" del módulo Cron)';
     RETURN;
   END IF;
 
   -- Idempotente: si ya existe (con el comando viejo y roto), se reemplaza.
-  PERFORM extensions.cron.unschedule('ai-generation-worker-hourly')
+  PERFORM cron.unschedule('ai-generation-worker-hourly')
    WHERE EXISTS (
-     SELECT 1 FROM extensions.cron.job WHERE jobname = 'ai-generation-worker-hourly'
+     SELECT 1 FROM cron.job WHERE jobname = 'ai-generation-worker-hourly'
    );
 
-  PERFORM extensions.cron.schedule(
+  PERFORM cron.schedule(
     'ai-generation-worker-hourly',
     '15 * * * *',   -- :15 para no chocar con el de grading (:05)
     'SELECT public.trigger_ai_generation_worker();'

@@ -245,6 +245,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   SQL Editor `ALTER DATABASE postgres SET app.settings.supabase_url = '...'` y
   `... SET app.settings.service_role_key = '...'`. Hasta entonces el cron existe y avisa en Auditoría.
 
+  **Y la primera versión de esta migración falló por la MISMA trampa que documenta.** Arreglé el
+  `extensions.net.http_post` y dejé `extensions.cron.unschedule` / `extensions.cron.job`: nombre de
+  tres partes → *"cross-database references are not implemented"*. El guard tampoco ayudó a detectarlo:
+  preguntaba por `pg_extension`, así que en la base de prueba (sin pg_cron) el test **nunca entraba a
+  la rama del cron** y el error quedó invisible hasta el deploy. Ahora el guard pregunta si
+  `cron.schedule` es INVOCABLE (`to_regprocedure`), que es lo que de verdad importa y además se puede
+  ejercitar con un stub del schema `cron`. Verificado entrando a la rama: crea el job, es
+  re-ejecutable (no duplica) y la función sigue llamando al edge con la URL correcta.
+
 - **La purga de la papelera estaba fallando todas las noches, y ya no.** `purge-deleted-items-daily`
   moría con *"No se puede editar el reto en vivo mientras hay un juego en vivo"*: al borrar un curso
   vencido, el cascade tocaba `kahoot_questions` y el trigger `tg_kahoot_block_edit_when_live` lo
