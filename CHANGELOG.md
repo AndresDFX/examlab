@@ -198,7 +198,67 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   crear contenido en un curso ajeno; y en la **papelera** se podía restaurar o eliminar definitivamente el
   material de un colega.
 
+- **El calendario del estudiante ahora se lee como un calendario, y ya no abre con una dirección para
+  copiar.** El mes ocupaba todo el ancho: en un monitor grande cada día quedaba como una franja de
+  218 × 40 píxeles, que no se lee como calendario sino como una tabla vacía. Ahora el mes va **al lado**
+  de la lista de eventos, con la misma proporción que ya tiene el calendario del panel de inicio; en
+  celular y tablet se siguen apilando. La búsqueda y los filtros pasaron adentro de la columna de la
+  lista —que es lo único que filtran— y un texto al pie lo aclara, para que nadie reporte como falla
+  que el mes "no les hace caso".
+
+  Además se quitó el bloque **"Suscribir a tu calendario"**, que era lo primero y más grande de la
+  pantalla y mostraba una dirección larga para copiar en Google/Outlook/Apple: eso es el mecanismo, no
+  la tarea del estudiante, que entra a ver qué tiene esta semana. **Quien ya se suscribió sigue
+  recibiendo sus eventos** —el servicio no se apagó—, pero hoy no queda desde dónde obtener esa
+  dirección ni cambiarla si se compartió por error. Si se decide volver a ofrecerla, el lugar es una
+  opción del perfil, no el encabezado del calendario.
+
 ### Interno (equipo)
+
+- **El cron que drena la cola de generación de IA no existía, y se encontró por qué.** La migración
+  `20260603080000` debía crear `ai-generation-worker-hourly`, pero de los 25 jobs de pg_cron en
+  producción ese no estaba: cuando un docente pedía "generar con IA" en modo async, el job quedaba en
+  `ai_generation_queue` **para siempre** salvo que alguien entrara al módulo Cron y pulsara "Procesar
+  todos". Un encolado que no se procesa se lee como "la IA está rota".
+
+  Tres causas, las tres confirmadas con datos:
+  - Usaba **`extensions.net.http_post`**, que no existe: pg_net vive en el schema `net` y Postgres
+    responde *"cross-database references are not implemented"*. No es teoría: es el error exacto con
+    el que **`calendar-recordings-sync-6h` viene fallando cada 6 horas** en producción, con el mismo
+    anti-patrón (ver abajo).
+  - Resolvía la URL con `format()` **al crear** el job, así que si la GUC estaba vacía el comando
+    nacía con `url := NULL` y fallaba en cada corrida.
+  - Envolvía todo en `EXCEPTION WHEN OTHERS THEN RAISE NOTICE`, así que su propio fallo era invisible
+    y la migración quedaba "aplicada" sin haber creado nada.
+
+  La nueva (`20261660000000`) sigue el patrón de los 23 crons que **sí** funcionan: el comando llama a
+  una función SQL (`public.trigger_ai_generation_worker()`) que resuelve la configuración **en cada
+  ejecución** y usa `net.http_post`. Y cuando la configuración falta **audita un warning en
+  `audit_logs`** en vez de callarse — eso es lo que hizo que este cron estuviera meses ausente sin que
+  nadie lo notara. Si no hay nada pendiente no hace nada, así que no gasta invocaciones ni cuota de IA.
+
+  Probada contra Postgres 15 con stubs de `net`/pg_cron: sin pg_cron la migración termina en 0 con un
+  aviso claro; con pendientes y sin configurar, audita nombrando la GUC que falta; sin pendientes no
+  hace nada; y configurada, invoca el edge con la URL y el `Bearer` correctos.
+
+  **Falta un paso manual** (un secreto no puede ir en una migración versionada): correr una vez en el
+  SQL Editor `ALTER DATABASE postgres SET app.settings.supabase_url = '...'` y
+  `... SET app.settings.service_role_key = '...'`. Hasta entonces el cron existe y avisa en Auditoría.
+
+- **La purga de la papelera estaba fallando todas las noches, y ya no.** `purge-deleted-items-daily`
+  moría con *"No se puede editar el reto en vivo mientras hay un juego en vivo"*: al borrar un curso
+  vencido, el cascade tocaba `kahoot_questions` y el trigger `tg_kahoot_block_edit_when_live` lo
+  bloqueaba. La causa eran **dos juegos abandonados en estado `reveal` desde el 18/06** — sesiones que
+  nunca se cerraron. Se cerraron con `kahoot_advance_game(..., 'end')` y la purga quedó desbloqueada.
+
+  Queda la **clase** de problema: un reto en vivo que se abandona sin cerrar bloquea para siempre la
+  edición de sus preguntas *y* la purga de la papelera de todo el sistema. Un job que cierre juegos
+  inactivos (como `release-stuck-ai-grading-jobs` hace con la cola) lo resolvería de raíz.
+
+- **`calendar-recordings-sync-6h` falla desde siempre** con el mismo `extensions.net.http_post`. Se
+  deja reportado y NO se toca en esta migración: hay que decidir primero si ese cron sigue haciendo
+  falta. El arreglo es el mismo patrón: mover el `http_post` a una función y usar `net.`.
+
 
 - **La IA de toda la plataforma quedó caída ~5 h por la fila platform-default de Bedrock** (sin usuarios afectados, ver abajo). Al crear
   esa fila apuntando a `bedrock` sin tener cargado `AWS_BEARER_TOKEN_BEDROCK`, y estando las 5
