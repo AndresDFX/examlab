@@ -269,16 +269,47 @@ tres: la nube del DNS está gris, el slug del subdominio no coincide con
 No hay que crear ningún campo ni migrar datos: la app usa el `slug` que cada
 institución ya tiene.
 
-| Institución | Subdominio |
-|---|---|
-| Universidad Antonio José Camacho | `uniaj.tudominio.co` |
-| FESNA | `fesna.tudominio.co` |
-| ExamLab Demo | `examlab-demo.tudominio.co` |
-| Demo Global Corp | `demo-global-corp.tudominio.co` |
-| linkvide | `linkvide.tudominio.co` |
+Las instituciones activas salen del RPC público `list_active_tenants_public()` — el
+mismo que llena el selector del login. Consultado el 2026-08-21 devuelve **cuatro**
+(una versión anterior de esta tabla listaba `linkvide`, que ya no está activa; si vas
+a desplegar por institución, confirmá la lista contra el RPC y no contra este doc):
 
-Al crear una institución nueva, su subdominio **funciona solo**: el DNS wildcard y el
-Route ya cubren cualquier nombre, no hay que tocar Cloudflare de nuevo.
+| Institución | Con dominio propio | Publicado hoy en workers.dev |
+|---|---|---|
+| Universidad Antonio José Camacho | `uniaj.tudominio.co` | <https://uniaj.examlab.workers.dev> |
+| FESNA | `fesna.tudominio.co` | <https://fesna.examlab.workers.dev> |
+| ExamLab Demo | `examlab-demo.tudominio.co` | <https://examlab-demo.examlab.workers.dev> |
+| Demo Global Corp | `demo-global-corp.tudominio.co` | <https://demo-global-corp.examlab.workers.dev> |
+| *(selector, sin institución)* | `tudominio.co` | <https://app.examlab.workers.dev> |
+
+**Y acá está la diferencia que justifica pagar el dominio.** Con dominio propio, al
+crear una institución nueva su subdominio **funciona solo**: el DNS comodín y el Route
+ya cubren cualquier nombre. En la variante de workers.dev hay que **desplegarle su
+Worker a mano** (`wrangler deploy --name <slug>`), o su dirección no existe. Es el
+costo estructural del atajo.
+
+## La variante sin dominio: un Worker por institución
+
+Sirve para pilotos y demostraciones: da subdominios por institución hoy y sin costo.
+Funciona porque en `<worker>.<cuenta>.workers.dev` la primera etiqueta la elegimos al
+desplegar — el subdominio de la cuenta es `examlab` y cada Worker se nombra con el
+slug de su institución.
+
+```bash
+bun run build:cf                      # una sola vez
+wrangler deploy                       # el general → app.examlab.workers.dev
+wrangler deploy --name uniaj          # → uniaj.examlab.workers.dev
+wrangler deploy --name fesna          # → fesna.examlab.workers.dev
+```
+
+Es el MISMO build en todos; solo cambia el nombre del Worker. El despliegue general se
+llama `app` a propósito: esa etiqueta está reservada en `subdomain.ts`, así que muestra
+el selector en vez de buscar una institución llamada "app".
+
+Un usuario de otra institución **no puede entrar** por el subdominio ajeno: el login
+valida que la institución del host coincida con su perfil y rechaza con *"No perteneces
+a la institución seleccionada"*. Cada subdominio es además un origen distinto, así que
+no hay sesión que se arrastre entre uno y otro. El SuperAdmin sí pasa, a propósito.
 
 ---
 
