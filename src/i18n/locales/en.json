@@ -9757,5 +9757,9 @@
     "setInEditor": "Done: placed in the editor",
     "appendedToEditor": "Added at the end of the editor",
     "appendNote": "It is appended after what you already wrote; nothing is replaced."
+  },
+  "listFilters": {
+    "allSubjects": "All subjects",
+    "allPeriods": "All periods"
   }
 }

@@ -9757,5 +9757,9 @@
     "setInEditor": "Listo: quedó en el editor",
     "appendedToEditor": "Se agregó al final del editor",
     "appendNote": "Se agrega al final de lo que ya escribiste; no reemplaza nada."
+  },
+  "listFilters": {
+    "allSubjects": "Todas las asignaturas",
+    "allPeriods": "Todos los periodos"
   }
 }

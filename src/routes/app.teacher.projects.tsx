@@ -25,6 +25,7 @@ import {
   fetchScopedCourses,
   visibleForScopedCourses,
 } from "@/modules/courses/course-scope";
+import { courseIdsInScope, anyCourseInScope } from "@/modules/courses/course-filter-scope";
 import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
@@ -162,6 +163,11 @@ type Course = {
   id: string;
   name: string;
   period: string | null;
+  /** Nombre de la asignatura, para el filtro de `ListFilters`. Llega por el
+   *  embed `academic_subjects:subject_id(name)` — `subject_id` es una FK normal,
+   *  así que el embed sí funciona (a diferencia de los `*.user_id → auth.users`
+   *  que fallan en silencio). */
+  academic_subjects?: { name: string | null } | null;
   language?: string | null;
   grade_scale_max?: number | null;
   /** Fecha fin del curso (DATE). La entrega del proyecto se topa a este día. */
@@ -257,6 +263,28 @@ function TeacherProjects() {
   } | null>(null);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
+  // `courses` en vez de cambiar el tipo Course, que se usa en los formularios.
+  const coursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status ?? null,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  // Periodo/asignatura filtran la TABLA, no solo el Select de curso: acotar solo
+  // las opciones dejaba la tabla completa y se lee como que el filtro no sirve.
+  const filterScope = useMemo(
+    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    [coursesForFilter, periodFilter, subjectFilter],
+  );
+
   const [cutFilter, setCutFilter] = useState<string | null>(null);
   // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
   // el filtro de estado a "Cerrados" o "Todos".
@@ -271,6 +299,10 @@ function TeacherProjects() {
   const filteredProjects = useMemo(() => {
     const q = search.trim().toLowerCase();
     return projects.filter((p) => {
+      // M:N: el proyecto entra si CUALQUIERA de sus cursos vinculados está en el
+      // alcance del periodo/asignatura elegidos.
+      if (filterScope !== null && !anyCourseInScope(filterScope, p.linked_course_ids ?? [p.course_id]))
+        return false;
       if (courseFilter) {
         const linked = p.linked_course_ids ?? [p.course_id];
         if (!linked.includes(courseFilter)) return false;
@@ -280,7 +312,7 @@ function TeacherProjects() {
       if (!matchesActivityStatus(p.status, statusFilter)) return false;
       return true;
     });
-  }, [projects, search, courseFilter, cutFilter, statusFilter]);
+  }, [projects, search, courseFilter, cutFilter, statusFilter, filterScope]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Mismos cuatro tiles que talleres/exámenes — pulso rápido del estado
@@ -329,7 +361,7 @@ function TeacherProjects() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_projects",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
@@ -612,7 +644,7 @@ function TeacherProjects() {
         activeRole,
         roles,
         user?.id,
-        "id, name, period, language, grade_scale_max, end_date, status",
+        "id, name, period, language, grade_scale_max, end_date, status, academic_subjects:subject_id(name)",
       );
       if (cs.error) throw new Error(`courses: ${cs.error.message}`);
       setCourses((cs.data ?? []) as Course[]);
@@ -2572,7 +2604,11 @@ function TeacherProjects() {
           setCourseFilter(v);
           setCutFilter(null);
         }}
-        courses={courses}
+        courses={coursesForFilter}
+        period={periodFilter}
+        onPeriodChange={setPeriodFilter}
+        subject={subjectFilter}
+        onSubjectChange={setSubjectFilter}
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}

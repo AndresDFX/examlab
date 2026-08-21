@@ -5,6 +5,7 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
+import { courseIdsInScope, itemInScope } from "@/modules/courses/course-filter-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -203,6 +204,14 @@ interface GeneratedContent {
 interface CourseLite {
   id: string;
   name: string;
+  /** Periodo académico, para el filtro de `ListFilters`. */
+  period?: string | null;
+  /** Nombre de la asignatura, para el filtro de `ListFilters`. Llega por el
+   *  embed `academic_subjects:subject_id(name)` — `subject_id` es una FK normal,
+   *  así que el embed sí funciona (a diferencia de los `*.user_id → auth.users`
+   *  que fallan en silencio). */
+  academic_subjects?: { name: string | null } | null;
+
   /** Ciclo de vida del curso — se usa para derivar el estado del material
    *  (finalizado → material "cerrado"). No lo necesita `ListFilters`. */
   status?: string | null;
@@ -294,6 +303,28 @@ function TeacherContents() {
    *  `ListFilters`. Útil para que el docente vea qué material tiene
    *  asignado a un curso específico cuando administra varios. */
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
+  // `courses` en vez de cambiar el tipo Course, que se usa en los formularios.
+  const coursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status ?? null,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  // Periodo/asignatura filtran la TABLA, no solo el Select de curso: acotar solo
+  // las opciones dejaba la tabla completa y se lee como que el filtro no sirve.
+  const filterScope = useMemo(
+    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    [coursesForFilter, periodFilter, subjectFilter],
+  );
+
   // Filtro por estado del CURSO al que pertenece el material. Default
   // "activos" = material de cursos NO finalizados (borradores/próximos/
   // en curso). El material de cursos FINALIZADOS pasa a "cerrados" y no se
@@ -322,6 +353,9 @@ function TeacherContents() {
     arr = arr.filter((it) =>
       matchesMaterialStatus(it.course_id, courseStatusById, materialStatusFilter, now),
     );
+    // Ojo: un contenido SIN curso (material personal del docente) queda fuera
+    // cuando hay periodo/asignatura activos — no se le puede atribuir uno.
+    if (filterScope !== null) arr = arr.filter((it) => itemInScope(filterScope, it.course_id));
     if (courseFilter) {
       arr = arr.filter((it) => it.course_id === courseFilter);
     }
@@ -336,7 +370,7 @@ function TeacherContents() {
         courseName.includes(q)
       );
     });
-  }, [items, courses, search, courseFilter, courseStatusById, materialStatusFilter]);
+  }, [items, courses, search, courseFilter, courseStatusById, materialStatusFilter, filterScope]);
   // Orden por columna (asc/desc clicando el encabezado). Va ENTRE el
   // filtro y la paginación: filtrar → ORDENAR → paginar. Accessors
   // robustos a null (el hook manda los vacíos al final). El nombre de
@@ -358,7 +392,7 @@ function TeacherContents() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_contents",
-    resetKey: `${search}|${courseFilter ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter ?? ""}|${materialStatusFilter}|${tenantFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -620,7 +654,7 @@ function TeacherContents() {
           activeRole,
           roles,
           user.id,
-          "id, name, status, start_date, end_date",
+          "id, name, status, start_date, end_date, period, academic_subjects:subject_id(name)",
         ),
         // Tenants — solo el SuperAdmin ve >1. Para Admin/Docente la RLS
         // recorta al suyo y el array queda en 1 → el Select abajo no se
@@ -1362,7 +1396,11 @@ function TeacherContents() {
             searchPlaceholder={t("hc_routesAppTeacherContents.searchPlaceholder")}
             courseId={courseFilter}
             onCourseChange={setCourseFilter}
-            courses={courses}
+            courses={coursesForFilter}
+            period={periodFilter}
+            onPeriodChange={setPeriodFilter}
+            subject={subjectFilter}
+            onSubjectChange={setSubjectFilter}
           />
         </div>
         {/* Filtro por estado del curso: por defecto "Activos" oculta el

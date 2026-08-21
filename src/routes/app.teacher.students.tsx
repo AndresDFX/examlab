@@ -12,6 +12,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -47,7 +48,17 @@ type Student = {
   courses: string[];
 };
 
-type Course = { id: string; name: string };
+// `period`/`subject`/`status` alimentan los filtros de ListFilters. Se piden en
+// la MISMA consulta que ya traía los cursos del docente: sin ellos el docente
+// solo podía filtrar curso por curso, y con 9 cursos de varios periodos eso
+// obliga a saber de memoria cuál es de este semestre.
+type Course = {
+  id: string;
+  name: string;
+  period: string | null;
+  subject: string | null;
+  status: string | null;
+};
 
 function TeacherStudents() {
   return (
@@ -67,6 +78,8 @@ function TeacherStudentsInner() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [courseFilter, setCourseFilter] = useState<string>("all");
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
@@ -85,7 +98,7 @@ function TeacherStudentsInner() {
     // 1. Cursos del docente
     const { data: teacherCourses, error: tcErr } = await supabase
       .from("course_teachers")
-      .select("course_id, courses(id, name, deleted_at)")
+      .select("course_id, courses(id, name, deleted_at, period, status, academic_subjects:subject_id(name))")
       .eq("user_id", user.id);
     if (!isActive()) return;
     if (tcErr) {
@@ -102,6 +115,11 @@ function TeacherStudentsInner() {
       .map((r: any) => ({
         id: r.courses?.id ?? r.course_id,
         name: r.courses?.name ?? r.course_id,
+        period: r.courses?.period ?? null,
+        // `subject_id` → academic_subjects es una FK normal, así que el embed
+        // sí funciona acá (a diferencia de los `*.user_id → auth.users`).
+        subject: r.courses?.academic_subjects?.name ?? null,
+        status: r.courses?.status ?? null,
       }));
     setCourses(myCourses);
     const courseIds = myCourses.map((c) => c.id);
@@ -177,6 +195,21 @@ function TeacherStudentsInner() {
 
   const filtered = useMemo(() => {
     let result = students;
+    // Periodo y asignatura filtran la TABLA, no solo el Select de curso: sin
+    // esto elegir "2026-2" acotaba la lista de cursos pero seguía mostrando a
+    // los 75 usuarios, que se lee como que el filtro no sirve.
+    // Se comparan por NOMBRE de curso porque es lo que `Student.courses` trae
+    // (la fila del alumno no guarda course_id).
+    // El alcance se calcula con el helper compartido (misma regla que los otros
+    // grids), pero acá hay que traducir ids → NOMBRES: la fila del alumno guarda
+    // los nombres de sus cursos, no los course_id.
+    const scope = courseIdsInScope(courses, periodFilter, subjectFilter);
+    if (scope !== null) {
+      const nombresEnAlcance = new Set(
+        courses.filter((c) => scope.has(c.id)).map((c) => c.name),
+      );
+      result = result.filter((s) => s.courses.some((n) => nombresEnAlcance.has(n)));
+    }
     if (courseFilter !== "all") {
       const courseName = courses.find((c) => c.id === courseFilter)?.name;
       if (courseName) result = result.filter((s) => s.courses.includes(courseName));
@@ -191,7 +224,7 @@ function TeacherStudentsInner() {
       );
     }
     return result;
-  }, [students, search, courseFilter, courses]);
+  }, [students, search, courseFilter, courses, periodFilter, subjectFilter]);
 
   // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
   const sort = useTableSort(filtered, {
@@ -214,7 +247,7 @@ function TeacherStudentsInner() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_students",
-    resetKey: `${search}|${courseFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   const handleImpersonate = async (s: Student) => {
@@ -264,6 +297,10 @@ function TeacherStudentsInner() {
         onCourseChange={(v) => setCourseFilter(v ?? "all")}
         courses={courses}
         allLabel={t("teacherStudents.allCourses")}
+        period={periodFilter}
+        onPeriodChange={setPeriodFilter}
+        subject={subjectFilter}
+        onSubjectChange={setSubjectFilter}
       />
 
       <MultiSelectToolbar
