@@ -30,6 +30,53 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 //     cargar Excalidraw desde CDN (sacrifica reproducibilidad pero
 //     elimina el costo de build).
 export default defineConfig({
+  // ── Modo SPA: sin SSR ────────────────────────────────────────────────────
+  //
+  // Por qué, con números medidos (2026-08-21): el Worker SSR pesa 5,34 MB
+  // gzip y el plan Free de Cloudflare Workers corta en 3 MB — el deploy
+  // rebota con el error 10027. Y aun bajándolo, quedaría el segundo techo del
+  // plan Free: 10 ms de CPU por request, que renderizar este árbol de React en
+  // el servidor casi seguro se pasa (error 1102). Los dos límites son del SSR;
+  // en SPA el servidor deja de ejecutar React y ninguno aplica.
+  //
+  // Por qué es seguro acá (verificado, no supuesto): la app NO tiene lógica de
+  // servidor. Cero `createServerFn`, cero rutas de servidor, cero `loader:` en
+  // las 84 rutas y un solo `beforeLoad`. Todos los datos ya van del navegador a
+  // Supabase con la RLS haciendo el aislamiento. El SSR solo pintaba HTML que
+  // después se hidrataba.
+  //
+  // Lo que se pierde: HTML pre-renderizado. Un bot que no ejecuta JS ve el
+  // cascarón con los meta del root. Casi no duele — `/verify/$shortCode` y
+  // `/reto/$pin` ya están marcadas `noindex, nofollow` a propósito, y todo
+  // `/app/*` vive tras el login.
+  //
+  // Lo que NO se pierde: `__root.tsx` ya define `shellComponent: RootShell`, así
+  // que el cascarón prerenderizado conserva los <script> pre-paint del tema y
+  // del branding del tenant — el anti-flash sigue igual.
+  //
+  // OJO: esto diverge de Lovable, que publica con SSR. Vive en la rama
+  // `deploy/cloudflare`; no mezclar a `main` sin decidir qué hace Lovable.
+  tanstackStart: {
+    spa: {
+      enabled: true,
+    },
+  },
+
+  // ── Sin el plugin de Cloudflare, a propósito ─────────────────────────────
+  //
+  // El destino de esta rama NO es un Worker: es el sitio ESTÁTICO que el modo
+  // SPA prerenderiza en `dist/client/index.html`, servido por Cloudflare como
+  // assets. Sin código de servidor no hay bundle que pese, así que los límites
+  // de 3 MB y 10 ms del plan Free dejan de aplicar. Medido: activar SPA a secas
+  // NO achicaba el Worker (el bundle del servidor salía idéntico, 5,34 MB gzip)
+  // — lo que resuelve el problema es no desplegar Worker en absoluto.
+  //
+  // Además arregla un choque entre los dos plugins: el prerender de SPA importa
+  // `dist/server/server.js`, pero el plugin de Cloudflare nombra esa entrada
+  // `index.js`, y el build moría con ERR_MODULE_NOT_FOUND. Sin el plugin, la
+  // salida vuelve al nombre que el prerender espera. El servidor que genera se
+  // usa solo durante el build, para producir el HTML, y después se descarta.
+  cloudflare: false,
   vite: {
     optimizeDeps: {
       exclude: ["@excalidraw/excalidraw"],

@@ -33,7 +33,7 @@ certificado avanzado, que sí son de pago).
 ## Antes de empezar
 
 - Un dominio propio — si no tenés, el paso 0 lo consigue **gratis**.
-- La app compilada: `bun run build` deja el sitio estático en `dist/`.
+- La app compilada: `bun run build:cf` deja el sitio estático en `dist/client/`.
 - **No hace falta apagar Lovable.** Los dos servidores pueden convivir porque la base
   de datos es la misma: Lovable sigue sirviendo `examlab.lovable.app` con el selector,
   y Cloudflare sirve los subdominios sin selector. Se puede migrar de a poco.
@@ -162,46 +162,92 @@ enterarse en este paso, que toma un minuto, que después de configurar el Worker
 
 En la misma pantalla, poné **SSL/TLS encryption mode** en **Full**.
 
-## 4 · Publicar la app como Worker
+## 4 · Publicar la app
 
-Desde la carpeta del proyecto:
+> **Esto ya está hecho y funcionando** en la rama `deploy/cloudflare`, desplegado en
+> <https://examlab.castano-julian.workers.dev>. Esta sección explica CÓMO quedó y por
+> qué; si solo querés volver a publicar, es `bun run deploy:cf`.
+
+### Se publica como sitio ESTÁTICO, no como Worker con SSR
+
+Este es el punto donde la versión anterior de este manual estaba equivocada: decía
+que `bun run build` dejaba un sitio estático en `dist/`. **No lo dejaba.** El
+proyecto es TanStack Start con **SSR sobre Workers**, y el build emitía un Worker
+que ejecuta React en el servidor.
+
+Ese camino **no entra en el plan Free**, medido el 2026-08-21:
+
+| | Medido | Límite Free | Límite Paid |
+|---|---|---|---|
+| Tamaño del Worker SSR | **5,34 MB** gzip | 3 MB ❌ | 10 MB ✅ |
+| CPU por request | SSR de este árbol de React | 10 ms ⚠️ | 30 s |
+
+El deploy rebota con `error 10027`. Y aunque se lograra bajar el tamaño, quedaría el
+segundo techo: 10 ms de CPU casi seguro no alcanzan para renderizar esta app en el
+servidor (daría error 1102). **Los dos límites son del SSR.**
+
+Por eso la rama va en **modo SPA**: el servidor deja de ejecutar React, el modo SPA
+prerenderiza un cascarón, y ese cascarón se sirve como archivo estático. Sin código
+de servidor, ninguno de los dos límites aplica y sigue siendo gratis.
+
+**Es seguro en esta app** porque no tiene lógica de servidor: cero `createServerFn`,
+cero rutas de servidor, cero `loader:` en las 84 rutas y un solo `beforeLoad`. Todos
+los datos ya viajan del navegador a Supabase, con la RLS haciendo el aislamiento.
+
+### La configuración
+
+En `vite.config.ts`, dos opciones (ambas comentadas en el archivo):
+
+```ts
+tanstackStart: { spa: { enabled: true } },   // prerenderiza el cascarón
+cloudflare: false,                            // no generes Worker
+```
+
+`cloudflare: false` además destraba un choque entre plugins: el prerender de SPA
+importa `dist/server/server.js`, pero el plugin de Cloudflare nombra esa entrada
+`index.js` y el build moría con `ERR_MODULE_NOT_FOUND`.
+
+En `wrangler.jsonc`, **sin `main`** — eso es lo que lo vuelve un despliegue solo de
+assets:
+
+```jsonc
+"assets": {
+  "directory": "./dist/client",
+  "not_found_handling": "single-page-application",
+}
+```
+
+`single-page-application` es imprescindible: sin eso, entrar directo a
+`uniaj.tudominio.co/app/teacher/exams` daría 404, porque en el disco no existe ese
+archivo — es una ruta del router de la app.
+
+### Publicar
 
 ```bash
-bun run build          # genera dist/
-npx wrangler login     # abre el navegador para autorizar
+bun run deploy:cf     # build + cascarón + wrangler deploy
 ```
 
-Creá `wrangler.toml` en la raíz:
+El paso intermedio ([`scripts/build-cloudflare.mjs`](../scripts/build-cloudflare.mjs))
+copia `_shell.html` a `index.html`: TanStack Start le pone el primer nombre, y
+Cloudflare sirve el segundo —y solo ese— como fallback de SPA.
 
-```toml
-name = "examlab"
-compatibility_date = "2026-08-19"
+**Si `.wrangler/deploy/config.json` quedó de un build viejo con el plugin de
+Cloudflare**, el deploy falla diciendo que no encuentra `dist/server/wrangler.json`.
+Se borra esa carpeta y listo.
 
-[assets]
-directory = "./dist"
-not_found_handling = "single-page-application"
+### Para los subdominios, agregar el Route
 
-# El Route wildcard: es ESTO lo que hace que cualquier subdominio llegue al Worker.
-# Un Custom Domain no serviría — no admite comodines.
-[[routes]]
-pattern = "*.tudominio.co/*"
-zone_name = "tudominio.co"
+Cuando exista el dominio (pasos 1-3), descomentar en `wrangler.jsonc`:
 
-# Opcional: el dominio sin subdominio.
-[[routes]]
-pattern = "tudominio.co/*"
-zone_name = "tudominio.co"
+```jsonc
+"routes": [
+  { "pattern": "*.tudominio.co/*", "zone_name": "tudominio.co" },
+  { "pattern": "tudominio.co/*", "zone_name": "tudominio.co" },
+],
 ```
 
-`not_found_handling = "single-page-application"` es imprescindible: sin eso, entrar
-directo a `uniaj.tudominio.co/app/teacher/exams` daría 404, porque en el disco no
-existe ese archivo — es una ruta del router de la app.
-
-Publicá:
-
-```bash
-npx wrangler deploy
-```
+Tiene que ser `routes` con comodín, **no** un Custom Domain — esos no admiten
+wildcards. Y no hay que recompilar la app: se vuelve a publicar y ya.
 
 ## 5 · Probar
 

@@ -1,7 +1,48 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "tanstack-start-app",
+
+  // El nombre ES la primera etiqueta de la URL en workers.dev:
+  //   examlab.<tu-cuenta>.workers.dev
+  // Venía como "tanstack-start-app" (el del template de TanStack Start).
+  "name": "examlab",
+
   "compatibility_date": "2025-09-24",
-  "compatibility_flags": ["nodejs_compat"],
-  "main": "@tanstack/react-start/server-entry",
+
+  // ── Despliegue SOLO de assets: no hay `main`, no hay código de servidor ───
+  //
+  // A propósito. El Worker SSR pesaba 5,34 MB gzip y el plan Free corta en
+  // 3 MB (error 10027 al desplegar). Acá no se sube Worker: se suben los
+  // archivos que el modo SPA prerenderizó, y Cloudflare los sirve como sitio
+  // estático. Sin código de servidor, ni el límite de tamaño ni el de 10 ms de
+  // CPU aplican.
+  //
+  // `single-page-application` es imprescindible: sin eso, entrar directo a
+  // `/app/teacher/exams` daría 404, porque en el disco no existe ese archivo —
+  // es una ruta del router de la app. Con esto, cualquier ruta desconocida
+  // devuelve index.html y el router del navegador resuelve.
+  //
+  // index.html lo produce `scripts/build-cloudflare.mjs` copiando el
+  // `_shell.html` del prerender, que es el nombre que TanStack Start le da.
+  "assets": {
+    "directory": "./dist/client",
+    "not_found_handling": "single-page-application",
+  },
+
+  // ── Subdominio por institución (fase 2, cuando exista el dominio) ──────────
+  //
+  // Para que `uniaj.tudominio.co` entre directo a esa institución hace falta un
+  // Route CON COMODÍN. Tiene que ser `routes`, NO `custom_domain`: la doc de
+  // Cloudflare dice textual que los Custom Domains "do not support wildcard DNS
+  // records". Además, en el panel de DNS debe existir `A · * · 192.0.2.1` con la
+  // nube NARANJA (proxied) — con la nube gris el Worker nunca se ejecuta.
+  //
+  // Universal SSL (plan Free) cubre un solo nivel: `uniaj.tudominio.co` sí,
+  // `sede.uniaj.tudominio.co` no.
+  //
+  // Descomentar y reemplazar el dominio:
+  //
+  // "routes": [
+  //   { "pattern": "*.tudominio.co/*", "zone_name": "tudominio.co" },
+  //   { "pattern": "tudominio.co/*", "zone_name": "tudominio.co" },
+  // ],
 }
