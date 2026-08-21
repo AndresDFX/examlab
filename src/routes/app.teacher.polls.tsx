@@ -765,7 +765,7 @@ function TeacherPolls() {
       if (p.poll_type === "mixed" && opts.copyQuestions) {
         const { data: srcQs, error: qErr } = await db
           .from("poll_questions")
-          .select("type, text, required, max_chars, options, position")
+          .select("type, text, required, max_chars, options, position, multi")
           .eq("poll_id", p.id)
           .order("position");
         if (qErr) {
@@ -782,6 +782,7 @@ function TeacherPolls() {
           max_chars: number | null;
           options: unknown;
           position: number;
+          multi: boolean | null;
         }>).map((q, i) => ({
           poll_id: newPoll.id,
           type: q.type,
@@ -790,6 +791,9 @@ function TeacherPolls() {
           max_chars: q.max_chars,
           options: q.options,
           position: q.position ?? i,
+          // Sin esto la copia perdía el modo "varias respuestas" y la pregunta
+          // volvía silenciosamente a opción única.
+          multi: !!q.multi,
         }));
         if (rows.length > 0) {
           const { error: insErr } = await db.from("poll_questions").insert(rows);
@@ -3450,12 +3454,17 @@ interface MixedQ {
   type: "abierta" | "cerrada";
   text: string;
   choices: string[];
+  /** cerrada con varias respuestas permitidas: el conteo suma por cada opción
+   *  marcada, así que los porcentajes pueden pasar de 100. */
+  multi: boolean;
 }
 interface MixedResp {
   question_id: string;
   user_id: string;
   answer_text: string | null;
   selected_index: number | null;
+  /** Respuesta de una cerrada con `multi`. Excluyente con `selected_index`. */
+  selected_indexes: number[] | null;
   created_at: string;
   full_name: string | null;
 }
@@ -3479,7 +3488,7 @@ function MixedResultsDialog({
     try {
       const { data: qs, error: qErr } = await db
         .from("poll_questions")
-        .select("id, type, text, options, position")
+        .select("id, type, text, options, position, multi")
         .eq("poll_id", poll.id)
         .order("position");
       // Sin esta rama, un fallo de la query pintaba el empty state "aún no hay
@@ -3493,15 +3502,17 @@ function MixedResultsDialog({
         type: "abierta" | "cerrada";
         text: string;
         options: { choices?: string[] } | null;
+        multi: boolean | null;
       }>).map((q) => ({
         id: q.id,
         type: q.type,
         text: q.text,
         choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
+        multi: !!q.multi,
       }));
       const { data: rs, error: rErr } = await db
         .from("poll_question_responses")
-        .select("question_id, user_id, answer_text, selected_index, created_at")
+        .select("question_id, user_id, answer_text, selected_index, selected_indexes, created_at")
         .eq("poll_id", poll.id);
       if (rErr) {
         toast.error(friendlyError(rErr));
@@ -3630,7 +3641,17 @@ function MixedResultsDialog({
                   {q.type === "cerrada" ? (
                     <div className="space-y-1.5 pl-6">
                       {q.choices.map((choice, ci) => {
-                        const voters = qResp.filter((r) => r.selected_index === ci);
+                        // En una pregunta MÚLTIPLE cada persona puede marcar
+                        // varias, así que cuenta en cada opción que eligió y la
+                        // suma de porcentajes puede pasar de 100 — el
+                        // denominador sigue siendo la cantidad de PERSONAS que
+                        // respondieron, que es lo que el docente quiere leer
+                        // ("7 de 20 quieren clases grabadas").
+                        const voters = qResp.filter((r) =>
+                          Array.isArray(r.selected_indexes)
+                            ? r.selected_indexes.includes(ci)
+                            : r.selected_index === ci,
+                        );
                         const pct = qResp.length > 0 ? Math.round((voters.length / qResp.length) * 100) : 0;
                         return (
                           <div key={ci} className="space-y-1">

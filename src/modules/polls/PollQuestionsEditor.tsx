@@ -63,6 +63,11 @@ interface EditPollQuestion {
   maxChars: number | null;
   /** cerrada: opciones a elegir. */
   choices: string[];
+  /** cerrada: permitir marcar VARIAS. Queda bloqueado junto con tipo/choices
+   *  cuando la pregunta ya tiene respuestas: cambiarlo movería la respuesta de
+   *  columna (`selected_index` ↔ `selected_indexes`) y volvería invisibles las
+   *  ya guardadas — el trigger de la base lo rechaza igual. */
+  multi: boolean;
   /** Si ya tiene respuestas → tipo + choices read-only (lock). */
   locked: boolean;
 }
@@ -72,6 +77,7 @@ function blankQuestion(type: PollQType): EditPollQuestion {
     type,
     text: "",
     required: true,
+    multi: false,
     maxChars: type === "abierta" ? 500 : null,
     choices: type === "cerrada" ? ["", ""] : [],
     locked: false,
@@ -103,7 +109,7 @@ export function PollQuestionsEditor({
       setRemovedIds([]);
       const { data: qs } = await db
         .from("poll_questions")
-        .select("id, type, text, required, max_chars, options, position")
+        .select("id, type, text, required, max_chars, options, position, multi")
         .eq("poll_id", poll.id)
         .order("position");
       const rows = (qs ?? []) as Array<{
@@ -113,6 +119,7 @@ export function PollQuestionsEditor({
         required: boolean;
         max_chars: number | null;
         options: { choices?: string[] } | null;
+        multi: boolean | null;
       }>;
       // ¿Qué preguntas ya tienen respuestas? Esas se bloquean (tipo+choices).
       let answered = new Set<string>();
@@ -135,6 +142,7 @@ export function PollQuestionsEditor({
           type: r.type,
           text: r.text,
           required: !!r.required,
+          multi: !!r.multi,
           maxChars: r.max_chars ?? null,
           choices: Array.isArray(r.options?.choices) ? r.options!.choices! : [],
           locked: answered.has(r.id),
@@ -266,6 +274,9 @@ export function PollQuestionsEditor({
             q.type === "cerrada"
               ? { choices: q.choices.map((c) => c.trim()).filter(Boolean) }
               : null,
+          // Solo tiene sentido en cerrada; en abierta se fuerza a false para no
+          // dejar el flag encendido si el docente cambia el tipo.
+          multi: q.type === "cerrada" ? q.multi : false,
         };
         if (q.id) {
           const { error: uErr } = await db.from("poll_questions").update(payload).eq("id", q.id);
@@ -383,6 +394,25 @@ export function PollQuestionsEditor({
                       {t("pollQuestions.required", { defaultValue: "Obligatoria" })}
                     </span>
                   </label>
+                  {q.type === "cerrada" && (
+                    <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                      <Switch
+                        checked={q.multi}
+                        // `locked` = la pregunta ya tiene respuestas. Cambiar el
+                        // modo movería la respuesta de columna y volvería
+                        // invisibles las ya guardadas; el trigger de la base lo
+                        // rechaza igual, así que acá se deshabilita para que el
+                        // docente no choque contra un error.
+                        disabled={q.locked}
+                        onCheckedChange={(v) => updateQuestion(qi, { multi: v })}
+                      />
+                      <span className="text-xs">
+                        {t("pollQuestions.multi", {
+                          defaultValue: "Permitir varias respuestas",
+                        })}
+                      </span>
+                    </label>
+                  )}
                   {q.type === "abierta" && (
                     <div className="flex items-center gap-1.5">
                       <Label className="text-xs">

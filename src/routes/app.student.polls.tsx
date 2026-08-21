@@ -57,6 +57,7 @@ import {
   X,
   MessageSquareText,
   Send,
+  Square,
 } from "lucide-react";
 
 export const Route = createFileRoute("/app/student/polls")({
@@ -96,11 +97,17 @@ interface MixedQuestion {
   required: boolean;
   max_chars: number | null;
   choices: string[];
+  /** Solo en `cerrada`: permite marcar VARIAS opciones. La respuesta viaja en
+   *  `selected_indexes` y no en `selected_index` — son excluyentes (hay un CHECK
+   *  en la tabla que lo garantiza). */
+  multi: boolean;
 }
 /** Mi respuesta a una pregunta mixta (abierta o cerrada). */
 interface MyMixedAnswer {
   answer_text: string | null;
   selected_index: number | null;
+  /** Respuesta de una cerrada con `multi`. Excluyente con `selected_index`. */
+  selected_indexes: number[] | null;
 }
 
 interface Poll {
@@ -327,12 +334,12 @@ function StudentPolls() {
         const [qRes, aRes] = await Promise.all([
           db
             .from("poll_questions")
-            .select("id, poll_id, type, text, required, max_chars, options, position")
+            .select("id, poll_id, type, text, required, max_chars, options, position, multi")
             .in("poll_id", mixedIds)
             .order("position"),
           db
             .from("poll_question_responses")
-            .select("poll_id, question_id, answer_text, selected_index")
+            .select("poll_id, question_id, answer_text, selected_index, selected_indexes")
             .eq("user_id", user.id)
             .in("poll_id", mixedIds),
         ]);
@@ -346,6 +353,7 @@ function StudentPolls() {
           required: boolean;
           max_chars: number | null;
           options: { choices?: string[] } | null;
+          multi: boolean | null;
         }>) {
           const arr = qByPoll.get(q.poll_id) ?? [];
           arr.push({
@@ -355,6 +363,7 @@ function StudentPolls() {
             required: !!q.required,
             max_chars: q.max_chars ?? null,
             choices: Array.isArray(q.options?.choices) ? q.options!.choices! : [],
+            multi: !!q.multi,
           });
           qByPoll.set(q.poll_id, arr);
         }
@@ -364,9 +373,14 @@ function StudentPolls() {
           question_id: string;
           answer_text: string | null;
           selected_index: number | null;
+          selected_indexes: number[] | null;
         }>) {
           const m = aByPoll.get(a.poll_id) ?? {};
-          m[a.question_id] = { answer_text: a.answer_text, selected_index: a.selected_index };
+          m[a.question_id] = {
+            answer_text: a.answer_text,
+            selected_index: a.selected_index,
+            selected_indexes: Array.isArray(a.selected_indexes) ? a.selected_indexes : null,
+          };
           aByPoll.set(a.poll_id, m);
         }
         for (const p of list) {
@@ -963,6 +977,18 @@ function MixedPollCard({
     }
     return init;
   });
+  // Opciones marcadas de cada pregunta cerrada MÚLTIPLE. Se guarda como array
+  // (no como Set) para que el `useState` compare por referencia igual que el
+  // resto del componente y no haga falta clonar en cada toggle.
+  const [selectedMulti, setSelectedMulti] = useState<Record<string, number[]>>(() => {
+    const init: Record<string, number[]> = {};
+    for (const q of questions) {
+      if (q.type === "cerrada" && q.multi) {
+        init[q.id] = poll.my_answers?.[q.id]?.selected_indexes ?? [];
+      }
+    }
+    return init;
+  });
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [clearing, setClearing] = useState(false);
   // Marker UX-only "el alumno ya confirmó que terminó la encuesta". NO se
@@ -1046,6 +1072,35 @@ function MixedPollCard({
         return;
       }
       setSelected((prev) => ({ ...prev, [qid]: index }));
+      toast.success(t("studentPolls.answerSaved", { defaultValue: "Respuesta guardada" }));
+    } finally {
+      setSavingFor(qid, false);
+    }
+  };
+
+  /** Toggle de una opción en una pregunta cerrada MÚLTIPLE.
+   *
+   *  Manda el array completo en cada toque (no un delta): el RPC hace upsert
+   *  del conjunto, así que el último envío gana y no hay que reconciliar. Si el
+   *  alumno destilda todo, el array vacío BORRA la respuesta — mismo criterio
+   *  que el texto vacío en las abiertas. */
+  const submitMulti = async (qid: string, index: number) => {
+    if (saving[qid]) return;
+    const actual = selectedMulti[qid] ?? [];
+    const next = actual.includes(index)
+      ? actual.filter((i) => i !== index)
+      : [...actual, index].sort((a, b) => a - b);
+    setSavingFor(qid, true);
+    try {
+      const { error } = await db.rpc("submit_poll_question_response", {
+        _question_id: qid,
+        _selected_indexes: next,
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      setSelectedMulti((prev) => ({ ...prev, [qid]: next }));
       toast.success(t("studentPolls.answerSaved", { defaultValue: "Respuesta guardada" }));
     } finally {
       setSavingFor(qid, false);
@@ -1156,7 +1211,9 @@ function MixedPollCard({
         if (!q.required) return;
         const answered =
           q.type === "cerrada"
-            ? selected[q.id] != null
+            ? q.multi
+              ? (selectedMulti[q.id] ?? []).length > 0
+              : selected[q.id] != null
             : (text[q.id] ?? "").trim().length > 0;
         if (!answered) missing.push({ qid: q.id, index: idx, text: q.text });
       });
@@ -1354,6 +1411,57 @@ function MixedPollCard({
                     >
                       {value.length} / {maxLen}
                     </span>
+                  </div>
+                </div>
+              );
+            }
+            // cerrada MÚLTIPLE — casillas: se puede marcar más de una.
+            if (q.multi) {
+              const marcadas = selectedMulti[q.id] ?? [];
+              return (
+                <div
+                  key={q.id}
+                  id={`mixed-q-${q.id}`}
+                  className="space-y-1.5 rounded-md border p-2.5 scroll-mt-20"
+                >
+                  <p className="text-sm font-medium">
+                    {qi + 1}. {q.text}
+                    {q.required && <span className="text-destructive ml-0.5">*</span>}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {t("studentPolls.multiHint", {
+                      defaultValue: "Puedes marcar varias opciones.",
+                    })}
+                  </p>
+                  <div className="space-y-1.5">
+                    {q.choices.map((choice, ci) => {
+                      const mine = marcadas.includes(ci);
+                      return (
+                        <Button
+                          key={ci}
+                          type="button"
+                          variant={mine ? "default" : "outline"}
+                          className="w-full justify-start h-auto py-2"
+                          aria-pressed={mine}
+                          // A diferencia de la única, acá NO se bloquean las
+                          // opciones no elegidas cuando allow_change_response
+                          // es false: marcar una segunda opción es COMPLETAR la
+                          // respuesta, no cambiarla. El RPC igual valida.
+                          disabled={!open || isSaving}
+                          onClick={() => void submitMulti(q.id, ci)}
+                        >
+                          <span className="truncate flex items-center gap-2 text-sm">
+                            {mine ? (
+                              <CheckSquare className="h-3.5 w-3.5" />
+                            ) : (
+                              <Square className="h-3.5 w-3.5 opacity-50" />
+                            )}
+                            {choice}
+                          </span>
+                          {isSaving && mine && <Spinner size="xs" className="ml-auto" />}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               );

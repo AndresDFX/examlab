@@ -2069,7 +2069,8 @@
     "clearAnswersDesc": "Se borrarán todas tus respuestas a esta encuesta. Podrás volver a responder.",
     "mixedNoQuestions": "Esta encuesta aún no tiene preguntas.",
     "openAnswerPlaceholder": "Escribe tu respuesta…",
-    "mixedClosedNote": "La encuesta está cerrada. Ya no puedes modificar tus respuestas."
+    "mixedClosedNote": "La encuesta está cerrada. Ya no puedes modificar tus respuestas.",
+    "multiHint": "Puedes marcar varias opciones."
   },
   "videosPage": {
     "title": "Videos",
@@ -9121,7 +9122,8 @@
     "deleteQuestion": "Eliminar pregunta",
     "addOpen": "Agregar abierta",
     "addClosed": "Agregar cerrada",
-    "save": "Guardar preguntas"
+    "save": "Guardar preguntas",
+    "multi": "Permitir varias respuestas"
   },
   "hc_bulkImportDefenses": {
     "templateDownloaded": "Plantilla descargada",

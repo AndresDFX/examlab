@@ -2069,7 +2069,8 @@
     "clearAnswersDesc": "All your answers to this poll will be deleted. You'll be able to answer again.",
     "mixedNoQuestions": "This poll has no questions yet.",
     "openAnswerPlaceholder": "Write your answer…",
-    "mixedClosedNote": "The poll is closed. You can no longer change your answers."
+    "mixedClosedNote": "The poll is closed. You can no longer change your answers.",
+    "multiHint": "You can select more than one option."
   },
   "videosPage": {
     "title": "Videos",
@@ -9121,7 +9122,8 @@
     "deleteQuestion": "Delete question",
     "addOpen": "Add open",
     "addClosed": "Add closed",
-    "save": "Save questions"
+    "save": "Save questions",
+    "multi": "Allow multiple answers"
   },
   "hc_bulkImportDefenses": {
     "templateDownloaded": "Template downloaded",
