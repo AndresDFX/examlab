@@ -20,6 +20,33 @@ describe("subdomainTenantSlug", () => {
     }
   });
 
+  describe("workers.dev es la excepción: un Worker por institución", () => {
+    it("lee el slug del nombre del Worker", () => {
+      // `<worker>.<cuenta>.workers.dev`: la primera etiqueta la elegimos al
+      // desplegar, así que la nombramos con el slug de la institución.
+      expect(subdomainTenantSlug("uniaj.examlab.workers.dev")).toBe("uniaj");
+      expect(subdomainTenantSlug("fesna.examlab.workers.dev")).toBe("fesna");
+      expect(subdomainTenantSlug("demo-global-corp.examlab.workers.dev")).toBe("demo-global-corp");
+    });
+
+    it("la raíz del subdominio de cuenta no tiene Worker ni slug", () => {
+      // 3 etiquetas: no hay nombre de Worker que leer. Es lo que distingue este
+      // caso del de arriba y lo que hace segura la excepción.
+      expect(subdomainTenantSlug("examlab.workers.dev")).toBeNull();
+    });
+
+    it("el despliegue principal usa una etiqueta reservada y conserva el selector", () => {
+      expect(subdomainTenantSlug("app.examlab.workers.dev")).toBeNull();
+      expect(hostDefinesTenant("app.examlab.workers.dev")).toBe(false);
+    });
+
+    it("funciona sin importar cómo se llame el subdominio de la cuenta", () => {
+      // El corte es por cantidad de etiquetas, no por el nombre de la cuenta:
+      // si algún día cambia, esto sigue valiendo.
+      expect(subdomainTenantSlug("uniaj.otra-cuenta.workers.dev")).toBe("uniaj");
+    });
+  });
+
   it("dominio desnudo y www conservan el selector", () => {
     expect(subdomainTenantSlug("midominio.co")).toBeNull();
     expect(subdomainTenantSlug("www.midominio.co")).toBeNull();

@@ -41,8 +41,33 @@ const PLATFORM_HOST_SUFFIXES = [
   "netlify.app",
   "vercel.app",
   "pages.dev",
-  "workers.dev",
 ];
+
+/**
+ * `workers.dev` es la EXCEPCIÓN, y por eso salió de la lista de arriba.
+ *
+ * En Cloudflare la URL de un Worker es `<worker>.<cuenta>.workers.dev`, o sea que
+ * la primera etiqueta la elegimos nosotros al desplegar. Aprovechamos eso:
+ * publicamos un Worker POR INSTITUCIÓN, nombrado con su slug, y así
+ * `uniaj.examlab.workers.dev` entra directo a UNIAJ sin dominio propio y sin
+ * costo. En el resto de los hosts de plataforma la primera etiqueta es el
+ * nombre del proyecto y leerla sería el bug que este módulo evita; acá es
+ * deliberadamente el slug.
+ *
+ * El corte por CANTIDAD DE ETIQUETAS es lo que hace segura la excepción:
+ *   · `uniaj.examlab.workers.dev`  → 4 · hay Worker, la primera etiqueta es suya
+ *   · `examlab.workers.dev`        → 3 · es la raíz del subdominio de la cuenta,
+ *                                        no hay Worker y no hay slug que leer
+ *
+ * El despliegue principal —el que muestra el selector— se llama `app`, que ya
+ * está en RESERVED_LABELS: `app.examlab.workers.dev` devuelve null igual que
+ * cualquier otro host sin institución.
+ *
+ * Limitación conocida, es el precio de no tener dominio: una institución nueva
+ * NO funciona sola. Hay que desplegarle su Worker (`wrangler deploy --name
+ * <slug>`). Con un dominio propio + DNS comodín, en cambio, alcanza con crearla.
+ */
+const WORKERS_DEV_SUFFIX = "workers.dev";
 
 /** Etiquetas que nunca son una institución, aunque sean un subdominio válido. */
 const RESERVED_LABELS = new Set([
@@ -92,6 +117,13 @@ export function subdomainTenantSlug(hostname: string | null | undefined): string
     return candidate(labels[0]);
   }
   if (labels.length < 3) return null; // dominio desnudo o localhost pelado
+
+  // Cloudflare Workers: la primera etiqueta es el nombre del Worker, y lo
+  // nombramos con el slug de la institución a propósito (ver WORKERS_DEV_SUFFIX).
+  // Va ANTES de la lista de plataforma porque es la excepción a esa regla.
+  if (host === WORKERS_DEV_SUFFIX || host.endsWith(`.${WORKERS_DEV_SUFFIX}`)) {
+    return labels.length >= 4 ? candidate(labels[0]) : null;
+  }
 
   // Host de plataforma → su primera etiqueta es el proyecto, no una institución.
   if (PLATFORM_HOST_SUFFIXES.some((sfx) => host === sfx || host.endsWith(`.${sfx}`))) {

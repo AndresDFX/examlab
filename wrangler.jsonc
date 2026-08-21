@@ -1,10 +1,15 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
 
-  // El nombre ES la primera etiqueta de la URL en workers.dev:
-  //   examlab.<tu-cuenta>.workers.dev
-  // Venía como "tanstack-start-app" (el del template de TanStack Start).
-  "name": "examlab",
+  // El nombre ES la primera etiqueta de la URL: `app.examlab.workers.dev`.
+  //
+  // Se llama `app` y no `examlab` a propósito. Cada institución se publica como
+  // un Worker aparte nombrado con su slug (`wrangler deploy --name uniaj` →
+  // `uniaj.examlab.workers.dev`), y `subdomain.ts` lee esa primera etiqueta como
+  // la institución. `app` está en su lista de etiquetas reservadas, así que ESTE
+  // despliegue —el general— muestra el selector en vez de intentar resolver una
+  // institución llamada "app".
+  "name": "app",
 
   "compatibility_date": "2025-09-24",
 
