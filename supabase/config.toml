@@ -183,6 +183,16 @@ verify_jwt = false
 enabled = true
 verify_jwt = true
 
+# Dispara el workflow que publica en Cloudflare (un Worker por institución).
+# verify_jwt = TRUE por el mismo motivo que ai-generate-sql: el único caller es
+# el frontend con el JWT del SuperAdmin, no hay worker ni pg_cron llamándola.
+# El handler además exige rol SuperAdmin — un despliegue consume minutos de CI y
+# reescribe lo que se sirve en producción, así que no puede quedar al alcance de
+# cualquier autenticado que conozca la URL.
+[functions."trigger-cloudflare-deploy"]
+enabled = true
+verify_jwt = true
+
 [logging]
 vector_enabled = false
 postgres_enabled = false

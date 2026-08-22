@@ -4762,6 +4762,8 @@
     "tenantCreated": "Institution created",
     "tenantSentToTrash": "{{name}} was sent to the trash",
     "testUserCreationFailed": "Institution created, but failed to create test user: {{error}}",
+    "deployTriggered": "Publishing the institution's address. It will be available in a few minutes.",
+    "deployTriggerFailed": "The institution was created and can already be used from the selector, but its own address could not be published. Publish it manually from GitHub → Actions → Deploy a Cloudflare.",
     "noAdminUsers": "There are no users with the Admin role on the platform.",
     "tenantHasNoAdmin": "{{name}} has no Admin assigned. Create or assign one before logging in as.",
     "impersonateConfirmTitle": "Log in as Admin",

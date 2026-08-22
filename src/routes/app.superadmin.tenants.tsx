@@ -681,6 +681,55 @@ function SuperAdminTenantsPage() {
             { duration: 8000 },
           );
         }
+
+        // Publicar la dirección propia de la institución
+        // (`<slug>.examlab.workers.dev`). En workers.dev cada institución es un
+        // Worker aparte, y el workflow que los publica no se entera solo de que
+        // se creó una: sin este disparo, el enlace da 404 hasta el próximo push.
+        //
+        // Best-effort A PROPÓSITO, y sin `await` bloqueante en el camino feliz:
+        // la institución YA está creada y sus usuarios entran igual por
+        // `app.examlab.workers.dev` eligiéndola en el selector. Lo que falta
+        // mientras tanto es la dirección propia, no el acceso — así que un fallo
+        // acá informa, no revierte nada.
+        //
+        // Desaparece con dominio propio: un DNS comodín cubre cualquier
+        // institución sin desplegar (ver docs/subdominios-cloudflare.md).
+        void (async () => {
+          try {
+            const { data: depData, error: depErr } = await supabase.functions.invoke(
+              "trigger-cloudflare-deploy",
+              { body: { reason: `Institución creada: ${form.slug.trim()}` } },
+            );
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ok = (depData as any)?.ok === true;
+            if (depErr || !ok) {
+              toast.warning(
+                i18n.t("superadminTenants.deployTriggerFailed", {
+                  defaultValue:
+                    "La institución quedó creada y ya se puede usar desde el selector, pero no se pudo publicar su dirección propia. Publicala a mano desde GitHub → Actions → Deploy a Cloudflare.",
+                }),
+                { duration: 12000 },
+              );
+            } else {
+              toast.info(
+                i18n.t("superadminTenants.deployTriggered", {
+                  defaultValue:
+                    "Publicando la dirección de la institución. Queda disponible en unos minutos.",
+                }),
+                { duration: 8000 },
+              );
+            }
+          } catch {
+            toast.warning(
+              i18n.t("superadminTenants.deployTriggerFailed", {
+                defaultValue:
+                  "La institución quedó creada y ya se puede usar desde el selector, pero no se pudo publicar su dirección propia. Publicala a mano desde GitHub → Actions → Deploy a Cloudflare.",
+              }),
+              { duration: 12000 },
+            );
+          }
+        })();
       }
     }
     setDialogOpen(false);
