@@ -49,7 +49,7 @@
 ```
 
 > ⚠️ **PUNTO MÁS IMPORTANTE Y QUE MÁS SE EQUIVOCA:**
-> En Azure AD la **Redirect URI** debe ser la URL de **Supabase** (`https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/callback`), **NO** la del app (`https://examlab.lovable.app/auth/sso-callback`).
+> En Azure AD la **Redirect URI** debe ser la URL de **Supabase** (`https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/callback`), **NO** la del app (`https://app.examlab.workers.dev/auth/sso-callback`).
 > El callback del app es una **Redirect URL de Supabase** (otra cosa) y va en el dashboard de Supabase, no en Azure.
 
 **Política de la plataforma:** el SSO **no registra usuarios nuevos**. El admin debe pre-crear la cuenta (bulk-import o "Nuevo usuario") con el `institutional_email` correcto. El SSO solo permite el primer login si ese email ya existe.
@@ -161,13 +161,13 @@ El app, tras volver de Supabase, redirige a `${origin}/auth/sso-callback`. Ese d
 
 1. Supabase Dashboard → **Authentication** → **URL Configuration**.
 2. En **Redirect URLs**, confirma que estén (agregar las que falten):
-   - `https://examlab.lovable.app/**` — cubre `https://examlab.lovable.app/auth/sso-callback`.
+   - `https://app.examlab.workers.dev/**` — cubre `https://app.examlab.workers.dev/auth/sso-callback`.
    - `http://localhost:3000/**` y `http://localhost:5173/**` — para desarrollo local.
    - Cualquier dominio de **preview** o **dominios de tenant personalizados** que se usen.
-3. Revisa que el **Site URL** apunte al dominio de producción (`https://examlab.lovable.app`).
+3. Revisa que el **Site URL** apunte al dominio de producción (`https://app.examlab.workers.dev`).
 4. **Save**.
 
-> `supabase/config.toml` **no aplica** al proyecto hosted gestionado por Lovable — la fuente de verdad de las URLs es el dashboard. (Opcional, solo para paridad en dev local: agregar `https://examlab.lovable.app/**` a `additional_redirect_urls` en `config.toml`.)
+> `supabase/config.toml` **no aplica** al proyecto hosted — la fuente de verdad de las URLs es el dashboard de Supabase. (Opcional, solo para paridad en dev local: agregar `https://app.examlab.workers.dev/**` a `additional_redirect_urls` en `config.toml`.)
 
 ---
 
@@ -191,12 +191,12 @@ Prerrequisito: tener un usuario de prueba **pre-aprovisionado** con un `institut
 - [ ] **Client secret (Value)** copiado y cargado en Supabase; expiración agendada.
 - [ ] **Optional claim `email`** habilitado en Token configuration (paso 1.3).
 - [ ] **Provider Azure habilitado** en Supabase con Client ID + Secret + Tenant URL coherente con el "account type" de Azure.
-- [ ] **Redirect URLs** de Supabase incluyen `https://examlab.lovable.app/**`.
+- [ ] **Redirect URLs** de Supabase incluyen `https://app.examlab.workers.dev/**`.
 - [ ] El usuario de prueba existe en `profiles.institutional_email` (case-insensitive) con el mismo correo que la cuenta Microsoft.
 
 Prueba el flujo feliz:
 
-1. Abre `https://examlab.lovable.app` (o la URL de preview) en una ventana de incógnito.
+1. Abre `https://app.examlab.workers.dev` (o la URL de preview) en una ventana de incógnito.
 2. En el login, click en el botón **Microsoft**.
 3. Debe abrir el selector de cuentas de Microsoft (forzamos `prompt=select_account`). Elige la cuenta institucional de prueba.
 4. Acepta el consentimiento si aparece.

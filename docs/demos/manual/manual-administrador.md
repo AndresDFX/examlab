@@ -2,7 +2,7 @@
 
 El Administrador es el responsable de toda la institución dentro de ExamLab. Desde su panel gestiona los usuarios y sus roles, los cursos, la estructura académica (carreras, asignaturas y periodos), la configuración de la plataforma (correos, branding, modelo de IA, módulos visibles), las estadísticas y la auditoría. Además tiene acceso a todos los módulos del docente (exámenes, talleres, proyectos, contenidos, calificaciones, etc.) para dar soporte y supervisar el trabajo académico. Este manual recorre cada módulo del rol con pasos concretos y resalta dónde la **inteligencia artificial** te ayuda a trabajar más rápido.
 
-> **Cómo ingresar:** entra a [https://examlab.lovable.app/auth](https://examlab.lovable.app/auth) con tu correo y contraseña. Si quieres explorar sin datos reales, usa la institución de demostración **ExamLab Demo**.
+> **Cómo ingresar:** entra a [https://app.examlab.workers.dev/auth](https://app.examlab.workers.dev/auth) con tu correo y contraseña. Si quieres explorar sin datos reales, usa la institución de demostración **ExamLab Demo**.
 
 > **🎬 Recorrido en video:** mira el [recorrido completo del rol Administrador](../admin/serie-admin-completa.mp4) — todos los módulos de este manual unidos en un solo video.
 

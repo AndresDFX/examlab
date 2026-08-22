@@ -1,6 +1,6 @@
 /**
  * Landing pública (`/`) — la cara de marketing antes del login. Es la
- * URL que ve un visitante anónimo (examlab.lovable.app).
+ * URL que ve un visitante anónimo (app.examlab.workers.dev).
  *
  * Estructura fija (NO cambiar sin pedido explícito de diseño):
  *   - Header: logo + ThemeToggle + botón "Acceder" (→ /auth).

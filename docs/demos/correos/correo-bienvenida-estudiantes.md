@@ -17,7 +17,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 > Ya tienes tu cuenta lista. Así ingresas y aquí te dejo un **video con el recorrido completo** de todo lo que puedes hacer.
 >
 > ** Cómo ingresar:**
-> 1. Abre **https://examlab.lovable.app/auth**
+> 1. Abre **https://app.examlab.workers.dev/auth**
 > 2. En **"Selecciona tu institución"**, elige **[tu institución]**.
 > 3. **Usuario:** tu **correo institucional** (el mismo con el que te matriculamos, p. ej. `nombre@[tu-institucion].edu.co`).
 > 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. Si no la tienes, usa **"¿Olvidaste tu contraseña?"** en la pantalla de inicio.
@@ -42,7 +42,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 > - **Mensajes** — escríbele a tu docente
 > - **Certificados** — descarga tus certificados de aprobación
 >
-> Guarda **examlab.lovable.app** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase!
+> Guarda **app.examlab.workers.dev** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase!
 >
 > [Tu nombre / Docente]
 
@@ -54,7 +54,7 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 >
 > Ojo: es una **plataforma alterna de apoyo** para nuestro curso (no es la plataforma oficial de [tu institución]); úsala solo para esta materia.
 >
-> https://examlab.lovable.app/auth
+> https://app.examlab.workers.dev/auth
 > Institución: *[tu institución]*
 > Usuario: **tu correo institucional** (con el que te matriculamos)
 > Clave: la **temporal** que te pasamos (en el primer ingreso la cambias). ¿No la tienes? Usa *"¿Olvidaste tu contraseña?"*.
@@ -72,6 +72,6 @@ Mensaje para que el **docente/administrador le dé la bienvenida a sus estudiant
 - **Reemplaza** `[Nombre]`, `[tu institución]` y `[Tu nombre / Docente]` por los datos reales. El **usuario es el correo institucional** de cada estudiante (no una clave genérica de demo).
 - **Cómo enviarlo a todo el curso de una:** ExamLab → **Mensajes → "Difundir a curso"** (manda un correo con todos los estudiantes en copia oculta + les llega también como notificación in-app). O usa tu propio correo con los estudiantes en **CCO**.
 - **Video del recorrido:** se usa la **Serie Estudiante** de Drive (enlace canónico en [`_ENLACES-demos.md`](_ENLACES-demos.md)). Si más adelante grabas un recorrido propio para tu institución, reemplaza ese enlace.
-- Los **links de secciones** (Cursos, Exámenes, etc.) llevan a `examlab.lovable.app/app/student/*`; si el estudiante no ha ingresado, lo mandan primero al login. Por eso el correo prioriza el **ingreso** y luego el recorrido.
+- Los **links de secciones** (Cursos, Exámenes, etc.) llevan a `app.examlab.workers.dev/app/student/*`; si el estudiante no ha ingresado, lo mandan primero al login. Por eso el correo prioriza el **ingreso** y luego el recorrido.
 - En WhatsApp el texto `[Ver](url)` no se renderiza como en el correo; al pegar, deja la URL clickeable o usa un acortador.
 - Existe una versión con diseño (HTML) por si quieres enviarla desde un cliente que renderice HTML — pídemela y la regenero en el formato que necesites.

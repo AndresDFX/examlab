@@ -14,7 +14,7 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 >
 > Te dejo tu **cuenta de prueba** para que explores ExamLab por dentro. Así entras:
 >
-> 1. Abre **https://examlab.lovable.app/auth**
+> 1. Abre **https://app.examlab.workers.dev/auth**
 > 2. En **"Selecciona tu institución"**, elige **ExamLab Demo**.
 > 3. **Usuario:** `[tu correo del demo, ej. docente1@demo-examlab.co]`
 > **Contraseña:** `ExamlabDemo2026`
@@ -47,7 +47,7 @@ Mensaje para **entregarle a un docente su cuenta de demo** (con credenciales e i
 
 > ¡Hola [Nombre]! Te paso tu **cuenta de prueba** de ExamLab
 >
-> https://examlab.lovable.app/auth
+> https://app.examlab.workers.dev/auth
 > Institución: *ExamLab Demo*
 > Usuario: `[tu correo, ej. docente1@demo-examlab.co]`
 > Clave: `ExamlabDemo2026`

@@ -159,7 +159,7 @@ async function main() {
   }
 
   // Persistir info para los pasos siguientes (grabación).
-  const info = { tenantId, tenant: TENANT, adminCreds, appUrl: "https://examlab.lovable.app" };
+  const info = { tenantId, tenant: TENANT, adminCreds, appUrl: "https://app.examlab.workers.dev" };
   writeFileSync("C:/Temp/examlab-rec/tenant-info.json", JSON.stringify(info, null, 2));
   console.log("\n✓ Setup completo. Info en C:/Temp/examlab-rec/tenant-info.json");
   console.log(`  Tenant: ${TENANT.name} (${tenantId})`);

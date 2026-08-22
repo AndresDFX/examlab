@@ -121,10 +121,11 @@ Docente / Estudiante). Tenerlo en cuenta al volver a generar cualquier video.
 ## 9. Pendiente tras cambios recientes (2026-07-06)
 
 Cambios en la plataforma que impactan la serie de videos. **Requisito previo a re-grabar
-cualquiera de estos: la app debe estar PUBLICADA en Lovable con los commits abajo** — el
-recorder graba `examlab.lovable.app` EN VIVO, así que grabar antes del Publish capturaría
-la UI vieja. El render del `.mp4` exige correr el pipeline (`make.mjs`: Playwright +
-edge-tts + ffmpeg) contra la app publicada; no se genera sin ese paso.
+cualquiera de estos: los commits de abajo tienen que estar DESPLEGADOS** — el recorder graba
+`app.examlab.workers.dev` EN VIVO, así que grabar antes de que `deploy-cloudflare.yml` termine
+captura la UI vieja. Verificá el run en GitHub Actions, no solo que el push haya salido. El
+render del `.mp4` exige correr el pipeline (`make.mjs`: Playwright + edge-tts + ffmpeg) contra
+la app ya desplegada; no se genera sin ese paso.
 
 - **Rename "Kahoot" → "Reto en vivo"** (legal, commit `0c1994c0`). Specs YA actualizados a
   "Reto en vivo": `module-t12.json` (docente, encuestas) y `module-s01.json` (estudiante,

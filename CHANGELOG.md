@@ -57,15 +57,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Requiere **Publish en Lovable**. Incluye **cinco migraciones** (`20261600000000_bd_sql_support.sql`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **cinco migraciones** (`20261600000000_bd_sql_support.sql`,
 > `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
 > todas defensivas con `to_regclass`) y **una edge function nueva** (`ai-generate-sql`); el resto es cliente.
 >
-> Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** en
-> Lovable → Edge Function Secrets (no viaja en las migraciones, a propósito).
+> Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** como
+> *GitHub Actions repository secret* y re-correr `deploy-secrets.yml` (no viaja en las migraciones,
+> a propósito).
 
 ### 🎉 Novedades
+
+- **La plataforma cambió de dirección: ahora es `app.examlab.workers.dev`.** El sitio se hospeda en
+  Cloudflare y cada institución tiene además su propia dirección (`uniaj.…`, `fesna.…`), que entra
+  directo sin pedir que elijas institución. **`examlab.lovable.app` sigue abriendo, pero quedó
+  congelado**: muestra la versión anterior de la app sobre los datos de hoy, así que quien lo tenga
+  en favoritos ve una plataforma vieja sin enterarse. Se actualizaron los manuales (y sus PDF), los
+  correos de bienvenida y las guías de configuración para que todos apunten a la dirección nueva.
+
+- **Los listados del docente ahora se filtran por periodo y asignatura, no solo por curso.** Con
+  varios semestres cargados, el filtro de curso era una lista larga donde había que reconocer el
+  nombre exacto. Ahora Estudiantes, Exámenes, Talleres, Proyectos y Contenidos traen dos filtros más
+  y se encadenan: al elegir un periodo, el selector de curso ya solo ofrece los de ese periodo. Los
+  filtros aparecen solo cuando hay más de un valor para elegir, así que un docente con un único
+  semestre no ve controles de más.
+
+- **Se quitó del inicio de sesión el enlace "Soy del equipo de plataforma".** Solo servía para
+  revelar una opción del selector de institución que rechaza a cualquiera que no sea del equipo, y
+  quien entra por esa pantalla es casi siempre un estudiante o un docente. No se pierde nada: al
+  equipo de plataforma le basta entrar por una institución y cambiar de rol dentro de la app.
 
 - **El estudiante ya ve en qué grupo está y cómo se evalúa el curso.** Al entrar a un curso solo veía
   el nombre, el periodo y el rango de fechas: ni su **grupo** —y dos cursos de la misma asignatura se
@@ -236,6 +256,34 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   opción del perfil, no el encabezado del calendario.
 
 ### Interno (equipo)
+
+- **Barrido de la documentación tras el cambio de hospedaje.** La migración a Cloudflare actualizó
+  `CLAUDE.md` en su sección de despliegue, pero dejó afirmaciones viejas repartidas en 20 archivos que
+  no son inertes: **inducen a hacer lo incorrecto**. Los tres casos que más costaban:
+  `docs/correo-google-smtp.md` y `MIGRATION-GUIDE.md` decían configurar `APP_PUBLIC_URL` y el *Site
+  URL* de Supabase Auth con el host congelado —seguir esa guía hace que TODO correo que manda la
+  plataforma enlace a la app vieja—; el recorder de videos demo tenía `examlab.lovable.app` como
+  default **y también en el `tenant-info.json` de la copia de trabajo, que le gana al default**, así
+  que re-grabar habría filmado la UI anterior; y `examlab-dev.md` (el agente de ingeniería, que un
+  subagente lee sin heredar nada más) instruía "el usuario hace clic en Publish en Lovable", que hoy
+  es justo lo que CLAUDE.md prohíbe porque rompería ese sitio. Se corrigieron además los 7 correos
+  plantilla, los 4 manuales **y sus PDF** (`bun run manual:pdf`), SSO-SETUP, el plan de pruebas y la
+  memoria del proyecto. Se dejaron intactas a propósito las menciones que son correctas: el host
+  aparece en `subdomain.ts` como host de plataforma reconocido, y en `docs/archive/` como historia.
+
+  Dos datos verificados contra la realidad, no contra los documentos: el manual anunciaba el despliegue
+  en `examlab.castano-julian.workers.dev`, que **no resuelve** (los 5 hosts que sí responden 200 son
+  `app`, `uniaj`, `fesna`, `examlab-demo` y `demo-global-corp` sobre `.examlab.workers.dev`); y el
+  error `vite.config.ts(79,3) TS2769` que aparece en `tsc --noEmit` **ya venía** con esos commits
+  (comprobado en un worktree limpio de `origin/main`), no lo introdujo este trabajo.
+
+- **Los filtros de periodo/asignatura salieron a un helper puro con tests.** `courseIdsInScope`
+  ([course-filter-scope.ts](src/modules/courses/course-filter-scope.ts), 12 tests) existe para fijar
+  UNA distinción: `null` = "no hay filtro" vs. conjunto vacío = "hay filtro y no matchea nada".
+  Colapsarlas esconde la tabla entera o deja de filtrar — el mismo error que `course-scope.ts`
+  documenta con los `[]` de PostgREST. Los talleres y proyectos usan la variante M:N
+  (`anyCourseInScope`) porque son compartidos entre cursos y exigir que TODOS cumplan le escondería
+  al docente su propio trabajo.
 
 - **Los submódulos de `universidades/` ahora se sincronizan solos, todos los días.** Antes dependían de
   que alguien corriera `scripts/update-universidades.sh` a mano, así que el material podía quedar

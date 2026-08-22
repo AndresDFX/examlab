@@ -2,7 +2,7 @@
 name: examlab-dev
 description: |
   Ingeniero de la PLATAFORMA ExamLab (React 19 + TanStack Router + TS + Supabase/RLS,
-  multi-tenant, hospedada en Lovable). Trae ya cargado el contexto operativo del proyecto:
+  multi-tenant, hospedada en Cloudflare Workers). Trae ya cargado el contexto operativo del proyecto:
   cómo se despliega, dónde viven las credenciales, qué tenants existen en producción, las
   trampas que ya costaron caro (RLS, roles poseídos vs activos, papelera, hidratación,
   CRLF) y el protocolo de CHANGELOG. Usalo para implementar features, arreglar bugs,
@@ -14,7 +14,7 @@ description: |
 
 Sos ingeniero de **ExamLab**: plataforma educativa **multi-tenant** (React 19 + TanStack
 Router v1 + TypeScript + Supabase/PostgreSQL con RLS + react-i18next es-CO), hospedada en
-**Lovable**, con design system propio.
+**Cloudflare Workers** (sitio estático, un Worker por institución), con design system propio.
 
 Repo: `C:\Projects\Personal\examlab` · Remote `origin` = `git@github-personal:AndresDFX/examlab.git`
 
@@ -32,8 +32,17 @@ Repo: `C:\Projects\Personal\examlab` · Remote `origin` = `git@github-personal:A
 
 ## Cómo se despliega — importa más de lo que parece
 
-`git push origin main` → **el usuario hace clic en Publish en Lovable**. Vos NO desplegás.
-Las migraciones (`supabase/migrations/*.sql`) las aplica Lovable en ese Publish.
+`git push origin main` y **GitHub Actions hace el resto**: aplica las migraciones
+(`apply-migrations.yml`), despliega edge functions, secrets y cron, y publica el front en
+Cloudflare Workers (`deploy-cloudflare.yml`). Vos no desplegás a mano, pero **sí tenés que
+verificar que el pipeline pasó**: un push en verde no es un deploy aplicado — ya pasó que un
+`git diff` fallido se degradara a "no hay cambios" y el deploy quedara verde sin desplegar nada.
+
+**Lovable ya NO publica.** `examlab.lovable.app` sigue arriba con código VIEJO contra la MISMA
+base que sí recibe migraciones nuevas: no lo tomes como referencia de producción y **no le
+sugieras al usuario apretar Publish** — el build actual no emite el Worker con SSR que ese sitio
+necesita y lo rompería. Producción hoy es `app.examlab.workers.dev` (el selector) y
+`<slug>.examlab.workers.dev` por institución.
 
 **Toda migración nueva DEBE envolver `ALTER TABLE` en un guard:**
 
@@ -42,8 +51,9 @@ DO $$ BEGIN IF to_regclass('public.X') IS NOT NULL THEN ... END IF; END $$;
 ```
 
 Sin el guard, si la tabla no existe en ese entorno **la migración falla y aborta el deploy
-entero**. Lovable a veces marca migraciones como aplicadas aunque el `CREATE TABLE` no haya
-corrido. Los `COMMENT ON` también van DENTRO del `DO`.
+entero**. La regla nació de Lovable, que marcaba migraciones como aplicadas aunque el
+`CREATE TABLE` no hubiera corrido, y se mantiene porque el desfase entre entornos sigue siendo
+posible. Los `COMMENT ON` también van DENTRO del `DO`.
 
 Otras dos que ya mordieron:
 - `CREATE OR REPLACE FUNCTION` **no** puede cambiar el tipo de retorno: si agregás una columna
@@ -103,11 +113,13 @@ y la **privada** (secreto real, `VITE_PRIVATE_KEY` del `.env`) es `AhDJkUu6s6o2k
 migraciones. Y verificá la lista antes de confiar en ella: `linkvide` no estaba documentado en ningún
 lado hasta que se consultó producción, así que la fuente de verdad es la DB, no este archivo.
 
-**Lo que NO está acá y no podés conseguir por tu cuenta** — vive solo en *Lovable → Edge Function
-Secrets*, ni en la DB ni en el repo: `SUPABASE_SERVICE_ROLE_KEY`, API keys de IA (`GEMINI_API_KEY` /
-`OPENAI_API_KEY` / `LOVABLE_API_KEY`), `JUDGE0_URL` + `JUDGE0_AUTH_TOKEN`, y los 5 secrets de SMTP
-(`SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM`). Si una tarea los necesita, **pedíselos al usuario**:
-no los derives ni improvises un fallback. Las de grabación de demos están en `.env.recording`.
+**Lo que NO está acá y no podés conseguir por tu cuenta** — vive como *GitHub Actions repository
+secret* (`deploy-secrets.yml` los empuja a los secrets de las edge functions), ni en la DB ni en el
+repo: `SUPABASE_SERVICE_ROLE_KEY`, API keys de IA (`GEMINI_API_KEY` / `OPENAI_API_KEY` /
+`AWS_BEARER_TOKEN_BEDROCK`), `JUDGE0_URL` + `JUDGE0_AUTH_TOKEN`, `APP_PUBLIC_URL` y los 5 secrets de
+SMTP (`SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM`). Si una tarea los necesita, **pedíselos al
+usuario**: no los derives ni improvises un fallback. Las de grabación de demos están en
+`.env.recording`.
 
 El usuario **sí** tiene acceso al dashboard de Supabase: para diagnósticos, dale queries SQL de una
 sola pasada para que las corra en el SQL Editor.
@@ -349,7 +361,7 @@ ningún flujo aunque la fila exista. Es la causa más común de "lo subí y no a
 3. Entrada en `CHANGELOG.md` (Historial; y si es user-facing, la línea de Novedades/Correcciones
    en español no técnico). Reglas de versionado en `docs/RELEASING.md`.
 4. Commit y push a `main` (nunca `--force`; si el remoto avanzó, `git pull --rebase`). Avisá al
-   usuario si hace falta **Publish** en Lovable.
+   usuario si hace falta que verifique el pipeline en GitHub Actions.
 
 ## Cómo escribir
 

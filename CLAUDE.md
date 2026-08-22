@@ -117,7 +117,7 @@ archivos sueltos si alguien deja algo directo en esa carpeta antes de que sea un
 - i18n: react-i18next (es-CO default)
 - Offline: idb-keyval (IndexedDB)
 - Toast: sonner
-- AI grading: Lovable AI Gateway → `google/gemini-2.5-flash` / `gemini-2.5-pro`
+- AI grading: el provider sale de `ai_model_settings` — `gemini` / `openai` / `bedrock`. El provider `lovable` (gateway) se **deprecó** en la mig 20260824000000; ya no está en el CHECK.
 
 ---
 
@@ -481,8 +481,8 @@ Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presenc
 
 Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_active=true`). Solo Admin escribe.
 
-- Providers soportados: `lovable` (Gemini via gateway), `openai` (gpt-4o, gpt-4o-mini, etc), `gemini` (Google Gemini directo).
-- **API keys NO se guardan en DB**. Viven como env vars en Lovable (`LOVABLE_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`). La tabla solo elige `provider` + `model`. Si una key expira/se rota, va por Lovable → Edge Function Secrets — NO se agregan inputs de API key al panel admin. Existió un override `ai_model_settings.gemini_api_key` (legacy, migración 20260524110000); las edges lo leen como fallback pero la UI ya no permite editarlo. La columna quedará deprecada cuando se haga la migración drop column.
+- Providers soportados: `gemini` (Google Gemini directo), `openai` (gpt-4o, gpt-4o-mini, etc) y `bedrock` (mig 20261650000000). El viejo `lovable` salió del CHECK en la mig 20260824000000.
+- **API keys NO se guardan en DB**. Viven como **GitHub Actions repository secrets** (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`) y [deploy-secrets.yml](.github/workflows/deploy-secrets.yml) las empuja a los secrets de las edge functions en cada push. La tabla solo elige `provider` + `model`. Si una key expira/se rota, se cambia el secret del repo y se re-corre ese workflow — NO se agregan inputs de API key al panel admin. Existió un override `ai_model_settings.gemini_api_key` (legacy, migración 20260524110000); las edges lo leen como fallback pero la UI ya no permite editarlo. La columna quedará deprecada cuando se haga la migración drop column.
 - Edge function lee la fila activa via `getActiveAiModel()` y construye URL/auth/header según provider en el helper `aiChatCompletion(body)`. Ambos providers hablan el mismo formato OpenAI chat-completions, así que el body (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
 - UI Admin en `app.admin.ai-prompts.tsx` con tabs: **Prompts** (editor de los 5 use_cases globales) + **Modelo** (provider + model). El path se mantuvo por compatibilidad.
 
@@ -1259,7 +1259,7 @@ Pipeline en [docs/demos/admin/pipeline/](docs/demos/admin/pipeline/) (los 3 role
 ### Estructura
 
 - `modules/module-*.json` — **un spec por video** (obligatorio: TODO video debe tener spec). Convención de `id`/archivo: `module-NN`=Admin, `module-sNN`=Estudiante, `module-tNN`=Docente, `module-overview`=recorrido general, `module-{promo,social,login}`=marketing (`series:"social"`). Cada spec: `id` (`modulo-*`), `series` (rol → carpeta `output/`), `role`, `appPath`, `scenes[]` con `narration` + `beats`/`card`.
-- `make.mjs <ids>` — driver: por cada id corre `gen-voice.py` (edge-tts, `es-CO-GonzaloNeural`) → `record-module.mjs` (Playwright contra prod `examlab.lovable.app`, login fuera de cámara, mono-institución "Demo Global Corp") → `build-mux.mjs` (mux voz+video → `docs/demos/<series>/output/modulo-*.mp4`).
+- `make.mjs <ids>` — driver: por cada id corre `gen-voice.py` (edge-tts, `es-CO-GonzaloNeural`) → `record-module.mjs` (Playwright contra prod `app.examlab.workers.dev` — **no** `examlab.lovable.app`, que quedó congelado con código viejo; login fuera de cámara, mono-institución "Demo Global Corp") → `build-mux.mjs` (mux voz+video → `docs/demos/<series>/output/modulo-*.mp4`).
 - `build-serie.mjs <roles>` — **concatena** todos los `modulo-*.mp4` de un rol (orden por nombre) en `docs/demos/<rol>/serie-<rol>-completa.mp4` (concat demuxer `-c copy`, lossless). Reproducible: reconstruye la serie tras regrabar módulos. Las series NO tienen module-spec propio (son derivadas).
 
 ### Reglas (memoria [[demo-videos-un-modulo-por-video]])
@@ -1271,7 +1271,7 @@ Pipeline en [docs/demos/admin/pipeline/](docs/demos/admin/pipeline/) (los 3 role
 
 ## Estado actual del proyecto (snapshot 2026-06-08)
 
-### Migraciones críticas recientes (verificar que están en main + Lovable Publish)
+### Migraciones críticas recientes (verificar que están en main y que `apply-migrations.yml` pasó)
 
 - `20260906000000_handle_new_user_tolerate_unique.sql` — fix del bulk import 500 "Database error creating new user". Permite re-vincular profiles huérfanos.
 - `20260907000000_platform_settings_support_emails.sql` — tabla `platform_settings` (SA-only) + `support_emails_enabled` toggle + predicate `_notification_kind_emails` extendido con `kind='support'`.
@@ -1335,7 +1335,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 **Archivos donde no se debe explicar más de lo que ya está:**
 
 - `routeTree.gen.ts` — autogenerado por TanStack, no tocar
-- Migraciones SQL deployadas — son inmutables en el modelo Lovable. Comentarios nuevos no llegan a la DB; solo sirven a quien lea source.
+- Migraciones SQL ya aplicadas — son inmutables: `apply-migrations.yml` no las vuelve a correr. Comentarios nuevos no llegan a la DB; solo sirven a quien lea el source.
 
 **Cosas que SÍ están bien documentadas en CLAUDE.md (no duplicar inline)**:
 
@@ -1349,5 +1349,5 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
   ```bash
   git add 'src/routes/app.student.take.$examId.tsx'
   ```
-- `git push origin main` después de commit. NO `--force`. Si remote avanzó (Lovable empuja a veces), `git pull --rebase origin main` antes de pushear.
+- `git push origin main` después de commit. NO `--force`. Si el remoto avanzó, `git pull --rebase origin main` antes de pushear.
 - Warnings tipo "LF will be replaced by CRLF" son normales en Windows — ignorar.

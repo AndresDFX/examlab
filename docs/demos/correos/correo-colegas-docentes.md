@@ -18,7 +18,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 >
 > **Para que la pruebes tú mismo** te dejo una **cuenta de docente gratis por tiempo limitado** (cuentas ya creadas, para que entres sin trámites). Así entras:
 >
-> 1. Abre **https://examlab.lovable.app/auth**
+> 1. Abre **https://app.examlab.workers.dev/auth**
 > 2. En **"Selecciona tu institución"**, elige **ExamLab Demo**.
 > 3. **Usuario:** `[tu correo del demo, ej. docente1@demo-examlab.co]` · **Contraseña:** `ExamlabDemo2026`
 > 4. Entra y listo
@@ -50,7 +50,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 > ¡Hola [Nombre]! De colega a colega: armé *ExamLab*, una plataforma con IA para docentes que genera exámenes/talleres y ayuda a calificar con retro (uno revisa y publica) .
 >
 > Quiero que me la **revise gente que sí da clase** y confío en tu criterio . Te dejo una **cuenta de docente gratis por tiempo limitado** para que la pruebes:
-> https://examlab.lovable.app/auth · *ExamLab Demo*
+> https://app.examlab.workers.dev/auth · *ExamLab Demo*
 > `[tu correo, ej. docente1@demo-examlab.co]` · `ExamlabDemo2026`
 >
 > Pruébala: crea un **curso** y deja que la **IA te arme un examen o taller**. Si te gusta y crees que a otros profes les sirve, **pásala** . Cualquier comentario, bienvenido.
@@ -62,7 +62,7 @@ Para gente con la que **eres docente** (pares). Tono de colega a colega: que lo 
 
 > [Nombre], necesito tu ojo de docente Armé *ExamLab*: IA que genera evaluaciones y ayuda a calificar; uno revisa y publica.
 >
-> Te paso **cuenta de prueba gratis** (limitada): https://examlab.lovable.app/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen . Si te gusta, **pásala**
+> Te paso **cuenta de prueba gratis** (limitada): https://app.examlab.workers.dev/auth → *ExamLab Demo* → `[tu correo demo]` / `ExamlabDemo2026`. Crea un curso y deja que la IA te arme un examen . Si te gusta, **pásala**
 >
 > Videos y presentación:
 > [General](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/general.mp4) · [Admin](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-admin.mp4) · [Docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-docente.mp4) · [Estudiante](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-videos/serie-estudiante.mp4) · [Presentación](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-general.pptx) · [Manual docente](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/manual-docente.pdf)

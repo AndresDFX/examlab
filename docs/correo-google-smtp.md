@@ -41,7 +41,7 @@ Los lee el edge en [send-email/index.ts:505-511](../supabase/functions/send-emai
 | `SMTP_PASSWORD` | La App Password de 16 caracteres generada en §2, **sin espacios** | **Sí** | Igual, si falta. Si está pero es inválida/revocada, el arranque pasa OK y falla en el envío como `provider_error: 535 5.7.8 Username and Password not accepted`. |
 | `EMAIL_FROM` | `castano.julian@correounivalle.edu.co` (**idéntico a `SMTP_USER`**) | **Sí** | Igual, si falta. Si es distinto y no es un alias "Enviar como" verificado, el correo rebota 5.5.x / 5.7.x — y **nadie lo valida**, ver §7.4. |
 | `EMAIL_FROM_NAME` | `ExamLab` | No (default `"ExamLab"`, [index.ts:510](../supabase/functions/send-email/index.ts)) | El correo sale igual, pero el branding dice "ExamLab" aunque la institución se llame distinto. Se usa en 4 lugares: display-name del From ([627](../supabase/functions/send-email/index.ts)), encabezado y pie del HTML, y **prefijo del asunto** `"<Nombre>: <título>"` ([653-660](../supabase/functions/send-email/index.ts)). |
-| `APP_PUBLIC_URL` | `https://examlab.lovable.app` (sin `/` final) | No para enviar, **sí para que sirva** | **El correo SALE igual, pero roto**: sin esto el botón "Ver en ExamLab" queda como `href="/app/messages/..."` — una URL relativa dentro de un correo, que no lleva a ninguna parte. Sin skip, sin audit, sin aviso. Es el modo de falla más silencioso del sistema ([index.ts:511](../supabase/functions/send-email/index.ts) + `renderEmailHtml` 200-202). |
+| `APP_PUBLIC_URL` | `https://app.examlab.workers.dev` (sin `/` final) | No para enviar, **sí para que sirva** | **El correo SALE igual, pero roto**: sin esto el botón "Ver en ExamLab" queda como `href="/app/messages/..."` — una URL relativa dentro de un correo, que no lleva a ninguna parte. Sin skip, sin audit, sin aviso. Es el modo de falla más silencioso del sistema ([index.ts:511](../supabase/functions/send-email/index.ts) + `renderEmailHtml` 200-202). |
 
 Extra, no del correo pero necesario para poder escribir secrets desde la app:
 
@@ -99,7 +99,7 @@ Es el único camino para el **primer** setup, porque el camino B necesita un sec
    | `SMTP_PASSWORD` | los 16 caracteres del §2.6, sin espacios |
    | `EMAIL_FROM` | `castano.julian@correounivalle.edu.co` |
    | `EMAIL_FROM_NAME` | `ExamLab` |
-   | `APP_PUBLIC_URL` | `https://examlab.lovable.app` |
+   | `APP_PUBLIC_URL` | `https://app.examlab.workers.dev` |
 
 4. Verificá que los nombres no tengan espacios ni minúsculas. `Smtp_Host` no lo lee nadie: el edge hace `Deno.env.get("SMTP_HOST")` literal.
 5. Los secrets aplican al **próximo arranque** de la edge function. No hace falta redeploy, pero puede tardar unos segundos en propagarse.
@@ -259,7 +259,7 @@ El chequeo de `globally_enabled` corre **antes** de la excepción para transacci
 4. Revisá el buzón. Si llegó, verificá **tres cosas** además de que llegó:
    - El remitente dice `ExamLab <castano.julian@correounivalle.edu.co>`.
    - El asunto empieza con `ExamLab: ` y **está sin acentos ni emoji** (ej. `ExamLab: Recuperacion de contrasena`). Eso es **correcto y a propósito** — ver §6.4.
-   - **El botón del correo abre una URL absoluta** con `https://examlab.lovable.app/...`. Si el enlace es relativo o no abre nada, falta `APP_PUBLIC_URL` (§7.3).
+   - **El botón del correo abre una URL absoluta** con `https://app.examlab.workers.dev/...`. Si el enlace es relativo o no abre nada, falta `APP_PUBLIC_URL` (§7.3).
 5. Si no llegó, seguí al paso 3.
 
 ### 6.3 Paso 3 — leer el resultado real dentro de la app (2 caminos)
@@ -330,7 +330,7 @@ Los asuntos llegan **sin acentos ni emoji** a propósito: "Calificacion", no "Ca
 
 - **Causa:** falta `APP_PUBLIC_URL`, o está sin `https://`, o tiene `/` al final. Con `appUrl` vacío el HTML arma `href="/app/messages/..."` — relativo, y un cliente de correo no tiene base contra la que resolverlo ([send-email/index.ts:511](../supabase/functions/send-email/index.ts) + `renderEmailHtml:200-202`). El texto plano queda `Ver: /app/messages/...`.
 - **Por qué nadie te avisa:** `APP_PUBLIC_URL` está **fuera** del gate de secrets obligatorios ([:566](../supabase/functions/send-email/index.ts)), así que no hay skip, no hay audit, no hay toast — y la card SMTP de 5 secrets tampoco lo mira.
-- **Arreglo:** cargá `APP_PUBLIC_URL = https://examlab.lovable.app` (§3) y confirmalo en la card genérica "Secrets de Edge Functions", que espera prefijo `https://` ([health-check/index.ts:53](../supabase/functions/health-check/index.ts)).
+- **Arreglo:** cargá `APP_PUBLIC_URL = https://app.examlab.workers.dev` (§3) y confirmalo en la card genérica "Secrets de Edge Functions", que espera prefijo `https://` ([health-check/index.ts:53](../supabase/functions/health-check/index.ts)).
 - **Efecto colateral distinto en otros dos edges:** `request-email-change` rechaza con el mensaje **engañoso** `smtp_not_configured` cuando lo único que falta es `APP_PUBLIC_URL` (está en el mismo `if`, [:283-297](../supabase/functions/request-email-change/index.ts)), y `confirm-email-change` hace un **`return` mudo sin audit ni log** ([:212](../supabase/functions/confirm-email-change/index.ts)) — el aviso de cambio de correo simplemente nunca llega y no queda rastro.
 
 ### 7.4 El correo rebota 5.5.x / 5.7.x hablando del remitente

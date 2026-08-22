@@ -4,7 +4,7 @@
 import { chromium } from "playwright";
 import { readFileSync } from "node:fs";
 const INFO = JSON.parse(readFileSync("C:/Temp/examlab-rec/tenant-info.json", "utf8"));
-const APP = INFO.appUrl ?? "https://examlab.lovable.app";
+const APP = INFO.appUrl ?? "https://app.examlab.workers.dev";
 const browser = await chromium.launch({ headless: true });
 const ctx = await browser.newContext({
   viewport: { width: 1920, height: 1080 },

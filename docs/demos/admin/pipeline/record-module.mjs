@@ -14,10 +14,13 @@ import { execFileSync } from "node:child_process";
 const MODULE_PATH = process.argv[2] ?? "C:/Temp/examlab-rec/modules/module-01.json";
 const spec = JSON.parse(readFileSync(MODULE_PATH, "utf8"));
 const INFO = JSON.parse(readFileSync("C:/Temp/examlab-rec/tenant-info.json", "utf8"));
-const APP_URL = INFO.appUrl ?? "https://examlab.lovable.app";
-// SuperAdmin (role="SuperAdmin"): cuenta cross-tenant (no pertenece a una
-// institución). Usa `superAdminCreds` de tenant-info.json y en el login elige
-// la opción "vista cross-tenant" en vez de una institución.
+const APP_URL = INFO.appUrl ?? "https://app.examlab.workers.dev";
+// SuperAdmin (role="SuperAdmin"): NO se puede grabar. El login ya no ofrece la
+// opción de vista de plataforma; ahora se entra por una institución y se llega a
+// la vista cross-tenant con el role-switcher DENTRO de la app. Grabar eso pide
+// un paso extra de guion (cambiar de rol en cámara), así que la rama aborta con
+// un mensaje en vez de esperar 5s a una opción que no existe. Ningún spec usa
+// hoy `role: "SuperAdmin"`.
 const IS_SA = spec.role === "SuperAdmin";
 const EMAIL = IS_SA ? (INFO.superAdminCreds?.email ?? INFO.adminCreds.email) : INFO.adminCreds.email;
 const PASSWORD = IS_SA ? (INFO.superAdminCreds?.password ?? INFO.adminCreds.password) : INFO.adminCreds.password;
@@ -159,7 +162,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function overlay(page, card) {
   // GIF de meme: si card.gif es una ruta LOCAL, la incrustamos como data URI.
-  // La página corre en https (examlab.lovable.app) y un <img src="file://"> queda
+  // La página corre en https (app.examlab.workers.dev) y un <img src="file://"> queda
   // bloqueado por el navegador; el data URI no depende de red ni de origen.
   if (card.gif && !/^(https?:|data:)/i.test(card.gif)) {
     const p = card.gif.replace(/^file:\/+/i, "");
@@ -638,8 +641,11 @@ async function loginAndGetState(browser) {
   await page.locator("#li-tenant").click();
   await page.waitForSelector('[role="option"]', { timeout: 5000 });
   if (IS_SA) {
-    // SuperAdmin: opción "— SuperAdmin: vista cross-tenant —" (sin institución).
-    await page.getByRole("option", { name: /cross-tenant/i }).first().click();
+    throw new Error(
+      'role:"SuperAdmin" no está soportado: el login ya no ofrece la vista de ' +
+        "plataforma. Entrá por una institución y cambiá de rol dentro de la app " +
+        "(hace falta agregar ese paso al guion del spec).",
+    );
   } else {
     await page.getByRole("option", { name: TENANT_NAME, exact: true }).first().click();
   }

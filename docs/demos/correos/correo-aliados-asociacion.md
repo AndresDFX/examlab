@@ -56,7 +56,7 @@ Para invitar a alguien a **asociarse**: lleva ExamLab a instituciones y gana una
 > - Modelo modular — contratar por funcionalidad: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-modelo-modular.pptx)
 > - Independientes — docentes/tutores particulares: [Abrir](https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/presentacion-independientes.pptx)
 >
-> **Y para que la pruebes con tus propias manos**, te dejé acceso de **Administrador** en nuestra institución de demostración **Demo Global Corp**: entra a https://examlab.lovable.app, selecciona *Demo Global Corp* al iniciar sesión, y usa las credenciales que te comparto por separado. Así navegas todo el rol Admin sin tocar datos reales.
+> **Y para que la pruebes con tus propias manos**, te dejé acceso de **Administrador** en nuestra institución de demostración **Demo Global Corp**: entra a https://app.examlab.workers.dev, selecciona *Demo Global Corp* al iniciar sesión, y usa las credenciales que te comparto por separado. Así navegas todo el rol Admin sin tocar datos reales.
 >
 > Te adjunto la **presentación del programa** con el detalle. Si te suena, armamos una llamada corta y dejamos por escrito modalidad y %. ¿Le entramos?
 

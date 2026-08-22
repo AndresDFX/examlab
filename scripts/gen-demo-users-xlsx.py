@@ -13,7 +13,7 @@ OUT_DIR = os.path.join(ROOT, "docs", "demos", "correos")
 os.makedirs(OUT_DIR, exist_ok=True)
 OUT = os.path.join(OUT_DIR, "ExamLab-Usuarios-Demo.xlsx")
 
-URL = "https://examlab.lovable.app/auth"
+URL = "https://app.examlab.workers.dev/auth"
 TENANT = "ExamLab Demo"
 PWD = "ExamlabDemo2026"
 NOTAS = (

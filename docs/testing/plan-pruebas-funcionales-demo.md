@@ -4,7 +4,7 @@
 
 ## Cómo entrar y credenciales de prueba
 
-- **URL:** https://examlab.lovable.app/auth
+- **URL:** https://app.examlab.workers.dev/auth
 - **Institución:** **Demo Global Corp** (elegir en el selector "Institución"). Deep-link directo: `/t/demo-global-corp/auth`.
 - **Usuario:** `test-demo-global-corp@examlab.test` · **contraseña** `sZhrnEu4N6XsYD`
 - **Roles:** Admin + Docente + Estudiante → cambia de rol con el **selector del sidebar** (un solo login permite probar los 3 roles).
@@ -40,7 +40,7 @@ Cubre el ingreso a la plataforma (login + selección de institución, SSO, recup
 
 | ID | Caso | Precondición | Pasos | Resultado esperado |
 |---|---|---|---|---|
-| AUTH-01 | Carga del formulario de login | Sesión cerrada | Abrir `https://examlab.lovable.app/auth` | Se muestra un spinner breve (verificación de sesión) y luego el formulario. NO parpadea el form antes del spinner. Campos: `Institución` (con ícono edificio), `Correo institucional` (autofoco), `Contraseña`, checkbox `Recordarme`. Panel de marca ExamLab visible en `lg+` |
+| AUTH-01 | Carga del formulario de login | Sesión cerrada | Abrir `https://app.examlab.workers.dev/auth` | Se muestra un spinner breve (verificación de sesión) y luego el formulario. NO parpadea el form antes del spinner. Campos: `Institución` (con ícono edificio), `Correo institucional` (autofoco), `Contraseña`, checkbox `Recordarme`. Panel de marca ExamLab visible en `lg+` |
 | AUTH-02 | Selector de instituciones carga vía RPC pública | Sesión cerrada | Abrir el desplegable `Institución` | El placeholder pasa de `Cargando…` a `Selecciona tu institución`. Lista las instituciones activas (incluye "Demo Global Corp") + la opción especial `— SuperAdmin: vista cross-tenant —`. Al elegir una, aparece bajo el campo la URL `/t/<slug>` |
 | AUTH-03 | Botón login deshabilitado sin institución | Sesión cerrada | Escribir correo + contraseña, NO elegir institución | El botón de ingreso permanece `disabled` mientras no haya institución seleccionada |
 | AUTH-04 | Login exitoso (happy path) | Cuenta válida en Demo Global Corp | Elegir `Demo Global Corp`, ingresar correo + contraseña válidos, `Ingresar` | Toast de bienvenida (verde), redirección a `/app`. El dashboard corresponde al rol por defecto (Docente para el multi-rol) |
@@ -52,7 +52,7 @@ Cubre el ingreso a la plataforma (login + selección de institución, SSO, recup
 | AUTH-10 | Destildar "Recordarme" limpia lo guardado | Login previo con "Recordarme" activo | Iniciar sesión con `Recordarme` desmarcado | Se eliminan las 3 entradas de localStorage; el próximo `/auth` abre con campos vacíos |
 | AUTH-11 | Sesión ya activa evita el formulario | Sesión abierta en otra pestaña/recarga | Navegar a `/auth` | Muestra solo spinner y redirige directo a `/app` (o al deep-link recordado). Nunca destella el formulario |
 | AUTH-12 | Deep-link protegido regresa tras login | Sesión cerrada | Abrir un deep-link `/app/...` (o QR Kahoot/asistencia), ser enviado a `/auth`, iniciar sesión | Tras login vuelve a la ruta original (return-to validado como interno, sin open-redirect) |
-| AUTH-13 | Pre-selección por URL `/t/<slug>/auth` | Sesión cerrada | Abrir `https://examlab.lovable.app/t/<slug>/auth` con un slug válido | La institución queda pre-seleccionada una vez carga la lista; un slug inexistente NO se autoselecciona |
+| AUTH-13 | Pre-selección por URL `/t/<slug>/auth` | Sesión cerrada | Abrir `https://app.examlab.workers.dev/t/<slug>/auth` con un slug válido | La institución queda pre-seleccionada una vez carga la lista; un slug inexistente NO se autoselecciona |
 | AUTH-14 | Recuperar contraseña — envío | En formulario | `¿Olvidaste tu contraseña?` → se abre "Recuperar contraseña" con el correo pre-cargado → `Enviar enlace` | Se invoca `request-password-reset`; el diálogo muestra siempre el mensaje genérico "Si esa dirección está registrada…" (sin enumerar usuarios), con botón `Cerrar` |
 | AUTH-15 | Recuperar contraseña — validación de campo | Diálogo abierto | Vaciar el correo | El botón `Enviar enlace` queda deshabilitado |
 | AUTH-16 | SSO Google inicia OAuth | Sesión cerrada | Pulsar `Google` | Redirige al consentimiento Google forzando selección de cuenta (`prompt=select_account`). Solo ese botón muestra spinner; el resto queda deshabilitado |

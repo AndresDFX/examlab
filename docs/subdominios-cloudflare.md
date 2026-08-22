@@ -164,9 +164,11 @@ En la misma pantalla, poné **SSL/TLS encryption mode** en **Full**.
 
 ## 4 · Publicar la app
 
-> **Esto ya está hecho y funcionando** en la rama `deploy/cloudflare`, desplegado en
-> <https://examlab.castano-julian.workers.dev>. Esta sección explica CÓMO quedó y por
-> qué; si solo querés volver a publicar, es `bun run deploy:cf`.
+> **Esto ya está hecho y funcionando**: está en `main` y lo publica GitHub Actions
+> (`deploy-cloudflare.yml`) en cada push. El despliegue general vive en
+> <https://app.examlab.workers.dev> y cada institución en `<slug>.examlab.workers.dev`
+> (verificado el 2026-08-22: los dos responden 200). Esta sección explica CÓMO quedó y
+> por qué; para publicar a mano es `bun run deploy:cf`.
 
 ### Se publica como sitio ESTÁTICO, no como Worker con SSR
 

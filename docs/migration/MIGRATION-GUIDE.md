@@ -189,8 +189,9 @@ El script no puede tocar estas cosas (requieren UI del dashboard).
 
 Dashboard → **`Authentication`** → **`URL Configuration`**:
 
-- **Site URL**: URL pública de Lovable (ej. `https://examlab.lovable.app`).
-- **Redirect URLs**: `https://examlab.lovable.app/**` y `http://localhost:3000/**`.
+- **Site URL**: la URL pública de la app (hoy `https://app.examlab.workers.dev`).
+- **Redirect URLs**: `https://app.examlab.workers.dev/**`, `https://*.examlab.workers.dev/**`
+  (cada institución se publica en su propio subdominio) y `http://localhost:3000/**`.
 
 ### 5.2 Edge Function Secrets
 

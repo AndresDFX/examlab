@@ -14,7 +14,7 @@ Este manual está organizado por **rol**. Abre el que corresponda a tu perfil:
 
 ## Cómo ingresar
 
-1. Abre la plataforma en tu navegador: **https://examlab.lovable.app/auth**
+1. Abre la plataforma en tu navegador: **https://app.examlab.workers.dev/auth**
 2. En **"Selecciona tu institución"**, elige tu institución de la lista. *(Si te entregaron una **cuenta de demostración**, elige **ExamLab Demo**.)*
 3. Escribe el **usuario (correo)** y la **contraseña** que recibiste por correo.
 4. Toca **Entrar**.
@@ -33,7 +33,7 @@ ExamLab es una **PWA (Progressive Web App)**: la **misma página web funciona co
 
 **Cómo instalarla:**
 
-- **Android (Chrome):** abre **https://examlab.lovable.app**, toca el menú **⋮** y elige **"Instalar app"** / **"Agregar a pantalla de inicio"**. (A veces aparece solo un aviso para instalar.)
+- **Android (Chrome):** abre **https://app.examlab.workers.dev**, toca el menú **⋮** y elige **"Instalar app"** / **"Agregar a pantalla de inicio"**. (A veces aparece solo un aviso para instalar.)
 - **iPhone / iPad (Safari):** abre la página, toca **Compartir** (el cuadro con la flecha ↑) y elige **"Añadir a pantalla de inicio"**.
 
 **Qué ganas al usarla en el celular / instalada:**

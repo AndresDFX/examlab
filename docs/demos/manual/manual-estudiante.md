@@ -2,7 +2,7 @@
 
 Bienvenido a ExamLab. Como estudiante, aquí aprendes con el material de tus cursos, presentas tus evaluaciones (exámenes, talleres y proyectos), registras tu asistencia, participas en retos en vivo y haces seguimiento a tus notas y certificados. Esta guía recorre, módulo por módulo, qué hace cada sección y cómo usarla en el día a día. Varias funciones se apoyan en **inteligencia artificial**: un **Tutor del curso** que responde con base en el material de tu curso, la calificación automática de tus entregas y la detección de fraude — todo se resalta a lo largo del manual.
 
-Ingresa desde **https://examlab.lovable.app/auth** con el correo y la contraseña que te entregó tu institución. Si es tu primer ingreso con una contraseña temporal, la app te pedirá cambiarla antes de continuar.
+Ingresa desde **https://app.examlab.workers.dev/auth** con el correo y la contraseña que te entregó tu institución. Si es tu primer ingreso con una contraseña temporal, la app te pedirá cambiarla antes de continuar.
 
 > **🎬 Recorrido en video:** mira el [recorrido completo del rol Estudiante](../student/serie-student-completa.mp4) — todos los módulos de este manual unidos en un solo video.
 

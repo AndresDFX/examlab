@@ -45,7 +45,7 @@ https://uxxpzfsfcnqiwwdxoelm.supabase.co/storage/v1/object/public/help-docs/pres
 ** Y para que la pruebes tú mismo** — te dejé acceso de **Administrador** en nuestra
 institución de demostración **Demo Global Corp**:
 
-- Entra a **https://examlab.lovable.app**
+- Entra a **https://app.examlab.workers.dev**
 - Al iniciar sesión, selecciona la institución **Demo Global Corp**
 - Usa las credenciales que te comparto por separado
 

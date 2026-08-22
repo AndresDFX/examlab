@@ -2,7 +2,7 @@
 
 Como **Docente** en ExamLab tu trabajo es crear y evaluar: armas cursos, preparas material, generas y aplicas evaluaciones, llevas la asistencia y consolidas las notas. La plataforma pone la **IA a tu servicio** en cada paso — puedes generar evaluaciones y contenido automáticamente, dejar que la IA califique las entregas, detectar fraude y ofrecer un **Tutor del curso** a tus estudiantes. Este manual recorre, módulo por módulo, lo que verás en el menú lateral cuando entras con tu rol Docente.
 
-> **Cómo ingresar:** entra a [https://examlab.lovable.app/auth](https://examlab.lovable.app/auth) con tu correo y contraseña. En el primer inicio con una clave temporal la plataforma te pedirá cambiarla antes de continuar.
+> **Cómo ingresar:** entra a [https://app.examlab.workers.dev/auth](https://app.examlab.workers.dev/auth) con tu correo y contraseña. En el primer inicio con una clave temporal la plataforma te pedirá cambiarla antes de continuar.
 
 > **🎬 Recorrido en video:** mira el [recorrido completo del rol Docente](../teacher/serie-teacher-completa.mp4) — todos los módulos de este manual unidos en un solo video.
 

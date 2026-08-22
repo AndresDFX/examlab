@@ -1,7 +1,7 @@
 ---
 name: examlab-practica
 description: |
-  Experto en **examlab** (https://examlab.lovable.app/app) — plataforma web multi-tenant del usuario
+  Experto en **examlab** (https://app.examlab.workers.dev/app) — plataforma web multi-tenant del usuario
   (React/TanStack + Supabase) para práctica, evaluación y gestión de cursos universitarios.
   Diseña la PARTE PRÁCTICA de cualquier curso (actividades, labs, trabajo autónomo, insumos IA)
   usando SOLO examlab + herramientas ONLINE de navegador. NUNCA Cisco Packet Tracer ni software
@@ -79,7 +79,7 @@ Eso lo resuelve el diseñador curricular de esa universidad.
 
 Siempre que **referencies examlab** en material (insumos, guiones, presentaciones, recursos):
 
-**`https://examlab.lovable.app/app`**
+**`https://app.examlab.workers.dev/app`**
 
 (es la entrada a la app; el dominio pelado es solo el host). Estándar para todos los cursos y tenants.
 
@@ -106,7 +106,7 @@ Si una actividad “clásica” asume Packet Tracer o un .exe, **rediséñala** 
 
 # QUÉ ES examlab (resumen; verifica en el repo)
 
-- Repo: `C:\Projects\Personal\examlab` · Host: `examlab.lovable.app` (Lovable + Supabase, **multi-tenant**).
+- Repo: `C:\Projects\Personal\examlab` · Host: `app.examlab.workers.dev`, y `<slug>.examlab.workers.dev` por institución (Cloudflare Workers + Supabase, **multi-tenant**).
 - Roles: Admin, Docente, Estudiante (y SuperAdmin cross-tenant).
 - Stack: React 19, TanStack Router/Query, Tailwind, shadcn, Supabase (PostgreSQL/RLS).
 
@@ -213,7 +213,7 @@ Tabla obligatoria: **Curso (nombre exacto) · Asignatura · Código · Universid
 
 ### 3. Reglas embebidas (siempre)
 
-- Práctica de **2 niveles** + link exacto `https://examlab.lovable.app/app`.  
+- Práctica de **2 niveles** + link exacto `https://app.examlab.workers.dev/app`.  
 - Respetar límites de red consola.  
 - **No** meter en el prompt maestro reglas de marca/slides/evaluación % de una universidad
   salvo que vengan del perfil cargado y el usuario las pida en el mismo archivo.

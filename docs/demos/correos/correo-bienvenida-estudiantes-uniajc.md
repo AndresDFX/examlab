@@ -17,7 +17,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 > Ya tienes tu cuenta lista. Así ingresas:
 >
 > ** Cómo ingresar:**
-> 1. Abre **https://examlab.lovable.app/auth**
+> 1. Abre **https://app.examlab.workers.dev/auth**
 > 2. En **"Selecciona tu institución"**, elige **Universidad Antonio Jose Camacho**.
 > 3. **Usuario:** tu **correo institucional `@estudiante.uniajc.edu.co`** (con el que te matriculamos).
 > 4. **Contraseña:** la **temporal** que te compartimos. En tu **primer ingreso** te pedirá cambiarla por una propia. ¿No la tienes? Usa **"¿Olvidaste tu contraseña?"**.
@@ -52,7 +52,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 >
 > ** Todo lo que puedes hacer** (una vez dentro): Cursos · Exámenes · Talleres · Proyectos · Calificaciones · Asistencia (QR) · Encuestas y retos en vivo · Pizarras en vivo · Calendario · **Tutor del curso** · Videos · Mensajes · Certificados.
 >
-> Guarda **examlab.lovable.app** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase!
+> Guarda **app.examlab.workers.dev** en favoritos (funciona también en el celular). Si no ves un curso, avísame. ¡Nos vemos en clase!
 >
 > [Tu nombre / Docente]
 
@@ -64,7 +64,7 @@ Versión del correo de bienvenida **específica para la UNIAJC** (correo `@estud
 >
 > Ojo: es una **plataforma alterna de apoyo** para nuestro curso, **no** es la plataforma oficial de la Universidad Antonio José Camacho; úsala solo para esta materia.
 >
-> https://examlab.lovable.app/auth
+> https://app.examlab.workers.dev/auth
 > Institución: *Universidad Antonio Jose Camacho*
 > Usuario: tu correo **@estudiante.uniajc.edu.co**
 > Clave: la **temporal** (en el primer ingreso la cambias). ¿No la tienes? *"¿Olvidaste tu contraseña?"*.
