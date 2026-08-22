@@ -23,7 +23,7 @@ bun run dev              # localhost:5173
 **Validaciones rápidas**:
 - `bun tsc --noEmit` debe dar `EXIT=0`.
 - `bun test` corre vitest (jsdom). Algunos tests requieren jsdom — usar `bun test` (NO el harness embebido).
-- `bun run build` localmente. Si pasa, Lovable también buildea.
+- `bun run build:cf` localmente — es el build que se publica (estático, con el cascarón de SPA). `bun run build` a secas sigue existiendo pero ya no es el de producción.
 
 **Cuentas de testing (tenant FESNA)** — verificadas el 2026-06-08:
 - **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
@@ -91,12 +91,22 @@ archivos sueltos si alguien deja algo directo en esa carpeta antes de que sea un
 
 ## Plataforma y despliegue
 
-- **Hospedado en Lovable** (lovable.dev). Lovable gestiona Supabase automáticamente.
+- **Hospedado en Cloudflare Workers** desde 2026-08-21, como **sitio estático** (SPA). Reemplazó a Lovable. Manual completo: [docs/subdominios-cloudflare.md](docs/subdominios-cloudflare.md).
+  - Un despliegue general + **uno por institución**, todos del mismo build. El nombre del Worker ES el slug, y `subdomain.ts` lo lee del hostname:
+
+    | Worker | URL | Abre |
+    |---|---|---|
+    | `app` | `app.examlab.workers.dev` | selector (etiqueta reservada) |
+    | `uniaj` / `fesna` / `examlab-demo` / `demo-global-corp` | `<slug>.examlab.workers.dev` | esa institución |
+
+  - Publicar: `bun run deploy:cf` (general) y `wrangler deploy --name <slug>` (por institución). **Una institución nueva NO funciona sola**: hay que desplegarle su Worker. Eso desaparece el día que haya dominio propio (DNS comodín + Route).
+  - **Por qué estático y no el Worker con SSR que el proyecto emitía**: pesa 5,34 MB gzip y el plan Free corta en 3 MB (`error 10027`); además el Free limita a 10 ms de CPU por request. Los dos techos son del SSR. Es seguro porque la app no tiene lógica de servidor (cero `createServerFn`, cero rutas de servidor, cero `loader:`): los datos ya iban del navegador a Supabase con la RLS.
+  - **Techo de producción del plan Free: 100.000 requests/día por cuenta.** Al superarlo Cloudflare devuelve `error 1027` y el sitio queda caído hasta medianoche UTC. Agrava que cada institución es un origen distinto, así que el navegador no comparte caché de assets entre subdominios. Workers Paid (5 USD/mes) lo elimina.
+- **Lovable ya NO publica.** `examlab.lovable.app` sigue sirviendo la última versión publicada, con código viejo contra la MISMA base que sí recibe migraciones nuevas. **NO apretar Publish en Lovable**: el build ya no emite Worker con SSR y rompería ese sitio.
 - El usuario **SÍ tiene acceso al dashboard de Supabase** (proyecto `uxxpzfsfcnqiwwdxoelm`). Para diagnósticos podemos darle queries SQL one-shot que él corre en el SQL Editor del dashboard.
-- Flujo de despliegue: `git push origin main` → usuario da click en **Publish** en Lovable.
-- Las migraciones van en `supabase/migrations/*.sql` — Lovable las aplica en Publish.
+- Las migraciones van en `supabase/migrations/*.sql` y **las aplica GitHub Actions** ([apply-migrations.yml](.github/workflows/apply-migrations.yml)) en cada push a `main` que las toque — no Lovable, desde que la base es un Supabase propio. Igual para edge functions, secrets y cron: todo el pipeline vive en `.github/workflows/`.
 - **Defensiva clave**: cada migración nueva DEBE envolver `ALTER TABLE` en `DO $$ BEGIN IF to_regclass('public.X') IS NOT NULL THEN ... END IF; END $$` por si la tabla NO existe en el entorno del usuario. Lovable a veces marca migraciones como aplicadas aunque el CREATE TABLE no haya corrido — sin el guard, la migración falla y se aborta todo el deploy. Patrón confirmado al fallar `question_bank` en 20260813000000.
-- Remote git: `https://github.com/AndresDFX/examlab` (nombre: `origin`). Lovable Publish lee de este repo — confirmado 2026-08-09 (antes este documento decía `vivetori/examlab`, dato incorrecto que causó un push al repo equivocado).
+- Remote git: `https://github.com/AndresDFX/examlab` (nombre: `origin`) — confirmado 2026-08-09 (antes este documento decía `vivetori/examlab`, dato incorrecto que causó un push al repo equivocado). De acá leen los workflows de GitHub Actions; y también leía Lovable Publish, mientras publicó.
 - Lockfile: el repo usa **`bun.lock`** (NO `package-lock.json` ni `pnpm-lock.yaml`). Cualquier cambio en `package.json` requiere `bun install` para regenerar el lockfile y commitear AMBOS — el CI valida sincronía.
 
 ## Stack
