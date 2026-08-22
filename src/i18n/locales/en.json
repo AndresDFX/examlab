@@ -715,9 +715,6 @@
     "tenantRequired": "Select your institution before continuing.",
     "tenantMismatch": "You don't belong to the selected institution.",
     "crossTenantOnlySuperAdmin": "Only SuperAdmin can access the platform view.",
-    "crossTenantOption": "— SuperAdmin: platform view —",
-    "platformTeamReveal": "I'm on the platform team",
-    "platformTeamRevealed": "We added the platform view to the institution selector.",
     "sso": {
       "divider": "or continue with",
       "google": "Google",

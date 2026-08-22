@@ -55,7 +55,14 @@ interface TenantOption {
 }
 
 /** Sentinel para el SuperAdmin: "no preseleccionar institución, vista
- *  cross-tenant". Si elige esto, post-login va a `/app` sin prefijo. */
+ *  cross-tenant". Post-login va a `/app` sin prefijo.
+ *
+ *  El formulario ya NO lo ofrece: el SuperAdmin entra por cualquier
+ *  institución y llega a la vista de plataforma con el role-switcher, que
+ *  limpia el override (`AppLayout.handleRoleChange`). El valor y su
+ *  validación se conservan porque una sesión vieja pudo dejarlo en
+ *  `examlab_remember_slug`: si llegara igual, tiene que terminar en un
+ *  rechazo explícito y no en un override hacia una institución inexistente. */
 const SUPERADMIN_CROSS_TENANT = "__cross_tenant__";
 
 // Keys de localStorage para el toggle "Recordarme". Solo persistimos
@@ -114,19 +121,6 @@ function AuthPage() {
   // localStorage acá rompe el primer render cuando el HTML pre-renderizado
   // no los tiene.
   const [selectedSlug, setSelectedSlug] = useState<string>("");
-  // La opción de vista de plataforma (SuperAdmin, sin institución) NO se
-  // ofrece por defecto: quien entra acá es casi siempre un estudiante o un
-  // docente, para quien esa opción termina en el rechazo
-  // `auth.crossTenantOnlySuperAdmin`. Se revela con un gesto deliberado
-  // (enlace "Soy del equipo de plataforma" al pie) — descubrible para quien
-  // la necesita, ausente para el resto.
-  //
-  // Initializer DETERMINÍSTICO (false) por la misma razón que email /
-  // rememberMe / selectedSlug: leer storage o URL acá rompe la hidratación
-  // (React #418). El único caso que lo enciende automáticamente es el slug
-  // recordado, y eso pasa POST-mount en el efecto "hydrate-remember".
-  const [platformViewShown, setPlatformViewShown] = useState(false);
-
   // Institución que dicta el SUBDOMINIO (`uniaj.midominio.co`). Cuando existe,
   // el selector no se muestra: la dirección ya dijo a cuál se entra, que es el
   // punto de tener subdominios. Ver `docs/subdominios-cloudflare.md`.
@@ -170,14 +164,12 @@ function AuthPage() {
       try {
         if (window.localStorage.getItem(REMEMBER_FLAG_KEY) === "1") {
           const storedSlug = window.localStorage.getItem(REMEMBER_SLUG_KEY);
-          if (storedSlug) {
+          // El sentinel de vista de plataforma se descarta: una sesión vieja
+          // pudo dejarlo guardado, pero ya no existe el item que lo respalde
+          // en el Select — restaurarlo dejaría el campo en blanco con un
+          // submit que termina en rechazo silencioso.
+          if (storedSlug && storedSlug !== SUPERADMIN_CROSS_TENANT) {
             setSelectedSlug(storedSlug);
-            // Un SuperAdmin que marcó "Recordarme" entrando sin institución
-            // dejó el sentinel guardado: revelamos la opción para que el
-            // Select no quede con un value sin item que lo respalde
-            // (SelectValue mostraría el placeholder y el submit sería un
-            // rechazo silencioso).
-            if (storedSlug === SUPERADMIN_CROSS_TENANT) setPlatformViewShown(true);
           }
         }
       } catch {
@@ -548,10 +540,8 @@ function AuthPage() {
                 aria-hidden="true"
               />
               {/* Con subdominio propio el selector desaparece y se muestra la
-                  institución como dato: el enlace ya la eligió. Vuelve a
-                  aparecer si el usuario pide la vista de plataforma
-                  (SuperAdmin), o quedaría sin manera de llegar a ella. */}
-              {hostTenant && !platformViewShown ? (
+                  institución como dato: el enlace ya la eligió. */}
+              {hostTenant ? (
                 <div className="space-y-1.5">
                   <Label>{t("auth.institution", { defaultValue: "Institución" })}</Label>
                   <div className="flex items-center gap-2 rounded-md border bg-muted/40 px-3 py-2 text-sm">
@@ -585,18 +575,6 @@ function AuthPage() {
                         {tn.name}
                       </SelectItem>
                     ))}
-                    {/* Opción especial para SuperAdmin sin institución.
-                        Oculta hasta que el usuario la pide desde el pie
-                        ("Soy del equipo de plataforma") — cualquier
-                        non-SuperAdmin que la elija será rechazado post-auth,
-                        así que no tiene sentido ofrecérsela a todos. */}
-                    {platformViewShown && (
-                      <SelectItem value={SUPERADMIN_CROSS_TENANT}>
-                        {t("auth.crossTenantOption", {
-                          defaultValue: "— SuperAdmin: vista de plataforma —",
-                        })}
-                      </SelectItem>
-                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -747,29 +725,6 @@ function AuthPage() {
               <Link to="/privacy" className="hover:text-foreground">
                 {t("nav.privacy")}
               </Link>
-            </div>
-            {/* Puerta explícita a la vista de plataforma (SuperAdmin sin
-                institución). Un enlace visible al pie, no un truco oculto:
-                quien lo necesita lo encuentra, y el estudiante que nunca lo
-                toca no ve una opción que lo rechazaría. */}
-            <div className="mt-1 text-center">
-              {platformViewShown ? (
-                <p className="py-2 text-xs text-muted-foreground">
-                  {t("auth.platformTeamRevealed", {
-                    defaultValue: "Agregamos la vista de plataforma al selector de institución.",
-                  })}
-                </p>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setPlatformViewShown(true)}
-                  className="rounded px-2 py-2 text-xs text-muted-foreground/70 hover:text-foreground hover:underline"
-                >
-                  {t("auth.platformTeamReveal", {
-                    defaultValue: "Soy del equipo de plataforma",
-                  })}
-                </button>
-              )}
             </div>
           </CardContent>
         </Card>

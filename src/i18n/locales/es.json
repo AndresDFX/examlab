@@ -715,9 +715,6 @@
     "tenantRequired": "Selecciona tu institución antes de continuar.",
     "tenantMismatch": "No perteneces a la institución seleccionada.",
     "crossTenantOnlySuperAdmin": "Solo SuperAdmin puede acceder a la vista de plataforma.",
-    "crossTenantOption": "— SuperAdmin: vista de plataforma —",
-    "platformTeamReveal": "Soy del equipo de plataforma",
-    "platformTeamRevealed": "Agregamos la vista de plataforma al selector de institución.",
     "sso": {
       "divider": "o continúa con",
       "google": "Google",
