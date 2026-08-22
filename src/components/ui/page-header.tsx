@@ -1,7 +1,5 @@
 import { type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
-import { ArrowLeft } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { BackLink } from "@/components/ui/back-button";
 import { cn } from "@/shared/lib/utils";
 
 /**
@@ -18,7 +16,9 @@ import { cn } from "@/shared/lib/utils";
  *
  * El "Volver" va arriba en su propia fila como link tipo breadcrumb,
  * en vez de Button al lado del título — así el título es lo primero
- * que el usuario lee, no compite con el botón de navegación.
+ * que el usuario lee, no compite con el botón de navegación. Lo pinta
+ * `BackLink` (`components/ui/back-button.tsx`), que es la única fuente del
+ * ícono de volver en toda la app: acá NO se elige un ícono.
  *
  * Props:
  *  - back: ruta hacia atrás (TanStack Router) o función onClick
@@ -55,38 +55,12 @@ export function PageHeader({
   icon,
   className,
 }: Readonly<PageHeaderProps>) {
-  const { t } = useTranslation();
-  const resolvedBackLabel = backLabel ?? t("common.back", { defaultValue: "Volver" });
-  const showBack = Boolean(backTo || onBack);
-  const backContent = (
-    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors">
-      <ArrowLeft className="h-3.5 w-3.5" />
-      {resolvedBackLabel}
-    </span>
-  );
-
   return (
     <div className={cn("space-y-3", className)}>
-      {showBack ? (
-        backTo ? (
-          <Link
-            to={backTo}
-            params={backParams}
-            className="inline-flex w-fit"
-            aria-label={resolvedBackLabel}
-          >
-            {backContent}
-          </Link>
-        ) : (
-          <button
-            type="button"
-            onClick={onBack}
-            className="inline-flex w-fit"
-            aria-label={resolvedBackLabel}
-          >
-            {backContent}
-          </button>
-        )
+      {backTo ? (
+        <BackLink to={backTo} params={backParams} label={backLabel} />
+      ) : onBack ? (
+        <BackLink onClick={onBack} label={backLabel} />
       ) : null}
 
       <div className="flex flex-wrap items-start justify-between gap-3">

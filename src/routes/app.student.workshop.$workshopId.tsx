@@ -16,9 +16,10 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, ExternalLink, MessageSquareText } from "lucide-react";
+import { ExternalLink, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -255,11 +256,7 @@ function StudentWorkshopDetail() {
   if (loadError) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/workshops">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/workshops" label={t("nav.workshops")} />
         <ErrorState
           message={t("hc_routesAppStudentWorkshopWorkshopId.loadErrorTitle", {
             defaultValue: "No pudimos cargar los datos del taller",
@@ -274,11 +271,7 @@ function StudentWorkshopDetail() {
   if (error === "no_assignment") {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/workshops">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/workshops" label={t("nav.workshops")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("exam.review.noAccess")}
@@ -291,11 +284,7 @@ function StudentWorkshopDetail() {
   if (error === "not_found" || !workshop) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/workshops">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("nav.workshops")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/workshops" label={t("nav.workshops")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("exam.review.notFound")}

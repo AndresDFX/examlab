@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { ArrowLeft, AlertTriangle, MessageSquareText } from "lucide-react";
+import { AlertTriangle, MessageSquareText } from "lucide-react";
 import {
   computeAttemptGrade,
   retryModeLabel,
@@ -302,12 +303,7 @@ function StudentExamReview() {
   if (loadError) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/exams">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            {t("exam.review.backToExams")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/exams" label={t("exam.review.backToExams")} />
         <ErrorState
           message={t("exam.review.loadErrorTitle", {
             defaultValue: "No pudimos cargar los datos del examen",
@@ -322,12 +318,7 @@ function StudentExamReview() {
   if (error === "no_assignment") {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/exams">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            {t("exam.review.backToExams")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/exams" label={t("exam.review.backToExams")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("exam.review.noAccess")}
@@ -340,12 +331,7 @@ function StudentExamReview() {
   if (error === "not_found" || !exam) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/exams">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" />
-            {t("exam.review.backToExams")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/exams" label={t("exam.review.backToExams")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("exam.review.notFound")}

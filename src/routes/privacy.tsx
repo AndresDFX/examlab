@@ -7,8 +7,8 @@
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { GraduationCap, ArrowLeft } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { GraduationCap } from "lucide-react";
+import { BackButton } from "@/components/ui/back-button";
 import { PrivacyPolicyContent } from "@/modules/legal/PrivacyPolicyContent";
 
 export const Route = createFileRoute("/privacy")({ component: PublicPrivacyPage });
@@ -23,12 +23,7 @@ function PublicPrivacyPage() {
             <GraduationCap className="h-5 w-5 text-primary" />
             ExamLab
           </Link>
-          <Button variant="ghost" size="sm" asChild>
-            <Link to="/">
-              <ArrowLeft className="mr-1 h-4 w-4" />
-              {t("auth.backToHome", { defaultValue: "Volver al inicio" })}
-            </Link>
-          </Button>
+          <BackButton to="/" label={t("auth.backToHome", { defaultValue: "Volver al inicio" })} />
         </div>
       </header>
       <main className="px-4 py-8">

@@ -14,6 +14,7 @@ import {
 import { courseIdsInScope, anyCourseInScope } from "@/modules/courses/course-filter-scope";
 import { isStaffRole } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -92,7 +93,6 @@ import {
   X,
   Bot,
   ChevronRight,
-  ChevronLeft,
   ChevronUp,
   ChevronDown,
   Check,
@@ -4415,16 +4415,11 @@ function TeacherWorkshops() {
             {/* Botón "Volver al grid" en modo detalle. Coincide con el
                 patrón del monitor de exámenes (Eye → detalle → back). */}
             {!(gradingWs as any)?.is_external && viewingSubId != null && (
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
+              <BackButton
                 onClick={() => setViewingSubId(null)}
-                className="self-start h-8"
-              >
-                <ChevronLeft className="h-4 w-4 mr-1" />
-                {t("hc_routesAppTeacherWorkshops.backToStudentList")}
-              </Button>
+                label={t("hc_routesAppTeacherWorkshops.backToStudentList")}
+                className="h-8 self-start"
+              />
             )}
 
             {/* MODO DETALLE: vista pregunta-por-pregunta del estudiante

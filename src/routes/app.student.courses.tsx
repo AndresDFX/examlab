@@ -8,10 +8,10 @@ import { toast } from "sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { groupCohortWeights, type CohortWeightGroup } from "@/modules/courses/cohort-weights";
 import { Badge } from "@/components/ui/badge";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import {
   CalendarDays,
-  ChevronLeft,
   Clock,
   Download,
   FileText,
@@ -902,10 +902,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
 
   return (
     <div className="space-y-5">
-      <Button variant="ghost" size="sm" onClick={onBack}>
-        <ChevronLeft className="h-4 w-4 mr-1" />
-        {t("courseBoard.back")}
-      </Button>
+      <BackButton onClick={onBack} label={t("courseBoard.back")} />
 
       <Card>
         <CardHeader>

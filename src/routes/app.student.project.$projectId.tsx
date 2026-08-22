@@ -15,10 +15,10 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
-  ArrowLeft,
   FileText,
   MessageSquareText,
   Bot,
@@ -314,11 +314,7 @@ function StudentProjectDetail() {
   if (loadError) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/projects" label={t("hc_routesAppStudentProjectProjectId.projectsBack")} />
         <ErrorState
           message={t("hc_routesAppStudentProjectProjectId.loadErrorTitle")}
           hint={loadError}
@@ -331,11 +327,7 @@ function StudentProjectDetail() {
   if (error === "no_assignment") {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/projects" label={t("hc_routesAppStudentProjectProjectId.projectsBack")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("project.review.noAccess")}
@@ -348,11 +340,7 @@ function StudentProjectDetail() {
   if (error === "not_found" || !project) {
     return (
       <div className="space-y-4">
-        <Link to="/app/student/projects">
-          <Button variant="ghost" size="sm">
-            <ArrowLeft className="h-4 w-4 mr-1" /> {t("hc_routesAppStudentProjectProjectId.projectsBack")}
-          </Button>
-        </Link>
+        <BackButton to="/app/student/projects" label={t("hc_routesAppStudentProjectProjectId.projectsBack")} />
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground">
             {t("project.review.notFound")}

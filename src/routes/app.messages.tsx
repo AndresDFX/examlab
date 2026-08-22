@@ -32,6 +32,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { isAdminLike, isStaffActive } from "@/shared/lib/roles";
 import { Card, CardContent } from "@/components/ui/card";
+import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -69,7 +70,6 @@ import {
   MailOpen,
   Mail,
   MoreVertical,
-  ArrowLeft,
   Hash,
   Hammer,
   FileText,
@@ -1897,15 +1897,12 @@ function MessagesPage() {
                   {/* Back button: solo mobile — vuelve a la lista
                       cerrando activeConvId. En md+ no se necesita
                       porque la lista está siempre visible. */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="md:hidden shrink-0 h-8 w-8 p-0"
+                  <BackButton
+                    iconOnly
                     onClick={() => setActiveConvId(null)}
-                    aria-label={t("hc_routesAppMessages.backToList")}
-                  >
-                    <ArrowLeft className="h-4 w-4" />
-                  </Button>
+                    label={t("hc_routesAppMessages.backToList")}
+                    className="md:hidden"
+                  />
                   <div className="min-w-0 flex-1">
                     <p className="font-medium text-sm truncate flex items-center gap-1.5">
                       {(() => {

@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { logEvent } from "@/shared/lib/audit";
 import { supabase } from "@/integrations/supabase/client";
+import { BackLink } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -718,9 +719,10 @@ function AuthPage() {
               {t("auth.contactAdmin")}
             </p>
             <div className="mt-4 flex items-center justify-center gap-3 text-xs text-muted-foreground">
-              <Link to="/" className="hover:text-foreground">
-                {t("auth.backToHome")}
-              </Link>
+              {/* La flecha la pone el ícono, no el texto: la traducción traía
+                  un "←" literal y el enlace mostraba dos flechas donde había
+                  ícono. Ver `back-button.tsx`. */}
+              <BackLink to="/" label={t("auth.backToHome")} />
               <span aria-hidden>·</span>
               <Link to="/privacy" className="hover:text-foreground">
                 {t("nav.privacy")}

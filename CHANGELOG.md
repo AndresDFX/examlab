@@ -68,6 +68,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **"Volver" se ve igual en toda la app.** Estaba escrito a mano en cada pantalla y las copias
+  divergieron en las tres cosas que el usuario percibe: el **ícono** (unas con flecha, otras con
+  chevron), el **tamaño** y la **separación**. Peor: dos textos traducidos traían la flecha como
+  carácter (`"← Volver al inicio"`), así que donde había ícono se veían **dos flechas** y donde no,
+  una flecha de texto desalineada — eso es lo que se ve en el pie del inicio de sesión.
+
+  Ahora hay una sola fuente: `BackLink` (la miga de pan sobre el título) y `BackButton` (el botón
+  para salir de una vista embebida), migrados en las 16 apariciones. La distinción que se fija es
+  que **el chevron no es "volver"**: es "el anterior de una serie" (mes previo, diapositiva previa,
+  pregunta previa), y usarlo para salir enseña que el control es de paginación, así que el usuario
+  no lo busca cuando quiere irse. Donde sí es una serie —calendario, paginación, revisión del Reto,
+  pestañas de la pizarra— el chevron se queda.
+
+  De paso: el botón "volver" de móvil en Mensajes y los de las vistas de examen, taller y proyecto
+  envolvían un `<Button>` dentro de un `<Link>`, que anida un `<a>` alrededor de un `<button>`; el
+  componente usa `asChild` y eso desaparece.
+
 - **La Política de Privacidad ahora dice lo que la plataforma realmente hace.** Pasó de 12 a 16
   secciones, con índice para no barrer el documento entero buscando "mis derechos". Lo que faltaba
   no era redacción, era **contenido verificable**: quedó explícito quién es responsable (tu
