@@ -222,6 +222,21 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **El campo de contraseña ya no aparece como una caja blanca al iniciar sesión.** En tema oscuro, si
+  el navegador tenía la contraseña guardada, ese campo se veía **blanco** entre campos oscuros. No era
+  un color mal puesto: Chrome pinta su propio fondo (`rgb(232, 240, 254)`) encima de todo campo que
+  autocompleta, y los campos de ExamLab son transparentes a propósito —muestran la superficie que
+  tienen detrás—. Por eso chillaba solo la contraseña: el correo lo prellena la app desde
+  "Recordarme", así que el navegador no lo marca como autocompletado y quedaba oscuro.
+
+  Ese fondo no se puede sobrescribir con un color: el navegador lo aplica como estilo interno y gana.
+  El arreglo recorta el fondo pintado a la silueta de las letras y neutraliza la transición con la que
+  Chrome lo aplica, así que el campo vuelve a ser transparente y el texto sigue legible. Medido en
+  Chromium: el interior del campo pasa de `232,240,254` al color del fondo de la página. Va en los
+  estilos base, así que cubre **todos** los formularios —restablecer contraseña, cambio forzado en el
+  primer ingreso, cambio de contraseña, paneles de admin— y también el autocompletado de correo o
+  dirección, no solo el login.
+
 - **Los números de las gráficas se veían distinto según el idioma del equipo.** En el detalle de una
   gráfica, un valor como 1234 aparecía «1,234» en un computador configurado en inglés y «1.234» en uno
   en español, en la misma pantalla. Ahora todos los números usan el formato de Colombia, igual que ya

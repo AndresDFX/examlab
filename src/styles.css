@@ -183,6 +183,54 @@
     letter-spacing: -0.025em;
   }
 
+  /* ── Autocompletado del navegador ────────────────────────────────────────
+     Cuando el gestor de contraseñas rellena un campo, Chrome le pinta ENCIMA
+     su propio fondo azul claro (`rgb(232, 240, 254)`). Nuestros `<Input>` son
+     `bg-transparent` a propósito —muestran la superficie que tienen detrás—,
+     así que en tema oscuro el campo rellenado aparecía como una caja BLANCA
+     entre campos oscuros. Se veía en el login: el email lo prellena React
+     desde `localStorage` (Chrome no lo marca como autocompletado y queda
+     transparente) y la contraseña la pone el gestor, así que solo ESA se
+     volvía blanca.
+
+     Ese fondo NO se puede sobrescribir con `background-color`: el navegador
+     lo aplica como estilo interno y gana. Los dos mecanismos que sí funcionan:
+
+       · `background-clip: text` recorta el fondo pintado a la silueta de las
+         letras, así que no cubre la caja. El texto sigue visible porque
+         `-webkit-text-fill-color` lo pinta explícitamente.
+       · Chrome aplica ese fondo mediante una transición de `background-color`;
+         retrasarla ~una semana hace que nunca llegue a ejecutarse.
+
+     `:-webkit-autofill` y el estándar `:autofill` van en reglas SEPARADAS: en
+     una lista de selectores, un pseudo-elemento que el navegador no conoce
+     invalida TODA la lista, y perderíamos el arreglo en el motor que sí
+     soporta el otro. Nada de esto toca el borde ni el anillo de foco, que
+     siguen saliendo de las clases del componente. */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active,
+  textarea:-webkit-autofill,
+  select:-webkit-autofill {
+    -webkit-text-fill-color: var(--color-foreground);
+    -webkit-background-clip: text;
+    background-clip: text;
+    caret-color: var(--color-foreground);
+    transition: background-color 0s 604800s;
+  }
+  input:autofill,
+  input:autofill:hover,
+  input:autofill:focus,
+  textarea:autofill,
+  select:autofill {
+    -webkit-text-fill-color: var(--color-foreground);
+    -webkit-background-clip: text;
+    background-clip: text;
+    caret-color: var(--color-foreground);
+    transition: background-color 0s 604800s;
+  }
+
   /* iOS auto-zooms <input>/<select>/<textarea> when the font-size is <16px.
      Our UI primitives use text-base (16px) on mobile and downscale to text-sm
      on md+; cover native-only pickers and legacy selects explicitly. */
