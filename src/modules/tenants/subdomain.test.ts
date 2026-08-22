@@ -1,5 +1,75 @@
 import { describe, expect, it } from "vitest";
-import { hostDefinesTenant, subdomainTenantSlug } from "./subdomain";
+import { hostDefinesTenant, subdomainTenantSlug, tenantUrlForSlug } from "./subdomain";
+
+describe("tenantUrlForSlug", () => {
+  const loc = (hostname: string, protocol = "https:", port = "") => ({ hostname, protocol, port });
+
+  it("reemplaza la etiqueta del despliegue general por el slug", () => {
+    expect(tenantUrlForSlug("sena", loc("app.examlab.workers.dev"))).toBe(
+      "https://sena.examlab.workers.dev",
+    );
+    expect(tenantUrlForSlug("sena", loc("app.midominio.co"))).toBe("https://sena.midominio.co");
+  });
+
+  it("reemplaza el slug de otra institución, no lo apila", () => {
+    // Estando en uniaj.*, la direccion de `sena` NO es sena.uniaj.* — eso
+    // ademas sumaria un nivel que el certificado no cubre.
+    expect(tenantUrlForSlug("sena", loc("uniaj.examlab.workers.dev"))).toBe(
+      "https://sena.examlab.workers.dev",
+    );
+  });
+
+  it("antepone cuando la primera etiqueta ES el dominio", () => {
+    expect(tenantUrlForSlug("sena", loc("midominio.co"))).toBe("https://sena.midominio.co");
+    // Dominio colombiano de dos partes: contar etiquetas daria `sena.com.co`.
+    expect(tenantUrlForSlug("sena", loc("midominio.com.co"))).toBe("https://sena.midominio.com.co");
+    // Raiz del subdominio de cuenta (sin Worker): daria `sena.workers.dev`.
+    expect(tenantUrlForSlug("sena", loc("examlab.workers.dev"))).toBe(
+      "https://sena.examlab.workers.dev",
+    );
+  });
+
+  it("en desarrollo usa *.localhost con su puerto", () => {
+    expect(tenantUrlForSlug("sena", loc("localhost", "http:", "5173"))).toBe(
+      "http://sena.localhost:5173",
+    );
+    expect(tenantUrlForSlug("sena", loc("uniaj.localhost", "http:", "5173"))).toBe(
+      "http://sena.localhost:5173",
+    );
+  });
+
+  it("no promete direccion donde no puede haberla", () => {
+    // Preferimos no mostrar nada a mostrar una direccion equivocada.
+    expect(tenantUrlForSlug("sena", loc("examlab.lovable.app"))).toBeNull();
+    expect(tenantUrlForSlug("sena", loc("x.pages.dev"))).toBeNull();
+    expect(tenantUrlForSlug("sena", loc("127.0.0.1"))).toBeNull();
+  });
+
+  it("rechaza slugs invalidos y entradas vacias, sin lanzar", () => {
+    expect(tenantUrlForSlug("", loc("app.examlab.workers.dev"))).toBeNull();
+    expect(tenantUrlForSlug("no_valido", loc("app.examlab.workers.dev"))).toBeNull();
+    expect(tenantUrlForSlug(null, loc("app.examlab.workers.dev"))).toBeNull();
+    expect(tenantUrlForSlug("sena", null)).toBeNull();
+    expect(tenantUrlForSlug("sena", loc(""))).toBeNull();
+  });
+
+  it("normaliza mayusculas y espacios del slug tipeado", () => {
+    expect(tenantUrlForSlug("  SENA  ", loc("app.examlab.workers.dev"))).toBe(
+      "https://sena.examlab.workers.dev",
+    );
+  });
+
+  it("limitacion conocida: sobre el subdominio de OTRA institucion en dominio propio, apila", () => {
+    // Sin la Public Suffix List no se puede distinguir `uniaj.midominio.co`
+    // (subdominio) de `midominio.com.co` (dominio de dos partes). Se eligio
+    // fallar de este lado: apilar da una direccion visiblemente rara, mientras
+    // que el error opuesto (`sena.com.co`) inventa un dominio ajeno con pinta
+    // de correcto. Caso raro: el SuperAdmin opera desde el despliegue general.
+    expect(tenantUrlForSlug("sena", loc("uniaj.midominio.co"))).toBe(
+      "https://sena.uniaj.midominio.co",
+    );
+  });
+});
 
 describe("subdomainTenantSlug", () => {
   it("toma el slug del subdominio", () => {

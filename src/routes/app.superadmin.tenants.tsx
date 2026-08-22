@@ -78,6 +78,9 @@ import { TenantBillingDialog } from "@/modules/superadmin/TenantBillingDialog";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { AssignUsersToTenantDialog } from "@/modules/superadmin/AssignUsersToTenantDialog";
 import { isValidTenantSlug, slugifyTenantName } from "@/modules/tenants/tenant";
+import { tenantUrlForSlug } from "@/modules/tenants/subdomain";
+import { TenantBrandPreview } from "@/modules/tenants/TenantBrandPreview";
+import { useTheme } from "@/hooks/use-theme";
 import { setTenantOverride } from "@/modules/tenants/use-tenant";
 import type { Tenant } from "@/modules/tenants/tenant";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -194,6 +197,34 @@ function SuperAdminTenantsPage() {
   // hace dentro de `save()` después del INSERT, usando el id recién creado.
   const [pendingLogoFile, setPendingLogoFile] = useState<File | null>(null);
   const [pendingLogoPreview, setPendingLogoPreview] = useState<string | null>(null);
+  /** Host actual, para deducir la dirección que le tocará a la institución.
+   *  Se lee POST-MOUNT y no en el initializer: leer `window.location` en el
+   *  primer render rompe la hidratación (React #418, ver CLAUDE.md). Mientras
+   *  es null la vista previa no promete ninguna dirección. */
+  const [browserLoc, setBrowserLoc] = useState<{
+    hostname: string;
+    protocol: string;
+    port: string;
+  } | null>(null);
+  useEffect(() => {
+    setBrowserLoc({
+      hostname: window.location.hostname,
+      protocol: window.location.protocol,
+      port: window.location.port,
+    });
+  }, []);
+  const { resolvedTheme } = useTheme();
+  /** Dirección que le tocará al slug que se está escribiendo. */
+  const previewUrl = useMemo(
+    () => tenantUrlForSlug(form.slug, browserLoc),
+    [form.slug, browserLoc],
+  );
+  /** Al EDITAR: la dirección que la institución tiene HOY. Sirve para advertir
+   *  que cambiar el slug rompe los enlaces ya repartidos. */
+  const previewUrlActual = useMemo(
+    () => (editing ? tenantUrlForSlug(editing.slug, browserLoc) : null),
+    [editing, browserLoc],
+  );
   /** Estado del dialog 'Gestionar usuarios' — el SuperAdmin decide qué
    *  usuarios pertenecen a este tenant (marca para agregar, desmarca
    *  para quitar). tenant=null = cerrado. */
@@ -1117,7 +1148,14 @@ function SuperAdminTenantsPage() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/t/{t.slug}</code>
+                      {/* La dirección REAL, no el `/t/<slug>` del esquema de
+                          rutas que se abandonó. Si el host no admite dirección
+                          por institución (lovable.app, IP), mostramos el slug
+                          pelado en vez de prometer una URL que no existe. */}
+                      <code className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                        {tenantUrlForSlug(t.slug, browserLoc)?.replace(/^https?:\/\//, "") ??
+                          t.slug}
+                      </code>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">
                       <div className="truncate" title={t.email_domain ?? undefined}>
@@ -1350,12 +1388,13 @@ function SuperAdminTenantsPage() {
                 placeholder="sena-bogota"
               />
               <p className="text-2xs text-muted-foreground">
-                URL: <code>/t/{form.slug || "..."}/app/...</code>. {tl("superadminTenants.fieldSlugHintChars")}
-                {editing && (
+                {tl("superadminTenants.fieldSlugHintChars")}
+                {editing && previewUrlActual && (
                   <>
                     {" "}
                     <span className="text-amber-600 dark:text-amber-400">
-                      {tl("superadminTenants.fieldSlugChangeWarning")} <code>/t/{editing.slug}/...</code>.
+                      {tl("superadminTenants.fieldSlugChangeWarning")}{" "}
+                      <code>{previewUrlActual}</code>.
                     </span>
                   </>
                 )}
@@ -1369,6 +1408,42 @@ function SuperAdminTenantsPage() {
                 placeholder={tl("hc_routesAppSuperadminTenants.namePlaceholder")}
               />
             </div>
+            {/* Cómo va a quedar. Va ACÁ, entre los datos de identidad y los de
+                marca, para que se vea mientras se eligen los colores de abajo:
+                puesta al final del formulario habría que hacer scroll de ida y
+                vuelta con cada ajuste de hex. */}
+            <div className="space-y-1.5 rounded-md border p-3">
+              <Label>{tl("superadminTenants.previewTitle")}</Label>
+
+              <div className="space-y-0.5">
+                <div className="text-2xs text-muted-foreground">
+                  {tl("superadminTenants.previewAddressLabel")}
+                </div>
+                {previewUrl ? (
+                  <code className="block truncate text-xs font-medium">{previewUrl}</code>
+                ) : (
+                  <span className="text-2xs text-muted-foreground">
+                    {tl("superadminTenants.previewAddressPending")}
+                  </span>
+                )}
+                {!editing && previewUrl && (
+                  <p className="text-2xs text-muted-foreground">
+                    {tl("superadminTenants.previewAddressDelay")}
+                  </p>
+                )}
+              </div>
+
+              <TenantBrandPreview
+                name={form.name}
+                primaryColor={form.primary_color}
+                secondaryColor={form.secondary_color}
+                textColor={form.text_color}
+                iconColor={form.icon_color}
+                logoUrl={pendingLogoPreview || form.logo_url}
+                dark={resolvedTheme === "dark"}
+              />
+            </div>
+
             <div className="space-y-1.5">
               <Label>{tl("superadminTenants.fieldEmailDomain")}</Label>
               <Input

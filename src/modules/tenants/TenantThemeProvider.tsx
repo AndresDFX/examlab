@@ -42,6 +42,14 @@ import { useRouterState } from "@tanstack/react-router";
 import { useTenant, readTenantOverride } from "@/modules/tenants/use-tenant";
 import { useTheme } from "@/hooks/use-theme";
 import { getActiveRoleSignal, subscribeActiveRole } from "@/modules/tenants/active-role-signal";
+import {
+  darkVariant,
+  luminanceOfHex,
+  normalizeHex,
+  readableTextOn,
+  tintHex,
+  washHex,
+} from "@/modules/tenants/tenant-colors";
 import type { AppRole } from "@/hooks/use-auth";
 
 /** Set canónico de CSS vars que este provider gestiona. Lo usan
@@ -114,140 +122,11 @@ function clearTenantVars(root: HTMLElement): void {
   for (const v of TENANT_VARS) root.style.removeProperty(v);
 }
 
-function normalizeHex(value: string | null | undefined): string | null {
-  if (!value) return null;
-  const v = value.trim();
-  if (!v) return null;
-  const withHash = v.startsWith("#") ? v : `#${v}`;
-  if (!/^#[0-9a-fA-F]{6}$/.test(withHash)) return null;
-  return withHash;
-}
-
-/**
- * Luminancia sRGB relativa (0..1). Usada para decidir si el texto
- * sobre el color debe ser blanco u oscuro.
- */
-function luminanceOfHex(hex: string): number {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return 0.5;
-  const n = parseInt(m[1], 16);
-  const toLin = (c: number) => {
-    const v = c / 255;
-    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
-  };
-  const r = toLin((n >> 16) & 255);
-  const g = toLin((n >> 8) & 255);
-  const b = toLin(n & 255);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
-/**
- * Mezcla un hex con blanco/negro por porcentaje (0..1). Usado para
- * derivar `--primary-glow` (versión más brillante del primario, igual
- * que el default `oklch(0.65 ...)` vs `oklch(0.55 ...)` del theme).
- */
-function tintHex(hex: string, mix: number, toward: "white" | "black"): string {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return hex;
-  const n = parseInt(m[1], 16);
-  const r = (n >> 16) & 255;
-  const g = (n >> 8) & 255;
-  const b = n & 255;
-  const target = toward === "white" ? 255 : 0;
-  const lerp = (c: number) => Math.round(c + (target - c) * mix);
-  const nr = lerp(r),
-    ng = lerp(g),
-    nb = lerp(b);
-  const toHex = (v: number) => v.toString(16).padStart(2, "0");
-  return `#${toHex(nr)}${toHex(ng)}${toHex(nb)}`;
-}
-
-/**
- * "Wash" — versión muy suave del color para usar como background del
- * área principal en LIGHT mode. Mezclamos 92% con blanco para que el
- * color asome sutilmente sin competir con el contenido.
- *
- * Para DARK mode usar `darkVariant` — esa función trabaja en HSL y
- * preserva el hue/saturación del color de marca pero baja la
- * lightness, dando un "tinte de marca" sobre un fondo oscuro. Antes
- * usábamos mezcla con negro acá también, pero secundarios claros
- * (blanco, crema) terminaban en gris neutro porque al perder canal
- * de color no quedaba info de marca.
- */
-function washHex(hex: string): string {
-  return tintHex(hex, 0.92, "white");
-}
-
-/**
- * Convierte un hex a HSL. Devuelve `[hue 0-360, sat 0-100, lit 0-100]`.
- * Algoritmo estándar; el método CSS `color()` no está soportado en
- * todos los browsers que necesitamos. Si el hex es inválido, devuelve
- * `[0, 0, 0]` (negro) — el caller decide qué hacer.
- */
-function hexToHsl(hex: string): [number, number, number] {
-  const m = /^#([0-9a-fA-F]{6})$/.exec(hex);
-  if (!m) return [0, 0, 0];
-  const n = parseInt(m[1], 16);
-  const r = ((n >> 16) & 255) / 255;
-  const g = ((n >> 8) & 255) / 255;
-  const b = (n & 255) / 255;
-  const max = Math.max(r, g, b);
-  const min = Math.min(r, g, b);
-  const l = (max + min) / 2;
-  let h = 0;
-  let s = 0;
-  if (max !== min) {
-    const d = max - min;
-    s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
-    if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
-    else if (max === g) h = (b - r) / d + 2;
-    else h = (r - g) / d + 4;
-    h /= 6;
-  }
-  return [h * 360, s * 100, l * 100];
-}
-
-/** HSL → hex. Algoritmo estándar; usado por darkVariant. */
-function hslToHex(h: number, s: number, l: number): string {
-  const sN = s / 100;
-  const lN = l / 100;
-  const a = sN * Math.min(lN, 1 - lN);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const c = lN - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
-    return Math.round(c * 255)
-      .toString(16)
-      .padStart(2, "0");
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
-/**
- * Genera la variante DARK de un color de marca: preserva hue +
- * saturación pero fija la lightness a un valor muy oscuro (default 8%).
- * Resultado: si la marca es `#F54927` (rojo brillante, h~13°), en dark
- * mode el fondo es `#3a0e05` (rojo MUY oscuro pero con tinte de marca);
- * si la marca es `#3B82F6` (azul, h~217°), el fondo es `#04193e` (azul
- * oscuro). Así dark mode también respeta la marca, no se desactiva.
- *
- * Caso especial achromático (gris/blanco/negro, saturación < 5%): no
- * hay hue que preservar, devolvemos un gris oscuro neutro. Antes esto
- * generaba un "wash" gris confuso para usuarios que pusieron blanco
- * como secundario — ahora cae al default dark sano sin sorpresas.
- */
-function darkVariant(hex: string, lightness: number): string {
-  const [h, s] = hexToHsl(hex);
-  if (s < 5) {
-    // Achromático → gris oscuro neutro. La saturación cero garantiza
-    // que h sea irrelevante.
-    return hslToHex(0, 0, lightness);
-  }
-  // Cap de saturación: con saturación 100% al 8% de lightness los
-  // colores se ven casi negro sólido sin matiz reconocible. Bajamos
-  // a 60-75% para que el matiz se "lea" como rojo/azul/etc.
-  const cappedSat = Math.min(s, 70);
-  return hslToHex(h, cappedSat, lightness);
-}
+// La matematica de color vive en `tenant-colors.ts` — PURA y compartida con la
+// vista previa del formulario de institucion (TenantBrandPreview). Estaba acá y
+// se extrajo para que la vista previa no tuviera que duplicarla: dos copias del
+// mismo calculo terminan divergiendo, y el sintoma seria una marca que se ve de
+// un color al configurarla y de otro al usarla.
 
 function setColorVar(root: HTMLElement, name: string, hex: string | null) {
   if (!hex) {
@@ -267,11 +146,10 @@ function setForegroundVar(root: HTMLElement, name: string, hex: string | null) {
     root.style.removeProperty(name);
     return;
   }
-  const lum = luminanceOfHex(hex);
-  // Umbral 0.55 — ligeramente sobre el clásico 0.5 para que colores
-  // medios (amarillos, verdes claros) tomen texto oscuro.
-  const fg = lum < 0.55 ? "#ffffff" : "#0a0a0a";
-  root.style.setProperty(name, fg);
+  // El umbral (0.55, algo sobre el clásico 0.5 para que amarillos y verdes
+  // claros tomen texto oscuro) vive en `readableTextOn` — un solo lugar, así la
+  // vista previa del formulario de institución decide igual que el theme real.
+  root.style.setProperty(name, readableTextOn(hex));
 }
 
 export function TenantThemeProvider({ children }: { children: React.ReactNode }) {
@@ -414,12 +292,12 @@ export function TenantThemeProvider({ children }: { children: React.ReactNode })
       // que el mismo color de letra del sidebar funciona bien encima).
       root.style.setProperty(
         "--sidebar-primary-foreground",
-        textColor ?? (luminanceOfHex(sidebarActive) < 0.55 ? "#ffffff" : "#0a0a0a"),
+        textColor ?? readableTextOn(sidebarActive),
       );
       root.style.setProperty("--sidebar-accent", sidebarAccent);
       root.style.setProperty(
         "--sidebar-accent-foreground",
-        textColor ?? (luminanceOfHex(sidebarAccent) < 0.55 ? "#ffffff" : "#0a0a0a"),
+        textColor ?? readableTextOn(sidebarAccent),
       );
       root.style.setProperty("--sidebar-border", sidebarBorder);
       root.style.setProperty("--sidebar-ring", primary);

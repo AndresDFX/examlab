@@ -142,3 +142,76 @@ function candidate(label: string): string | null {
 export function hostDefinesTenant(hostname: string | null | undefined): boolean {
   return subdomainTenantSlug(hostname) !== null;
 }
+
+/**
+ * Dirección que le va a corresponder a una institución con este slug, deducida
+ * de DÓNDE está corriendo la app ahora mismo.
+ *
+ * Para qué: el formulario de institución mostraba `/t/<slug>/app/...`, que es el
+ * esquema de rutas que **se intentó y se abandonó** (ver el encabezado de este
+ * archivo). Le decía al SuperAdmin una dirección que no existe. Con esto, el
+ * formulario muestra la real y la va calculando mientras se escribe el slug.
+ *
+ * Se deriva del host actual en vez de hardcodear el dominio para que siga siendo
+ * cierta cuando el despliegue se mueva: hoy `app.examlab.workers.dev` produce
+ * `https://sena.examlab.workers.dev`, y el día que haya dominio propio
+ * `app.midominio.co` producirá `https://sena.midominio.co` sin tocar una línea.
+ *
+ * Devuelve `null` —y entonces la UI no promete nada— cuando el host no soporta
+ * una dirección por institución: `*.lovable.app` y demás hosts de plataforma,
+ * o una IP. Preferimos no mostrar dirección a mostrar una equivocada.
+ */
+export function tenantUrlForSlug(
+  slug: string | null | undefined,
+  location: { hostname?: string; protocol?: string; port?: string } | null | undefined,
+): string | null {
+  const clean = (slug ?? "").trim().toLowerCase();
+  if (!isValidTenantSlug(clean)) return null;
+
+  const host = (location?.hostname ?? "").trim().toLowerCase().replace(/\.$/, "");
+  if (!host || isIpAddress(host)) return null;
+
+  const protocol = location?.protocol || "https:";
+  const port = location?.port ? `:${location.port}` : "";
+  const labels = host.split(".").filter(Boolean);
+
+  // Desarrollo: `localhost` o `<algo>.localhost` → `<slug>.localhost:5173`.
+  // Chrome y Firefox resuelven `*.localhost` sin tocar el archivo hosts.
+  if (labels[labels.length - 1] === "localhost") {
+    return `${protocol}//${clean}.localhost${port}`;
+  }
+
+  const isWorkersDev = host === WORKERS_DEV_SUFFIX || host.endsWith(`.${WORKERS_DEV_SUFFIX}`);
+
+  // Hosts de plataforma (lovable.app, pages.dev…): su primera etiqueta es el
+  // proyecto y no hay dirección por institución que ofrecer. workers.dev es la
+  // excepción — ahí SÍ la hay (ver WORKERS_DEV_SUFFIX).
+  if (!isWorkersDev && PLATFORM_HOST_SUFFIXES.some((sfx) => host === sfx || host.endsWith(`.${sfx}`))) {
+    return null;
+  }
+
+  // ¿La primera etiqueta del host actual ya ocupa "el lugar del slug", o es
+  // parte del dominio? Si lo ocupa se REEMPLAZA; si no, se ANTEPONE.
+  //
+  // Contar etiquetas NO alcanza, y este es el caso que lo demuestra:
+  // `midominio.com.co` tiene tres etiquetas pero su primera ES el dominio, así
+  // que reemplazarla produce `sena.com.co` — un dominio ajeno, y encima con
+  // pinta de correcto. Distinguirlo de `app.midominio.co` en general exige la
+  // Public Suffix List, que no tenemos. Así que se reemplaza solo cuando hay
+  // evidencia POSITIVA de que esa etiqueta es el lugar del slug:
+  //
+  //   · es una etiqueta reservada del despliegue general (`app.`, `www.`…), o
+  //   · es un Worker de institución en workers.dev, donde
+  //     `<worker>.<cuenta>.workers.dev` son exactamente 4 etiquetas.
+  //
+  // Limitación conocida y aceptada: parado en `uniaj.midominio.co` (dominio
+  // propio, sobre el subdominio de OTRA institución) esto antepone y devuelve
+  // `sena.uniaj.midominio.co`, que está mal. Se prefiere ese error —raro, y
+  // evidente al leerlo— antes que inventar un dominio que no es del usuario.
+  const firstLabelIsTheSlugSlot =
+    RESERVED_LABELS.has(labels[0]) || (isWorkersDev && labels.length >= 4);
+  const base = firstLabelIsTheSlugSlot ? labels.slice(1).join(".") : host;
+  if (!base) return null;
+
+  return `${protocol}//${clean}.${base}${port}`;
+}
