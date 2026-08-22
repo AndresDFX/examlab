@@ -68,6 +68,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **La Política de Privacidad ahora dice lo que la plataforma realmente hace.** Pasó de 12 a 16
+  secciones, con índice para no barrer el documento entero buscando "mis derechos". Lo que faltaba
+  no era redacción, era **contenido verificable**: quedó explícito quién es responsable (tu
+  institución) y quién encargado (ExamLab) según la Ley 1581 de 2012; qué señales registra la
+  supervisión de exámenes —cambiar de pestaña, copiar, pegar, salir de pantalla completa, intentos
+  de captura— y, sobre todo, **que durante un examen no se activa la cámara ni el micrófono y no se
+  graba la pantalla**; que para detectar copia las entregas de una misma actividad se comparan entre
+  sí; que la IA sugiere nota y detecta texto generado pero **decide el docente**, con derecho a que
+  te expliquen el señalamiento; para qué se pide la cámara (solo leer el QR de asistencia, la imagen
+  no sale de tu dispositivo) y las notificaciones; que hay transferencia internacional porque varios
+  proveedores están fuera de Colombia; los seis derechos del titular con la vía real para ejercerlos
+  (admin de la institución → módulo Soporte); y el tratamiento de datos de menores de edad.
+
+  También quedaron por escrito tres compromisos que hoy son ciertos y son fáciles de romper sin
+  darse cuenta: **no recogemos ubicación, no usamos analítica de terceros y no entrenamos modelos con
+  datos personales.** El archivo lleva la lista de dónde se verifica cada uno, para que quien agregue
+  una función se entere de que la política dejó de ser verdad.
+
 - **La plataforma cambió de dirección: ahora es `app.examlab.workers.dev`.** El sitio se hospeda en
   Cloudflare y cada institución tiene además su propia dirección (`uniaj.…`, `fesna.…`), que entra
   directo sin pedir que elijas institución. **`examlab.lovable.app` sigue abriendo, pero quedó
@@ -256,6 +274,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   opción del perfil, no el encabezado del calendario.
 
 ### Interno (equipo)
+
+- **`.env` estaba trackeado en un repositorio público.** `.gitignore` lo lista desde hace mucho, pero
+  `.gitignore` **no aplica a lo que ya está tracked** — y el repo es `visibility=public`. De sus 7
+  variables, 6 no son secretas (URL de Supabase, project id y la publishable/anon key, que ya viaja
+  en el bundle por diseño). La séptima sí: una `VITE_PRIVATE_KEY` que **es la VAPID private key de
+  producción**, confirmado derivando su punto público y comparándolo con `VITE_VAPID_PUBLIC_KEY` —
+  x e y coinciden. Se destrackeó el archivo (la copia local se queda), pero **destrackear no remedia
+  nada**: la historia del repo la sigue teniendo, así que la única solución es rotar el par, y eso
+  invalida todas las suscripciones push existentes. Queda anotado para decidirlo, no aplicado.
+
+  Dato que acota el riesgo de hoy: con la privada se puede firmar como servidor de aplicación, pero
+  para entregarle a alguien hacen falta su `endpoint` y sus claves, y `push_subscriptions` tiene RLS
+  `USING (user_id = auth.uid())`. El peligro es la combinación, no la clave sola.
+
+- **`deploy-secrets.yml` nunca había seteado un solo secret.** Busca 25 nombres y **ninguno estaba
+  cargado**: el repo tiene 8 secrets y ninguno de esa lista, sin *environments* que los aporten.
+  Comprobado con un `dry_run`, que imprime "No hay ningun secret cargado — nada que setear" y
+  termina en verde: un workflow que no hace nada y no falla. Los secrets de las edge functions
+  vivían puestos directamente en Supabase. Se cargó `APP_PUBLIC_URL=https://app.examlab.workers.dev`
+  y se aplicó (`✓ 1 secret(s) aplicados`) — es el valor que arma el enlace absoluto de TODO correo
+  que manda la plataforma, y con el host viejo o vacío el correo sale igual pero con el botón roto.
 
 - **Barrido de la documentación tras el cambio de hospedaje.** La migración a Cloudflare actualizó
   `CLAUDE.md` en su sección de despliegue, pero dejó afirmaciones viejas repartidas en 20 archivos que

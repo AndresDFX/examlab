@@ -5651,6 +5651,7 @@
     "importingLabel": "Importando…"
   },
   "privacy": {
+    "contents": "Contenido",
     "lastUpdated": "Última actualización: {{date}}",
     "title": "Política de Privacidad"
   },
