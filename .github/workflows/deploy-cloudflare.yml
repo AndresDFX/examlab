@@ -1,0 +1,178 @@
+# Publica ExamLab en Cloudflare: el despliegue general + un Worker por
+# institucion, todos del MISMO build.
+#
+# Por que este workflow:
+#   Reemplaza el "click en Publish" de Lovable. Desde 2026-08-21 el hospedaje
+#   es Cloudflare y la app se sirve como sitio ESTATICO (SPA) — ver
+#   docs/subdominios-cloudflare.md y la seccion "Plataforma y despliegue" de
+#   CLAUDE.md. Sin esto, publicar depende de que alguien corra los comandos a
+#   mano desde su maquina.
+#
+# Por que un Worker por institucion:
+#   En workers.dev la URL es `<worker>.<cuenta>.workers.dev`, y la primera
+#   etiqueta la elegimos al desplegar. Nombrando cada Worker con el slug de su
+#   institucion se obtiene `uniaj.examlab.workers.dev` sin dominio propio.
+#   `subdomain.ts` lee esa etiqueta. El dia que haya dominio propio esto sobra:
+#   un DNS comodin + un Route cubren cualquier institucion sin desplegar nada.
+#
+# La lista de instituciones NO esta hardcodeada: sale del RPC publico
+# `list_active_tenants_public()`, el mismo que llena el selector del login. Eso
+# evita el error que casi cometemos una vez, cuando la lista escrita a mano en
+# la documentacion incluia una institucion que ya no existia.
+#
+# Secrets requeridos en GitHub (Settings -> Secrets and variables -> Actions):
+#   - CLOUDFLARE_API_TOKEN        token con permiso Account > Workers Scripts > Edit
+#   - CLOUDFLARE_ACCOUNT_ID       aa19bccc87720e2f8e358ef7a89bf4cf
+#   - VITE_SUPABASE_URL           |
+#   - VITE_SUPABASE_PUBLISHABLE_KEY  | se hornean en el bundle del cliente
+#   - VITE_VAPID_PUBLIC_KEY       |
+#
+#   Los tres VITE_* no son secretos reales (terminan en el JS que descarga
+#   cualquier visitante); van como secrets por comodidad. Lo que protege los
+#   datos es la RLS. NO agregar VITE_PRIVATE_KEY: el prefijo VITE_ la
+#   publicaria en cuanto algun archivo la referencie.
+name: Deploy a Cloudflare
+
+on:
+  push:
+    branches: [main]
+    # Cambios que no afectan lo que se sirve no justifican un deploy de ~5 min.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "universidades/**"
+      - ".github/workflows/apply-migrations.yml"
+      - ".github/workflows/deploy-edge-functions.yml"
+  # Manual: usalo despues de crear una institucion nueva, para que le publique
+  # su Worker sin tener que empujar un commit.
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-cloudflare
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Misma version fija que run-tests.yml, por el mismo motivo: con
+          # "latest" el job depende de la tags-API de GitHub y se cae sola.
+          bun-version: 1.3.14
+
+      - name: Validar secrets
+        env:
+          CF_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ACCOUNT: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+          missing=0
+          [ -z "$CF_TOKEN" ]  && { echo "::error::Falta CLOUDFLARE_API_TOKEN";        missing=1; }
+          [ -z "$CF_ACCOUNT" ] && { echo "::error::Falta CLOUDFLARE_ACCOUNT_ID";      missing=1; }
+          [ -z "$SB_URL" ]    && { echo "::error::Falta VITE_SUPABASE_URL";           missing=1; }
+          [ -z "$SB_KEY" ]    && { echo "::error::Falta VITE_SUPABASE_PUBLISHABLE_KEY"; missing=1; }
+          [ $missing -eq 0 ] || exit 1
+          echo "Secrets presentes"
+
+      - name: Instalar dependencias
+        run: bun install --frozen-lockfile
+
+      - name: Build estatico
+        # Las VITE_* se hornean ACA. Sin ellas el build TERMINA BIEN pero deja
+        # una app sin configuracion de Supabase: carga y no conecta. Por eso el
+        # paso siguiente verifica que la URL quedo dentro del bundle.
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_VAPID_PUBLIC_KEY: ${{ secrets.VITE_VAPID_PUBLIC_KEY }}
+        run: bun run build:cf
+
+      - name: Verificar que el bundle quedo configurado
+        env:
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          [ -f dist/client/index.html ] || { echo "::error::No se genero dist/client/index.html"; exit 1; }
+          host=$(echo "$SB_URL" | sed -E 's#^https?://##; s#/.*##')
+          if grep -rqF "$host" dist/client/assets/*.js; then
+            echo "La URL de Supabase quedo inyectada en el bundle"
+          else
+            echo "::error::El bundle NO contiene la URL de Supabase. La app cargaria sin conectarse."
+            exit 1
+          fi
+
+      - name: Publicar el despliegue general
+        # Nombre `app` (viene de wrangler.jsonc) -> app.examlab.workers.dev.
+        # Es el que muestra el selector: `app` esta en RESERVED_LABELS de
+        # subdomain.ts, asi que no se interpreta como institucion.
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+        run: bunx wrangler deploy
+
+      - name: Publicar un Worker por institucion
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          WRANGLER_SEND_METRICS: "false"
+          SB_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          SB_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          set -euo pipefail
+
+          slugs=$(curl -sS -X POST "$SB_URL/rest/v1/rpc/list_active_tenants_public" \
+            -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" \
+            -H "Content-Type: application/json" -d '{}' | jq -r '.[].slug')
+
+          if [ -z "$slugs" ]; then
+            echo "::error::El RPC no devolvio instituciones. No se publica ninguna (y NO se borran las existentes)."
+            exit 1
+          fi
+
+          echo "Instituciones activas:"; echo "$slugs" | sed 's/^/  - /'
+
+          failed=0
+          for slug in $slugs; do
+            # El slug es el nombre del Worker, y ese nombre es una etiqueta DNS:
+            # solo alfanumericos y guiones, sin empezar ni terminar en guion.
+            if ! echo "$slug" | grep -qE '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$'; then
+              echo "::warning::Slug '$slug' no sirve como nombre de Worker; se salta."
+              continue
+            fi
+            echo ""
+            echo "--- $slug ---"
+            if bunx wrangler deploy --name "$slug"; then
+              echo "OK $slug.examlab.workers.dev"
+            else
+              echo "::error::Fallo el deploy de '$slug'"
+              failed=$((failed + 1))
+            fi
+          done
+
+          # Un fallo aislado no debe dejar al resto sin publicar, pero el job
+          # tiene que quedar en rojo: si termina en verde con una institucion
+          # caida, nadie se entera hasta que un estudiante no puede entrar.
+          if [ "$failed" -gt 0 ]; then
+            echo "::error::$failed institucion(es) no se pudieron publicar"
+            exit 1
+          fi
+
+      - name: Resumen
+        if: ${{ always() }}
+        run: |
+          {
+            echo "### Publicado en Cloudflare"
+            echo ""
+            echo "- General: https://app.examlab.workers.dev"
+            echo "- Por institucion: \`https://<slug>.examlab.workers.dev\`"
+          } >> "$GITHUB_STEP_SUMMARY"
