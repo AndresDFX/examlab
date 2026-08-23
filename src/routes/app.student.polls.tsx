@@ -1163,6 +1163,14 @@ function MixedPollCard({
         for (const k of Object.keys(prev)) next[k] = "";
         return next;
       });
+      // Las múltiples también: sin esto las casillas quedaban tildadas después
+      // de borrar, y el siguiente clic calculaba el array nuevo a partir del
+      // estado viejo — resucitando respuestas que el alumno acababa de quitar.
+      setSelectedMulti((prev) => {
+        const next: Record<string, number[]> = {};
+        for (const k of Object.keys(prev)) next[k] = [];
+        return next;
+      });
       savedTextRef.current = {};
       // Si tenía el flag "ya confirmé" en localStorage, también lo borramos
       // para que el alumno pueda volver a responder y cerrar de nuevo.
@@ -1254,8 +1262,12 @@ function MixedPollCard({
     setIsComplete(false);
   };
 
+  // Incluye las MÚLTIPLES: sin ellas, una encuesta cuyas cerradas son todas
+  // `multi` nunca mostraba el botón de quitar respuestas, aunque el docente sí
+  // veía las respuestas en su panel de resultados.
   const hasAnyAnswer =
     Object.values(selected).some((v) => v != null) ||
+    Object.values(selectedMulti).some((v) => v.length > 0) ||
     Object.values(savedTextRef.current).some((v) => (v ?? "").trim().length > 0);
 
   return (
@@ -1443,11 +1455,15 @@ function MixedPollCard({
                           variant={mine ? "default" : "outline"}
                           className="w-full justify-start h-auto py-2"
                           aria-pressed={mine}
-                          // A diferencia de la única, acá NO se bloquean las
-                          // opciones no elegidas cuando allow_change_response
-                          // es false: marcar una segunda opción es COMPLETAR la
-                          // respuesta, no cambiarla. El RPC igual valida.
-                          disabled={!open || isSaving}
+                          // Con el candado puesto (allow_change_response
+                          // false) se puede COMPLETAR pero no desdecirse: el
+                          // RPC solo acepta superconjuntos (mig 20261690000000),
+                          // así que las ya marcadas quedan fijas en vez de
+                          // ofrecer un clic que el servidor va a rechazar. Las
+                          // no marcadas siguen disponibles.
+                          disabled={
+                            !open || isSaving || (!poll.allow_change_response && mine)
+                          }
                           onClick={() => void submitMulti(q.id, ci)}
                         >
                           <span className="truncate flex items-center gap-2 text-sm">

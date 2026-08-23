@@ -9117,6 +9117,7 @@
     "fieldType": "Tipo",
     "typeOpen": "Abierta (texto)",
     "typeClosed": "Cerrada (opción única)",
+    "typeClosedMulti": "Cerrada (varias opciones)",
     "required": "Obligatoria",
     "maxChars": "Máx. caracteres",
     "lockedNote": "Con respuestas — tipo y opciones no editables",

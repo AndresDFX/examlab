@@ -9117,6 +9117,7 @@
     "fieldType": "Type",
     "typeOpen": "Open (text)",
     "typeClosed": "Closed (single choice)",
+    "typeClosedMulti": "Closed (multiple choice)",
     "required": "Required",
     "maxChars": "Max. characters",
     "lockedNote": "Has responses — type and options not editable",

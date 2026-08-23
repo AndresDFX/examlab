@@ -3631,7 +3631,13 @@ function MixedResultsDialog({
                       <Badge variant="outline" className="text-3xs mt-1">
                         {q.type === "abierta"
                           ? t("pollQuestions.typeOpen", { defaultValue: "Abierta (texto)" })
-                          : t("pollQuestions.typeClosed", { defaultValue: "Cerrada (opción única)" })}
+                          : q.multi
+                            ? t("pollQuestions.typeClosedMulti", {
+                                defaultValue: "Cerrada (varias opciones)",
+                              })
+                            : t("pollQuestions.typeClosed", {
+                                defaultValue: "Cerrada (opción única)",
+                              })}
                         {" · "}
                         {t("teacherPolls.responsesCount", { count: qResp.length })}
                       </Badge>
