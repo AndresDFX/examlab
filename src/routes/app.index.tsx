@@ -11,6 +11,7 @@ import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ErrorState } from "@/components/ui/empty-state";
+import { fetchTeacherCourseIds } from "@/modules/courses/course-scope";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -833,6 +834,27 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       setLoading(true);
       try {
       const now = new Date().toISOString();
+
+      // Cursos del docente. NO alcanza con la RLS: la policy de SELECT de
+      // `attendance_sessions` es
+      //   course_in_my_tenant(course_id) AND (has_role('Docente') OR ...)
+      // o sea que CUALQUIER usuario con el rol Docente ve las sesiones de
+      // TODA la institución (la policy de *manage* sí usa `_teaches_course`,
+      // la de lectura no). Los comentarios de abajo decían "RLS filtra por mis
+      // cursos" y era falso: el tile "Sesiones hoy" contaba las clases de los
+      // otros docentes y "Próximas clases" las listaba. Es la misma clase de
+      // fuga que documenta CLAUDE.md sobre `has_role()` sin scope de curso, y
+      // el gate vive en el cliente porque la RLS es permisiva a propósito
+      // (matrícula y gestión la necesitan así).
+      //
+      // Este componente se renderiza SOLO con rol activo Docente, así que
+      // acotar es siempre lo correcto acá.
+      const misCursos = userId ? await fetchTeacherCourseIds(userId) : [];
+      // `[]` no es "no acotar": un docente sin cursos asignados no debe ver
+      // nada. Y ojo con `.in(col, [])`, que en PostgREST devuelve TODAS las
+      // filas — por eso se corta antes de consultar.
+      const sinCursos = misCursos.length === 0;
+
       // Fecha de hoy en formato YYYY-MM-DD (zona local) para comparar
       // con `attendance_sessions.session_date` que es columna DATE sin TZ.
       const today = new Date();
@@ -844,8 +866,8 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // unansweredMessages = conversaciones del módulo /app/messages
       // donde el último mensaje (visible) no es mío. Vive en una RPC
       // SECURITY DEFINER por eficiencia + correctness.
-      // todaySessions = attendance_sessions con session_date = hoy (RLS
-      // filtra por mis cursos).
+      // todaySessions = attendance_sessions con session_date = hoy, acotado
+      // a MIS cursos (la RLS no lo hace, ver arriba).
       const [pendingNotes, openThreadsList, unansweredRes, todaySess] = await Promise.all([
         (supabase as any)
           .from("exam_notes")
@@ -853,11 +875,14 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           .eq("status", "pendiente"),
         (supabase as any).from("feedback_threads").select("id").eq("closed", false),
         (supabase as any).rpc("count_unanswered_conversations"),
-        (supabase as any)
-          .from("attendance_sessions")
-          .select("id", { count: "exact", head: true })
-          .eq("session_date", todayStr)
-          .is("deleted_at", null),
+        sinCursos
+          ? Promise.resolve({ count: 0 })
+          : (supabase as any)
+              .from("attendance_sessions")
+              .select("id", { count: "exact", head: true })
+              .eq("session_date", todayStr)
+              .in("course_id", misCursos)
+              .is("deleted_at", null),
       ]);
       const openThreadIds: string[] = (openThreadsList.data ?? []).map((r: any) => r.id);
       let pendingMyResponse = 0;
@@ -907,11 +932,9 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const dbAny2 = supabase as any;
       if (userId) {
-        const { data: ctRows } = await dbAny2
-          .from("course_teachers")
-          .select("course_id")
-          .eq("user_id", userId);
-        const myCourseIds: string[] = ((ctRows ?? []) as any[]).map((r) => r.course_id);
+        // Reusa los ids ya traídos arriba en vez de repetir la consulta a
+        // `course_teachers` — es la misma lista.
+        const myCourseIds: string[] = misCursos;
         if (!cancelled && myCourseIds.length) {
           const { data: myCourses } = await dbAny2
             .from("courses")
@@ -1032,15 +1055,16 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         }
       }
 
-      // Próximas clases: attendance_sessions del docente con
-      // session_date >= hoy, ordenadas por fecha y hora. RLS recorta
-      // a sus cursos.
-      const { data: sess } = await (supabase as any)
+      // Próximas clases: attendance_sessions con session_date >= hoy,
+      // ordenadas por fecha y hora, acotadas a MIS cursos (la RLS no lo hace:
+      // ver el comentario de `misCursos` arriba).
+      const { data: sess } = sinCursos ? { data: [] } : await (supabase as any)
         .from("attendance_sessions")
         .select(
           "id, title, session_date, start_time, duration_minutes, session_type, course_id, course:courses(name)",
         )
         .gte("session_date", todayStr)
+        .in("course_id", misCursos)
         .is("deleted_at", null)
         .order("session_date", { ascending: true })
         .order("start_time", { ascending: true, nullsFirst: false })
@@ -1058,11 +1082,14 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
       // Próximos exámenes: solo published (consistente con workshops/
       // projects). Los borradores no aparecen en el widget — el docente
       // los ve en la lista completa de exámenes.
-      const { data: exams } = await (supabase as any)
+      // Acotado a MIS cursos por el mismo motivo: la policy de SELECT de
+      // `exams` también tiene una rama por rol sin scope de curso.
+      const { data: exams } = sinCursos ? { data: [] } : await (supabase as any)
         .from("exams")
         .select("id, title, start_time, end_time, time_limit_minutes, status, course:courses(name)")
         .eq("status", "published")
         .gte("end_time", now)
+        .in("course_id", misCursos)
         .is("deleted_at", null)
         .order("start_time")
         .limit(8);
