@@ -65,10 +65,6 @@ interface PreguntaPublica {
   ya_respondida: boolean;
 }
 
-/** Clave de reanudación por enlace: si cierra la pestaña a mitad, el correo ya
- *  validado no se vuelve a pedir en el mismo dispositivo. */
-const sessionKey = (token: string) => `examlab_poll_public:${token}`;
-
 function EncuestaPublica() {
   const { token } = Route.useParams();
   const { t } = useTranslation();
@@ -109,18 +105,6 @@ function EncuestaPublica() {
     };
   }, [token]);
 
-  // Reanudar: si este dispositivo ya validó el correo, no lo pedimos otra vez.
-  // Post-mount (nunca en el initializer de useState) para no romper la
-  // hidratación — React #418.
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(sessionKey(token));
-      if (raw) setSessionId(raw);
-    } catch {
-      /* almacenamiento bloqueado: se pide el correo de nuevo, nada más */
-    }
-  }, [token]);
-
   const abrirConCorreo = async () => {
     if (!email.trim() || abriendo) return;
     setAbriendo(true);
@@ -138,11 +122,6 @@ function EncuestaPublica() {
       const qs = (data?.questions ?? []) as PreguntaPublica[];
       setPreguntas(qs);
       setSessionId(data?.session_id ?? null);
-      try {
-        if (data?.session_id) localStorage.setItem(sessionKey(token), data.session_id);
-      } catch {
-        /* no-op */
-      }
       // Si TODAS ya estaban respondidas, no tiene nada que hacer acá.
       if (qs.length > 0 && qs.every((q) => q.ya_respondida)) setListo(true);
     } finally {
@@ -150,15 +129,14 @@ function EncuestaPublica() {
     }
   };
 
-  // Reanudación: hay sesión guardada pero no preguntas (recargó la página). Se
-  // vuelve a pedir el correo porque el id de sesión solo no las trae — es
-  // deliberado: la sesión no es una credencial de lectura.
+  // Al recargar la página se vuelve a pedir el correo. Es deliberado y NO se
+  // persiste el id de sesión: guardarlo no evitaría el paso, porque las
+  // preguntas solo las devuelve `poll_public_open` — la sesión no es una
+  // credencial de lectura. Un localStorage acá sería código que promete
+  // reanudar y no reanuda.
   const necesitaCorreo = !preguntas.length && !listo;
 
-  const pendientes = useMemo(
-    () => preguntas.filter((q) => !q.ya_respondida),
-    [preguntas],
-  );
+  const pendientes = useMemo(() => preguntas.filter((q) => !q.ya_respondida), [preguntas]);
 
   const faltanObligatorias = useMemo(
     () =>
@@ -258,9 +236,15 @@ function EncuestaPublica() {
 
   if (errorCarga || !info) {
     return shell(
+      // El mensaje del servidor YA es texto para el visitante (los rechazos van
+      // con ERRCODE P0001, que `friendlyError` deja pasar tal cual), así que se
+      // usa como título. Sin esto salía dos veces: una como título y otra como
+      // pista, porque son el mismo texto.
       <ErrorState
-        message={t("publicPoll.unavailable", { defaultValue: "Este enlace no está disponible" })}
-        hint={errorCarga ?? undefined}
+        message={
+          errorCarga ??
+          t("publicPoll.unavailable", { defaultValue: "Este enlace no está disponible" })
+        }
       />,
     );
   }
@@ -438,6 +422,6 @@ function EncuestaPublica() {
           </Card>
         </>
       )}
-    </>
+    </>,
   );
 }
