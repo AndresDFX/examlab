@@ -48,17 +48,13 @@ s3_bucket = "stub"
 enabled = true
 policy_pins = []
 
-[functions."ai-generate"]
-enabled = true
-verify_jwt = true
-
-[functions."ai-grade"]
-enabled = true
-verify_jwt = true
-
-[functions."ai-feedback"]
-enabled = true
-verify_jwt = true
+# ai-generate, ai-grade y ai-feedback quedaron declaradas acá pero sus carpetas
+# ya no existen: las dos primeras se renombraron a ai-generate-questions /
+# ai-grade-submission y la tercera se eliminó (el remoto responde NOT_FOUND).
+# Los bloques se sacaron el 2026-08-23 porque `scripts/gen-deploy-config.mjs`
+# —que ahora deriva el config del deploy de ESTE archivo— falla si una función
+# declarada no tiene carpeta, y esa validación es justamente la que evita que
+# vuelva a haber deriva entre las dos listas.
 
 # Calendar RPC. verify_jwt=false porque el handler valida internamente con
 # getUserIdFromRequest (adminClient.auth.getUser(token)) para las acciones de

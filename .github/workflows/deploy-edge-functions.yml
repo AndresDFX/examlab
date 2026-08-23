@@ -53,6 +53,11 @@ on:
     paths:
       - 'supabase/functions/**'
       - '.github/workflows/deploy-edge-functions.yml'
+      # config.toml define verify_jwt por funcion y ese flag se aplica AL
+      # DESPLEGAR. Sin esta ruta, cambiarlo no disparaba nada y el flag del
+      # remoto quedaba como estaba — la deriva descubierta el 2026-08-23.
+      - 'supabase/config.toml'
+      - 'scripts/gen-deploy-config.mjs'
 
   workflow_dispatch:
     inputs:
@@ -152,7 +157,9 @@ jobs:
             # (set -e) en vez de degradar el error a "no hay cambios".
             changed_files=$(git diff --name-only "$BEFORE_SHA" HEAD -- \
               'supabase/functions/' \
-              '.github/workflows/deploy-edge-functions.yml')
+              '.github/workflows/deploy-edge-functions.yml' \
+              'supabase/config.toml' \
+              'scripts/gen-deploy-config.mjs')
 
             if [ -z "$changed_files" ]; then
               echo "Sin cambios detectados — nada que desplegar."
@@ -163,8 +170,8 @@ jobs:
 
             # Si el workflow propio cambio o algo en _shared cambio,
             # forzamos deploy de todas (las _shared se importan dinamicamente).
-            if echo "$changed_files" | grep -qE '^(\.github/workflows/deploy-edge-functions\.yml|supabase/functions/_)'; then
-              echo "Cambios en workflow o en _shared — desplegando todas:"
+            if echo "$changed_files" | grep -qE '^(\.github/workflows/deploy-edge-functions\.yml|supabase/functions/_|supabase/config\.toml|scripts/gen-deploy-config\.mjs)'; then
+              echo "Cambios en workflow, _shared o el config — desplegando todas:"
               echo "$changed_files" | grep -E '^(\.github|supabase/functions/_)' || true
               deploy_mode="all"
             else
@@ -253,24 +260,34 @@ jobs:
 
       - name: Preparar config.toml minimo
         if: steps.detect.outputs.deploy_mode != 'skip'
-        # El supabase/config.toml del repo tiene claves de una version
-        # vieja del CLI que la actual rechaza. Lo bypaseamos armando un
-        # dir temporal con un config minimo y un symlink a las funciones.
+        # El supabase/config.toml del repo tiene claves de una version vieja
+        # del CLI que la actual rechaza, asi que se emite un config minimo en un
+        # dir temporal con un symlink a las funciones.
+        #
+        # Ese config se DERIVA del propio supabase/config.toml. Antes era una
+        # copia escrita a mano que listaba 2 funciones mientras el repo declara
+        # 13 con verify_jwt=false, y omitir una NO deja su flag como estaba: lo
+        # resetea a true en cada deploy. Medido contra produccion el 2026-08-23
+        # (POST sin header de autorizacion): 11 devolvian
+        # UNAUTHORIZED_NO_AUTH_HEADER, o sea que el gateway las cortaba antes
+        # del handler. Entre ellas, las que el worker invoca con la service_role
+        # del formato nuevo (sb_secret_*, que no es un JWT parseable) y
+        # retry-failed-ai-gradings, que un cron llama por net.http_post
+        # mandando solo X-Trigger-Secret: fire-and-forget, asi que el 401 no
+        # levantaba excepcion y nadie se enteraba.
+        #
+        # Derivarlo elimina la deriva por construccion: no hay dos listas que
+        # puedan desincronizarse. El script ademas FALLA el run si el config
+        # declara una funcion sin carpeta.
         env:
           REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
+          set -euo pipefail
           mkdir -p /tmp/sb-deploy/supabase
           ln -sfn "$GITHUB_WORKSPACE/supabase/functions" /tmp/sb-deploy/supabase/functions
-          cat > /tmp/sb-deploy/supabase/config.toml <<EOF
-          project_id = "${REF}"
-
-          [functions.calendar-oauth-callback]
-          verify_jwt = false
-
-          [functions.send-push]
-          verify_jwt = false
-          EOF
-          echo "config.toml minimo generado en /tmp/sb-deploy"
+          node scripts/gen-deploy-config.mjs "$REF" > /tmp/sb-deploy/supabase/config.toml
+          echo "── config.toml generado ──"
+          cat /tmp/sb-deploy/supabase/config.toml
 
       - name: Deploy / update functions
         if: steps.detect.outputs.deploy_mode != 'skip'
