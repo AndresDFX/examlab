@@ -18,6 +18,7 @@ import { Route as AuthIndexRouteImport } from './routes/auth.index'
 import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
 import { Route as RetoPinRouteImport } from './routes/reto.$pin'
+import { Route as EncuestaTokenRouteImport } from './routes/encuesta.$token'
 import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
@@ -136,6 +137,11 @@ const VerifyShortCodeRoute = VerifyShortCodeRouteImport.update({
 const RetoPinRoute = RetoPinRouteImport.update({
   id: '/reto/$pin',
   path: '/reto/$pin',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EncuestaTokenRoute = EncuestaTokenRouteImport.update({
+  id: '/encuesta/$token',
+  path: '/encuesta/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
@@ -535,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
@@ -618,6 +625,7 @@ export interface FileRoutesByTo {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app': typeof AppIndexRoute
@@ -704,6 +712,7 @@ export interface FileRoutesById {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
   '/app/': typeof AppIndexRoute
@@ -791,6 +800,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app/'
@@ -874,6 +884,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app'
@@ -959,6 +970,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
     | '/app/'
@@ -1033,6 +1045,7 @@ export interface RootRouteChildren {
   AsistenciaRoute: typeof AsistenciaRoute
   AuthRoute: typeof AuthRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  EncuestaTokenRoute: typeof EncuestaTokenRoute
   RetoPinRoute: typeof RetoPinRoute
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
 }
@@ -1100,6 +1113,13 @@ declare module '@tanstack/react-router' {
       path: '/reto/$pin'
       fullPath: '/reto/$pin'
       preLoaderRoute: typeof RetoPinRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/encuesta/$token': {
+      id: '/encuesta/$token'
+      path: '/encuesta/$token'
+      fullPath: '/encuesta/$token'
+      preLoaderRoute: typeof EncuestaTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/sso-callback': {
@@ -1818,6 +1838,7 @@ const rootRouteChildren: RootRouteChildren = {
   AsistenciaRoute: AsistenciaRoute,
   AuthRoute: AuthRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  EncuestaTokenRoute: EncuestaTokenRoute,
   RetoPinRoute: RetoPinRoute,
   VerifyShortCodeRoute: VerifyShortCodeRoute,
 }

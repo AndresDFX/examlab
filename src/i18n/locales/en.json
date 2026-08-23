@@ -5536,7 +5536,11 @@
     "slotReservationsCount": "{{count}} reservation(s)",
     "mixedResultsPrivacy": "Open answers are seen only by the teacher.",
     "mixedNoAnswers": "No answers yet.",
-    "searchPlaceholder": "Search survey…"
+    "searchPlaceholder": "Search survey…",
+    "actionSharePublic": "Public link (no login)",
+    "actionSharePublicHint": "Answered with the institutional email, no password",
+    "publicLinkCopied": "Public link copied. Anyone who opens it answers without signing in, but their email must be in the course.",
+    "publicLinkDraft": "The poll is a draft: the link will not open until you publish it."
   },
   "sessionType": {
     "label": "Session type",
@@ -9760,5 +9764,20 @@
   "listFilters": {
     "allSubjects": "All subjects",
     "allPeriods": "All periods"
+  },
+  "publicPoll": {
+    "unavailable": "This link is not available",
+    "emailLabel": "Your institutional email",
+    "emailHint": "We use your email to confirm you are in the course. No password needed.",
+    "continue": "Continue",
+    "openPlaceholder": "Write your answer…",
+    "multiHint": "You can select several options.",
+    "alreadyAnswered": "You already answered this question.",
+    "submit": "Send answers",
+    "submitHint": "Everything is sent at once and cannot be changed afterwards. Review before sending.",
+    "missingRequired": "{{count}} required question(s) missing.",
+    "partial": "{{ok}} saved. First problem: {{err}}",
+    "done": "Done, thank you!",
+    "doneHint": "Your answers were recorded. You can close this page."
   }
 }

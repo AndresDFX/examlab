@@ -1099,6 +1099,43 @@ Generador de slots tipo Doodle (`/app/teacher/polls` → tipo `slot`):
 - **Form de crear/editar encuesta** ([app.teacher.polls.tsx](src/routes/app.teacher.polls.tsx)): Select "Asociar a sesión (opcional)" que lista sesiones del curso ancla. Acepta `prefilledSessionId`/`prefilledCourseId` para abrir desde una sesión concreta.
 - **`LaunchPollDialog`** (existente) abre desde el dropdown del docente en `app.teacher.attendance.tsx`.
 
+### Encuestas PÚBLICAS por enlace (responder sin iniciar sesión)
+
+Ruta pública `/encuesta/<token>` ([encuesta.$token.tsx](src/routes/encuesta.$token.tsx), mig
+[20261700000000](supabase/migrations/20261700000000_polls_public_link.sql)). Dos pasos: con el
+enlace solo se ve **título y descripción**; las **preguntas** salen recién después del correo.
+
+- **"Público" = sin login, NO "cualquiera".** Lo fuerza el esquema:
+  `poll_question_responses.user_id` es `NOT NULL` con FK a `auth.users` y `UNIQUE (question_id,
+  user_id)`, así que una respuesta pertenece siempre a una cuenta real. El correo tiene que estar
+  MATRICULADO (`_poll_has_member`, que pasa por `poll_courses` y por eso implica mismo tenant) y se
+  resuelve al `user_id` del estudiante. Es el mismo modelo que `kahoot_join_public`.
+- **Solo `poll_type='mixed'`**, y es ESTRUCTURAL (`chk_polls_public_only_mixed`): son las únicas con
+  preguntas propias, y su camino de respuesta no toca `poll_responses`, así que los triggers de voto
+  único y de autocierre quedan fuera del alcance de un anónimo. Sin el CHECK, una `slot` pública
+  dejaría que un bot queme los cupos y una `single` que fuerce el autocierre.
+- **El camino público es de SOLO ALTA.** `poll_public_answer` no modifica una respuesta existente.
+  Con identidad por correo —adivinable— un UPSERT dejaría PISAR las respuestas de un compañero y un
+  read-back dejaría LEERLAS. Por eso tampoco se devuelven las respuestas guardadas: solo el booleano
+  `ya_respondida`. Riesgo residual conocido: alguien con el enlace y un correo adivinado puede
+  ADELANTARSE. Cerrarlo pide verificación real (código de un solo uso al correo) y quedó fuera de
+  v1 → **un instrumento sensible (bienestar, salud) no debería publicarse por enlace**; para eso
+  está el enlace autenticado (`/app/student/polls?poll=<id>`, acción "Compartir enlace").
+- **El GRANT no es la frontera; el CUERPO lo es.** Medido en `.rls-audit/secdef-funcs.json`: **256 de
+  305** funciones `SECURITY DEFINER` del proyecto ya tienen `anon=X`, porque Supabase otorga EXECUTE
+  por `ALTER DEFAULT PRIVILEGES` y el `REVOKE ALL … FROM PUBLIC` de la convención del repo **no**
+  borra esa entrada del ACL. Lo único que hoy frena a un anónimo en el resto de las RPC es el
+  `IF auth.uid() IS NULL THEN RAISE` del cuerpo. Consecuencia al escribir una RPC nueva: poné TODOS
+  los guards en el cuerpo, en orden, y agregá `REVOKE … FROM anon` explícito a lo que no sea público
+  (el `FROM PUBLIC` solo no alcanza).
+- **Token dedicado** (`polls.public_token`, 32 hex), no el `poll.id`: el id ya circula en el enlace
+  autenticado, así que reusarlo haría imposible cortar un enlace filtrado. `public_enabled` arranca
+  en FALSE — nada se vuelve público solo. El docente lo activa y copia desde el menú de fila
+  ("Enlace público (sin login)"); `poll_set_public(id, false)` lo corta y `(id, true, true)` lo rota.
+- La ruta declara `robots: noindex, nofollow` (como `/reto/$pin`) y **no muestra** resultados,
+  conteos, curso ni institución. `poll_public_sessions` no tiene ninguna policy: solo la tocan las
+  RPCs, para que un id de sesión ajeno no sea enumerable.
+
 ### Polls — acciones de fila + respuestas (docente) y quitar voto (estudiante)
 
 Las acciones de fila del grid de encuestas usan `RowActionsMenu` (6 acciones > umbral de 3 del design system): Ver resultados · Compartir enlace · Editar · Duplicar · Cerrar/Reabrir · separator + Eliminar.

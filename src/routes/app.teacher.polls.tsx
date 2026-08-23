@@ -92,6 +92,7 @@ import {
   Pencil,
   X,
   Copy,
+  Globe,
   Link2,
   Gamepad2,
   Play,
@@ -822,6 +823,52 @@ function TeacherPolls() {
    *  los estudiantes por otro medio (correo, WhatsApp). El enlace lleva al
    *  alumno (autenticado + matriculado) directo a la encuesta en su vista;
    *  la RLS sigue aplicando, así que NO expone la encuesta a terceros. */
+  /**
+   * Enlace PÚBLICO: se responde sin iniciar sesión. Distinto del de arriba, que
+   * exige sesión — este activa `public_enabled`, genera el token y copia
+   * `/encuesta/<token>`.
+   *
+   * Solo para las MIXTAS: lo enforza un CHECK en la tabla (mig 20261700000000),
+   * porque abrir una `slot` o una `single` al público dejaría que un bot queme
+   * cupos o fuerce el autocierre. Acá además se filtra el ítem del menú para no
+   * ofrecer algo que la base va a rechazar.
+   */
+  const sharePublicPoll = async (p: Poll) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const { data, error } = await sb.rpc("poll_set_public", {
+      _poll_id: p.id,
+      _enabled: true,
+    });
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/encuesta/${data}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(
+        i18n.t("teacherPolls.publicLinkCopied", {
+          defaultValue:
+            "Enlace público copiado. Quien lo abra responde sin iniciar sesión, pero su correo debe estar en el curso.",
+        }),
+        { duration: 9000 },
+      );
+    } catch {
+      toast.info(url, { duration: 20000 });
+    }
+    if (!p.is_published) {
+      toast.warning(
+        i18n.t("teacherPolls.publicLinkDraft", {
+          defaultValue:
+            "La encuesta está en borrador: el enlace no abrirá hasta que la publiques.",
+        }),
+        { duration: 9000 },
+      );
+    }
+  };
+
   const sharePoll = async (p: Poll) => {
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const url = `${origin}/app/student/polls?poll=${p.id}`;
@@ -1135,6 +1182,19 @@ function TeacherPolls() {
                                       label: t("teacherPolls.actionShareLink"),
                                       icon: Link2,
                                       onClick: () => void sharePoll(p),
+                                    },
+                                    // Nullish → RowActionsMenu lo filtra. Solo
+                                    // mixtas: ver el CHECK de la migración.
+                                    p.poll_type === "mixed" && {
+                                      label: i18n.t("teacherPolls.actionSharePublic", {
+                                        defaultValue: "Enlace público (sin login)",
+                                      }),
+                                      icon: Globe,
+                                      hint: i18n.t("teacherPolls.actionSharePublicHint", {
+                                        defaultValue:
+                                          "Se responde con el correo institucional, sin contraseña",
+                                      }),
+                                      onClick: () => void sharePublicPoll(p),
                                     },
                                     { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
                                     { label: t("common.duplicate"), icon: Copy, onClick: () => setDuplicateFor(p) },

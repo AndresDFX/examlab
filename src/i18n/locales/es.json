@@ -5536,7 +5536,11 @@
     "slotReservationsCount": "{{count}} reserva(s)",
     "mixedResultsPrivacy": "Las respuestas abiertas solo las ve el docente.",
     "mixedNoAnswers": "Sin respuestas todavía.",
-    "searchPlaceholder": "Buscar encuesta…"
+    "searchPlaceholder": "Buscar encuesta…",
+    "actionSharePublic": "Enlace público (sin login)",
+    "actionSharePublicHint": "Se responde con el correo institucional, sin contraseña",
+    "publicLinkCopied": "Enlace público copiado. Quien lo abra responde sin iniciar sesión, pero su correo debe estar en el curso.",
+    "publicLinkDraft": "La encuesta está en borrador: el enlace no abrirá hasta que la publiques."
   },
   "sessionType": {
     "label": "Tipo de sesión",
@@ -9760,5 +9764,20 @@
   "listFilters": {
     "allSubjects": "Todas las asignaturas",
     "allPeriods": "Todos los periodos"
+  },
+  "publicPoll": {
+    "unavailable": "Este enlace no está disponible",
+    "emailLabel": "Tu correo institucional",
+    "emailHint": "Con tu correo confirmamos que estás en el curso. No necesitas contraseña.",
+    "continue": "Continuar",
+    "openPlaceholder": "Escribe tu respuesta…",
+    "multiHint": "Puedes marcar varias opciones.",
+    "alreadyAnswered": "Ya respondiste esta pregunta.",
+    "submit": "Enviar respuestas",
+    "submitHint": "Se envía todo junto y no se puede modificar después. Revisa antes de enviar.",
+    "missingRequired": "Faltan {{count}} pregunta(s) obligatoria(s).",
+    "partial": "Se guardaron {{ok}}. Primer problema: {{err}}",
+    "done": "¡Listo, gracias!",
+    "doneHint": "Tus respuestas quedaron registradas. Ya puedes cerrar esta página."
   }
 }
