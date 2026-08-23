@@ -35,6 +35,22 @@ bun run dev              # localhost:5173
 - `ai_model_settings.processing_mode = sync` (necesario para que la generación con IA del docente funcione inline sin pedir código).
 - `email_settings.enabled_kinds.welcome = false` (no manda welcome email al bulk import).
 
+**Consultar la base desde esta máquina** ([scripts/db-query.mjs](scripts/db-query.mjs)):
+`node scripts/db-query.mjs "polls?select=id,title&poll_type=eq.mixed"` — GET a PostgREST con la
+`service_role` (bypassa RLS), y POST si la ruta empieza con `rpc/`. La key va en `.env.local`
+(ignorado por el patrón `.env.*`), NO en el repo. Es **solo lectura** a propósito: para escribir
+están la migración versionada y el SQL Editor, que dejan rastro.
+
+**Qué credencial pedir cuando falta acceso a la base — y cuál NO.** La correcta es la
+`service_role` del proyecto (Supabase → Project Settings → API): acotada a este proyecto, rotable
+en un clic desde el dashboard, y es un secreto que el proyecto ya maneja. **Nunca una contraseña
+de cuenta personal** (GitHub, Google, el correo institucional): no está acotada —da acceso a todos
+los repos y, por SSO, a lo que esa identidad tenga federado—, no se puede rotar sin romper otras
+cosas, y los proveedores bloquean el inicio de sesión automatizado (verificación por dispositivo,
+CAPTCHA), así que además de ser desproporcionado **no funciona** y puede dejar la cuenta trabada.
+Si alguien ofrece una contraseña de cuenta, pedir la key acotada en su lugar y recomendar rotar la
+que quedó expuesta.
+
 **Validaciones de campo desde shell** (sin browser, via REST):
 
 > ⚠️ El ejemplo de abajo usa `test-fesna`, cuya contraseña ya NO funciona (migró a SSO, ver arriba). El PATRÓN sigue válido — reemplazá el email/password por una cuenta con password auth vigente.
