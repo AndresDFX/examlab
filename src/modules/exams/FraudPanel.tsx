@@ -402,15 +402,31 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         const detail = await extractEdgeError(error, data);
         throw new Error(detail || i18n.t("hc_modulesExamsFraudPanel.plagiarismDetectionError"));
       }
-      const summary = data as { pairs?: unknown[]; groups_compared?: number; message?: string };
+      const summary = data as {
+        pairs?: unknown[];
+        groups_compared?: number;
+        message?: string;
+        answers_compared?: number;
+        answers_skipped?: number;
+        cap_per_question?: number;
+      };
       const found = Array.isArray(summary?.pairs) ? summary.pairs.length : 0;
+      // El edge compara como máximo `cap_per_question` respuestas por pregunta.
+      // Si quedó algo afuera, un "sin coincidencias" NO es concluyente y hay
+      // que decirlo: afirmar que una clase está limpia cuando solo se revisó
+      // una parte es peor que no revisar.
+      const omitidas = Number(summary?.answers_skipped ?? 0);
       void logEvent({
         action: "ai_plagiarism.detected",
         category: "fraud",
         severity: found > 0 ? "warning" : "info",
         entityType: kind,
         entityId: refId,
-        metadata: { pairs_found: found },
+        metadata: {
+          pairs_found: found,
+          answers_compared: summary?.answers_compared,
+          answers_skipped: omitidas,
+        },
       });
       if (found > 0) {
         const pairsLabel = i18n.t("hc_modulesExamsFraudPanel.suspiciousPairsLabel", {
@@ -426,7 +442,18 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
         );
       } else {
         toast.message(i18n.t("hc_modulesExamsFraudPanel.detectionDone"), {
-          description: summary?.message ?? i18n.t("hc_modulesExamsFraudPanel.noRelevantMatches"),
+          description:
+            summary?.message ??
+            (omitidas > 0
+              ? i18n.t("hc_modulesExamsFraudPanel.partialCoverage", {
+                  defaultValue:
+                    "Sin coincidencias entre las {{comparadas}} respuestas comparadas. Quedaron {{omitidas}} sin comparar (el tope es {{tope}} por pregunta), así que el resultado no es concluyente.",
+                  comparadas: Number(summary?.answers_compared ?? 0),
+                  omitidas,
+                  tope: Number(summary?.cap_per_question ?? 30),
+                })
+              : i18n.t("hc_modulesExamsFraudPanel.noRelevantMatches")),
+          duration: omitidas > 0 ? 12000 : undefined,
         });
       }
       await load();

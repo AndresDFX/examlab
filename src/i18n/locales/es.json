@@ -6590,7 +6590,8 @@
     "suspiciousPairsLabel": "{{count}} par{{plural}} sospechoso{{pluralAdj}}",
     "detectionDone": "Detección completada",
     "noRelevantMatches": "No se encontraron coincidencias relevantes.",
-    "plagiarismDetectionError": "Error en detección de plagio"
+    "plagiarismDetectionError": "Error en detección de plagio",
+    "partialCoverage": "Sin coincidencias entre las {{comparadas}} respuestas comparadas. Quedaron {{omitidas}} sin comparar (el tope es {{tope}} por pregunta), así que el resultado no es concluyente."
   },
   "hc_modulesExamsPendingExamNotesModal": {
     "title": "Notas de examen pendientes",

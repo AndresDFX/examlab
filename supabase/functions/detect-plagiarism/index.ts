@@ -415,8 +415,18 @@ Deno.serve(async (req) => {
     );
 
     const inserted: any[] = [];
+    // Cobertura real de la corrida. El tope de MAX_ITEMS_PER_CALL truncaba en
+    // SILENCIO, y la UI decía "sin coincidencias relevantes" sobre una clase
+    // que solo se había comparado en parte — una afirmación falsa sobre
+    // integridad académica. Se cuenta y se devuelve para que la pantalla pueda
+    // decir la verdad (convención de CLAUDE.md: un tope que acota la cobertura
+    // se REPORTA, porque el truncado callado se lee como "revisé todo").
+    let comparadas = 0;
+    let omitidas = 0;
     for (const group of groups) {
       const items = group.items.slice(0, MAX_ITEMS_PER_CALL);
+      comparadas += items.length;
+      omitidas += Math.max(0, group.items.length - items.length);
       const idxList = items.map((it, i) => `[${i}]\n${it.text}`).join("\n\n---\n\n");
 
       const aiRes = await aiChatCompletionFailover(activeModel, {
@@ -561,6 +571,8 @@ Deno.serve(async (req) => {
         kind: auditKind,
         pairs_found: inserted.length,
         groups_compared: groups.length,
+        answers_compared: comparadas,
+        answers_skipped: omitidas,
       },
     });
     return new Response(
@@ -568,6 +580,12 @@ Deno.serve(async (req) => {
         ok: true,
         pairs: inserted,
         groups_compared: groups.length,
+        // Cobertura: cuántas entregas se compararon de verdad y cuántas
+        // quedaron afuera por el tope. `omitidas > 0` significa que un
+        // "sin coincidencias" NO es concluyente.
+        answers_compared: comparadas,
+        answers_skipped: omitidas,
+        cap_per_question: MAX_ITEMS_PER_CALL,
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );

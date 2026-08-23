@@ -6590,7 +6590,8 @@
     "suspiciousPairsLabel": "{{count}} suspicious pair{{plural}}",
     "detectionDone": "Detection completed",
     "noRelevantMatches": "No relevant matches were found.",
-    "plagiarismDetectionError": "Error during plagiarism detection"
+    "plagiarismDetectionError": "Error during plagiarism detection",
+    "partialCoverage": "No matches among the {{comparadas}} answers compared. {{omitidas}} were left out (the cap is {{tope}} per question), so the result is not conclusive."
   },
   "hc_modulesExamsPendingExamNotesModal": {
     "title": "Pending exam notes",
