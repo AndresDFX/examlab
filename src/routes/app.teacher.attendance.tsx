@@ -2368,7 +2368,7 @@ function TeacherAttendance() {
         attendanceSessionId={pollLaunchSession?.id ?? null}
         sessionLabel={
           pollLaunchSession
-            ? `${pollLaunchSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(pollLaunchSession.session_date)}`
+            ? `${pollLaunchSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(pollLaunchSession.session_date + "T12:00:00")}`
             : undefined
         }
         onCreated={() => setPollLaunchSession(null)}
@@ -2379,7 +2379,7 @@ function TeacherAttendance() {
         sessionId={whiteboardSession?.id ?? null}
         sessionLabel={
           whiteboardSession
-            ? `${whiteboardSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(whiteboardSession.session_date)}`
+            ? `${whiteboardSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(whiteboardSession.session_date + "T12:00:00")}`
             : undefined
         }
         onOpenChange={(open) => !open && setWhiteboardSession(null)}

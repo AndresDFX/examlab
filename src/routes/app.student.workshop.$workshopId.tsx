@@ -28,6 +28,8 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
+import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
+import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 
 export const Route = createFileRoute("/app/student/workshop/$workshopId")({
@@ -59,7 +61,27 @@ type SubmissionRow = {
 
 type WorkshopQuestion = {
   id: string;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  /**
+   * Los 12 tipos que acepta el CHECK de `workshop_questions`
+   * (mig 20261600000000). Este tipo declaraba solo 4, y eso ES la causa por la
+   * que la pantalla no tenía ramas para `bd_sql`, `cerrada_multi` ni las de
+   * red: TypeScript no podía avisar de una rama faltante para un tipo que no
+   * sabía que existía, así que todas caían al bloque monoespaciado y el alumno
+   * veía el JSON crudo. Al agregar un tipo nuevo al CHECK, agregarlo acá.
+   */
+  type:
+    | "abierta"
+    | "cerrada"
+    | "cerrada_multi"
+    | "codigo"
+    | "diagrama"
+    | "java_gui"
+    | "python_gui"
+    | "codigo_zip"
+    | "red_consola"
+    | "red_gui"
+    | "so_consola"
+    | "bd_sql";
   content: string;
   options: { choices?: string[]; correct_index?: number } | null;
   position: number;
@@ -339,6 +361,71 @@ function StudentWorkshopDetail() {
     const raw = ans.code_content ?? ans.diagram_code ?? ans.answer_text ?? "";
     if (!raw.trim())
       return <span className="text-muted-foreground italic">{t("exam.review.noAnswer")}</span>;
+
+    // Estas tres ramas YA existían en la revisión del EXAMEN
+    // (app.student.review.$examId.tsx) y nunca se propagaron acá, así que el
+    // alumno veía el JSON serializado en vez de su respuesta: `bd_sql` mostraba
+    // {"bdSql":1,"sql":"…","results":[…]}, la opción múltiple `[0,2]`, y las de
+    // red el volcado completo de la topología.
+    if (q.type === "bd_sql") {
+      // La base era efímera: esto es la ÚNICA evidencia que queda de la
+      // ejecución (ver modules/database/sql-answer.ts).
+      return (
+        <div className="space-y-2">
+          <pre className="overflow-x-auto rounded-md border bg-muted/30 p-2 font-mono text-2xs">
+            {sqlSourceForDisplay(raw) ?? t("exam.review.noAnswer")}
+          </pre>
+          {sqlResultsForDisplay(raw) && (
+            <pre className="overflow-x-auto rounded-md border bg-muted/30 p-2 font-mono text-2xs">
+              {sqlResultsForDisplay(raw)}
+            </pre>
+          )}
+        </div>
+      );
+    }
+    if (q.type === "red_consola" || q.type === "red_gui") {
+      return (
+        <NetworkAnswerReview
+          options={q.options}
+          value={raw}
+          type={q.type === "red_gui" ? "red_gui" : "red_consola"}
+        />
+      );
+    }
+    if (q.type === "cerrada_multi") {
+      // `answer_text` guarda el array de índices serializado. Se pinta como la
+      // única, con ring en TODAS las marcadas.
+      let marcadas: number[] = [];
+      try {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) marcadas = parsed.map(Number).filter(Number.isFinite);
+      } catch {
+        /* si no parsea, cae al bloque de abajo y se muestra el texto */
+      }
+      if (marcadas.length) {
+        return (
+          <div className="space-y-1.5">
+            {(q.options?.choices ?? []).map((c, i) => (
+              <div
+                key={i}
+                className={`rounded-md border p-2 text-xs ${
+                  marcadas.includes(i) ? "ring-1 ring-primary" : "border-border"
+                }`}
+              >
+                <span className="mr-2 font-mono">{String.fromCharCode(65 + i)}.</span>
+                {c}
+                {marcadas.includes(i) && (
+                  <Badge variant="outline" className="ml-2 text-3xs">
+                    {t("exam.review.yourAnswer")}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+        );
+      }
+    }
+
     return (
       <div className="rounded-md border bg-muted/30 p-3 text-xs whitespace-pre-wrap font-mono">
         {v86TranscriptForDisplay(raw) ?? raw}

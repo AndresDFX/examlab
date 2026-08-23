@@ -3982,7 +3982,7 @@ function FilesByClassDialog({
                               <div className="flex flex-col gap-0.5">
                                 <div className="flex items-center gap-1 text-2xs">
                                   <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                  <DateCell value={sessionsByClass[0].date} variant="date" />
+                                  <DateCell value={sessionsByClass[0].date} />
                                 </div>
                                 {sessionsByClass[0].title && (
                                   <span className="text-2xs text-muted-foreground truncate max-w-[120px]">
@@ -4057,7 +4057,7 @@ function FilesByClassDialog({
                                 <div className="flex flex-col gap-0.5">
                                   <div className="flex items-center gap-1 text-2xs">
                                     <CalendarRange className="h-3 w-3 shrink-0 text-muted-foreground" />
-                                    <DateCell value={session.date} variant="date" />
+                                    <DateCell value={session.date} />
                                   </div>
                                   {session.title && (
                                     <span className="text-2xs text-muted-foreground truncate max-w-[120px]">

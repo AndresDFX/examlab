@@ -61,7 +61,7 @@ import {
   Trash2,
   Unlock,
 } from "lucide-react";
-import { formatDateTime, formatDate, formatSessionLabel } from "@/shared/lib/format";
+import { formatDateTime, formatDate, formatDateOnly, formatSessionLabel } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -648,7 +648,7 @@ function ForumRow({
               {forum.session && !forum.session.deleted_at && (
                 <Badge variant="secondary" className="text-3xs">
                   <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
-                  {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
+                  {i18n.t("forum.sessionBadge", { date: formatDateOnly(forum.session.session_date) })}
                   {forum.session.title ? ` · ${forum.session.title}` : ""}
                 </Badge>
               )}

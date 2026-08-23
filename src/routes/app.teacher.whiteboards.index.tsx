@@ -75,7 +75,7 @@ import { Plus, Trash2, Palette, Globe, Lock, Unlock, Copy, Eye } from "lucide-re
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
-import { formatDate } from "@/shared/lib/format";
+import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -1118,7 +1118,7 @@ function TeacherWhiteboards() {
                               crearla con el botón de abajo. */}
                           {draftSessions.map((s) => (
                             <SelectItem key={s.id} value={s.id}>
-                              {formatDate(s.session_date)}
+                              {formatDateOnly(s.session_date)}
                               {s.title ? ` · ${s.title}` : ""}
                             </SelectItem>
                           ))}

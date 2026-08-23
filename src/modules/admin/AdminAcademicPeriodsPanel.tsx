@@ -485,10 +485,10 @@ export function AdminAcademicPeriodsPanel() {
                           {r.name ?? "—"}
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <DateCell value={r.start_date} variant="date" />
+                          <DateCell value={r.start_date} />
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">
-                          <DateCell value={r.end_date} variant="date" />
+                          <DateCell value={r.end_date} />
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-2">

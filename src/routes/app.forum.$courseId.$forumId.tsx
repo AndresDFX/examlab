@@ -58,7 +58,7 @@ import {
   MessageSquare,
   CalendarClock,
 } from "lucide-react";
-import { formatDateTime, formatDate } from "@/shared/lib/format";
+import { formatDateTime, formatDate, formatDateOnly } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { isForumOpen } from "@/modules/forum/forum-state";
 import i18n from "@/i18n";
@@ -325,7 +325,7 @@ function ForumThreads() {
           {forum.session && !forum.session.deleted_at && (
             <Badge variant="secondary" className="text-3xs">
               <CalendarClock className="h-2.5 w-2.5 mr-0.5" />
-              {i18n.t("forum.sessionBadge", { date: formatDate(forum.session.session_date) })}
+              {i18n.t("forum.sessionBadge", { date: formatDateOnly(forum.session.session_date) })}
               {forum.session.title ? ` · ${forum.session.title}` : ""}
             </Badge>
           )}
