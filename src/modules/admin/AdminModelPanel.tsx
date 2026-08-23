@@ -656,7 +656,7 @@ export function AdminModelPanel() {
             ) : (
               <Trans
                 i18nKey="hc_modulesAdminAdminModelPanel.apiKeyAlertTenant"
-                defaults="Cada institución usa su propia API key del provider activo (cobra a su cuenta).<strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu tenant. La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4 caracteres)."
+                defaults="Cada institución usa su propia API key del provider activo (cobra a su cuenta).<strong> La key es obligatoria</strong> — sin ella la IA no funciona en tu institución. La key se guarda cifrada en la DB y nunca se muestra completa (solo los últimos 4 caracteres)."
                 components={{ strong: <strong /> }}
               />
             )}

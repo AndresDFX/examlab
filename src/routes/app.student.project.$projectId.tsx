@@ -353,7 +353,7 @@ function StudentProjectDetail() {
   const gradeShow = submission?.final_grade ?? submission?.ai_grade;
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         backTo="/app/student/projects"
         backLabel={t("hc_routesAppStudentProjectProjectId.projectsBack")}

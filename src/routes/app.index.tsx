@@ -1741,9 +1741,28 @@ function Stat({
   return (
     <Card
       onClick={onClick}
+      // `Card` renderiza un `<div>` pelado, así que un `onClick` solo lo deja
+      // inalcanzable por teclado y el lector de pantalla lo anuncia como un
+      // grupo cualquiera. Con 18 tiles repartidos en los 4 dashboards, esto
+      // era el agujero de accesibilidad más grande de la pantalla de entrada.
+      // `role` + `tabIndex` lo hacen enfocable y anunciable; el `onKeyDown`
+      // agrega el COMPORTAMIENTO, que el `role` por sí solo no da.
+      role={interactive ? "button" : undefined}
+      tabIndex={interactive ? 0 : undefined}
+      aria-label={interactive ? `${label}: ${value}` : undefined}
+      onKeyDown={
+        interactive
+          ? (e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick?.();
+              }
+            }
+          : undefined
+      }
       className={
         interactive
-          ? "cursor-pointer hover:border-primary/40 hover:shadow-sm transition-all"
+          ? "cursor-pointer transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           : undefined
       }
     >

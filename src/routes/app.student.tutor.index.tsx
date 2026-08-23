@@ -78,7 +78,7 @@ function TutorIndex() {
   }, [user, retryNonce]);
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         title={t("tutorIndex.title")}
         subtitle={t("tutorIndex.subtitle")}

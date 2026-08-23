@@ -347,7 +347,7 @@ function StudentWorkshopDetail() {
   };
 
   return (
-    <div className="space-y-5 max-w-3xl mx-auto">
+    <div className="space-y-5">
       <PageHeader
         backTo="/app/student/workshops"
         backLabel={t("nav.workshops")}
