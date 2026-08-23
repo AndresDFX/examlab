@@ -75,6 +75,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DateTimePicker, DatePicker } from "@/components/ui/date-picker";
 import { generateSlotsForDates, suggestSlotCupo, formatSlotLabel, slotsPerDayCount } from "@/modules/polls/slot-generation";
 import { formatSessionLabel } from "@/shared/lib/format";
+import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -93,6 +94,7 @@ import {
   X,
   Copy,
   Globe,
+  GlobeLock,
   Link2,
   Gamepad2,
   Play,
@@ -137,6 +139,12 @@ interface Poll {
    *  RLS oculta `is_published=false` a los alumnos). Cuando se cambia a
    *  true, el trigger de publicación dispara la notif + correo al curso. */
   is_published: boolean;
+  /** Si true, se puede responder por enlace público sin iniciar sesión (el
+   *  correo debe estar matriculado). El CHECK `chk_polls_public_only_mixed`
+   *  solo lo admite en `mixed`. Ver mig 20261700000000. */
+  public_enabled: boolean;
+  /** Secreto del enlace público. Se regenera para cortar un enlace filtrado. */
+  public_token: string | null;
   opens_at: string;
   closes_at: string | null;
   closed_manually: boolean;
@@ -388,7 +396,7 @@ function TeacherPolls() {
       const { data: pollRows, error: pollErr } = await db
         .from("polls")
         .select(
-          "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, auto_close_when_all_responded, is_published, opens_at, closes_at, closed_manually, created_at, options:poll_options(id, poll_id, label, position, max_responses, responses_count), linked_courses:poll_courses(course_id, courses(id, name))",
+          "id, course_id, attendance_session_id, title, description, poll_type, results_visible_to_students, allow_change_response, auto_close_when_all_responded, is_published, public_enabled, public_token, opens_at, closes_at, closed_manually, created_at, options:poll_options(id, poll_id, label, position, max_responses, responses_count), linked_courses:poll_courses(course_id, courses(id, name))",
         )
         .in("id", pollIds)
         // Ocultar encuestas en papelera. El docente puede restaurar
@@ -833,6 +841,75 @@ function TeacherPolls() {
    * cupos o fuerce el autocierre. Acá además se filtra el ítem del menú para no
    * ofrecer algo que la base va a rechazar.
    */
+  /** Enlace público del que YA está activo: copiar sin tocar nada. */
+  const copyPublicLink = async (p: Poll) => {
+    if (!p.public_token) return;
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/encuesta/${p.public_token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(
+        i18n.t("teacherPolls.publicLinkCopiedShort", { defaultValue: "Enlace público copiado." }),
+      );
+    } catch {
+      toast.info(url, { duration: 20000 });
+    }
+  };
+
+  /** Cortar el enlace, o cambiarlo por uno nuevo. Las respuestas ya recibidas
+   *  no se tocan: lo único que muere es la URL. */
+  const setPublic = async (p: Poll, enabled: boolean, regenerate = false) => {
+    if (!enabled) {
+      const ok = await confirm({
+        title: i18n.t("teacherPolls.publicOffTitle", {
+          defaultValue: "¿Desactivar el enlace público?",
+        }),
+        description: i18n.t("teacherPolls.publicOffDesc", {
+          defaultValue:
+            "Quien tenga el enlace dejará de poder responder de inmediato. Las respuestas ya recibidas no se borran.",
+        }),
+        tone: "warning",
+      });
+      if (!ok) return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const { data, error } = await sb.rpc("poll_set_public", {
+      _poll_id: p.id,
+      _enabled: enabled,
+      _regenerate: regenerate,
+    });
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    setRetryNonce((n) => n + 1);
+    if (!enabled) {
+      toast.success(
+        i18n.t("teacherPolls.publicOffDone", { defaultValue: "Enlace público desactivado." }),
+      );
+      return;
+    }
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/encuesta/${data}`;
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      toast.info(url, { duration: 20000 });
+    }
+    toast.success(
+      regenerate
+        ? i18n.t("teacherPolls.publicRotated", {
+            defaultValue: "Enlace nuevo copiado. El anterior dejó de funcionar.",
+          })
+        : i18n.t("teacherPolls.publicLinkCopied", {
+            defaultValue:
+              "Enlace público copiado. Quien lo abra responde sin iniciar sesión, pero su correo debe estar en el curso.",
+          }),
+      { duration: 9000 },
+    );
+  };
+
   const sharePublicPoll = async (p: Poll) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sb = supabase as any;
@@ -1072,11 +1149,15 @@ function TeacherPolls() {
                             {p.title}
                           </div>
                           {p.description && (
+                            // Celda truncada a una linea: aca NO se puede
+                            // renderizar el markdown (genera bloques y rompe
+                            // el truncado), pero tampoco corresponde mostrar
+                            // los asteriscos crudos. Se limpia la sintaxis.
                             <div
                               className="text-2xs text-muted-foreground truncate"
-                              title={p.description}
+                              title={markdownToPlain(p.description)}
                             >
-                              {p.description}
+                              {markdownToPlain(p.description)}
                             </div>
                           )}
                         </TableCell>
@@ -1109,6 +1190,16 @@ function TeacherPolls() {
                             {!p.is_published && (
                               <Badge variant="secondary" className="text-3xs">
                                 {t("teacherPolls.badgeDraft")}
+                              </Badge>
+                            )}
+                            {/* Que una encuesta esté abierta a internet no
+                                puede ser invisible en el listado: sin este
+                                badge, la única forma de saberlo era abrir el
+                                menú de la fila. */}
+                            {p.public_enabled && (
+                              <Badge variant="outline" className="text-3xs">
+                                <Globe className="mr-1 h-3 w-3" />
+                                {t("teacherPolls.badgePublic", { defaultValue: "Pública" })}
                               </Badge>
                             )}
                           </div>
@@ -1185,17 +1276,51 @@ function TeacherPolls() {
                                     },
                                     // Nullish → RowActionsMenu lo filtra. Solo
                                     // mixtas: ver el CHECK de la migración.
-                                    p.poll_type === "mixed" && {
-                                      label: i18n.t("teacherPolls.actionSharePublic", {
-                                        defaultValue: "Enlace público (sin login)",
-                                      }),
-                                      icon: Globe,
-                                      hint: i18n.t("teacherPolls.actionSharePublicHint", {
-                                        defaultValue:
-                                          "Se responde con el correo institucional, sin contraseña",
-                                      }),
-                                      onClick: () => void sharePublicPoll(p),
-                                    },
+                                    // Los ítems cambian según el estado, para
+                                    // que el enlace se pueda GESTIONAR y no
+                                    // solo encender: sin "copiar" hay que
+                                    // volver a activarlo para recuperar la URL,
+                                    // y sin "desactivar" un enlace filtrado no
+                                    // se puede cortar desde la plataforma.
+                                    p.poll_type === "mixed" &&
+                                      !p.public_enabled && {
+                                        label: i18n.t("teacherPolls.actionSharePublic", {
+                                          defaultValue: "Enlace público (sin login)",
+                                        }),
+                                        icon: Globe,
+                                        hint: i18n.t("teacherPolls.actionSharePublicHint", {
+                                          defaultValue:
+                                            "Se responde con el correo institucional, sin contraseña",
+                                        }),
+                                        onClick: () => void sharePublicPoll(p),
+                                      },
+                                    p.poll_type === "mixed" &&
+                                      p.public_enabled && {
+                                        label: i18n.t("teacherPolls.actionCopyPublic", {
+                                          defaultValue: "Copiar enlace público",
+                                        }),
+                                        icon: Globe,
+                                        onClick: () => void copyPublicLink(p),
+                                      },
+                                    p.poll_type === "mixed" &&
+                                      p.public_enabled && {
+                                        label: i18n.t("teacherPolls.actionRotatePublic", {
+                                          defaultValue: "Generar enlace nuevo",
+                                        }),
+                                        icon: RefreshCw,
+                                        hint: i18n.t("teacherPolls.actionRotatePublicHint", {
+                                          defaultValue: "El enlace anterior deja de funcionar",
+                                        }),
+                                        onClick: () => void setPublic(p, true, true),
+                                      },
+                                    p.poll_type === "mixed" &&
+                                      p.public_enabled && {
+                                        label: i18n.t("teacherPolls.actionPublicOff", {
+                                          defaultValue: "Desactivar enlace público",
+                                        }),
+                                        icon: GlobeLock,
+                                        onClick: () => void setPublic(p, false),
+                                      },
                                     { label: t("common.edit"), icon: Pencil, onClick: () => setEditPoll(p) },
                                     { label: t("common.duplicate"), icon: Copy, onClick: () => setDuplicateFor(p) },
                                     {

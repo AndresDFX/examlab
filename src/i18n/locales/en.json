@@ -5540,7 +5540,17 @@
     "actionSharePublic": "Public link (no login)",
     "actionSharePublicHint": "Answered with the institutional email, no password",
     "publicLinkCopied": "Public link copied. Anyone who opens it answers without signing in, but their email must be in the course.",
-    "publicLinkDraft": "The poll is a draft: the link will not open until you publish it."
+    "publicLinkDraft": "The poll is a draft: the link will not open until you publish it.",
+    "badgePublic": "Public",
+    "actionCopyPublic": "Copy public link",
+    "actionRotatePublic": "Generate a new link",
+    "actionRotatePublicHint": "The previous link stops working",
+    "actionPublicOff": "Turn off public link",
+    "publicLinkCopiedShort": "Public link copied.",
+    "publicOffTitle": "Turn off the public link?",
+    "publicOffDesc": "Anyone holding the link will stop being able to answer immediately. Answers already received are not deleted.",
+    "publicOffDone": "Public link turned off.",
+    "publicRotated": "New link copied. The previous one stopped working."
   },
   "sessionType": {
     "label": "Session type",
@@ -9778,6 +9788,8 @@
     "missingRequired": "{{count}} required question(s) missing.",
     "partial": "{{ok}} saved. First problem: {{err}}",
     "done": "Done, thank you!",
-    "doneHint": "Your answers were recorded. You can close this page."
+    "doneHint": "Your answers were recorded. You can close this page.",
+    "doneCount": "You answered {{hechas}} of {{total}} questions.",
+    "resumeHint": "You had already answered {{hechas}} of {{total}}. Only the remaining ones are below."
   }
 }

@@ -38,6 +38,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { CheckCircle2, CheckSquare, GraduationCap, Mail, Square } from "lucide-react";
@@ -83,6 +84,9 @@ function EncuestaPublica() {
   const [varias, setVarias] = useState<Record<string, number[]>>({});
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState(false);
+  // Cuánto llevaba respondido de antes, para no mostrarle un formulario
+  // "nuevo" a alguien que lo dejó a medias.
+  const [avance, setAvance] = useState<{ total: number; hechas: number } | null>(null);
 
   // Paso 1: qué encuesta es. Guard `cancelled` porque el visitante puede cerrar
   // antes de que resuelva (convención del proyecto).
@@ -119,11 +123,17 @@ function EncuestaPublica() {
         toast.error(friendlyError(error));
         return;
       }
-      const qs = (data?.questions ?? []) as PreguntaPublica[];
-      setPreguntas(qs);
+      // `ya_completada` la decide el SERVIDOR (mig 20261710000000): si ya
+      // respondió todo, no devuelve ni sesión ni preguntas. Antes esto se
+      // deducía acá mirando las preguntas, y un chequeo del cliente no vale
+      // fuera del navegador.
+      setAvance({ total: Number(data?.total ?? 0), hechas: Number(data?.respondidas ?? 0) });
+      if (data?.ya_completada) {
+        setListo(true);
+        return;
+      }
+      setPreguntas((data?.questions ?? []) as PreguntaPublica[]);
       setSessionId(data?.session_id ?? null);
-      // Si TODAS ya estaban respondidas, no tiene nada que hacer acá.
-      if (qs.length > 0 && qs.every((q) => q.ya_respondida)) setListo(true);
     } finally {
       setAbriendo(false);
     }
@@ -262,6 +272,15 @@ function EncuestaPublica() {
               defaultValue: "Tus respuestas quedaron registradas. Ya puedes cerrar esta página.",
             })}
           </p>
+          {avance && avance.total > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("publicPoll.doneCount", {
+                defaultValue: "Respondiste {{hechas}} de {{total}} preguntas.",
+                hechas: avance.hechas,
+                total: avance.total,
+              })}
+            </p>
+          )}
         </CardContent>
       </Card>,
     );
@@ -273,10 +292,25 @@ function EncuestaPublica() {
         <CardContent className="space-y-1 p-4 sm:p-6">
           <h1 className="text-xl font-bold tracking-tight sm:text-2xl">{info.title}</h1>
           {info.description && (
-            <p className="text-sm leading-relaxed text-muted-foreground">{info.description}</p>
+            <div className="text-sm text-muted-foreground">
+              <MarkdownInline>{info.description}</MarkdownInline>
+            </div>
           )}
         </CardContent>
       </Card>
+
+      {!necesitaCorreo && avance && avance.hechas > 0 && (
+        <Card>
+          <CardContent className="p-3 text-xs text-muted-foreground sm:p-4">
+            {t("publicPoll.resumeHint", {
+              defaultValue:
+                "Ya habías respondido {{hechas}} de {{total}}. Abajo quedan solo las que faltan.",
+              hechas: avance.hechas,
+              total: avance.total,
+            })}
+          </CardContent>
+        </Card>
+      )}
 
       {necesitaCorreo ? (
         <Card>

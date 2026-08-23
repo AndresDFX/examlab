@@ -5540,7 +5540,17 @@
     "actionSharePublic": "Enlace público (sin login)",
     "actionSharePublicHint": "Se responde con el correo institucional, sin contraseña",
     "publicLinkCopied": "Enlace público copiado. Quien lo abra responde sin iniciar sesión, pero su correo debe estar en el curso.",
-    "publicLinkDraft": "La encuesta está en borrador: el enlace no abrirá hasta que la publiques."
+    "publicLinkDraft": "La encuesta está en borrador: el enlace no abrirá hasta que la publiques.",
+    "badgePublic": "Pública",
+    "actionCopyPublic": "Copiar enlace público",
+    "actionRotatePublic": "Generar enlace nuevo",
+    "actionRotatePublicHint": "El enlace anterior deja de funcionar",
+    "actionPublicOff": "Desactivar enlace público",
+    "publicLinkCopiedShort": "Enlace público copiado.",
+    "publicOffTitle": "¿Desactivar el enlace público?",
+    "publicOffDesc": "Quien tenga el enlace dejará de poder responder de inmediato. Las respuestas ya recibidas no se borran.",
+    "publicOffDone": "Enlace público desactivado.",
+    "publicRotated": "Enlace nuevo copiado. El anterior dejó de funcionar."
   },
   "sessionType": {
     "label": "Tipo de sesión",
@@ -9778,6 +9788,8 @@
     "missingRequired": "Faltan {{count}} pregunta(s) obligatoria(s).",
     "partial": "Se guardaron {{ok}}. Primer problema: {{err}}",
     "done": "¡Listo, gracias!",
-    "doneHint": "Tus respuestas quedaron registradas. Ya puedes cerrar esta página."
+    "doneHint": "Tus respuestas quedaron registradas. Ya puedes cerrar esta página.",
+    "doneCount": "Respondiste {{hechas}} de {{total}} preguntas.",
+    "resumeHint": "Ya habías respondido {{hechas}} de {{total}}. Abajo quedan solo las que faltan."
   }
 }

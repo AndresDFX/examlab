@@ -39,6 +39,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -764,7 +765,9 @@ function PollCard({
               )}
             </div>
             {poll.description && (
-              <p className="text-xs text-muted-foreground mt-1">{poll.description}</p>
+              <div className="mt-1 text-xs text-muted-foreground">
+                <MarkdownInline>{poll.description}</MarkdownInline>
+              </div>
             )}
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
@@ -1294,7 +1297,9 @@ function MixedPollCard({
               )}
             </div>
             {poll.description && (
-              <p className="text-xs text-muted-foreground mt-1">{poll.description}</p>
+              <div className="mt-1 text-xs text-muted-foreground">
+                <MarkdownInline>{poll.description}</MarkdownInline>
+              </div>
             )}
           </div>
           <div className="flex flex-col items-end gap-1 shrink-0">
