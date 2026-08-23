@@ -5234,7 +5234,8 @@
       "javaGui": "Java GUI",
       "pythonGui": "Python GUI (tkinter)",
       "redConsola": "Network (console)",
-      "redGui": "Network (diagram)"
+      "redGui": "Network (diagram)",
+      "soConsola": "Linux console"
     },
     "pageTitle": "Questions",
     "pageSubtitle": "Your reusable question bank (formerly «Question bank»), shared among the course's teachers. Import selections when creating exams, workshops, or projects.",

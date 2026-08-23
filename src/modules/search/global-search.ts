@@ -305,8 +305,14 @@ async function searchCourses(q: string, s: SearchScope): Promise<PaletteHit[]> {
 }
 
 async function searchExams(q: string, s: SearchScope): Promise<PaletteHit[]> {
-  type Row = { id: string; title: string; course: CourseRef };
-  const select = "id, title, course:courses(id, name, deleted_at)";
+  type Row = {
+    id: string;
+    title: string;
+    status: string | null;
+    is_external: boolean | null;
+    course: CourseRef;
+  };
+  const select = "id, title, status, is_external, course:courses(id, name, deleted_at)";
   let query = db
     .from("exams")
     .select(select)
@@ -323,7 +329,16 @@ async function searchExams(q: string, s: SearchScope): Promise<PaletteHit[]> {
   }
 
   const { data } = await query;
-  const rows = ((data ?? []) as Row[]).filter((r) => liveCourse(r.course));
+  let rows = ((data ?? []) as Row[]).filter((r) => liveCourse(r.course));
+  if (!s.staff) {
+    // Mismo filtro que ya aplican las ramas de talleres y proyectos de este
+    // archivo, y que acá faltaba: `autoAssignExam` crea las filas de
+    // `exam_assignments` al CREAR el examen, aunque quede en borrador, así que
+    // filtrar por asignación no alcanza — el alumno encontraba en ⌘K un examen
+    // que el docente no publicó, y los externos, que se rinden fuera de la
+    // plataforma y no tienen a dónde llevarlo.
+    rows = rows.filter((r) => !r.is_external && (r.status ?? "published") !== "draft");
+  }
   return finish<Row>(
     rows,
     q,

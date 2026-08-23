@@ -22,6 +22,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
+import { questionTypeLabel } from "@/shared/lib/question-type-label";
 import { toast } from "sonner";
 import {
   Plus,
@@ -1793,7 +1794,7 @@ function ExamEditor() {
                         className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                       >
                         <span className="text-muted-foreground">#{i + 1}</span>
-                        <span className="capitalize">{q.type}</span>
+                        <span>{questionTypeLabel(q.type, t)}</span>
                         <span className="text-muted-foreground">{(q as any).points}pt</span>
                       </span>
                     ))}

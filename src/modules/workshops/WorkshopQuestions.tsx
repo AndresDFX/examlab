@@ -22,6 +22,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { questionTypeLabel } from "@/shared/lib/question-type-label";
 import { toast } from "sonner";
 import {
   Plus,
@@ -754,8 +755,8 @@ export function TeacherWorkshopQuestionsEditor({
                     <Badge variant="outline" className="text-3xs">
                       {idx + 1}
                     </Badge>
-                    <Badge variant="secondary" className="text-3xs capitalize">
-                      {q.type}
+                    <Badge variant="secondary" className="text-3xs">
+                      {questionTypeLabel(q.type, t)}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
@@ -820,7 +821,7 @@ export function TeacherWorkshopQuestionsEditor({
                     className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                   >
                     <span className="text-muted-foreground">#{i + 1}</span>
-                    <span className="capitalize">{q.type}</span>
+                    <span>{questionTypeLabel(q.type, t)}</span>
                     <span className="text-muted-foreground">{q.points}pt</span>
                   </span>
                 ))}
@@ -841,8 +842,8 @@ export function TeacherWorkshopQuestionsEditor({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="abierta">{t("workshopQuestions.typeOpen")}</SelectItem>
-                  <SelectItem value="cerrada">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
-                  <SelectItem value="cerrada_multi">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
+                  <SelectItem value="cerrada">{t("questionBank.type.cerrada")}</SelectItem>
+                  <SelectItem value="cerrada_multi">{t("questionBank.type.cerradaMulti")}</SelectItem>
                   <SelectItem value="codigo">{t("workshopQuestions.typeCode")}</SelectItem>
                   <SelectItem value="diagrama">{t("workshopQuestions.typeDiagramMermaid")}</SelectItem>
                   <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGui")}</SelectItem>
@@ -1171,7 +1172,7 @@ INSERT INTO cliente (nombre) VALUES ('Ana'), ('Luis');`}
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="abierta">{t("workshopQuestions.typeOpen")}</SelectItem>
-                      <SelectItem value="cerrada">{t("workshopQuestions.typeClosedSingle")}</SelectItem>
+                      <SelectItem value="cerrada">{t("questionBank.type.cerrada")}</SelectItem>
                       <SelectItem value="codigo">{t("workshopQuestions.typeCode")}</SelectItem>
                       <SelectItem value="diagrama">{t("workshopQuestions.typeDiagram")}</SelectItem>
                       <SelectItem value="java_gui">{t("workshopQuestions.typeJavaGuiShort")}</SelectItem>
@@ -2913,8 +2914,8 @@ export function StudentWorkshopTaker({
               <Badge variant="outline" className="text-3xs">
                 {idx + 1}
               </Badge>
-              <Badge variant="secondary" className="text-3xs capitalize">
-                {q.type}
+              <Badge variant="secondary" className="text-3xs">
+                {questionTypeLabel(q.type, t)}
               </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
             </CardTitle>

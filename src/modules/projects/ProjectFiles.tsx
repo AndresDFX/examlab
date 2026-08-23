@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
+import { questionTypeLabel } from "@/shared/lib/question-type-label";
 import { toast } from "sonner";
 import {
   Plus,
@@ -860,8 +861,8 @@ export function TeacherProjectFilesEditor({
                     <Badge variant="outline" className="text-3xs">
                       {idx + 1}
                     </Badge>
-                    <Badge variant="secondary" className="text-3xs capitalize">
-                      {q.type}
+                    <Badge variant="secondary" className="text-3xs">
+                      {questionTypeLabel(q.type, t)}
                     </Badge>
                     <span className="text-xs text-muted-foreground">{q.points} pts</span>
                   </div>
@@ -925,7 +926,7 @@ export function TeacherProjectFilesEditor({
                     className={`inline-flex items-center gap-1 rounded border bg-background px-1.5 py-0.5 text-3xs tabular-nums${editingId === q.id ? " border-primary bg-primary/5 font-medium" : ""}`}
                   >
                     <span className="text-muted-foreground">#{i + 1}</span>
-                    <span className="capitalize">{q.type}</span>
+                    <span>{questionTypeLabel(q.type, t)}</span>
                     <span className="text-muted-foreground">{q.points}pt</span>
                   </span>
                 ))}
@@ -3090,8 +3091,8 @@ export function StudentProjectTaker({
               <Badge variant="outline" className="text-3xs">
                 {idx + 1}
               </Badge>
-              <Badge variant="secondary" className="text-3xs capitalize">
-                {q.type}
+              <Badge variant="secondary" className="text-3xs">
+                {questionTypeLabel(q.type, t)}
               </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
             </CardTitle>

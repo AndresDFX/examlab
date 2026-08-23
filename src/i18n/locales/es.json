@@ -5234,7 +5234,8 @@
       "javaGui": "Java GUI",
       "pythonGui": "Python GUI (tkinter)",
       "redConsola": "Red (consola)",
-      "redGui": "Red (diagrama)"
+      "redGui": "Red (diagrama)",
+      "soConsola": "Consola Linux"
     },
     "pageTitle": "Preguntas",
     "pageSubtitle": "Tu banco de preguntas reutilizables (antes «Banco de preguntas»), compartidas entre los docentes del curso. Importa selecciones al crear exámenes, talleres o proyectos.",
