@@ -175,3 +175,55 @@ export function onFullscreenChange(handler: () => void): () => void {
     document.removeEventListener("webkitfullscreenchange", handler);
   };
 }
+
+/**
+ * Lo que el examen necesita decidir: ¿se puede empezar?
+ *
+ * ── Por qué esto NO es "¿está en pantalla completa?" ──────────────────
+ * Bloquear a quien **no quiere** entrar a pantalla completa es la función. A
+ * quien **no puede** —porque su plataforma no tiene la API— es un bug: no hay
+ * nada que pueda hacer para cumplir, y el examen queda inalcanzable. Esas dos
+ * situaciones se veían iguales desde el código viejo (las dos daban "no hay
+ * elemento en pantalla completa") y por eso el alumno de iPhone quedaba afuera.
+ *
+ * En iPhone la API no existe para elementos, **ni instalando la app**. Así que
+ * exigir pantalla completa ahí no es una política estricta: es una condición
+ * imposible. Y vale notar lo que eso implica: la señal "salió de pantalla
+ * completa" no existe en iOS de ninguna manera, instalado o no — el resto del
+ * proctoring (cambio de app, pestaña oculta, perder el foco, copiar/pegar) sí
+ * funciona igual, y es lo que de hecho detecta que el alumno se fue a otra
+ * parte. Lo que se pierde al permitir sin pantalla completa es menos de lo que
+ * parece; lo que se ganaba bloqueando era cero.
+ */
+export type ProctoringGate =
+  | { permitir: true; modo: ProctoringMode; motivo: "acotada" }
+  /** La plataforma no tiene la API. No hay nada que el alumno pueda hacer. */
+  | { permitir: true; modo: "ventana"; motivo: "sin_soporte" }
+  /** Se puede, pero no se activó: rechazo, iframe sin permiso, gesto perdido. */
+  | { permitir: false; modo: "ventana"; motivo: "rechazada" };
+
+/** PURA: la decisión, para poder testearla sin navegador. */
+export function proctoringGateFrom(hechos: {
+  modo: ProctoringMode;
+  apiDisponible: boolean;
+}): ProctoringGate {
+  if (hechos.modo !== "ventana") return { permitir: true, modo: hechos.modo, motivo: "acotada" };
+  if (!hechos.apiDisponible) return { permitir: true, modo: "ventana", motivo: "sin_soporte" };
+  return { permitir: false, modo: "ventana", motivo: "rechazada" };
+}
+
+/** La decisión leyendo el entorno real. */
+export function currentProctoringGate(): ProctoringGate {
+  return proctoringGateFrom({
+    modo: currentProctoringMode(),
+    apiDisponible: fullscreenApiAvailable(),
+  });
+}
+
+/** Pide pantalla completa y devuelve la decisión resultante. No lanza. */
+export async function requestFullscreenGate(
+  target?: HTMLElement | null,
+): Promise<ProctoringGate> {
+  const modo = await requestFullscreen(target);
+  return proctoringGateFrom({ modo, apiDisponible: fullscreenApiAvailable() });
+}

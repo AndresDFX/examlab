@@ -3237,6 +3237,8 @@
       "allAttemptsUsed": "You have already used your {{maxAttempts}} attempts for this exam",
       "attemptNotice": "Attempt {{current}} of {{maxAttempts}}. Your previous grade will be replaced by the one from this attempt.",
       "examRequiresFullscreen": "This exam requires full screen. {{help}}",
+      "fullscreenUnsupportedStart": "Your browser doesn't allow full screen, so the exam opens in a normal window. Switching apps or tabs is still recorded.",
+      "fullscreenUnsupportedResume": "Your browser doesn't allow full screen. You'll continue in a normal window; the exam still records app or tab switches.",
       "couldNotActivateFullscreen": "Could not enable full screen. {{help}}",
       "submissionServerFailed": "The submission could not be saved on the server. Your answers are saved locally; check your connection and try submitting again.",
       "examSuspended": "Exam suspended",
@@ -7786,7 +7788,7 @@
     "entityNamePlural": "projects"
   },
   "hc_routesAppStudentTakeExamId": {
-    "fullscreenHelpIOS": "iPhone/iPad: install the app from Safari (Share button → 'Add to Home Screen') and reopen the exam from the icon, or use a computer.",
+    "fullscreenHelpIOS": "Allow full screen when your browser asks, then try again. If it isn't offered, install the app from Safari (Share → 'Add to Home Screen') and open the exam from the icon.",
     "fullscreenHelpDesktop": "Enable fullscreen in your browser or use a computer.",
     "aStudent": "A student",
     "suspiciousExamNotifBody": "{{studentName}} exceeded the limit of {{maxWarnings}} warnings on the exam \"{{examTitle}}\" and was suspended. Check the details in the monitor.",

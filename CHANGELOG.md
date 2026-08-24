@@ -222,6 +222,34 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **El examen ya no exige instalar nada en el iPhone: abre en Safari y se puede presentar.** El
+  arreglo anterior aceptaba la app instalada como equivalente a la pantalla completa, y eso sigue
+  valiendo, pero dejaba al alumno dependiendo de instalar — un paso que ni él ni nosotros podíamos
+  garantizar, porque depende de cómo se comporte iOS al crear el ícono.
+
+  La raíz es una distinción que el código no hacía: **no querer** entrar a pantalla completa y **no
+  poder** se veían iguales. Las dos terminaban en "no hay pantalla completa" y las dos bloqueaban.
+  Bloquear a quien no quiere ES la función del proctoring. Bloquear a quien no puede —porque su
+  plataforma no tiene esa API, como el iPhone— no protege nada: deja el examen inalcanzable y no
+  existe ninguna acción del alumno que lo resuelva.
+
+  Ahora se distinguen. En un iPhone el examen **abre en ventana normal**, se le avisa al alumno con
+  claridad (no como error suyo) y queda registrado para que el docente sepa que esa entrega corrió sin
+  pantalla completa. Donde el navegador SÍ puede y no la activó —rechazo del usuario, permiso
+  denegado— se sigue bloqueando igual que antes.
+
+  Y lo que se pierde es menos de lo que suena: **la señal "salió de pantalla completa" no existe en
+  iOS de ninguna manera**, instalada la app o no. Lo que detecta que el alumno se fue a otra parte
+  —cambio de app, pestaña oculta, pérdida de foco, copiar y pegar— funciona igual en Safari. Exigir
+  pantalla completa en iPhone no aportaba una señal extra; solo cerraba la puerta.
+
+  Se arregló además una trampa del examen **reanudado**: al recargar, la pantalla mostraba un panel
+  "Reanudar" cuyo botón llamaba a una API inexistente. No fallaba ni avisaba: simplemente no pasaba
+  nada, y el alumno quedaba mirando un botón muerto encima de su examen ya empezado.
+
+  Verificado en el motor real de Safari con viewport de iPhone: en pestaña deja rendir, con la app
+  instalada también, y en escritorio con la pantalla completa rechazada sigue bloqueando.
+
 - **En el iPhone, el examen no se podía presentar — y la instrucción que daba la pantalla era falsa.**
   El mensaje le decía al alumno «instala la app desde Safari y vuelve a abrir el examen desde el
   ícono». Instalarla **no cambiaba nada**, por dos razones encadenadas.

@@ -3237,6 +3237,8 @@
       "allAttemptsUsed": "Ya usaste tus {{maxAttempts}} intentos para este examen",
       "attemptNotice": "Intento {{current}} de {{maxAttempts}}. Tu calificación anterior se reemplazará por la de este intento.",
       "examRequiresFullscreen": "Este examen requiere pantalla completa. {{help}}",
+      "fullscreenUnsupportedStart": "Tu navegador no permite pantalla completa, así que el examen abre en ventana normal. Se sigue registrando si cambias de app o de pestaña.",
+      "fullscreenUnsupportedResume": "Tu navegador no permite pantalla completa. Continúas en ventana normal; el examen sigue registrando los cambios de app o pestaña.",
       "couldNotActivateFullscreen": "No se pudo activar pantalla completa. {{help}}",
       "submissionServerFailed": "No se pudo registrar la entrega en el servidor. Tus respuestas están guardadas localmente; revisa la conexión y vuelve a intentar entregar.",
       "examSuspended": "Examen suspendido",
@@ -7786,7 +7788,7 @@
     "entityNamePlural": "proyectos"
   },
   "hc_routesAppStudentTakeExamId": {
-    "fullscreenHelpIOS": "iPhone/iPad: instala la app desde Safari (botón Compartir → 'Añadir a pantalla de inicio') y vuelve a abrir el examen desde el ícono, o usa una computadora.",
+    "fullscreenHelpIOS": "Permite la pantalla completa cuando el navegador la pida y vuelve a intentar. Si no te la ofrece, instala la app desde Safari (Compartir → 'Añadir a pantalla de inicio') y abre el examen desde el ícono.",
     "fullscreenHelpDesktop": "Habilita la pantalla completa en tu navegador o usa una computadora.",
     "aStudent": "Un estudiante",
     "suspiciousExamNotifBody": "{{studentName}} superó el límite de {{maxWarnings}} advertencias en el examen \"{{examTitle}}\" y fue suspendido. Revisa el detalle en el monitor.",

@@ -18,10 +18,11 @@ import {
 } from "@/components/ui/dialog";
 import {
   currentFullscreenElement,
-  currentProctoringMode,
   exitFullscreen,
   onFullscreenChange,
   requestFullscreen,
+  requestFullscreenGate,
+  currentProctoringGate,
 } from "@/shared/lib/fullscreen";
 import { toast } from "sonner";
 import {
@@ -898,8 +899,10 @@ function TakeExam() {
     // (El helper prueba también la API prefijada. Eso NO era la causa —en el
     // WebKit de escritorio actual existen las dos— pero sigue siendo el único
     // camino en Safari anterior a 16.4.)
-    const modo = await requestFullscreen();
-    if (modo === "ventana") {
+    const gate = await requestFullscreenGate();
+    if (!gate.permitir) {
+      // Sí se puede y no se activó: rechazo del usuario, iframe sin permiso,
+      // gesto perdido. Acá bloquear ES la función — el alumno puede cumplir.
       toast.error(
         i18n.t("toast.routes_app_student_take_examId.couldNotActivateFullscreen", {
           defaultValue: "No se pudo activar pantalla completa. {{help}}",
@@ -916,9 +919,33 @@ function TakeExam() {
         entityType: "submission",
         entityId: sid,
         entityName: exam.title,
-        metadata: { examId, stage: "start", reason: "no_fullscreen_element", isIOS, modo },
+        metadata: { examId, stage: "start", reason: gate.motivo, isIOS, modo: gate.modo },
       });
       return;
+    }
+    if (gate.motivo === "sin_soporte") {
+      // La plataforma NO tiene la API (iPhone). Bloquear acá dejaba el examen
+      // inalcanzable: no hay nada que el alumno pueda hacer, ni instalando la
+      // app. Se permite y se AVISA —no es un error suyo—, y queda auditado para
+      // que el docente sepa que esta entrega corrió sin pantalla completa. El
+      // resto del proctoring (cambio de app, pestaña oculta, foco, copiar) sigue
+      // activo, y es el que de verdad detecta que se fue a otra parte.
+      toast.info(
+        i18n.t("toast.routes_app_student_take_examId.fullscreenUnsupportedStart", {
+          defaultValue:
+            "Tu navegador no permite pantalla completa, así que el examen abre en ventana normal. Se sigue registrando si cambias de app o de pestaña.",
+        }),
+        { duration: 9000 },
+      );
+      void logEvent({
+        action: "exam_started_without_fullscreen",
+        category: "exam",
+        severity: "info",
+        entityType: "submission",
+        entityId: sid,
+        entityName: exam.title,
+        metadata: { examId, stage: "start", reason: "sin_soporte", isIOS },
+      });
     }
     // Confirmamos entrada a FS antes de armar started → el proctoring
     // arranca estricto desde el primer render.
@@ -943,7 +970,11 @@ function TakeExam() {
       hasEverEnteredFullscreenRef.current = true;
       return;
     }
-    if (currentProctoringMode() === "ventana") {
+    // Solo si el alumno PUEDE volver. En una plataforma sin la API (iPhone) el
+    // overlay era una trampa: el botón "Reanudar" llamaba a una API inexistente,
+    // no lanzaba nada y no pasaba nada — el alumno quedaba mirando un botón
+    // muerto sobre su examen ya empezado, sin mensaje ni salida.
+    if (!currentProctoringGate().permitir) {
       setFsExited(true);
     }
   }, [started, requireFullscreen]);
@@ -954,11 +985,22 @@ function TakeExam() {
     if (reenteringFs) return;
     setReenteringFs(true);
     try {
-      await requestFullscreen();
+      const gate = await requestFullscreenGate();
       // El click en "Reanudar" del overlay cuenta como entrada válida —
       // activamos el proctoring estricto. Si el alumno sale luego, sí
       // cuenta como strike normal.
       hasEverEnteredFullscreenRef.current = true;
+      if (gate.motivo === "sin_soporte") {
+        // Cinturón y tirantes: si igual se llegó acá en una plataforma sin la
+        // API, se cierra el overlay en vez de dejarlo encerrado.
+        toast.info(
+          i18n.t("toast.routes_app_student_take_examId.fullscreenUnsupportedResume", {
+            defaultValue:
+              "Tu navegador no permite pantalla completa. Continúas en ventana normal; el examen sigue registrando los cambios de app o pestaña.",
+          }),
+          { duration: 9000 },
+        );
+      }
       setFsExited(false);
     } catch (e) {
       // Sin toast el alumno quedaba atrapado en el overlay sin saber por
