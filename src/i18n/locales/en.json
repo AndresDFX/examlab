@@ -2067,7 +2067,12 @@
     "mixedNoQuestions": "This poll has no questions yet.",
     "openAnswerPlaceholder": "Write your answer…",
     "mixedClosedNote": "The poll is closed. You can no longer change your answers.",
-    "multiHint": "You can select more than one option."
+    "multiHint": "You can select more than one option.",
+    "mixedProgress": "{{answered}} of {{total}} questions answered",
+    "mixedReview": "View my answers",
+    "mixedAnswer": "Answer",
+    "mixedContinue": "Continue",
+    "mixedDoneHint": "You already confirmed your answers."
   },
   "videosPage": {
     "title": "Videos",
@@ -5551,7 +5556,14 @@
     "publicOffTitle": "Turn off the public link?",
     "publicOffDesc": "Anyone holding the link will stop being able to answer immediately. Answers already received are not deleted.",
     "publicOffDone": "Public link turned off.",
-    "publicRotated": "New link copied. The previous one stopped working."
+    "publicRotated": "New link copied. The previous one stopped working.",
+    "confirmClearAllAnswersTitle": "Delete all of this student's answers?",
+    "confirmClearAllAnswersDesc": "This deletes the {{count}} answers from \"{{label}}\" in this poll, and they'll be able to answer again. This action cannot be undone.",
+    "confirmClearAllAnswersLabel": "Delete all",
+    "clearAllAnswersDone": "Deleted {{count}} answers from \"{{label}}\".",
+    "clearAllAnswersFor": "Delete all their answers",
+    "respondentsTitle": "Respondents ({{count}})",
+    "unknownStudent": "Unnamed student"
   },
   "sessionType": {
     "label": "Session type",

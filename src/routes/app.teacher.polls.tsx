@@ -3729,6 +3729,77 @@ function MixedResultsDialog({
     void refetch();
   }, [refetch]);
 
+  /**
+   * Borra TODAS las respuestas de un alumno en esta encuesta, en una sola
+   * operación. El caso real es "respondió por error" o "pidió empezar de
+   * nuevo": con `clearOne` eso son N confirmaciones y hay que ir a buscar sus
+   * chips pregunta por pregunta, porque los resultados se agrupan POR
+   * PREGUNTA y no por persona.
+   *
+   * Va por RPC y no por N llamadas desde acá para que no exista el estado
+   * parcial —el alumno con 4 de 10 respuestas borradas— y para revalidar el
+   * permiso una sola vez (mig 20261720000000).
+   */
+  const clearAllForUser = async (userId: string, name: string | null) => {
+    const label = name ?? userId.slice(0, 8);
+    if (clearing.has(userId)) return;
+    const ok = await confirm({
+      title: t("teacherPolls.confirmClearAllAnswersTitle", {
+        defaultValue: "¿Borrar todas las respuestas de este alumno?",
+      }),
+      description: t("teacherPolls.confirmClearAllAnswersDesc", {
+        defaultValue:
+          'Se borran las {{count}} respuestas de "{{label}}" en esta encuesta y podrá volver a responder. Esta acción no se puede deshacer.',
+        count: responses.filter((r) => r.user_id === userId).length,
+        label,
+      }),
+      tone: "destructive",
+      confirmLabel: t("teacherPolls.confirmClearAllAnswersLabel", {
+        defaultValue: "Borrar todas",
+      }),
+    });
+    if (!ok) return;
+    setClearing((prev) => new Set(prev).add(userId));
+    try {
+      const { data, error } = await db.rpc("teacher_clear_poll_question_responses_for_user", {
+        _poll_id: poll.id,
+        _user_id: userId,
+      });
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      toast.success(
+        t("teacherPolls.clearAllAnswersDone", {
+          defaultValue: 'Se borraron {{count}} respuestas de "{{label}}".',
+          count: Number(data) || 0,
+          label,
+        }),
+      );
+      await refetch();
+    } finally {
+      setClearing((prev) => {
+        const next = new Set(prev);
+        next.delete(userId);
+        return next;
+      });
+    }
+  };
+
+  /** Quién respondió y cuántas. Los resultados se agrupan por pregunta, así
+   *  que sin esta vista no hay ningún lugar donde actuar SOBRE una persona. */
+  const respondientes = useMemo(() => {
+    const porUsuario = new Map<string, { userId: string; name: string | null; count: number }>();
+    for (const r of responses) {
+      const prev = porUsuario.get(r.user_id);
+      if (prev) prev.count += 1;
+      else porUsuario.set(r.user_id, { userId: r.user_id, name: r.full_name, count: 1 });
+    }
+    return [...porUsuario.values()].sort((a, b) =>
+      (a.name ?? "").localeCompare(b.name ?? "", "es-CO", { numeric: true, sensitivity: "base" }),
+    );
+  }, [responses]);
+
   const clearOne = async (questionId: string, userId: string, name: string | null) => {
     const key = `${questionId}:${userId}`;
     if (clearing.has(key)) return;
@@ -3791,6 +3862,42 @@ function MixedResultsDialog({
             {t("teacherPolls.refresh")}
           </Button>
         </div>
+
+        {/* Respondientes: la única vista de este diálogo orientada a la
+            PERSONA. Sin ella, "borrar todo lo de este alumno" no tiene dónde
+            vivir, porque el resto se agrupa por pregunta. */}
+        {respondientes.length > 0 && (
+          <div className="rounded-lg border p-3 space-y-2">
+            <p className="text-sm font-medium">
+              {t("teacherPolls.respondentsTitle", {
+                defaultValue: "Respondientes ({{count}})",
+                count: respondientes.length,
+              })}
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {respondientes.map((r) => (
+                <span
+                  key={r.userId}
+                  className="inline-flex items-center gap-1 rounded-md border bg-muted/40 pl-2 pr-1 py-0.5 text-xs"
+                >
+                  <span className="truncate max-w-48">
+                    {r.name ?? t("teacherPolls.unknownStudent", { defaultValue: "Estudiante sin nombre" })}
+                  </span>
+                  <span className="text-3xs text-muted-foreground tabular-nums">({r.count})</span>
+                  <RowAction
+                    label={t("teacherPolls.clearAllAnswersFor", {
+                      defaultValue: "Borrar todas sus respuestas",
+                    })}
+                    icon={Trash2}
+                    tone="destructive"
+                    disabled={clearing.has(r.userId)}
+                    onClick={() => void clearAllForUser(r.userId, r.name)}
+                  />
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
 
         {loading && questions.length === 0 ? (
           <SectionLoader text={t("teacherPolls.loadingResponses")} />

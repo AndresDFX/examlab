@@ -42,6 +42,13 @@ import { KahootJoinCard } from "@/modules/polls/KahootJoinCard";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -951,7 +958,9 @@ function MixedPollCard({
   // quedaban congeladas en el state local hasta refresh manual — solo PollCard
   // estaba suscrita.
   usePollRealtime(poll.id, onChanged, open);
-  const questions = poll.questions ?? [];
+  // Memoizado: `poll.questions ?? []` creaba un array nuevo en cada render,
+  // así que los hooks que lo tienen en sus deps se recalculaban siempre.
+  const questions = useMemo(() => poll.questions ?? [], [poll.questions]);
   // Texto actual de cada pregunta abierta + lo último persistido (para
   // detectar cambios en blur y no re-guardar si no cambió).
   const [text, setText] = useState<Record<string, string>>(() => {
@@ -1002,6 +1011,25 @@ function MixedPollCard({
   // respuestas siguen ahí; con allow_change_response puede ajustar y volver
   // a confirmar. Sin esa flag se vuelve un problema de DB (= migración).
   const [isComplete, setIsComplete] = useState(false);
+  /** El formulario vive en un modal: la lista de encuestas es un grid de cards
+   *  como el resto de los módulos, no una pila de formularios abiertos. Antes
+   *  todas las preguntas se renderizaban inline, así que con dos encuestas la
+   *  pantalla eran dos formularios completos uno debajo del otro. */
+  const [formOpen, setFormOpen] = useState(false);
+  /** Cuántas preguntas tienen respuesta, para el resumen de la card. Se calcula
+   *  del STATE local y no de `poll.my_answers` para que el número se mueva al
+   *  responder, sin esperar el refetch del padre. */
+  const answeredCount = useMemo(
+    () =>
+      questions.filter((q) =>
+        q.type === "abierta"
+          ? (text[q.id] ?? "").trim().length > 0
+          : q.multi
+            ? (selectedMulti[q.id]?.length ?? 0) > 0
+            : selected[q.id] != null,
+      ).length,
+    [questions, text, selected, selectedMulti],
+  );
   const [marking, setMarking] = useState(false);
   // Hidratación post-mount (no en useState init para no romper SSR).
   useEffect(() => {
@@ -1110,6 +1138,34 @@ function MixedPollCard({
     }
   };
 
+  /**
+   * Guarda YA cualquier textarea con cambios pendientes: cancela su debounce y
+   * dispara el RPC. Se usa al marcar la encuesta como completa y al CERRAR el
+   * modal.
+   *
+   * Lo segundo es nuevo y es la razón por la que esto se extrajo: el cleanup
+   * del effect hace `clearTimeout` de los timers SIN guardar, así que con el
+   * formulario dentro de un modal, cerrarlo con un debounce pendiente perdía en
+   * silencio lo último que el alumno escribió. Es el mismo flush-on-unmount que
+   * ya documentan `TextPageEditor` y `CodePageEditor`.
+   */
+  const flushPendingText = async () => {
+    const pendingSaves: Promise<void>[] = [];
+    for (const q of questions) {
+      if (q.type !== "abierta") continue;
+      const current = (text[q.id] ?? "").trim();
+      const saved = (savedTextRef.current[q.id] ?? "").trim();
+      if (current === saved) continue;
+      const existing = debounceTimersRef.current.get(q.id);
+      if (existing) {
+        clearTimeout(existing);
+        debounceTimersRef.current.delete(q.id);
+      }
+      pendingSaves.push(submitOpen(q.id));
+    }
+    if (pendingSaves.length > 0) await Promise.all(pendingSaves);
+  };
+
   const submitOpen = async (qid: string) => {
     const value = (text[qid] ?? "").trim();
     if (value === (savedTextRef.current[qid] ?? "").trim()) return; // sin cambios
@@ -1200,20 +1256,7 @@ function MixedPollCard({
     try {
       // 1) Forzar save inmediato de cualquier textarea con cambios sin guardar
       //    (debounce pendiente + textarea con foco que nunca disparó blur).
-      const pendingSaves: Promise<void>[] = [];
-      for (const q of questions) {
-        if (q.type !== "abierta") continue;
-        const current = (text[q.id] ?? "").trim();
-        const saved = (savedTextRef.current[q.id] ?? "").trim();
-        if (current === saved) continue;
-        const existing = debounceTimersRef.current.get(q.id);
-        if (existing) {
-          clearTimeout(existing);
-          debounceTimersRef.current.delete(q.id);
-        }
-        pendingSaves.push(submitOpen(q.id));
-      }
-      if (pendingSaves.length > 0) await Promise.all(pendingSaves);
+      await flushPendingText();
 
       // 2) Validar required (contra el state actual, no contra DB — el alumno
       //    acaba de tipear/clickear, lo de DB es lo mismo modulo race).
@@ -1316,6 +1359,62 @@ function MixedPollCard({
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* La card es un RESUMEN: cuántas preguntas hay, cuántas respondió y
+            una acción. El formulario entero vive en el modal de abajo. */}
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-2xs text-muted-foreground">
+            {questions.length === 0
+              ? t("studentPolls.mixedNoQuestions", {
+                  defaultValue: "Esta encuesta aún no tiene preguntas.",
+                })
+              : t("studentPolls.mixedProgress", {
+                  defaultValue: "{{answered}} de {{total}} preguntas respondidas",
+                  answered: answeredCount,
+                  total: questions.length,
+                })}
+          </p>
+          {questions.length > 0 && (
+            <Button size="sm" onClick={() => setFormOpen(true)}>
+              {!open
+                ? t("studentPolls.mixedReview", { defaultValue: "Ver mis respuestas" })
+                : answeredCount === 0
+                  ? t("studentPolls.mixedAnswer", { defaultValue: "Responder" })
+                  : t("studentPolls.mixedContinue", { defaultValue: "Continuar" })}
+            </Button>
+          )}
+        </div>
+        {open && isComplete && (
+          <p className="flex items-center gap-1.5 text-2xs text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            {t("studentPolls.mixedDoneHint", { defaultValue: "Ya confirmaste tus respuestas." })}
+          </p>
+        )}
+      </CardContent>
+
+      {/* Al cerrar se hace flush del autosave pendiente: el cleanup del effect
+          limpia los timers SIN guardar, así que sin esto cerrar el modal con un
+          debounce en vuelo perdía lo último tipeado. */}
+      <Dialog
+        open={formOpen}
+        onOpenChange={(v) => {
+          if (!v) void flushPendingText();
+          setFormOpen(v);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[90dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <MessageSquareText className="h-4 w-4 shrink-0 text-sky-500" />
+              <span className="min-w-0 break-words">{poll.title}</span>
+            </DialogTitle>
+            {poll.description && (
+              <DialogDescription asChild>
+                <div className="text-xs">
+                  <MarkdownInline>{poll.description}</MarkdownInline>
+                </div>
+              </DialogDescription>
+            )}
+          </DialogHeader>
         {/* Si la encuesta está abierta y el alumno ya confirmó que terminó,
             mostramos la pantalla de éxito en vez del formulario. La encuesta
             cerrada cae al render normal (preguntas en read-only + nota de
@@ -1577,7 +1676,8 @@ function MixedPollCard({
         )}
           </>
         )}
-      </CardContent>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

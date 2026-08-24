@@ -2067,7 +2067,12 @@
     "mixedNoQuestions": "Esta encuesta aún no tiene preguntas.",
     "openAnswerPlaceholder": "Escribe tu respuesta…",
     "mixedClosedNote": "La encuesta está cerrada. Ya no puedes modificar tus respuestas.",
-    "multiHint": "Puedes marcar varias opciones."
+    "multiHint": "Puedes marcar varias opciones.",
+    "mixedProgress": "{{answered}} de {{total}} preguntas respondidas",
+    "mixedReview": "Ver mis respuestas",
+    "mixedAnswer": "Responder",
+    "mixedContinue": "Continuar",
+    "mixedDoneHint": "Ya confirmaste tus respuestas."
   },
   "videosPage": {
     "title": "Videos",
@@ -5551,7 +5556,14 @@
     "publicOffTitle": "¿Desactivar el enlace público?",
     "publicOffDesc": "Quien tenga el enlace dejará de poder responder de inmediato. Las respuestas ya recibidas no se borran.",
     "publicOffDone": "Enlace público desactivado.",
-    "publicRotated": "Enlace nuevo copiado. El anterior dejó de funcionar."
+    "publicRotated": "Enlace nuevo copiado. El anterior dejó de funcionar.",
+    "confirmClearAllAnswersTitle": "¿Borrar todas las respuestas de este alumno?",
+    "confirmClearAllAnswersDesc": "Se borran las {{count}} respuestas de \"{{label}}\" en esta encuesta y podrá volver a responder. Esta acción no se puede deshacer.",
+    "confirmClearAllAnswersLabel": "Borrar todas",
+    "clearAllAnswersDone": "Se borraron {{count}} respuestas de \"{{label}}\".",
+    "clearAllAnswersFor": "Borrar todas sus respuestas",
+    "respondentsTitle": "Respondientes ({{count}})",
+    "unknownStudent": "Estudiante sin nombre"
   },
   "sessionType": {
     "label": "Tipo de sesión",
