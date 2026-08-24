@@ -71,9 +71,14 @@ export const Route = createRootRoute({
       // El equivalente estándar, que Chrome pide desde la v.99 y reemplaza al
       // de Apple. Se declaran los dos: ninguno cubre a todos los navegadores.
       { name: "mobile-web-app-capable", content: "yes" },
-      // Barra de estado translúcida: sin esto la app instalada deja una franja
-      // blanca arriba en tema oscuro.
-      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      // `default` —barra de estado OPACA, no translúcida— a propósito, aunque
+      // translúcida se vea mejor. Con `black-translucent` la vista web se
+      // extiende bajo el reloj y `env(safe-area-inset-top)` deja de ser 0;
+      // medido: la barra móvil (`h-14`, box-sizing border-box) pasa de 56px
+      // útiles a 9px y se recorta el hamburguesa/marca/campana. Ir a borde a
+      // borde exige repasar los insets de arriba en todo el shell, y no es algo
+      // que se pueda verificar sin un iPhone en la mano.
+      { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "apple-mobile-web-app-title", content: "ExamLab" },
       { name: "description", content: "Online exam management and execution platform." },
       { property: "og:description", content: "Online exam management and execution platform." },

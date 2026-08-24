@@ -1406,7 +1406,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
          stay visible; the rest lives inside the drawer.
          ────────────────────────────────────────────────────────── */}
       <header
-        className="md:hidden fixed top-0 inset-x-0 z-30 bg-sidebar text-sidebar-foreground border-b border-sidebar-border flex items-center justify-between px-3 h-14"
+        // `min-h-14` y no `h-14`: con `box-sizing: border-box` una altura FIJA
+        // hace que el `paddingTop` del inset se coma el alto útil en vez de
+        // agrandar la barra. Medido con un inset de 47px: 56px de alto útil
+        // pasan a 9px y se recorta el contenido. Hoy el inset es 0 en la
+        // pestaña de Safari, así que se veía bien y el problema estaba dormido.
+        className="md:hidden fixed top-0 inset-x-0 z-30 bg-sidebar text-sidebar-foreground border-b border-sidebar-border flex items-center justify-between px-3 min-h-14"
         style={{ paddingTop: "env(safe-area-inset-top)" }}
       >
         <div className="flex items-center gap-2 min-w-0">
@@ -1699,7 +1704,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
 
       <main
         className={cn(
-          "flex-1 min-w-0 pt-14 md:pt-0",
+          // El padding sigue al alto REAL de la barra móvil, que crece con el
+          // inset de arriba (ver el header). Con inset 0 es idéntico a pt-14.
+          "flex-1 min-w-0 pt-[calc(3.5rem+env(safe-area-inset-top))] md:pt-0",
           // Compensar el sidebar fijo en desktop. Con sidebar abierto:
           // 256px = ancho del sidebar. Con sidebar colapsado: 56px de
           // gutter para que el botón "Mostrar menú" (fixed top-3 left-3,

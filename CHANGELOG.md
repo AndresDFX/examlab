@@ -243,6 +243,13 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   Verificado en WebKit real (el motor de Safari) contra el sitio ya publicado: en una pestaña de
   Safari en iPhone el examen sigue bloqueando —lo correcto— y con la app instalada deja rendir.
 
+  La barra de estado de la app queda **opaca** y no translúcida, aunque translúcida se vea mejor: con
+  la vista web metida bajo el reloj, `env(safe-area-inset-top)` deja de ser 0 y la barra superior del
+  móvil —que tiene alto fijo— pasa de 56 px útiles a 9 px y se recorta el menú, la marca y la
+  campana. Está medido. Aprovechando el hallazgo, esa barra ahora **crece** con el inset en vez de
+  aplastar su contenido, y el padding del contenido la sigue: con inset 0 —lo de hoy— se ve idéntico,
+  así que la trampa queda desarmada sin cambiar nada de lo que ya funcionaba.
+
   De paso, los prefijos `webkit` de la API quedaron centralizados en un módulo
   (`src/shared/lib/fullscreen.ts`), donde antes estaban a mano en siete lugares. **No eran la causa**
   —en el Safari de escritorio actual la API sin prefijo ya existe— pero siguen siendo el único camino
