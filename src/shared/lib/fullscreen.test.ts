@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 import { proctoringModeFrom } from "./fullscreen";
 
 /**
- * El bug que originó el helper: la pantalla de toma decidía "no se pudo activar
- * pantalla completa" mirando SOLO `document.fullscreenElement`. En Safari la API
- * está detrás del prefijo `webkit`, así que ese campo era `undefined` y el
- * examen se bloqueaba con la API prefijada disponible y sin usar. Y en iPhone,
- * donde la API no existe para elementos ni instalando la app, el mensaje le
- * pedía al alumno instalar la PWA — pero el código nunca miraba el modo
- * standalone, así que seguir la instrucción no cambiaba nada.
+ * El bug que originó el helper: en iPhone NO existe pantalla completa para
+ * elementos (medido: ni `requestFullscreen` ni `webkitRequestFullscreen`), así
+ * que la pantalla de toma bloqueaba el examen. El mensaje le pedía al alumno
+ * instalar la app, pero el código nunca miraba el modo standalone: seguir la
+ * instrucción no cambiaba nada. Los prefijos `webkit` se agregaron por Safari
+ * anterior a 16.4 — NO eran la causa: en WebKit de escritorio actual las dos
+ * versiones existen.
  *
  * Estos tests fijan la DECISIÓN, que es la parte que se puede probar sin
  * navegador. Las lecturas del entorno (`webkitFullscreenElement`,

@@ -58,6 +58,23 @@ export const Route = createRootRoute({
         content: "Plataforma académica con IA, proctoring y gestión completa de exámenes.",
       },
       { name: "theme-color", content: "#6366f1" },
+      // ── Instalable como app en iOS ────────────────────────────────────
+      // Sin esto, "Añadir a pantalla de inicio" en iPhone abre una PESTAÑA de
+      // Safari normal —con barra de direcciones— en vez de una ventana de app.
+      // iOS 16.4+ ya respeta `display: standalone` del manifest, pero por
+      // debajo de esa versión ESTE meta es el único que lo activa. Importa más
+      // que la estética: la pantalla de toma de examen acepta el modo
+      // "standalone" como equivalente a pantalla completa (que en iPhone no
+      // existe para elementos), así que sin el meta el alumno instalaba la app,
+      // seguía viendo el cromo del navegador y el examen lo seguía rechazando.
+      { name: "apple-mobile-web-app-capable", content: "yes" },
+      // El equivalente estándar, que Chrome pide desde la v.99 y reemplaza al
+      // de Apple. Se declaran los dos: ninguno cubre a todos los navegadores.
+      { name: "mobile-web-app-capable", content: "yes" },
+      // Barra de estado translúcida: sin esto la app instalada deja una franja
+      // blanca arriba en tema oscuro.
+      { name: "apple-mobile-web-app-status-bar-style", content: "black-translucent" },
+      { name: "apple-mobile-web-app-title", content: "ExamLab" },
       { name: "description", content: "Online exam management and execution platform." },
       { property: "og:description", content: "Online exam management and execution platform." },
       { name: "twitter:description", content: "Online exam management and execution platform." },

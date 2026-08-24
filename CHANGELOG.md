@@ -222,29 +222,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
-- **En Safari, el examen decía «No se pudo activar pantalla completa» aunque el navegador SÍ podía.**
-  Y en iPhone el mensaje le pedía al alumno instalar la app, pero instalarla **no cambiaba nada**:
-  eran dos fallas encadenadas que dejaban a un estudiante sin poder presentar.
+- **En el iPhone, el examen no se podía presentar — y la instrucción que daba la pantalla era falsa.**
+  El mensaje le decía al alumno «instala la app desde Safari y vuelve a abrir el examen desde el
+  ícono». Instalarla **no cambiaba nada**, por dos razones encadenadas.
 
-  La primera es de compatibilidad. La pantalla de toma usaba solo la API sin prefijo
-  (`requestFullscreen`), y Safari expone únicamente la versión `webkit`. Como la llamada iba con `?.`,
-  **no lanzaba error**: devolvía `undefined` en silencio, el chequeo siguiente —también sin prefijo—
-  daba negativo, y el alumno recibía un error mientras la API prefijada estaba ahí, disponible y sin
-  usar. Colateral del mismo hueco: el evento de salir de pantalla completa tampoco llegaba, así que
-  en Safari esa advertencia **no se registraba nunca**.
+  La primera: en iPhone **no existe la pantalla completa** para elementos de una página (solo la
+  tienen los videos). Está medido, no supuesto: con user-agent y viewport de iPhone, ni
+  `requestFullscreen` ni su versión prefijada existen. El examen exigía pantalla completa, en iPhone
+  no hay, y no había alternativa prevista: callejón sin salida. Ahora se acepta la **app instalada**
+  como equivalente — una ventana sin barra de direcciones, sin pestañas y sin botón de atrás, que
+  para el propósito del examen cumple lo mismo y se abandona menos fácil que un fullscreen que se
+  sale con Esc.
 
-  La segunda es del iPhone, y es distinta: ahí la API de pantalla completa no existe para elementos y
-  **no la habilita instalar la app**. Lo que la app instalada sí da es una ventana sin barra de
-  direcciones, sin pestañas y sin botón de atrás — para lo que la pantalla completa busca en un examen
-  es equivalente, y de hecho es más difícil de abandonar que un fullscreen que se sale con Esc. El
-  código nunca miraba ese modo, así que la instrucción que mostraba era literalmente falsa. Ahora la
-  app instalada se acepta como modo válido y la instrucción se cumple.
+  La segunda: **a la app le faltaba lo que la vuelve instalable como app en iOS.** Sin el meta
+  `apple-mobile-web-app-capable`, "Añadir a pantalla de inicio" en iPhone crea un ícono que abre una
+  **pestaña normal de Safari**, con la barra de direcciones puesta. Así que incluso con lo anterior
+  arreglado, el alumno instalaba y seguía sin poder rendir. Ya está declarado, junto con el título y
+  el estilo de la barra de estado.
 
-  Los prefijos viven en un solo módulo (`src/shared/lib/fullscreen.ts`) y la decisión de si la vista
-  está acotada es una función pura con tests. El arreglo alcanzó a **las otras cinco pantallas** que
-  tenían el mismo defecto y que nadie había reportado porque no bloquean un examen: proyectar el QR de
-  asistencia, proyectar el Reto en vivo (ahí era peor —un `TypeError`, no un fallo silencioso—), la
-  hoja de texto y la pizarra de la pizarra, y el auto-colapso del menú lateral.
+  Verificado en WebKit real (el motor de Safari) contra el sitio ya publicado: en una pestaña de
+  Safari en iPhone el examen sigue bloqueando —lo correcto— y con la app instalada deja rendir.
+
+  De paso, los prefijos `webkit` de la API quedaron centralizados en un módulo
+  (`src/shared/lib/fullscreen.ts`), donde antes estaban a mano en siete lugares. **No eran la causa**
+  —en el Safari de escritorio actual la API sin prefijo ya existe— pero siguen siendo el único camino
+  en Safari anterior a 16.4, y ese Safari emite el evento de salir de pantalla completa **solo**
+  prefijado: sin escucharlo, esa advertencia no se registraba. El mismo hueco estaba en otras cinco
+  pantallas que nadie reportó porque no bloquean un examen: proyectar el QR de asistencia, proyectar
+  el Reto en vivo (ahí era un `TypeError`, no un fallo silencioso), la hoja de texto y la pizarra, y
+  el auto-colapso del menú lateral.
 
 - **El campo de contraseña ya no aparece como una caja blanca al iniciar sesión.** En tema oscuro, si
   el navegador tenía la contraseña guardada, ese campo se veía **blanco** entre campos oscuros. No era

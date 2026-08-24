@@ -1,35 +1,48 @@
 /**
- * Pantalla completa, con los prefijos que Safari todavía necesita — y con el
- * modo PWA como equivalente.
+ * Pantalla completa, con los prefijos de Safari — y con el modo PWA como
+ * equivalente donde la pantalla completa NO EXISTE.
  *
- * ── Por qué existe ────────────────────────────────────────────────────
- * La pantalla de toma de examen usaba SOLO la API sin prefijo, en 7 lugares:
- * `document.documentElement.requestFullscreen?.()`, `document.fullscreenElement`,
- * `document.exitFullscreen()` y `addEventListener("fullscreenchange")`.
+ * ── Lo que se midió, porque la primera hipótesis era falsa ────────────
+ * La pantalla de toma usaba SOLO la API sin prefijo, en 7 lugares. La sospecha
+ * inicial fue "Safari solo expone la versión `webkit`", y **medido en WebKit
+ * 26.4 eso es falso en escritorio**: ahí existen las DOS
+ * (`requestFullscreen` y `webkitRequestFullscreen`), así que en un Mac al día
+ * el código viejo entraba bien.
  *
- * En Safari eso falla de la peor manera posible: `requestFullscreen` es
- * `undefined`, y por el `?.` la llamada **no lanza** — devuelve `undefined` en
- * silencio. Entonces el flujo cae en el chequeo siguiente, que también es sin
- * prefijo, y el alumno recibe «No se pudo activar pantalla completa» sin que
- * nada haya fallado de verdad: la API prefijada estaba ahí, sin usar. Safari
- * expone `webkitRequestFullscreen` / `webkitFullscreenElement` /
- * `webkitExitFullscreen` / `webkitfullscreenchange`.
+ * Lo que sí se midió, con user-agent y viewport de iPhone:
  *
- * Y aunque hubiera entrado, el listener de `fullscreenchange` nunca se dispara
- * en Safari, así que el strike por salir de pantalla completa no se registraba.
+ *   documentElement.requestFullscreen        → undefined
+ *   documentElement.webkitRequestFullscreen  → undefined
+ *   document.webkitFullscreenElement         → ni siquiera existe la propiedad
  *
- * ── El caso iPhone, que es distinto ───────────────────────────────────
- * En iPhone la Fullscreen API NO existe para elementos (solo para `<video>`), y
- * no la habilita ni instalar la app. El mensaje de error le decía al alumno
- * «instala la app desde Safari y vuelve a abrir el examen desde el ícono» —
- * pero el código **nunca aceptaba el modo standalone**, así que seguir la
- * instrucción al pie de la letra no cambiaba nada. La instrucción era falsa.
+ * En iOS **no hay pantalla completa para elementos**, con prefijo ni sin él
+ * (solo la tiene `<video>`). Ese es el motivo real por el que el alumno queda
+ * bloqueado, y por eso el arreglo que importa no es el prefijo: es aceptar otro
+ * modo. Los prefijos quedan porque siguen siendo el único camino en Safari
+ * anterior a 16.4 (marzo 2023), y porque ese Safari emite `fullscreenchange`
+ * SOLO prefijado — sin escuchar los dos, la advertencia por salir de pantalla
+ * completa no se registra.
+ *
+ * ── El caso iPhone, que es el que bloqueaba ───────────────────────────
+ * El mensaje de error le decía al alumno «instala la app desde Safari y vuelve
+ * a abrir el examen desde el ícono», pero el código **nunca miraba el modo
+ * standalone**, así que seguir la instrucción no cambiaba nada. La instrucción
+ * era falsa.
  *
  * Lo que da la app instalada es una ventana SIN CROMO: no hay barra de
  * direcciones, ni pestañas, ni botón de atrás. Para lo que la pantalla completa
  * busca en un examen —que el alumno no tenga otras pestañas a un clic— es
  * equivalente, y de hecho es más difícil de abandonar que un fullscreen que se
  * sale con Esc. Por eso `standalone` se acepta como modo válido.
+ *
+ * Verificado en WebKit real (Playwright, UA+viewport de iPhone) contra el
+ * bundle desplegado: en pestaña de Safari da `"ventana"` y bloquea; con
+ * `navigator.standalone` da `"standalone"` y deja rendir.
+ *
+ * Ojo: para que instalar la app REALMENTE dé una ventana sin cromo hace falta
+ * el meta `apple-mobile-web-app-capable` en el `<head>` (`src/routes/__root.tsx`).
+ * Sin él, iOS por debajo de 16.4 abre una pestaña normal de Safari y este
+ * módulo —correctamente— sigue devolviendo `"ventana"`.
  *
  * Lo único que el modo standalone NO da es la señal de "salió de pantalla
  * completa", porque no hay de dónde salir. El resto del proctoring

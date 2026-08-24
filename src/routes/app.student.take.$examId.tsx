@@ -887,18 +887,17 @@ function TakeExam() {
       ? t("hc_routesAppStudentTakeExamId.fullscreenHelpIOS")
       : t("hc_routesAppStudentTakeExamId.fullscreenHelpDesktop");
 
-    // `requestFullscreen` del helper prueba la API con y sin prefijo `webkit`
-    // —Safari solo tiene la prefijada— y devuelve el modo que quedó vigente.
-    // Antes acá se llamaba `document.documentElement.requestFullscreen?.()`:
-    // en Safari eso es `undefined` y el `?.` NO lanza, así que el flujo caía en
-    // el chequeo de abajo y el alumno recibía "No se pudo activar pantalla
-    // completa" con la API prefijada disponible y sin usar.
+    // `requestFullscreen` del helper devuelve el MODO que quedó vigente, no un
+    // booleano, y ahí está el arreglo: en iPhone no existe pantalla completa
+    // para elementos (medido: ni con prefijo `webkit` ni sin él), así que antes
+    // esto era un callejón sin salida. El modo `standalone` —app instalada,
+    // ventana sin cromo del navegador— se acepta como equivalente: es lo que el
+    // propio mensaje de ayuda le pide al alumno, y hasta ahora seguir esa
+    // instrucción no servía de nada porque el código nunca lo miraba.
     //
-    // Y en iPhone, donde la API no existe para elementos ni instalando la app,
-    // el modo `standalone` (app instalada = ventana sin cromo) se acepta como
-    // equivalente: es lo que el propio mensaje de ayuda le pide al alumno, y
-    // hasta ahora seguir esa instrucción no servía de nada porque el código
-    // nunca lo miraba.
+    // (El helper prueba también la API prefijada. Eso NO era la causa —en el
+    // WebKit de escritorio actual existen las dos— pero sigue siendo el único
+    // camino en Safari anterior a 16.4.)
     const modo = await requestFullscreen();
     if (modo === "ventana") {
       toast.error(
