@@ -52,7 +52,7 @@ import {
   BrainCircuit,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { warningLabel, warningEventTimestamp, type WarningEvent } from "@/modules/exams/proctoring";
+import { warningLabel, warningEventTimestamp, type WarningEvent, MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { statusLabel } from "@/shared/utils/status-labels";
 import { StatusBadge } from "@/components/ui/status-badge";
@@ -2419,7 +2419,7 @@ function ExamMonitor() {
                         variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
                         className="text-3xs tabular-nums"
                       >
-                        {latest.focus_warnings}/3
+                        {latest.focus_warnings}/{exam?.max_warnings ?? MAX_WARNINGS}
                       </Badge>
                     </TableCell>
                     <TableCell>

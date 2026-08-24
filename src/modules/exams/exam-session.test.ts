@@ -437,3 +437,62 @@ describe("applyClearOneWarning — examIsOpen=false (ventana cerrada)", () => {
     expect(result.closedAsCompletado).toBe(false);
   });
 });
+
+// ─── El decremento solo aplica a eventos que SUMARON strike ────────────────
+//
+// Antes se decrementaba para cualquier índice, así que perdonar un "Intento de
+// copiar" —que nunca sumó— regalaba un strike y, si eso cruzaba el umbral
+// hacia abajo, DES-SUSPENDÍA al alumno. La allowlist vive en
+// `isStrikeEvent` (proctoring.ts) y son exactamente los tres tipos con los que
+// la pantalla de toma llama a `recordWarning`.
+describe("applyClearOneWarning — solo descuenta strikes reales", () => {
+  const base = {
+    status: "en_progreso" as const,
+    focusWarnings: 3,
+    examMaxWarnings: 3,
+    submittedAt: null,
+    endTime: null,
+  };
+
+  it("borrar una señal BLANDA no baja el contador", () => {
+    for (const blando of ["copiar", "pegar", "cortar", "screenshot_attempt"]) {
+      const r = applyClearOneWarning(
+        { ...base, events: [{ type: blando }, { type: "pestaña" }] },
+        0,
+      );
+      expect(r.focusWarnings, `${blando} no debe descontar`).toBe(3);
+      expect(r.events).toHaveLength(1);
+    }
+  });
+
+  it("borrar un strike REAL sí baja el contador", () => {
+    for (const duro of ["pestaña", "fullscreen_exit", "visibility_hidden"]) {
+      const r = applyClearOneWarning({ ...base, events: [{ type: duro }] }, 0);
+      expect(r.focusWarnings, `${duro} debe descontar`).toBe(2);
+    }
+  });
+
+  it("un tipo DESCONOCIDO no descuenta — la allowlist falla hacia el lado seguro", () => {
+    const r = applyClearOneWarning(
+      { ...base, events: [{ type: "algo_que_alguien_agregue_manana" }] },
+      0,
+    );
+    expect(r.focusWarnings).toBe(3);
+  });
+
+  it("borrar una blanda NO des-suspende a un alumno marcado sospechoso", () => {
+    // El caso que motivó el arreglo: 3/3 sospechoso, el docente perdona el
+    // "Intento de copiar" y el alumno volvía a en_progreso con 2/3.
+    const r = applyClearOneWarning(
+      {
+        ...base,
+        status: "sospechoso",
+        events: [{ type: "screenshot_attempt" }, { type: "pestaña" }, { type: "pestaña" }],
+      },
+      0,
+    );
+    expect(r.focusWarnings).toBe(3);
+    expect(r.status).toBe("sospechoso");
+    expect(r.restoredToInProgress).toBe(false);
+  });
+});

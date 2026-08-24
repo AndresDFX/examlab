@@ -1,3 +1,4 @@
+import { isStrikeEvent } from "./proctoring";
 /**
  * Utilidades puras para el ciclo de vida de una sesión de examen estudiantil.
  * Extraídas del componente TakeExam para que sean testeables sin renderizar.
@@ -107,7 +108,16 @@ export function applyClearOneWarning(
     };
   }
   const nextEvents = safe.events.filter((_, i) => i !== idx);
-  const nextWarnings = Math.max(0, safe.focusWarnings - 1);
+  // El contador baja SOLO si el evento borrado había sumado un strike. El array
+  // mezcla los strikes reales con señales blandas (`copiar`, `pegar`, `cortar`,
+  // `screenshot_attempt`) que se registran para que el docente las vea pero no
+  // suman — ver `isStrikeEvent`. Antes se decrementaba para cualquier índice,
+  // así que perdonar un "Intento de copiar" regalaba un strike inexistente y,
+  // si eso cruzaba el umbral hacia abajo, DES-SUSPENDÍA al alumno.
+  const borrado = safe.events[idx] as { type?: string } | undefined;
+  const nextWarnings = isStrikeEvent(borrado?.type)
+    ? Math.max(0, safe.focusWarnings - 1)
+    : safe.focusWarnings;
   const belowThreshold = safe.status === "sospechoso" && nextWarnings < safe.examMaxWarnings;
   return finalizeResult(safe, belowThreshold, nextWarnings, nextEvents);
 }
