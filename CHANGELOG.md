@@ -241,7 +241,13 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   el estilo de la barra de estado.
 
   Verificado en WebKit real (el motor de Safari) contra el sitio ya publicado: en una pestaña de
-  Safari en iPhone el examen sigue bloqueando —lo correcto— y con la app instalada deja rendir.
+  Safari en iPhone el examen sigue bloqueando —lo correcto— y con la app instalada deja rendir. Y el
+  motor de instalación de Chrome, consultado por CDP contra producción, no reporta **ningún** error de
+  manifest ni de instalabilidad, y ofrece instalar: la cadena PWA (manifest, íconos 180/192/512
+  válidos, service worker activo) está sana. Lo único que ninguna de esas pruebas puede ejercitar es
+  que iOS honre el meta al crear el ícono desde el menú Compartir — eso es comportamiento del sistema
+  operativo, no de la página, y se comprueba en el teléfono viendo si la app abre **sin** barra de
+  direcciones.
 
   La barra de estado de la app queda **opaca** y no translúcida, aunque translúcida se vea mejor: con
   la vista web metida bajo el reloj, `env(safe-area-inset-top)` deja de ser 0 y la barra superior del
