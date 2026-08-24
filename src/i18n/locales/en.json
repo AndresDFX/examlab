@@ -1,4 +1,28 @@
 {
+  "pollPrint": {
+    "unnamed": "Unnamed",
+    "answer": "answer",
+    "participant": "participant",
+    "print": "Print",
+    "chooseHint": "Printed sheets get passed around: choose what to include.",
+    "withNames": "With names",
+    "withoutNames": "Without names",
+    "docTitle": "Poll results",
+    "course": "Course",
+    "status": "Status",
+    "open": "Open",
+    "closed": "Closed",
+    "generated": "Generated",
+    "answers": "answers",
+    "noAnswers": "No answers yet.",
+    "quota": "Spots",
+    "quotaFull": "full",
+    "participants": "participants",
+    "openQuestion": "open answer",
+    "withNamesNote": "Includes student names. Handle as a confidential document.",
+    "withoutNamesNote": "Anonymous document: no student names included.",
+    "multiNote": "allows several answers"
+  },
   "deleteCourseDialog": {
     "title": "Delete course «{{label}}»",
     "titleMulti": "Delete {{label}}",

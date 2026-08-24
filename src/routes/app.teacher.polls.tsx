@@ -22,6 +22,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { PrintPollResultsButton } from "@/modules/polls/PrintPollResultsButton";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -3615,6 +3616,25 @@ function ResultsDialog({
               {t("teacherPolls.assignRemaining")}
             </Button>
           )}
+          <PrintPollResultsButton
+            datos={() => ({
+              titulo: poll.title,
+              descripcion: poll.description,
+              tipo: poll.poll_type === "slot" ? "slot" : poll.poll_type === "multiple" ? "multiple" : "single",
+              curso: poll.course_name ?? null,
+              cerrada: !pollOpen,
+              totalRespuestas: total,
+              opciones: options.map((o) => ({
+                etiqueta: o.label,
+                conteo: o.responses_count,
+                cupo: isSlot ? o.max_responses : null,
+                votantes: respondents
+                  .filter((r) => r.option_id === o.id)
+                  .map((r) => r.full_name ?? t("pollPrint.unnamed")),
+              })),
+              preguntas: [],
+            })}
+          />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
           </Button>
@@ -4052,6 +4072,52 @@ function MixedResultsDialog({
         )}
 
         <DialogFooter>
+          {/* El armado replica EXACTAMENTE el conteo de arriba —incluido que en
+              una pregunta múltiple cada persona cuenta en cada opción que
+              marcó, con el denominador en PERSONAS que respondieron—. Si acá se
+              contara distinto, la hoja impresa mostraría porcentajes que la
+              pantalla no muestra. */}
+          <PrintPollResultsButton
+            disabled={loading}
+            datos={() => ({
+              titulo: poll.title,
+              descripcion: poll.description,
+              tipo: "mixed",
+              curso: poll.course_name ?? null,
+              cerrada: !pollIsOpen(poll),
+              totalRespuestas: new Set(responses.map((r) => r.user_id)).size,
+              opciones: [],
+              preguntas: questions.map((q) => {
+                const qResp = responses.filter((r) => r.question_id === q.id);
+                return {
+                  texto: q.text,
+                  tipo: q.type,
+                  multi: q.multi,
+                  totalRespuestas: qResp.length,
+                  opciones:
+                    q.type === "cerrada"
+                      ? q.choices.map((choice, ci) => ({
+                          etiqueta: choice,
+                          conteo: qResp.filter((r) =>
+                            Array.isArray(r.selected_indexes)
+                              ? r.selected_indexes.includes(ci)
+                              : r.selected_index === ci,
+                          ).length,
+                        }))
+                      : [],
+                  abiertas:
+                    q.type === "abierta"
+                      ? qResp
+                          .filter((r) => (r.answer_text ?? "").trim().length > 0)
+                          .map((r) => ({
+                            autor: r.full_name ?? t("pollPrint.unnamed"),
+                            texto: r.answer_text ?? "",
+                          }))
+                      : [],
+                };
+              }),
+            })}
+          />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
           </Button>

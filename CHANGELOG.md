@@ -68,6 +68,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Los resultados de una encuesta se pueden imprimir, con la marca de la institución.** Hasta ahora
+  vivían solo en la pantalla del docente: para llevarlos a un comité, adjuntarlos a un acta o
+  archivarlos había que sacar una captura. Ahora hay un botón **Imprimir** en la vista de resultados —
+  tanto en las de opciones y cupos como en las que tienen preguntas propias— que arma una hoja A4 con
+  el logo y el nombre de la institución, su color de marca, el curso, el estado y la fecha.
+
+  **Al imprimir se elige si van los nombres o no**, y esa es la decisión de diseño que importa: la
+  hoja impresa circula. En una encuesta de cupos los nombres SON el contenido (quién quedó en qué
+  horario); en una de bienestar, los nombres al lado de las respuestas abiertas son justo lo que no
+  debería quedar sobre un escritorio. No hay un default correcto para las dos, así que se elige en el
+  momento, y el pie del documento dice cuál de las dos versiones es — un documento anónimo lo declara,
+  y uno con nombres avisa que se trate como reservado. La opción no se recuerda entre encuestas a
+  propósito: recordarla haría que la próxima se imprima como quedó marcada la vez anterior.
+
+  Los porcentajes no se recalculan para el papel: sale el mismo número que muestra la pantalla. En las
+  encuestas de cupo eso importa —ahí el porcentaje mide el llenado del cupo, no la cuota sobre el
+  total— y un docente que imprime para una reunión no debería terminar defendiendo una cifra que la
+  plataforma no muestra.
+
+  Detalles que se midieron en vez de suponerse: las barras se imprimen de verdad (el navegador las
+  deja en blanco si no se le pide lo contrario); una barra o una respuesta nunca se cortan entre dos
+  páginas y el título de una pregunta nunca queda solo al pie, pero la pregunta SÍ puede continuar en
+  la hoja siguiente — prohibirlo daba 7 páginas donde alcanzaban 6, con huecos de media hoja que se
+  leen como un error de armado.
+
 - **"Volver" se ve igual en toda la app.** Estaba escrito a mano en cada pantalla y las copias
   divergieron en las tres cosas que el usuario percibe: el **ícono** (unas con flecha, otras con
   chevron), el **tamaño** y la **separación**. Peor: dos textos traducidos traían la flecha como

@@ -1,4 +1,28 @@
 {
+  "pollPrint": {
+    "unnamed": "Sin nombre",
+    "answer": "respuesta",
+    "participant": "participante",
+    "print": "Imprimir",
+    "chooseHint": "La hoja impresa circula: elegí qué incluir.",
+    "withNames": "Con nombres",
+    "withoutNames": "Sin nombres",
+    "docTitle": "Resultados de encuesta",
+    "course": "Curso",
+    "status": "Estado",
+    "open": "Abierta",
+    "closed": "Cerrada",
+    "generated": "Generado",
+    "answers": "respuestas",
+    "noAnswers": "Sin respuestas todavía.",
+    "quota": "Cupo",
+    "quotaFull": "cupo lleno",
+    "participants": "participantes",
+    "openQuestion": "respuesta abierta",
+    "withNamesNote": "Incluye nombres de estudiantes. Trátese como documento reservado.",
+    "withoutNamesNote": "Documento anónimo: no incluye nombres de estudiantes.",
+    "multiNote": "admite varias respuestas"
+  },
   "deleteCourseDialog": {
     "title": "Eliminar curso «{{label}}»",
     "titleMulti": "Eliminar {{label}}",
