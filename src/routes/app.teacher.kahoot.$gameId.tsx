@@ -11,6 +11,12 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  requestFullscreen as requestFullscreenCompat,
+  exitFullscreen as exitFullscreenCompat,
+  currentFullscreenElement,
+  onFullscreenChange,
+} from "@/shared/lib/fullscreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -221,9 +227,8 @@ function KahootHost() {
   useEffect(() => () => stopKahootMusic(), []);
 
   useEffect(() => {
-    const onFs = () => setIsFs(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onFs);
-    return () => document.removeEventListener("fullscreenchange", onFs);
+    // Los dos eventos del helper: en Safari solo llega el prefijado.
+    return onFullscreenChange(() => setIsFs(currentFullscreenElement() != null));
   }, []);
 
   const advance = async (action: string) => {
@@ -241,11 +246,11 @@ function KahootHost() {
   };
 
   const toggleFs = () => {
-    if (document.fullscreenElement) {
-      void document.exitFullscreen();
-    } else {
-      void rootRef.current?.requestFullscreen();
-    }
+    // Por el helper: el `?.` de antes cubría `current`, NO el método, así que
+    // en Safari `requestFullscreen` era `undefined` y proyectar el reto tiraba
+    // un TypeError en vez de entrar a pantalla completa.
+    if (currentFullscreenElement() != null) void exitFullscreenCompat();
+    else void requestFullscreenCompat(rootRef.current);
   };
 
   const left =

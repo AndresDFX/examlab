@@ -24,6 +24,12 @@ import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 import {
+  requestFullscreen as requestFullscreenCompat,
+  exitFullscreen as exitFullscreenCompat,
+  currentFullscreenElement,
+  onFullscreenChange,
+} from "@/shared/lib/fullscreen";
+import {
   attendancePeriod,
   attendanceSecondsToNextRotation,
   buildAttendanceCheckInUrl,
@@ -163,38 +169,30 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
     };
   }, [state.sessionId]);
 
-  // Fullscreen API.
-  const requestFullscreen = useCallback(async () => {
+  // Fullscreen API, por el helper compartido. Safari solo expone la versión
+  // prefijada (`webkitRequestFullscreen`), así que el `if (el.requestFullscreen)`
+  // de antes lo salteaba en silencio: el docente proyectaba el QR con la barra
+  // de direcciones y las pestañas a la vista del salón.
+  const pedirFullscreen = useCallback(async () => {
     const el = containerRef.current;
     if (!el) return;
-    try {
-      if (el.requestFullscreen) await el.requestFullscreen();
-    } catch {
-      // Algunos browsers bloquean fullscreen si no es gesto del usuario directo;
-      // el botón visible cubre ese caso.
-    }
+    await requestFullscreenCompat(el);
   }, []);
 
   // Sale de fullscreen sin cerrar el check-in.
-  const exitFullscreen = useCallback(async () => {
-    if (document.fullscreenElement) {
-      try {
-        await document.exitFullscreen();
-      } catch {
-        /* noop */
-      }
-    }
+  const salirFullscreen = useCallback(async () => {
+    await exitFullscreenCompat();
   }, []);
 
   // Auto-request fullscreen al montar (gesto del usuario que abrió el dialog).
   useEffect(() => {
-    void requestFullscreen();
-  }, [requestFullscreen]);
+    void pedirFullscreen();
+  }, [pedirFullscreen]);
 
   useEffect(() => {
-    const onChange = () => setIsFullscreen(!!document.fullscreenElement);
-    document.addEventListener("fullscreenchange", onChange);
-    return () => document.removeEventListener("fullscreenchange", onChange);
+    // Los dos eventos: en Safari solo llega el prefijado, y sin él el botón
+    // seguía diciendo "Pantalla completa" estando ya en pantalla completa.
+    return onFullscreenChange(() => setIsFullscreen(currentFullscreenElement() != null));
   }, []);
 
   const handleCloseCheckIn = async () => {
@@ -214,7 +212,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
       }
       // Fire-and-forget: en algunos browsers exitFullscreen no resuelve
       // hasta el próximo fullscreenchange y eso bloquea el handler.
-      void exitFullscreen();
+      void salirFullscreen();
       onClose();
       toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", { defaultValue: "Check-in cerrado" }));
     } finally {
@@ -254,7 +252,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void exitFullscreen()}
+              onClick={() => void salirFullscreen()}
               aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}
             >
               <Minimize2 className="h-4 w-4 sm:mr-1" />
@@ -264,7 +262,7 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => void requestFullscreen()}
+              onClick={() => void pedirFullscreen()}
               aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}
             >
               <Maximize2 className="h-4 w-4 sm:mr-1" />

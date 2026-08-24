@@ -222,6 +222,30 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **En Safari, el examen decía «No se pudo activar pantalla completa» aunque el navegador SÍ podía.**
+  Y en iPhone el mensaje le pedía al alumno instalar la app, pero instalarla **no cambiaba nada**:
+  eran dos fallas encadenadas que dejaban a un estudiante sin poder presentar.
+
+  La primera es de compatibilidad. La pantalla de toma usaba solo la API sin prefijo
+  (`requestFullscreen`), y Safari expone únicamente la versión `webkit`. Como la llamada iba con `?.`,
+  **no lanzaba error**: devolvía `undefined` en silencio, el chequeo siguiente —también sin prefijo—
+  daba negativo, y el alumno recibía un error mientras la API prefijada estaba ahí, disponible y sin
+  usar. Colateral del mismo hueco: el evento de salir de pantalla completa tampoco llegaba, así que
+  en Safari esa advertencia **no se registraba nunca**.
+
+  La segunda es del iPhone, y es distinta: ahí la API de pantalla completa no existe para elementos y
+  **no la habilita instalar la app**. Lo que la app instalada sí da es una ventana sin barra de
+  direcciones, sin pestañas y sin botón de atrás — para lo que la pantalla completa busca en un examen
+  es equivalente, y de hecho es más difícil de abandonar que un fullscreen que se sale con Esc. El
+  código nunca miraba ese modo, así que la instrucción que mostraba era literalmente falsa. Ahora la
+  app instalada se acepta como modo válido y la instrucción se cumple.
+
+  Los prefijos viven en un solo módulo (`src/shared/lib/fullscreen.ts`) y la decisión de si la vista
+  está acotada es una función pura con tests. El arreglo alcanzó a **las otras cinco pantallas** que
+  tenían el mismo defecto y que nadie había reportado porque no bloquean un examen: proyectar el QR de
+  asistencia, proyectar el Reto en vivo (ahí era peor —un `TypeError`, no un fallo silencioso—), la
+  hoja de texto y la pizarra de la pizarra, y el auto-colapso del menú lateral.
+
 - **El campo de contraseña ya no aparece como una caja blanca al iniciar sesión.** En tema oscuro, si
   el navegador tenía la contraseña guardada, ese campo se veía **blanco** entre campos oscuros. No era
   un color mal puesto: Chrome pinta su propio fondo (`rgb(232, 240, 254)`) encima de todo campo que

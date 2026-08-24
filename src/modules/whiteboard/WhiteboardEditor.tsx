@@ -35,6 +35,12 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  requestFullscreen as requestFullscreenCompat,
+  exitFullscreen as exitFullscreenCompat,
+  currentFullscreenElement,
+  onFullscreenChange,
+} from "@/shared/lib/fullscreen";
+import {
   Eye,
   Maximize2,
   Minimize2,
@@ -401,30 +407,13 @@ function WhiteboardEditorInner({
     // El padre puede pedir que el fullscreen abarque un ANCESTRO (ver
     // `fullscreenTargetRef`): proyectar el canvas solo, cuando es transparente
     // y la imagen de fondo es un hermano, muestra los trazos sobre negro.
-    const el = (fullscreenTargetRef?.current ?? containerRef.current) as
-      | (HTMLElement & { webkitRequestFullscreen?: () => Promise<void> | void })
-      | null;
+    const el = fullscreenTargetRef?.current ?? containerRef.current;
     if (!el) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const doc = document as any;
-    const fsEl = doc.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
-    try {
-      if (!fsEl) {
-        const req = el.requestFullscreen ?? el.webkitRequestFullscreen;
-        if (typeof req === "function") {
-          void Promise.resolve(req.call(el)).catch((err: unknown) => {
-            console.warn("[WhiteboardEditor] requestFullscreen failed", err);
-          });
-        } else {
-          console.warn("[WhiteboardEditor] Fullscreen API no disponible en este navegador");
-        }
-      } else {
-        const exit = doc.exitFullscreen ?? doc.webkitExitFullscreen;
-        if (typeof exit === "function") void Promise.resolve(exit.call(doc)).catch(() => {});
-      }
-    } catch (err) {
-      console.warn("[WhiteboardEditor] fullscreen toggle error", err);
-    }
+    // Los prefijos los resuelve el helper compartido. Esta pantalla ya los
+    // manejaba a mano y era la ÚNICA: mantenerla acá dejaba una segunda copia
+    // de la que copiar, y las otras cinco pantallas nunca la copiaron.
+    if (currentFullscreenElement() != null) void exitFullscreenCompat();
+    else void requestFullscreenCompat(el);
   }, [fullscreenTargetRef]);
   // Sincronizar state con el evento del navegador — el usuario puede
   // salir del fullscreen con Esc (no podemos interceptar Esc directo)
@@ -432,16 +421,7 @@ function WhiteboardEditorInner({
   // "Minimize" mostraría el ícono incorrecto post-Esc. Escuchamos también
   // el evento webkit-prefijado (Safari).
   useEffect(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const handler = () =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      setIsFullscreen(Boolean((document as any).fullscreenElement ?? (document as any).webkitFullscreenElement));
-    document.addEventListener("fullscreenchange", handler);
-    document.addEventListener("webkitfullscreenchange", handler);
-    return () => {
-      document.removeEventListener("fullscreenchange", handler);
-      document.removeEventListener("webkitfullscreenchange", handler);
-    };
+    return onFullscreenChange(() => setIsFullscreen(currentFullscreenElement() != null));
   }, []);
   // Si el dynamic import de Excalidraw falla (chunk corrupto, red caída
   // a media descarga del chunk grande, etc.), mostramos un ErrorState

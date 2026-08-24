@@ -31,6 +31,12 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  requestFullscreen as requestFullscreenCompat,
+  exitFullscreen as exitFullscreenCompat,
+  currentFullscreenElement,
+  onFullscreenChange,
+} from "@/shared/lib/fullscreen";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
@@ -256,21 +262,19 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
     );
   };
 
+  // Por el helper compartido: `el.requestFullscreen()` a secas LANZA un
+  // TypeError en Safari (la propiedad no existe, solo la prefijada), así que el
+  // botón de pantalla completa reventaba en vez de no hacer nada.
   const toggleFullscreen = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    if (!document.fullscreenElement) {
-      void el.requestFullscreen().catch((err) => {
-        console.warn("[TextPageEditor] requestFullscreen failed", err);
-      });
-    } else {
-      void document.exitFullscreen().catch(() => {});
-    }
+    if (currentFullscreenElement() == null) void requestFullscreenCompat(el);
+    else void exitFullscreenCompat();
   }, []);
   useEffect(() => {
-    const handler = () => setIsFullscreen(Boolean(document.fullscreenElement));
-    document.addEventListener("fullscreenchange", handler);
-    return () => document.removeEventListener("fullscreenchange", handler);
+    // Los dos eventos: sin el prefijado, en Safari el ícono del botón quedaba
+    // al revés después de salir con Esc.
+    return onFullscreenChange(() => setIsFullscreen(currentFullscreenElement() != null));
   }, []);
 
   // Read-only: solo MarkdownViewer ocupando el área completa.

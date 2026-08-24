@@ -107,6 +107,7 @@ import {
 import { cn } from "@/shared/lib/utils";
 import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
+import { currentFullscreenElement, onFullscreenChange } from "@/shared/lib/fullscreen";
 
 interface NavItem {
   to: string;
@@ -667,14 +668,16 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof document === "undefined") return;
     const onFsChange = () => {
-      if (document.fullscreenElement) {
+      if (currentFullscreenElement() != null) {
         setSidebarCollapsed(true);
       } else if (!isTakingExam) {
         setSidebarCollapsed(false);
       }
     };
-    document.addEventListener("fullscreenchange", onFsChange);
-    return () => document.removeEventListener("fullscreenchange", onFsChange);
+    // Por el helper, que registra también el evento prefijado: en Safari este
+    // listener no se disparaba nunca y el sidebar quedaba abierto sobre el
+    // examen en pantalla completa.
+    return onFullscreenChange(onFsChange);
   }, [isTakingExam]);
 
   // Auto-colapso cuando el alumno entra al flujo de examen, incluso

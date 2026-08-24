@@ -450,8 +450,9 @@ describe("applyClearOneWarning — solo descuenta strikes reales", () => {
     status: "en_progreso" as const,
     focusWarnings: 3,
     examMaxWarnings: 3,
-    submittedAt: null,
-    endTime: null,
+    // La ventana sigue abierta: es el caso en vivo, donde el docente perdona
+    // mientras el alumno rinde.
+    examIsOpen: true,
   };
 
   it("borrar una señal BLANDA no baja el contador", () => {

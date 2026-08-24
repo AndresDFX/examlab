@@ -16,6 +16,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  currentFullscreenElement,
+  currentProctoringMode,
+  exitFullscreen,
+  onFullscreenChange,
+  requestFullscreen,
+} from "@/shared/lib/fullscreen";
 import { toast } from "sonner";
 import {
   AlertTriangle,
@@ -299,8 +306,9 @@ function TakeExam() {
     [],
   );
   // Bandera de "el estudiante ya está properly dentro del examen". Se
-  // activa la primera vez que `document.fullscreenElement` se vuelve
-  // truthy (sea por startExam o por click en el overlay de Reanudar).
+  // activa la primera vez que el modo de proctoring deja de ser "ventana"
+  // —fullscreen real o app instalada— (sea por startExam o por click en el
+  // overlay de Reanudar).
   // Antes de que se active, los strikes se SUPRIMEN — cubre el caso de
   // un alumno que reanuda un intento (status en_progreso, recarga, le
   // borraron 1 strike, etc.) y todavía no entró a pantalla completa:
@@ -879,32 +887,20 @@ function TakeExam() {
       ? t("hc_routesAppStudentTakeExamId.fullscreenHelpIOS")
       : t("hc_routesAppStudentTakeExamId.fullscreenHelpDesktop");
 
-    try {
-      await document.documentElement.requestFullscreen?.();
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      toast.error(
-        i18n.t("toast.routes_app_student_take_examId.examRequiresFullscreen", {
-          defaultValue: "Este examen requiere pantalla completa. {{help}}",
-          help: fullscreenHelpText,
-        }),
-        {
-          duration: 10000,
-        },
-      );
-      void logEvent({
-        action: "exam_fullscreen_denied",
-        category: "exam",
-        severity: "warning",
-        entityType: "submission",
-        entityId: sid,
-        entityName: exam.title,
-        metadata: { examId, stage: "start", error: msg, isIOS },
-      });
-      return;
-    }
-    // Verifica que realmente entró (algunos navegadores resuelven la promise sin activar fullscreen)
-    if (!document.fullscreenElement) {
+    // `requestFullscreen` del helper prueba la API con y sin prefijo `webkit`
+    // —Safari solo tiene la prefijada— y devuelve el modo que quedó vigente.
+    // Antes acá se llamaba `document.documentElement.requestFullscreen?.()`:
+    // en Safari eso es `undefined` y el `?.` NO lanza, así que el flujo caía en
+    // el chequeo de abajo y el alumno recibía "No se pudo activar pantalla
+    // completa" con la API prefijada disponible y sin usar.
+    //
+    // Y en iPhone, donde la API no existe para elementos ni instalando la app,
+    // el modo `standalone` (app instalada = ventana sin cromo) se acepta como
+    // equivalente: es lo que el propio mensaje de ayuda le pide al alumno, y
+    // hasta ahora seguir esa instrucción no servía de nada porque el código
+    // nunca lo miraba.
+    const modo = await requestFullscreen();
+    if (modo === "ventana") {
       toast.error(
         i18n.t("toast.routes_app_student_take_examId.couldNotActivateFullscreen", {
           defaultValue: "No se pudo activar pantalla completa. {{help}}",
@@ -921,7 +917,7 @@ function TakeExam() {
         entityType: "submission",
         entityId: sid,
         entityName: exam.title,
-        metadata: { examId, stage: "start", reason: "no_fullscreen_element", isIOS },
+        metadata: { examId, stage: "start", reason: "no_fullscreen_element", isIOS, modo },
       });
       return;
     }
@@ -948,7 +944,7 @@ function TakeExam() {
       hasEverEnteredFullscreenRef.current = true;
       return;
     }
-    if (!document.fullscreenElement) {
+    if (currentProctoringMode() === "ventana") {
       setFsExited(true);
     }
   }, [started, requireFullscreen]);
@@ -959,7 +955,7 @@ function TakeExam() {
     if (reenteringFs) return;
     setReenteringFs(true);
     try {
-      await document.documentElement.requestFullscreen?.();
+      await requestFullscreen();
       // El click en "Reanudar" del overlay cuenta como entrada válida —
       // activamos el proctoring estricto. Si el alumno sale luego, sí
       // cuenta como strike normal.
@@ -1172,7 +1168,7 @@ function TakeExam() {
       }
 
       try {
-        if (document.fullscreenElement) await document.exitFullscreen();
+        await exitFullscreen();
       } catch {}
       // Dispara el grading IA respetando el setting global async/sync.
       // - `processing_mode = 'async'` (default): encola en
@@ -1787,7 +1783,7 @@ function TakeExam() {
       if (e.ctrlKey || e.metaKey) e.preventDefault();
     };
     const onFsChange = () => {
-      if (document.fullscreenElement) {
+      if (currentFullscreenElement()) {
         // Primer ingreso a FS de esta sesión → activamos el proctoring
         // estricto. A partir de aquí los strikes cuentan.
         hasEverEnteredFullscreenRef.current = true;
@@ -1817,7 +1813,9 @@ function TakeExam() {
     document.addEventListener("contextmenu", onContext);
     document.addEventListener("keydown", onKeyDown, true);
     document.addEventListener("keyup", onKeyUp, true);
-    document.addEventListener("fullscreenchange", onFsChange);
+    // Los DOS eventos: sin `webkitfullscreenchange` el strike por salir de
+    // pantalla completa nunca se registraba en Safari.
+    const desuscribirFs = onFullscreenChange(onFsChange);
     document.addEventListener("copy", onClipboard);
     document.addEventListener("paste", onClipboard);
     document.addEventListener("cut", onClipboard);
@@ -1830,7 +1828,7 @@ function TakeExam() {
       document.removeEventListener("contextmenu", onContext);
       document.removeEventListener("keydown", onKeyDown, true);
       document.removeEventListener("keyup", onKeyUp, true);
-      document.removeEventListener("fullscreenchange", onFsChange);
+      desuscribirFs();
       document.removeEventListener("copy", onClipboard);
       document.removeEventListener("paste", onClipboard);
       document.removeEventListener("cut", onClipboard);
