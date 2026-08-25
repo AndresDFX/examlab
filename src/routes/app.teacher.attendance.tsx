@@ -2395,6 +2395,21 @@ function TeacherAttendance() {
           // cierre, extender movería el contador de adentro pero al re-montar
           // (o al recalcular) volvería el vencimiento viejo.
           onExtended={(closesAt) => setProjector((p) => (p ? { ...p, closesAt } : p))}
+          // Salir SIN cerrar el check-in: solo se desmonta el proyector. No hay
+          // RPC de cierre ni el diálogo de "marcar ausentes" — el check-in sigue
+          // abierto recibiendo marcaciones y se puede volver a proyectar. Antes
+          // la única salida era el botón rojo, así que el docente tenía que
+          // dejar la pantalla puesta todo el tiempo.
+          onExit={() => {
+            setProjector(null);
+            void loadCourse();
+            toast.success(
+              i18n.t("toast.routes_app_teacher_attendance.checkinStillOpen", {
+                defaultValue:
+                  "Saliste de la proyección. El check-in sigue abierto y los estudiantes pueden marcar.",
+              }),
+            );
+          }}
         />
       )}
 

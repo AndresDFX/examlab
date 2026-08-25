@@ -68,6 +68,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Ya se puede salir de la proyección del check-in sin cerrarlo.** Hasta ahora la única salida de esa
+  pantalla era el botón rojo "Cerrar check-in", que además de cerrar la ventana en la base ofrece
+  marcar como ausentes a todos los que no alcanzaron a marcar. En la práctica eso obligaba al docente a
+  dejar la pantalla abierta —y el proyector encendido— todo el tiempo que quisiera recibir
+  asistencias; con las ventanas nuevas de hasta 24 horas, directamente imposible.
+
+  Ahora hay un botón **Salir** que solo cierra la proyección: el check-in sigue abierto, los estudiantes
+  siguen marcando, y el botón de la sesión en la grilla cambia a "reabrir proyección" para volver a
+  mostrarlo cuando haga falta. El botón rojo queda para lo que dice ser — cerrar de verdad.
+
 - **El check-in de asistencia admite ventanas mucho más largas.** Los topes anteriores se estaban
   tocando: la ventana llegaba a 4 horas y el código rotaba como máximo cada 10 minutos. Ahora la
   ventana va **hasta 24 horas** y el código puede rotar **cada 2 horas**; extender una ventana abierta

@@ -3363,6 +3363,7 @@
       "revertedToGlobal": "\"{{label}}\" volvió al prompt global"
     },
     "routes_app_teacher_attendance": {
+      "checkinStillOpen": "Saliste de la proyección. El check-in sigue abierto y los estudiantes pueden marcar.",
       "dateRequired": "Fecha requerida",
       "endTimeAfterStart": "La hora de fin debe ser posterior a la de inicio.",
       "sessionCreated": "Sesión creada correctamente",
@@ -6366,6 +6367,8 @@
     "refreshTooltip": "Refrescar"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "exitKeepOpen": "Salir",
+      "exitKeepOpenHint": "Salir de la proyección dejando el check-in abierto: los estudiantes siguen pudiendo marcar y podés volver a proyectarlo cuando quieras.",
       "copyLink": "Copiar enlace",
       "copyLinkTitle": "Copiar el mismo enlace del QR, para pegarlo en el chat de una clase virtual",
       "extendTitle": "Agregar {{count}} minutos a la ventana",

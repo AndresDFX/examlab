@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Link2 as LinkIcon, Maximize2, Minimize2, X } from "lucide-react";
+import { Link2 as LinkIcon, LogOut, Maximize2, Minimize2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -56,6 +56,16 @@ interface Props {
   /** Llamado al extender la ventana, con el nuevo cierre en ISO. El padre es
    *  dueño de `state`, así que sin esto el contador seguiría con el viejo. */
   onExtended?: (closesAt: string) => void;
+  /**
+   * Salir de la proyección DEJANDO el check-in abierto.
+   *
+   * Hasta ahora la única salida era "Cerrar check-in", que cierra la ventana en
+   * la base y además ofrece marcar ausentes a todos los que no alcanzaron a
+   * marcar. O sea que el docente tenía que dejar esta pantalla abierta —y el
+   * proyector encendido— todo el tiempo que quisiera recibir asistencias. Con
+   * una ventana de 24 horas eso es directamente imposible.
+   */
+  onExit?: () => void;
 }
 
 function formatRemaining(ms: number): string {
@@ -66,7 +76,7 @@ function formatRemaining(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function AttendanceCheckInProjector({ state, onClose, onExtended }: Props) {
+export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("------");
@@ -356,6 +366,27 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended }: Props
             >
               <Maximize2 className="h-4 w-4 sm:mr-1" />
               <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}</span>
+            </Button>
+          )}
+          {/* Salir sin cerrar: el check-in sigue recibiendo marcaciones y el
+              docente puede volver a proyectarlo cuando quiera. Va ANTES del
+              botón rojo y en tono neutro, para que la salida obvia no sea la
+              destructiva. */}
+          {onExit && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={async () => {
+                await salirFullscreen();
+                onExit();
+              }}
+              aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.exitKeepOpen")}
+              title={t("hc_modulesAttendanceAttendanceCheckInProjector.exitKeepOpenHint")}
+            >
+              <LogOut className="h-4 w-4 sm:mr-1" />
+              <span className="hidden sm:inline">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.exitKeepOpen")}
+              </span>
             </Button>
           )}
           <Button

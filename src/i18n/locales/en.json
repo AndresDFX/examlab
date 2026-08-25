@@ -3363,6 +3363,7 @@
       "revertedToGlobal": "\"{{label}}\" reverted to the global prompt"
     },
     "routes_app_teacher_attendance": {
+      "checkinStillOpen": "You left the projection. The check-in is still open and students can check in.",
       "dateRequired": "Date required",
       "endTimeAfterStart": "The end time must be after the start time.",
       "sessionCreated": "Session created successfully",
@@ -6366,6 +6367,8 @@
     "refreshTooltip": "Refresh"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "exitKeepOpen": "Exit",
+      "exitKeepOpenHint": "Leave the projection with the check-in still open: students can keep checking in and you can project it again whenever you want.",
       "copyLink": "Copy link",
       "copyLinkTitle": "Copy the same link the QR encodes, to paste in a virtual class chat",
       "extendTitle": "Add {{count}} minutes to the window",
