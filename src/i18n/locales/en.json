@@ -9726,6 +9726,7 @@
     "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
+      "notStartedYet": "Check-in for this class opens at {{time}}. Try again then.",
       "errNotStarted": "Check-in for this session hasn't started yet.",
       "fillEmailCode": "Enter your email and the code.",
     "codeLabel": "Class code",

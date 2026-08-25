@@ -68,6 +68,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El enlace público de asistencia ya dice de qué curso y de qué sesión es.** Antes era un formulario
+  pelado: el estudiante escribía su correo sin saber qué estaba marcando, y con varias materias el mismo
+  día eso es pedirle que firme a ciegas. Ahora muestra el curso con su grupo, el título de la sesión y
+  la fecha.
+
+  Solo aparece cuando el check-in está **realmente** abierto. Un enlace de una sesión que no existe, de
+  otra institución, en la papelera o con el check-in cerrado devuelven todos exactamente lo mismo — no
+  se puede usar la página para averiguar qué cursos existen. Y si la ventana todavía no empezó, en vez
+  de "está cerrado" dice a qué hora abre: la página ignoraba por completo ese estado, que el servidor ya
+  le mandaba.
+
 - **El diálogo del check-in llega con las fechas ya puestas: desde ahora, por seis horas.** Antes
   arrancaban vacías y el servidor aplicaba diez minutos, así que el docente abría el check-in sin ver
   cuándo cerraba y se enteraba del default recién cuando ya se había cerrado solo. Ahora las dos fechas
@@ -381,6 +392,13 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   `20261610000000_whiteboard_pages_sql.sql`, columnas `sql_setup`/`sql_answer` en `whiteboard_pages`).
 
 ### 🔧 Correcciones
+
+- **Se podía abrir un check-in de asistencia sobre una sesión que estaba en la papelera** — y también
+  sobre una sesión cuyo curso entero estaba borrado. Lo primero es una regresión: el bloqueo existía y se
+  perdió al reescribir la función para el modo de fechas. Lo segundo nunca había existido en ese camino,
+  y era peor de lo que parece: borrar un curso no apaga el check-in de sus sesiones, así que un curso en
+  la papelera podía seguir teniendo asistencia abierta. Los dos bloqueos están ahora, y con ellos el
+  nombre de un curso borrado ya no puede aparecer en la página pública.
 
 - **Iniciar el check-in con QR fallaba con «function gen_random_bytes(integer) does not exist».** La
   función que abre la ventana genera una semilla aleatoria con pgcrypto, que en esta base vive en un

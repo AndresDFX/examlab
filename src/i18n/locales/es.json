@@ -9726,6 +9726,7 @@
     "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
+      "notStartedYet": "El check-in de esta clase abre a las {{time}}. Volvé a intentar en ese momento.",
       "errNotStarted": "El check-in de esta sesión todavía no empezó.",
       "fillEmailCode": "Completá tu correo y el código.",
     "codeLabel": "Código de la clase",

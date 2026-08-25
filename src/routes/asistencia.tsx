@@ -21,6 +21,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { formatDateOnly, formatDateTime } from "@/shared/lib/format";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +31,20 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, CalendarCheck, LogIn } from "lucide-react";
+
+/** Lo que devuelve `attendance_check_in_public_info`. */
+interface InfoPublica {
+  open: boolean;
+  email_only: boolean;
+  not_started?: boolean;
+  opens_at?: string;
+  course_name?: string;
+  course_group?: string | null;
+  session_title?: string | null;
+  session_date?: string;
+  session_type?: string;
+  closes_at?: string;
+}
 
 export const Route = createFileRoute("/asistencia")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -97,6 +112,15 @@ function PublicAttendance() {
    *  el servidor dice si este check-in la pide. Asumir que sí y esconderla
    *  después haría saltar el formulario; asumir que no la pediría de más. */
   const [soloCorreo, setSoloCorreo] = useState<boolean | null>(null);
+  /**
+   * De qué es este check-in. `null` mientras carga.
+   *
+   * Antes la página mostraba un formulario pelado: el estudiante no sabía de qué
+   * curso ni de qué sesión era lo que estaba a punto de marcar, y con varias
+   * materias el mismo día eso es pedirle que firme a ciegas. El servidor solo lo
+   * dice cuando el check-in está EFECTIVAMENTE abierto.
+   */
+  const [info, setInfo] = useState<InfoPublica | null>(null);
 
   // El modo lo decide el SERVIDOR. Esto es solo para no pedir un dato que no
   // hace falta: si el cliente mintiera y omitiera la contraseña, la RPC
@@ -109,12 +133,12 @@ function PublicAttendance() {
       // conocen esta función (la migración viaja en este mismo cambio). Mismo
       // patrón que el resto de las RPC nuevas del proyecto.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data } = await (supabase as any).rpc("attendance_check_in_mode", {
+      const { data } = await (supabase as any).rpc("attendance_check_in_public_info", {
         p_session_id: session,
       });
       if (cancelled) return;
-      const m = data as { email_only?: boolean } | null;
-      setSoloCorreo(!!m?.email_only);
+      setInfo((data as InfoPublica | null) ?? { open: false, email_only: false });
+      setSoloCorreo(!!(data as InfoPublica | null)?.email_only);
     })();
     return () => {
       cancelled = true;
@@ -215,6 +239,40 @@ function PublicAttendance() {
               })}
             </p>
           </div>
+
+          {/* De qué curso y qué sesión. Solo aparece cuando el servidor lo
+              manda, o sea cuando el check-in está realmente abierto. */}
+          {info?.open && (info.course_name || info.session_title) && (
+            <div className="rounded-md border bg-background p-3 text-center space-y-0.5">
+              {info.course_name && (
+                <p className="text-sm font-semibold leading-tight">
+                  {info.course_name}
+                  {info.course_group ? ` · ${info.course_group}` : ""}
+                </p>
+              )}
+              {info.session_title && (
+                <p className="text-xs text-muted-foreground leading-tight">{info.session_title}</p>
+              )}
+              {info.session_date && (
+                <p className="text-2xs text-muted-foreground">
+                  {formatDateOnly(info.session_date)}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* La ventana existe pero todavía no empezó: decirle a qué hora
+              vuelva, no "está cerrado". Antes la página ignoraba por completo el
+              estado que el servidor ya le mandaba. */}
+          {info && !info.open && info.not_started && (
+            <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-center">
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {t("publicAttendance.notStartedYet", {
+                  time: info.opens_at ? formatDateTime(info.opens_at) : "",
+                })}
+              </p>
+            </div>
+          )}
 
           {!session ? (
             <div className="flex flex-col items-center gap-2 py-4 text-center">
