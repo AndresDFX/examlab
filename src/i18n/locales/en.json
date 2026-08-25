@@ -4922,6 +4922,9 @@
     "confirmRestoreLabel": "Restore"
   },
   "adminGeneralSettings": {
+      "labelCheckinHours": "Attendance check-in window (hours)",
+      "hintCheckinHours": "What the dialog proposes when opening a check-in: from now, for this many hours. Default 6. Teachers can still change the dates on the spot.",
+      "errCheckinHours": "The check-in window must be between 1 and 168 hours.",
     "loadingParams": "Loading parameters…",
     "loadErrorTitle": "Could not load general parameters",
     "cardCoursesTitle": "Defaults for new courses",

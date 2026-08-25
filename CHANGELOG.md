@@ -68,6 +68,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El diálogo del check-in llega con las fechas ya puestas: desde ahora, por seis horas.** Antes
+  arrancaban vacías y el servidor aplicaba diez minutos, así que el docente abría el check-in sin ver
+  cuándo cerraba y se enteraba del default recién cuando ya se había cerrado solo. Ahora las dos fechas
+  están escritas, a la vista y editables. Si se corre la hora de apertura, el cierre la sigue para
+  mantener la duración — pero si el docente ya editó el cierre a mano, no se lo pisa.
+
+  Las seis horas son configurables por institución, en Configuración → General: una que solo toma
+  asistencia en clases de dos horas no tiene por qué corregir el campo cada vez.
+
 - **El check-in de asistencia se define por fechas, y el código puede quedar fijo todo ese tiempo.**
   Antes se pedía una duración en minutos con un tope, y ese tope se subió dos veces seguidas porque el
   modelo no era el correcto: lo que el docente tiene en la cabeza es "del martes a las 8 al jueves a

@@ -91,6 +91,12 @@ import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { DatePicker, DateTimePicker } from "@/components/ui/date-picker";
 import { localToIso } from "@/modules/messaging/scheduled";
 import {
+  CHECKIN_DEFAULT_WINDOW_HOURS,
+  clampWindowHours,
+  defaultCheckinWindow,
+  recomputeClosesAt,
+} from "@/modules/attendance/checkin-window";
+import {
   AttendanceCheckInProjector,
   type CheckInState,
 } from "@/modules/attendance/AttendanceCheckInProjector";
@@ -329,6 +335,21 @@ function TeacherAttendance() {
    */
   const [checkInOpensAt, setCheckInOpensAt] = useState<string>("");
   const [checkInClosesAt, setCheckInClosesAt] = useState<string>("");
+  /**
+   * Horas de la ventana propuesta. Sale de `app_settings.checkin_default_hours`
+   * de la institución; `CHECKIN_DEFAULT_WINDOW_HOURS` (6) mientras carga o si no
+   * está configurada.
+   */
+  const [checkInHours, setCheckInHours] = useState<number>(CHECKIN_DEFAULT_WINDOW_HOURS);
+  /**
+   * ¿El docente TOCÓ el cierre?
+   *
+   * Mientras no lo toque, mover la apertura recalcula el cierre para mantener la
+   * duración — que es lo útil al correr el horario. Pero en cuanto lo edita a
+   * mano, recalcularlo sería pisarle el dato: escribió "hasta las 18:00" y al
+   * ajustar la apertura le saltaría a otra hora sin que él lo pidiera.
+   */
+  const [checkInClosesTouched, setCheckInClosesTouched] = useState(false);
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
   /** Opt-in: el enlace público acepta solo el correo, sin contraseña. Arranca
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
@@ -409,6 +430,27 @@ function TeacherAttendance() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [retryNonce, activeRole, roles, user?.id]);
+
+  // Duración por defecto de la ventana de check-in, de la institución. Se lee
+  // UNA vez: es un número de configuración, no cambia mientras el docente toma
+  // asistencia. Si falla o no está configurada queda el default del código, así
+  // que un error acá no deja el diálogo sin fechas.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from("app_settings")
+        .select("checkin_default_hours")
+        .maybeSingle();
+      if (cancelled) return;
+      const h = (data as { checkin_default_hours?: number | null } | null)?.checkin_default_hours;
+      if (h != null) setCheckInHours(clampWindowHours(h));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Load data for selected course.
   // `isActive` permite al effect abortar los setState cuando el docente
@@ -1228,10 +1270,15 @@ function TeacherAttendance() {
   const totalEnrolled = students.length;
 
   const openCheckInConfig = (sess: Session) => {
-    // Las fechas arrancan VACÍAS: así el caso normal —abrir ahora por un rato—
-    // sigue siendo un clic y el servidor aplica el default de 10 minutos.
-    setCheckInOpensAt("");
-    setCheckInClosesAt("");
+    // Se PRELLENAN las dos fechas: desde ahora y por las horas configuradas.
+    // Antes arrancaban vacías y el servidor aplicaba 10 minutos, así que el
+    // docente abría el check-in sin ver cuándo cerraba y se enteraba del default
+    // recién cuando se había cerrado solo. Prellenadas quedan a la vista, y
+    // siguen siendo editables.
+    const w = defaultCheckinWindow(new Date(), checkInHours);
+    setCheckInOpensAt(w.opensAt);
+    setCheckInClosesAt(w.closesAt);
+    setCheckInClosesTouched(false);
     setCheckInRotation(ATTENDANCE_CODE_ROTATION_DEFAULT);
     setCheckInEmailOnly(false);
     setCheckInConfigSession(sess);
@@ -2320,14 +2367,31 @@ function TeacherAttendance() {
                   {t("teacherAttendance.checkInOpensAtLabel")}{" "}
                   <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
                 </Label>
-                <DateTimePicker value={checkInOpensAt} onChange={setCheckInOpensAt} />
+                <DateTimePicker
+                  value={checkInOpensAt}
+                  onChange={(v) => {
+                    setCheckInOpensAt(v);
+                    // El cierre sigue a la apertura solo si el docente no lo
+                    // tocó (ver `checkInClosesTouched`).
+                    if (!checkInClosesTouched) {
+                      const c = recomputeClosesAt(v, checkInHours);
+                      if (c) setCheckInClosesAt(c);
+                    }
+                  }}
+                />
               </div>
               <div>
                 <Label>
                   {t("teacherAttendance.checkInClosesAtLabel")}{" "}
                   <HelpHint>{t("help.checkinClosesAtHelp")}</HelpHint>
                 </Label>
-                <DateTimePicker value={checkInClosesAt} onChange={setCheckInClosesAt} />
+                <DateTimePicker
+                  value={checkInClosesAt}
+                  onChange={(v) => {
+                    setCheckInClosesAt(v);
+                    setCheckInClosesTouched(true);
+                  }}
+                />
               </div>
             </div>
             <div>

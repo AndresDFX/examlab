@@ -29,6 +29,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { toast } from "sonner";
+import {
+  CHECKIN_DEFAULT_WINDOW_HOURS,
+  CHECKIN_MAX_WINDOW_HOURS,
+} from "@/modules/attendance/checkin-window";
 import { Save, Info, Mail, FileText, GraduationCap, BellRing, TrendingDown } from "lucide-react";
 import { DEFAULT_RISK_THRESHOLDS } from "@/shared/lib/early-alert";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -56,6 +60,10 @@ interface AppSettings {
    *  entrega de taller/proyecto). Default 1. El cron revisa cada 15 min y
    *  manda UN solo aviso por entrega. */
   due_reminder_lead_hours: number;
+  /** Horas que el diálogo de check-in de asistencia propone por defecto, desde
+   *  ahora. NULL en DB = 6 (el default del código). El docente igual puede
+   *  cambiar las fechas en el momento: esto solo fija lo que aparece escrito. */
+  checkin_default_hours: number;
   /** Alerta temprana. Se guardan como FRACCIÓN (0..1) la asistencia y como
    *  conteo los otros dos. En DB son NULL-ables (NULL = "usar el default del
    *  código"), pero acá se coalescen a número para que los Input queden
@@ -98,6 +106,10 @@ export function AdminGeneralSettingsPanel() {
       const r = {
         ...data,
         due_reminder_lead_hours: data.due_reminder_lead_hours ?? 1,
+        // NULL en DB = el default del código, no 0: `clampWindowHours` ya lo
+        // resuelve, pero el formulario tiene que MOSTRAR el número que se va a
+        // usar o el admin creería que no hay ninguno.
+        checkin_default_hours: Number(data.checkin_default_hours ?? CHECKIN_DEFAULT_WINDOW_HOURS),
         // Los umbrales de alerta temprana son NULL hasta que el Admin los
         // toca por primera vez; se muestran los defaults del clasificador.
         early_alert_min_attendance_rate:
@@ -156,6 +168,10 @@ export function AdminGeneralSettingsPanel() {
       );
       return;
     }
+    if (draft.checkin_default_hours < 1 || draft.checkin_default_hours > CHECKIN_MAX_WINDOW_HOURS) {
+      toast.error(t("adminGeneralSettings.errCheckinHours"));
+      return;
+    }
     if (draft.due_reminder_lead_hours < 1 || draft.due_reminder_lead_hours > 168) {
       toast.error(
         i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.dueReminderLeadOutOfRange", {
@@ -210,6 +226,7 @@ export function AdminGeneralSettingsPanel() {
           email_alert_threshold_24h: draft.email_alert_threshold_24h,
           email_alert_cooldown_hours: draft.email_alert_cooldown_hours,
           due_reminder_lead_hours: draft.due_reminder_lead_hours,
+          checkin_default_hours: draft.checkin_default_hours,
           early_alert_min_attendance_rate: draft.early_alert_min_attendance_rate,
           early_alert_max_failed: draft.early_alert_max_failed,
           early_alert_max_missing: draft.early_alert_max_missing,
@@ -510,6 +527,23 @@ export function AdminGeneralSettingsPanel() {
                 defaultValue:
                   "Por defecto 1 hora. Rango 1–168 (hasta 7 días). Solo a quienes no han entregado.",
               })}
+            </p>
+          </div>
+
+          <div className="max-w-xs">
+            <Label>{t("adminGeneralSettings.labelCheckinHours")}</Label>
+            <Input
+              type="number"
+              min={1}
+              max={CHECKIN_MAX_WINDOW_HOURS}
+              step={0.5}
+              value={draft.checkin_default_hours}
+              onChange={(e) =>
+                setDraft({ ...draft, checkin_default_hours: Number(e.target.value) })
+              }
+            />
+            <p className="text-2xs text-muted-foreground mt-1">
+              {t("adminGeneralSettings.hintCheckinHours")}
             </p>
           </div>
         </CardContent>

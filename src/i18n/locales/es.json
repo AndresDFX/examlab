@@ -4922,6 +4922,9 @@
     "confirmRestoreLabel": "Restaurar"
   },
   "adminGeneralSettings": {
+      "labelCheckinHours": "Ventana del check-in de asistencia (horas)",
+      "hintCheckinHours": "Lo que el diálogo propone al abrir un check-in: desde ahora, por estas horas. Por defecto 6. El docente igual puede cambiar las fechas en el momento.",
+      "errCheckinHours": "La ventana del check-in debe estar entre 1 y 168 horas.",
     "loadingParams": "Cargando parámetros…",
     "loadErrorTitle": "No pudimos cargar los parámetros generales",
     "cardCoursesTitle": "Defaults para cursos nuevos",
