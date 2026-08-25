@@ -346,6 +346,22 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Iniciar el check-in con QR fallaba con «function gen_random_bytes(integer) does not exist».** La
+  función que abre la ventana genera una semilla aleatoria con pgcrypto, que en esta base vive en un
+  esquema aparte; al reescribirla para agregarle el modo "solo con el correo" se copió una versión
+  vieja —anterior a un arreglo de mayo— y se perdió la referencia a ese esquema. No falló al
+  desplegarse: falló recién cuando alguien intentó abrir un check-in.
+
+  Buscando el mismo defecto en todas las funciones de la base apareció una segunda igual de rota:
+  la que genera el **enlace público de una encuesta**. Nadie la había reportado porque el único enlace
+  que existe se creó por otra vía, pero desde la app habría dado el mismo error. Las dos arregladas.
+
+  Y para que no vuelva: hay un test que recorre todas las migraciones, se queda con la versión vigente
+  de cada función y falla si alguna llama a pgcrypto sin poder resolverlo. Verificado devolviéndole el
+  defecto a propósito: el test lo detecta. Era la tercera vez que este error entraba al proyecto por el
+  mismo camino —alguien reescribe una función partiendo de la primera versión que encuentra, no de la
+  vigente— y un comentario en la migración vieja no lo evitaba, porque quien la reescribe no la lee.
+
 - **La plantilla del Acuerdo Pedagógico seguía con los datos de un curso concreto, aunque el cambio
   decía estar hecho.** Los objetivos de Programación II y su tabla de cortes con fechas de 2026-1
   seguían escritos dentro del documento en producción. La causa: la plantilla se sembró con una
