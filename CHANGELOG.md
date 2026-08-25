@@ -334,6 +334,20 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **La plantilla del Acuerdo Pedagógico seguía con los datos de un curso concreto, aunque el cambio
+  decía estar hecho.** Los objetivos de Programación II y su tabla de cortes con fechas de 2026-1
+  seguían escritos dentro del documento en producción. La causa: la plantilla se sembró con una
+  migración, esa migración YA se había aplicado, y la generalización se hizo **editando ese mismo
+  archivo** — que el pipeline salta, porque una migración aplicada no se vuelve a correr. El cambio
+  quedó en el repositorio y nunca llegó a la base, sin ningún error que lo delatara.
+
+  Ahora la plantilla se actualiza de verdad. Todo lo que depende del curso sale de los datos: programa,
+  nombre, grupo, semestre, periodo, docente, fecha, los objetivos de la asignatura, el total de
+  asistentes y la tabla de evaluación completa (cortes con peso, fechas y distribución). Lo único que
+  no es general es la **lista de firmas** — ahí van los estudiantes concretos del curso, que es el
+  punto del documento. Y lo que queda como texto fijo es solo lo que pertenece al formato: los rótulos,
+  las etiquetas de firma y una indicación de qué escribir en la sección metodológica.
+
 - **El examen ya no exige instalar nada en el iPhone: abre en Safari y se puede presentar.** El
   arreglo anterior aceptaba la app instalada como equivalente a la pantalla completa, y eso sigue
   valiendo, pero dejaba al alumno dependiendo de instalar — un paso que ni él ni nosotros podíamos
