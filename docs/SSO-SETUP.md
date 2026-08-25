@@ -50,6 +50,7 @@
 
 > ⚠️ **PUNTO MÁS IMPORTANTE Y QUE MÁS SE EQUIVOCA:**
 > En Azure AD la **Redirect URI** debe ser la URL de **Supabase** (`https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/callback`), **NO** la del app (`https://app.examlab.workers.dev/auth/sso-callback`).
+> Corolario útil: como Azure apunta a Supabase y no al app, **mudar el hospedaje NO obliga a tocar nada en Azure**. Lo que sí hay que mantener es el allowlist de Supabase (paso 3).
 > El callback del app es una **Redirect URL de Supabase** (otra cosa) y va en el dashboard de Supabase, no en Azure.
 
 **Política de la plataforma:** el SSO **no registra usuarios nuevos**. El admin debe pre-crear la cuenta (bulk-import o "Nuevo usuario") con el `institutional_email` correcto. El SSO solo permite el primer login si ese email ya existe.
@@ -159,15 +160,31 @@ Para evitarlo:
 
 El app, tras volver de Supabase, redirige a `${origin}/auth/sso-callback`. Ese destino debe estar permitido o Supabase corta el flujo.
 
+> **Ya está hecho** (2026-08-22), al mudar el hospedaje a Cloudflare. Esta sección
+> queda como referencia y para dev local.
+
 1. Supabase Dashboard → **Authentication** → **URL Configuration**.
 2. En **Redirect URLs**, confirma que estén (agregar las que falten):
-   - `https://app.examlab.workers.dev/**` — cubre `https://app.examlab.workers.dev/auth/sso-callback`.
+   - `https://*.examlab.workers.dev/**` — **una sola entrada cubre todas las
+     instituciones**: `app`, `uniaj`, `fesna`, `examlab-demo`,
+     `demo-global-corp` y cualquiera futura. El `*` de Supabase no cruza puntos
+     ni barras, así que matchea exactamente la etiqueta del subdominio.
+   - `https://examlab.lovable.app/**` — mientras ese sitio siga vivo.
    - `http://localhost:3000/**` y `http://localhost:5173/**` — para desarrollo local.
-   - Cualquier dominio de **preview** o **dominios de tenant personalizados** que se usen.
-3. Revisa que el **Site URL** apunte al dominio de producción (`https://app.examlab.workers.dev`).
+3. Revisa que el **Site URL** sea `https://app.examlab.workers.dev` (ahí no se
+   admiten comodines).
 4. **Save**.
 
-> `supabase/config.toml` **no aplica** al proyecto hosted — la fuente de verdad de las URLs es el dashboard de Supabase. (Opcional, solo para paridad en dev local: agregar `https://app.examlab.workers.dev/**` a `additional_redirect_urls` en `config.toml`.)
+**Por qué esto importa más que antes:** el destino se arma con
+`${window.location.origin}/auth/sso-callback`, o sea con el host desde el que
+entró el usuario. Como ahora cada institución tiene su propio subdominio, un
+allowlist sin comodín obligaría a agregar una entrada por institución — y el
+SSO se rompería en silencio cada vez que se cree una. Fue exactamente lo que
+pasó con Google al mudarnos: el login rebotaba porque el host nuevo no estaba
+en la lista.
+
+> `supabase/config.toml` **no aplica** al proyecto hosted — la fuente de verdad
+> de las URLs es el dashboard.
 
 ---
 
@@ -191,12 +208,14 @@ Prerrequisito: tener un usuario de prueba **pre-aprovisionado** con un `institut
 - [ ] **Client secret (Value)** copiado y cargado en Supabase; expiración agendada.
 - [ ] **Optional claim `email`** habilitado en Token configuration (paso 1.3).
 - [ ] **Provider Azure habilitado** en Supabase con Client ID + Secret + Tenant URL coherente con el "account type" de Azure.
-- [ ] **Redirect URLs** de Supabase incluyen `https://app.examlab.workers.dev/**`.
+- [ ] **Redirect URLs** de Supabase incluyen `https://*.examlab.workers.dev/**` (ya configurado).
 - [ ] El usuario de prueba existe en `profiles.institutional_email` (case-insensitive) con el mismo correo que la cuenta Microsoft.
 
 Prueba el flujo feliz:
 
-1. Abre `https://app.examlab.workers.dev` (o la URL de preview) en una ventana de incógnito.
+1. Abre `https://app.examlab.workers.dev` —o el subdominio de la institución del
+   usuario de prueba, ej. `https://uniaj.examlab.workers.dev`— en una ventana de
+   incógnito.
 2. En el login, click en el botón **Microsoft**.
 3. Debe abrir el selector de cuentas de Microsoft (forzamos `prompt=select_account`). Elige la cuenta institucional de prueba.
 4. Acepta el consentimiento si aparece.
