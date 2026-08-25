@@ -68,6 +68,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Un informe se puede enviar a firmar, a uno o a varios estudiantes del curso.** Pensado para el
+  Acuerdo Pedagógico: en vez de imprimirlo y hacerlo circular con una lapicera, el docente lo genera y
+  lo manda a firmar desde "Informes generados". Cada estudiante ve el documento **tal como se generó**,
+  lo lee y confirma su aceptación; queda registrado quién firmó y cuándo. El docente ve en el mismo
+  diálogo quién ya firmó y quién falta, y puede retirar una solicitud que nadie firmó todavía.
+
+  **Se firma el documento congelado, no la plantilla.** Es lo que hace que la firma signifique algo: si
+  se firmara la plantilla, el docente podría editarla después y el estudiante quedaría atado a un texto
+  que nunca leyó. Se guarda además una huella (SHA-256) del documento firmado, para poder detectar si
+  cambió después.
+
+  **La firma no se puede falsear desde el navegador.** La tabla no acepta escrituras directas: la fila
+  se escribe únicamente por una función del servidor que toma la identidad de la sesión y no admite
+  "firmar por otro" como parámetro. Está comprobado, no supuesto: en el ensayo, intentar insertar la
+  firma de un compañero y adelantar la fecha de la propia quedan bloqueados los dos.
+
+  Y algo que conviene decir con claridad: **esto no es una firma digital.** No hay certificado, ni
+  clave privada, ni sello de tiempo de un tercero. Es un registro de aceptación autenticado —consta que
+  la persona dueña de esa cuenta aceptó ese documento, y cuándo—, que alcanza para un acuerdo
+  pedagógico y no para algo que necesite valor probatorio ante un tercero. Por eso ningún texto de la
+  app la llama "firma digital".
+
 - **El Acuerdo Pedagógico ya está en la plataforma como plantilla, y la lista de firmas se llena
   sola con los estudiantes del curso.** El formato institucional (DO-F-021) traía un "listado de
   estudiantes asistentes" con **22 renglones vacíos numerados a mano**: en un curso de 31 personas,

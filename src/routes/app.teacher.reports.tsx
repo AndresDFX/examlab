@@ -62,6 +62,7 @@ import {
   DialogFooter,
   DialogDescription,
 } from "@/components/ui/dialog";
+import { SendToSignDialog } from "@/modules/reports/SendToSignDialog";
 import { toast } from "sonner";
 import {
   FileBarChart,
@@ -78,6 +79,7 @@ import {
   Lock,
   Upload,
   History,
+  PenLine,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -213,6 +215,12 @@ function Inner() {
   // informes generados + actas). Separación de conceptos Plantilla ≠ Informe.
   const [tab, setTab] = useState<"plantillas" | "informes">("plantillas");
 
+  /** Informe elegido para enviar a firmar. `null` = diálogo cerrado. */
+  const [firmarInforme, setFirmarInforme] = useState<{
+    id: string;
+    courseId: string;
+    nombre: string;
+  } | null>(null);
   // Historial de informes generados (tab "Informes generados").
   const [genReports, setGenReports] = useState<GeneratedReport[]>([]);
   const [genReportsLoading, setGenReportsLoading] = useState(true);
@@ -1606,6 +1614,25 @@ function Inner() {
                                     disabled: !!histBusyId,
                                     onClick: () => void reDownloadPdf(r),
                                   },
+                                  // Enviar a firmar solo tiene sentido en un
+                                  // informe de CURSO: el de un estudiante ya es
+                                  // de una sola persona y firmarlo no agrega
+                                  // nada que el docente no sepa.
+                                  ...(r.course_id
+                                    ? [
+                                        {
+                                          label: t("reportSign.rowAction"),
+                                          icon: PenLine,
+                                          disabled: !!histBusyId,
+                                          onClick: () =>
+                                            setFirmarInforme({
+                                              id: r.id,
+                                              courseId: r.course_id,
+                                              nombre: r.template_name,
+                                            }),
+                                        },
+                                      ]
+                                    : []),
                                   {
                                     label: t("hc_routesAppTeacherReports.actionDelete", { defaultValue: "Eliminar" }),
                                     icon: Trash2,
@@ -1853,6 +1880,15 @@ function Inner() {
           )}
         </DialogContent>
       </Dialog>
+
+      <SendToSignDialog
+        reportId={firmarInforme?.id ?? null}
+        courseId={firmarInforme?.courseId ?? null}
+        reportName={firmarInforme?.nombre ?? ""}
+        onOpenChange={(abierto) => {
+          if (!abierto) setFirmarInforme(null);
+        }}
+      />
     </div>
   );
 }
