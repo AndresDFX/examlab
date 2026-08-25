@@ -2299,14 +2299,18 @@ function TeacherAttendance() {
                 {t("teacherAttendance.windowDurationLabel")}{" "}
                 <HelpHint>{t("help.checkinDurationHelp")}</HelpHint>
               </Label>
+              {/* Los topes tienen que coincidir con los de
+                  `teacher_open_attendance_check_in` (mig 20261800000000): si el
+                  input deja escribir más de lo que la función acepta, el docente
+                  llena el campo y recibe un error sin entender por qué. */}
               <Input
                 type="number"
                 min={1}
-                max={240}
+                max={1440}
                 value={checkInDuration || ""}
                 onChange={(e) =>
                   setCheckInDuration(
-                    e.target.value === "" ? 0 : Math.max(1, Math.min(240, Number(e.target.value))),
+                    e.target.value === "" ? 0 : Math.max(1, Math.min(1440, Number(e.target.value))),
                   )
                 }
               />
@@ -2319,11 +2323,13 @@ function TeacherAttendance() {
               <Input
                 type="number"
                 min={15}
-                max={600}
+                max={7200}
                 value={checkInRotation || ""}
                 onChange={(e) =>
                   setCheckInRotation(
-                    e.target.value === "" ? 0 : Math.max(15, Math.min(600, Number(e.target.value))),
+                    e.target.value === ""
+                      ? 0
+                      : Math.max(15, Math.min(7200, Number(e.target.value))),
                   )
                 }
               />

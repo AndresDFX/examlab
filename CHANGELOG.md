@@ -68,6 +68,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El check-in de asistencia admite ventanas mucho más largas.** Los topes anteriores se estaban
+  tocando: la ventana llegaba a 4 horas y el código rotaba como máximo cada 10 minutos. Ahora la
+  ventana va **hasta 24 horas** y el código puede rotar **cada 2 horas**; extender una ventana abierta
+  llega a 8 horas de un tirón, con el mismo techo total de 24.
+
+  **Los valores por defecto no cambian** —la ventana sigue abriendo en 10 minutos y el código rotando
+  cada 60 segundos— y eso es deliberado. El código rotativo es justo lo que prueba que el estudiante
+  estaba mirando la pantalla proyectada: cuanto más dura cada código, más tiempo sirve para pasárselo
+  por chat a alguien que no vino. Con 2 horas de rotación esa ventana es de dos horas; con 60 segundos,
+  de un minuto. Quien necesita una jornada completa lo escribe; quien no, no se entera de que existe.
+  Un default largo habría debilitado el control de todas las clases para servir al caso raro.
+
 - **Un informe se puede enviar a firmar, a uno o a varios estudiantes del curso.** Pensado para el
   Acuerdo Pedagógico: en vez de imprimirlo y hacerlo circular con una lapicera, el docente lo genera y
   lo manda a firmar desde "Informes generados". Cada estudiante ve el documento **tal como se generó**,
