@@ -68,6 +68,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El check-in de asistencia se define por fechas, y el código puede quedar fijo todo ese tiempo.**
+  Antes se pedía una duración en minutos con un tope, y ese tope se subió dos veces seguidas porque el
+  modelo no era el correcto: lo que el docente tiene en la cabeza es "del martes a las 8 al jueves a
+  las 18", no "2760 minutos a partir de ahora". Ahora se eligen **fecha de apertura y de cierre**. Se
+  puede poner una apertura futura y el check-in no acepta nada antes de esa hora. El único límite que
+  queda es un año, y está para que un año mal tecleado no deje una ventana abierta hasta 2126.
+
+  Y poniendo la rotación del código en **0**, el código **no cambia** durante toda la ventana. Eso hace
+  falta de verdad: no alcanzaba con poner una rotación muy grande, porque el código cambia en los
+  múltiplos de la rotación —con rotación de un día cambiaría a la medianoche, en mitad de una ventana
+  de tres días—.
+
+  El aviso va en la pantalla, junto al campo: un código fijo de varios días se puede reenviar por chat
+  y usarlo desde cualquier parte, así que deja de probar que la persona estuvo presente. Sigue
+  exigiendo estar matriculado y que la ventana esté abierta. El valor por defecto no cambia: quien abre
+  un check-in normal sigue con rotación de 60 segundos.
+
 - **Ya se puede salir de la proyección del check-in sin cerrarlo.** Hasta ahora la única salida de esa
   pantalla era el botón rojo "Cerrar check-in", que además de cerrar la ventana en la base ofrece
   marcar como ausentes a todos los que no alcanzaron a marcar. En la práctica eso obligaba al docente a

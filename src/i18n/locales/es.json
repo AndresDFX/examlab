@@ -1784,6 +1784,8 @@
     "scopeTenantBody": "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global."
   },
   "help": {
+      "checkinOpensAtHelp": "Desde cuándo se puede marcar. Vacío = ahora mismo. Podés poner una fecha futura y el check-in no acepta marcaciones antes.",
+      "checkinClosesAtHelp": "Hasta cuándo se puede marcar. Vacío = 10 minutos desde que abre. Puede ser dentro de días o semanas.",
     "examNavigationHelp": "Libre: el estudiante puede avanzar y volver a preguntas anteriores. Secuencial: responde una por una, sin poder regresar.",
     "examShuffleHelp": "Cada estudiante recibe las preguntas en un orden distinto (aleatorio), lo que dificulta la copia entre compañeros.",
     "defenseFactorHelp": "Multiplicador según la calidad de la sustentación oral: 1 mantiene la nota de la entrega, 0,5 la reduce a la mitad, 0 la anula. Nota final = nota de la entrega × este factor.",
@@ -5653,6 +5655,9 @@
     "reviewToastError": "No se pudo marcar como revisado. Intenta de nuevo."
   },
   "teacherAttendance": {
+      "checkInOpensAtLabel": "Abre",
+      "checkInClosesAtLabel": "Cierra",
+      "rotationZeroWarning": "Con 0, el código NO cambia en toda la ventana. Cómodo para varios días, pero se puede pasar por chat: deja de probar que la persona estaba presente.",
       "emailOnlyLabel": "Marcar solo con el correo",
       "emailOnlyHint": "El estudiante entra por el enlace y solo escribe su correo y el código de la pantalla, sin contraseña. Agiliza el check-in, pero deja de impedir que alguien presente marque a un compañero ausente. Dejalo apagado si la asistencia pesa en la nota.",
     "statusPresentShort": "P",
@@ -5804,6 +5809,7 @@
     "tabUrl": "URL externa"
   },
   "studentAttendance": {
+      "errNotStarted": "El check-in de esta sesión todavía no empezó. Intentá cuando el docente lo abra.",
     "statusPresent": "Presente",
     "statusAbsent": "Ausente",
     "statusLate": "Tardanza",
@@ -6367,6 +6373,7 @@
     "refreshTooltip": "Refrescar"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "codeFixed": "Este código no cambia durante toda la ventana.",
       "exitKeepOpen": "Salir",
       "exitKeepOpenHint": "Salir de la proyección dejando el check-in abierto: los estudiantes siguen pudiendo marcar y podés volver a proyectarlo cuando quieras.",
       "copyLink": "Copiar enlace",
@@ -9716,6 +9723,7 @@
     "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
+      "errNotStarted": "El check-in de esta sesión todavía no empezó.",
       "fillEmailCode": "Completá tu correo y el código.",
     "codeLabel": "Código de la clase",
     "credsHint": "Usamos tu correo y contraseña solo para confirmar tu identidad. No se inicia sesión.",

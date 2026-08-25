@@ -78,6 +78,9 @@ const CHECK_IN_ERROR_MESSAGES: Record<string, string> = {
   no_auth: "studentAttendance.errNoAuth",
   session_not_found: "studentAttendance.errSessionNotFound",
   check_in_closed: "studentAttendance.errClosed",
+  // Ventana con fecha de inicio futura: no está cerrada, todavía no empezó.
+  // Sin este caso el alumno leía "está cerrado" con el QR delante.
+  not_started: "studentAttendance.errNotStarted",
   not_enrolled: "studentAttendance.errNotEnrolled",
   invalid_code: "studentAttendance.errInvalidCode",
   unauthorized: "studentAttendance.errUnauthorized",

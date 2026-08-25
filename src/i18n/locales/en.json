@@ -1784,6 +1784,8 @@
     "scopeTenantBody": "What you save here applies ONLY to this institution and overlays on top of the platform global configuration. Anything you leave untouched is inherited from the global default."
   },
   "help": {
+      "checkinOpensAtHelp": "When check-in starts. Empty = right now. You can set a future date and check-in won't accept anything before it.",
+      "checkinClosesAtHelp": "When check-in ends. Empty = 10 minutes after it opens. It can be days or weeks away.",
     "examNavigationHelp": "Free: the student can move forward and back between questions. Sequential: one at a time, no going back.",
     "examShuffleHelp": "Each student gets the questions in a different (random) order, making it harder to copy from classmates.",
     "defenseFactorHelp": "Multiplier for the oral defense quality: 1 keeps the submission grade, 0.5 halves it, 0 nullifies it. Final grade = submission grade × this factor.",
@@ -5653,6 +5655,9 @@
     "reviewToastError": "Couldn't mark as reviewed. Please try again."
   },
   "teacherAttendance": {
+      "checkInOpensAtLabel": "Opens",
+      "checkInClosesAtLabel": "Closes",
+      "rotationZeroWarning": "With 0 the code does NOT change for the whole window. Convenient across several days, but it can be forwarded by chat: it stops proving the person was there.",
       "emailOnlyLabel": "Check in with email only",
       "emailOnlyHint": "Students open the link and enter only their email and the on-screen code, no password. It speeds up check-in but stops preventing someone present from marking an absent classmate. Leave it off if attendance counts toward the grade.",
     "statusPresentShort": "P",
@@ -5804,6 +5809,7 @@
     "tabUrl": "External URL"
   },
   "studentAttendance": {
+      "errNotStarted": "Check-in for this session hasn't started yet. Try again once the teacher opens it.",
     "statusPresent": "Present",
     "statusAbsent": "Absent",
     "statusLate": "Late",
@@ -6367,6 +6373,7 @@
     "refreshTooltip": "Refresh"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "codeFixed": "This code does not change for the whole window.",
       "exitKeepOpen": "Exit",
       "exitKeepOpenHint": "Leave the projection with the check-in still open: students can keep checking in and you can project it again whenever you want.",
       "copyLink": "Copy link",
@@ -9716,6 +9723,7 @@
     "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
+      "errNotStarted": "Check-in for this session hasn't started yet.",
       "fillEmailCode": "Enter your email and the code.",
     "codeLabel": "Class code",
     "credsHint": "We use your email and password only to confirm your identity. No session is started.",

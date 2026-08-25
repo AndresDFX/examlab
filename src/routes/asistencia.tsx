@@ -63,6 +63,10 @@ function errorText(t: (k: string, o?: Record<string, unknown>) => string, code: 
       return t("publicAttendance.errInvalidCode", {
         defaultValue: "El código no es válido o expiró. Pedile al docente el código actual.",
       });
+    case "not_started":
+      return t("publicAttendance.errNotStarted", {
+        defaultValue: "El check-in de esta sesión todavía no empezó.",
+      });
     case "check_in_closed":
       return t("publicAttendance.errClosed", {
         defaultValue: "El check-in de esta sesión está cerrado.",

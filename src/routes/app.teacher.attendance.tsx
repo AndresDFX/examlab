@@ -88,7 +88,8 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
 import i18n from "@/i18n";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
-import { DatePicker } from "@/components/ui/date-picker";
+import { DatePicker, DateTimePicker } from "@/components/ui/date-picker";
+import { localToIso } from "@/modules/messaging/scheduled";
 import {
   AttendanceCheckInProjector,
   type CheckInState,
@@ -317,9 +318,17 @@ function TeacherAttendance() {
    *  titulo genérico "Sesión N". El docente puede asignar contenido
    *  después desde el selector buscable del propio tablero. */
   const [generateSessionsOpen, setGenerateSessionsOpen] = useState(false);
-  const [checkInDuration, setCheckInDuration] = useState<number>(
-    ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
-  );
+  /**
+   * Ventana del check-in como FECHAS, no como "minutos desde ahora".
+   *
+   * El modelo de duración se quedó corto dos veces seguidas porque no era el
+   * correcto: lo que el docente tiene en la cabeza es "del martes 8:00 al jueves
+   * 18:00", no "2760 minutos". Formato `yyyy-MM-ddTHH:mm`, el que consume
+   * `DateTimePicker`. Vacío = el default de siempre (ahora + 10 min), que
+   * resuelve la función en el servidor.
+   */
+  const [checkInOpensAt, setCheckInOpensAt] = useState<string>("");
+  const [checkInClosesAt, setCheckInClosesAt] = useState<string>("");
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
   /** Opt-in: el enlace público acepta solo el correo, sin contraseña. Arranca
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
@@ -1219,8 +1228,12 @@ function TeacherAttendance() {
   const totalEnrolled = students.length;
 
   const openCheckInConfig = (sess: Session) => {
-    setCheckInDuration(ATTENDANCE_CHECK_IN_DEFAULT_MINUTES);
+    // Las fechas arrancan VACÍAS: así el caso normal —abrir ahora por un rato—
+    // sigue siendo un clic y el servidor aplica el default de 10 minutos.
+    setCheckInOpensAt("");
+    setCheckInClosesAt("");
     setCheckInRotation(ATTENDANCE_CODE_ROTATION_DEFAULT);
+    setCheckInEmailOnly(false);
     setCheckInConfigSession(sess);
   };
 
@@ -1231,7 +1244,11 @@ function TeacherAttendance() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("teacher_open_attendance_check_in", {
         p_session_id: checkInConfigSession.id,
-        p_duration_minutes: checkInDuration,
+        // `localToIso` convierte el "yyyy-MM-ddTHH:mm" del picker (hora LOCAL)
+        // a ISO con zona. Mandarlo crudo lo interpretaría como UTC y la ventana
+        // abriría cinco horas antes de lo que el docente escribió.
+        p_opens_at: checkInOpensAt ? localToIso(checkInOpensAt) : null,
+        p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
         p_rotation_seconds: checkInRotation,
         p_email_only: checkInEmailOnly,
       });
@@ -1270,7 +1287,8 @@ function TeacherAttendance() {
         entityId: checkInConfigSession.id,
         courseId: checkInConfigSession.course_id,
         metadata: {
-          duration_minutes: checkInDuration,
+          opens_at: checkInOpensAt || null,
+          closes_at: checkInClosesAt || null,
           rotation_seconds: checkInRotation,
           email_only: checkInEmailOnly,
         },
@@ -2294,45 +2312,46 @@ function TeacherAttendance() {
             <p className="text-sm text-muted-foreground">
               {t("teacherAttendance.checkInConfigDescription")}
             </p>
-            <div>
-              <Label>
-                {t("teacherAttendance.windowDurationLabel")}{" "}
-                <HelpHint>{t("help.checkinDurationHelp")}</HelpHint>
-              </Label>
-              {/* Los topes tienen que coincidir con los de
-                  `teacher_open_attendance_check_in` (mig 20261800000000): si el
-                  input deja escribir más de lo que la función acepta, el docente
-                  llena el campo y recibe un error sin entender por qué. */}
-              <Input
-                type="number"
-                min={1}
-                max={1440}
-                value={checkInDuration || ""}
-                onChange={(e) =>
-                  setCheckInDuration(
-                    e.target.value === "" ? 0 : Math.max(1, Math.min(1440, Number(e.target.value))),
-                  )
-                }
-              />
+            {/* Fechas, no minutos: ver el comentario de `checkInOpensAt`.
+                Vacías = ahora + 10 min, que resuelve el servidor. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div>
+                <Label>
+                  {t("teacherAttendance.checkInOpensAtLabel")}{" "}
+                  <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
+                </Label>
+                <DateTimePicker value={checkInOpensAt} onChange={setCheckInOpensAt} />
+              </div>
+              <div>
+                <Label>
+                  {t("teacherAttendance.checkInClosesAtLabel")}{" "}
+                  <HelpHint>{t("help.checkinClosesAtHelp")}</HelpHint>
+                </Label>
+                <DateTimePicker value={checkInClosesAt} onChange={setCheckInClosesAt} />
+              </div>
             </div>
             <div>
               <Label>
                 {t("teacherAttendance.codeRotationLabel")}{" "}
                 <HelpHint>{t("help.checkinRotationHelp")}</HelpHint>
               </Label>
+              {/* 0 = código FIJO toda la ventana. No se clampea hacia arriba a
+                  15: escribir 0 ES la forma de pedir el modo fijo. */}
               <Input
                 type="number"
-                min={15}
-                max={7200}
-                value={checkInRotation || ""}
-                onChange={(e) =>
-                  setCheckInRotation(
-                    e.target.value === ""
-                      ? 0
-                      : Math.max(15, Math.min(7200, Number(e.target.value))),
-                  )
-                }
+                min={0}
+                max={86400}
+                value={checkInRotation === 0 ? "0" : checkInRotation || ""}
+                onChange={(e) => {
+                  const n = e.target.value === "" ? 0 : Number(e.target.value);
+                  setCheckInRotation(n <= 0 ? 0 : Math.max(15, Math.min(86400, n)));
+                }}
               />
+              {checkInRotation === 0 && (
+                <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                  {t("teacherAttendance.rotationZeroWarning")}
+                </p>
+              )}
             </div>
             {/* Debilita un control de fraude, así que se elige a conciencia y
                 el texto dice exactamente qué se gana y qué se pierde. */}

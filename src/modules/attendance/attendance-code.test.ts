@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   ATTENDANCE_CODE_ROTATION_DEFAULT,
+  attendanceCodeIsStatic,
   attendancePeriod,
   attendanceSecondsToNextRotation,
   buildAttendanceCheckInUrl,
@@ -108,11 +109,7 @@ describe("computeAttendanceCode", () => {
 
 describe("buildAttendanceCheckInUrl", () => {
   it("arma el deep link con session + code en query", () => {
-    const url = buildAttendanceCheckInUrl(
-      "https://app.example.com",
-      "abc-123",
-      "654321",
-    );
+    const url = buildAttendanceCheckInUrl("https://app.example.com", "abc-123", "654321");
     expect(url).toBe("https://app.example.com/asistencia?session=abc-123&code=654321");
   });
 
@@ -121,5 +118,43 @@ describe("buildAttendanceCheckInUrl", () => {
     // URL ya hace encodeURIComponent en searchParams; espacio → "+" no, "%20" si.
     expect(url).toContain("session=id+with+space");
     expect(url).toContain("code=000111");
+  });
+});
+
+describe("código FIJO (rotationSeconds = 0)", () => {
+  it("0, null y negativos son modo fijo", () => {
+    for (const v of [0, -1, null, undefined]) {
+      expect(attendanceCodeIsStatic(v as number)).toBe(true);
+    }
+    expect(attendanceCodeIsStatic(60)).toBe(false);
+  });
+
+  it("el período es SIEMPRE 0, no importa el momento", () => {
+    // Es lo que hace que el código valga toda la ventana. Con una rotación
+    // grande no alcanzaría: el período es floor(epoch/rotación), así que
+    // cambiaría en los múltiplos —con un día, a la medianoche UTC, en mitad de
+    // una ventana de tres días.
+    const momentos = [0, 1, 86_400_000, 1_700_000_000_000, 4_000_000_000_000];
+    for (const t of momentos) expect(attendancePeriod(0, t)).toBe(0);
+  });
+
+  it("con rotación, el período SÍ cambia entre ventanas vecinas", () => {
+    // Control: si esto no cambiara, el test de arriba no probaría nada.
+    expect(attendancePeriod(60, 0)).not.toBe(attendancePeriod(60, 60_000));
+  });
+
+  it("no hay próxima rotación que contar: devuelve null, no 0", () => {
+    // Devolver 0 haría que el proyector dijera "rota en 0s" para siempre y
+    // pintara la barra vacía; `null` deja que la UI muestre otra cosa.
+    expect(attendanceSecondsToNextRotation(0)).toBeNull();
+    expect(attendanceSecondsToNextRotation(60, 0)).toBe(60);
+  });
+
+  it("el código del modo fijo es estable en el tiempo", async () => {
+    const seed = "abc123";
+    const a = await computeAttendanceCode(seed, attendancePeriod(0, 1_000));
+    const b = await computeAttendanceCode(seed, attendancePeriod(0, 999_999_999_999));
+    expect(a).toBe(b);
+    expect(a).toMatch(/^\d{6}$/);
   });
 });

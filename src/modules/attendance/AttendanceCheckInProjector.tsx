@@ -30,6 +30,7 @@ import {
   onFullscreenChange,
 } from "@/shared/lib/fullscreen";
 import {
+  attendanceCodeIsStatic,
   attendancePeriod,
   attendanceSecondsToNextRotation,
   buildAttendanceCheckInUrl,
@@ -80,7 +81,11 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("------");
-  const [secondsToRotation, setSecondsToRotation] = useState(state.rotationSeconds);
+  /** `null` = código fijo: no hay próxima rotación que contar. */
+  const [secondsToRotation, setSecondsToRotation] = useState<number | null>(
+    attendanceSecondsToNextRotation(state.rotationSeconds),
+  );
+  const codigoFijo = attendanceCodeIsStatic(state.rotationSeconds);
   const [msToClose, setMsToClose] = useState(() => new Date(state.closesAt).getTime() - Date.now());
   const [presentCount, setPresentCount] = useState(0);
   const [extendiendo, setExtendiendo] = useState(false);
@@ -185,7 +190,11 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
         // sigue true pero la ventana ya pasó → al reabrir el proyector,
         // el tick vuelve a detectar expiración y se cierra en loop.
         cancelled = true;
-        toast.info(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.windowExpired", { defaultValue: "La ventana de check-in expiró" }));
+        toast.info(
+          i18n.t("toast.modules_attendance_AttendanceCheckInProjector.windowExpired", {
+            defaultValue: "La ventana de check-in expiró",
+          }),
+        );
         void db
           .rpc("teacher_close_attendance_check_in", { p_session_id: state.sessionId })
           .finally(() => onClose());
@@ -281,7 +290,11 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
       // hasta el próximo fullscreenchange y eso bloquea el handler.
       void salirFullscreen();
       onClose();
-      toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", { defaultValue: "Check-in cerrado" }));
+      toast.success(
+        i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", {
+          defaultValue: "Check-in cerrado",
+        }),
+      );
     } finally {
       setClosing(false);
     }
@@ -294,7 +307,10 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
 
   // Formato bonito del código: "123 456"
   const codePretty = useMemo(() => `${code.slice(0, 3)} ${code.slice(3, 6)}`, [code]);
-  const rotationPct = Math.round(((state.rotationSeconds - secondsToRotation) / state.rotationSeconds) * 100);
+  const rotationPct =
+    codigoFijo || secondsToRotation == null
+      ? 0
+      : Math.round(((state.rotationSeconds - secondsToRotation) / state.rotationSeconds) * 100);
 
   return (
     <div
@@ -311,7 +327,9 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
             )}
           </div>
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
-            {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", { time: formatRemaining(msToClose) })}
+            {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", {
+              time: formatRemaining(msToClose),
+            })}
           </Badge>
           {/* Pegado al contador a propósito: el docente mira el tiempo que
               queda y ahí mismo tiene cómo estirarlo, sin salir del proyector
@@ -355,7 +373,9 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
               aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}
             >
               <Minimize2 className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}</span>
+              <span className="hidden sm:inline">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.exitFullscreen")}
+              </span>
             </Button>
           ) : (
             <Button
@@ -365,7 +385,9 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
               aria-label={t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}
             >
               <Maximize2 className="h-4 w-4 sm:mr-1" />
-              <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}</span>
+              <span className="hidden sm:inline">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.enterFullscreen")}
+              </span>
             </Button>
           )}
           {/* Salir sin cerrar: el check-in sigue recibiendo marcaciones y el
@@ -401,7 +423,9 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
             ) : (
               <X className="h-4 w-4 sm:mr-1" />
             )}
-            <span className="hidden sm:inline">{t("hc_modulesAttendanceAttendanceCheckInProjector.closeCheckIn")}</span>
+            <span className="hidden sm:inline">
+              {t("hc_modulesAttendanceAttendanceCheckInProjector.closeCheckIn")}
+            </span>
           </Button>
         </div>
       </div>
@@ -439,18 +463,29 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
             <div className="font-mono font-bold tabular-nums text-4xl sm:text-7xl tracking-wider">
               {codePretty}
             </div>
-            {/* Barra de progreso a próxima rotación */}
-            <div className="w-full max-w-[300px] mt-2">
-              <div className="h-1.5 bg-muted rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-primary transition-all duration-1000 ease-linear"
-                  style={{ width: `${rotationPct}%` }}
-                />
+            {/* Barra de progreso a próxima rotación. Con código FIJO no hay
+                nada que contar: mostrar una barra vacía y "rota en 0s" para
+                siempre sería peor que no mostrar nada, así que se reemplaza por
+                una línea que dice que el código no cambia. */}
+            {codigoFijo ? (
+              <div className="text-2xs text-muted-foreground mt-2">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.codeFixed")}
               </div>
-              <div className="text-2xs text-muted-foreground mt-1 tabular-nums">
-                {t("hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn", { seconds: secondsToRotation })}
+            ) : (
+              <div className="w-full max-w-[300px] mt-2">
+                <div className="h-1.5 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary transition-all duration-1000 ease-linear"
+                    style={{ width: `${rotationPct}%` }}
+                  />
+                </div>
+                <div className="text-2xs text-muted-foreground mt-1 tabular-nums">
+                  {t("hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn", {
+                    seconds: secondsToRotation ?? 0,
+                  })}
+                </div>
               </div>
-            </div>
+            )}
           </div>
 
           <div className="flex flex-col items-center lg:items-start gap-1">
@@ -459,7 +494,10 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
             </div>
             <div className="text-4xl sm:text-7xl font-semibold tabular-nums">
               {presentCount}
-              <span className="text-xl sm:text-3xl text-muted-foreground"> / {state.totalEnrolled}</span>
+              <span className="text-xl sm:text-3xl text-muted-foreground">
+                {" "}
+                / {state.totalEnrolled}
+              </span>
             </div>
           </div>
         </div>
