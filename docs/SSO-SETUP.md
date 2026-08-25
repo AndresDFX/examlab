@@ -1,8 +1,10 @@
 # Configurar login con Microsoft (Azure AD / Microsoft Entra ID)
 
-> **Estado del código:** ✅ Completo. El frontend (`src/routes/auth.index.tsx`), el callback (`src/routes/auth.sso-callback.tsx`) y el edge `auth-sso-verify` ya soportan Microsoft a la par de Google. **No hay que tocar código** para habilitar Microsoft.
+> **⛔ El botón de Microsoft está QUITADO del login desde el 2026-08-24.** Registrar la app en Azure —paso obligatorio para obtener el Client ID— exige cargar un método de pago en el portal para verificar identidad, aunque el registro en sí sea gratuito. El dueño del proyecto no tiene tarjeta, así que el botón llevaba a un error de proveedor: peor que no ofrecerlo.
 >
-> Lo que falta es **100% configuración externa**: un registro de app en Azure AD + habilitar el provider Azure en el dashboard de Supabase. Esta guía lo cubre paso a paso.
+> **El resto del camino sigue intacto**: `onSso("azure")` en `auth.index.tsx`, el callback `auth.sso-callback.tsx` y el edge `auth-sso-verify` (que valida por email sin mirar el proveedor). **Reactivarlo = completar esta guía + volver a renderizar el botón** — está marcado con un comentario en `auth.index.tsx`, junto al de Google. No hay que reescribir nada.
+>
+> Lo que falta, entonces, es **100% configuración externa**: un registro de app en Azure AD + habilitar el provider Azure en el dashboard de Supabase. Esta guía lo cubre paso a paso, y queda vigente para cuando haya con qué registrarse.
 
 ---
 

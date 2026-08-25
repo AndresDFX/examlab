@@ -672,7 +672,18 @@ function AuthPage() {
               </span>
               <div className="flex-1 h-px bg-border" />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {/* Solo Google. El botón de Microsoft se quitó el 2026-08-24: para
+                emitir el Client ID hay que registrar una app en Azure, y el
+                portal exige un método de pago para verificar identidad aunque
+                el registro en sí sea gratuito. Sin ese registro el botón lleva
+                a un error de proveedor, que es peor que no ofrecerlo.
+
+                El resto del camino Microsoft SIGUE EN PIE y no se tocó
+                (`onSso("azure")`, el callback y el edge `auth-sso-verify`, que
+                valida por email sin mirar el proveedor). Para reactivarlo:
+                completar docs/SSO-SETUP.md y volver a renderizar el botón —
+                una sola columna vuelve a `sm:grid-cols-2`. */}
+            <div className="grid grid-cols-1 gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -685,28 +696,6 @@ function AuthPage() {
                   <Chrome className="h-4 w-4 mr-2" />
                 )}
                 {t("auth.sso.google", { defaultValue: "Google" })}
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => void onSso("azure")}
-                disabled={loading || ssoLoading !== null}
-              >
-                {ssoLoading === "azure" ? (
-                  <Spinner size="sm" className="mr-2" />
-                ) : (
-                  // Microsoft no tiene un ícono "Microsoft" puro en
-                  // lucide; usamos un cuadradito 4-panel improvisado
-                  // con divs Tailwind para mantener la marca reconocible
-                  // sin agregar una dependencia.
-                  <span className="inline-grid grid-cols-2 grid-rows-2 gap-[2px] mr-2 h-4 w-4 shrink-0">
-                    <span className="bg-[#f25022]" />
-                    <span className="bg-[#7fba00]" />
-                    <span className="bg-[#00a4ef]" />
-                    <span className="bg-[#ffb900]" />
-                  </span>
-                )}
-                {t("auth.sso.microsoft", { defaultValue: "Microsoft" })}
               </Button>
             </div>
             <p className="text-2xs text-muted-foreground mt-2 text-center">
