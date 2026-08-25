@@ -6802,6 +6802,8 @@
     "clearFormat": "Quitar formato"
   },
   "hc_modulesReportsTemplateEditor": {
+      "insertSignatures": "Firmas",
+      "insertSignaturesHint": "Insertar la tabla de firmas: una fila por estudiante matriculado en el curso",
     "labelName": "Nombre",
     "placeholderName": "Boletín de notas",
     "labelReportType": "Tipo de informe",

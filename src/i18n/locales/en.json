@@ -6802,6 +6802,8 @@
     "clearFormat": "Clear formatting"
   },
   "hc_modulesReportsTemplateEditor": {
+      "insertSignatures": "Signatures",
+      "insertSignaturesHint": "Insert the signature table: one row per student enrolled in the course",
     "labelName": "Name",
     "placeholderName": "Grade report",
     "labelReportType": "Report type",

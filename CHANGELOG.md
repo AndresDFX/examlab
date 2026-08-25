@@ -68,6 +68,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El Acuerdo Pedagógico ya está en la plataforma como plantilla, y la lista de firmas se llena
+  sola con los estudiantes del curso.** El formato institucional (DO-F-021) traía un "listado de
+  estudiantes asistentes" con **22 renglones vacíos numerados a mano**: en un curso de 31 personas,
+  nueve firmaban al margen; en uno de 12, sobraban diez renglones. Ahora esa tabla se genera desde la
+  matrícula — una fila por estudiante, con su número, nombre y código, y la celda de firma en blanco
+  para firmar sobre el papel impreso. El bloque de arriba (Docente / Vocero / Director) queda igual
+  que en el formato.
+
+  El documento se convirtió con el mismo lector de Word que el módulo de informes ya usaba, así que
+  el encabezado, las tablas y los estilos son los del original. Tres cosas se cambiaron a propósito
+  para que sirva como plantilla **de la plataforma** y no de un curso: los datos del curso pasaron a
+  ser variables (venía con "Programación II / 341-C / 2026-1" escritos literalmente), el logo del
+  encabezado ahora sale de la institución que genera el informe, y **se retiró la firma escaneada del
+  docente** — eran 112 KB de los 128 KB del documento, y la firma de una persona real no puede quedar
+  dentro de una plantilla que cualquier institución puede usar.
+
+  En el editor de plantillas hay además un botón **Firmas** que inserta esa misma tabla en cualquier
+  informe de curso, sin tener que dibujarla a mano.
+
 - **El monitor del examen ahora dice cuántas preguntas respondió cada estudiante — también después
   de que entregó.** La columna mostraba en qué pregunta iba, pero SOLO mientras el intento estaba en
   curso: apenas el alumno entregaba, quedaba en "—" y el docente perdía el dato justo cuando servía

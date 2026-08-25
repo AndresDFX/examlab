@@ -12,6 +12,7 @@
  * (TipTap, ProseMirror) y sigue sin resolver el problema de inyectar
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
+import { signatureTableHtml } from "./signature-block";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -20,7 +21,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -31,7 +38,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
-import { ChevronDown, ChevronRight, Code2, Eye, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Eye, PenLine, Sparkles } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   reportCatalogForScope,
@@ -127,9 +134,12 @@ export function TemplateEditor({
     tab === "body" ? bodyRef : tab === "header" ? headerRef : tab === "footer" ? footerRef : cssRef;
 
   const fieldFor = (tab: EditTab): keyof TemplateDraft =>
-    tab === "body" ? "body_html"
-      : tab === "header" ? "header_html"
-        : tab === "footer" ? "footer_html"
+    tab === "body"
+      ? "body_html"
+      : tab === "header"
+        ? "header_html"
+        : tab === "footer"
+          ? "footer_html"
           : "css";
 
   // ── Datos REALES para la vista previa (no mock) ──
@@ -322,8 +332,12 @@ export function TemplateEditor({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="estudiante">{t("hc_modulesReportsTemplateEditor.scopeStudent")}</SelectItem>
-                    <SelectItem value="curso">{t("hc_modulesReportsTemplateEditor.scopeCourse")}</SelectItem>
+                    <SelectItem value="estudiante">
+                      {t("hc_modulesReportsTemplateEditor.scopeStudent")}
+                    </SelectItem>
+                    <SelectItem value="curso">
+                      {t("hc_modulesReportsTemplateEditor.scopeCourse")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-2xs text-muted-foreground">
@@ -361,8 +375,12 @@ export function TemplateEditor({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="portrait">{t("hc_modulesReportsTemplateEditor.orientationPortrait")}</SelectItem>
-                    <SelectItem value="landscape">{t("hc_modulesReportsTemplateEditor.orientationLandscape")}</SelectItem>
+                    <SelectItem value="portrait">
+                      {t("hc_modulesReportsTemplateEditor.orientationPortrait")}
+                    </SelectItem>
+                    <SelectItem value="landscape">
+                      {t("hc_modulesReportsTemplateEditor.orientationLandscape")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -377,7 +395,9 @@ export function TemplateEditor({
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A4">A4</SelectItem>
-                    <SelectItem value="letter">{t("hc_modulesReportsTemplateEditor.sizeLetter")}</SelectItem>
+                    <SelectItem value="letter">
+                      {t("hc_modulesReportsTemplateEditor.sizeLetter")}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -393,8 +413,12 @@ export function TemplateEditor({
                   <Code2 className="h-3.5 w-3.5 mr-1" />
                   {t("hc_modulesReportsTemplateEditor.tabBody")}
                 </TabsTrigger>
-                <TabsTrigger value="header">{t("hc_modulesReportsTemplateEditor.tabHeader")}</TabsTrigger>
-                <TabsTrigger value="footer">{t("hc_modulesReportsTemplateEditor.tabFooter")}</TabsTrigger>
+                <TabsTrigger value="header">
+                  {t("hc_modulesReportsTemplateEditor.tabHeader")}
+                </TabsTrigger>
+                <TabsTrigger value="footer">
+                  {t("hc_modulesReportsTemplateEditor.tabFooter")}
+                </TabsTrigger>
                 <TabsTrigger value="css">CSS</TabsTrigger>
                 <TabsTrigger value="preview">
                   <Eye className="h-3.5 w-3.5 mr-1" />
@@ -427,6 +451,24 @@ export function TemplateEditor({
                     <Code2 className="h-3.5 w-3.5 mr-1" />
                     HTML
                   </Button>
+                  {/* Firmas: inserta la tabla que se llena con los matriculados
+                      del curso. Antes había que dibujarla a mano y dejar N filas
+                      vacías "a ojo" — si el curso tenía 31 y la tabla 22, nueve
+                      personas firmaban al margen. Solo tiene sentido en scope
+                      `curso`, que es donde el contexto expone `estudiantes`. */}
+                  {value.scope === "curso" && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs"
+                      onClick={() => insertAtCursor(signatureTableHtml(), true)}
+                      title={t("hc_modulesReportsTemplateEditor.insertSignaturesHint")}
+                    >
+                      <PenLine className="h-3.5 w-3.5 mr-1" />
+                      {t("hc_modulesReportsTemplateEditor.insertSignatures")}
+                    </Button>
+                  )}
                   {/* Conteo de páginas (= saltos de página + 1). Da el sentido
                       de cuántas páginas tiene el informe mientras se edita; los
                       números por página se ven en la pestaña Vista previa. */}
@@ -497,12 +539,16 @@ export function TemplateEditor({
                   <div className="flex flex-wrap items-end gap-2">
                     <div className="space-y-1">
                       <Label className="text-2xs">
-                        {t("hc_modulesReportsTemplateEditor.previewCourseLabel", { defaultValue: "Datos del curso" })}
+                        {t("hc_modulesReportsTemplateEditor.previewCourseLabel", {
+                          defaultValue: "Datos del curso",
+                        })}
                       </Label>
                       <Select value={pvCourseId} onValueChange={setPvCourseId}>
                         <SelectTrigger className="h-8 w-56 text-xs">
                           <SelectValue
-                            placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", { defaultValue: "Elige un curso" })}
+                            placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", {
+                              defaultValue: "Elige un curso",
+                            })}
                           />
                         </SelectTrigger>
                         <SelectContent>
@@ -517,7 +563,9 @@ export function TemplateEditor({
                     {value.scope === "estudiante" && pvStudents.length > 0 && (
                       <div className="space-y-1">
                         <Label className="text-2xs">
-                          {t("hc_modulesReportsTemplateEditor.previewStudentLabel", { defaultValue: "Estudiante" })}
+                          {t("hc_modulesReportsTemplateEditor.previewStudentLabel", {
+                            defaultValue: "Estudiante",
+                          })}
                         </Label>
                         <Select value={pvStudentId} onValueChange={setPvStudentId}>
                           <SelectTrigger className="h-8 w-56 text-xs">
@@ -577,7 +625,9 @@ export function TemplateEditor({
                   onClick={openAi}
                 >
                   <Sparkles className="h-3.5 w-3.5 mr-1.5" />
-                  {t("hc_modulesReportsTemplateEditor.aiInsertButton", { defaultValue: "Generación IA" })}
+                  {t("hc_modulesReportsTemplateEditor.aiInsertButton", {
+                    defaultValue: "Generación IA",
+                  })}
                 </Button>
                 <p className="text-3xs text-muted-foreground mt-1">
                   {t("hc_modulesReportsTemplateEditor.aiInsertHint", {
@@ -616,7 +666,9 @@ export function TemplateEditor({
             <DialogHeader>
               <DialogTitle className="flex items-center gap-1.5">
                 <Sparkles className="h-4 w-4 text-violet-500" />
-                {t("hc_modulesReportsTemplateEditor.aiDialogTitle", { defaultValue: "Generar con IA e insertar" })}
+                {t("hc_modulesReportsTemplateEditor.aiDialogTitle", {
+                  defaultValue: "Generar con IA e insertar",
+                })}
               </DialogTitle>
               <DialogDescription>
                 {t("hc_modulesReportsTemplateEditor.aiDialogDesc", {
@@ -636,13 +688,16 @@ export function TemplateEditor({
               ) : (
                 <p className="text-2xs text-amber-600">
                   {t("hc_modulesReportsTemplateEditor.aiNoCourse", {
-                    defaultValue: "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
+                    defaultValue:
+                      "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
                   })}
                 </p>
               )}
               <div className="space-y-1">
                 <Label required>
-                  {t("hc_modulesReportsTemplateEditor.aiInstructionLabel", { defaultValue: "¿Qué quieres que genere?" })}
+                  {t("hc_modulesReportsTemplateEditor.aiInstructionLabel", {
+                    defaultValue: "¿Qué quieres que genere?",
+                  })}
                 </Label>
                 <Textarea
                   value={aiInstruction}
@@ -659,11 +714,22 @@ export function TemplateEditor({
               <Button variant="outline" onClick={() => setAiOpen(false)} disabled={aiBusy}>
                 {t("hc_modulesReportsTemplateEditor.aiCancel", { defaultValue: "Cancelar" })}
               </Button>
-              <Button onClick={() => void runAi()} disabled={aiBusy || !pvCourseId || !aiInstruction.trim()}>
-                {aiBusy ? <Spinner size="sm" className="mr-1" /> : <Sparkles className="h-4 w-4 mr-1" />}
+              <Button
+                onClick={() => void runAi()}
+                disabled={aiBusy || !pvCourseId || !aiInstruction.trim()}
+              >
+                {aiBusy ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
                 {aiBusy
-                  ? t("hc_modulesReportsTemplateEditor.aiGenerating", { defaultValue: "Generando…" })
-                  : t("hc_modulesReportsTemplateEditor.aiGenerateInsert", { defaultValue: "Generar e insertar" })}
+                  ? t("hc_modulesReportsTemplateEditor.aiGenerating", {
+                      defaultValue: "Generando…",
+                    })
+                  : t("hc_modulesReportsTemplateEditor.aiGenerateInsert", {
+                      defaultValue: "Generar e insertar",
+                    })}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -710,7 +776,11 @@ function CatalogNode({
         title={hint}
       >
         {hasChildren ? (
-          open ? <ChevronDown className="h-3 w-3 mr-1 shrink-0" /> : <ChevronRight className="h-3 w-3 mr-1 shrink-0" />
+          open ? (
+            <ChevronDown className="h-3 w-3 mr-1 shrink-0" />
+          ) : (
+            <ChevronRight className="h-3 w-3 mr-1 shrink-0" />
+          )
         ) : node.kind === "each" ? (
           <Eye className="h-3 w-3 mr-1 shrink-0 text-violet-500" />
         ) : (
@@ -735,7 +805,10 @@ function CatalogNode({
  * iframe, ya con orientation/size declarados en `@page`.
  */
 export function composeTemplateHtml(
-  draft: Pick<TemplateDraft, "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size">,
+  draft: Pick<
+    TemplateDraft,
+    "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size"
+  >,
 ): string {
   return `<!doctype html>
 <html><head><meta charset="utf-8">
@@ -803,7 +876,10 @@ function pageDimsMm(
  * para que el docente vea claramente qué cae en cada página.
  */
 export function composePreviewHtml(
-  draft: Pick<TemplateDraft, "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size">,
+  draft: Pick<
+    TemplateDraft,
+    "body_html" | "header_html" | "footer_html" | "css" | "page_orientation" | "page_size"
+  >,
   ctx: TemplateContext = buildSampleReportContext(),
 ): string {
   const dims = pageDimsMm(draft.page_size, draft.page_orientation);
@@ -881,4 +957,3 @@ export function draftEqual(a: TemplateDraft, b: TemplateDraft): boolean {
     a.page_size === b.page_size
   );
 }
-
