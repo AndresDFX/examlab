@@ -97,7 +97,7 @@ CREATE POLICY report_signatures_select ON public.report_signatures
        WHERE gr.id = public.report_signatures.report_id
          AND (
            EXISTS (SELECT 1 FROM public.course_teachers ct
-                    WHERE ct.course_id = c.id AND ct.teacher_id = auth.uid())
+                    WHERE ct.course_id = c.id AND ct.user_id = auth.uid())
            OR public.is_admin_of_course_tenant(c.id)
          )
     )
@@ -118,7 +118,7 @@ CREATE POLICY report_signatures_delete_pending ON public.report_signatures
        WHERE gr.id = public.report_signatures.report_id
          AND (
            EXISTS (SELECT 1 FROM public.course_teachers ct
-                    WHERE ct.course_id = c.id AND ct.teacher_id = auth.uid())
+                    WHERE ct.course_id = c.id AND ct.user_id = auth.uid())
            OR public.is_admin_of_course_tenant(c.id)
          )
     )
@@ -155,7 +155,7 @@ BEGIN
   -- no alcanza: los roles son globales y dejaría pedir firmas en un curso ajeno.
   IF NOT (
     EXISTS (SELECT 1 FROM public.course_teachers ct
-             WHERE ct.course_id = v_course AND ct.teacher_id = v_uid)
+             WHERE ct.course_id = v_course AND ct.user_id = v_uid)
     OR public.is_admin_of_course_tenant(v_course)
   ) THEN
     RETURN jsonb_build_object('ok', false, 'error', 'unauthorized');
