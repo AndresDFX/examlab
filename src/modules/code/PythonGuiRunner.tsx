@@ -23,6 +23,10 @@
  * texto para que la IA lo califique igual que las preguntas `codigo`.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+// Las plantillas viven en `./starters` (módulo PURO): el predicado de
+// "pregunta respondida" las necesita sin arrastrar Monaco ni este runner.
+export { PYTHON_GUI_STARTER } from "./starters";
+import { PYTHON_GUI_STARTER } from "./starters";
 import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
@@ -35,30 +39,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize } from "@/shared/lib/format";
 
-/**
- * Snippet inicial. Crea una ventana sencilla con un Label y un Button —
- * suficiente para validar que el flujo de captura funciona. El alumno
- * NO necesita escribir `root.after(..., root.destroy)`: el bootstrap
- * server-side lo agrega automáticamente.
- */
-export const PYTHON_GUI_STARTER = `import tkinter as tk
-
-root = tk.Tk()
-root.title("Hola tkinter")
-root.geometry("420x240")
-
-label = tk.Label(
-    root,
-    text="¡Hola, mundo desde tkinter!",
-    font=("Helvetica", 16, "bold"),
-)
-label.pack(pady=24)
-
-btn = tk.Button(root, text="Saludar", command=lambda: label.config(text="¡Hola!"))
-btn.pack()
-
-root.mainloop()
-`;
 
 interface Props {
   value: string;

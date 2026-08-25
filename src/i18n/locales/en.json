@@ -1057,6 +1057,10 @@
     }
   },
   "monitor": {
+      "answeredHintInProgress": "On question {{n}} of {{total}}",
+      "answeredHintBlank_one": "Submitted with 1 blank question",
+      "answeredHintBlank_other": "Submitted with {{count}} blank questions",
+      "answeredHintBlank_zero": "Answered all",
     "title": "Monitor",
     "inProgress": "In progress",
     "completed": "Completed",
@@ -1090,8 +1094,8 @@
     "columns": {
       "attempts": "Attempts",
       "attemptsHint": "Current attempt / max allowed per exam. Click to manage the student's attempts.",
-      "question": "Question",
-      "questionHint": "Current question of the in-progress attempt (index / total). Updates with each student autosave.",
+      "question": "Answered",
+      "questionHint": "How many questions the student answered, out of the exam's total. Works both during the attempt and after submission. If any were left blank the number turns amber; hover for the detail.",
       "grade": "Grade",
       "strikes": "Strikes",
       "strikesHint": "Accumulated warnings (tab change, copy/paste, fullscreen exit, etc.). Reaching the max marks the attempt as suspicious.",

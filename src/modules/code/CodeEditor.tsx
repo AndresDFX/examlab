@@ -26,68 +26,17 @@ import {
 // dos definiciones que puedan divergir.
 export type { CodeLanguage };
 
-/**
- * Plantilla por defecto para preguntas de tipo `codigo` con
- * `language='java'`. Usada como starter_code al crear preguntas
- * nuevas en el form del docente y como fallback en el taker del
- * estudiante cuando una pregunta vieja no tiene starter_code.
- *
- * Es deliberadamente mínima — clase Main + main + un println — para
- * que el estudiante arranque desde algo compilable y enfoque su
- * tiempo en el problema, no en escribir el boilerplate.
- */
-export const JAVA_STARTER = `public class Main {
-    public static void main(String[] args) {
-        System.out.println("¡Hola, mundo!");
-    }
-}`;
+// Las plantillas y `getStarterCode` viven en `./starters` (módulo PURO): el
+// predicado de "pregunta respondida" las necesita y no puede arrastrar Monaco.
+// Se re-exportan para no romper los imports que ya apuntaban acá.
+export { JAVA_STARTER, getStarterCode } from "./starters";
+import {
+  JAVA_STARTER,
+  PYTHON_STARTER,
+  JAVASCRIPT_STARTER,
+  KOTLIN_STARTER,
+} from "./starters";
 
-// El idiom `if __name__ == "__main__":` con una función `main()` es el punto
-// de entrada canónico/profesional de un programa Python — mismo espíritu que
-// la clase Main + main de Java. Arranca al estudiante desde una estructura
-// real (funciones + guard de ejecución), no desde un print suelto.
-const PYTHON_STARTER = `def main():
-    print("¡Hola, mundo!")
-
-
-if __name__ == "__main__":
-    main()`;
-
-const JAVASCRIPT_STARTER = `console.log("¡Hola, mundo!");`;
-
-/**
- * Kotlin: `fun main()` sin argumentos es la forma idiomática y la que se enseña
- * primero. Se evita `fun main(args: Array<String>)` (herencia de Java) porque
- * agrega ruido que la pregunta no evalúa.
- */
-const KOTLIN_STARTER = `fun main() {
-    println("¡Hola, mundo!")
-}`;
-
-/**
- * Devuelve el starter code por defecto para un lenguaje. Lo usan los
- * takers (alumno) y los formularios (docente) como fallback cuando la
- * pregunta no tiene `starter_code` propio. Mismo template que ve el
- * docente al previsualizar y el alumno al entrar — consistencia
- * docente↔alumno garantizada.
- *
- * Para lenguajes desconocidos (legacy/typo) devuelve string vacío en vez
- * de tirar — el editor renderea ok y el alumno puede empezar desde 0.
- */
-export function getStarterCode(language: CodeLanguage | string | null | undefined): string {
-  switch (language) {
-    case "java":
-      return JAVA_STARTER;
-    case "python":
-      return PYTHON_STARTER;
-    case "javascript":
-      return JAVASCRIPT_STARTER;
-    case "kotlin":
-      return KOTLIN_STARTER;
-    default:
-      return "";
-  }
-}
 
 interface CodeEditorProps {
   value: string;

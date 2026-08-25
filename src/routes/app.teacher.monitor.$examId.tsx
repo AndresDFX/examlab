@@ -90,6 +90,10 @@ import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
+import {
+  countAnswered,
+  type QuestionForAnswered,
+} from "@/modules/exams/answered";
 
 export const Route = createFileRoute("/app/teacher/monitor/$examId")({
   component: ExamMonitor,
@@ -152,6 +156,9 @@ type Question = {
   position: number;
   expected_rubric: string | null;
   language?: string | null;
+  /** Necesario para el conteo de respondidas: una pregunta de código cuyo
+   *  contenido es exactamente la plantilla NO cuenta como respondida. */
+  starter_code?: string | null;
 };
 
 type BreakdownItem = {
@@ -469,7 +476,9 @@ function ExamMonitor() {
   const loadQuestions = useCallback(async () => {
     const { data } = await supabase
       .from("questions")
-      .select("id, type, content, options, points, position, expected_rubric, language")
+      .select(
+        "id, type, content, options, points, position, expected_rubric, language, starter_code",
+      )
       .eq("exam_id", examId)
       .order("position", { ascending: true });
     setQuestions((data ?? []) as Question[]);
@@ -2399,13 +2408,43 @@ function ExamMonitor() {
                       })()}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums hidden md:table-cell">
-                      {inProg && currentIdx != null && questions.length > 0 ? (
-                        <span>
-                          {Math.min(currentIdx + 1, questions.length)}/{questions.length}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                      {(() => {
+                        // Antes esta celda mostraba la POSICIÓN del alumno y
+                        // SOLO mientras el intento estaba en curso: apenas
+                        // entregaba, quedaba en "—" y el docente perdía el dato
+                        // justo cuando servía para algo (¿entregó completo o
+                        // dejó preguntas en blanco?).
+                        //
+                        // Ahora la columna significa UNA sola cosa en todos los
+                        // estados: cuántas respondió de cuántas. La posición no
+                        // se pierde: en un intento en curso va como pista
+                        // secundaria en el `title`, que es donde el docente la
+                        // busca solo cuando sospecha que alguien está trabado.
+                        const sub = inProg ? row.inProgress : latest;
+                        if (!sub || questions.length === 0) {
+                          return <span className="text-muted-foreground">—</span>;
+                        }
+                        const respondidas = countAnswered(
+                          questions as QuestionForAnswered[],
+                          sub.answers as Record<string, unknown> | null,
+                        );
+                        const enBlanco = questions.length - respondidas;
+                        const pista =
+                          inProg && currentIdx != null
+                            ? t("monitor.answeredHintInProgress", {
+                                n: Math.min(currentIdx + 1, questions.length),
+                                total: questions.length,
+                              })
+                            : t("monitor.answeredHintBlank", { count: enBlanco });
+                        return (
+                          <span
+                            title={pista}
+                            className={enBlanco > 0 ? "text-amber-600 dark:text-amber-400" : ""}
+                          >
+                            {respondidas}/{questions.length}
+                          </span>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums">
                       {row.effectiveGrade == null ? (

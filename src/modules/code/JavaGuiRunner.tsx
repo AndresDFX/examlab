@@ -24,6 +24,10 @@
  * preguntas de tipo "código".
  */
 import { useCallback, useEffect, useRef, useState } from "react";
+// Las plantillas viven en `./starters` (módulo PURO): el predicado de
+// "pregunta respondida" las necesita sin arrastrar Monaco ni este runner.
+export { JAVAFX_STARTER, JAVA_GUI_STARTER } from "./starters";
+import { JAVAFX_STARTER, JAVA_GUI_STARTER } from "./starters";
 import { useTranslation, Trans } from "react-i18next";
 import i18n from "@/i18n";
 import Editor, { type OnMount } from "@monaco-editor/react";
@@ -109,73 +113,7 @@ function loadToolsJar(): Promise<Uint8Array> {
 
 const CHEERPJ_SRC = "https://cjrtnc.leaningtech.com/4.3/loader.js";
 
-/**
- * Snippet inicial para preguntas JavaFX. NO incluye `Application.launch()`
- * en el `main` — el `JavaFxBootstrap` server-side lo invoca por reflection
- * cuando detecta `extends Application`. Aún así dejamos el `main` con la
- * llamada porque permite al alumno compilar/correr local en su IDE.
- */
-export const JAVAFX_STARTER = `import javafx.application.Application;
-import javafx.scene.Scene;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.layout.VBox;
-import javafx.geometry.Pos;
-import javafx.geometry.Insets;
-import javafx.stage.Stage;
 
-public class Main extends Application {
-    @Override
-    public void start(Stage stage) {
-        Label label = new Label("¡Hola, mundo desde JavaFX!");
-        label.setStyle("-fx-font-size: 16px; -fx-font-weight: bold;");
-
-        Button btn = new Button("Saludar");
-        btn.setOnAction(e -> label.setText("¡Hola, " + System.currentTimeMillis() + "!"));
-
-        VBox root = new VBox(12, label, btn);
-        root.setAlignment(Pos.CENTER);
-        root.setPadding(new Insets(24));
-
-        stage.setScene(new Scene(root, 420, 240));
-        stage.setTitle("Hola JavaFX");
-        stage.show();
-    }
-
-    // Permite correr local desde IDE. En el runner del servidor NO se
-    // invoca este \`main\`: el wrapper JavaFxBootstrap detecta que la
-    // clase extiende Application y llama Application.launch directamente.
-    public static void main(String[] args) {
-        launch(args);
-    }
-}
-`;
-
-export const JAVA_GUI_STARTER = `import javax.swing.*;
-import java.awt.*;
-
-public class Main {
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            JFrame frame = new JFrame("Hola Swing");
-            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            frame.setSize(420, 240);
-
-            JPanel panel = new JPanel(new BorderLayout());
-            JLabel label = new JLabel("¡Hola, mundo desde Swing!", SwingConstants.CENTER);
-            label.setFont(new Font("SansSerif", Font.BOLD, 18));
-            panel.add(label, BorderLayout.CENTER);
-
-            JButton btn = new JButton("Saludar");
-            btn.addActionListener(e -> label.setText("¡Hola, " + System.currentTimeMillis() + "!"));
-            panel.add(btn, BorderLayout.SOUTH);
-
-            frame.setContentPane(panel);
-            frame.setVisible(true);
-        });
-    }
-}
-`;
 
 function loadCheerpJ(): Promise<void> {
   if (typeof window === "undefined") return Promise.reject(new Error("SSR"));

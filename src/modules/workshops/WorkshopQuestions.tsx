@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  getUnansweredIndices,
+  type QuestionForAnswered,
+} from "@/modules/exams/answered";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
@@ -1685,51 +1689,14 @@ export function StudentWorkshopTaker({
    *     entregas accidentales).
    *   - resto (abierta/diagrama/etc.): string trim() vacío.
    */
-  const getUnansweredNumbers = (): number[] => {
-    const empty: number[] = [];
-    questions.forEach((q, idx) => {
-      const a = answers[q.id];
-      let isBlank: boolean;
-      if (q.type === "cerrada") {
-        isBlank = a === undefined || a === null || a === "";
-      } else if (q.type === "cerrada_multi") {
-        if (!Array.isArray(a) || a.length === 0) {
-          isBlank = true;
-        } else {
-          const minS = (q.options as any)?.min_selections;
-          isBlank = typeof minS === "number" && minS > 0 && a.length < minS;
-        }
-      } else if (q.type === "codigo_zip") {
-        // Para codigo_zip la respuesta es File (zip_single) o File[] (multi).
-        if (a instanceof File) isBlank = a.size === 0;
-        else if (Array.isArray(a)) isBlank = a.length === 0;
-        else isBlank = true;
-      } else if (q.type === "codigo") {
-        // Misma lógica de "Sin respuesta" que aplica la calificación
-        // (ver línea ~1475): vacío O igual al starter_code → cuenta
-        // como no respondida. Sin esta detección, un alumno que pulsa
-        // Entregar sin tocar el editor pasaba el check (starter_code
-        // truthy) y entregaba con 0 puntos sin advertencia.
-        const trimmedAnswer = String(a ?? "").trim();
-        const trimmedStarter = String(q.starter_code ?? "").trim();
-        isBlank = !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
-      } else if (q.type === "red_consola" || q.type === "red_gui") {
-        // Vacía si no hay respuesta parseable (sin comandos en consola / sin
-        // topología editada en GUI).
-        isBlank = !parseNetworkAnswer(a);
-      } else if (q.type === "so_consola") {
-        // Vacía si no interactuó con la consola Linux (sin comandos ni salida).
-        isBlank = isV86AnswerBlank(a);
-      } else if (q.type === "bd_sql") {
-        // Vacía solo si NO escribió SQL. Escribirlo y no ejecutarlo ES responder.
-        isBlank = isSqlAnswerBlank(a);
-      } else {
-        isBlank = !String(a ?? "").trim();
-      }
-      if (isBlank) empty.push(idx + 1);
-    });
-    return empty;
-  };
+  /**
+   * Números (1-based) de las preguntas sin responder. El predicado vive en
+   * `@/modules/exams/answered`: estaba duplicado acá y en la pantalla de
+   * examen, con reglas OPUESTAS para una pregunta de código intacta. El módulo
+   * unificado conserva la regla de ESTE archivo, que era la correcta.
+   */
+  const getUnansweredNumbers = (): number[] =>
+    getUnansweredIndices(questions as QuestionForAnswered[], answers).map((i) => i + 1);
 
   const submit = async () => {
     if (!user) return;

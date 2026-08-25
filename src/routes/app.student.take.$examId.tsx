@@ -26,6 +26,10 @@ import {
 } from "@/shared/lib/fullscreen";
 import { toast } from "sonner";
 import {
+  defaultStarterFor,
+  getUnansweredIndices,
+} from "@/modules/exams/answered";
+import {
   AlertTriangle,
   Clock,
   Maximize2,
@@ -140,65 +144,12 @@ function getOrCreateLocalSession(examId: string): string {
   return sid;
 }
 
-/** Considera contestada la celda según tipo (incluye plantilla de código si no hubo edición). */
-function isQuestionAnswered(q: Question, answers: Record<string, unknown>): boolean {
-  const v = answers[q.id];
-  if (q.type === "cerrada") {
-    return typeof v === "number" && v >= 0;
-  }
-  if (q.type === "cerrada_multi") {
-    if (!Array.isArray(v) || v.length === 0) return false;
-    const min = Number(q.options?.min_selections);
-    if (Number.isFinite(min) && min > 0 && v.length < min) return false;
-    return true;
-  }
-  if (q.type === "codigo" || q.type === "java_gui" || q.type === "python_gui") {
-    // Si no hay starter_code en la BD pero la pregunta es Java codigo,
-    // el editor muestra JAVA_STARTER por defecto — eso cuenta como
-    // tener contenido visible (se persistirá en mergeStarterCodeAnswers).
-    const starter = (q.starter_code ?? "").trim() || defaultStarterFor(q);
-    const code = (typeof v === "string" ? v : "").trim() || starter.trim();
-    return code.length > 0;
-  }
-  if (q.type === "diagrama") {
-    return typeof v === "string" && v.trim().length > 0;
-  }
-  if (q.type === "red_consola") {
-    const parsed = parseNetworkAnswer(v);
-    return !!parsed && Object.values(parsed.histories).some((h) => Array.isArray(h) && h.length > 0);
-  }
-  if (q.type === "red_gui") {
-    // GUI: respondida cuando hay una topología parseable (el alumno la editó).
-    return !!parseNetworkAnswer(v);
-  }
-  return typeof v === "string" && v.trim().length > 0;
-}
+// El predicado vive en `@/modules/exams/answered` — antes estaba acá Y en
+// `WorkshopQuestions.tsx`, con reglas OPUESTAS para una pregunta de código sin
+// tocar (acá contaba como respondida; allá, como en blanco). El módulo unificado
+// se queda con la regla del taller, así que ahora el examen SÍ avisa cuando el
+// alumno entrega con el editor intacto.
 
-function getUnansweredIndices(questions: Question[], answers: Record<string, unknown>): number[] {
-  const out: number[] = [];
-  questions.forEach((q, i) => {
-    if (!isQuestionAnswered(q, answers)) out.push(i);
-  });
-  return out;
-}
-
-/**
- * Plantilla por DEFECTO que el editor muestra para una pregunta de código
- * cuando el docente no configuró starter_code. Debe coincidir EXACTO con lo que
- * el render pinta (JAVA_GUI_STARTER/JAVAFX_STARTER/PYTHON_GUI_STARTER según
- * java_framework, y getStarterCode para 'codigo'), para que gui persista/detecte
- * su contenido visible igual que 'codigo' (antes gui caía a '' → entrega vacía).
- */
-function defaultStarterFor(q: Question): string {
-  if (q.type === "codigo") return getStarterCode(q.language) || "";
-  if (q.type === "python_gui") return PYTHON_GUI_STARTER;
-  if (q.type === "java_gui") {
-    const fw =
-      (q.options as { java_framework?: "swing" | "javafx" } | null)?.java_framework ?? "swing";
-    return fw === "javafx" ? JAVAFX_STARTER : JAVA_GUI_STARTER;
-  }
-  return "";
-}
 
 /** Persiste plantilla de código como respuesta si el estudiante no escribió nada (para entrega correcta). */
 function mergeStarterCodeAnswers(

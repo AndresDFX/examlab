@@ -68,6 +68,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El monitor del examen ahora dice cuántas preguntas respondió cada estudiante — también después
+  de que entregó.** La columna mostraba en qué pregunta iba, pero SOLO mientras el intento estaba en
+  curso: apenas el alumno entregaba, quedaba en "—" y el docente perdía el dato justo cuando servía
+  para algo. Ahora la columna significa una sola cosa en todos los estados —**respondidas de total**—
+  y se pone en ámbar cuando quedaron preguntas en blanco, con el detalle al pasar el mouse. La
+  posición no se pierde: en un intento en curso sigue disponible ahí mismo.
+
+  **Buscando de dónde sacar ese número apareció algo más serio.** El criterio de "pregunta
+  respondida" estaba escrito DOS veces —una en la pantalla de examen y otra en la de talleres— y las
+  dos se contradecían: en una pregunta de código que el alumno no tocó, el taller la contaba **en
+  blanco** y el examen la contaba **respondida**. El comentario del taller explicaba por qué su regla
+  era la correcta: sin esa detección, quien pulsa Entregar sin abrir el editor pasaba el chequeo y
+  **entregaba en cero sin ninguna advertencia**. O sea, el taller ya había arreglado un bug que el
+  examen seguía teniendo.
+
+  Ahora hay un solo criterio, y se quedó con la mejor regla de cada lado. Además del código, esto
+  corrige dos casos que el examen no contemplaba: una respuesta de **base de datos** vacía contaba
+  como respondida (porque el envoltorio que se guarda nunca está vacío, aunque el alumno haya
+  borrado su SQL), y las preguntas de **consola Linux** no estaban contempladas en absoluto. Los tres
+  arreglos hacen que el examen avise lo que hasta ahora se tragaba en silencio.
+
 - **Al check-in de asistencia se le puede dar más tiempo sin invalidar el QR proyectado.** Cuando la
   ventana se quedaba corta —llegó un grupo tarde, la fila avanza lento— la única salida era volver a
   abrir el check-in, y eso **regenera todos los códigos**: el QR de la pantalla y el que los alumnos

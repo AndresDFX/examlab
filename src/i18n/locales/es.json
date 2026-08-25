@@ -1057,6 +1057,10 @@
     }
   },
   "monitor": {
+      "answeredHintInProgress": "Va en la pregunta {{n}} de {{total}}",
+      "answeredHintBlank_one": "Entregó con 1 pregunta en blanco",
+      "answeredHintBlank_other": "Entregó con {{count}} preguntas en blanco",
+      "answeredHintBlank_zero": "Respondió todas",
     "title": "Monitor",
     "inProgress": "En progreso",
     "completed": "Completado",
@@ -1090,8 +1094,8 @@
     "columns": {
       "attempts": "Intentos",
       "attemptsHint": "Intento actual / máximo permitido por examen. Click para gestionar los intentos del estudiante.",
-      "question": "Pregunta",
-      "questionHint": "Pregunta actual del intento en curso (índice / total). Se actualiza con cada autosave del estudiante.",
+      "question": "Respondidas",
+      "questionHint": "Cuántas preguntas respondió el estudiante, de cuántas tiene el examen. Sirve igual durante el intento y después de entregado. Si quedaron en blanco, el número va en ámbar; pasá el mouse para ver el detalle.",
       "grade": "Nota",
       "strikes": "Advertencias",
       "strikesHint": "Advertencias acumuladas (cambio de pestaña, copiar/pegar, salir de pantalla completa, etc.). Al llegar al máximo del examen el intento se marca como sospechoso.",
