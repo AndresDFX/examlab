@@ -2435,7 +2435,9 @@ function ExamMonitor() {
                                 n: Math.min(currentIdx + 1, questions.length),
                                 total: questions.length,
                               })
-                            : t("monitor.answeredHintBlank", { count: enBlanco });
+                            : enBlanco === 0
+                              ? t("monitor.answeredHintNoBlanks")
+                              : t("monitor.answeredHintBlank", { count: enBlanco });
                         return (
                           <span
                             title={pista}

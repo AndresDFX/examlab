@@ -49,7 +49,7 @@ import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/Co
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import { SqlRunner } from "@/modules/database/SqlRunner";
-import { type NetworkScenario, parseScenario, parseNetworkAnswer } from "@/modules/network/scenario";
+import { type NetworkScenario, parseScenario } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";

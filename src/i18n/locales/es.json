@@ -1060,7 +1060,7 @@
       "answeredHintInProgress": "Va en la pregunta {{n}} de {{total}}",
       "answeredHintBlank_one": "Entregó con 1 pregunta en blanco",
       "answeredHintBlank_other": "Entregó con {{count}} preguntas en blanco",
-      "answeredHintBlank_zero": "Respondió todas",
+      "answeredHintNoBlanks": "Respondió todas",
     "title": "Monitor",
     "inProgress": "En progreso",
     "completed": "Completado",

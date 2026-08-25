@@ -1060,7 +1060,7 @@
       "answeredHintInProgress": "On question {{n}} of {{total}}",
       "answeredHintBlank_one": "Submitted with 1 blank question",
       "answeredHintBlank_other": "Submitted with {{count}} blank questions",
-      "answeredHintBlank_zero": "Answered all",
+      "answeredHintNoBlanks": "Answered all",
     "title": "Monitor",
     "inProgress": "In progress",
     "completed": "Completed",

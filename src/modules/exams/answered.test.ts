@@ -186,3 +186,24 @@ describe("countAnswered", () => {
     expect(respondidas + enBlanco).toBe(preguntas.length);
   });
 });
+
+describe("los casos que encontró la auditoría adversarial", () => {
+  it("so_consola: un string plano (lo que guarda el EXAMEN) SÍ cuenta", () => {
+    // El examen no renderiza la consola: cae al textarea genérico, así que la
+    // respuesta es texto plano y NO el sobre `{"v86":1,…}` del taller. Tratarlo
+    // solo con `isV86AnswerBlank` invertía una respuesta correcta a "en blanco".
+    const p = q({ type: "so_consola" });
+    expect(isQuestionAnswered(p, { q1: "ls -la /etc" })).toBe(true);
+    expect(isQuestionAnswered(p, { q1: "   " })).toBe(false);
+  });
+
+  it("codigo con language NULL compara contra la MISMA plantilla que ve el alumno", () => {
+    // El editor pinta `getStarterCode(q.language ?? "java")`. Si el predicado
+    // usara `getStarterCode(null)` -> "", la guarda de plantilla vacía haría que
+    // una pregunta intacta contara como respondida, y la regla quedaba sin
+    // efecto justo en las preguntas legacy sin lenguaje.
+    const p = q({ type: "codigo", language: null, starter_code: null });
+    expect(isQuestionAnswered(p, { q1: getStarterCode("java") })).toBe(false);
+    expect(isQuestionAnswered(p, { q1: getStarterCode("java") + " int x;" })).toBe(true);
+  });
+});

@@ -70,7 +70,12 @@ export interface QuestionForAnswered {
  * pregunta sin tocar se leería como respondida.
  */
 export function defaultStarterFor(q: QuestionForAnswered): string {
-  if (q.type === "codigo") return getStarterCode(q.language) || "";
+  // `?? "java"` para coincidir con lo que el editor PINTA cuando la pregunta no
+  // tiene lenguaje (`app.student.take.$examId.tsx`: `q.language ?? "java"`).
+  // Sin esto, en una pregunta legacy con `language` NULL el alumno ve la
+  // plantilla de Java, el predicado compara contra "" y la plantilla intacta
+  // vuelve a contar como respondida — la regla quedaba sin efecto justo ahí.
+  if (q.type === "codigo") return getStarterCode(q.language ?? "java") || "";
   if (q.type === "python_gui") return PYTHON_GUI_STARTER;
   if (q.type === "java_gui") {
     const fw =
@@ -120,6 +125,12 @@ export function isQuestionAnswered(
     case "bd_sql":
       return !isSqlAnswerBlank(v);
     case "so_consola":
+      // El sobre v86 (`{"v86":1,…}`) es lo que guarda el TALLER, que sí tiene el
+      // componente de consola. La pantalla de EXAMEN no lo renderiza —cae al
+      // textarea genérico— así que ahí la respuesta es un string plano que
+      // `isV86AnswerBlank` no parsea y daría por en blanco, invirtiendo una
+      // respuesta correcta. Se acepta cualquiera de las dos formas.
+      if (typeof v === "string" && v.trim().length > 0) return true;
       return !isV86AnswerBlank(v);
     case "red_consola": {
       const parsed = parseNetworkAnswer(v);

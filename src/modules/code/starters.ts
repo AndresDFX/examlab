@@ -51,13 +51,9 @@ import type { CodeLanguage } from "@/modules/code/language-support";
  */
 
 export const JAVA_STARTER = `public class Main {
-
     public static void main(String[] args) {
-
         System.out.println("¡Hola, mundo!");
-
     }
-
 }`;
 
 // El idiom `if __name__ == "__main__":` con una función `main()` es el punto
@@ -69,15 +65,10 @@ export const JAVA_STARTER = `public class Main {
 // real (funciones + guard de ejecución), no desde un print suelto.
 
 export const PYTHON_STARTER = `def main():
-
     print("¡Hola, mundo!")
 
 
-
-
-
 if __name__ == "__main__":
-
     main()`;
 
 export const JAVASCRIPT_STARTER = `console.log("¡Hola, mundo!");`;
@@ -93,9 +84,7 @@ export const JAVASCRIPT_STARTER = `console.log("¡Hola, mundo!");`;
  */
 
 export const KOTLIN_STARTER = `fun main() {
-
     println("¡Hola, mundo!")
-
 }`;
 
 /**
