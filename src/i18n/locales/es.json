@@ -2770,6 +2770,9 @@
       "copyFailed": "No se pudo copiar"
     },
     "modules_attendance_AttendanceCheckInProjector": {
+      "extendOk": "Se agregaron {{count}} minutos al check-in.",
+      "extendFailed": "No se pudo extender el check-in.",
+      "extendMaxWindow": "El check-in ya llegó al máximo de 4 horas desde que se abrió.",
       "windowExpired": "La ventana de check-in expiró",
       "closedOk": "Check-in cerrado"
     },
@@ -6315,6 +6318,7 @@
     "refreshTooltip": "Refrescar"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "extendTitle": "Agregar {{count}} minutos a la ventana",
     "title": "Check-in de asistencia",
     "closesIn": "Cierra en {{time}}",
     "exitFullscreen": "Salir pantalla completa",

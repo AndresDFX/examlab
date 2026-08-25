@@ -53,6 +53,9 @@ interface Props {
   state: CheckInState;
   /** Llamado cuando el docente cierra el check-in (o expira) */
   onClose: () => void;
+  /** Llamado al extender la ventana, con el nuevo cierre en ISO. El padre es
+   *  dueño de `state`, así que sin esto el contador seguiría con el viejo. */
+  onExtended?: (closesAt: string) => void;
 }
 
 function formatRemaining(ms: number): string {
@@ -63,13 +66,50 @@ function formatRemaining(ms: number): string {
   return `${m}:${s.toString().padStart(2, "0")}`;
 }
 
-export function AttendanceCheckInProjector({ state, onClose }: Props) {
+export function AttendanceCheckInProjector({ state, onClose, onExtended }: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("------");
   const [secondsToRotation, setSecondsToRotation] = useState(state.rotationSeconds);
   const [msToClose, setMsToClose] = useState(() => new Date(state.closesAt).getTime() - Date.now());
   const [presentCount, setPresentCount] = useState(0);
+  const [extendiendo, setExtendiendo] = useState(false);
+
+  /**
+   * Suma minutos a la ventana SIN regenerar la semilla: el QR proyectado y el
+   * que los alumnos tienen a medio escanear siguen sirviendo. Antes la única
+   * forma de estirar era volver a abrir el check-in, que sí cambia todos los
+   * códigos y deja afuera a quien estaba escaneando en ese momento.
+   */
+  const extender = async (minutos: number) => {
+    if (extendiendo) return;
+    setExtendiendo(true);
+    try {
+      const { data, error } = await db.rpc("teacher_extend_attendance_check_in", {
+        p_session_id: state.sessionId,
+        p_extra_minutes: minutos,
+      });
+      const r = data as { ok?: boolean; error?: string; closes_at?: string } | null;
+      if (error || !r?.ok || !r.closes_at) {
+        toast.error(
+          r?.error === "max_window"
+            ? i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendMaxWindow")
+            : friendlyError(
+                error,
+                i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendFailed"),
+              ),
+        );
+        return;
+      }
+      setMsToClose(new Date(r.closes_at).getTime() - Date.now());
+      onExtended?.(r.closes_at);
+      toast.success(
+        i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendOk", { count: minutos }),
+      );
+    } finally {
+      setExtendiendo(false);
+    }
+  };
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [closing, setClosing] = useState(false);
   const [viewport, setViewport] = useState(() => ({
@@ -246,6 +286,26 @@ export function AttendanceCheckInProjector({ state, onClose }: Props) {
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", { time: formatRemaining(msToClose) })}
           </Badge>
+          {/* Pegado al contador a propósito: el docente mira el tiempo que
+              queda y ahí mismo tiene cómo estirarlo, sin salir del proyector
+              ni tener que cerrar y reabrir (que cambiaría todos los códigos). */}
+          <div className="flex items-center gap-1">
+            {[5, 10, 15].map((m) => (
+              <Button
+                key={m}
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs tabular-nums"
+                disabled={extendiendo}
+                onClick={() => void extender(m)}
+                title={t("hc_modulesAttendanceAttendanceCheckInProjector.extendTitle", {
+                  count: m,
+                })}
+              >
+                {extendiendo ? <Spinner size="xs" /> : `+${m}`}
+              </Button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {isFullscreen ? (

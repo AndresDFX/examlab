@@ -2354,7 +2354,16 @@ function TeacherAttendance() {
       />
 
       {/* Projector overlay */}
-      {projector && <AttendanceCheckInProjector state={projector} onClose={closeProjector} />}
+      {projector && (
+        <AttendanceCheckInProjector
+          state={projector}
+          onClose={closeProjector}
+          // El padre es dueño del estado del proyector: sin propagar el nuevo
+          // cierre, extender movería el contador de adentro pero al re-montar
+          // (o al recalcular) volvería el vencimiento viejo.
+          onExtended={(closesAt) => setProjector((p) => (p ? { ...p, closesAt } : p))}
+        />
+      )}
 
       {/* Encuesta en vivo durante una sesión. courseId viene del state
           del componente (la pantalla siempre opera sobre un curso

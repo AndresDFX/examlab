@@ -2770,6 +2770,9 @@
       "copyFailed": "Could not copy"
     },
     "modules_attendance_AttendanceCheckInProjector": {
+      "extendOk": "{{count}} minutes added to the check-in.",
+      "extendFailed": "Could not extend the check-in.",
+      "extendMaxWindow": "The check-in already reached the 4-hour maximum since it opened.",
       "windowExpired": "The check-in window has expired",
       "closedOk": "Check-in closed"
     },
@@ -6315,6 +6318,7 @@
     "refreshTooltip": "Refresh"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "extendTitle": "Add {{count}} minutes to the window",
     "title": "Attendance check-in",
     "closesIn": "Closes in {{time}}",
     "exitFullscreen": "Exit fullscreen",
