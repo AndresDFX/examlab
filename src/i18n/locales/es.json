@@ -2770,6 +2770,8 @@
       "copyFailed": "No se pudo copiar"
     },
     "modules_attendance_AttendanceCheckInProjector": {
+      "linkCopied": "Enlace copiado. Pegalo en el chat de la clase.",
+      "linkCopyFailed": "No se pudo copiar el enlace.",
       "extendOk": "Se agregaron {{count}} minutos al check-in.",
       "extendFailed": "No se pudo extender el check-in.",
       "extendMaxWindow": "El check-in ya llegó al máximo de 4 horas desde que se abrió.",
@@ -5606,6 +5608,8 @@
     "reviewToastError": "No se pudo marcar como revisado. Intenta de nuevo."
   },
   "teacherAttendance": {
+      "emailOnlyLabel": "Marcar solo con el correo",
+      "emailOnlyHint": "El estudiante entra por el enlace y solo escribe su correo y el código de la pantalla, sin contraseña. Agiliza el check-in, pero deja de impedir que alguien presente marque a un compañero ausente. Dejalo apagado si la asistencia pesa en la nota.",
     "statusPresentShort": "P",
     "statusPresent": "Presente",
     "statusAbsentShort": "A",
@@ -6318,6 +6322,8 @@
     "refreshTooltip": "Refrescar"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "copyLink": "Copiar enlace",
+      "copyLinkTitle": "Copiar el mismo enlace del QR, para pegarlo en el chat de una clase virtual",
       "extendTitle": "Agregar {{count}} minutos a la ventana",
     "title": "Check-in de asistencia",
     "closesIn": "Cierra en {{time}}",
@@ -9661,6 +9667,7 @@
     "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
+      "fillEmailCode": "Completá tu correo y el código.",
     "codeLabel": "Código de la clase",
     "credsHint": "Usamos tu correo y contraseña solo para confirmar tu identidad. No se inicia sesión.",
     "emailLabel": "Correo institucional",

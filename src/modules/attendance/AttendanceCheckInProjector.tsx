@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Maximize2, Minimize2, X } from "lucide-react";
+import { Link2 as LinkIcon, Maximize2, Minimize2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -74,6 +74,23 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended }: Props
   const [msToClose, setMsToClose] = useState(() => new Date(state.closesAt).getTime() - Date.now());
   const [presentCount, setPresentCount] = useState(0);
   const [extendiendo, setExtendiendo] = useState(false);
+
+  /**
+   * Copia el MISMO enlace que codifica el QR. Hasta ahora esa URL solo existía
+   * dentro del código QR: en una sesión VIRTUAL no hay proyección que escanear,
+   * así que el check-in por enlace era inalcanzable aunque el flujo público ya
+   * estuviera implementado. El enlace lleva el código del período ACTUAL, así
+   * que hay que pegarlo en el chat de la clase mientras la ventana está abierta
+   * — igual que mostrar el QR.
+   */
+  const copiarEnlace = async () => {
+    try {
+      await navigator.clipboard.writeText(qrUrl);
+      toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopied"));
+    } catch {
+      toast.error(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopyFailed"));
+    }
+  };
 
   /**
    * Suma minutos a la ventana SIN regenerar la semilla: el QR proyectado y el
@@ -290,6 +307,18 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended }: Props
               queda y ahí mismo tiene cómo estirarlo, sin salir del proyector
               ni tener que cerrar y reabrir (que cambiaría todos los códigos). */}
           <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              onClick={() => void copiarEnlace()}
+              title={t("hc_modulesAttendanceAttendanceCheckInProjector.copyLinkTitle")}
+            >
+              <LinkIcon className="h-3.5 w-3.5 sm:mr-1" />
+              <span className="hidden sm:inline">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.copyLink")}
+              </span>
+            </Button>
             {[5, 10, 15].map((m) => (
               <Button
                 key={m}

@@ -2770,6 +2770,8 @@
       "copyFailed": "Could not copy"
     },
     "modules_attendance_AttendanceCheckInProjector": {
+      "linkCopied": "Link copied. Paste it in the class chat.",
+      "linkCopyFailed": "Could not copy the link.",
       "extendOk": "{{count}} minutes added to the check-in.",
       "extendFailed": "Could not extend the check-in.",
       "extendMaxWindow": "The check-in already reached the 4-hour maximum since it opened.",
@@ -5606,6 +5608,8 @@
     "reviewToastError": "Couldn't mark as reviewed. Please try again."
   },
   "teacherAttendance": {
+      "emailOnlyLabel": "Check in with email only",
+      "emailOnlyHint": "Students open the link and enter only their email and the on-screen code, no password. It speeds up check-in but stops preventing someone present from marking an absent classmate. Leave it off if attendance counts toward the grade.",
     "statusPresentShort": "P",
     "statusPresent": "Present",
     "statusAbsentShort": "A",
@@ -6318,6 +6322,8 @@
     "refreshTooltip": "Refresh"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
+      "copyLink": "Copy link",
+      "copyLinkTitle": "Copy the same link the QR encodes, to paste in a virtual class chat",
       "extendTitle": "Add {{count}} minutes to the window",
     "title": "Attendance check-in",
     "closesIn": "Closes in {{time}}",
@@ -9661,6 +9667,7 @@
     "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
+      "fillEmailCode": "Enter your email and the code.",
     "codeLabel": "Class code",
     "credsHint": "We use your email and password only to confirm your identity. No session is started.",
     "emailLabel": "Institutional email",

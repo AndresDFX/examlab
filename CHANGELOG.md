@@ -68,6 +68,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Al check-in de asistencia se le puede dar más tiempo sin invalidar el QR proyectado.** Cuando la
+  ventana se quedaba corta —llegó un grupo tarde, la fila avanza lento— la única salida era volver a
+  abrir el check-in, y eso **regenera todos los códigos**: el QR de la pantalla y el que los alumnos
+  tenían a medio escanear dejaban de servir en el mismo instante. Ahora hay botones **+5 / +10 / +15**
+  junto al contador, que solo mueven la hora de cierre: el QR sigue válido y quien está escaneando no
+  se entera. Si la ventana ya venció, cuenta desde ahora y no desde el vencimiento.
+
+- **La asistencia se puede compartir como enlace, y opcionalmente pedir solo el correo.** El check-in
+  sin iniciar sesión ya existía, pero su enlace **solo vivía dentro del código QR**: en una clase
+  virtual, donde no hay nada que proyectar ni que escanear, era inalcanzable aunque estuviera
+  implementado. Ahora el proyector tiene **Copiar enlace** para pegarlo en el chat de la clase.
+
+  Además, al abrir el check-in se puede activar **"Marcar solo con el correo"**. Con eso el estudiante
+  entra por el enlace y escribe su correo y el código de la pantalla, sin contraseña — que era lo que
+  volvía lento el check-in de un grupo grande y dejaba afuera a quien no la recordaba.
+
+  **Viene apagado, y es a propósito.** La contraseña es lo que impide que alguien marque presente a un
+  compañero que no vino: un correo institucional es adivinable, sigue un patrón. Con el modo activo
+  siguen protegiendo el código rotativo (solo está en la pantalla proyectada y cambia cada minuto), la
+  matrícula en el curso exacto y la ventana de tiempo; deja de proteger que un presente marque a un
+  ausente. Por eso el docente lo elige al abrir, con el texto diciendo qué se gana y qué se pierde, y
+  la recomendación de dejarlo apagado cuando la asistencia pesa en la nota. Tampoco se recuerda entre
+  clases: cada apertura arranca apagada, para que una sesión con nota no herede el modo flojo de la
+  anterior.
+
 - **Los resultados de una encuesta se pueden imprimir, con la marca de la institución.** Hasta ahora
   vivían solo en la pantalla del docente: para llevarlos a un comité, adjuntarlos a un acta o
   archivarlos había que sacar una captura. Ahora hay un botón **Imprimir** en la vista de resultados —

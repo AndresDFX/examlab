@@ -33,8 +33,25 @@ Deno.serve(async (req) => {
   const password = String(body.password ?? "");
   const sessionId = String(body.sessionId ?? "").trim();
   const code = String(body.code ?? "").replace(/\s+/g, "");
-  if (!email || !password || !sessionId || !code) {
+  // Sin contraseña se intenta el modo "solo correo". Que ese modo esté
+  // habilitado lo decide el SERVIDOR (`email_only` del check-in): el cliente no
+  // puede saltarse la contraseña simplemente omitiéndola del cuerpo.
+  if (!email || !sessionId || !code) {
     return jsonError("Faltan datos: correo, contraseña, sesión y código.", 400);
+  }
+
+  if (!password) {
+    const { data: soloCorreo, error: errCorreo } = await adminClient.rpc(
+      "public_check_in_attendance_by_email",
+      { p_email: email, p_session_id: sessionId, p_code: code },
+    );
+    if (errCorreo) {
+      console.error("[public-attendance-check-in] rpc by_email error", errCorreo);
+      return jsonResponse({ ok: false, error: "server_error" });
+    }
+    // Si el check-in NO tiene el modo habilitado, la RPC responde
+    // `password_required` y el cliente vuelve a pedir la contraseña.
+    return jsonResponse(soloCorreo ?? { ok: false, error: "unknown" });
   }
 
   // 1) Verificar credenciales server-side. La sesión que devuelve se DESCARTA

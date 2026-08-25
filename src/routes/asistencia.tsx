@@ -89,6 +89,33 @@ function PublicAttendance() {
   const [code, setCode] = useState(codeFromUrl);
   const [status, setStatus] = useState<Status>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  /** `null` mientras no se sabe: el campo de contraseña no se pinta hasta que
+   *  el servidor dice si este check-in la pide. Asumir que sí y esconderla
+   *  después haría saltar el formulario; asumir que no la pediría de más. */
+  const [soloCorreo, setSoloCorreo] = useState<boolean | null>(null);
+
+  // El modo lo decide el SERVIDOR. Esto es solo para no pedir un dato que no
+  // hace falta: si el cliente mintiera y omitiera la contraseña, la RPC
+  // responde `password_required` y el formulario la vuelve a pedir.
+  useEffect(() => {
+    if (!session) return;
+    let cancelled = false;
+    void (async () => {
+      // `as any`: los tipos de Supabase se generan desde la BASE y todavía no
+      // conocen esta función (la migración viaja en este mismo cambio). Mismo
+      // patrón que el resto de las RPC nuevas del proyecto.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any).rpc("attendance_check_in_mode", {
+        p_session_id: session,
+      });
+      if (cancelled) return;
+      const m = data as { email_only?: boolean } | null;
+      setSoloCorreo(!!m?.email_only);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
 
   useEffect(() => {
     setCode(codeFromUrl);
@@ -129,18 +156,29 @@ function PublicAttendance() {
   // marca asistencia sin crear sesión en la app.
   const checkInPublic = async () => {
     const cleanEmail = email.trim().toLowerCase();
-    if (!cleanEmail || cleanEmail.indexOf("@") < 1 || !password || !code.trim()) {
+    if (!cleanEmail || cleanEmail.indexOf("@") < 1 || !code.trim() || (!soloCorreo && !password)) {
       toast.error(
-        t("publicAttendance.fillAll", {
-          defaultValue: "Completá correo, contraseña y código.",
-        }),
+        soloCorreo
+          ? t("publicAttendance.fillEmailCode", {
+              defaultValue: "Completá tu correo y el código.",
+            })
+          : t("publicAttendance.fillAll", {
+              defaultValue: "Completá correo, contraseña y código.",
+            }),
       );
       return;
     }
     setStatus("submitting");
     try {
       const { data, error } = await supabase.functions.invoke("public-attendance-check-in", {
-        body: { email: cleanEmail, password, sessionId: session, code: code.trim() },
+        // Sin contraseña en modo solo-correo: el edge toma la rama que exige
+        // `email_only` server-side.
+        body: {
+          email: cleanEmail,
+          password: soloCorreo ? "" : password,
+          sessionId: session,
+          code: code.trim(),
+        },
       });
       if (error) {
         setErrorCode("unknown");
@@ -248,20 +286,22 @@ function PublicAttendance() {
                       })}
                     />
                   </div>
-                  <div className="space-y-1">
-                    <Label htmlFor="pa-pass" required>
-                      {t("publicAttendance.passwordLabel", { defaultValue: "Contraseña" })}
-                    </Label>
-                    <PasswordInput
-                      id="pa-pass"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      autoComplete="current-password"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") void checkInPublic();
-                      }}
-                    />
-                  </div>
+                  {soloCorreo === false && (
+                    <div className="space-y-1">
+                      <Label htmlFor="pa-pass" required>
+                        {t("publicAttendance.passwordLabel", { defaultValue: "Contraseña" })}
+                      </Label>
+                      <PasswordInput
+                        id="pa-pass"
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        autoComplete="current-password"
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void checkInPublic();
+                        }}
+                      />
+                    </div>
+                  )}
                   <Button className="w-full" onClick={() => void checkInPublic()} disabled={submitting}>
                     {submitting ? <Spinner size="sm" className="mr-1" /> : <LogIn className="h-4 w-4 mr-1" />}
                     {t("publicAttendance.markBtn", { defaultValue: "Marcar asistencia" })}

@@ -16,6 +16,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
@@ -320,6 +321,10 @@ function TeacherAttendance() {
     ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   );
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
+  /** Opt-in: el enlace público acepta solo el correo, sin contraseña. Arranca
+   *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
+   *  con la asistencia en la nota herede el modo flojo de la clase anterior. */
+  const [checkInEmailOnly, setCheckInEmailOnly] = useState(false);
   const [startingCheckIn, setStartingCheckIn] = useState(false);
   const [projector, setProjector] = useState<CheckInState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1228,6 +1233,7 @@ function TeacherAttendance() {
         p_session_id: checkInConfigSession.id,
         p_duration_minutes: checkInDuration,
         p_rotation_seconds: checkInRotation,
+        p_email_only: checkInEmailOnly,
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -1263,7 +1269,11 @@ function TeacherAttendance() {
         entityType: "attendance_session",
         entityId: checkInConfigSession.id,
         courseId: checkInConfigSession.course_id,
-        metadata: { duration_minutes: checkInDuration, rotation_seconds: checkInRotation },
+        metadata: {
+          duration_minutes: checkInDuration,
+          rotation_seconds: checkInRotation,
+          email_only: checkInEmailOnly,
+        },
       });
 
       // NO notificamos desde el cliente: el trigger de DB
@@ -2316,6 +2326,23 @@ function TeacherAttendance() {
                     e.target.value === "" ? 0 : Math.max(15, Math.min(600, Number(e.target.value))),
                   )
                 }
+              />
+            </div>
+            {/* Debilita un control de fraude, así que se elige a conciencia y
+                el texto dice exactamente qué se gana y qué se pierde. */}
+            <div className="rounded-md border p-3 flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <Label htmlFor="checkin-email-only" className="cursor-pointer">
+                  {t("teacherAttendance.emailOnlyLabel")}
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {t("teacherAttendance.emailOnlyHint")}
+                </p>
+              </div>
+              <Switch
+                id="checkin-email-only"
+                checked={checkInEmailOnly}
+                onCheckedChange={setCheckInEmailOnly}
               />
             </div>
           </div>
