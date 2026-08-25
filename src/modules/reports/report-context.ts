@@ -28,7 +28,7 @@ import {
   type AttemptForGrade,
   type RetryMode,
 } from "@/modules/exams/exam-attempts";
-import { formatDate } from "@/shared/lib/format";
+import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import {
   formatScheduleText,
   type CourseScheduleBlock,
@@ -47,6 +47,18 @@ export interface BuildReportArgs {
 }
 
 // ── Tipos internos (lo que devolvemos al motor) ─────────────────────
+
+/** Fila cruda de `grade_cuts` tal como la trae el select de arriba. */
+interface CorteFila {
+  name: string;
+  weight: number | null;
+  exam_weight: number | null;
+  workshop_weight: number | null;
+  project_weight: number | null;
+  attendance_weight: number | null;
+  start_date: string | null;
+  end_date: string | null;
+}
 
 interface CutCtx {
   nombre: string;
@@ -136,7 +148,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits)",
+      "id, name, code, semestre, grupo, period, period_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -198,7 +210,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     await Promise.all([
       db
         .from("grade_cuts")
-        .select("id, name, position, weight, attendance_weight")
+        .select(
+          "id, name, position, weight, attendance_weight, exam_weight, workshop_weight, project_weight, start_date, end_date",
+        )
         .eq("course_id", courseId)
         .order("position"),
       db
@@ -598,6 +612,18 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       asignatura: courseRow.subject?.name ?? "",
       asignatura_codigo: courseRow.subject?.code ?? "",
       creditos: courseRow.subject?.credits ?? "",
+      // Sílabo de la asignatura del plan. Se expone para que documentos como el
+      // Acuerdo Pedagógico tomen los objetivos de DONDE SE EDITAN (Académico →
+      // Asignaturas) en vez de tenerlos escritos dentro de la plantilla: si un
+      // objetivo cambia, cambia en un lugar y todos los documentos lo reflejan.
+      // Se dejan como texto tal cual lo escribió el Admin — el motor de
+      // plantillas escapa el HTML, así que un salto de línea se ve como tal solo
+      // si la plantilla usa `white-space: pre-line`.
+      objetivos: courseRow.subject?.objetivos ?? "",
+      contenidos: courseRow.subject?.contenidos ?? "",
+      bibliografia: courseRow.subject?.bibliografia ?? "",
+      intensidad_horaria: courseRow.subject?.intensidad_horaria ?? "",
+      sistema_evaluacion: courseRow.subject?.sistema_evaluacion ?? "",
       // Horario semanal formateado: "Lun 10:00–12:00 (Aula 301) · Jue 14:00–16:00 (virtual)".
       // Vacío si el curso no tiene bloques definidos todavía.
       horario: scheduleText,
@@ -664,6 +690,22 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       examenes: s.examenes,
       talleres: s.talleres,
       proyectos: s.proyectos,
+    })),
+    // Estructura de evaluación del curso, para documentos como el Acuerdo
+    // Pedagógico que describen CÓMO se evalúa (no cuánto sacó cada uno). Antes
+    // esta sección se escribía a mano dentro de la plantilla —"Primer corte
+    // (30%) - [04/03 al 08/04]: 10% Parcial…"— y quedaba desactualizada apenas
+    // el docente movía un peso o una fecha en el curso, sin que nadie lo notara
+    // hasta que un estudiante reclamaba con el papel firmado en la mano.
+    cortes_curso: (cuts ?? []).map((c: CorteFila) => ({
+      nombre: c.name,
+      peso: c.weight ?? 0,
+      peso_examenes: c.exam_weight ?? 0,
+      peso_talleres: c.workshop_weight ?? 0,
+      peso_proyectos: c.project_weight ?? 0,
+      peso_asistencia: c.attendance_weight ?? 0,
+      inicio: c.start_date ? formatDateOnly(c.start_date) : "",
+      fin: c.end_date ? formatDateOnly(c.end_date) : "",
     })),
     // Estadísticas agregadas del curso (para encabezados de actas).
     total_estudiantes: studentList.length,
@@ -762,6 +804,14 @@ export async function buildReportContextFromActa(actaId: string): Promise<Templa
       asignatura: "",
       asignatura_codigo: "",
       creditos: "",
+      // El acta cerrada es un SNAPSHOT: no se re-consulta la asignatura, porque
+      // el sílabo pudo cambiar después de cerrar el acta y el documento debe
+      // seguir diciendo lo que decía al cerrarse.
+      objetivos: "",
+      contenidos: "",
+      bibliografia: "",
+      intensidad_horaria: "",
+      sistema_evaluacion: "",
       horario: "",
     },
     docente: {

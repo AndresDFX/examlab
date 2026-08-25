@@ -287,6 +287,11 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
       { label: "Asignatura del plan", labelEn: "Curriculum subject", path: "curso.asignatura", kind: "scalar", hint: "Si el curso está asociado a una asignatura del plan", hintEn: "If the course is linked to a curriculum subject" },
       { label: "Código de la asignatura", labelEn: "Subject code", path: "curso.asignatura_codigo", kind: "scalar" },
       { label: "Créditos", labelEn: "Credits", path: "curso.creditos", kind: "scalar" },
+      { label: "Objetivos de la asignatura", labelEn: "Subject objectives", path: "curso.objetivos", kind: "scalar", hint: "Se editan en Académico → Asignaturas; cambian en un solo lugar para todos los documentos", hintEn: "Edited in Academic → Subjects; change in one place for every document" },
+      { label: "Contenidos de la asignatura", labelEn: "Subject contents", path: "curso.contenidos", kind: "scalar" },
+      { label: "Bibliografía", labelEn: "Bibliography", path: "curso.bibliografia", kind: "scalar" },
+      { label: "Intensidad horaria", labelEn: "Weekly hours", path: "curso.intensidad_horaria", kind: "scalar" },
+      { label: "Sistema de evaluación", labelEn: "Assessment system", path: "curso.sistema_evaluacion", kind: "scalar" },
       { label: "Horario", labelEn: "Schedule", path: "curso.horario", kind: "scalar", hint: "Bloques semanales formateados: 'Lun 10:00–12:00 · Jue 14:00–16:00'", hintEn: "Formatted weekly blocks: 'Mon 10:00–12:00 · Thu 14:00–16:00'" },
       { label: "Periodo", labelEn: "Term", path: "periodo", kind: "scalar" },
       { label: "Periodo · Inicio", labelEn: "Term · Start", path: "periodo_obj.start_date", kind: "scalar" },
@@ -568,6 +573,18 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
       asignatura: "Programación Orientada a Objetos",
       asignatura_codigo: "POO-202",
       creditos: 3,
+      // Con saltos de línea reales: así la vista previa muestra cómo queda un
+      // sílabo de varias líneas dentro de la plantilla (que lo pinta con
+      // `white-space: pre-line`).
+      objetivos: [
+        "Comprender los pilares de la programación orientada a objetos.",
+        "Implementar estructuras de datos dinámicas.",
+        "Construir interfaces gráficas de usuario.",
+      ].join("\n"),
+      contenidos: "Clases y objetos. Herencia y polimorfismo. Colecciones. Interfaces gráficas.",
+      bibliografia: "Deitel & Deitel, Java: How to Program.",
+      intensidad_horaria: "4 horas semanales",
+      sistema_evaluacion: "Tres cortes: 30% / 30% / 40%.",
       horario: "Lun 10:00–12:00 · Jue 14:00–16:00",
     },
     periodo: "2026-1",

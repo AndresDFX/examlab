@@ -251,6 +251,16 @@ function Inner() {
   const [genTemplate, setGenTemplate] = useState<Template | null>(null);
   const [genCourseId, setGenCourseId] = useState<string>("");
   const [genStudentId, setGenStudentId] = useState<string>("");
+  /**
+   * Periodo RESUELTO del curso, no tecleado por el docente.
+   *
+   * Antes el diálogo pedía "Periodo" a mano y eso era pedirle un dato que la
+   * plataforma ya tiene: el curso conoce su periodo (`period_id` → el código
+   * del periodo académico, o `period` como texto). Un campo libre solo permitía
+   * escribirlo distinto de como figura en el curso, y el documento salía
+   * diciendo una cosa mientras el sistema decía otra. Se guarda lo que devolvió
+   * el contexto para que el NOMBRE del archivo lo incluya.
+   */
   const [genPeriodo, setGenPeriodo] = useState<string>("");
   const [genStudents, setGenStudents] = useState<Student[]>([]);
   const [genLoadingStudents, setGenLoadingStudents] = useState(false);
@@ -1026,8 +1036,10 @@ function Inner() {
         : await buildReportContext({
             courseId: genCourseId,
             studentId: genTemplate.scope === "estudiante" ? genStudentId : undefined,
-            periodo: genPeriodo.trim() || undefined,
+            // Sin `periodo`: el contexto lo toma del curso.
           });
+      // Se guarda el resuelto para el nombre del archivo.
+      if (typeof ctx.periodo === "string") setGenPeriodo(ctx.periodo);
       const renderedBody = renderTemplate(genTemplate.body_html, ctx);
       const renderedHeader = genTemplate.header_html
         ? renderTemplate(genTemplate.header_html, ctx)
@@ -1766,20 +1778,8 @@ function Inner() {
               </div>
             )}
 
-            <div className="space-y-1">
-              <Label>{t("hc_routesAppTeacherReports.periodLabel")}</Label>
-              <Input
-                value={genPeriodo}
-                onChange={(e) => {
-                  setGenPeriodo(e.target.value);
-                  // El periodo va al render — si cambia, el preview ya no
-                  // corresponde a esa selección. Lo limpiamos para forzar
-                  // al docente a regenerar antes de imprimir.
-                  if (genHtml) setGenHtml(null);
-                }}
-                placeholder={t("hc_routesAppTeacherReports.periodPlaceholder")}
-              />
-            </div>
+            {/* El campo "Periodo" se quitó: lo sabe el curso. Pedirlo a mano
+                solo permitía escribirlo distinto de como figura en el sistema. */}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
