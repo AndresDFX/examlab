@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Eye, Users, KeyRound } from "lucide-react";
+import { Eye, Users, KeyRound, Mic } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -35,6 +35,8 @@ import {
   MultiSelectToolbar,
 } from "@/components/ui/multi-select";
 import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
+import { Button } from "@/components/ui/button";
+import { SetCourseVoceroDialog } from "@/modules/courses/SetCourseVoceroDialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 
@@ -46,6 +48,13 @@ type Student = {
   institutional_email: string;
   codigo: string | null;
   courses: string[];
+  /**
+   * Nombres de los cursos donde esta persona es vocero. Es una LISTA, no un
+   * booleano: alguien puede ser vocero de un curso y no de otro, y esta pantalla
+   * cruza varios cursos a la vez. Con un booleano, el docente vería "Vocero" sin
+   * saber de qué curso.
+   */
+  voceroEn: string[];
 };
 
 // `period`/`subject`/`status` alimentan los filtros de ListFilters. Se piden en
@@ -86,6 +95,15 @@ function TeacherStudentsInner() {
   // Reset de contraseña individual (acción de fila). Reusa el mismo diálogo/edge
   // que el bulk (bulk-set-passwords ya autoriza al docente por sus cursos).
   const [resetPasswordFor, setResetPasswordFor] = useState<Student | null>(null);
+  /** Solo los voceros. Un toggle y no un Select: son dos estados, no una lista. */
+  const [soloVoceros, setSoloVoceros] = useState(false);
+  /**
+   * Curso cuyo vocero se designa. Se pide el CURSO y no el estudiante porque
+   * esta pantalla cruza varios cursos: "hacer vocero a esta persona" no diría de
+   * cuál. Cuando la fila pertenece a un solo curso se abre con ese; si no, el
+   * docente elige desde el filtro de curso.
+   */
+  const [voceroCourseId, setVoceroCourseId] = useState<string | null>(null);
 
   // `isActive` deja al effect abortar los setState si el usuario navega
   // antes de que resuelvan los awaits (patrón `let cancelled = false` del
@@ -130,9 +148,14 @@ function TeacherStudentsInner() {
     }
 
     // 2. Matriculados en esos cursos (con perfil)
-    const { data: enrollments, error: enrErr } = await supabase
+    // `as any`: `types.ts` es GENERADO desde el esquema desplegado y todavía no
+    // conoce `vocero_marcado_at` (migración 20261880000000). Es el escape hatch
+    // que el proyecto ya usa para esto; se cae solo cuando se regeneren los
+    // tipos, sin dejar deuda.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: enrollments, error: enrErr } = await (supabase as any)
       .from("course_enrollments")
-      .select("user_id, course_id")
+      .select("user_id, course_id, vocero_marcado_at")
       .in("course_id", courseIds);
     if (!isActive()) return;
     if (enrErr) {
@@ -164,11 +187,17 @@ function TeacherStudentsInner() {
     // 4. Agrupar cursos por estudiante
     const courseNameById = new Map(myCourses.map((c) => [c.id, c.name]));
     const coursesByStudent = new Map<string, string[]>();
+    const voceroByStudent = new Map<string, string[]>();
     for (const e of enrollments ?? []) {
       const existing = coursesByStudent.get(e.user_id) ?? [];
       const cName = courseNameById.get(e.course_id);
       if (cName) existing.push(cName);
       coursesByStudent.set(e.user_id, existing);
+      if (e.vocero_marcado_at && cName) {
+        const v = voceroByStudent.get(e.user_id) ?? [];
+        v.push(cName);
+        voceroByStudent.set(e.user_id, v);
+      }
     }
 
     setStudents(
@@ -179,6 +208,7 @@ function TeacherStudentsInner() {
         institutional_email: p.institutional_email,
         codigo: p.codigo ?? null,
         courses: coursesByStudent.get(p.id) ?? [],
+        voceroEn: voceroByStudent.get(p.id) ?? [],
       })),
     );
     setLoading(false);
@@ -214,6 +244,9 @@ function TeacherStudentsInner() {
       const courseName = courses.find((c) => c.id === courseFilter)?.name;
       if (courseName) result = result.filter((s) => s.courses.includes(courseName));
     }
+    if (soloVoceros) {
+      result = result.filter((s) => s.voceroEn.length > 0);
+    }
     if (search.trim()) {
       const q = search.toLowerCase();
       result = result.filter(
@@ -224,7 +257,7 @@ function TeacherStudentsInner() {
       );
     }
     return result;
-  }, [students, search, courseFilter, courses, periodFilter, subjectFilter]);
+  }, [students, search, courseFilter, courses, periodFilter, subjectFilter, soloVoceros]);
 
   // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
   const sort = useTableSort(filtered, {
@@ -247,7 +280,7 @@ function TeacherStudentsInner() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_students",
-    resetKey: `${search}|${courseFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${soloVoceros}|${sort.resetKey}`,
   });
 
   const handleImpersonate = async (s: Student) => {
@@ -301,6 +334,38 @@ function TeacherStudentsInner() {
         onPeriodChange={setPeriodFilter}
         subject={subjectFilter}
         onSubjectChange={setSubjectFilter}
+        extra={
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              size="sm"
+              variant={soloVoceros ? "default" : "outline"}
+              className="h-9 text-xs"
+              onClick={() => setSoloVoceros((v) => !v)}
+              title={t("vocero.filterHint")}
+            >
+              <Mic className="h-3.5 w-3.5 mr-1" />
+              {t("vocero.filterOnly")}
+            </Button>
+            {/* Designar necesita saber DE QUÉ CURSO, y esta pantalla cruza
+                varios: se habilita solo cuando hay un curso elegido en el
+                filtro. Con "Todos los cursos" no hay respuesta correcta. */}
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-9 text-xs"
+              disabled={courseFilter === "all"}
+              onClick={() => setVoceroCourseId(courseFilter)}
+              title={
+                courseFilter === "all" ? t("vocero.pickCourseFirst") : t("vocero.rowActionHint")
+              }
+            >
+              <Mic className="h-3.5 w-3.5 mr-1" />
+              {t("vocero.designate")}
+            </Button>
+          </div>
+        }
       />
 
       <MultiSelectToolbar
@@ -317,6 +382,14 @@ function TeacherStudentsInner() {
             onClick: () => setBulkPasswordOpen(true),
           },
         ]}
+      />
+
+      <SetCourseVoceroDialog
+        open={!!voceroCourseId}
+        onOpenChange={(o) => !o && setVoceroCourseId(null)}
+        courseId={voceroCourseId}
+        courseName={courses.find((c) => c.id === voceroCourseId)?.name}
+        onChanged={() => void load(() => true)}
       />
 
       <BulkPasswordDialog
@@ -373,8 +446,24 @@ function TeacherStudentsInner() {
                           <MultiSelectCheckbox id={s.id} state={sel} />
                         </TableCell>
                         <TableCell>
-                          <div className="font-medium truncate" title={s.full_name}>
-                            {s.full_name}
+                          <div className="font-medium truncate flex items-center gap-1.5">
+                            <span className="truncate" title={s.full_name}>
+                              {s.full_name}
+                            </span>
+                            {/* El `title` dice DE QUÉ curso: con varios cursos en
+                                la misma tabla, un badge suelto no informa. */}
+                            {s.voceroEn.length > 0 && (
+                              <Badge
+                                variant="secondary"
+                                className="text-3xs shrink-0 gap-1"
+                                title={t("vocero.badgeInCourses", {
+                                  courses: s.voceroEn.join(", "),
+                                })}
+                              >
+                                <Mic className="h-2.5 w-2.5" />
+                                {t("vocero.badge")}
+                              </Badge>
+                            )}
                           </div>
                           <div className="text-xs text-muted-foreground sm:hidden">
                             {s.codigo ? `${s.codigo} · ` : ""}

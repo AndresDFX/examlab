@@ -9955,5 +9955,30 @@
     "previewReal": "Con los estudiantes del curso elegido en «Vista previa».",
     "previewSample": "Con datos de muestra. Elige un curso en «Vista previa» para ver los estudiantes reales.",
     "insert": "Insertar"
+  },
+  "vocero": {
+    "rowAction": "Vocero del curso",
+    "rowActionHint": "Marcar al representante del curso. Es una etiqueta: no da permisos.",
+    "dialogTitle": "Vocero del curso",
+    "dialogDesc": "Elegí al representante entre los estudiantes matriculados.",
+    "dialogDescWithCourse": "Elegí al representante de «{{course}}» entre los estudiantes matriculados.",
+    "disclaimer": "Es una etiqueta informativa: se muestra al curso para que sepan a quién dirigirse. No otorga ningún permiso ni cambia notas.",
+    "badge": "Vocero",
+    "badgeInCourses": "Vocero de: {{courses}}",
+    "set": "Designar",
+    "clear": "Quitar",
+    "setOk": "Vocero designado.",
+    "clearOk": "El curso quedó sin vocero.",
+    "markedOn": "Designado el {{date}}",
+    "noStudents": "El curso no tiene estudiantes matriculados",
+    "noStudentsHint": "Matriculá estudiantes antes de designar al vocero.",
+    "loadError": "No pudimos cargar la lista",
+    "searchPlaceholder": "Buscar por nombre, correo o código…",
+    "searchEmpty": "Nadie coincide con la búsqueda.",
+    "filterOnly": "Solo voceros",
+    "filterHint": "Mostrar únicamente a los estudiantes designados como vocero.",
+    "designate": "Designar vocero",
+    "pickCourseFirst": "Elegí un curso primero: el vocero es de un curso, no de la lista completa.",
+    "studentLabel": "Vocero del curso:"
   }
 }

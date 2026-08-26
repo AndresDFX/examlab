@@ -9955,5 +9955,30 @@
     "previewReal": "With the students of the course selected in “Preview”.",
     "previewSample": "With sample data. Pick a course in “Preview” to see the real students.",
     "insert": "Insert"
+  },
+  "vocero": {
+    "rowAction": "Course representative",
+    "rowActionHint": "Mark the course representative. It is a label: it grants no permissions.",
+    "dialogTitle": "Course representative",
+    "dialogDesc": "Pick the representative among the enrolled students.",
+    "dialogDescWithCourse": "Pick the representative of “{{course}}” among the enrolled students.",
+    "disclaimer": "This is an informational label: it is shown to the course so everyone knows who to reach out to. It grants no permissions and does not change grades.",
+    "badge": "Representative",
+    "badgeInCourses": "Representative of: {{courses}}",
+    "set": "Designate",
+    "clear": "Remove",
+    "setOk": "Representative designated.",
+    "clearOk": "The course has no representative now.",
+    "markedOn": "Designated on {{date}}",
+    "noStudents": "This course has no enrolled students",
+    "noStudentsHint": "Enroll students before designating a representative.",
+    "loadError": "Could not load the list",
+    "searchPlaceholder": "Search by name, email or code…",
+    "searchEmpty": "Nobody matches the search.",
+    "filterOnly": "Representatives only",
+    "filterHint": "Show only students designated as representative.",
+    "designate": "Designate representative",
+    "pickCourseFirst": "Pick a course first: the representative belongs to a course, not to the whole list.",
+    "studentLabel": "Course representative:"
   }
 }

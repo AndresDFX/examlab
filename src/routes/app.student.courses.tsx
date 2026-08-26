@@ -34,6 +34,7 @@ import {
   Video,
   FileCheck,
   History,
+  Mic,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
@@ -519,6 +520,18 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   // Claves `contentId|filePath` del material que este alumno ya abrió o
   // descargó en ESTE curso. Se usa solo para contar; el detalle vive en DB.
   const [viewedKeys, setViewedKeys] = useState<Set<string>>(new Set());
+  /**
+   * Vocero del curso, con su correo. Se lee del roster: la RLS solo devuelve la
+   * fila del vocero (además de la propia), así que esta consulta NO expone el
+   * listado del curso — lo garantiza `enrollments_select_in_tenant`.
+   *
+   * Son dos consultas porque `course_enrollments.user_id` apunta a `auth.users`
+   * y NO a `profiles`: el embed de PostgREST falla en silencio.
+   */
+  const [vocero, setVocero] = useState<{
+    full_name: string;
+    institutional_email: string | null;
+  } | null>(null);
   // Archivo .md/.txt seleccionado para preview inline (sin descargar).
   const [previewFile, setPreviewFile] = useState<ContentFileEntry | null>(null);
   // Archivo de código (.java/.py/.js) seleccionado para ver + ejecutar.
@@ -552,6 +565,39 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
         .order("start_date", { ascending: true });
       if (cancelled) return;
       setCuts((data as CutRow[]) ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id]);
+
+  // Vocero del curso. Effect propio y con guard `cancelled`: es un dato
+  // opcional y su fallo no debe tumbar el tablero.
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const enr = await db
+        .from("course_enrollments")
+        .select("user_id")
+        .eq("course_id", course.id)
+        .not("vocero_marcado_at", "is", null)
+        .limit(1);
+      if (cancelled) return;
+      const uid = (enr.data as Array<{ user_id: string }> | null)?.[0]?.user_id;
+      if (!uid) {
+        setVocero(null);
+        return;
+      }
+      const perfil = await db
+        .from("profiles")
+        .select("full_name, institutional_email")
+        .eq("id", uid)
+        .maybeSingle();
+      if (cancelled) return;
+      const pf = perfil.data as { full_name: string; institutional_email: string | null } | null;
+      setVocero(
+        pf ? { full_name: pf.full_name, institutional_email: pf.institutional_email } : null,
+      );
     })();
     return () => {
       cancelled = true;
@@ -948,6 +994,23 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
                   {course.end_date ? formatDateOnly(course.end_date) : "—"}
                 </Badge>
               </div>
+              {vocero && (
+                <div className="flex flex-wrap items-center gap-1.5 pt-2 text-2xs">
+                  <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <Mic className="h-3 w-3" />
+                    {t("vocero.studentLabel")}
+                  </span>
+                  <span className="font-medium">{vocero.full_name}</span>
+                  {vocero.institutional_email && (
+                    <a
+                      href={`mailto:${vocero.institutional_email}`}
+                      className="text-primary hover:underline break-all"
+                    >
+                      {vocero.institutional_email}
+                    </a>
+                  )}
+                </div>
+              )}
               {materialProgress.total > 0 && (
                 // Se dice "abriste N de M", NO "avance N%": el denominador
                 // crece cuando el docente sube material, así que un

@@ -48,6 +48,7 @@ import {
   SortableHead,
 } from "@/components/ui/table";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
+import { SetCourseVoceroDialog } from "@/modules/courses/SetCourseVoceroDialog";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { toast } from "sonner";
 import {
@@ -57,6 +58,7 @@ import {
   Pencil,
   Copy,
   UserCog,
+  Mic,
   ChevronDown,
   ChevronRight,
   BookOpen,
@@ -1333,6 +1335,9 @@ export function AdminCourses() {
 
   // ── Student Enrollment ───────────────────────────────────
 
+  /** Curso cuyo vocero se está designando (null = diálogo cerrado). */
+  const [voceroCourse, setVoceroCourse] = useState<Course | null>(null);
+
   const openEnroll = async (c: Course) => {
     setEnrollCourse(c);
     setRowBusyId(c.id);
@@ -2278,6 +2283,14 @@ export function AdminCourses() {
                           disabled: rowBusyId === c.id,
                         },
                         {
+                          // Va junto a Estudiantes y Docentes porque es gestión
+                          // de personas del curso, no de contenido.
+                          label: t("vocero.rowAction"),
+                          icon: Mic,
+                          onClick: () => setVoceroCourse(c),
+                          hint: t("vocero.rowActionHint"),
+                        },
+                        {
                           label: t("common.duplicate"),
                           icon: Copy,
                           onClick: () => openDuplicate(c),
@@ -3047,6 +3060,16 @@ export function AdminCourses() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Vocero del curso. El mismo componente sirve para Admin, Docente y
+          SuperAdmin: la autorización la resuelve la RLS de course_enrollments,
+          no un `if` de rol acá. */}
+      <SetCourseVoceroDialog
+        open={!!voceroCourse}
+        onOpenChange={(o) => !o && setVoceroCourse(null)}
+        courseId={voceroCourse?.id ?? null}
+        courseName={voceroCourse?.name}
+      />
 
       {/* ── Student Enrollment Dialog ── */}
       <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>
