@@ -93,3 +93,123 @@ describe("signatureTableHtml", () => {
     expect(signatureTableHtml({ titulo: "" })).not.toContain("<strong></strong>");
   });
 });
+
+describe("filas de cierre: total y vocero", () => {
+  it("ninguna de las dos aparece por defecto", () => {
+    const html = signatureTableHtml();
+    expect(html).not.toContain("{{total_estudiantes}}");
+    expect(html).not.toContain("vocero");
+    expect(html).not.toContain("Teléfono");
+  });
+
+  it("el total usa la variable del contexto, no un número escrito", () => {
+    const html = signatureTableHtml({ incluirTotal: true });
+    expect(html).toContain("{{total_estudiantes}}");
+    expect(html).toContain("Total de estudiantes");
+  });
+
+  it("el vocero queda EN BLANCO (se elige en la reunión, no está en la base)", () => {
+    const html = signatureTableHtml({ incluirVocero: true });
+    expect(html).toContain("Nombre del vocero");
+    expect(html).toContain("Teléfono");
+    // Sin variable: si se resolviera desde datos, imprimiría a alguien que nadie
+    // eligió. Se corta en el cierre de la tabla del LISTADO: más allá está la
+    // tabla del docente, que sí lleva {{docente.nombre}} y {{fecha_emision}}.
+    const desde = html.indexOf("Nombre del vocero");
+    const trozo = html.slice(desde, html.indexOf("</table>", desde));
+    expect(trozo).not.toMatch(/\{\{/);
+  });
+
+  it("van DENTRO de la tabla del listado, después del cierre del each", () => {
+    // Si salieran fuera de la tabla, al imprimir se vería una línea doble entre
+    // el listado y las filas de cierre; y un <tr> fuera de <table> lo descarta
+    // el parser del navegador.
+    const html = signatureTableHtml({ incluirTotal: true, incluirVocero: true });
+    const finEach = html.indexOf("{{/each}}");
+    const cierreTabla = html.indexOf("</table>", finEach);
+    const total = html.indexOf("{{total_estudiantes}}");
+    const voc = html.indexOf("Nombre del vocero");
+    expect(total).toBeGreaterThan(finEach);
+    expect(voc).toBeGreaterThan(finEach);
+    expect(total).toBeLessThan(cierreTabla);
+    expect(voc).toBeLessThan(cierreTabla);
+  });
+
+  it("la tabla sigue balanceada con todas las opciones encendidas", () => {
+    const html = signatureTableHtml({
+      incluirCodigo: true,
+      incluirDocumento: true,
+      incluirDocente: true,
+      incluirTotal: true,
+      incluirVocero: true,
+    });
+    // Un <tr> fuera de <table> lo tira el parser: se cuenta la profundidad.
+    let prof = 0;
+    let huerfanas = 0;
+    for (const m of html.matchAll(/<\/?(table|tr)\b/gi)) {
+      const tag = m[0].toLowerCase();
+      if (tag === "<table") prof++;
+      else if (tag === "</table") prof--;
+      else if (tag === "<tr" && prof <= 0) huerfanas++;
+    }
+    expect(prof, "tablas sin cerrar").toBe(0);
+    expect(huerfanas, "<tr> fuera de <table>").toBe(0);
+  });
+
+  it("el colspan de las filas de cierre cubre exactamente el ancho de la tabla", () => {
+    // Un colspan corto deja una celda fantasma al final de la fila; uno largo
+    // ensancha la tabla y la desborda al imprimir. Se compara contra el número
+    // real de columnas de la cabecera.
+    for (const op of [
+      { incluirCodigo: true, incluirDocumento: false },
+      { incluirCodigo: false, incluirDocumento: false },
+      { incluirCodigo: true, incluirDocumento: true },
+    ]) {
+      const html = signatureTableHtml({ ...op, incluirTotal: true, incluirVocero: true });
+      const cabecera = html.slice(html.indexOf("<tr>"), html.indexOf("{{#each"));
+      const nCols = [...cabecera.matchAll(/<td /g)].length;
+
+      /** Suma de colspans del <tr> que CONTIENE ese texto. */
+      const anchoDeFilaCon = (texto: string) => {
+        const i = html.indexOf(texto);
+        expect(i, `no se encontró "${texto}"`).toBeGreaterThan(-1);
+        const inicio = html.lastIndexOf("<tr>", i);
+        const fila = html.slice(inicio, html.indexOf("</tr>", i));
+        return [...fila.matchAll(/<td([^>]*)>/g)].reduce((acc, m) => {
+          const cs = /colspan="(\d+)"/.exec(m[1]);
+          return acc + (cs ? Number(cs[1]) : 1);
+        }, 0);
+      };
+      expect(anchoDeFilaCon("Total de estudiantes"), `total con ${JSON.stringify(op)}`).toBe(nCols);
+      expect(anchoDeFilaCon("Nombre del vocero"), `vocero con ${JSON.stringify(op)}`).toBe(nCols);
+      expect(anchoDeFilaCon("Teléfono"), `teléfono con ${JSON.stringify(op)}`).toBe(nCols);
+    }
+  });
+
+  it("la etiqueta del vocero abarca al menos dos columnas", () => {
+    // El bug que evita: con colspan=1 la celda hereda el ancho de la columna N°
+    // (7%) y "Nombre del vocero" se parte en tres líneas. La suma de la fila
+    // seguía dando bien —el hueco compensaba—, así que el test de anchos no lo
+    // veía: hay que medir la etiqueta, no solo el total.
+    const html = signatureTableHtml({ incluirVocero: true });
+    for (const etiqueta of ["Nombre del vocero", "Teléfono"]) {
+      const i = html.indexOf(etiqueta);
+      const celda = html.lastIndexOf("<td", i);
+      const cs = /colspan="(\d+)"/.exec(html.slice(celda, i));
+      expect(Number(cs?.[1] ?? 1), `colspan de "${etiqueta}"`).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it("el hueco para escribir nunca queda en colspan=0", () => {
+    // `colspan="0"` es HTML inválido y los navegadores lo interpretan distinto.
+    // Solo puede pasar si la etiqueta se come todas las columnas.
+    for (const op of [
+      { incluirCodigo: false, incluirDocumento: false },
+      { incluirCodigo: true, incluirDocumento: true },
+    ]) {
+      const html = signatureTableHtml({ ...op, incluirVocero: true, incluirTotal: true });
+      expect(html).not.toContain('colspan="0"');
+      expect(html).not.toContain('colspan="-');
+    }
+  });
+});

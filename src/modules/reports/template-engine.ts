@@ -422,6 +422,84 @@ export function reportCatalogForScope(
 }
 
 /**
+ * Filtra el catálogo de variables por texto, PRESERVANDO la jerarquía.
+ *
+ * El catálogo tiene 49 variables en 7 grupos: buscar "peso" u "objetivos"
+ * recorriendo el panel a mano obliga a abrir grupos uno por uno, y las de abajo
+ * quedan fuera de pantalla.
+ *
+ * ── Tres decisiones que cambian el resultado ──────────────────────────
+ * 1. **Sin acentos ni mayúsculas**: se busca "codigo" y tiene que aparecer
+ *    "Código". En un catálogo en español, exigir la tilde convierte el buscador
+ *    en un adorno.
+ * 2. **Se busca también en el `path` y en el `hint`**: el docente que ya vio
+ *    `{{curso.grupo}}` en otra plantilla escribe "curso.grupo", no "Grupo". Y el
+ *    hint es donde viven los campos que solo existen DENTRO de un `each`
+ *    (`{{nota_final}}`, `{{documento}}`…), que de otro modo no serían
+ *    encontrables por ningún texto.
+ * 3. **Un grupo que matchea trae TODOS sus hijos**: buscar "Curso" debe mostrar
+ *    el grupo Curso completo, no solo el hijo llamado igual. Si no, el resultado
+ *    de buscar el nombre de una carpeta es más pobre que abrirla.
+ *
+ * Devuelve una copia; nunca muta el catálogo de entrada. Consulta vacía ⇒ el
+ * catálogo tal cual (misma referencia de nodos), para no re-renderizar de más.
+ */
+export function filterVariableCatalog(catalog: VariableNode[], query: string): VariableNode[] {
+  const q = normalizeForSearch(query);
+  if (!q) return catalog;
+
+  const coincide = (n: VariableNode) =>
+    normalizeForSearch(n.label).includes(q) ||
+    normalizeForSearch(n.labelEn ?? "").includes(q) ||
+    normalizeForSearch(n.path).includes(q) ||
+    normalizeForSearch(n.hint ?? "").includes(q) ||
+    normalizeForSearch(n.hintEn ?? "").includes(q);
+
+  const podar = (nodos: VariableNode[]): VariableNode[] => {
+    const out: VariableNode[] = [];
+    for (const n of nodos) {
+      if (coincide(n)) {
+        // Matchea el nodo: se lleva su subárbol intacto.
+        out.push(n);
+        continue;
+      }
+      const hijos = n.children ? podar(n.children) : [];
+      if (hijos.length > 0) out.push({ ...n, children: hijos });
+    }
+    return out;
+  };
+  return podar(catalog);
+}
+
+/**
+ * Minúsculas y sin diacríticos, para comparar texto en español.
+ *
+ * `NFD` separa la letra de su tilde y el rango `\u0300-\u036f` borra la tilde:
+ * "Código" → "codigo". Es la misma normalización que hace falta para que
+ * "asignatura" encuentre "Asignatura del plan".
+ */
+export function normalizeForSearch(v: string): string {
+  return v
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+/** Cuenta las variables clickables (no grupos) de un catálogo, recursivo. */
+export function countCatalogLeaves(catalog: VariableNode[]): number {
+  let n = 0;
+  const walk = (nodos: VariableNode[]) => {
+    for (const nodo of nodos) {
+      if (nodo.kind !== "group") n++;
+      if (nodo.children) walk(nodo.children);
+    }
+  };
+  walk(catalog);
+  return n;
+}
+
+/**
  * Snippet que se inserta al click en un nodo del catálogo.
  */
 export function variableSnippet(node: VariableNode): string {

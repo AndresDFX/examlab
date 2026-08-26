@@ -12,7 +12,7 @@
  * (TipTap, ProseMirror) y sigue sin resolver el problema de inyectar
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
-import { signatureTableHtml } from "./signature-block";
+import { SignatureBlockDialog } from "./SignatureBlockDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -38,9 +38,10 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
-import { ChevronDown, ChevronRight, Code2, Eye, PenLine, Sparkles } from "lucide-react";
+import { ChevronDown, ChevronRight, Code2, Eye, PenLine, Search, Sparkles, X } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
+  filterVariableCatalog,
   reportCatalogForScope,
   variableSnippet,
   renderTemplate,
@@ -302,12 +303,21 @@ export function TemplateEditor({
     setTimeout(() => insertAtCursor(html, true), 60);
   };
 
+  /** Texto del buscador de variables del panel derecho. */
+  const [varQuery, setVarQuery] = useState("");
+  /** Caja de firmas abierta. */
+  const [firmasOpen, setFirmasOpen] = useState(false);
+
   // Las variables del panel derecho DEPENDEN del tipo de informe: por
   // estudiante muestra las del alumno único; por curso, el grupo consolidado
   // `{{#each estudiantes}}`. Un `catalog` explícito (prop) lo sobreescribe.
   const effectiveCatalog = useMemo(
     () => catalog ?? reportCatalogForScope(value.scope),
     [catalog, value.scope],
+  );
+  const catalogoFiltrado = useMemo(
+    () => filterVariableCatalog(effectiveCatalog, varQuery),
+    [effectiveCatalog, varQuery],
   );
 
   return (
@@ -451,18 +461,19 @@ export function TemplateEditor({
                     <Code2 className="h-3.5 w-3.5 mr-1" />
                     HTML
                   </Button>
-                  {/* Firmas: inserta la tabla que se llena con los matriculados
-                      del curso. Antes había que dibujarla a mano y dejar N filas
-                      vacías "a ojo" — si el curso tenía 31 y la tabla 22, nueve
-                      personas firmaban al margen. Solo tiene sentido en scope
-                      `curso`, que es donde el contexto expone `estudiantes`. */}
+                  {/* Firmas: abre la caja que arma la tabla con una fila por
+                      matriculado. Antes había que dibujarla a mano y dejar N
+                      filas vacías "a ojo" — si el curso tenía 31 y la tabla 22,
+                      nueve personas firmaban al margen. Solo tiene sentido en
+                      scope `curso`, que es donde el contexto expone
+                      `estudiantes`. */}
                   {value.scope === "curso" && (
                     <Button
                       type="button"
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs"
-                      onClick={() => insertAtCursor(signatureTableHtml(), true)}
+                      onClick={() => setFirmasOpen(true)}
                       title={t("hc_modulesReportsTemplateEditor.insertSignaturesHint")}
                     >
                       <PenLine className="h-3.5 w-3.5 mr-1" />
@@ -642,6 +653,30 @@ export function TemplateEditor({
             <p className="text-2xs text-muted-foreground pb-1">
               {t("hc_modulesReportsTemplateEditor.clickToInsert")}
             </p>
+            {/* Buscador. Son 49 variables en 7 grupos: sin esto, dar con "peso
+                de talleres" u "objetivos" obliga a abrir grupo por grupo y las
+                de abajo quedan fuera de pantalla (el panel scrollea aparte). */}
+            <div className="relative pb-1">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                value={varQuery}
+                onChange={(e) => setVarQuery(e.target.value)}
+                placeholder={t("hc_modulesReportsTemplateEditor.varSearchPlaceholder", {
+                  defaultValue: "Buscar variable…",
+                })}
+                className="h-7 pl-7 pr-7 text-xs"
+              />
+              {varQuery && (
+                <button
+                  type="button"
+                  onClick={() => setVarQuery("")}
+                  aria-label={t("common.clear", { defaultValue: "Limpiar" })}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 p-0 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
             {/* Las variables dependen del tipo de informe (scope). */}
             <p className="text-2xs font-medium text-violet-700 dark:text-violet-300 pb-2">
               {value.scope === "estudiante"
@@ -652,12 +687,39 @@ export function TemplateEditor({
                     defaultValue: "Informe por curso: variables del curso + iterar estudiantes.",
                   })}
             </p>
-            {effectiveCatalog.map((node) => (
-              <CatalogNode key={node.path} node={node} onInsert={insertAtCursor} />
-            ))}
+            {/* Buscando, los grupos van FORZADAMENTE abiertos: un grupo
+                cerrado esconde justo la coincidencia que se acaba de encontrar,
+                que es el bug clásico de estos paneles. */}
+            {catalogoFiltrado.length === 0 ? (
+              <p className="text-2xs text-muted-foreground py-3 text-center">
+                {t("hc_modulesReportsTemplateEditor.varSearchEmpty", {
+                  defaultValue: "Ninguna variable coincide con «{{q}}».",
+                  q: varQuery,
+                })}
+              </p>
+            ) : (
+              catalogoFiltrado.map((node) => (
+                <CatalogNode
+                  key={node.path}
+                  node={node}
+                  onInsert={insertAtCursor}
+                  forceOpen={!!varQuery.trim()}
+                />
+              ))
+            )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Caja de firmas. Recibe el contexto del curso elegido en Vista previa
+          para que la previa muestre los estudiantes REALES: es ahí donde se ve
+          que una columna (código, documento) sale a medias. */}
+      <SignatureBlockDialog
+        open={firmasOpen}
+        onOpenChange={setFirmasOpen}
+        onInsert={(html) => insertAtCursor(html, true)}
+        context={pvCtx}
+      />
 
       {/* Diálogo de Generación IA inline (insertar en el cursor). */}
       {onAiGenerate && (
@@ -743,14 +805,18 @@ function CatalogNode({
   node,
   onInsert,
   depth = 0,
+  forceOpen = false,
 }: {
   node: VariableNode;
   onInsert: (snippet: string) => void;
   depth?: number;
+  /** Con el buscador activo, todo abierto: un grupo cerrado taparía el hallazgo. */
+  forceOpen?: boolean;
 }) {
   const { i18n } = useTranslation();
   const [open, setOpen] = useState(depth === 0);
   const hasChildren = node.children && node.children.length > 0;
+  const abierto = forceOpen || open;
   const isClickable = node.kind !== "group";
   // Resolución EN del catálogo: labelEn/hintEn co-locados en cada nodo (ver
   // template-engine.ts). Si falta la traducción, cae al español.
@@ -776,7 +842,7 @@ function CatalogNode({
         title={hint}
       >
         {hasChildren ? (
-          open ? (
+          abierto ? (
             <ChevronDown className="h-3 w-3 mr-1 shrink-0" />
           ) : (
             <ChevronRight className="h-3 w-3 mr-1 shrink-0" />
@@ -788,10 +854,16 @@ function CatalogNode({
         )}
         <span className="truncate text-left">{label}</span>
       </Button>
-      {hasChildren && open && (
+      {hasChildren && abierto && (
         <div>
           {node.children!.map((child) => (
-            <CatalogNode key={child.path} node={child} onInsert={onInsert} depth={depth + 1} />
+            <CatalogNode
+              key={child.path}
+              node={child}
+              onInsert={onInsert}
+              depth={depth + 1}
+              forceOpen={forceOpen}
+            />
           ))}
         </div>
       )}

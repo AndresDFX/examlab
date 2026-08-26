@@ -15,11 +15,17 @@
  * para firmar sobre el papel.
  *
  * ── Por qué vive acá y no inline en el editor ─────────────────────────
- * Lo usan dos lugares: el botón "Firmas" del editor de plantillas y la
+ * Lo usan dos lugares: la caja "Firmas" del editor de plantillas y la
  * plantilla global del Acuerdo Pedagógico (sembrada por migración). Tenerlo en
  * un módulo evita que el botón inserte una tabla y la plantilla sembrada tenga
  * otra, que es como empiezan las divergencias que nadie nota hasta que dos
  * informes de la misma institución se ven distintos.
+ *
+ * Esa divergencia ya existía y por eso hay más opciones que antes: la plantilla
+ * sembrada trae a mano el total de asistentes y las filas de vocero y teléfono
+ * (el formato institucional DO-F-021 las pide), y el botón insertaba una tabla
+ * sin nada de eso. Quien quería el formato completo tenía que dibujar esas tres
+ * filas otra vez.
  */
 
 /** Estilo de celda compartido, para que la tabla se vea como las del formato. */
@@ -36,6 +42,16 @@ export interface OpcionesFirmas {
   incluirDocumento?: boolean;
   /** Fila final para el docente, con su nombre y la fecha de emisión. */
   incluirDocente?: boolean;
+  /**
+   * Fila con el total de asistentes, resuelta por `{{total_estudiantes}}`.
+   *
+   * Es el conteo de MATRICULADOS, no de quienes efectivamente asistieron: el
+   * contexto no sabe quién estaba en el salón. Se llama "asistentes" porque así
+   * lo pide el formato; el docente lo corrige a mano si difiere.
+   */
+  incluirTotal?: boolean;
+  /** Filas de vocero y teléfono, en blanco para llenar a mano. */
+  incluirVocero?: boolean;
 }
 
 /**
@@ -50,6 +66,8 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     incluirCodigo = true,
     incluirDocumento = false,
     incluirDocente = true,
+    incluirTotal = false,
+    incluirVocero = false,
   } = op;
 
   // Las columnas de dato tienen ancho FIJO y "Estudiante" absorbe el resto, de
@@ -97,6 +115,38 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     ? `<p style="text-align:center"><span ${FUENTE}><strong>${titulo}</strong></span></p>`
     : "";
 
+  // Total y vocero van DENTRO de la misma tabla, después del `{{/each}}`: son
+  // filas de cierre del listado, no una tabla aparte. Sacarlas a otra tabla
+  // rompería la continuidad de bordes al imprimir (se vería una línea doble).
+  const nCols = columnas.length + 1;
+  const celdaEtiqueta = (texto: string, ancho: number) =>
+    `<td colspan="${ancho}" style="${CELDA}"><span ${FUENTE}>${texto}</span></td>`;
+
+  const total = incluirTotal
+    ? "<tr>" +
+      celdaEtiqueta("Total de estudiantes", Math.max(1, nCols - 1)) +
+      `<td style="${CELDA}"><p style="text-align:center">` +
+      `<span ${FUENTE}>{{total_estudiantes}}</span></p></td>` +
+      "</tr>"
+    : "";
+
+  // En blanco a propósito: el vocero se elige en la reunión, no está en la base.
+  //
+  // La etiqueta abarca DOS columnas (N° + Estudiante) y no una: con una sola
+  // hereda el ancho de la columna N° —7%— y "Nombre del vocero" se parte en tres
+  // líneas. Es el mismo colspan que usa el formato institucional sembrado. Con
+  // `Math.min` se cubre el caso de una tabla de pocas columnas, donde 2 dejaría
+  // la fila sin espacio para escribir.
+  const anchoEtiqueta = Math.min(2, Math.max(1, nCols - 1));
+  const filaEnBlanco = (etiqueta: string) =>
+    "<tr>" +
+    celdaEtiqueta(etiqueta, anchoEtiqueta) +
+    `<td colspan="${nCols - anchoEtiqueta}" style="${CELDA}height:24px;">&nbsp;</td>` +
+    "</tr>";
+  const vocero = incluirVocero
+    ? filaEnBlanco("Nombre del vocero") + filaEnBlanco("Teléfono")
+    : "";
+
   const docente = incluirDocente
     ? '<table style="border-collapse:collapse;width:100%;margin-top:18px;table-layout:fixed;">' +
       "<tr>" +
@@ -114,6 +164,8 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     "{{#each estudiantes}}" +
     `<tr>${fila}</tr>` +
     "{{/each}}" +
+    total +
+    vocero +
     "</table>" +
     docente
   );

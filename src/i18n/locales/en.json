@@ -6916,7 +6916,9 @@
     "aiNoCourse": "Pick a course in the “Preview” tab to use real data.",
     "varsScopeStudent": "Per-student report: student variables.",
     "varsScopeCourse": "Per-course report: course variables + iterate students.",
-    "scopeFirstHint": "Choose it first: it defines which variables appear on the right and what data the AI uses (the whole course or one student)."
+    "scopeFirstHint": "Choose it first: it defines which variables appear on the right and what data the AI uses (the whole course or one student).",
+    "varSearchPlaceholder": "Search variable…",
+    "varSearchEmpty": "No variable matches “{{q}}”."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "We couldn't load the schedule",
@@ -9932,5 +9934,26 @@
     "errSign": "Could not sign.",
     "backToApp": "Go to the platform",
     "signedBy": "Signed by: {{name}}"
+  },
+  "hc_modulesReportsSignatureBlock": {
+    "title": "Signature block",
+    "desc": "One row per enrolled student, with the signature cell left blank for signing on paper. It is inserted where your cursor is in the body.",
+    "titleLabel": "Title",
+    "titleHint": "Empty ⇒ the table is inserted with no heading.",
+    "optCodigo": "Code column",
+    "optCodigoHint": "The student's code, as stored in their profile.",
+    "optDocumento": "ID column",
+    "optDocumentoHint": "National ID. Useful when the code is not filled in.",
+    "optTotal": "Total row",
+    "optTotalHint": "It counts enrolled students, not who attended: the platform does not know who was in the room.",
+    "optVocero": "Class representative and phone rows",
+    "optVoceroHint": "Left blank: the representative is chosen at the meeting.",
+    "optDocente": "Teacher signature and date",
+    "optDocenteHint": "A separate box below the list.",
+    "coverageWarn": "{{con}} of {{total}} have it: the rest print blank.",
+    "previewLabel": "How it will look",
+    "previewReal": "With the students of the course selected in “Preview”.",
+    "previewSample": "With sample data. Pick a course in “Preview” to see the real students.",
+    "insert": "Insert"
   }
 }

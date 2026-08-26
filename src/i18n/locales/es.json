@@ -6916,7 +6916,9 @@
     "aiNoCourse": "Elige un curso en la pestaña “Vista previa” para usar datos reales.",
     "varsScopeStudent": "Informe por estudiante: variables del alumno.",
     "varsScopeCourse": "Informe por curso: variables del curso + iterar estudiantes.",
-    "scopeFirstHint": "Elígelo primero: define qué variables aparecen a la derecha y qué datos usa la IA (todo el curso o un estudiante)."
+    "scopeFirstHint": "Elígelo primero: define qué variables aparecen a la derecha y qué datos usa la IA (todo el curso o un estudiante).",
+    "varSearchPlaceholder": "Buscar variable…",
+    "varSearchEmpty": "Ninguna variable coincide con «{{q}}»."
   },
   "hc_modulesSchedulesCourseScheduleEditor": {
     "loadScheduleError": "No pudimos cargar el horario",
@@ -9932,5 +9934,26 @@
     "errSign": "No se pudo firmar.",
     "backToApp": "Ir a la plataforma",
     "signedBy": "Firmado por: {{name}}"
+  },
+  "hc_modulesReportsSignatureBlock": {
+    "title": "Caja de firmas",
+    "desc": "Una fila por estudiante matriculado, con la celda de firma en blanco para firmar sobre el papel. Se inserta donde tienes el cursor en el cuerpo.",
+    "titleLabel": "Título",
+    "titleHint": "Vacío ⇒ la tabla se inserta sin encabezado.",
+    "optCodigo": "Columna Código",
+    "optCodigoHint": "Código del estudiante, como está en su perfil.",
+    "optDocumento": "Columna Documento",
+    "optDocumentoHint": "Documento de identidad. Útil cuando el código está sin llenar.",
+    "optTotal": "Fila con el total",
+    "optTotalHint": "Cuenta los matriculados, no quiénes asistieron: la plataforma no sabe quién estaba en el salón.",
+    "optVocero": "Filas de vocero y teléfono",
+    "optVoceroHint": "Van en blanco: el vocero se elige en la reunión.",
+    "optDocente": "Firma del docente y fecha",
+    "optDocenteHint": "Recuadro aparte, debajo del listado.",
+    "coverageWarn": "{{con}} de {{total}} lo tienen: el resto sale en blanco.",
+    "previewLabel": "Cómo va a quedar",
+    "previewReal": "Con los estudiantes del curso elegido en «Vista previa».",
+    "previewSample": "Con datos de muestra. Elige un curso en «Vista previa» para ver los estudiantes reales.",
+    "insert": "Insertar"
   }
 }
