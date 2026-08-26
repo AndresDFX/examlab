@@ -216,6 +216,10 @@ describe("CRITICAL_KINDS export", () => {
     //     INSERT en course_enrollments).
     //   - 20261490000000: session_start (aviso al inicio de una sesión autónoma,
     //     cron notify-autonomous-sessions).
+    //   - 20261860000000: report_signature (documento enviado a firmar). Tiene que
+    //     salir por correo porque el enlace del aviso ES el enlace personal de
+    //     firma, y un acuerdo que solo se ve entrando a la app no lo firma quien
+    //     no entra.
     // Mantener sincronizado con el predicado SQL
     // `_notification_kind_emails` y con la copia en
     // supabase/functions/send-email/index.ts.
@@ -228,6 +232,7 @@ describe("CRITICAL_KINDS export", () => {
       "attendance",
       "broadcast",
       "support",
+      "report_signature",
       "course_welcome",
       "session_start",
     ]);

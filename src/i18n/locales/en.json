@@ -43,7 +43,10 @@
     "requestedOk_other": "Signature requested from {{count}} students.",
     "withdrawnOk_one": "{{count}} request withdrawn.",
     "withdrawnOk_other": "{{count}} requests withdrawn.",
-    "errRequest": "Could not send for signature."
+    "errRequest": "Could not send for signature.",
+    "copyLink": "Copy link",
+    "linkCopied": "Link copied. It is personal — send it only to that person.",
+    "linkCopyFailed": "Could not copy the link."
   },
   "pollPrint": {
     "unnamed": "Unnamed",
@@ -1103,10 +1106,10 @@
     }
   },
   "monitor": {
-      "answeredHintInProgress": "On question {{n}} of {{total}}",
-      "answeredHintBlank_one": "Submitted with 1 blank question",
-      "answeredHintBlank_other": "Submitted with {{count}} blank questions",
-      "answeredHintNoBlanks": "Answered all",
+    "answeredHintInProgress": "On question {{n}} of {{total}}",
+    "answeredHintBlank_one": "Submitted with 1 blank question",
+    "answeredHintBlank_other": "Submitted with {{count}} blank questions",
+    "answeredHintNoBlanks": "Answered all",
     "title": "Monitor",
     "inProgress": "In progress",
     "completed": "Completed",
@@ -1790,8 +1793,8 @@
     "scopeTenantBody": "What you save here applies ONLY to this institution and overlays on top of the platform global configuration. Anything you leave untouched is inherited from the global default."
   },
   "help": {
-      "checkinOpensAtHelp": "When check-in starts. Empty = right now. You can set a future date and check-in won't accept anything before it.",
-      "checkinClosesAtHelp": "When check-in ends. Empty = 10 minutes after it opens. It can be days or weeks away.",
+    "checkinOpensAtHelp": "When check-in starts. Empty = right now. You can set a future date and check-in won't accept anything before it.",
+    "checkinClosesAtHelp": "When check-in ends. Empty = 10 minutes after it opens. It can be days or weeks away.",
     "examNavigationHelp": "Free: the student can move forward and back between questions. Sequential: one at a time, no going back.",
     "examShuffleHelp": "Each student gets the questions in a different (random) order, making it harder to copy from classmates.",
     "defenseFactorHelp": "Multiplier for the oral defense quality: 1 keeps the submission grade, 0.5 halves it, 0 nullifies it. Final grade = submission grade × this factor.",
@@ -4930,9 +4933,9 @@
     "confirmRestoreLabel": "Restore"
   },
   "adminGeneralSettings": {
-      "labelCheckinHours": "Attendance check-in window (hours)",
-      "hintCheckinHours": "What the dialog proposes when opening a check-in: from now, for this many hours. Default 6. Teachers can still change the dates on the spot.",
-      "errCheckinHours": "The check-in window must be between 1 and 168 hours.",
+    "labelCheckinHours": "Attendance check-in window (hours)",
+    "hintCheckinHours": "What the dialog proposes when opening a check-in: from now, for this many hours. Default 6. Teachers can still change the dates on the spot.",
+    "errCheckinHours": "The check-in window must be between 1 and 168 hours.",
     "loadingParams": "Loading parameters…",
     "loadErrorTitle": "Could not load general parameters",
     "cardCoursesTitle": "Defaults for new courses",
@@ -5666,11 +5669,11 @@
     "reviewToastError": "Couldn't mark as reviewed. Please try again."
   },
   "teacherAttendance": {
-      "checkInOpensAtLabel": "Opens",
-      "checkInClosesAtLabel": "Closes",
-      "rotationZeroWarning": "With 0 the code does NOT change for the whole window. Convenient across several days, but it can be forwarded by chat: it stops proving the person was there.",
-      "emailOnlyLabel": "Check in with email only",
-      "emailOnlyHint": "Students open the link and enter only their email and the on-screen code, no password. It speeds up check-in but stops preventing someone present from marking an absent classmate. Leave it off if attendance counts toward the grade.",
+    "checkInOpensAtLabel": "Opens",
+    "checkInClosesAtLabel": "Closes",
+    "rotationZeroWarning": "With 0 the code does NOT change for the whole window. Convenient across several days, but it can be forwarded by chat: it stops proving the person was there.",
+    "emailOnlyLabel": "Check in with email only",
+    "emailOnlyHint": "Students open the link and enter only their email and the on-screen code, no password. It speeds up check-in but stops preventing someone present from marking an absent classmate. Leave it off if attendance counts toward the grade.",
     "statusPresentShort": "P",
     "statusPresent": "Present",
     "statusAbsentShort": "A",
@@ -5820,7 +5823,7 @@
     "tabUrl": "External URL"
   },
   "studentAttendance": {
-      "errNotStarted": "Check-in for this session hasn't started yet. Try again once the teacher opens it.",
+    "errNotStarted": "Check-in for this session hasn't started yet. Try again once the teacher opens it.",
     "statusPresent": "Present",
     "statusAbsent": "Absent",
     "statusLate": "Late",
@@ -6384,12 +6387,12 @@
     "refreshTooltip": "Refresh"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
-      "codeFixed": "This code does not change for the whole window.",
-      "exitKeepOpen": "Exit",
-      "exitKeepOpenHint": "Leave the projection with the check-in still open: students can keep checking in and you can project it again whenever you want.",
-      "copyLink": "Copy link",
-      "copyLinkTitle": "Copy the same link the QR encodes, to paste in a virtual class chat",
-      "extendTitle": "Add {{count}} minutes to the window",
+    "codeFixed": "This code does not change for the whole window.",
+    "exitKeepOpen": "Exit",
+    "exitKeepOpenHint": "Leave the projection with the check-in still open: students can keep checking in and you can project it again whenever you want.",
+    "copyLink": "Copy link",
+    "copyLinkTitle": "Copy the same link the QR encodes, to paste in a virtual class chat",
+    "extendTitle": "Add {{count}} minutes to the window",
     "title": "Attendance check-in",
     "closesIn": "Closes in {{time}}",
     "exitFullscreen": "Exit fullscreen",
@@ -6863,8 +6866,8 @@
     "clearFormat": "Clear formatting"
   },
   "hc_modulesReportsTemplateEditor": {
-      "insertSignatures": "Signatures",
-      "insertSignaturesHint": "Insert the signature table: one row per student enrolled in the course",
+    "insertSignatures": "Signatures",
+    "insertSignaturesHint": "Insert the signature table: one row per student enrolled in the course",
     "labelName": "Name",
     "placeholderName": "Grade report",
     "labelReportType": "Report type",
@@ -9734,11 +9737,11 @@
     "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
-      "alreadyMarked": "Your attendance was already recorded.",
-      "markedAs": "You are recorded as: {{status}}",
-      "notStartedYet": "Check-in for this class opens at {{time}}. Try again then.",
-      "errNotStarted": "Check-in for this session hasn't started yet.",
-      "fillEmailCode": "Enter your email and the code.",
+    "alreadyMarked": "Your attendance was already recorded.",
+    "markedAs": "You are recorded as: {{status}}",
+    "notStartedYet": "Check-in for this class opens at {{time}}. Try again then.",
+    "errNotStarted": "Check-in for this session hasn't started yet.",
+    "fillEmailCode": "Enter your email and the code.",
     "codeLabel": "Class code",
     "credsHint": "We use your email and password only to confirm your identity. No session is started.",
     "emailLabel": "Institutional email",
@@ -9913,5 +9916,21 @@
     "doneHint": "Your answers were recorded. You can close this page.",
     "doneCount": "You answered {{hechas}} of {{total}} questions.",
     "resumeHint": "You had already answered {{hechas}} of {{total}}. Only the remaining ones are below."
+  },
+  "publicSignature": {
+    "invalidTitle": "This link is not valid",
+    "invalidHint": "It may have expired or been withdrawn. Ask your teacher for a new one.",
+    "forSigner": "To be signed by: {{name}}",
+    "readFirst": "Read the whole document. The sign button is below it.",
+    "consent": "By signing you state that you have read the document and agree with its content. The date and time are recorded.",
+    "linkWarning": "This link is personal: it signs in your name. Do not share it.",
+    "signBtn": "Sign",
+    "signedOk": "Done — signed.",
+    "alreadySigned": "You had already signed it.",
+    "alreadySignedOn": "Signed on {{date}}",
+    "canClose": "You can close this page now.",
+    "errSign": "Could not sign.",
+    "backToApp": "Go to the platform",
+    "signedBy": "Signed by: {{name}}"
   }
 }

@@ -31,6 +31,7 @@ import { Route as AppPreferencesRouteImport } from './routes/app.preferences'
 import { Route as AppMessagesRouteImport } from './routes/app.messages'
 import { Route as AppCertificatesRouteImport } from './routes/app.certificates'
 import { Route as AppAssistantRouteImport } from './routes/app.assistant'
+import { Route as AcuerdoTokenRouteImport } from './routes/acuerdo.$token'
 import { Route as AppTeacherWorkshopsRouteImport } from './routes/app.teacher.workshops'
 import { Route as AppTeacherStudentsRouteImport } from './routes/app.teacher.students'
 import { Route as AppTeacherStatisticsRouteImport } from './routes/app.teacher.statistics'
@@ -204,6 +205,11 @@ const AppAssistantRoute = AppAssistantRouteImport.update({
   id: '/assistant',
   path: '/assistant',
   getParentRoute: () => AppRoute,
+} as any)
+const AcuerdoTokenRoute = AcuerdoTokenRouteImport.update({
+  id: '/acuerdo/$token',
+  path: '/acuerdo/$token',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AppTeacherWorkshopsRoute = AppTeacherWorkshopsRouteImport.update({
   id: '/teacher/workshops',
@@ -535,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/asistencia': typeof AsistenciaRoute
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/acuerdo/$token': typeof AcuerdoTokenRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
@@ -620,6 +627,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/asistencia': typeof AsistenciaRoute
   '/privacy': typeof PrivacyRoute
+  '/acuerdo/$token': typeof AcuerdoTokenRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
@@ -708,6 +716,7 @@ export interface FileRoutesById {
   '/asistencia': typeof AsistenciaRoute
   '/auth': typeof AuthRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/acuerdo/$token': typeof AcuerdoTokenRoute
   '/app/assistant': typeof AppAssistantRoute
   '/app/certificates': typeof AppCertificatesRoute
   '/app/messages': typeof AppMessagesRoute
@@ -797,6 +806,7 @@ export interface FileRouteTypes {
     | '/asistencia'
     | '/auth'
     | '/privacy'
+    | '/acuerdo/$token'
     | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
@@ -882,6 +892,7 @@ export interface FileRouteTypes {
     | '/'
     | '/asistencia'
     | '/privacy'
+    | '/acuerdo/$token'
     | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
@@ -969,6 +980,7 @@ export interface FileRouteTypes {
     | '/asistencia'
     | '/auth'
     | '/privacy'
+    | '/acuerdo/$token'
     | '/app/assistant'
     | '/app/certificates'
     | '/app/messages'
@@ -1057,6 +1069,7 @@ export interface RootRouteChildren {
   AsistenciaRoute: typeof AsistenciaRoute
   AuthRoute: typeof AuthRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  AcuerdoTokenRoute: typeof AcuerdoTokenRoute
   EncuestaTokenRoute: typeof EncuestaTokenRoute
   RetoPinRoute: typeof RetoPinRoute
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
@@ -1217,6 +1230,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/app/assistant'
       preLoaderRoute: typeof AppAssistantRouteImport
       parentRoute: typeof AppRoute
+    }
+    '/acuerdo/$token': {
+      id: '/acuerdo/$token'
+      path: '/acuerdo/$token'
+      fullPath: '/acuerdo/$token'
+      preLoaderRoute: typeof AcuerdoTokenRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/app/teacher/workshops': {
       id: '/app/teacher/workshops'
@@ -1859,6 +1879,7 @@ const rootRouteChildren: RootRouteChildren = {
   AsistenciaRoute: AsistenciaRoute,
   AuthRoute: AuthRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  AcuerdoTokenRoute: AcuerdoTokenRoute,
   EncuestaTokenRoute: EncuestaTokenRoute,
   RetoPinRoute: RetoPinRoute,
   VerifyShortCodeRoute: VerifyShortCodeRoute,

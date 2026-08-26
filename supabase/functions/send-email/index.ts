@@ -58,6 +58,12 @@ const CRITICAL_KINDS = [
   // notify_send_email consulta ANTES de invocar esta edge — acá solo lo aceptamos
   // (antes se descartaba con kind_not_critical → los correos de soporte no salían).
   "support",
+  // report_signature: el docente manda un documento a firmar (Acuerdo
+  // Pedagógico). Tiene que salir por correo: una notificación que solo vive
+  // dentro de la app no llega al alumno que no entra, y el documento tiene
+  // fecha. Sincronizado con el SQL `_notification_kind_emails`
+  // (mig 20261860000000) y con el otro CRITICAL_KINDS.
+  "report_signature",
   // course_welcome: bienvenida al curso, disparada por el trigger AFTER INSERT
   // en course_enrollments (mig 20261110000000). El toggle vive en
   // email_settings.enabled_kinds.course_welcome (gate más abajo). Sincronizado

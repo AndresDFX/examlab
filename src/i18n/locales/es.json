@@ -43,7 +43,10 @@
     "requestedOk_other": "Se le pidió la firma a {{count}} estudiantes.",
     "withdrawnOk_one": "Se retiró {{count}} solicitud.",
     "withdrawnOk_other": "Se retiraron {{count}} solicitudes.",
-    "errRequest": "No se pudo enviar a firmar."
+    "errRequest": "No se pudo enviar a firmar.",
+    "copyLink": "Copiar enlace",
+    "linkCopied": "Enlace copiado. Es personal: mandáselo solo a esa persona.",
+    "linkCopyFailed": "No se pudo copiar el enlace."
   },
   "pollPrint": {
     "unnamed": "Sin nombre",
@@ -1103,10 +1106,10 @@
     }
   },
   "monitor": {
-      "answeredHintInProgress": "Va en la pregunta {{n}} de {{total}}",
-      "answeredHintBlank_one": "Entregó con 1 pregunta en blanco",
-      "answeredHintBlank_other": "Entregó con {{count}} preguntas en blanco",
-      "answeredHintNoBlanks": "Respondió todas",
+    "answeredHintInProgress": "Va en la pregunta {{n}} de {{total}}",
+    "answeredHintBlank_one": "Entregó con 1 pregunta en blanco",
+    "answeredHintBlank_other": "Entregó con {{count}} preguntas en blanco",
+    "answeredHintNoBlanks": "Respondió todas",
     "title": "Monitor",
     "inProgress": "En progreso",
     "completed": "Completado",
@@ -1790,8 +1793,8 @@
     "scopeTenantBody": "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global."
   },
   "help": {
-      "checkinOpensAtHelp": "Desde cuándo se puede marcar. Vacío = ahora mismo. Podés poner una fecha futura y el check-in no acepta marcaciones antes.",
-      "checkinClosesAtHelp": "Hasta cuándo se puede marcar. Vacío = 10 minutos desde que abre. Puede ser dentro de días o semanas.",
+    "checkinOpensAtHelp": "Desde cuándo se puede marcar. Vacío = ahora mismo. Podés poner una fecha futura y el check-in no acepta marcaciones antes.",
+    "checkinClosesAtHelp": "Hasta cuándo se puede marcar. Vacío = 10 minutos desde que abre. Puede ser dentro de días o semanas.",
     "examNavigationHelp": "Libre: el estudiante puede avanzar y volver a preguntas anteriores. Secuencial: responde una por una, sin poder regresar.",
     "examShuffleHelp": "Cada estudiante recibe las preguntas en un orden distinto (aleatorio), lo que dificulta la copia entre compañeros.",
     "defenseFactorHelp": "Multiplicador según la calidad de la sustentación oral: 1 mantiene la nota de la entrega, 0,5 la reduce a la mitad, 0 la anula. Nota final = nota de la entrega × este factor.",
@@ -4930,9 +4933,9 @@
     "confirmRestoreLabel": "Restaurar"
   },
   "adminGeneralSettings": {
-      "labelCheckinHours": "Ventana del check-in de asistencia (horas)",
-      "hintCheckinHours": "Lo que el diálogo propone al abrir un check-in: desde ahora, por estas horas. Por defecto 6. El docente igual puede cambiar las fechas en el momento.",
-      "errCheckinHours": "La ventana del check-in debe estar entre 1 y 168 horas.",
+    "labelCheckinHours": "Ventana del check-in de asistencia (horas)",
+    "hintCheckinHours": "Lo que el diálogo propone al abrir un check-in: desde ahora, por estas horas. Por defecto 6. El docente igual puede cambiar las fechas en el momento.",
+    "errCheckinHours": "La ventana del check-in debe estar entre 1 y 168 horas.",
     "loadingParams": "Cargando parámetros…",
     "loadErrorTitle": "No pudimos cargar los parámetros generales",
     "cardCoursesTitle": "Defaults para cursos nuevos",
@@ -5666,11 +5669,11 @@
     "reviewToastError": "No se pudo marcar como revisado. Intenta de nuevo."
   },
   "teacherAttendance": {
-      "checkInOpensAtLabel": "Abre",
-      "checkInClosesAtLabel": "Cierra",
-      "rotationZeroWarning": "Con 0, el código NO cambia en toda la ventana. Cómodo para varios días, pero se puede pasar por chat: deja de probar que la persona estaba presente.",
-      "emailOnlyLabel": "Marcar solo con el correo",
-      "emailOnlyHint": "El estudiante entra por el enlace y solo escribe su correo y el código de la pantalla, sin contraseña. Agiliza el check-in, pero deja de impedir que alguien presente marque a un compañero ausente. Dejalo apagado si la asistencia pesa en la nota.",
+    "checkInOpensAtLabel": "Abre",
+    "checkInClosesAtLabel": "Cierra",
+    "rotationZeroWarning": "Con 0, el código NO cambia en toda la ventana. Cómodo para varios días, pero se puede pasar por chat: deja de probar que la persona estaba presente.",
+    "emailOnlyLabel": "Marcar solo con el correo",
+    "emailOnlyHint": "El estudiante entra por el enlace y solo escribe su correo y el código de la pantalla, sin contraseña. Agiliza el check-in, pero deja de impedir que alguien presente marque a un compañero ausente. Dejalo apagado si la asistencia pesa en la nota.",
     "statusPresentShort": "P",
     "statusPresent": "Presente",
     "statusAbsentShort": "A",
@@ -5820,7 +5823,7 @@
     "tabUrl": "URL externa"
   },
   "studentAttendance": {
-      "errNotStarted": "El check-in de esta sesión todavía no empezó. Intentá cuando el docente lo abra.",
+    "errNotStarted": "El check-in de esta sesión todavía no empezó. Intentá cuando el docente lo abra.",
     "statusPresent": "Presente",
     "statusAbsent": "Ausente",
     "statusLate": "Tardanza",
@@ -6384,12 +6387,12 @@
     "refreshTooltip": "Refrescar"
   },
   "hc_modulesAttendanceAttendanceCheckInProjector": {
-      "codeFixed": "Este código no cambia durante toda la ventana.",
-      "exitKeepOpen": "Salir",
-      "exitKeepOpenHint": "Salir de la proyección dejando el check-in abierto: los estudiantes siguen pudiendo marcar y podés volver a proyectarlo cuando quieras.",
-      "copyLink": "Copiar enlace",
-      "copyLinkTitle": "Copiar el mismo enlace del QR, para pegarlo en el chat de una clase virtual",
-      "extendTitle": "Agregar {{count}} minutos a la ventana",
+    "codeFixed": "Este código no cambia durante toda la ventana.",
+    "exitKeepOpen": "Salir",
+    "exitKeepOpenHint": "Salir de la proyección dejando el check-in abierto: los estudiantes siguen pudiendo marcar y podés volver a proyectarlo cuando quieras.",
+    "copyLink": "Copiar enlace",
+    "copyLinkTitle": "Copiar el mismo enlace del QR, para pegarlo en el chat de una clase virtual",
+    "extendTitle": "Agregar {{count}} minutos a la ventana",
     "title": "Check-in de asistencia",
     "closesIn": "Cierra en {{time}}",
     "exitFullscreen": "Salir pantalla completa",
@@ -6863,8 +6866,8 @@
     "clearFormat": "Quitar formato"
   },
   "hc_modulesReportsTemplateEditor": {
-      "insertSignatures": "Firmas",
-      "insertSignaturesHint": "Insertar la tabla de firmas: una fila por estudiante matriculado en el curso",
+    "insertSignatures": "Firmas",
+    "insertSignaturesHint": "Insertar la tabla de firmas: una fila por estudiante matriculado en el curso",
     "labelName": "Nombre",
     "placeholderName": "Boletín de notas",
     "labelReportType": "Tipo de informe",
@@ -9734,11 +9737,11 @@
     "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
-      "alreadyMarked": "Tu asistencia ya estaba registrada.",
-      "markedAs": "Figurás como: {{status}}",
-      "notStartedYet": "El check-in de esta clase abre a las {{time}}. Volvé a intentar en ese momento.",
-      "errNotStarted": "El check-in de esta sesión todavía no empezó.",
-      "fillEmailCode": "Completá tu correo y el código.",
+    "alreadyMarked": "Tu asistencia ya estaba registrada.",
+    "markedAs": "Figurás como: {{status}}",
+    "notStartedYet": "El check-in de esta clase abre a las {{time}}. Volvé a intentar en ese momento.",
+    "errNotStarted": "El check-in de esta sesión todavía no empezó.",
+    "fillEmailCode": "Completá tu correo y el código.",
     "codeLabel": "Código de la clase",
     "credsHint": "Usamos tu correo y contraseña solo para confirmar tu identidad. No se inicia sesión.",
     "emailLabel": "Correo institucional",
@@ -9913,5 +9916,21 @@
     "doneHint": "Tus respuestas quedaron registradas. Ya puedes cerrar esta página.",
     "doneCount": "Respondiste {{hechas}} de {{total}} preguntas.",
     "resumeHint": "Ya habías respondido {{hechas}} de {{total}}. Abajo quedan solo las que faltan."
+  },
+  "publicSignature": {
+    "invalidTitle": "Este enlace no es válido",
+    "invalidHint": "Puede haber vencido o haber sido retirado. Pedile al docente uno nuevo.",
+    "forSigner": "Para firmar: {{name}}",
+    "readFirst": "Leé el documento completo. El botón para firmar está debajo.",
+    "consent": "Al firmar declarás que leíste el documento y que estás de acuerdo con su contenido. Queda registrada la fecha y la hora.",
+    "linkWarning": "Este enlace es personal: firma en tu nombre. No lo compartas.",
+    "signBtn": "Firmar",
+    "signedOk": "Listo, quedó firmado.",
+    "alreadySigned": "Ya lo habías firmado.",
+    "alreadySignedOn": "Firmado el {{date}}",
+    "canClose": "Ya podés cerrar esta página.",
+    "errSign": "No se pudo firmar.",
+    "backToApp": "Ir a la plataforma",
+    "signedBy": "Firmado por: {{name}}"
   }
 }

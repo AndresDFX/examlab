@@ -1,6 +1,29 @@
 # Acuerdo pedagógico con conformidad registrada — plan de diseño
 
 > Producido por el workflow `acuerdo-pedagogico-firmas` (mapeo + frente de ataque + síntesis).
+>
+> ⚠ **LEER ESTO ANTES DE EJECUTAR EL PLAN — se construyó otra cosa, más liviana.**
+> No es este plan: es firma sobre el informe YA generado, sin módulo nuevo.
+> `report_signatures` (mig `20261780000000`) + enlace público personal
+> (`20261860000000`) + la ruta `/acuerdo/$token`. El docente manda a firmar desde
+> Informes, al alumno le llega notificación **y correo** con su enlace, y ahí lee el
+> documento completo y firma.
+>
+> Lo que este plan tiene y eso NO, por si se retoma:
+> **D1** (tabla propia con versiones congeladas — lo construido firma contra
+> `generated_reports.html`, que es mutable: el hash deja rastro pero nada impide
+> re-generar el informe después), **D8** (no se guarda snapshot de identidad: el
+> nombre se lee VIVO de `profiles`, y `profiles_update_self` deja renombrarse
+> después de firmar), **D11** (no se exige `must_change_password = false` —
+> deliberado: los alumnos importados en lote siguen con la clave temporal y el guard
+> los dejaría afuera; el costo es que la clave temporal es la misma para todos),
+> **D13** ("Aceptar con observaciones" no existe: solo se puede firmar) y **D15**
+> (justo lo contrario: SÍ hay enlace sin sesión, y el enlace ES la credencial —
+> queda registrado en `signed_via`).
+>
+> O sea: sirve para constancia interna, **no** para nada que tenga que sostenerse
+> ante un tercero. Si hace falta eso, este plan es el camino.
+>
 > **NO implementado todavía.** Las afirmaciones están verificadas por los agentes contra
 > el código; las que sostienen decisiones grandes conviene re-verificarlas antes de
 > ejecutar.

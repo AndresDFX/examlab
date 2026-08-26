@@ -47,6 +47,8 @@ interface Matriculado {
 interface Solicitud {
   user_id: string;
   signed_at: string | null;
+  /** Token del enlace PERSONAL de firma. Es la credencial de esa persona. */
+  public_token: string | null;
 }
 
 export function SendToSignDialog({
@@ -105,7 +107,7 @@ export function SendToSignDialog({
       }
       const { data: firmas } = await db
         .from("report_signatures")
-        .select("user_id, signed_at")
+        .select("user_id, signed_at, public_token")
         .eq("report_id", reportId);
       const mapa = new Map<string, Solicitud>();
       for (const f of (firmas ?? []) as Solicitud[]) mapa.set(f.user_id, f);
@@ -249,12 +251,33 @@ export function SendToSignDialog({
                         </span>
                       )}
                     </span>
-                    {yaFirmo && (
+                    {yaFirmo ? (
                       <span className="text-2xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                         {t("reportSign.signedOn", {
                           date: formatDateTime(sol!.signed_at as string),
                         })}
                       </span>
+                    ) : (
+                      sol?.public_token && (
+                        /* Enlace PERSONAL: identifica al firmante, así que es su
+                           credencial. Se copia uno por uno a propósito — un botón
+                           de "copiar todos" invita a pegarlos en un grupo, y ahí
+                           cualquiera podría firmar por cualquiera. */
+                        <button
+                          type="button"
+                          className="text-2xs text-muted-foreground hover:text-foreground underline underline-offset-2 whitespace-nowrap shrink-0"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const url = `${window.location.origin}/acuerdo/${sol.public_token}`;
+                            void navigator.clipboard
+                              .writeText(url)
+                              .then(() => toast.success(t("reportSign.linkCopied")))
+                              .catch(() => toast.error(t("reportSign.linkCopyFailed")));
+                          }}
+                        >
+                          {t("reportSign.copyLink")}
+                        </button>
+                      )
                     )}
                   </label>
                 );

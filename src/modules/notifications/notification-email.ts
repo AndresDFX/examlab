@@ -43,6 +43,12 @@ export const CRITICAL_KINDS = [
   "broadcast",
   // support: gated upstream por platform_settings.support_emails_enabled.
   "support",
+  // report_signature: el docente manda un documento a firmar (Acuerdo
+  // Pedagógico). Tiene que salir por correo: una notificación que solo vive
+  // dentro de la app no llega al alumno que no entra, y el documento tiene
+  // fecha. Sincronizado con el SQL `_notification_kind_emails`
+  // (mig 20261860000000) y con el otro CRITICAL_KINDS.
+  "report_signature",
   // course_welcome: bienvenida al curso (trigger AFTER INSERT en
   // course_enrollments, mig 20261110000000). Toggle en
   // email_settings.enabled_kinds.course_welcome. Sincronizado con el SQL
