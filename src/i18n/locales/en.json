@@ -1,4 +1,10 @@
 {
+  "attendanceStatus": {
+    "presente": "Present",
+    "ausente": "Absent",
+    "tardanza": "Late",
+    "justificado": "Excused"
+  },
   "studentSignatures": {
     "title": "Documents to sign",
     "subtitle_one": "{{count}} awaiting your signature",
@@ -3284,6 +3290,8 @@
       "messageTooLong": "The message can't exceed 4000 characters."
     },
     "routes_app_student_attendance": {
+      "alreadyMarked": "Your attendance was already recorded for this session.",
+      "alreadyMarkedAs": "Your attendance was already recorded as: {{status}}.",
       "codeMustBe6Digits": "The code must be 6 digits",
       "markedAsPresent": "Marked as present!"
     },
@@ -9726,6 +9734,8 @@
     "soon": "Your subscription expires in {{count}} days. Contact your provider."
   },
   "publicAttendance": {
+      "alreadyMarked": "Your attendance was already recorded.",
+      "markedAs": "You are recorded as: {{status}}",
       "notStartedYet": "Check-in for this class opens at {{time}}. Try again then.",
       "errNotStarted": "Check-in for this session hasn't started yet.",
       "fillEmailCode": "Enter your email and the code.",

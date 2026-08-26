@@ -393,6 +393,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Volver a escanear el QR ya no vuelve a marcar la asistencia: avisa que ya estaba.** Antes cada
+  re-escaneo sobrescribía el registro y respondía "asistencia registrada" otra vez, así que el
+  estudiante que escaneaba de nuevo —porque no vio el mensaje, porque recargó, porque el QR seguía
+  proyectado— no tenía forma de saber si había marcado dos veces. Ahora dice "tu asistencia ya estaba
+  registrada".
+
+  Y lo más importante, que no se veía: como el registro se sobrescribía con "presente", un estudiante
+  al que el docente había marcado **tardanza** podía volver a escanear y quedar presente — el propio
+  interesado borrando la decisión del docente, sin dejar rastro. Ahora el estado que ya está puesto no
+  se toca, y si es distinto de "presente" el estudiante lo ve en pantalla. Corregir un estado sigue
+  siendo del docente, desde su grilla.
+
 - **Se podía abrir un check-in de asistencia sobre una sesión que estaba en la papelera** — y también
   sobre una sesión cuyo curso entero estaba borrado. Lo primero es una regresión: el bloqueo existía y se
   perdió al reescribir la función para el modo de fechas. Lo segundo nunca había existido en ese camino,

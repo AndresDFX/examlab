@@ -442,16 +442,37 @@ function StudentAttendance() {
           toast.error(friendlyError(error));
           return false;
         }
-        const result = data as { ok: boolean; error?: string };
+        const result = data as {
+          ok: boolean;
+          error?: string;
+          /** La asistencia YA estaba puesta: no se volvió a marcar ni se pisó. */
+          already?: boolean;
+          status?: string;
+        };
         if (!result?.ok) {
           { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : (result?.error ?? t("studentAttendance.errGeneric"))); }
           return false;
         }
-        toast.success(
-          i18n.t("toast.routes_app_student_attendance.markedAsPresent", {
-            defaultValue: "¡Marcado como presente!",
-          }),
-        );
+        // "Ya estabas marcado" vs "marcado": sin la distinción, el alumno que
+        // vuelve a escanear recibe el mismo mensaje de éxito y no sabe si marcó
+        // dos veces. Y si el docente le había puesto tardanza, tiene que verlo:
+        // su re-escaneo NO lo cambió a presente.
+        if (result.already) {
+          const estado = result.status ?? "presente";
+          toast.info(
+            estado === "presente"
+              ? i18n.t("toast.routes_app_student_attendance.alreadyMarked")
+              : i18n.t("toast.routes_app_student_attendance.alreadyMarkedAs", {
+                  status: i18n.t(`attendanceStatus.${estado}`, { defaultValue: estado }),
+                }),
+          );
+        } else {
+          toast.success(
+            i18n.t("toast.routes_app_student_attendance.markedAsPresent", {
+              defaultValue: "¡Marcado como presente!",
+            }),
+          );
+        }
         // Refresca records del curso seleccionado para que se vea inmediato
         if (selectedCourseId) {
           const { data: recs } = await supabase

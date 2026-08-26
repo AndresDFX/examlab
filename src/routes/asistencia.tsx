@@ -32,6 +32,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, CalendarCheck, LogIn } from "lucide-react";
 
+/** Lo que devuelven las RPC de marcado. `already` = la asistencia YA estaba. */
+interface RespuestaCheckIn {
+  ok?: boolean;
+  error?: string;
+  already?: boolean;
+  status?: string;
+}
+
 /** Lo que devuelve `attendance_check_in_public_info`. */
 interface InfoPublica {
   open: boolean;
@@ -121,6 +129,10 @@ function PublicAttendance() {
    * dice cuando el check-in está EFECTIVAMENTE abierto.
    */
   const [info, setInfo] = useState<InfoPublica | null>(null);
+  /** La asistencia YA estaba puesta antes de este intento. */
+  const [yaEstaba, setYaEstaba] = useState(false);
+  /** Estado registrado (presente / tardanza / justificado / ausente). */
+  const [estadoPrevio, setEstadoPrevio] = useState<string | null>(null);
 
   // El modo lo decide el SERVIDOR. Esto es solo para no pedir un dato que no
   // hace falta: si el cliente mintiera y omitiera la contraseña, la RPC
@@ -149,8 +161,14 @@ function PublicAttendance() {
     setCode(codeFromUrl);
   }, [codeFromUrl]);
 
-  const applyResult = (res: { ok?: boolean; error?: string } | null) => {
+  const applyResult = (res: RespuestaCheckIn | null) => {
     if (res?.ok) {
+      // `already` distingue "se registró recién" de "ya estaba". Sin esto, el
+      // alumno que vuelve a escanear —porque no vio el mensaje, porque recargó,
+      // porque el QR sigue proyectado— recibe otra vez "asistencia registrada"
+      // y no puede saber si marcó dos veces.
+      setYaEstaba(!!res.already);
+      setEstadoPrevio(res.status ?? null);
       setStatus("success");
     } else {
       setErrorCode(res?.error ?? "unknown");
@@ -213,7 +231,7 @@ function PublicAttendance() {
         setStatus("error");
         return;
       }
-      applyResult(data as { ok?: boolean; error?: string });
+      applyResult(data as RespuestaCheckIn);
     } catch {
       setErrorCode("unknown");
       setStatus("error");
@@ -287,8 +305,19 @@ function PublicAttendance() {
             <div className="flex flex-col items-center gap-2 py-4 text-center">
               <CheckCircle2 className="h-10 w-10 text-emerald-500" />
               <p className="font-medium">
-                {t("publicAttendance.success", { defaultValue: "¡Asistencia registrada!" })}
+                {yaEstaba
+                  ? t("publicAttendance.alreadyMarked")
+                  : t("publicAttendance.success", { defaultValue: "¡Asistencia registrada!" })}
               </p>
+              {/* El estado importa: si el docente puso "tardanza", el alumno
+                  tiene que verlo y no creer que quedó presente. */}
+              {yaEstaba && estadoPrevio && estadoPrevio !== "presente" && (
+                <p className="text-xs font-medium">
+                  {t("publicAttendance.markedAs", {
+                    status: t(`attendanceStatus.${estadoPrevio}`, { defaultValue: estadoPrevio }),
+                  })}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {t("publicAttendance.successHint", {
                   defaultValue: "Ya podés cerrar esta pantalla.",

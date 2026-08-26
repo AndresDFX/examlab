@@ -1,4 +1,10 @@
 {
+  "attendanceStatus": {
+    "presente": "Presente",
+    "ausente": "Ausente",
+    "tardanza": "Tardanza",
+    "justificado": "Justificado"
+  },
   "studentSignatures": {
     "title": "Documentos para firmar",
     "subtitle_one": "{{count}} pendiente de tu firma",
@@ -3284,6 +3290,8 @@
       "messageTooLong": "El mensaje no puede superar los 4000 caracteres."
     },
     "routes_app_student_attendance": {
+      "alreadyMarked": "Tu asistencia ya estaba registrada para esta sesión.",
+      "alreadyMarkedAs": "Tu asistencia ya estaba registrada como: {{status}}.",
       "codeMustBe6Digits": "El código debe tener 6 dígitos",
       "markedAsPresent": "¡Marcado como presente!"
     },
@@ -9726,6 +9734,8 @@
     "soon": "Tu suscripción vence en {{count}} días. Contacta a tu proveedor."
   },
   "publicAttendance": {
+      "alreadyMarked": "Tu asistencia ya estaba registrada.",
+      "markedAs": "Figurás como: {{status}}",
       "notStartedYet": "El check-in de esta clase abre a las {{time}}. Volvé a intentar en ese momento.",
       "errNotStarted": "El check-in de esta sesión todavía no empezó.",
       "fillEmailCode": "Completá tu correo y el código.",
