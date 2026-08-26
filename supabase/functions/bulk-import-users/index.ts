@@ -48,12 +48,29 @@ Deno.serve(async (req) => {
     const callerRoles = (roles ?? []).map((r) => r.role as string);
     const callerIsAdmin = callerRoles.includes("Admin");
     const callerIsSuperAdmin = callerRoles.includes("SuperAdmin");
-    if (!callerIsAdmin && !callerIsSuperAdmin) {
-      return new Response(JSON.stringify({ error: "Solo Admin o SuperAdmin pueden importar" }), {
-        status: 403,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    const callerIsDocente = callerRoles.includes("Docente");
+    if (!callerIsAdmin && !callerIsSuperAdmin && !callerIsDocente) {
+      return new Response(
+        JSON.stringify({ error: "Solo Admin, SuperAdmin o Docente pueden importar" }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
+    /**
+     * Docente SIN Admin ni SuperAdmin: puede crear estudiantes, pero SOLO dentro
+     * de los cursos que dicta. Tres restricciones, y las tres son duras:
+     *
+     *   1. el catálogo de cursos se arma desde `course_teachers` (los SUYOS), no
+     *      desde el tenant. Es la restricción que hace imposible crear a alguien
+     *      en un curso ajeno: no hay nombre que resuelva;
+     *   2. `course_name` pasa a ser OBLIGATORIO. Crear un usuario "sin curso" es
+     *      poblar la institución, que es trabajo de Admin;
+     *   3. los roles se fuerzan a Estudiante, ignorando lo que venga en el
+     *      payload. Sin esto un docente podría acuñarse un Admin.
+     *
+     * Se evalúa por rol POSEÍDO y no por el rol activo del switcher: esto es
+     * autorización de servidor, y el rol activo vive en el cliente.
+     */
+    const soloDocente = callerIsDocente && !callerIsAdmin && !callerIsSuperAdmin;
 
     const { rows, allowExisting, tenantId: bodyTenantId } = await req.json();
     if (!Array.isArray(rows)) throw new Error("rows[] requerido");
@@ -85,7 +102,12 @@ Deno.serve(async (req) => {
     // Autorización del destino: SA a cualquiera; Admin solo a SU propio tenant.
     let effectiveTenantId = callerTenantId;
     if (bodyTenantId && typeof bodyTenantId === "string") {
-      if (callerIsSuperAdmin || (callerIsAdmin && bodyTenantId === callerTenantId)) {
+      // El docente NO elige institución: la suya y nada más. `soloDocente` cae
+      // en el `else` de abajo si manda un tenant distinto al propio.
+      if (
+        callerIsSuperAdmin ||
+        ((callerIsAdmin || soloDocente) && bodyTenantId === callerTenantId)
+      ) {
         effectiveTenantId = bodyTenantId;
       } else {
         return new Response(
@@ -97,14 +119,50 @@ Deno.serve(async (req) => {
 
     const courseNameToId = new Map<string, string>();
     if (effectiveTenantId) {
-      const { data: coursesList } = await adminClient
-        .from("courses")
-        .select("id, name")
-        .eq("tenant_id", effectiveTenantId)
-        .is("deleted_at", null);
-      for (const c of (coursesList ?? []) as Array<{ id: string; name: string }>) {
+      // Para un docente, el universo de cursos son los que DICTA. Acotarlo acá
+      // —y no con un chequeo por fila— es lo que hace que no exista un camino
+      // por el que un docente cree a alguien en un curso ajeno: el nombre
+      // simplemente no resuelve, y la fila se rechaza con el mensaje normal.
+      let cursosPermitidos: Array<{ id: string; name: string }> = [];
+      if (soloDocente) {
+        const { data: mine } = await adminClient
+          .from("course_teachers")
+          .select("course_id")
+          .eq("user_id", u.user.id);
+        const ids = ((mine ?? []) as Array<{ course_id: string }>).map((r) => r.course_id);
+        if (ids.length > 0) {
+          const { data: cs } = await adminClient
+            .from("courses")
+            .select("id, name")
+            .in("id", ids)
+            .eq("tenant_id", effectiveTenantId)
+            .is("deleted_at", null);
+          cursosPermitidos = (cs ?? []) as Array<{ id: string; name: string }>;
+        }
+      } else {
+        const { data: coursesList } = await adminClient
+          .from("courses")
+          .select("id, name")
+          .eq("tenant_id", effectiveTenantId)
+          .is("deleted_at", null);
+        cursosPermitidos = (coursesList ?? []) as Array<{ id: string; name: string }>;
+      }
+      for (const c of cursosPermitidos) {
         courseNameToId.set(c.name.trim().toLowerCase(), c.id);
       }
+    }
+
+    // Un docente sin cursos asignados no tiene dónde crear a nadie. Se corta
+    // acá, con un mensaje que dice qué hacer, en vez de rechazar fila por fila
+    // con "el curso no existe" — que sería cierto pero no serviría de nada.
+    if (soloDocente && courseNameToId.size === 0) {
+      return new Response(
+        JSON.stringify({
+          error:
+            "No tienes cursos asignados, así que no hay dónde matricular. Pídele al Admin de tu institución que te asigne a un curso.",
+        }),
+        { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // Pre-fetch: setting `enabled_kinds.welcome` de email_settings (id=1).
@@ -198,6 +256,17 @@ Deno.serve(async (req) => {
       // course_name vacío/null = no matricular (válido).
       const courseNameRaw =
         typeof course_name === "string" ? course_name.trim() : "";
+      // Para el docente el curso es OBLIGATORIO: su permiso viene de dictar ese
+      // curso, así que una fila sin curso no tiene de dónde derivarlo.
+      if (soloDocente && courseNameRaw.length === 0) {
+        result.push({
+          email: institutional_email,
+          ok: false,
+          reason:
+            "Falta el curso. Como docente solo puedes crear estudiantes dentro de los cursos que dictas.",
+        });
+        continue;
+      }
       let resolvedCourseId: string | null = null;
       if (courseNameRaw.length > 0) {
         const found = courseNameToId.get(courseNameRaw.toLowerCase());
@@ -519,10 +588,15 @@ Deno.serve(async (req) => {
               );
             }
         }
-        const roleList = (rolesStr || "Estudiante")
-          .split("|")
-          .map((r: string) => r.trim())
-          .filter(Boolean);
+        // Un docente crea ESTUDIANTES y nada más. No se filtra el payload: se
+        // ignora. Filtrar deja la puerta entreabierta a que un rol nuevo se
+        // cuele por no estar en la lista; forzar el valor no.
+        const roleList = soloDocente
+          ? ["Estudiante"]
+          : (rolesStr || "Estudiante")
+              .split("|")
+              .map((r: string) => r.trim())
+              .filter(Boolean);
         for (const r of roleList) {
           // SuperAdmin sólo lo puede asignar otro SuperAdmin — escalación
           // de privilegios lateral protegida acá Y por la RLS de

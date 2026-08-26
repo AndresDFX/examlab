@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { toast } from "sonner";
-import { Eye, Users, KeyRound, Mic } from "lucide-react";
+import { Eye, Users, KeyRound, Mic, Pencil, UserPlus, UserMinus } from "lucide-react";
 import { startImpersonate } from "@/modules/admin/impersonation";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -37,6 +37,10 @@ import {
 import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
 import { Button } from "@/components/ui/button";
 import { SetCourseVoceroDialog } from "@/modules/courses/SetCourseVoceroDialog";
+import {
+  TeacherStudentDialog,
+  type EstudianteEditable,
+} from "@/modules/admin/TeacherStudentDialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 
@@ -47,6 +51,9 @@ type Student = {
   full_name: string;
   institutional_email: string;
   codigo: string | null;
+  /** Los edita el docente (mig 20261890000000), así que se traen para el form. */
+  documento: string | null;
+  cohorte: string | null;
   courses: string[];
   /**
    * Nombres de los cursos donde esta persona es vocero. Es una LISTA, no un
@@ -104,6 +111,40 @@ function TeacherStudentsInner() {
    * docente elige desde el filtro de curso.
    */
   const [voceroCourseId, setVoceroCourseId] = useState<string | null>(null);
+  /** Diálogo de alta/edición. `null` con `formOpen` true = crear. */
+  const [formOpen, setFormOpen] = useState(false);
+  const [editando, setEditando] = useState<EstudianteEditable | null>(null);
+
+  /**
+   * Saca al estudiante del curso ELEGIDO EN EL FILTRO. Se exige un curso
+   * concreto porque la pantalla cruza varios: "quitarlo" sin decir de dónde
+   * podría significar sacarlo de todos, que no es lo que nadie quiere.
+   */
+  const desmatricular = async (s: Student) => {
+    if (courseFilter === "all") return;
+    const curso = courses.find((c) => c.id === courseFilter);
+    const ok = await confirm({
+      title: t("teacherStudents.unenrollConfirmTitle"),
+      description: t("teacherStudents.unenrollConfirmDesc", {
+        name: s.full_name,
+        course: curso?.name ?? "",
+      }),
+      confirmLabel: t("teacherStudents.actionUnenroll"),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    const { error } = await supabase
+      .from("course_enrollments")
+      .delete()
+      .eq("course_id", courseFilter)
+      .eq("user_id", s.id);
+    if (error) {
+      toast.error(friendlyError(error), { duration: 12000 });
+      return;
+    }
+    toast.success(t("teacherStudents.unenrollOk", { name: s.full_name }));
+    void load();
+  };
 
   // `isActive` deja al effect abortar los setState si el usuario navega
   // antes de que resuelvan los awaits (patrón `let cancelled = false` del
@@ -174,7 +215,7 @@ function TeacherStudentsInner() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: profiles, error: profErr } = await (supabase as any)
       .from("profiles")
-      .select("id, full_name, institutional_email, codigo")
+      .select("id, full_name, institutional_email, codigo, documento, cohorte")
       .in("id", userIds)
       .order("full_name");
     if (!isActive()) return;
@@ -207,6 +248,8 @@ function TeacherStudentsInner() {
         full_name: p.full_name ?? p.institutional_email,
         institutional_email: p.institutional_email,
         codigo: p.codigo ?? null,
+        documento: p.documento ?? null,
+        cohorte: p.cohorte ?? null,
         courses: coursesByStudent.get(p.id) ?? [],
         voceroEn: voceroByStudent.get(p.id) ?? [],
       })),
@@ -318,6 +361,26 @@ function TeacherStudentsInner() {
         title={t("teacherStudents.title")}
         subtitle={loading ? undefined : t("teacherStudents.subtitle", { count: students.length })}
         icon={<Users className="h-6 w-6" />}
+        actions={
+          // Única acción primaria de la pantalla (P4 del design system). Sin
+          // cursos asignados no hay dónde crear a nadie, y el edge lo rechaza
+          // igual: se deshabilita con el motivo en el tooltip.
+          <Button
+            onClick={() => {
+              setEditando(null);
+              setFormOpen(true);
+            }}
+            disabled={courses.length === 0}
+            title={
+              courses.length === 0
+                ? t("teacherStudents.noCoursesHint")
+                : t("teacherStudents.createTitle")
+            }
+          >
+            <UserPlus className="h-4 w-4 mr-1" />
+            {t("teacherStudents.createAction")}
+          </Button>
+        }
       />
 
       {/* Filtros: búsqueda + curso estandarizados (ListFilters), igual que los
@@ -384,12 +447,21 @@ function TeacherStudentsInner() {
         ]}
       />
 
+      <TeacherStudentDialog
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        editing={editando}
+        courses={courses}
+        defaultCourseId={courseFilter}
+        onSaved={() => void load()}
+      />
+
       <SetCourseVoceroDialog
         open={!!voceroCourseId}
         onOpenChange={(o) => !o && setVoceroCourseId(null)}
         courseId={voceroCourseId}
         courseName={courses.find((c) => c.id === voceroCourseId)?.name}
-        onChanged={() => void load(() => true)}
+        onChanged={() => void load()}
       />
 
       <BulkPasswordDialog
@@ -530,6 +602,32 @@ function TeacherStudentsInner() {
                                   defaultValue: "Asignar una nueva contraseña a {{name}}",
                                 }),
                                 onClick: () => setResetPasswordFor(s),
+                              },
+                              {
+                                label: t("common.edit"),
+                                icon: Pencil,
+                                hint: t("teacherStudents.editHint"),
+                                onClick: () => {
+                                  setEditando(s);
+                                  setFormOpen(true);
+                                },
+                              },
+                              {
+                                // NO es "eliminar usuario": es sacarlo del
+                                // curso. La cuenta puede estar en cursos de
+                                // otros docentes, con entregas y notas ahí, y
+                                // borrarla destruiría datos fuera de su
+                                // alcance. Eso queda en Admin.
+                                label: t("teacherStudents.actionUnenroll"),
+                                icon: UserMinus,
+                                tone: "destructive" as const,
+                                separatorBefore: true,
+                                hint:
+                                  courseFilter === "all"
+                                    ? t("teacherStudents.unenrollPickCourse")
+                                    : t("teacherStudents.unenrollHint"),
+                                disabled: courseFilter === "all",
+                                onClick: () => void desmatricular(s),
                               },
                             ]}
                           />
