@@ -27,6 +27,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -160,7 +167,10 @@ const EMPTY_NEW: Row = {
 //     opcional para Docente/Admin — la edge lo ignora si no es Est.).
 //   - course_name: debe coincidir EXACTO con un curso existente del
 //     tenant (case-insensitive). Si no matchea, la fila se rechaza con
-//     mensaje claro.
+//     mensaje claro. Para VARIOS cursos, separalos con `|` — el mismo
+//     separador que `roles` (ej. "Programación II|Bases de Datos II").
+//     Si alguno de los nombres no existe se rechaza la fila COMPLETA: dejar
+//     a alguien matriculado en 2 de 3 sin avisar es peor que rechazar.
 //   - documento / cohorte / estado: identidad estudiantil OPCIONAL.
 //     documento = cédula/ID; cohorte = texto libre (ej. "2026-1");
 //     estado ∈ {activo, retirado, graduado, aplazado} (otro valor se
@@ -173,7 +183,9 @@ const USERS_TEMPLATE_CSV = toCSV([
     password: "Temporal#123",
     roles: "Estudiante",
     student_code: "2026100123",
-    course_name: "Programación II",
+    // Dos cursos en la fila de ejemplo: es la forma más rápida de que quien abra
+    // la plantilla descubra que se puede, sin leer la documentación.
+    course_name: "Programación II|Bases de Datos II",
     documento: "1234567890",
     cohorte: "2026-1",
     estado: "activo",
@@ -272,7 +284,12 @@ function AdminUsers() {
   // Curso seleccionado en el dialog para inscribir al estudiante recién
   // creado. NULL = sin inscripción automática (el admin lo matricula
   // manualmente después si quiere).
-  const [enrollCourseId, setEnrollCourseId] = useState<string | null>(null);
+  /**
+   * Cursos a los que se matricula al crear. Es una LISTA: antes era uno solo, y
+   * un estudiante que cursa tres materias con el mismo docente obligaba a
+   * crearlo y después matricularlo a mano, curso por curso.
+   */
+  const [enrollCourseIds, setEnrollCourseIds] = useState<string[]>([]);
   // Curso "por defecto" para el flujo de IMPORT MASIVO de usuarios. Si
   // el admin lo elige, todas las filas del CSV importado que NO traigan
   // `course_name` se enrollan automáticamente a este curso (best-effort:
@@ -281,7 +298,12 @@ function AdminUsers() {
   // una lista que va completa a un solo curso.
   // Cargado lazy al primer click del dropdown de import; cacheado en
   // `coursesForBulkImport`. Vacío "" = sin curso por defecto.
-  const [bulkImportCourseId, setBulkImportCourseId] = useState<string>("");
+  /**
+   * Cursos por defecto del import CSV. Lista, no uno: un CSV de primer semestre
+   * suele ir a las varias materias de la misma cohorte, y con un solo curso
+   * había que importar el mismo archivo N veces cambiando el selector.
+   */
+  const [bulkImportCourseIds, setBulkImportCourseIds] = useState<string[]>([]);
   const [coursesForBulkImport, setCoursesForBulkImport] = useState<
     Array<{ id: string; name: string; period: string | null }>
   >([]);
@@ -328,8 +350,8 @@ function AdminUsers() {
   // memo; el hook compara por JSON.stringify y pide confirmación al cerrar
   // si hay cambios. El dialog "Ver contraseña" es solo lectura → no se guarda.
   const userFormMemo = useMemo(
-    () => ({ editing, password, forcePasswordChange, enrollCourseId }),
-    [editing, password, forcePasswordChange, enrollCourseId],
+    () => ({ editing, password, forcePasswordChange, enrollCourseIds }),
+    [editing, password, forcePasswordChange, enrollCourseIds],
   );
   const userDirty = useDirtyDialog(dialogOpen, userFormMemo);
   // Filtramos por nombre + ambos correos + rol. case-insensitive,
@@ -918,7 +940,7 @@ function AdminUsers() {
     // Toggle del ojo siempre oculto al abrir — quien crea/edita activa
     // la visibilidad explícitamente cuando la necesita.
     setShowPassword(false);
-    setEnrollCourseId(null);
+    setEnrollCourseIds([]);
     setDialogOpen(true);
   };
 
@@ -927,7 +949,7 @@ function AdminUsers() {
     editOriginalEmailRef.current = r.institutional_email ?? "";
     setPassword("");
     setShowPassword(false);
-    setEnrollCourseId(null);
+    setEnrollCourseIds([]);
     setDialogOpen(true);
   };
 
@@ -996,15 +1018,16 @@ function AdminUsers() {
     [enrollCourses, programaSeleccionado],
   );
 
-  // Reset del hijo: si el curso elegido deja de pertenecer al programa
-  // seleccionado (el admin cambió el programa después de elegir curso),
-  // limpiamos la selección para no quedar con un curso invisible/ inválido.
+  // Reset del hijo: si un curso elegido deja de pertenecer al programa
+  // seleccionado (el admin cambió el programa después de elegir), lo quitamos
+  // para no quedar con un curso invisible/inválido. Se FILTRA en vez de vaciar:
+  // vaciar perdería las selecciones que siguen siendo válidas.
   useEffect(() => {
-    if (!enrollCourseId) return;
-    if (!filteredEnrollCourses.some((c) => c.id === enrollCourseId)) {
-      setEnrollCourseId(null);
-    }
-  }, [filteredEnrollCourses, enrollCourseId]);
+    if (enrollCourseIds.length === 0) return;
+    const validos = enrollCourseIds.filter((id) =>
+      filteredEnrollCourses.some((c) => c.id === id));
+    if (validos.length !== enrollCourseIds.length) setEnrollCourseIds(validos);
+  }, [filteredEnrollCourses, enrollCourseIds]);
 
   /** Validación proactiva de unicidad — antes de mandar el form al
    *  backend. Llama al RPC `check_email_taken` (case-insensitive,
@@ -1271,23 +1294,35 @@ function AdminUsers() {
             // misma intención que el import CSV: "ya existe pero no está en
             // el curso → matricularlo".
             const existingUserId = (result as { userId?: string })?.userId;
-            if (existingUserId && enrollCourseId && editing.roles.includes("Estudiante")) {
+            if (
+              existingUserId &&
+              enrollCourseIds.length > 0 &&
+              editing.roles.includes("Estudiante")
+            ) {
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const { error: enrollErr } = await (supabase as any)
                 .from("course_enrollments")
                 .upsert(
-                  { course_id: enrollCourseId, user_id: existingUserId },
+                  enrollCourseIds.map((cid) => ({
+                    course_id: cid,
+                    user_id: existingUserId,
+                  })),
                   { onConflict: "course_id,user_id" },
                 );
               if (!enrollErr) {
-                void logEvent({
-                  action: "enrollment.added",
-                  category: "course",
-                  actorRole: roles[0],
-                  entityType: "course",
-                  entityId: enrollCourseId,
-                  metadata: { user_id: existingUserId, source: "user_create_dialog_existing" },
-                });
+                // Un evento de auditoría POR CURSO: el registro es "esta persona
+                // entró a este curso", así que uno solo con el primer id
+                // mentiría sobre los demás.
+                for (const cid of enrollCourseIds) {
+                  void logEvent({
+                    action: "enrollment.added",
+                    category: "course",
+                    actorRole: roles[0],
+                    entityType: "course",
+                    entityId: cid,
+                    metadata: { user_id: existingUserId, source: "user_create_dialog_existing" },
+                  });
+                }
                 toast.success(
                   i18n.t("toast.routes_app_admin_users.existingUserEnrolled", {
                     defaultValue:
@@ -1365,11 +1400,14 @@ function AdminUsers() {
         // como alumnos en un curso. Best-effort: si falla (UNIQUE
         // violation, RLS, lo que sea), el usuario queda creado y el admin
         // lo matricula manualmente desde el curso.
-        if (newUserId && enrollCourseId && editing.roles.includes("Estudiante")) {
+        if (newUserId && enrollCourseIds.length > 0 && editing.roles.includes("Estudiante")) {
+          // `upsert` y no `insert`: con varios cursos, que uno ya exista (el edge
+          // pudo haber matriculado por `course_name`) no debe tumbar los demás.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: enrollErr } = await (supabase as any)
-            .from("course_enrollments")
-            .insert({ course_id: enrollCourseId, user_id: newUserId });
+          const { error: enrollErr } = await (supabase as any).from("course_enrollments").upsert(
+            enrollCourseIds.map((cid) => ({ course_id: cid, user_id: newUserId })),
+            { onConflict: "course_id,user_id" },
+          );
           if (enrollErr) {
             console.warn("[admin.users] enrollment failed:", enrollErr.message);
             toast.warning(
@@ -1379,14 +1417,16 @@ function AdminUsers() {
               }),
             );
           } else {
-            void logEvent({
-              action: "enrollment.added",
-              category: "course",
-              actorRole: roles[0],
-              entityType: "course",
-              entityId: enrollCourseId,
-              metadata: { user_id: newUserId, source: "user_create_dialog" },
-            });
+            for (const cid of enrollCourseIds) {
+              void logEvent({
+                action: "enrollment.added",
+                category: "course",
+                actorRole: roles[0],
+                entityType: "course",
+                entityId: cid,
+                metadata: { user_id: newUserId, source: "user_create_dialog" },
+              });
+            }
           }
         }
         toast.success(
@@ -1553,7 +1593,7 @@ function AdminUsers() {
   useEffect(() => {
     setCoursesForBulkImportLoaded(false);
     setCoursesForBulkImport([]);
-    setBulkImportCourseId("");
+    setBulkImportCourseIds([]);
   }, [tenantFilter]);
 
   const handleImportRows = async (parsed: Record<string, string>[]): Promise<string> => {
@@ -1566,16 +1606,20 @@ function AdminUsers() {
       // explícito del CSV. La edge resuelve el name → id case-insensitive
       // contra el tenant del caller; pasar el `name` (no el id) mantiene
       // el contrato actual y evita cambios server-side.
-      const defaultCourse = bulkImportCourseId
-        ? coursesForBulkImport.find((c) => c.id === bulkImportCourseId)
-        : null;
-      const rows = defaultCourse
-        ? parsed.map((r) =>
-            (r.course_name ?? "").trim().length > 0
-              ? r
-              : { ...r, course_name: defaultCourse.name },
-          )
-        : parsed;
+      // Los nombres van unidos por `|`, que es el separador que la edge ya usa
+      // para listas (`roles`) y que ahora acepta también en `course_name`. Así el
+      // CSV de una sola columna sigue funcionando y no hay campo nuevo.
+      const defaultCourseNames = bulkImportCourseIds
+        .map((id) => coursesForBulkImport.find((c) => c.id === id)?.name)
+        .filter((n): n is string => !!n);
+      const rows =
+        defaultCourseNames.length > 0
+          ? parsed.map((r) =>
+              (r.course_name ?? "").trim().length > 0
+                ? r
+                : { ...r, course_name: defaultCourseNames.join("|") },
+            )
+          : parsed;
       // Batching client-side: mandar TODAS las filas en UN solo invoke hacía
       // que, para lotes grandes (ej. ~90 estudiantes), el edge excediera su
       // wall-clock (~1.3s+ por usuario: createUser + round-trips + retries) y
@@ -1754,26 +1798,52 @@ function AdminUsers() {
                 Cuando el admin elige un curso acá, todas las filas del
                 CSV importado sin `course_name` propio se enrollan al
                 curso elegido. Las filas con `course_name` lo respetan. */}
-            <Select
-              value={bulkImportCourseId || "__none__"}
-              onValueChange={(v) => setBulkImportCourseId(v === "__none__" ? "" : v)}
+            {/* Menú con casillas y no un Select: Radix Select es de valor único,
+                y acá hacen falta varios. El disparador dice CUÁNTOS hay elegidos
+                para no tener que abrirlo para saberlo. */}
+            <DropdownMenu
               onOpenChange={(open) => {
                 if (open) void loadCoursesForBulkImport();
               }}
             >
-              <SelectTrigger
-                className="h-8 max-w-[200px] hidden md:flex text-xs"
-                title={t("hc_routesAppAdminUsers.bulkImportCourseTitle")}
-              >
-                <SelectValue placeholder={t("adminUsers.bulkImportCoursePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">{t("adminUsers.bulkImportCourseNone")}</SelectItem>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 max-w-[200px] hidden md:flex text-xs"
+                  title={t("hc_routesAppAdminUsers.bulkImportCourseTitle")}
+                >
+                  <span className="truncate">
+                    {bulkImportCourseIds.length === 0
+                      ? t("adminUsers.bulkImportCoursePlaceholder")
+                      : t("adminUsers.bulkImportCourseCount", {
+                          count: bulkImportCourseIds.length,
+                        })}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="max-h-72 overflow-y-auto">
+                {bulkImportCourseIds.length > 0 && (
+                  <DropdownMenuItem onClick={() => setBulkImportCourseIds([])}>
+                    {t("adminUsers.bulkImportCourseNone")}
+                  </DropdownMenuItem>
+                )}
                 {coursesForBulkImport.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
+                  <DropdownMenuCheckboxItem
+                    key={c.id}
+                    checked={bulkImportCourseIds.includes(c.id)}
+                    // `onSelect` con preventDefault: sin esto el menú se cierra
+                    // en cada clic y elegir tres cursos son tres aperturas.
+                    onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={(v) =>
+                      setBulkImportCourseIds((prev) =>
+                        v ? [...prev, c.id] : prev.filter((x) => x !== c.id),
+                      )
+                    }
+                  >
                     {c.name}
                     {c.period ? ` · ${c.period}` : ""}
-                  </SelectItem>
+                  </DropdownMenuCheckboxItem>
                 ))}
                 {/* Carga lazy: sin este estado el dropdown se abría vacío
                     durante el fetch y parecía "no hay cursos". */}
@@ -1789,8 +1859,8 @@ function AdminUsers() {
                       {t("adminUsers.bulkImportNoCourses")}
                     </div>
                   )}
-              </SelectContent>
-            </Select>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ImportExportMenu
               resourceName="usuarios"
               tourId="bulk-import-users"
@@ -2469,24 +2539,50 @@ function AdminUsers() {
                         matricula manualmente desde el curso. */}
                     {!editing.id && (
                       <div className="sm:col-span-2">
-                        <Label className="text-xs">{t("adminUsers.fieldEnrollCourse")}</Label>
-                        <Select
-                          value={enrollCourseId ?? "__none__"}
-                          onValueChange={(v) => setEnrollCourseId(v === "__none__" ? null : v)}
-                        >
-                          <SelectTrigger>
-                            <SelectValue placeholder={t("adminUsers.fieldEnrollCoursePlaceholder")} />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="__none__">{t("adminUsers.fieldEnrollCourseNone")}</SelectItem>
-                            {filteredEnrollCourses.map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.name}
-                                {c.period ? ` · ${c.period}` : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        <Label className="text-xs">
+                          {t("adminUsers.fieldEnrollCourses")}
+                          {enrollCourseIds.length > 0 && (
+                            <span className="ml-1 text-muted-foreground font-normal tabular-nums">
+                              ({enrollCourseIds.length})
+                            </span>
+                          )}
+                        </Label>
+                        {/* Casillas y no un Select múltiple: con un Select hay
+                            que abrirlo para saber qué quedó elegido, y acá lo
+                            elegido es justamente lo que hay que revisar antes de
+                            crear la cuenta. Scrollea dentro de su caja para no
+                            estirar el diálogo con cursos de más. */}
+                        {filteredEnrollCourses.length > 0 ? (
+                          <div className="rounded-md border p-2 max-h-40 overflow-y-auto space-y-1.5">
+                            {filteredEnrollCourses.map((c) => {
+                              const marcado = enrollCourseIds.includes(c.id);
+                              return (
+                                <label
+                                  key={c.id}
+                                  className="flex items-start gap-2 text-xs cursor-pointer"
+                                >
+                                  <Checkbox
+                                    checked={marcado}
+                                    onCheckedChange={(v) =>
+                                      setEnrollCourseIds((prev) =>
+                                        v === true
+                                          ? [...prev, c.id]
+                                          : prev.filter((x) => x !== c.id),
+                                      )
+                                    }
+                                    className="mt-0.5 shrink-0"
+                                  />
+                                  <span className="min-w-0">
+                                    {c.name}
+                                    {c.period ? (
+                                      <span className="text-muted-foreground">{` · ${c.period}`}</span>
+                                    ) : null}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        ) : null}
                         <p className="text-2xs text-muted-foreground mt-1">
                           {isSuperAdminCaller && !editing.tenant_id
                             ? t("adminUsers.enrollHintChooseTenant")

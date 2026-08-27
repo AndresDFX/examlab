@@ -267,18 +267,41 @@ Deno.serve(async (req) => {
         });
         continue;
       }
-      let resolvedCourseId: string | null = null;
-      if (courseNameRaw.length > 0) {
-        const found = courseNameToId.get(courseNameRaw.toLowerCase());
+      /**
+       * `course_name` acepta VARIOS cursos separados por `|`, igual que `roles`.
+       *
+       * Se reusa ese separador y ese campo en vez de agregar uno nuevo: el
+       * contrato de esta edge ya usa `|` para listas (`roles`), el CSV de una
+       * sola columna sigue funcionando igual, y no hay que versionar el payload.
+       *
+       * Un solo nombre se comporta EXACTAMENTE como antes.
+       */
+      const nombresCurso = courseNameRaw
+        .split("|")
+        .map((x) => x.trim())
+        .filter(Boolean);
+      const resolvedCourseIds: string[] = [];
+      let cursoInvalido: string | null = null;
+      for (const nombre of nombresCurso) {
+        const found = courseNameToId.get(nombre.toLowerCase());
         if (!found) {
-          result.push({
-            email: institutional_email,
-            ok: false,
-            reason: `El curso "${courseNameRaw}" no existe en tu institución. Créalo primero o ajusta el nombre en el CSV (debe coincidir EXACTO).`,
-          });
-          continue;
+          cursoInvalido = nombre;
+          break;
         }
-        resolvedCourseId = found;
+        // Dedup: "A|A" o dos nombres que difieren solo en mayúsculas no deben
+        // intentar dos veces la misma matrícula.
+        if (!resolvedCourseIds.includes(found)) resolvedCourseIds.push(found);
+      }
+      if (cursoInvalido) {
+        // Se aborta la fila COMPLETA por un solo curso inválido, en vez de
+        // matricular en los que sí resolvieron: dejar a alguien en 2 de 3 cursos
+        // sin avisar es peor que rechazar y dejar que el admin corrija el nombre.
+        result.push({
+          email: institutional_email,
+          ok: false,
+          reason: `El curso "${cursoInvalido}" no existe en tu institución. Créalo primero o ajusta el nombre (debe coincidir EXACTO). Para varios cursos, separalos con "|".`,
+        });
+        continue;
       }
       const emailKey = institutional_email.toLowerCase().trim();
       const personalKey = (personal_email ?? "").toLowerCase().trim();
@@ -326,18 +349,23 @@ Deno.serve(async (req) => {
           // el usuario todavía NO está en ese curso, lo matriculamos en vez de
           // saltar la fila. Caso reportado: "importo un usuario que ya existe
           // pero no está matriculado en el curso → debe quedar matriculado".
-          if (resolvedCourseId) {
-            const { data: alreadyEnrolled } = await adminClient
+          if (resolvedCourseIds.length > 0) {
+            // De los cursos pedidos, en cuáles NO está todavía. Se consulta de
+            // una en vez de uno por uno: con varios cursos serían N round-trips.
+            const { data: yaEn } = await adminClient
               .from("course_enrollments")
               .select("course_id")
-              .eq("course_id", resolvedCourseId)
-              .eq("user_id", userId)
-              .maybeSingle();
-            if (!alreadyEnrolled) {
+              .in("course_id", resolvedCourseIds)
+              .eq("user_id", userId);
+            const yaSet = new Set(
+              ((yaEn ?? []) as Array<{ course_id: string }>).map((r) => r.course_id),
+            );
+            const faltantes = resolvedCourseIds.filter((id) => !yaSet.has(id));
+            if (faltantes.length > 0) {
               const { error: enrollErr } = await adminClient
                 .from("course_enrollments")
                 .upsert(
-                  { course_id: resolvedCourseId, user_id: userId },
+                  faltantes.map((cid) => ({ course_id: cid, user_id: userId })),
                   { onConflict: "course_id,user_id" },
                 );
               if (!enrollErr) {
@@ -346,7 +374,10 @@ Deno.serve(async (req) => {
                   ok: true,
                   userId,
                   enrolledExisting: true,
-                  reason: "Usuario ya existía; se matriculó al curso indicado.",
+                  reason:
+                    faltantes.length === 1
+                      ? "Usuario ya existía; se matriculó al curso indicado."
+                      : `Usuario ya existía; se matriculó a ${faltantes.length} cursos.`,
                 });
                 continue;
               }
@@ -707,13 +738,13 @@ Deno.serve(async (req) => {
           }
         }
 
-        // Matrícula al curso (ya validado arriba; resolvedCourseId está
-        // garantizado si llegamos acá con course_name).
-        if (resolvedCourseId) {
+        // Matrícula a TODOS los cursos pedidos (ya validados arriba: si alguno
+        // no resolvía, la fila se abortó antes de crear el usuario).
+        if (resolvedCourseIds.length > 0) {
           await adminClient
             .from("course_enrollments")
             .upsert(
-              { course_id: resolvedCourseId, user_id: userId },
+              resolvedCourseIds.map((cid) => ({ course_id: cid, user_id: userId })),
               { onConflict: "course_id,user_id" },
             );
         }

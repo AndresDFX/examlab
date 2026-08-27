@@ -50,11 +50,14 @@ import {
   Pause,
   Play,
   BrainCircuit,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent, MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { statusLabel } from "@/shared/utils/status-labels";
+import { quienesNoIngresaron, type AsignadoParaEntrada } from "@/modules/exams/pending-entry";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { TableEmpty } from "@/components/ui/empty-state";
 import {
@@ -264,6 +267,12 @@ function ExamMonitor() {
   // al final del JSX.
   const aiGate = useAiAuthorizationGate();
   const [exam, setExam] = useState<any>(null);
+  /**
+   * Quiénes tienen el examen ASIGNADO. Hace falta aparte de `submissions`: quien
+   * no entró no tiene entrega, así que sin esta lista los que faltan son
+   * literalmente invisibles en la pantalla — que es lo que se reportó.
+   */
+  const [asignados, setAsignados] = useState<AsignadoParaEntrada[]>([]);
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   // Buscador de la tabla principal de monitor — filtra por nombre/correo
   // del estudiante client-side. Persiste mientras el docente revisa la
@@ -408,6 +417,39 @@ function ExamMonitor() {
       .is("deleted_at", null)
       .maybeSingle();
     setExam(e ?? null);
+
+    // Asignaciones del examen = quiénes DEBEN presentarlo. Se pide siempre y no
+    // solo cuando el examen está abierto: el bloque de la UI decide si mostrarlo,
+    // y así al abrirse la ventana el dato ya está sin esperar otra carga.
+    //
+    // Dos consultas porque `exam_assignments.user_id` apunta a `auth.users` y NO
+    // a `profiles`: el embed de PostgREST falla en silencio.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: asg } = await (supabase as any)
+      .from("exam_assignments")
+      .select("user_id")
+      .eq("exam_id", examId);
+    const asgIds = Array.from(
+      new Set(((asg ?? []) as Array<{ user_id: string }>).map((r) => r.user_id)),
+    );
+    if (asgIds.length === 0) {
+      setAsignados([]);
+    } else {
+      const { data: asgProfiles } = await supabase
+        .from("profiles")
+        .select("id, full_name, institutional_email")
+        .in("id", asgIds);
+      const porId = new Map(
+        (asgProfiles ?? []).map((x) => [x.id, x as { full_name: string; institutional_email: string | null }]),
+      );
+      setAsignados(
+        asgIds.map((id) => ({
+          userId: id,
+          fullName: porId.get(id)?.full_name ?? "—",
+          email: porId.get(id)?.institutional_email ?? null,
+        })),
+      );
+    }
 
     // extra_seconds aún no está en types.ts auto-generados; casteamos
     // a any para que el cliente lo selecte sin que el typing lo bloquee.
@@ -2032,6 +2074,18 @@ function ExamMonitor() {
   const inProgressStudents = studentRows.filter((r) => r.inProgress);
   const completedStudents = studentRows.filter((r) => !r.inProgress && r.finishedAttempts.length);
 
+  // Quiénes tienen el examen asignado y todavía no lo abrieron.
+  const sinIngresar = quienesNoIngresaron(asignados, new Set(studentMap.keys()));
+  /**
+   * El bloque se muestra solo con el examen ABIERTO. Antes de que abra, "nadie
+   * entró" es lo esperado y la lista sería el curso completo; después de cerrar,
+   * ya no hay nada que hacer con ella y lo que corresponde es la nota. Es
+   * exactamente la ventana en la que el docente puede ir a buscar a alguien.
+   */
+  const examenAbierto = exam
+    ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
+    : false;
+
   // Helper de bulk re-grade. NO es hook (los hooks `useMemo` +
   // `useMultiSelect` se llaman ANTES del early return — ver bloque
   // `selectableSubmissions` arriba). Solo encadena la lógica.
@@ -2199,6 +2253,42 @@ function ExamMonitor() {
           </div>
         </CardHeader>
       </Card>
+
+      {/* Quiénes NO han ingresado. Va ARRIBA de la tabla y no como una columna
+          más: es lo único de esta pantalla sobre lo que el docente puede ACTUAR
+          mientras el examen corre. */}
+      {examenAbierto && sinIngresar.length > 0 && (
+        <Card className="border-amber-500/40">
+          <CardHeader className="space-y-2">
+            <div className="flex items-center gap-2">
+              <UserX className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+              <CardTitle className="text-base">
+                {t("monitor.notEnteredTitle", { count: sinIngresar.length })}
+              </CardTitle>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {t("monitor.notEnteredHint", { total: asignados.length })}
+            </p>
+            <ul className="flex flex-wrap gap-1.5">
+              {sinIngresar.map((a) => (
+                <li key={a.userId}>
+                  <Badge variant="outline" className="text-xs font-normal" title={a.email ?? ""}>
+                    {a.fullName}
+                  </Badge>
+                </li>
+              ))}
+            </ul>
+          </CardHeader>
+        </Card>
+      )}
+      {/* Con el examen abierto y todos dentro, decirlo explícitamente vale: la
+          ausencia del bloque anterior es ambigua (¿nadie falta, o no cargó?). */}
+      {examenAbierto && asignados.length > 0 && sinIngresar.length === 0 && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+          <UserCheck className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+          {t("monitor.allEntered", { total: asignados.length })}
+        </p>
+      )}
 
       {/* Live submissions */}
       <Card>

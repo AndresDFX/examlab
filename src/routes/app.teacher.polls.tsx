@@ -41,6 +41,12 @@ import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { ListFilters } from "@/components/ui/list-filters";
 import {
+  resumirPendientes,
+  type CursoEncuesta,
+  type MatriculaEncuesta,
+  type ResumenPendientes,
+} from "@/modules/polls/pending-respondents";
+import {
   Table,
   TableBody,
   TableCell,
@@ -103,6 +109,7 @@ import {
   Shuffle,
   MessageSquareText,
   History,
+  UserX,
 } from "lucide-react";
 import { usePollRealtime } from "@/modules/polls/use-poll-realtime";
 import { KahootQuestionsEditor } from "@/modules/polls/KahootQuestionsEditor";
@@ -505,6 +512,45 @@ function TeacherPolls() {
     }
     return arr;
   }, [polls, search, courseFilter, pollStatusFilter]);
+
+  /**
+   * Los cursos del selector, con el conteo de encuestas ABIERTAS y CERRADAS de
+   * cada uno.
+   *
+   * El selector listaba solo el nombre, así que para saber dónde hay algo
+   * abierto había que elegir curso por curso y mirar la tabla. El conteo va en
+   * la etiqueta —no en un panel aparte— porque la decisión que resuelve es
+   * justamente cuál elegir.
+   *
+   * Se cuenta sobre `polls` completo y NO sobre `filteredPolls`: si contara lo
+   * filtrado, el número cambiaría al usar el propio filtro y dejaría de
+   * significar algo.
+   */
+  const coursesConConteo = useMemo(() => {
+    const abiertas = new Map<string, number>();
+    const cerradas = new Map<string, number>();
+    for (const pl of polls) {
+      const abierta = pollIsOpen(pl);
+      // Una encuesta multi-curso cuenta en TODOS sus cursos: es lo que hace el
+      // filtro, y dos criterios distintos para el mismo dato se leen como bug.
+      const ids = new Set<string>();
+      if (pl.course_id) ids.add(pl.course_id);
+      for (const c of pl.linked_courses ?? []) if (c?.id) ids.add(c.id);
+      for (const id of ids) {
+        const m = abierta ? abiertas : cerradas;
+        m.set(id, (m.get(id) ?? 0) + 1);
+      }
+    }
+    return courses.map((c) => {
+      const a = abiertas.get(c.id) ?? 0;
+      const ce = cerradas.get(c.id) ?? 0;
+      if (a === 0 && ce === 0) return c;
+      const partes: string[] = [];
+      if (a > 0) partes.push(t("teacherPolls.courseOpenCount", { count: a }));
+      if (ce > 0) partes.push(t("teacherPolls.courseClosedCount", { count: ce }));
+      return { ...c, name: `${c.name} · ${partes.join(", ")}` };
+    });
+  }, [courses, polls, t]);
 
   // Orden por columna (asc/desc al clic en el encabezado), persistido.
   const sort = useTableSort(filteredPolls, {
@@ -1037,7 +1083,7 @@ function TeacherPolls() {
         searchPlaceholder={t("teacherPolls.searchPlaceholder", { defaultValue: "Buscar encuesta…" })}
         courseId={courseFilter === "all" ? null : courseFilter}
         onCourseChange={(v) => setCourseFilter(v ?? "all")}
-        courses={courses}
+        courses={coursesConConteo}
         allLabel={t("teacherPolls.allCourses")}
         onClearExtra={() => setPollStatusFilter("abiertas")}
         extra={
@@ -3246,6 +3292,12 @@ function ResultsDialog({
   const [moving, setMoving] = useState<Set<string>>(new Set());
   // Asignación masiva de estudiantes restantes en curso.
   const [assigning, setAssigning] = useState(false);
+  /**
+   * Quiénes tienen acceso y todavía no respondieron, POR CURSO. Hace falta
+   * cargarlo aparte: quien no respondió no tiene fila en ninguna tabla de
+   * respuestas, así que sin la matrícula es invisible.
+   */
+  const [pendientes, setPendientes] = useState<ResumenPendientes | null>(null);
 
   /** Mueve a un alumno a OTRO cupo (slot). El backend hace el claim atómico
    *  del cupo destino; si se llenó en el instante, rechaza con "El cupo ya ha
@@ -3399,6 +3451,60 @@ function ResultsDialog({
           full_name: nameById.get(r.user_id) ?? null,
         })),
       );
+
+      // ── Quiénes faltan por responder, por curso ──
+      // El universo son los matriculados en los cursos VINCULADOS a la encuesta
+      // (`poll_courses`): no hay lista de invitados propia, el acceso se deriva
+      // de la matrícula.
+      const cursosVinculados: CursoEncuesta[] = (poll.linked_courses ?? [])
+        .filter((c) => !!c?.id)
+        .map((c) => ({ id: c.id, name: c.name }));
+      if (cursosVinculados.length === 0) {
+        setPendientes(null);
+      } else {
+        const { data: enr } = await db
+          .from("course_enrollments")
+          .select("course_id, user_id")
+          .in(
+            "course_id",
+            cursosVinculados.map((c) => c.id),
+          );
+        const matriculas: MatriculaEncuesta[] = (
+          (enr ?? []) as Array<{ course_id: string; user_id: string }>
+        ).map((r) => ({ courseId: r.course_id, userId: r.user_id }));
+
+        // Quién respondió: en una encuesta `mixed` las respuestas viven en
+        // `poll_question_responses`, no en `poll_responses`. Contra la tabla
+        // equivocada el resumen diría que NADIE respondió — justo al revés.
+        let respondieron = new Set(rawResp.map((r) => r.user_id));
+        if (poll.poll_type === "mixed") {
+          const { data: qr } = await db
+            .from("poll_question_responses")
+            .select("user_id, question:poll_questions!inner(poll_id)")
+            .eq("question.poll_id", poll.id);
+          respondieron = new Set(
+            ((qr ?? []) as Array<{ user_id: string }>).map((r) => r.user_id),
+          );
+        }
+
+        // Los nombres: los de quienes respondieron ya están en `nameById`, pero
+        // los que FALTAN son justamente los que no estaban ahí.
+        const faltanIds = matriculas
+          .map((x) => x.userId)
+          .filter((id) => !respondieron.has(id) && !nameById.has(id));
+        if (faltanIds.length > 0) {
+          const { data: profs2 } = await db
+            .from("profiles")
+            .select("id, full_name")
+            .in("id", Array.from(new Set(faltanIds)));
+          for (const pr of (profs2 ?? []) as Array<{ id: string; full_name: string | null }>) {
+            nameById.set(pr.id, pr.full_name ?? null);
+          }
+        }
+        const nombres = new Map<string, string>();
+        for (const [id, n] of nameById) nombres.set(id, n ?? "—");
+        setPendientes(resumirPendientes(cursosVinculados, matriculas, nombres, respondieron));
+      }
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -3416,6 +3522,7 @@ function ResultsDialog({
     if (!poll) {
       setLiveOptions([]);
       setRespondents([]);
+      setPendientes(null);
       return;
     }
     void refetch();
@@ -3467,6 +3574,60 @@ function ResultsDialog({
           <p className="text-xs text-muted-foreground">
             {t("teacherPolls.responsesCount", { count: total })} · {pollTypeLabel(poll.poll_type)}
           </p>
+
+          {/* Quiénes FALTAN por responder, por curso.
+              Va arriba porque es lo accionable: los conteos por opción dicen qué
+              eligieron los que ya contestaron, y esto dice a quién hay que
+              recordarle. El desglose es por curso porque una encuesta se puede
+              compartir con varios y una lista plana de 40 nombres no dice a qué
+              grupo escribirle. */}
+          {pendientes && pendientes.totalUnico > 0 && (
+            <div className="rounded-md border p-2.5 space-y-2">
+              <div className="flex items-center gap-2">
+                <UserX className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                <p className="text-xs font-medium">
+                  {pendientes.faltanUnico === 0
+                    ? t("teacherPolls.pendingNone", { total: pendientes.totalUnico })
+                    : t("teacherPolls.pendingTitle", {
+                        count: pendientes.faltanUnico,
+                        total: pendientes.totalUnico,
+                      })}
+                </p>
+              </div>
+              {pendientes.faltanUnico > 0 &&
+                pendientes.porCurso.map((c) => (
+                  <div key={c.courseId} className="space-y-1">
+                    {/* El encabezado del curso se muestra SIEMPRE que haya más
+                        de uno, incluso si ese curso ya respondió completo: sin
+                        él, no se distingue "este curso está al día" de "este
+                        curso no está en la encuesta". */}
+                    {pendientes.porCurso.length > 1 && (
+                      <p className="text-2xs font-medium text-muted-foreground">
+                        {c.courseName}{" "}
+                        <span className="tabular-nums">
+                          ({c.faltan.length}/{c.total})
+                        </span>
+                      </p>
+                    )}
+                    {c.faltan.length === 0 ? (
+                      <p className="text-2xs text-emerald-600 dark:text-emerald-400">
+                        {t("teacherPolls.pendingCourseComplete")}
+                      </p>
+                    ) : (
+                      <ul className="flex flex-wrap gap-1">
+                        {c.faltan.map((f) => (
+                          <li key={`${c.courseId}:${f.userId}`}>
+                            <Badge variant="outline" className="text-3xs font-normal">
+                              {f.fullName}
+                            </Badge>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+            </div>
+          )}
           {/* Primera carga sin datos todavía → loader de sección (antes se
               veía un bloque vacío hasta que respondía la query). Los refetch
               del realtime dejan la lista visible y usan el indicador de abajo. */}

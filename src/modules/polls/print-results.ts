@@ -24,6 +24,22 @@
  */
 import { luminanceOfHex, normalizeHex } from "@/modules/tenants/tenant-colors";
 import { optionFillPercent, type PollTypeForResults } from "./poll-results";
+/**
+ * La DESCRIPCIÓN se renderiza como markdown; el resto del documento, no.
+ *
+ * No es una decisión de gusto: en pantalla el alumno ve la descripción por
+ * `MarkdownInline` (app.student.polls.tsx) y el resto en texto plano. El PDF
+ * imprimía la descripción escapada, así que salía literalmente
+ * `**solo yo veo tus respuestas**` con los asteriscos — el papel decía una cosa
+ * y la pantalla otra. Renderizar SOLO la descripción cierra esa diferencia sin
+ * abrir una nueva.
+ *
+ * El texto de las preguntas y las respuestas abiertas se quedan escapados a
+ * propósito: no se renderizan en pantalla, y en una respuesta de alumno un
+ * `2 * 3 * 4` se volvería `2 <em>3</em> 4` — alterar lo que alguien escribió es
+ * peor que mostrarle un asterisco.
+ */
+import { markdownInlineToHtml } from "@/shared/lib/markdown-inline-html";
 
 /** Marca de la institución para el encabezado del documento. */
 export interface MarcaImpresion {
@@ -328,7 +344,7 @@ export function buildPollResultsHtml(d: DatosImpresion): string {
   <header class="marca">${logo}<div class="textos">${institucion}<p class="doc">${esc(t.tituloDoc)}</p></div></header>
   <h1>${esc(d.titulo)}</h1>
   <p class="sub">${subLinea}</p>
-  ${d.descripcion ? `<p class="desc">${esc(d.descripcion)}</p>` : ""}
+  ${d.descripcion ? `<p class="desc">${markdownInlineToHtml(d.descripcion)}</p>` : ""}
   <div class="resumen">${esc(t.generado)}: ${esc(d.generadoEl)}</div>
   ${cuerpo}
   <footer class="pie"><span>${esc(d.conNombres ? t.conNombresNota : t.sinNombresNota)}</span><span>${esc(d.titulo)}</span></footer>

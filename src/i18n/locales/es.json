@@ -1063,7 +1063,11 @@
     },
     "deleteTitle": "Enviar a papelera",
     "deleted": "Examen enviado a papelera",
-    "deleteDesc": "El examen \"{{title}}\" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía."
+    "deleteDesc": "El examen \"{{title}}\" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía.",
+    "mustSubmitTitle": "Al terminar tienes que ENTREGAR",
+    "mustSubmitBody": "Que tus respuestas se guarden solas NO significa que estén entregadas. Si cierras sin pulsar «Entregar», el intento queda en progreso y no recibe nota. El botón está al final de la última pregunta.",
+    "lastQuestionTitle": "Última pregunta: falta entregar",
+    "lastQuestionBody": "Pulsa «Entregar» abajo para terminar. Si cierras esta pestaña ahora, el intento queda en progreso y sin nota, aunque hayas respondido todo."
   },
   "project": {
     "start": "Iniciar entrega",
@@ -1151,7 +1155,11 @@
       "statusHint": "Estados posibles: 'En progreso' = intento activo del estudiante; 'Completado' = entregó dentro del plazo sin alertas; 'Sospechoso' = superó el máximo de strikes (proctoring) o la IA detectó probabilidad alta de fraude; 'Chequeado' = intento sospechoso o con copia que el docente ya revisó y marcó OK.",
       "dialog": "Diálogo",
       "dialogHint": "<amber>Ámbar</amber>: conversaciones abiertas con el estudiante. <red>Rojo</red>: conversaciones esperando tu respuesta. Click para abrir el panel de comentarios."
-    }
+    },
+    "notEnteredTitle_one": "{{count}} estudiante no ha ingresado",
+    "notEnteredTitle_other": "{{count}} estudiantes no han ingresado",
+    "notEnteredHint": "De {{total}} con el examen asignado. Todavía no abrieron la prueba: podés avisarles mientras la ventana esté abierta.",
+    "allEntered": "Los {{total}} con el examen asignado ya ingresaron."
   },
   "grading": {
     "configTitle": "Configuración de calificaciones",
@@ -4219,7 +4227,7 @@
     "importingSubtitle": "Cada usuario lleva ~500ms para evitar saturar Supabase Auth. Si son 90 alumnos puede tomar hasta 1 minuto. No cierres esta pestaña.",
     "subtitleFiltered": "{{filtered}} de {{total}} cuentas",
     "subtitleTotal": "{{total}} cuentas registradas",
-    "bulkImportCoursePlaceholder": "Curso al importar",
+    "bulkImportCoursePlaceholder": "Cursos al importar",
     "bulkImportCourseNone": "Sin curso por defecto",
     "bulkImportNoCourses": "No hay cursos disponibles.",
     "btnNewUser": "Nuevo usuario",
@@ -4287,7 +4295,7 @@
     "fieldEnrollCourseNone": "No inscribir todavía",
     "enrollHintChooseTenant": "Eligí primero una institución arriba para filtrar los cursos.",
     "enrollHintNoCourses": "No hay cursos disponibles en esta institución.",
-    "enrollHintAfterSave": "El alumno queda matriculado al guardar. Después podés ajustar desde el curso.",
+    "enrollHintAfterSave": "Queda matriculado en los cursos marcados al guardar. Después podés ajustar desde cada curso.",
     "estadoActivo": "Activo",
     "estadoRetirado": "Retirado",
     "estadoGraduado": "Graduado",
@@ -4324,7 +4332,11 @@
     "importingProgressSubtitle": "Procesando {{done}} de {{total}}. Puede tomar varios minutos: no cierres esta pestaña.",
     "importReportTitle": "Detalle del import",
     "importReportErrorsTitle": "Filas que no se pudieron crear",
-    "importReportDuplicatesTitle": "Correos que ya existían (no se duplicaron)"
+    "importReportDuplicatesTitle": "Correos que ya existían (no se duplicaron)",
+    "fieldEnrollCourses": "Matricular en estos cursos",
+    "bulkImportCourseCount_one": "{{count}} curso por defecto",
+    "bulkImportCourseCount_other": "{{count}} cursos por defecto",
+    "bulkImportCourseHintMulti": "Se aplica a las filas del CSV que NO traigan curso. En el CSV podés poner varios separados con «|»."
   },
   "projectFiles": {
     "tabList": "Preguntas ({{count}})",
@@ -5680,7 +5692,15 @@
     "clearAllAnswersDone": "Se borraron {{count}} respuestas de \"{{label}}\".",
     "clearAllAnswersFor": "Borrar todas sus respuestas",
     "respondentsTitle": "Respondientes ({{count}})",
-    "unknownStudent": "Estudiante sin nombre"
+    "unknownStudent": "Estudiante sin nombre",
+    "pendingTitle_one": "Falta {{count}} por responder, de {{total}} con acceso",
+    "pendingTitle_other": "Faltan {{count}} por responder, de {{total}} con acceso",
+    "pendingNone": "Respondieron los {{total}} con acceso.",
+    "pendingCourseComplete": "Respondieron todos.",
+    "courseOpenCount_one": "{{count}} abierta",
+    "courseOpenCount_other": "{{count}} abiertas",
+    "courseClosedCount_one": "{{count}} cerrada",
+    "courseClosedCount_other": "{{count}} cerradas"
   },
   "sessionType": {
     "label": "Tipo de sesión",

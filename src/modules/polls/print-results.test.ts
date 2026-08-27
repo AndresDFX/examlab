@@ -355,4 +355,48 @@ describe("buildPollResultsHtml — concordancia de número", () => {
     );
     expect(h).not.toContain("1 respuestas");
   });
+  it("la descripcion se RENDERIZA como markdown, igual que en pantalla", () => {
+    // Reportado: el PDF imprimia literalmente los asteriscos de
+    // "**solo yo veo tus respuestas**", mientras el alumno en pantalla lo ve en
+    // negrita (MarkdownInline). El papel decia una cosa y la pantalla otra.
+    const h = buildPollResultsHtml(
+      datos({
+        descripcion: "Opcional y confidencial: **solo yo veo tus respuestas**, no tus companeros.",
+      }),
+    );
+    expect(h).toContain("<strong>solo yo veo tus respuestas</strong>");
+    expect(h).not.toContain("**solo yo veo tus respuestas**");
+  });
+
+  it("y la descripcion sigue escapando el HTML que alguien escriba", () => {
+    const h = buildPollResultsHtml(datos({ descripcion: "<script>alert(1)</script> **ok**" }));
+    expect(h).not.toContain("<script>");
+    expect(h).toContain("&lt;script&gt;");
+    expect(h).toContain("<strong>ok</strong>");
+  });
+
+  it("una respuesta abierta NO se altera: se muestra tal como la escribio el alumno", () => {
+    // Renderizar markdown aca convertiria "2 * 3 * 4" en "2 <em>3</em> 4":
+    // alterar lo que alguien escribio es peor que mostrarle un asterisco.
+    // `tipo: "mixed"` no es decorativo: es el unico que enruta al bloque de
+    // PREGUNTAS. Sin eso el override se ignora y el test pasa sin probar nada
+    // (fallo que me agarro este mismo assert).
+    const h = buildPollResultsHtml(
+      datos({
+        tipo: "mixed",
+        preguntas: [
+          {
+            texto: "Calculo",
+            tipo: "abierta",
+            multi: false,
+            opciones: [],
+            abiertas: [{ autor: null, texto: "2 * 3 * 4 = 24" }],
+            totalRespuestas: 1,
+          },
+        ],
+      }),
+    );
+    expect(h).toContain("2 * 3 * 4 = 24");
+    expect(h).not.toContain("<em>");
+  });
 });

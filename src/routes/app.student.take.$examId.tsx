@@ -2082,6 +2082,18 @@ function TakeExam() {
                 <li>{t("hc_routesAppStudentTakeExamId.answersAutoSaved")}</li>
               </ul>
             </div>
+            {/* El aviso de ENTREGAR va en su propio recuadro y no como un punto
+                más de la lista: es la causa de que un intento quede "en
+                progreso" y sin nota, y el punto de arriba —"tus respuestas se
+                guardan solas"— invita justo a la conclusión contraria. Por eso
+                lo dice explícitamente: guardado no es entregado. */}
+            <div className="rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm space-y-1">
+              <p className="font-semibold flex items-center gap-2">
+                <Send className="h-4 w-4 shrink-0" />
+                {t("exam.mustSubmitTitle")}
+              </p>
+              <p>{t("exam.mustSubmitBody")}</p>
+            </div>
             <Button
               size="lg"
               className="w-full"
@@ -2554,6 +2566,20 @@ function TakeExam() {
        * AppLayout main); en desktop el max-w-3xl ya constriñe el
        * contenido al mismo ancho que el sticky.
        */}
+      {/* Última pregunta: el aviso va PEGADO al botón que hay que pulsar, no en
+          la cabecera. Quien llega acá ya no va a scrollear hacia arriba, y este
+          es el punto exacto donde un intento queda "en progreso" para siempre si
+          la persona cierra la pestaña creyendo que terminó. */}
+      {currentIdx === questions.length - 1 && (
+        <div className="mt-6 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm space-y-1">
+          <p className="font-semibold flex items-center gap-2">
+            <Send className="h-4 w-4 shrink-0" />
+            {t("exam.lastQuestionTitle")}
+          </p>
+          <p className="text-muted-foreground">{t("exam.lastQuestionBody")}</p>
+        </div>
+      )}
+
       <div className="sticky bottom-0 z-20 bg-background border-t mt-6 pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] -mx-4 px-4 sm:-mx-6 sm:px-6 flex items-center justify-between gap-2">
         <Button
           variant="outline"

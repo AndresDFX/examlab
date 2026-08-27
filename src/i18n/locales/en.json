@@ -1063,7 +1063,11 @@
     },
     "deleteTitle": "Send to trash",
     "deleted": "Exam sent to trash",
-    "deleteDesc": "The exam \"{{title}}\" will be hidden from the list but kept in the trash for 30 days in case you want to restore it. Questions, assignments and submissions are not deleted yet."
+    "deleteDesc": "The exam \"{{title}}\" will be hidden from the list but kept in the trash for 30 days in case you want to restore it. Questions, assignments and submissions are not deleted yet.",
+    "mustSubmitTitle": "You must SUBMIT when you finish",
+    "mustSubmitBody": "Your answers saving automatically does NOT mean they are submitted. If you close without pressing “Submit”, the attempt stays in progress and gets no grade. The button is at the end of the last question.",
+    "lastQuestionTitle": "Last question — you still need to submit",
+    "lastQuestionBody": "Press “Submit” below to finish. If you close this tab now, the attempt stays in progress with no grade, even if you answered everything."
   },
   "project": {
     "start": "Start submission",
@@ -1151,7 +1155,11 @@
       "statusHint": "Possible states: 'In progress' = active attempt; 'Completed' = submitted on time without alerts; 'Suspicious' = exceeded the max strikes (proctoring) or AI detected high fraud probability; 'Checked' = a suspicious/copied attempt that the teacher reviewed and marked as OK.",
       "dialog": "Dialog",
       "dialogHint": "Amber: open conversations with the student. Red: conversations awaiting your reply. Click to open the comments panel."
-    }
+    },
+    "notEnteredTitle_one": "{{count}} student has not started",
+    "notEnteredTitle_other": "{{count}} students have not started",
+    "notEnteredHint": "Out of {{total}} assigned this exam. They have not opened it yet — you can reach out while the window is open.",
+    "allEntered": "All {{total}} students assigned this exam have started."
   },
   "grading": {
     "configTitle": "Grading configuration",
@@ -4219,7 +4227,7 @@
     "importingSubtitle": "Each user takes ~500ms to avoid overloading Supabase Auth. For 90 students this can take up to 1 minute. Don't close this tab.",
     "subtitleFiltered": "{{filtered}} of {{total}} accounts",
     "subtitleTotal": "{{total}} registered accounts",
-    "bulkImportCoursePlaceholder": "Course on import",
+    "bulkImportCoursePlaceholder": "Courses on import",
     "bulkImportCourseNone": "No default course",
     "bulkImportNoCourses": "No courses available.",
     "btnNewUser": "New user",
@@ -4287,7 +4295,7 @@
     "fieldEnrollCourseNone": "Don't enroll yet",
     "enrollHintChooseTenant": "Choose an institution above first to filter courses.",
     "enrollHintNoCourses": "No courses available in this institution.",
-    "enrollHintAfterSave": "The student will be enrolled on save. You can adjust later from the course.",
+    "enrollHintAfterSave": "They are enrolled in the checked courses on save. You can adjust it later from each course.",
     "estadoActivo": "Active",
     "estadoRetirado": "Withdrawn",
     "estadoGraduado": "Graduated",
@@ -4324,7 +4332,11 @@
     "importingProgressSubtitle": "Processing {{done}} of {{total}}. This may take several minutes: don't close this tab.",
     "importReportTitle": "Import details",
     "importReportErrorsTitle": "Rows that could not be created",
-    "importReportDuplicatesTitle": "Emails that already existed (not duplicated)"
+    "importReportDuplicatesTitle": "Emails that already existed (not duplicated)",
+    "fieldEnrollCourses": "Enroll in these courses",
+    "bulkImportCourseCount_one": "{{count}} default course",
+    "bulkImportCourseCount_other": "{{count}} default courses",
+    "bulkImportCourseHintMulti": "Applies to CSV rows that do NOT carry a course. In the CSV you can list several separated by “|”."
   },
   "projectFiles": {
     "tabList": "Questions ({{count}})",
@@ -5680,7 +5692,15 @@
     "clearAllAnswersDone": "Deleted {{count}} answers from \"{{label}}\".",
     "clearAllAnswersFor": "Delete all their answers",
     "respondentsTitle": "Respondents ({{count}})",
-    "unknownStudent": "Unnamed student"
+    "unknownStudent": "Unnamed student",
+    "pendingTitle_one": "{{count}} has not answered, out of {{total}} with access",
+    "pendingTitle_other": "{{count}} have not answered, out of {{total}} with access",
+    "pendingNone": "All {{total}} with access have answered.",
+    "pendingCourseComplete": "Everyone answered.",
+    "courseOpenCount_one": "{{count}} open",
+    "courseOpenCount_other": "{{count}} open",
+    "courseClosedCount_one": "{{count}} closed",
+    "courseClosedCount_other": "{{count}} closed"
   },
   "sessionType": {
     "label": "Session type",
