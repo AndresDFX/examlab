@@ -182,6 +182,18 @@ del doble padding y su justificación están escritos hace meses en
 [AuditLogsView.tsx:532-538](src/modules/admin/AuditLogsView.tsx) — y aun así nunca se propagó al resto
 de las rutas. Antes de cerrar un cambio de UI, correr los checks de los principios que ese cambio roza.
 
+> **Corré `node scripts/audit-ui.mjs`** en vez de los greps de una línea de abajo. Los greps siguen
+> documentados porque explican QUÉ mira cada principio, pero como comando son inservibles: el de P1
+> devuelve ~40 líneas sobre este repo y **ninguna** es una violación (matchea cualquier `<div>`
+> anidado dentro de un Card), el de P7 suma las columnas de todas las tablas del archivo (un grid de
+> 8 con otra tabla en un diálogo reporta 9), y el de fechas matchea sobre todo NÚMEROS. El script
+> implementa los mismos principios con las exclusiones necesarias, más las cuatro reglas responsive
+> de 375px, y lo fija [`src/shared/lib/ui-rules.test.ts`](src/shared/lib/ui-rules.test.ts) para que
+> corra en `bun test`. Tiene 3 excepciones revisadas, cada una con su motivo escrito en el propio
+> archivo — **no agregues una violación a esa lista para que pase el test**: es para casos donde el
+> principio no aplica. `--cobertura` dice cuántas pantallas alcanzó a revisar y cuáles no (P1 llegaba
+> al 60% con un tope de líneas que tenía, y reportaba "limpio" igual).
+
 ### P1 — El padding de página lo provee el shell, no la ruta
 
 El shell ya aplica `px-4 md:px-8 py-5 md:py-8` ([AppLayout.tsx:1723](src/shared/components/AppLayout.tsx)); si la ruta lo repite, el contenido salta ~24px al navegar entre módulos y unas pantallas capean el ancho mientras otras van full-width.

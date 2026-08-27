@@ -92,6 +92,11 @@ const weekdayNameFmt = new Intl.DateTimeFormat(LOCALE, {
   weekday: "long",
 });
 
+/** Solo el mes abreviado. "sep". Lo usa el desplegable de meses del calendario. */
+const monthShortFmt = new Intl.DateTimeFormat(LOCALE, {
+  month: "short",
+});
+
 /** Solo fecha. "30 sep 2026". */
 export function formatDate(value: DateInput, fallback = "—"): string {
   const d = toDate(value);
@@ -141,6 +146,19 @@ export function formatWeekdayName(value: DateInput, fallback = "—"): string {
     typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T12:00:00` : value;
   const d = toDate(v);
   return d ? weekdayNameFmt.format(d) : fallback;
+}
+
+/**
+ * Mes abreviado ("sep"), para el desplegable de meses del calendario.
+ *
+ * Existe para que ese desplegable no llame a `toLocaleString` por su cuenta: el
+ * locale de la app está clavado en es-CO en UN solo lugar a propósito, y cada
+ * llamada suelta es una oportunidad de que la app se vea distinta según el
+ * sistema operativo del usuario — que es lo que originó esta centralización.
+ */
+export function formatMonthShort(value: DateInput, fallback = "—"): string {
+  const d = toDate(value);
+  return d ? monthShortFmt.format(d) : fallback;
 }
 
 /**
