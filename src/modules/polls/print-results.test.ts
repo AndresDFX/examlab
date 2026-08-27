@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildPollResultsHtml, type DatosImpresion, type TextosImpresion } from "./print-results";
+import {
+  anonimizarDatos,
+  buildPollResultsHtml,
+  type DatosImpresion,
+  type TextosImpresion,
+} from "./print-results";
 import { optionFillPercent } from "./poll-results";
 
 const TEXTOS: TextosImpresion = {
@@ -163,11 +168,118 @@ describe("buildPollResultsHtml — privacidad", () => {
     const h = buildPollResultsHtml(
       datos({
         conNombres: true,
-        opciones: [{ etiqueta: "Sí", conteo: 1, cupo: null, votantes: ["Ana Gómez"] }],
+        opciones: [
+          {
+            etiqueta: "Sí",
+            conteo: 1,
+            cupo: null,
+            votantes: [{ nombre: "Ana Gómez", email: "ana.gomez@uni.edu.co" }],
+          },
+        ],
       }),
     );
     expect(h).toContain("Ana Gómez");
     expect(h).toContain("Documento con nombres");
+  });
+
+  it("imprime el CORREO de cada participante junto a su nombre", () => {
+    // El correo es lo que vuelve al informe accionable: con el nombre solo, quien
+    // lo lee tiene que ir a otra pantalla a buscar a cada persona.
+    const h = buildPollResultsHtml(
+      datos({
+        conNombres: true,
+        opciones: [
+          {
+            etiqueta: "Sí",
+            conteo: 2,
+            cupo: null,
+            votantes: [
+              { nombre: "Ana Gómez", email: "ana.gomez@uni.edu.co" },
+              { nombre: "Beto Ruiz", email: "beto.ruiz@uni.edu.co" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(h).toContain("ana.gomez@uni.edu.co");
+    expect(h).toContain("beto.ruiz@uni.edu.co");
+  });
+
+  it("sin correo cargado imprime solo el nombre, no un hueco ni un 'null'", () => {
+    const h = buildPollResultsHtml(
+      datos({
+        conNombres: true,
+        opciones: [
+          {
+            etiqueta: "Sí",
+            conteo: 2,
+            cupo: null,
+            votantes: [{ nombre: "Ana Gómez", email: null }, { nombre: "Beto Ruiz" }],
+          },
+        ],
+      }),
+    );
+    expect(h).toContain("Ana Gómez");
+    expect(h).toContain("Beto Ruiz");
+    expect(h).not.toContain("null");
+    expect(h).not.toContain("undefined");
+    // Y no queda el contenedor del correo vacío.
+    expect(h).not.toMatch(/<span class="pm"><\/span>/);
+  });
+
+  it("el correo se ESCAPA igual que el nombre", () => {
+    const h = buildPollResultsHtml(
+      datos({
+        conNombres: true,
+        opciones: [
+          {
+            etiqueta: "Sí",
+            conteo: 1,
+            cupo: null,
+            votantes: [{ nombre: "X", email: "<script>alert(1)</script>@x.co" }],
+          },
+        ],
+      }),
+    );
+    expect(h).not.toContain("<script>");
+    expect(h).toContain("&lt;script&gt;");
+  });
+
+  it("el correo del autor sale en las respuestas abiertas", () => {
+    const h = buildPollResultsHtml(
+      datos({
+        tipo: "mixed",
+        conNombres: true,
+        preguntas: [
+          {
+            texto: "¿Qué mejorarías?",
+            tipo: "abierta",
+            multi: false,
+            opciones: [],
+            abiertas: [
+              { autor: "Ana Gómez", email: "ana.gomez@uni.edu.co", texto: "Más ejercicios" },
+            ],
+            totalRespuestas: 1,
+          },
+        ],
+      }),
+    );
+    expect(h).toContain("ana.gomez@uni.edu.co");
+    expect(h).toContain("Más ejercicios");
+  });
+
+  it("en modo anónimo el correo TAMPOCO llega al HTML", () => {
+    // El caller vacía los votantes en modo anónimo; este test fija que agregar
+    // el correo no abrió una segunda vía para filtrar identidad.
+    const h = buildPollResultsHtml(
+      datos({
+        conNombres: false,
+        opciones: [{ etiqueta: "Sí", conteo: 1, cupo: null, votantes: [] }],
+      }),
+    );
+    // Se busca la FORMA de un correo, no el arroba suelto: el CSS del documento
+    // tiene `@page` y `@media`, así que `not.toContain("@")` no probaba nada.
+    expect(h).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
   });
 
   it("en modo anónimo NINGÚN nombre llega al HTML", () => {
@@ -262,11 +374,76 @@ describe("buildPollResultsHtml — que la hoja salga imprimible", () => {
     // negocia es una barra o una respuesta cortada, y un título de pregunta
     // solo al pie de la hoja.
     const h = buildPollResultsHtml(datos({ tipo: "mixed" }));
-    expect(h).toContain(".fila { margin: 0 0 11px; break-inside: avoid");
+    // Se afirma la PROTECCIÓN, no el margen exacto: fijar los px hacía que
+    // cualquier ajuste de densidad rompiera un test que no habla de densidad.
+    expect(h).toMatch(/\.fila \{[^}]*break-inside: avoid/);
     expect(h).toContain("ul.abiertas li");
     expect(h).toMatch(/\.pregunta > h2[^}]*break-after: avoid/);
     // La pregunta entera NO debe llevar la prohibición.
     expect(h).not.toMatch(/\.pregunta \{[^}]*break-inside: avoid/);
+  });
+
+  it("el separador de participantes no puede abrir un renglón", () => {
+    // Medido en el navegador con 23 participantes: con el separador saliendo de
+    // un `::after { content: " · " }`, ese espacio de adelante era un punto de
+    // corte y quedaban viñetas huérfanas abriendo renglón. Va pegado con espacio
+    // duro al participante que termina, así el corte queda del otro lado.
+    const h = buildPollResultsHtml(
+      datos({
+        conNombres: true,
+        opciones: [
+          {
+            etiqueta: "Sí",
+            conteo: 2,
+            cupo: null,
+            votantes: [
+              { nombre: "Ana Gómez", email: "ana@uni.edu.co" },
+              { nombre: "Beto Ruiz", email: "beto@uni.edu.co" },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(h).toContain('<span class="sep">&#160;·</span>');
+    // Y el último no lleva separador colgando.
+    expect(h).toMatch(/beto@uni\.edu\.co<\/span><\/span>/);
+    // El separador ya NO puede venir de content: con un espacio normal delante.
+    expect(h).not.toContain('content: " · "');
+  });
+
+  it("una encuesta de opciones y una mixta imprimen con la MISMA densidad", () => {
+    // Las dos rutas eran dos copias del mismo bloque, y al compactar la de
+    // opciones la mixta quedó con dos renglones por opción: el mismo documento
+    // con dos densidades segun el tipo de encuesta. Ahora las dos pasan por
+    // `filaOpcion`, y esto lo fija.
+    const simple = buildPollResultsHtml(
+      datos({
+        tipo: "single",
+        totalRespuestas: 2,
+        opciones: [{ etiqueta: "Sí", conteo: 1, cupo: null, votantes: [] }],
+      }),
+    );
+    const mixta = buildPollResultsHtml(
+      datos({
+        tipo: "mixed",
+        preguntas: [
+          {
+            texto: "¿Trabajas?",
+            tipo: "cerrada",
+            multi: false,
+            opciones: [{ etiqueta: "Sí", conteo: 1 }],
+            abiertas: [],
+            totalRespuestas: 2,
+          },
+        ],
+      }),
+    );
+    // La etiqueta y el conteo comparten renglón en las dos (la clase `cab`).
+    expect(simple).toContain('<div class="cab">');
+    expect(mixta).toContain('<div class="cab">');
+    // Y en las dos el conteo va como span dentro de esa línea, no como párrafo
+    // aparte debajo de la barra.
+    expect(mixta).not.toMatch(/<p class="meta">1 respuesta/);
   });
 
   it("declara A4 y un documento HTML completo", () => {
@@ -398,5 +575,81 @@ describe("buildPollResultsHtml — concordancia de número", () => {
     );
     expect(h).toContain("2 * 3 * 4 = 24");
     expect(h).not.toContain("<em>");
+  });
+});
+
+describe("anonimizarDatos", () => {
+  // El correo agregó un SEGUNDO canal de identidad por participante, y el que
+  // faltaba limpiar era justamente ese: el correo del autor de una respuesta
+  // abierta. No filtraba, pero solo porque el armador no lo pinta sin autor — un
+  // detalle del renderizador del que el anonimato no debe depender.
+  const conIdentidad = () =>
+    datos({
+      tipo: "mixed",
+      conNombres: true,
+      opciones: [
+        {
+          etiqueta: "Sí",
+          conteo: 1,
+          cupo: null,
+          votantes: [{ nombre: "Ana Gómez", email: "ana@uni.edu.co" }],
+        },
+      ],
+      preguntas: [
+        {
+          texto: "¿Cómo vas?",
+          tipo: "cerrada",
+          multi: false,
+          totalRespuestas: 1,
+          opciones: [{ etiqueta: "Bien", conteo: 1 }],
+          abiertas: [],
+        },
+        {
+          texto: "¿Qué mejorarías?",
+          tipo: "abierta",
+          multi: false,
+          totalRespuestas: 1,
+          opciones: [],
+          abiertas: [{ autor: "Caro Díaz", email: "caro@uni.edu.co", texto: "Más práctica" }],
+        },
+      ],
+    });
+
+  it("vacía los votantes de las opciones de primer nivel", () => {
+    expect(anonimizarDatos(conIdentidad()).opciones[0].votantes).toEqual([]);
+  });
+
+  it("borra el autor Y su correo de las respuestas abiertas", () => {
+    const a = anonimizarDatos(conIdentidad()).preguntas[1].abiertas[0];
+    expect(a.autor).toBeNull();
+    expect(a.email).toBeNull();
+    // El texto de la respuesta se conserva: es el contenido, no la identidad.
+    expect(a.texto).toBe("Más práctica");
+  });
+
+  it("ningún nombre ni correo sobrevive al HTML final", () => {
+    const h = buildPollResultsHtml({ ...anonimizarDatos(conIdentidad()), conNombres: false });
+    for (const dato of ["Ana Gómez", "Caro Díaz", "ana@uni.edu.co", "caro@uni.edu.co"]) {
+      expect(h).not.toContain(dato);
+    }
+    expect(h).not.toMatch(/[\w.+-]+@[\w-]+\.[\w.]+/);
+  });
+
+  it("no muta lo que recibe", () => {
+    // El botón imprime dos veces desde el mismo estado (con nombres y sin), así
+    // que mutar la entrada dejaría la segunda impresión vacía de nombres.
+    const original = conIdentidad();
+    anonimizarDatos(original);
+    expect(original.opciones[0].votantes).toHaveLength(1);
+    expect(original.preguntas[1].abiertas[0].autor).toBe("Caro Díaz");
+    expect(original.preguntas[1].abiertas[0].email).toBe("caro@uni.edu.co");
+  });
+
+  it("conserva todo lo que NO es identidad", () => {
+    const r = anonimizarDatos(conIdentidad());
+    expect(r.opciones[0].conteo).toBe(1);
+    expect(r.opciones[0].etiqueta).toBe("Sí");
+    expect(r.preguntas[0].texto).toBe("¿Cómo vas?");
+    expect(r.preguntas[0].totalRespuestas).toBe(1);
   });
 });

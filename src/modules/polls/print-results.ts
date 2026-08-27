@@ -51,13 +51,25 @@ export interface MarcaImpresion {
   colorPrimario: string | null;
 }
 
+/**
+ * Un participante del informe. El CORREO es lo que vuelve al documento
+ * accionable: con el nombre solo, quien lee tiene que ir a buscar a cada persona
+ * en otra pantalla para escribirle. `email` es nullable porque un perfil puede no
+ * tenerlo cargado, y en ese caso se imprime solo el nombre — no un hueco ni un
+ * "null".
+ */
+export interface ParticipanteImpresion {
+  nombre: string;
+  email?: string | null;
+}
+
 export interface OpcionImpresion {
   etiqueta: string;
   conteo: number;
   /** Cupo de la opción (solo `slot`). */
   cupo: number | null;
   /** Nombres de quienes eligieron la opción. Vacío en modo anónimo. */
-  votantes: string[];
+  votantes: ParticipanteImpresion[];
 }
 
 export interface PreguntaImpresion {
@@ -67,7 +79,7 @@ export interface PreguntaImpresion {
   multi: boolean;
   opciones: Array<{ etiqueta: string; conteo: number }>;
   /** Respuestas de texto. `autor` es `null` en modo anónimo. */
-  abiertas: Array<{ autor: string | null; texto: string }>;
+  abiertas: Array<{ autor: string | null; email?: string | null; texto: string }>;
   /** Cuántas personas respondieron ESTA pregunta. */
   totalRespuestas: number;
 }
@@ -152,6 +164,36 @@ function barra(pct: number, color: string): string {
   );
 }
 
+/**
+ * Lista de participantes con su correo, en flujo continuo.
+ *
+ * El correo va JUNTO al nombre y no en una columna aparte: una tabla de dos
+ * columnas para 23 personas ocupa 23 renglones, y en flujo continuo entran 3 o 4
+ * por renglón. Es lo que permite agregar el dato sin que el informe crezca.
+ *
+ * Sin correo se imprime solo el nombre. Un "—" o un paréntesis vacío por cada
+ * perfil sin correo cargado ensucia la lista y no informa nada.
+ */
+function listaParticipantes(gente: readonly ParticipanteImpresion[]): string {
+  if (gente.length === 0) return "";
+  const ultimo = gente.length - 1;
+  const items = gente
+    .map((g, i) => {
+      const nombre = `<span class="pn">${esc(g.nombre)}</span>`;
+      const mail = g.email ? `<span class="pm">${esc(g.email)}</span>` : "";
+      // El separador se PEGA al participante que termina, con espacio duro
+      // (&#160;), y el corte de línea queda del otro lado. Así se comporta como
+      // una coma: nunca amanece solo al inicio de un renglón. Antes salía de un
+      // ::after con content " · " y ese espacio de adelante era justo el punto
+      // por donde el navegador partía — en la medición del curso de 23 personas
+      // dejaba viñetas huérfanas abriendo renglón.
+      const sep = i < ultimo ? `<span class="sep">&#160;·</span>` : "";
+      return `<span class="p">${nombre}${mail}${sep}</span>`;
+    })
+    .join(" ");
+  return `<p class="nombres">${items}</p>`;
+}
+
 function bloqueOpciones(d: DatosImpresion, color: string): string {
   if (d.opciones.length === 0) {
     return `<p class="vacio">${esc(d.textos.sinRespuestas)}</p>`;
@@ -177,20 +219,47 @@ function bloqueOpciones(d: DatosImpresion, color: string): string {
         meta.push(esc(plural(o.conteo, d.textos.respuesta, d.textos.respuestas)));
         if (fill.showPct) meta.push(`${fill.pct}%`);
       }
-      const nombres =
-        o.votantes.length > 0
-          ? `<p class="nombres">${o.votantes.map((n) => esc(n)).join(" · ")}</p>`
-          : "";
-      return (
-        '<section class="fila">' +
-        `<h2>${esc(o.etiqueta)}</h2>` +
-        barra(fill.pct, color) +
-        `<p class="meta">${meta.join(" · ")}</p>` +
-        nombres +
-        "</section>"
-      );
+      return filaOpcion({
+        etiqueta: o.etiqueta,
+        meta,
+        pct: fill.pct,
+        color,
+        nivel: "h2",
+        participantes: o.votantes,
+      });
     })
     .join("");
+}
+
+/**
+ * Una opción con su barra: etiqueta y conteo en la MISMA línea (etiqueta a la
+ * izquierda, conteo a la derecha), la barra debajo y los participantes al final.
+ *
+ * Está compartida entre las encuestas de opciones y las preguntas cerradas de una
+ * mixta porque eran dos copias, y al compactar una la otra quedó con los dos
+ * renglones por opción — el mismo documento con dos densidades según el tipo de
+ * encuesta. Lo que cambia entre las dos es el nivel del título (la mixta ya usa
+ * un h2 para la pregunta, así que la opción baja a h3) y que en la mixta no hay
+ * votantes por opción: su tipo es `{ etiqueta, conteo }`.
+ */
+function filaOpcion(a: {
+  etiqueta: string;
+  meta: string[];
+  pct: number;
+  color: string;
+  nivel: "h2" | "h3";
+  participantes?: readonly ParticipanteImpresion[];
+}): string {
+  return (
+    '<section class="fila">' +
+    '<div class="cab">' +
+    `<${a.nivel}>${esc(a.etiqueta)}</${a.nivel}>` +
+    `<span class="meta">${a.meta.join(" · ")}</span>` +
+    "</div>" +
+    barra(a.pct, a.color) +
+    (a.participantes ? listaParticipantes(a.participantes) : "") +
+    "</section>"
+  );
 }
 
 function bloquePreguntas(d: DatosImpresion, color: string): string {
@@ -214,7 +283,13 @@ function bloquePreguntas(d: DatosImpresion, color: string): string {
                 .map(
                   (a) =>
                     "<li>" +
-                    (a.autor ? `<span class="autor">${esc(a.autor)}</span>` : "") +
+                    // Autor y correo en el MISMO renglón: eran dos, y con el
+                    // correo aparte habrían sido tres por respuesta.
+                    (a.autor
+                      ? `<span class="autor">${esc(a.autor)}` +
+                        (a.email ? `<span class="pm">${esc(a.email)}</span>` : "") +
+                        "</span>"
+                      : "") +
                     `<span class="texto">${esc(a.texto)}</span>` +
                     "</li>",
                 )
@@ -235,18 +310,37 @@ function bloquePreguntas(d: DatosImpresion, color: string): string {
           });
           const meta = [esc(plural(o.conteo, d.textos.respuesta, d.textos.respuestas))];
           if (fill.showPct) meta.push(`${fill.pct}%`);
-          return (
-            '<section class="fila">' +
-            `<h3>${esc(o.etiqueta)}</h3>` +
-            barra(fill.pct, color) +
-            `<p class="meta">${meta.join(" · ")}</p>` +
-            "</section>"
-          );
+          return filaOpcion({ etiqueta: o.etiqueta, meta, pct: fill.pct, color, nivel: "h3" });
         })
         .join("");
       return `<section class="pregunta">${encabezado}${opciones}</section>`;
     })
     .join("");
+}
+
+/**
+ * Quita del documento TODO dato de identidad, para el modo "sin nombres".
+ *
+ * Vive acá y es pura para que se pueda probar: la garantía de anonimato era un
+ * comentario en el botón de imprimir, y con el correo pasó a haber DOS canales de
+ * identidad por participante donde antes había uno. Los tres lugares con identidad
+ * son los votantes de cada opción, y el autor y el correo de cada respuesta
+ * abierta. Las opciones de una pregunta del mixto no entran: su tipo es
+ * `{ etiqueta, conteo }`, no llevan a nadie.
+ *
+ * Se BORRA el dato, no se confía en que el armador no lo pinte: hoy el correo del
+ * autor solo se imprime si hay autor, pero eso es un detalle del renderizador y
+ * el anonimato no puede depender de que nadie lo cambie.
+ */
+export function anonimizarDatos<T extends Pick<DatosImpresion, "opciones" | "preguntas">>(d: T): T {
+  return {
+    ...d,
+    opciones: d.opciones.map((o) => ({ ...o, votantes: [] })),
+    preguntas: d.preguntas.map((q) => ({
+      ...q,
+      abiertas: q.abiertas.map((a) => ({ ...a, autor: null, email: null })),
+    })),
+  };
 }
 
 /** Arma el documento completo, listo para `printReportHtml`. */
@@ -312,20 +406,56 @@ export function buildPollResultsHtml(d: DatosImpresion): string {
   h1 { font-size: 16pt; margin: 0 0 4px; }
   .sub { margin: 0 0 4px; font-size: 9.5pt; color: #4b5563; }
   .desc { margin: 6px 0 0; font-size: 10pt; color: #374151; }
-  .resumen { margin: 14px 0 18px; padding: 8px 12px; border-radius: 6px;
-             background: ${color}; color: ${sobreColor}; font-size: 10pt; }
-  .fila { margin: 0 0 11px; break-inside: avoid; page-break-inside: avoid; }
+  /* ── Densidad ─────────────────────────────────────────────────────
+     El correo de cada participante hace crecer el documento, así que la maqueta
+     se ajustó para que el informe NO ocupe más que antes. Los cuatro números
+     salen de MEDIR el alto real del documento con 23 participantes repartidos en
+     5 opciones (el volumen de un curso), cada uno aislando una cosa:
+
+       873 px   maqueta anterior, sin correos ....... el punto de partida
+       717 px   esta maqueta, sin correos ........... lo que aporta la maqueta
+       868 px   esta maqueta, con los 23 correos .... el resultado
+       960 px   esta maqueta, correo al tamaño del
+                nombre ............................. lo que aporta el .pm chico
+
+     O sea: se agregó el correo y el documento NO quedó más largo que cuando no lo
+     tenía. Lo que lo paga es sacar un renglón por opción — la etiqueta y el conteo
+     van en la MISMA línea (la clase .cab), no uno debajo del otro — y que el correo
+     vaya a 7,5pt. Los ajustes de aire por sí solos no habrían alcanzado.
+
+     De esos 868, unos 16 px los cuesta pegar el separador al participante que
+     termina (ver listaParticipantes): al no poder partirse, algún par nombre+correo
+     que antes cerraba el renglón ahora baja entero. Se paga a gusto: la alternativa
+     era la viñeta huérfana abriendo renglón, que sí se ve como un error.
+
+     Ojo: este bloque vive dentro de un template literal, así que acá NO se pueden
+     usar acentos graves — cierran el literal y el archivo deja de compilar. Ya
+     rompió el build dos veces mientras se escribía esto. */
+  .resumen { margin: 9px 0 11px; padding: 6px 10px; border-radius: 6px;
+             background: ${color}; color: ${sobreColor}; font-size: 9.5pt; }
+  .fila { margin: 0 0 8px; break-inside: avoid; page-break-inside: avoid; }
   .pregunta > h2, .pregunta > .meta { break-after: avoid; page-break-after: avoid; }
-  .fila h2, .fila h3 { margin: 0 0 4px; font-size: 10.5pt; font-weight: 600; }
-  .barra { height: 9px; border-radius: 999px; background: #e5e7eb; overflow: hidden; }
+  .cab { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+  .fila h2, .fila h3 { margin: 0; font-size: 10.5pt; font-weight: 600; }
+  .barra { height: 6px; border-radius: 999px; background: #e5e7eb; overflow: hidden;
+           margin-top: 3px; }
   .relleno { height: 100%; border-radius: 999px; }
-  .meta { margin: 3px 0 0; font-size: 8.5pt; color: #6b7280; }
-  .nombres { margin: 3px 0 0; font-size: 9pt; color: #374151; }
-  .pregunta { margin: 0 0 18px; padding: 0 0 4px; border-bottom: 1px solid #f1f5f9; }
+  .meta { font-size: 8.5pt; color: #6b7280; white-space: nowrap; }
+  /* Los participantes van en flujo continuo, no uno por renglón: así entran 3 o
+     4 por línea y el correo cabe sin duplicar el alto. El nombre y el correo van
+     cada uno sin partirse; el separador lo emite listaParticipantes.
+     (Ojo: este bloque vive dentro de un template literal, así que acá NO se
+     pueden usar acentos graves — cierran el literal y el archivo deja de
+     compilar.) */
+  .nombres { margin: 3px 0 0; font-size: 9pt; color: #374151; line-height: 1.35; }
+  .nombres .sep { color: #9ca3af; }
+  .nombres .pn { white-space: nowrap; }
+  .pm { font-size: 7.5pt; color: #6b7280; margin-left: 3px; white-space: nowrap; }
+  .pregunta { margin: 0 0 12px; padding: 0 0 3px; border-bottom: 1px solid #f1f5f9; }
   .pregunta > h2 { margin: 0 0 2px; font-size: 11.5pt; }
   .num { color: ${color}; font-weight: 700; }
-  ul.abiertas { margin: 6px 0 0; padding: 0; list-style: none; }
-  ul.abiertas li { margin: 0 0 6px; padding: 6px 9px; border-left: 3px solid ${color};
+  ul.abiertas { margin: 4px 0 0; padding: 0; list-style: none; }
+  ul.abiertas li { margin: 0 0 4px; padding: 4px 8px; border-left: 3px solid ${color};
                    background: #f8fafc; border-radius: 0 4px 4px 0; break-inside: avoid; }
   .autor { display: block; font-size: 8.5pt; font-weight: 600; color: #475569; }
   .texto { display: block; font-size: 10pt; white-space: pre-wrap; }

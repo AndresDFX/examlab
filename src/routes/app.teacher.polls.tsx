@@ -3281,7 +3281,12 @@ function ResultsDialog({
   // alumno vota durante el show-of-hands sin click manual.
   const [liveOptions, setLiveOptions] = useState<PollOption[]>([]);
   const [respondents, setRespondents] = useState<
-    Array<{ option_id: string; user_id: string; full_name: string | null }>
+    Array<{
+      option_id: string;
+      user_id: string;
+      full_name: string | null;
+      email: string | null;
+    }>
   >([]);
   const [loading, setLoading] = useState(false);
   // Set de user_ids en proceso de borrado — para mostrar spinner y
@@ -3434,14 +3439,22 @@ function ResultsDialog({
       const rawResp = (respRes.data ?? []) as Array<{ option_id: string; user_id: string }>;
       const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
       const nameById = new Map<string, string | null>();
+      // El CORREO va al PDF exportado: con el nombre solo, quien lee el informe
+      // tiene que ir a buscar a cada persona en otra pantalla para escribirle.
+      const mailById = new Map<string, string | null>();
       if (userIds.length > 0) {
         const { data: profs, error: profErr } = await db
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, institutional_email")
           .in("id", userIds);
         if (profErr) toast.error(friendlyError(profErr, t("teacherPolls.errLoadPolls")));
-        for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        for (const p of (profs ?? []) as Array<{
+          id: string;
+          full_name: string | null;
+          institutional_email: string | null;
+        }>) {
           nameById.set(p.id, p.full_name ?? null);
+          mailById.set(p.id, p.institutional_email ?? null);
         }
       }
       setRespondents(
@@ -3449,6 +3462,7 @@ function ResultsDialog({
           option_id: r.option_id,
           user_id: r.user_id,
           full_name: nameById.get(r.user_id) ?? null,
+          email: mailById.get(r.user_id) ?? null,
         })),
       );
 
@@ -3791,7 +3805,10 @@ function ResultsDialog({
                 cupo: isSlot ? o.max_responses : null,
                 votantes: respondents
                   .filter((r) => r.option_id === o.id)
-                  .map((r) => r.full_name ?? t("pollPrint.unnamed")),
+                  .map((r) => ({
+                    nombre: r.full_name ?? t("pollPrint.unnamed"),
+                    email: r.email,
+                  })),
               })),
               preguntas: [],
             })}
@@ -3833,6 +3850,7 @@ interface MixedResp {
   selected_indexes: number[] | null;
   created_at: string;
   full_name: string | null;
+  email: string | null;
 }
 
 function MixedResultsDialog({
@@ -3884,21 +3902,33 @@ function MixedResultsDialog({
         toast.error(friendlyError(rErr));
         return;
       }
-      const rawResp = (rs ?? []) as Array<Omit<MixedResp, "full_name">>;
+      const rawResp = (rs ?? []) as Array<Omit<MixedResp, "full_name" | "email">>;
       const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
       const nameById = new Map<string, string | null>();
+      const mailById = new Map<string, string | null>();
       if (userIds.length > 0) {
         const { data: profs, error: pErr } = await db
           .from("profiles")
-          .select("id, full_name")
+          .select("id, full_name, institutional_email")
           .in("id", userIds);
         if (pErr) toast.error(friendlyError(pErr));
-        for (const p of (profs ?? []) as Array<{ id: string; full_name: string | null }>) {
+        for (const p of (profs ?? []) as Array<{
+          id: string;
+          full_name: string | null;
+          institutional_email: string | null;
+        }>) {
           nameById.set(p.id, p.full_name ?? null);
+          mailById.set(p.id, p.institutional_email ?? null);
         }
       }
       setQuestions(qrows);
-      setResponses(rawResp.map((r) => ({ ...r, full_name: nameById.get(r.user_id) ?? null })));
+      setResponses(
+        rawResp.map((r) => ({
+          ...r,
+          full_name: nameById.get(r.user_id) ?? null,
+          email: mailById.get(r.user_id) ?? null,
+        })),
+      );
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -4272,6 +4302,7 @@ function MixedResultsDialog({
                           .filter((r) => (r.answer_text ?? "").trim().length > 0)
                           .map((r) => ({
                             autor: r.full_name ?? t("pollPrint.unnamed"),
+                            email: r.email,
                             texto: r.answer_text ?? "",
                           }))
                       : [],

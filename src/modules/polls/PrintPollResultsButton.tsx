@@ -31,7 +31,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { printReportHtml } from "@/modules/reports/report-download";
 import { formatDateTime } from "@/shared/lib/format";
-import { buildPollResultsHtml, type DatosImpresion } from "./print-results";
+import { anonimizarDatos, buildPollResultsHtml, type DatosImpresion } from "./print-results";
 import { usePrintBrand } from "./use-print-brand";
 
 /** Lo que el diálogo aporta; la marca, los textos y la fecha las pone este componente. */
@@ -57,19 +57,14 @@ export function PrintPollResultsButton({
   const imprimir = (conNombres: boolean) => {
     setPreparando(true);
     try {
-      const base = datos();
+      const pedido = datos();
+      // En modo anónimo la identidad se BORRA acá, antes de armar el HTML: el
+      // módulo de impresión no decide sobre privacidad, solo pinta lo que recibe.
+      // Así el anonimato no depende de que el armador se acuerde. La limpieza es
+      // `anonimizarDatos`, que está probada.
+      const base = conNombres ? pedido : anonimizarDatos(pedido);
       const html = buildPollResultsHtml({
         ...base,
-        // En modo anónimo se vacían los nombres ACÁ, antes de armar el HTML: el
-        // módulo de impresión no decide sobre privacidad, solo pinta lo que
-        // recibe. Así el anonimato no depende de que el armador se acuerde.
-        opciones: conNombres ? base.opciones : base.opciones.map((o) => ({ ...o, votantes: [] })),
-        preguntas: conNombres
-          ? base.preguntas
-          : base.preguntas.map((q) => ({
-              ...q,
-              abiertas: q.abiertas.map((a) => ({ ...a, autor: null })),
-            })),
         marca,
         conNombres,
         generadoEl: formatDateTime(new Date()),

@@ -239,6 +239,21 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   la hoja siguiente — prohibirlo daba 7 páginas donde alcanzaban 6, con huecos de media hoja que se
   leen como un error de armado.
 
+  **La hoja trae el correo de cada participante, y quedó más corta que antes de tenerlo.** Con el
+  nombre solo, quien lee el informe tiene que volver a la plataforma a buscar a cada persona para
+  escribirle, así que el documento no alcanzaba para actuar. El correo va pegado al nombre, más chico y
+  en gris, y los participantes van en flujo continuo (3 o 4 por renglón) en vez de uno por línea: una
+  columna aparte para 23 personas habría costado 23 renglones. Lo que lo paga es sacar un renglón por
+  opción — la etiqueta y el conteo ahora comparten línea. Medido con 23 participantes en 5 opciones: la
+  maqueta anterior sin correos ocupaba 873 px y esta con los 23 correos ocupa 868, o sea que el dato se
+  agregó sin que el informe crezca. El separador entre personas va pegado con espacio duro al que
+  termina, como una coma: sin eso quedaban viñetas abriendo renglón, que se lee como un error.
+
+  Un perfil sin correo cargado imprime solo el nombre, no un paréntesis vacío. Y en la versión anónima
+  el correo se borra JUNTO al nombre: es un segundo dato de identidad —más identificatorio que el
+  nombre, porque suele traer el código del estudiante— y ahora esa limpieza es una función aparte con
+  tests, no un detalle del armado del que dependiera la privacidad.
+
 - **"Volver" se ve igual en toda la app.** Estaba escrito a mano en cada pantalla y las copias
   divergieron en las tres cosas que el usuario percibe: el **ícono** (unas con flecha, otras con
   chevron), el **tamaño** y la **separación**. Peor: dos textos traducidos traían la flecha como
