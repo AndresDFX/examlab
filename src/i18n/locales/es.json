@@ -6425,8 +6425,20 @@
     "closeCheckIn": "Cerrar check-in",
     "scanHint": "Escanea desde la app del estudiante (Asistencia → Escanear QR) o con la cámara nativa del celular.",
     "manualCode": "Código manual",
-    "rotatesIn": "Rota en {{seconds}}s",
-    "present": "Presentes"
+    "present": "Presentes",
+    "arrivals": "Van marcando",
+    "rotatesIn_seconds_one": "Cambia en {{count}} segundo",
+    "rotatesIn_seconds_other": "Cambia en {{count}} segundos",
+    "rotatesIn_minutes_one": "Cambia en {{count}} minuto",
+    "rotatesIn_minutes_other": "Cambia en {{count}} minutos",
+    "rotatesIn_hours_one": "Cambia en {{count}} hora",
+    "rotatesIn_hours_other": "Cambia en {{count}} horas",
+    "remaining_hours_one": "{{count}} hora",
+    "remaining_hours_other": "{{count}} horas",
+    "remaining_minutes_one": "{{count}} minuto",
+    "remaining_minutes_other": "{{count}} minutos",
+    "remaining_seconds_one": "{{count}} segundo",
+    "remaining_seconds_other": "{{count}} segundos"
   },
   "hc_modulesAttendanceAttendanceQRScanner": {
     "cameraAccessError": "No se pudo acceder a la cámara",

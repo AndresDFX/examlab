@@ -19,9 +19,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Link2 as LinkIcon, LogOut, Maximize2, Minimize2, X } from "lucide-react";
+import { Check, Link2 as LinkIcon, LogOut, Maximize2, Minimize2, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { partesCuentaAtras } from "./rotation-countdown";
+import { formatTime } from "@/shared/lib/format";
 import i18n from "@/i18n";
 import {
   requestFullscreen as requestFullscreenCompat,
@@ -69,12 +71,26 @@ interface Props {
   onExit?: () => void;
 }
 
-function formatRemaining(ms: number): string {
+/**
+ * Tiempo restante hasta el cierre, en la unidad que se pueda leer de un vistazo.
+ *
+ * Devolvía `m:ss`, que con una ventana de 6 horas daba **"359:56"** — el mismo
+ * defecto que el contador de rotación de al lado, y por la misma razón: el
+ * formato se escribió cuando el check-in duraba minutos. Bajo una hora se sigue
+ * mostrando `m:ss`, que es lo útil cuando la ventana se está cerrando.
+ */
+function textoRestante(ms: number, t: (k: string, o?: Record<string, unknown>) => string): string {
   if (ms <= 0) return "0:00";
   const total = Math.floor(ms / 1000);
-  const m = Math.floor(total / 60);
-  const s = total % 60;
-  return `${m}:${s.toString().padStart(2, "0")}`;
+  if (total < 3600) {
+    const m = Math.floor(total / 60);
+    const s = total % 60;
+    return `${m}:${s.toString().padStart(2, "0")}`;
+  }
+  const cd = partesCuentaAtras(total);
+  return t(`hc_modulesAttendanceAttendanceCheckInProjector.remaining_${cd.unidad}`, {
+    count: cd.valor,
+  });
 }
 
 export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit }: Props) {
@@ -88,6 +104,17 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
   const codigoFijo = attendanceCodeIsStatic(state.rotationSeconds);
   const [msToClose, setMsToClose] = useState(() => new Date(state.closesAt).getTime() - Date.now());
   const [presentCount, setPresentCount] = useState(0);
+  /**
+   * Quiénes marcaron, del más reciente al más antiguo.
+   *
+   * Antes esta pantalla solo mostraba "0 / 23". Un número que sube no le sirve
+   * al estudiante que acaba de escanear desde el fondo del salón: lo que
+   * necesita es VER SU NOMBRE y dejar de escanear. Y al docente, saber quién
+   * falta sin ir a la grilla.
+   */
+  const [presentes, setPresentes] = useState<
+    Array<{ userId: string; nombre: string; hora: string; status: string }>
+  >([]);
   const [extendiendo, setExtendiendo] = useState(false);
 
   /**
@@ -207,17 +234,62 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
     };
   }, [state.rotationSeconds, state.closesAt, state.sessionId, recomputeCode, onClose]);
 
-  // Carga inicial + realtime de presentes para esta sesión.
+  // Carga inicial + realtime de quiénes marcaron, para esta sesión.
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      const { count } = await db
+
+    /**
+     * Trae la lista completa en vez de mantener un set local con los eventos del
+     * canal. Es a propósito: son decenas de filas, y un set local se
+     * desincroniza en cuanto se pierde un evento (pestaña dormida, reconexión) —
+     * justo lo que pasa en una proyección que queda abierta una hora. Refetchear
+     * es la versión que se auto-corrige.
+     *
+     * Dos consultas porque `attendance_records.user_id` apunta a `auth.users` y
+     * NO a `profiles`: el embed de PostgREST falla en silencio (convención
+     * documentada del proyecto).
+     */
+    const recargar = async () => {
+      const { data } = await db
         .from("attendance_records")
-        .select("id", { count: "exact", head: true })
+        .select("user_id, status, created_at")
         .eq("session_id", state.sessionId)
-        .eq("status", "presente");
-      if (!cancelled) setPresentCount(count ?? 0);
-    })();
+        .order("created_at", { ascending: false });
+      if (cancelled) return;
+      const filas = (data ?? []) as Array<{
+        user_id: string;
+        status: string;
+        created_at: string;
+      }>;
+      // El contador conserva su significado: PRESENTES cuenta 'presente'. Los
+      // demás estados (una tardanza que el docente puso desde su grilla) salen
+      // en la lista con su etiqueta, así que no hay número que contradiga a la
+      // lista.
+      setPresentCount(filas.filter((f) => f.status === "presente").length);
+      if (filas.length === 0) {
+        setPresentes([]);
+        return;
+      }
+      const { data: perfiles } = await db
+        .from("profiles")
+        .select("id, full_name")
+        .in("id", [...new Set(filas.map((f) => f.user_id))]);
+      if (cancelled) return;
+      const nombrePorId = new Map(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((perfiles ?? []) as any[]).map((x) => [x.id as string, x.full_name as string]),
+      );
+      setPresentes(
+        filas.map((f) => ({
+          userId: f.user_id,
+          nombre: nombrePorId.get(f.user_id) ?? "—",
+          hora: formatTime(f.created_at),
+          status: f.status,
+        })),
+      );
+    };
+
+    void recargar();
     const channel = supabase
       .channel(`checkin-${state.sessionId}`)
       .on(
@@ -228,15 +300,7 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
           table: "attendance_records",
           filter: `session_id=eq.${state.sessionId}`,
         },
-        async () => {
-          // Refetch contador (más simple que mantener un set local con eventos)
-          const { count } = await db
-            .from("attendance_records")
-            .select("id", { count: "exact", head: true })
-            .eq("session_id", state.sessionId)
-            .eq("status", "presente");
-          if (!cancelled) setPresentCount(count ?? 0);
-        },
+        () => void recargar(),
       )
       .subscribe();
     return () => {
@@ -328,7 +392,7 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
           </div>
           <Badge variant="secondary" className="text-xs whitespace-nowrap">
             {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", {
-              time: formatRemaining(msToClose),
+              time: textoRestante(msToClose, t),
             })}
           </Badge>
           {/* Pegado al contador a propósito: el docente mira el tiempo que
@@ -479,10 +543,18 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
                     style={{ width: `${rotationPct}%` }}
                   />
                 </div>
+                {/* En palabras y con la unidad que corresponde: con ventanas de
+                    días la rotación puede ser de 24 h, y decía literalmente
+                    "Rota en 84797s" — cinco dígitos en la pantalla del salón,
+                    que se leen como un error de configuración. */}
                 <div className="text-2xs text-muted-foreground mt-1 tabular-nums">
-                  {t("hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn", {
-                    seconds: secondsToRotation ?? 0,
-                  })}
+                  {(() => {
+                    const cd = partesCuentaAtras(secondsToRotation);
+                    return t(
+                      `hc_modulesAttendanceAttendanceCheckInProjector.rotatesIn_${cd.unidad}`,
+                      { count: cd.valor },
+                    );
+                  })()}
                 </div>
               </div>
             )}
@@ -500,6 +572,51 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
               </span>
             </div>
           </div>
+
+          {/* Quiénes van marcando, el último arriba.
+              El primero de la lista va resaltado y más grande: quien acaba de
+              escanear desde el fondo del salón tiene que poder confirmar de un
+              vistazo que su marca entró, sin leer una lista de veinte nombres.
+              La lista scrollea sola y no empuja el QR. */}
+          {presentes.length > 0 && (
+            <div className="flex flex-col gap-1 w-full min-w-0">
+              <div className="text-xs uppercase tracking-wider text-muted-foreground">
+                {t("hc_modulesAttendanceAttendanceCheckInProjector.arrivals")}
+              </div>
+              <ul className="flex flex-col gap-1 w-full max-h-[38dvh] overflow-y-auto pr-1">
+                {presentes.map((pz, i) => (
+                  <li
+                    key={pz.userId}
+                    className={
+                      i === 0
+                        ? "flex items-center gap-2 rounded-md bg-primary/15 px-2 py-1.5 text-base sm:text-xl font-semibold min-w-0"
+                        : "flex items-center gap-2 px-2 py-0.5 text-sm sm:text-base text-muted-foreground min-w-0"
+                    }
+                  >
+                    <Check
+                      className={
+                        i === 0
+                          ? "h-4 w-4 sm:h-5 sm:w-5 shrink-0 text-primary"
+                          : "h-3.5 w-3.5 shrink-0 opacity-60"
+                      }
+                    />
+                    <span className="truncate">{pz.nombre}</span>
+                    {/* Un estado que no sea 'presente' solo lo pone el docente
+                        desde su grilla; se etiqueta para que la lista no
+                        contradiga al contador de arriba. */}
+                    {pz.status !== "presente" && (
+                      <Badge variant="outline" className="text-3xs shrink-0">
+                        {pz.status}
+                      </Badge>
+                    )}
+                    <span className="ml-auto text-2xs tabular-nums opacity-70 shrink-0">
+                      {pz.hora}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
     </div>

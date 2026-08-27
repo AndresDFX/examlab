@@ -6425,8 +6425,20 @@
     "closeCheckIn": "Close check-in",
     "scanHint": "Scan from the student app (Attendance → Scan QR) or with your phone's native camera.",
     "manualCode": "Manual code",
-    "rotatesIn": "Rotates in {{seconds}}s",
-    "present": "Present"
+    "present": "Present",
+    "arrivals": "Checking in",
+    "rotatesIn_seconds_one": "Changes in {{count}} second",
+    "rotatesIn_seconds_other": "Changes in {{count}} seconds",
+    "rotatesIn_minutes_one": "Changes in {{count}} minute",
+    "rotatesIn_minutes_other": "Changes in {{count}} minutes",
+    "rotatesIn_hours_one": "Changes in {{count}} hour",
+    "rotatesIn_hours_other": "Changes in {{count}} hours",
+    "remaining_hours_one": "{{count}} hour",
+    "remaining_hours_other": "{{count}} hours",
+    "remaining_minutes_one": "{{count}} minute",
+    "remaining_minutes_other": "{{count}} minutes",
+    "remaining_seconds_one": "{{count}} second",
+    "remaining_seconds_other": "{{count}} seconds"
   },
   "hc_modulesAttendanceAttendanceQRScanner": {
     "cameraAccessError": "Could not access the camera",
