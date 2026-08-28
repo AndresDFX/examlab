@@ -320,7 +320,17 @@ function AuthPage() {
       return;
     }
     setLoading(true);
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    // Se recorta el correo: pegarlo desde un chat o una planilla arrastra un
+    // espacio al final con muchísima frecuencia, y el error que devuelve la
+    // autenticación es el mismo "Credenciales inválidas" que si la contraseña
+    // estuviera mal — o sea que el usuario no tiene forma de darse cuenta.
+    // NO se pasa a minúsculas: eso ya lo hace el servidor de autenticación al
+    // resolver la cuenta, y hacerlo acá además escondería un correo escrito con
+    // mayúsculas que el usuario necesita ver tal como lo tipeó.
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
     if (error) {
       setLoading(false);
       // `.then(noop, noop)` fuerza el builder lazy de supabase-js (ver

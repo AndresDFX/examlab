@@ -2690,6 +2690,7 @@
     "editOk": "Details updated.",
     "editTitle": "Edit student",
     "emailLabel": "Institutional email",
+    "emailReadOnlyHint": "This is the email they sign in with. Only your institution's Admin can change it: if it's misspelled, ask them to fix it — editing it here is not enough.",
     "empty": "No users",
     "enrolledExistingOk": "This person already had an account: we enrolled them in the courses they were missing. No new account was created and their password was not changed.",
     "impersonateConfirmDesc": "You will enter the platform with this user's account. You will see everything they see. While impersonating, a yellow banner will appear at the top with a 'Return to my account' button. The action is recorded in the audit log.",

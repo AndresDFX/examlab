@@ -2690,6 +2690,7 @@
     "editOk": "Datos actualizados.",
     "editTitle": "Editar estudiante",
     "emailLabel": "Correo institucional",
+    "emailReadOnlyHint": "Este es el correo con el que inicia sesión. Cambiarlo es del Admin de tu institución: si está mal escrito, pedile la corrección — no basta con editarlo acá.",
     "empty": "Sin usuarios",
     "enrolledExistingOk": "Esta persona ya tenía cuenta: la matriculamos en los cursos que le faltaban. No se creó una cuenta nueva ni se cambió su contraseña.",
     "impersonateConfirmDesc": "Vas a entrar a la plataforma con la cuenta de este usuario. Verás todo lo que él ve. Mientras estés impersonando, aparecerá un banner amarillo arriba con el botón 'Volver a mi cuenta'. La acción queda registrada en el log de auditoría.",

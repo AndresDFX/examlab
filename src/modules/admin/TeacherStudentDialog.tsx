@@ -118,12 +118,26 @@ export function TeacherStudentDialog({
       if (esEdicion) {
         // UPDATE directo: lo habilita `profiles_docente_manage_own_students`
         // (mig 20261890000000), acotada a estudiantes de cursos que dicta.
+        //
+        // `institutional_email` NO va acá, y no es un olvido. La fuente de verdad
+        // del correo es `auth.users.email` —es con lo que la persona inicia
+        // sesión— y `profiles.institutional_email` es una COPIA que el trigger
+        // `tg_sync_profile_institutional_email` (mig 20260939000000) mantiene
+        // alineada en esa dirección. Escribir la copia desde acá cambiaba lo que
+        // la pantalla muestra y NO la credencial: el estudiante seguía sin poder
+        // entrar, pero ahora con el correo correcto a la vista, o sea sin forma de
+        // diagnosticarlo. Caso real: una cuenta creada con el dominio mal escrito
+        // (le faltaba una letra); si el docente lo "corregía" acá, el login seguía
+        // roto y el motivo quedaba invisible.
+        //
+        // Cambiar el correo de acceso pasa por la edge `admin-update-email`, que es
+        // Admin/SuperAdmin (devuelve 403 a un docente). El panel del Admin ya tuvo
+        // este mismo bug y por eso existe esa edge; acá el campo es de solo lectura.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error } = await (supabase as any)
           .from("profiles")
           .update({
             full_name: nombre.trim(),
-            institutional_email: correo.trim(),
             codigo: codigo.trim() || null,
             documento: documento.trim() || null,
             cohorte: cohorte.trim() || null,
@@ -282,14 +296,25 @@ export function TeacherStudentDialog({
           </div>
 
           <div className="space-y-1">
-            <Label required>{t("teacherStudents.emailLabel")}</Label>
+            <Label required={!esEdicion}>{t("teacherStudents.emailLabel")}</Label>
+            {/* Al EDITAR se muestra pero no se cambia: es la credencial de acceso y
+                cambiarla es de Admin (ver el comentario del UPDATE). Se muestra —en
+                vez de esconderla— porque leerla es justo lo que le permite al
+                docente detectar un correo mal escrito y pedir la corrección. */}
             <Input
               type="email"
               value={correo}
               onChange={(e) => setCorreo(e.target.value)}
               className="h-9"
               autoComplete="off"
+              readOnly={esEdicion}
+              aria-readonly={esEdicion}
             />
+            {esEdicion && (
+              <p className="text-2xs text-muted-foreground">
+                {t("teacherStudents.emailReadOnlyHint")}
+              </p>
+            )}
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
