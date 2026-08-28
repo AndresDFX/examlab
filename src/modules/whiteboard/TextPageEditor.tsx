@@ -379,10 +379,19 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
               )}
               onKeyDown={(e) => {
                 // Atajos típicos: Ctrl/Cmd+B y Ctrl/Cmd+I.
-                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "b") {
+                //
+                // `key` se lee con guarda: puede llegar `undefined` en eventos
+                // sintéticos y en la composición de un IME, y ahí `toLowerCase()`
+                // tira. Acá el riesgo era menor que en el atajo global del buscador
+                // —el modificador cortocircuita, y un error en un manejador de
+                // React lo atrapa el ErrorBoundary— pero es el mismo patrón, y
+                // dejarlo en un solo lugar del proyecto es cómo vuelve.
+                if (!e.ctrlKey && !e.metaKey) return;
+                const tecla = typeof e.key === "string" ? e.key.toLowerCase() : "";
+                if (tecla === "b") {
                   e.preventDefault();
                   handleBold();
-                } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "i") {
+                } else if (tecla === "i") {
                   e.preventDefault();
                   handleItalic();
                 }

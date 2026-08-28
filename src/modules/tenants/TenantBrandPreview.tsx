@@ -18,6 +18,7 @@
  * réplica completa daría una segunda interfaz que mantener sincronizada con la
  * primera, y se desincronizaría en la primera semana.
  */
+import { useTranslation } from "react-i18next";
 import { Building2, GraduationCap, LayoutDashboard, Users } from "lucide-react";
 import {
   darkVariant,
@@ -53,6 +54,7 @@ export function TenantBrandPreview({
   logoUrl,
   dark = false,
 }: TenantBrandPreviewProps) {
+  const { t } = useTranslation();
   const primary = normalizeHex(primaryColor) ?? FALLBACK_PRIMARY;
   const secondary = normalizeHex(secondaryColor) ?? FALLBACK_SECONDARY;
 
@@ -147,7 +149,7 @@ export function TenantBrandPreview({
             className="self-start rounded px-2 py-1 text-3xs font-medium"
             style={{ backgroundColor: primary, color: onPrimary }}
           >
-            Acción principal
+            {t("tenantBrandPreview.primaryAction")}
           </div>
         </div>
       </div>

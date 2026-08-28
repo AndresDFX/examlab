@@ -144,8 +144,19 @@ export function CommandPalette({ destinations }: { destinations: readonly Palett
   // limpia al desmontar; `metaKey` cubre macOS y `ctrlKey` el resto.
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key.toLowerCase() !== "k") return;
+      // El MODIFICADOR se comprueba primero, y `key` se lee con guarda. Las dos
+      // cosas son por el mismo bug de producción: este listener está montado en
+      // todo `/app/*`, corría en CADA tecla, y `e.key` puede llegar `undefined` —
+      // eventos sintéticos de un gestor de contraseñas, composición de un IME—.
+      // Ahí `e.key.toLowerCase()` tiraba un TypeError NO capturado, que además no
+      // pasa por el ErrorBoundary porque no ocurre en un render. Aparecía en los
+      // registros como "Cannot read properties of undefined (reading
+      // 'toLowerCase')" en /app y en /app/admin/users, que son justo las pantallas
+      // donde más se teclea y donde el gestor de contraseñas se activa (el
+      // diálogo de usuarios tiene campo de contraseña). Se repitió en tres builds
+      // distintos entre el 23 y el 27 de agosto.
       if (!e.metaKey && !e.ctrlKey) return;
+      if (typeof e.key !== "string" || e.key.toLowerCase() !== "k") return;
       e.preventDefault();
       setOpen((v) => !v);
     };

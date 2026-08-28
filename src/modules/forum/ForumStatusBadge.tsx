@@ -12,6 +12,7 @@
  * exam/workshop/project/submission. Mantenerlo local evita el
  * cross-cutting risk de tocar el componente global por 3 variants.
  */
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/components/ui/badge";
 import { CheckCircle2, Lock, Pin } from "lucide-react";
 
@@ -23,6 +24,7 @@ interface ForumStatusBadgeProps {
 }
 
 export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
+  const { t } = useTranslation();
   if (status === "locked") {
     return (
       <Badge
@@ -33,7 +35,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
         }
       >
         <Lock className="h-2.5 w-2.5 mr-0.5" />
-        Cerrado
+        {t("forum.badgeLocked")}
       </Badge>
     );
   }
@@ -47,7 +49,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
         }
       >
         <Pin className="h-2.5 w-2.5 mr-0.5" />
-        Fijado
+        {t("forum.badgePinned")}
       </Badge>
     );
   }
@@ -61,7 +63,7 @@ export function ForumStatusBadge({ status, className }: ForumStatusBadgeProps) {
       }
     >
       <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />
-      Respuesta oficial del docente
+      {t("forum.badgeOfficial")}
     </Badge>
   );
 }
