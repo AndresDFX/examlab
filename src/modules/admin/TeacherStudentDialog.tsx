@@ -11,11 +11,18 @@
  * Lo que queda es exactamente lo que el docente sí corrige: nombre, correo
  * institucional, código, documento y cohorte.
  *
- * ── El curso es obligatorio al crear, y no es un detalle de UI ─────────
+ * ── Al menos un curso al crear, y no es un detalle de UI ───────────────
  * El permiso del docente viene de dictar ese curso: una cuenta creada "sin
  * curso" no tendría de dónde derivarlo. El edge lo exige del lado servidor
  * (`soloDocente` + `course_name` requerido) y acá se pide antes de dejar
  * guardar, para que el error no llegue después de escribir todo el formulario.
+ *
+ * Pueden ser VARIOS: el estudiante que cursa dos asignaturas con el mismo
+ * docente se daba de alta dos veces (la segunda apoyándose en que el edge es
+ * aditivo con usuarios existentes, lo cual mostraba un toast de "cuenta creada"
+ * que era mentira). Se eligieron casillas y no un Select múltiple por lo mismo
+ * que el diálogo del Admin: lo marcado es justo lo que hay que revisar antes de
+ * crear la cuenta, y con un Select hay que abrirlo para saberlo.
  *
  * ── La contraseña ──────────────────────────────────────────────────────
  * No se pide: es la temporal fija de la plataforma, y el primer inicio de sesión
@@ -38,15 +45,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { CourseCheckboxList } from "@/components/ui/course-checkbox-list";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import {
+  classifyImportOutcome,
+  resolveCourseSelection,
+} from "@/modules/admin/teacher-student-courses";
 
 /** Clave temporal de la plataforma. El primer login obliga a cambiarla. */
 const CLAVE_TEMPORAL = "Temporal#123";
@@ -65,9 +70,9 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   /** null = crear. Con valor = editar ese estudiante. */
   editing: EstudianteEditable | null;
-  /** Cursos que dicta el docente. Al crear, se matricula en el elegido. */
-  courses: { id: string; name: string }[];
-  /** Curso preseleccionado (el del filtro activo), si hay uno. */
+  /** Cursos que dicta el docente. Al crear, se matricula en los marcados. */
+  courses: { id: string; name: string; period?: string | null }[];
+  /** Curso premarcado (el del filtro activo), si hay uno. */
   defaultCourseId?: string | null;
   onSaved: () => void;
 }
@@ -86,7 +91,7 @@ export function TeacherStudentDialog({
   const [codigo, setCodigo] = useState("");
   const [documento, setDocumento] = useState("");
   const [cohorte, setCohorte] = useState("");
-  const [courseId, setCourseId] = useState("");
+  const [courseIds, setCourseIds] = useState<string[]>([]);
   const [guardando, setGuardando] = useState(false);
 
   const esEdicion = !!editing;
@@ -98,15 +103,13 @@ export function TeacherStudentDialog({
     setCodigo(editing?.codigo ?? "");
     setDocumento(editing?.documento ?? "");
     setCohorte(editing?.cohorte ?? "");
-    setCourseId(defaultCourseId && defaultCourseId !== "all" ? defaultCourseId : "");
+    // "all" es el sentinel del filtro de curso de la pantalla: no premarca nada.
+    setCourseIds(defaultCourseId && defaultCourseId !== "all" ? [defaultCourseId] : []);
   }, [open, editing, defaultCourseId]);
 
-  const cursoElegido = useMemo(
-    () => courses.find((c) => c.id === courseId) ?? null,
-    [courses, courseId],
-  );
+  const seleccion = useMemo(() => resolveCourseSelection(courseIds, courses), [courseIds, courses]);
 
-  const faltaAlgo = !nombre.trim() || !correo.trim() || (!esEdicion && !cursoElegido);
+  const faltaAlgo = !nombre.trim() || !correo.trim() || (!esEdicion && seleccion.problem !== null);
 
   const guardar = async () => {
     if (faltaAlgo || guardando) return;
@@ -129,9 +132,19 @@ export function TeacherStudentDialog({
         if (error) throw error;
         toast.success(t("teacherStudents.editOk"));
       } else {
-        // El edge valida del lado servidor que el curso sea uno que dicta y le
-        // fuerza el rol Estudiante. Acá NO se manda `roles`: mandarlo daría la
-        // impresión de que el cliente lo decide.
+        // El edge valida del lado servidor que los cursos sean de los que dicta
+        // (resuelve los nombres SOLO contra su `course_teachers`) y le fuerza el
+        // rol Estudiante. Acá NO se manda `roles`: mandarlo daría la impresión de
+        // que el cliente lo decide.
+        //
+        // Las matrículas van DENTRO de esta llamada y no en un
+        // `course_enrollments.upsert` posterior desde el cliente (como sí hace el
+        // diálogo del Admin, que ahí no tiene alternativa): la cuenta todavía no
+        // existe, así que hacerlo aparte parte el alta en dos y deja el caso
+        // "usuario creado, matrícula falló" a resolver a mano. Acá el mismo
+        // servidor que crea la cuenta ya tiene el catálogo de cursos del docente
+        // para resolver los nombres, y no hay una segunda autorización que
+        // mantener en sincronía.
         const { data, error } = await supabase.functions.invoke("bulk-import-users", {
           body: {
             rows: [
@@ -140,7 +153,7 @@ export function TeacherStudentDialog({
                 institutional_email: correo.trim(),
                 personal_email: null,
                 password: CLAVE_TEMPORAL,
-                course_name: cursoElegido!.name,
+                course_name: seleccion.courseNameField,
                 student_code: codigo.trim() || null,
                 documento: documento.trim() || null,
                 cohorte: cohorte.trim() || null,
@@ -152,19 +165,39 @@ export function TeacherStudentDialog({
         });
         if (error) throw error;
         const fila = (data?.result ?? [])[0];
-        if (!fila?.ok) {
+        const resultado = classifyImportOutcome(fila);
+        if (resultado === "error") {
           // El motivo del edge es el que sirve ("el curso no existe", "ya
-          // existe este correo"): mostrarlo tal cual, no un genérico.
+          // existe este correo"): mostrarlo tal cual, no un genérico. Con varios
+          // cursos, uno que no resuelva rechaza la fila COMPLETA, así que no se
+          // creó nada y el diálogo queda abierto para corregir.
           toast.error(fila?.reason ?? t("teacherStudents.createError"), { duration: 12000 });
           return;
         }
-        toast.success(
-          t("teacherStudents.createOk", {
-            course: cursoElegido!.name,
-            password: CLAVE_TEMPORAL,
-          }),
-          { duration: 14000 },
-        );
+        if (resultado === "duplicado") {
+          // Ya existía y ya estaba en todos los cursos marcados: no hay nada que
+          // corregir, así que no es un error, pero tampoco pasó nada → no se
+          // recarga la lista ni se cierra.
+          // El fallback NO es `createError` ("No pudimos crear la cuenta"):
+          // contradice el tono del aviso, porque acá no se intentó crear nada.
+          toast.warning(fila?.reason ?? t("teacherStudents.alreadyEnrolled"), {
+            duration: 12000,
+          });
+          return;
+        }
+        if (resultado === "matriculado-existente") {
+          // No se creó cuenta: nombrar la contraseña temporal acá sería falso.
+          toast.success(t("teacherStudents.enrolledExistingOk"), { duration: 14000 });
+        } else {
+          toast.success(
+            t("teacherStudents.createOk", {
+              count: seleccion.names.length,
+              courses: seleccion.names.join(", "),
+              password: CLAVE_TEMPORAL,
+            }),
+            { duration: 14000 },
+          );
+        }
       }
       onSaved();
       onOpenChange(false);
@@ -191,20 +224,55 @@ export function TeacherStudentDialog({
         <div className="space-y-3">
           {!esEdicion && (
             <div className="space-y-1">
-              <Label required>{t("teacherStudents.courseLabel")}</Label>
-              <Select value={courseId} onValueChange={setCourseId}>
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder={t("teacherStudents.coursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-2xs text-muted-foreground">{t("teacherStudents.courseHint")}</p>
+              {/* El conteo va FUERA del Label para que el asterisco de
+                  obligatorio quede pegado al nombre del campo y no al número. */}
+              <div className="flex items-center gap-1">
+                <Label required>{t("teacherStudents.courseLabel")}</Label>
+                {seleccion.names.length > 0 && (
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    ({seleccion.names.length})
+                  </span>
+                )}
+              </div>
+              {/* `showSelectAll` acá y no en el diálogo del Admin: estos son los
+                  cursos que el docente DICTA, y dar de alta al alumno de una cohorte
+                  que ve todas sus asignaturas es un caso real. Los otros dos pickers
+                  multi-curso del docente (difusión y encuestas) ya lo tienen. */}
+              <CourseCheckboxList
+                courses={courses}
+                selectedIds={courseIds}
+                onChange={setCourseIds}
+                showSelectAll
+              />
+              {/* Los dos problemas apagan Guardar, así que los dos tienen que decir
+                  por qué: un botón apagado sin explicación se lee como que la
+                  pantalla está rota. Se nombran TODOS los cursos con separador, no
+                  el primero: con dos, renombrar uno dejaba el botón apagado y el
+                  mensaje señalando al otro. */}
+              {seleccion.problem === "nombre-con-separador" ? (
+                <p className="text-2xs text-destructive">
+                  {t("teacherStudents.courseSeparatorError", {
+                    course: seleccion.namesWithSeparator.join(", "),
+                  })}
+                </p>
+              ) : seleccion.problem === "sin-cursos" && courses.length > 0 ? (
+                // Instrucción, no error: el docente todavía no eligió, no se
+                // equivocó. El <Select> que esto reemplazó cumplía este rol con su
+                // placeholder "Elegí el curso".
+                <p className="text-2xs text-muted-foreground">
+                  {t("teacherStudents.coursePickAtLeastOne")}
+                </p>
+              ) : (
+                <p className="text-2xs text-muted-foreground">
+                  {/* Defensivo: hoy la pantalla apaga el botón "Nuevo estudiante"
+                      cuando el docente no dicta ningún curso
+                      (app.teacher.students.tsx), así que este diálogo no abre en
+                      modo crear con la lista vacía. Cubre un caller futuro. */}
+                  {courses.length === 0
+                    ? t("teacherStudents.noCoursesHint")
+                    : t("teacherStudents.courseHint")}
+                </p>
+              )}
             </div>
           )}
 

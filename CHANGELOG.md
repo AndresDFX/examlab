@@ -57,11 +57,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **siete migraciones** (`20261600000000_bd_sql_support.sql`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **ocho migraciones** (`20261600000000_bd_sql_support.sql`,
 > `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
 > `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
-> `20261910000000_student_own_whiteboards.sql`, todas defensivas con `to_regclass`) y **una edge
+> `20261910000000_student_own_whiteboards.sql` y `20261920000000_docente_enrollment_target_guard.sql`,
+> todas defensivas con `to_regclass`) y **una edge
 > function nueva** (`ai-generate-sql`); el resto es cliente.
 >
 > Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** como
@@ -69,6 +70,50 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > a propósito).
 
 ### 🎉 Novedades
+
+- **El docente puede matricular a un estudiante nuevo en VARIOS cursos de una vez.** El diálogo
+  "Nuevo estudiante" pedía UN curso en un desplegable; ahora muestra los cursos que dicta con
+  casillas, con "Seleccionar todos" cuando tiene más de uno. El caso que lo pedía es el de siempre:
+  el alumno de una cohorte que ve todas las asignaturas del mismo docente, que había que dar de alta
+  y después matricular a mano uno por uno.
+
+  El servidor ya lo soportaba —el campo de curso acepta varios nombres separados por `|`, igual que
+  los roles— así que faltaba solo la interfaz. Elegir casillas y no un desplegable múltiple es
+  deliberado: con un desplegable hay que abrirlo para saber qué quedó elegido, y acá lo elegido es
+  justamente lo que hay que revisar antes de crear la cuenta. Ese bloque estaba copiado byte por
+  byte en el diálogo del Admin, así que se extrajo a un componente y ahora los dos usan el mismo.
+
+  Los avisos dejaron de mentir en dos casos que el multi-curso vuelve frecuentes. Si el correo YA
+  tenía cuenta, antes se anunciaba "su contraseña temporal es Temporal#123" sobre una contraseña que
+  nadie cambió; ahora dice que se matriculó a una cuenta existente y no promete contraseñas. Y un
+  fallo real de matrícula se mostraba como advertencia tranquila porque el servidor no distinguía
+  "ya estaba matriculado" de "la matrícula falló": ahora lo distingue.
+
+### 🔒 Seguridad
+
+- **Un fallo de matrícula ya no se reporta como éxito.** Al crear un usuario, la matrícula a sus
+  cursos no capturaba el error: los clientes de Supabase no lanzan, devuelven el error como dato, así
+  que un fallo se tragaba en silencio y la fila se reportaba como creada. El resultado era una cuenta
+  existente, con su correo de bienvenida ya enviado, matriculada en CERO cursos, mientras el aviso
+  decía "matriculado en 3 cursos: A, B, C" — y el estudiante no aparecía en la lista, que se arma
+  desde las matrículas. El propio archivo tenía un comentario marcado como CRÍTICO explicando esta
+  misma lección para el alta de roles, cien líneas más arriba.
+
+- **Un docente ya no puede fabricarse un estudiante para editarle el perfil.** La policy que le
+  permite gestionar matrículas decía en qué cursos, pero no a quién: podía insertar la matrícula de
+  un Admin en un curso que dicta, con lo cual ese Admin pasaba a contar como "su estudiante" y le
+  quedaba habilitado el UPDATE de su perfil. El guard existente frena el estado de activación y la
+  institución, pero no el **correo institucional**, que es la identidad de acceso. Reproducido de
+  punta a punta en PostgreSQL con la RLS activa —el correo de la Admin terminaba cambiado— y cerrado
+  en los dos extremos: la matrícula de una cuenta con rol de staff se rechaza, y el predicado
+  "es mi estudiante" ya excluye al staff aunque la fila de matrícula exista. Lo legítimo sigue igual:
+  el docente edita a sus estudiantes, los matricula y puede borrar una matrícula equivocada.
+
+- **La bandera de "actualizar usuarios existentes" del importador se ignora para el docente.**
+  Saltaba la rama de "el usuario ya existe" y dejaba caer la fila en la zona que parchea roles y
+  perfil, con el objetivo identificado solo por correo y resuelto contra la lista global de cuentas,
+  sin filtro de institución. Ningún cliente la envía, así que era una capacidad dormida y no un bug
+  alcanzable desde la interfaz; se cierra igual, porque el diálogo no es la frontera.
 
 - **El estudiante ahora tiene sus propias pizarras.** Hasta acá el módulo era una vitrina: solo
   mostraba lo que el docente compartía con el curso, y si no había compartido nada, la pantalla

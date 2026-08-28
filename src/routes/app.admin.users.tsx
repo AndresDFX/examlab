@@ -27,6 +27,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CourseCheckboxList } from "@/components/ui/course-checkbox-list";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -2547,42 +2548,16 @@ function AdminUsers() {
                             </span>
                           )}
                         </Label>
-                        {/* Casillas y no un Select múltiple: con un Select hay
-                            que abrirlo para saber qué quedó elegido, y acá lo
-                            elegido es justamente lo que hay que revisar antes de
-                            crear la cuenta. Scrollea dentro de su caja para no
-                            estirar el diálogo con cursos de más. */}
-                        {filteredEnrollCourses.length > 0 ? (
-                          <div className="rounded-md border p-2 max-h-40 overflow-y-auto space-y-1.5">
-                            {filteredEnrollCourses.map((c) => {
-                              const marcado = enrollCourseIds.includes(c.id);
-                              return (
-                                <label
-                                  key={c.id}
-                                  className="flex items-start gap-2 text-xs cursor-pointer"
-                                >
-                                  <Checkbox
-                                    checked={marcado}
-                                    onCheckedChange={(v) =>
-                                      setEnrollCourseIds((prev) =>
-                                        v === true
-                                          ? [...prev, c.id]
-                                          : prev.filter((x) => x !== c.id),
-                                      )
-                                    }
-                                    className="mt-0.5 shrink-0"
-                                  />
-                                  <span className="min-w-0">
-                                    {c.name}
-                                    {c.period ? (
-                                      <span className="text-muted-foreground">{` · ${c.period}`}</span>
-                                    ) : null}
-                                  </span>
-                                </label>
-                              );
-                            })}
-                          </div>
-                        ) : null}
+                        {/* El bloque de casillas vive en `CourseCheckboxList`: era
+                            byte-idéntico al del diálogo del docente, y el motivo de
+                            elegir casillas sobre un Select está escrito ahí. Sin
+                            `showSelectAll`: acá la lista es de una institución
+                            entera y marcarla completa casi nunca es la intención. */}
+                        <CourseCheckboxList
+                          courses={filteredEnrollCourses}
+                          selectedIds={enrollCourseIds}
+                          onChange={setEnrollCourseIds}
+                        />
                         <p className="text-2xs text-muted-foreground mt-1">
                           {isSuperAdminCaller && !editing.tenant_id
                             ? t("adminUsers.enrollHintChooseTenant")

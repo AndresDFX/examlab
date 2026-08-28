@@ -75,6 +75,26 @@ Deno.serve(async (req) => {
     const { rows, allowExisting, tenantId: bodyTenantId } = await req.json();
     if (!Array.isArray(rows)) throw new Error("rows[] requerido");
 
+    /**
+     * `allowExisting` se IGNORA cuando el caller es solo Docente.
+     *
+     * El flag salta la rama de "el usuario ya existe" y deja caer la fila en la
+     * región que parchea `user_roles` y `profiles` (incluido `estado`, que es
+     * justo la columna que `trg_guard_profile_self_escalation` existe para
+     * proteger y que ese trigger no defiende contra el service_role). El objetivo
+     * se identifica SOLO por correo, resuelto contra `emailToId`, que se llena con
+     * un `listUsers()` GLOBAL sin filtro de institución — así que sin este gate un
+     * docente podía, con una petición armada a mano, escribirle el perfil a una
+     * cuenta de OTRA institución sabiendo su correo.
+     *
+     * Hoy ningún cliente manda el flag (verificado por grep en `src/`), así que
+     * era una capacidad de servidor dormida y no un bug reproducible desde la
+     * interfaz. Se cierra igual: el diálogo no es la frontera. Un docente no tiene
+     * ningún caso de uso para "actualizá un usuario que ya existe" — su alta es
+     * aditiva, y la rama de usuario existente ya cubre "ya estaba, lo matriculo".
+     */
+    const allowExistingEfectivo = !!allowExisting && !soloDocente;
+
     // Pre-fetch all auth users once for O(1) duplicate lookups
     const { data: authList } = await adminClient.auth.admin.listUsers({ page: 1, perPage: 10000 });
     const emailToId = new Map<string, string>();
@@ -211,6 +231,13 @@ Deno.serve(async (req) => {
       userId?: string;
       /** El usuario ya existía y solo se lo matriculó al curso (no se creó). */
       enrolledExisting?: boolean;
+      /**
+       * El usuario ya existía y la matrícula FALLÓ. Va junto con `duplicate` para
+       * que el cliente pueda separar este caso —un fallo que hay que reintentar—
+       * del de "ya existía y ya estaba matriculado", que solo informa. Los dos
+       * llevan `duplicate: true` por compatibilidad con el import masivo.
+       */
+      enrollFailed?: boolean;
     }[] = [];
     const seenInBatch = new Set<string>();
     // Contador de createUser ya intentados — usado para el throttle
@@ -275,6 +302,14 @@ Deno.serve(async (req) => {
        * sola columna sigue funcionando igual, y no hay que versionar el payload.
        *
        * Un solo nombre se comporta EXACTAMENTE como antes.
+       *
+       * INVARIANTE CRUZADA: el cliente arma este campo en
+       * `src/modules/admin/teacher-student-courses.ts` (`COURSE_NAME_SEPARATOR`,
+       * el dedup en minúsculas y la copia del shape del resultado). Si acá se
+       * cambia el separador, se pasa a `course_ids`, o se toca el keyeado en
+       * minúsculas de `courseNameToId`, hay que cambiarlo allá también: el
+       * diálogo del docente seguiría mandando `a|b` y el alta fallaría con "el
+       * curso no existe" sobre cursos que el docente ve en su propia lista.
        */
       const nombresCurso = courseNameRaw
         .split("|")
@@ -342,7 +377,7 @@ Deno.serve(async (req) => {
 
       try {
         let userId = emailToId.get(emailKey);
-        if (userId && !allowExisting) {
+        if (userId && !allowExistingEfectivo) {
           // El usuario ya existe y NO pedimos actualizarlo (allowExisting=false,
           // el default). NO tocamos su perfil/roles, PERO matricularlo a un
           // curso es ADITIVO/no-destructivo: si la fila trae un course_name y
@@ -383,10 +418,19 @@ Deno.serve(async (req) => {
               }
               // Si la matrícula falla, caemos al rechazo de duplicado de abajo
               // (con el error real para que el admin lo vea).
+              //
+              // `enrollFailed` distingue este caso del de abajo ("ya existía y ya
+              // estaba matriculado"). Los dos llevan `duplicate: true`, y sin este
+              // flag el cliente no puede separarlos: uno es un FALLO que hay que
+              // reintentar y el otro es un aviso sin nada que corregir. Antes daba
+              // igual porque el cliente mandaba los dos al mismo error; desde el
+              // alta multi-curso el aviso se distingue del error, así que colapsarlos
+              // pintaría un fallo real como advertencia.
               result.push({
                 email: institutional_email,
                 ok: false,
                 duplicate: true,
+                enrollFailed: true,
                 reason: `El usuario ya existe y no se pudo matricular al curso: ${enrollErr.message}`,
               });
               continue;
@@ -740,13 +784,33 @@ Deno.serve(async (req) => {
 
         // Matrícula a TODOS los cursos pedidos (ya validados arriba: si alguno
         // no resolvía, la fila se abortó antes de crear el usuario).
+        //
+        // CRÍTICO, y es la MISMA lección que el comentario del upsert de roles ~100
+        // líneas más arriba: los query builders de supabase-js NO tiran, devuelven
+        // { data, error }. Sin capturar el error, un fallo se tragaba en silencio y
+        // la línea siguiente reportaba `ok: true` con la cuenta creada y CERO
+        // matrículas. Se notaba poco cuando el mensaje decía "matriculado al curso";
+        // con el alta multi-curso el aviso enumera los cursos, así que el falso
+        // éxito pasó a ser específico ("matriculado en 3 cursos: A, B, C") y el
+        // estudiante no aparecía en la lista, que se arma desde course_enrollments.
+        // La rama hermana de usuario EXISTENTE sí lo capturaba.
         if (resolvedCourseIds.length > 0) {
-          await adminClient
+          const { error: enrollErr } = await adminClient
             .from("course_enrollments")
             .upsert(
               resolvedCourseIds.map((cid) => ({ course_id: cid, user_id: userId })),
               { onConflict: "course_id,user_id" },
             );
+          if (enrollErr) {
+            // El catch de la fila lo convierte en ok:false con este motivo, que es
+            // el que el docente necesita leer. La cuenta ya existe: reintentar con
+            // el mismo correo cae en la rama de usuario EXISTENTE y la matricula.
+            throw new Error(
+              `La cuenta se creó pero no se pudo matricular a ${
+                resolvedCourseIds.length === 1 ? "el curso" : `los ${resolvedCourseIds.length} cursos`
+              }: ${enrollErr.message}. Volvé a crearla con el mismo correo para completar la matrícula.`,
+            );
+          }
         }
         result.push({ email: institutional_email, ok: true, userId });
       } catch (e) {
@@ -869,7 +933,7 @@ Deno.serve(async (req) => {
         total: rows.length,
         created,
         failed,
-        allow_existing: !!allowExisting,
+        allow_existing: allowExistingEfectivo,
         first_emails: result.slice(0, 10).map((r) => ({ email: r.email, ok: r.ok })),
       },
     });
