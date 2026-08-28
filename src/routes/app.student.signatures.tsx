@@ -31,10 +31,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { SignableDocument } from "@/modules/reports/SignableDocument";
+import { SignaturePadDialog } from "@/modules/reports/SignaturePadDialog";
 import type { FirmaDeInforme } from "@/modules/reports/signature-slots";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -55,8 +55,7 @@ interface Pendiente {
 
 function StudentSignatures() {
   const { t } = useTranslation();
-  const { user } = useAuth();
-  const confirm = useConfirm();
+  const { user, profile } = useAuth();
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Pendiente[]>([]);
@@ -154,20 +153,20 @@ function StudentSignatures() {
   // y con dos `find` sueltos es fácil que uno quede desactualizado del otro.
   const yaFirmo = !!abierto && !!items.find((i) => i.report_id === abierto.id)?.signed_at;
 
-  const firmar = async () => {
+  // El lienzo se abre al pulsar la ranura del propio renglón. NO se pide además un
+  // `confirm()`: el diálogo del lienzo ya es la confirmación —muestra qué se va a
+  // firmar y obliga a un acto deliberado, dibujar— y encadenar dos diálogos hace
+  // que el segundo se acepte sin leerlo.
+  const [lienzoAbierto, setLienzoAbierto] = useState(false);
+
+  const firmar = async (dibujo: string | null) => {
     if (!abierto || firmando) return;
-    const ok = await confirm({
-      title: t("studentSignatures.confirmTitle"),
-      description: t("studentSignatures.confirmDesc"),
-      confirmLabel: t("studentSignatures.confirmBtn"),
-      tone: "warning",
-    });
-    if (!ok) return;
     setFirmando(true);
     try {
       const { data, error: e } = await db.rpc("sign_report", {
         _report_id: abierto.id,
         _user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+        _drawing: dibujo,
       });
       const r = data as { ok?: boolean; error?: string } | null;
       if (e || !r?.ok) {
@@ -175,6 +174,7 @@ function StudentSignatures() {
         return;
       }
       toast.success(t("studentSignatures.signedOk"));
+      setLienzoAbierto(false);
       // El documento NO se cierra: se vuelve a pedir para que el estudiante vea su
       // firma aparecer en su renglón. Cerrarlo de golpe lo dejaba sin ninguna
       // señal de qué cambió, que es justo lo que este flujo venía a arreglar.
@@ -281,7 +281,7 @@ function StudentSignatures() {
               html={abierto.html}
               firmas={abierto.firmas}
               firmanteId={abierto.firmanteId}
-              onFirmar={yaFirmo || firmando ? null : () => void firmar()}
+              onFirmar={yaFirmo || firmando ? null : () => setLienzoAbierto(true)}
               className="w-full h-[60dvh] rounded-md border bg-white"
             />
           )}
@@ -290,7 +290,7 @@ function StudentSignatures() {
               {t("common.close")}
             </Button>
             {abierto && !yaFirmo && (
-              <Button onClick={() => void firmar()} disabled={firmando}>
+              <Button onClick={() => setLienzoAbierto(true)} disabled={firmando}>
                 {firmando ? (
                   <Spinner size="sm" className="mr-1" />
                 ) : (
@@ -302,6 +302,13 @@ function StudentSignatures() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <SignaturePadDialog
+        open={lienzoAbierto}
+        onOpenChange={setLienzoAbierto}
+        onConfirmar={(dibujo) => void firmar(dibujo)}
+        firmando={firmando}
+        nombre={profile?.full_name}
+      />
     </div>
   );
 }

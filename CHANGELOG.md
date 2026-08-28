@@ -57,12 +57,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **nueve migraciones** (`20261600000000_bd_sql_support.sql`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **diez migraciones** (`20261600000000_bd_sql_support.sql`,
 > `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
 > `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
 > `20261910000000_student_own_whiteboards.sql`, `20261920000000_docente_enrollment_target_guard.sql`
-> y `20261930000000_report_signature_slots.sql`,
+> `20261930000000_report_signature_slots.sql` y `20261940000000_report_signature_drawing.sql`,
 > todas defensivas con `to_regclass`) y **una edge
 > function nueva** (`ai-generate-sql`); el resto es cliente.
 >
@@ -71,6 +71,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > a propósito).
 
 ### 🎉 Novedades
+
+- **La firma se dibuja: el estudiante traza su firma con el dedo, el lápiz o el ratón.** Firmar era
+  un clic y la marca que quedaba era el nombre en cursiva. Funcionaba, pero en un teléfono el gesto
+  de firmar es pasar el dedo, y un acuerdo impreso se lee distinto con un trazo que con un nombre
+  tipeado. Al pulsar la ranura de su renglón se abre un recuadro para dibujar; el trazo queda dentro
+  del documento, en el lugar donde está su nombre, con la fecha y el código de verificación debajo.
+
+  El trazo se recorta a la tinta antes de guardarse. Sin eso el recuadro es ancho, la firma ocupa una
+  parte, y el navegador escala la imagen completa: la firma se vería diminuta en la celda. Recortada,
+  llena el renglón como una firma en papel.
+
+  **Firmar sin trazo sigue estando.** Quien esté en un computador donde dibujar con el ratón le sale
+  mal no queda bloqueado: firma con un clic y la marca es su nombre, como antes. Un documento con
+  firmas de las dos clases es válido. Y si el trazo quedó en una mancha de dos píxeles —un toque
+  suelto—, ahora lo dice en vez de firmar en silencio sin trazo, que era lo que pasaba.
+
+  El trazo viaja al Word y al PDF: verificado que el `.docx` descargado trae las firmas como imágenes
+  embebidas, no como un hueco.
+
+### 🔒 Seguridad
+
+- **El trazo de la firma es contenido que sube el usuario y termina dentro del documento, así que
+  está acotado en la base.** Se guarda como un PNG en data URL y una restricción de la tabla solo
+  acepta eso: `image/png` y nada más —un SVG puede traer un `<script>` adentro—, con un patrón que no
+  admite comillas ni `<`, así que el valor no puede romper el atributo de la imagen aunque el
+  renderizador se olvide de escaparlo, y un tope de tamaño para que la columna no sirva de depósito.
+  Va como restricción de la tabla y no solo como validación de la función: la función se puede
+  reemplazar, la restricción no se salta. Verificado escribiendo directo a la columna, sin pasar por
+  la función: el SVG, las comillas y el valor desmesurado los rechaza la base.
 
 - **El estudiante firma el Acuerdo Pedagógico EN SU RENGLÓN, y la firma queda dentro del
   documento.** El flujo de firmas ya existía, pero la firma era un registro invisible: la tabla del

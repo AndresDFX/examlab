@@ -10078,5 +10078,16 @@
   },
   "tenantBrandPreview": {
     "primaryAction": "Primary action"
+  },
+  "signaturePad": {
+    "canvasLabel": "Box to draw the signature",
+    "clear": "Clear and start over",
+    "confirm": "Sign",
+    "desc": "Draw your signature in the box. It goes into the document, on the line with your name.",
+    "descWithName": "Draw your signature in the box, {{name}}. It goes into the document, on the line with your name.",
+    "hint": "With your finger, a stylus or the mouse.",
+    "signWithoutDrawing": "Sign without drawing",
+    "title": "Sign with your own hand",
+    "tooSmall": "The stroke came out too small. Draw it again or sign without a stroke."
   }
 }

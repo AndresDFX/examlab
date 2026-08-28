@@ -6,6 +6,7 @@ import {
   firmaHtml,
   ranuraPlantillaHtml,
   renderizarRanuras,
+  dibujoValido,
   tieneRanuras,
   type FirmaDeInforme,
 } from "./signature-slots";
@@ -186,5 +187,86 @@ describe("firmaHtml", () => {
     expect(h).toContain("Ana Gómez");
     expect(h).not.toContain("Invalid");
     expect(h).not.toContain("NaN");
+  });
+});
+
+describe("el TRAZO de la firma", () => {
+  const PNG =
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR42mP8DwQACfsD/T2AAAAASUVORK5CYII=";
+
+  it("cuando hay trazo, la marca es la IMAGEN y no el nombre en cursiva", () => {
+    const h = renderizarRanuras(snapshot(ANA), { firmas: [firma({ dibujo: PNG })] });
+    expect(h).toContain('<img src="data:image/png;base64,');
+    expect(h).not.toContain("font-style:italic");
+  });
+
+  it("el nombre queda en el alt: es lo que se lee si la imagen no carga", () => {
+    const h = renderizarRanuras(snapshot(ANA), { firmas: [firma({ dibujo: PNG })] });
+    expect(h).toContain('alt="Ana Gómez"');
+  });
+
+  it("la fecha y el código siguen debajo del trazo", () => {
+    const h = renderizarRanuras(snapshot(ANA), { firmas: [firma({ dibujo: PNG })] });
+    expect(h).toContain("3F9A2C");
+    expect(h).toMatch(/ago.*2026/);
+  });
+
+  it("limita el alto de la imagen para no estirar la fila del listado", () => {
+    const h = renderizarRanuras(snapshot(ANA), { firmas: [firma({ dibujo: PNG })] });
+    expect(h).toContain("max-height:34px");
+  });
+
+  it("sin trazo se mantiene la marca de antes (nombre en cursiva)", () => {
+    // Un documento con firmas de las dos clases es válido: quien firma con un clic
+    // desde un computador deja su nombre tipeado.
+    const h = renderizarRanuras(snapshot(ANA), { firmas: [firma({ dibujo: null })] });
+    expect(h).toContain("font-style:italic");
+    expect(h).not.toContain("<img");
+  });
+
+  it("sigue siendo idempotente con la imagen adentro", () => {
+    // El escáner de anidamiento cuenta <span>; un <img> no debe descolocarlo.
+    const una = renderizarRanuras(snapshot(ANA, BETO), { firmas: [firma({ dibujo: PNG })] });
+    expect(renderizarRanuras(una, { firmas: [firma({ dibujo: PNG })] })).toBe(una);
+  });
+});
+
+describe("dibujoValido — es la frontera de lo que se inyecta como <img>", () => {
+  it("acepta un PNG en data URL", () => {
+    expect(dibujoValido("data:image/png;base64,iVBORw0KGgo=")).toBe(true);
+  });
+
+  it("RECHAZA un SVG: puede traer un <script> adentro", () => {
+    expect(dibujoValido("data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=")).toBe(false);
+  });
+
+  it("rechaza cualquier otro esquema", () => {
+    expect(dibujoValido("https://x/firma.png")).toBe(false);
+    expect(dibujoValido("javascript:alert(1)")).toBe(false);
+  });
+
+  it("rechaza un valor con comillas o < (no podría romper el atributo)", () => {
+    expect(dibujoValido('data:image/png;base64,AAA" onerror="alert(1)')).toBe(false);
+    expect(dibujoValido("data:image/png;base64,AAA<script>")).toBe(false);
+  });
+
+  it("rechaza uno desmesurado: la columna no es un depósito", () => {
+    expect(dibujoValido("data:image/png;base64," + "A".repeat(120001))).toBe(false);
+  });
+
+  it("null, undefined y vacío no son un trazo", () => {
+    expect(dibujoValido(null)).toBe(false);
+    expect(dibujoValido(undefined)).toBe(false);
+    expect(dibujoValido("")).toBe(false);
+  });
+
+  it("un valor invalido NO se dibuja como imagen", () => {
+    // Defensa en profundidad: si algo se colara en la columna, el renderizador
+    // cae a la marca de texto en vez de emitir un <img> con basura adentro.
+    const h = renderizarRanuras(snapshot(ANA), {
+      firmas: [firma({ dibujo: "data:image/svg+xml;base64,PHN2Zz48L3N2Zz4=" })],
+    });
+    expect(h).not.toContain("<img");
+    expect(h).toContain("Ana Gómez");
   });
 });

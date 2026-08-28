@@ -33,6 +33,7 @@ import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { SignableDocument } from "@/modules/reports/SignableDocument";
+import { SignaturePadDialog } from "@/modules/reports/SignaturePadDialog";
 import type { FirmaDeInforme } from "@/modules/reports/signature-slots";
 
 export const Route = createFileRoute("/acuerdo/$token")({
@@ -113,13 +114,17 @@ function FirmaPublica() {
     };
   }, []);
 
-  const firmar = async () => {
+  // El lienzo se abre al pulsar la ranura; firmar de verdad ocurre al confirmarlo.
+  const [lienzoAbierto, setLienzoAbierto] = useState(false);
+
+  const firmar = async (dibujo: string | null) => {
     if (firmando) return;
     setFirmando(true);
     try {
       const { data, error } = await db.rpc("sign_report_public", {
         p_token: token,
         p_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+        p_drawing: dibujo,
       });
       const r = data as { ok?: boolean; error?: string; already?: boolean } | null;
       if (error || !r?.ok) {
@@ -127,6 +132,7 @@ function FirmaPublica() {
         return;
       }
       toast.success(r.already ? t("publicSignature.alreadySigned") : t("publicSignature.signedOk"));
+      setLienzoAbierto(false);
       await cargar();
     } finally {
       setFirmando(false);
@@ -208,7 +214,7 @@ function FirmaPublica() {
               html={info.html ?? ""}
               firmas={info.firmas ?? []}
               firmanteId={info.signer_id ?? null}
-              onFirmar={yaFirmado || firmando ? null : () => void firmar()}
+              onFirmar={yaFirmado || firmando ? null : () => setLienzoAbierto(true)}
               className="w-full h-[70dvh] rounded-md bg-white"
             />
           </CardContent>
@@ -221,7 +227,7 @@ function FirmaPublica() {
                   estudiante tiene que saber que no lo comparta. */}
               <p className="text-sm">{t("publicSignature.consent")}</p>
               <p className="text-2xs text-muted-foreground">{t("publicSignature.linkWarning")}</p>
-              <Button className="w-full" onClick={() => void firmar()} disabled={firmando}>
+              <Button className="w-full" onClick={() => setLienzoAbierto(true)} disabled={firmando}>
                 {firmando ? (
                   <Spinner size="sm" className="mr-1" />
                 ) : (
@@ -250,6 +256,13 @@ function FirmaPublica() {
           )}
         </div>
       </div>
+      <SignaturePadDialog
+        open={lienzoAbierto}
+        onOpenChange={setLienzoAbierto}
+        onConfirmar={(dibujo) => void firmar(dibujo)}
+        firmando={firmando}
+        nombre={info.signer_name}
+      />
     </div>
   );
 }

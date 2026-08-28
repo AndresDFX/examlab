@@ -10078,5 +10078,16 @@
   },
   "tenantBrandPreview": {
     "primaryAction": "Acción principal"
+  },
+  "signaturePad": {
+    "canvasLabel": "Recuadro para dibujar la firma",
+    "clear": "Borrar y empezar de nuevo",
+    "confirm": "Firmar",
+    "desc": "Dibujá tu firma en el recuadro. Queda en el documento, en el renglón de tu nombre.",
+    "descWithName": "Dibujá tu firma en el recuadro, {{name}}. Queda en el documento, en el renglón de tu nombre.",
+    "hint": "Con el dedo, el lápiz o el ratón.",
+    "signWithoutDrawing": "Firmar sin trazo",
+    "title": "Firmá con tu trazo",
+    "tooSmall": "El trazo quedó muy pequeño. Volvé a dibujarlo o firmá sin trazo."
   }
 }

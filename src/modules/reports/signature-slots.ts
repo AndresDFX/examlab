@@ -56,6 +56,30 @@ export interface FirmaDeInforme {
   nombre?: string | null;
   /** ISO. `null` ⇒ pendiente. */
   signed_at?: string | null;
+  /**
+   * TRAZO de la firma, como PNG en data URL. `null` ⇒ firmó con un clic y la
+   * marca es su nombre tipeado.
+   */
+  dibujo?: string | null;
+}
+
+/**
+ * ¿Es un trazo de firma aceptable?
+ *
+ * MISMA regla que el CHECK de la base (`chk_report_signatures_drawing`) y que
+ * `_signature_drawing_ok`. Se repite acá porque este módulo también renderiza
+ * datos que NO vienen de esa columna —el arnés de pruebas, y cualquier futuro
+ * llamador que arme el objeto a mano— y un `<img src>` con un valor arbitrario es
+ * justo lo que no se quiere inyectar en un documento.
+ *
+ * Solo `image/png`: un SVG puede traer un `<script>`. Y el patrón no admite `"`
+ * ni `<`, así que el valor no puede romper el atributo aunque alguien se olvide
+ * de escaparlo.
+ */
+export function dibujoValido(d: string | null | undefined): boolean {
+  if (typeof d !== "string" || d === "") return false;
+  if (d.length > 120000) return false;
+  return /^data:image\/png;base64,[A-Za-z0-9+/]+={0,2}$/.test(d);
 }
 
 /**
@@ -96,14 +120,31 @@ function esc(s: string): string {
     .replace(/"/g, "&quot;");
 }
 
-/** La firma dibujada: nombre, fecha y código. */
+/**
+ * La firma puesta: el TRAZO si lo hay, y siempre la fecha y el código debajo.
+ *
+ * Con trazo, el nombre no se repite arriba —el trazo ya es la firma— pero sí queda
+ * en el `alt` de la imagen: es lo que se lee si el correo o el visor no cargan
+ * imágenes, y lo que oye un lector de pantalla.
+ *
+ * Sin trazo se mantiene la marca de antes (nombre en cursiva). Un documento con
+ * firmas de las dos clases es válido: quien firma desde un computador sin pantalla
+ * táctil firma con un clic.
+ *
+ * El alto de la imagen se limita a 34px y el ancho al 100%: el PNG viene de un
+ * lienzo de 600×200 y sin tope estiraría la fila del listado.
+ */
 export function firmaHtml(f: FirmaDeInforme): string {
   const nombre = esc((f.nombre ?? "").trim() || "—");
   const fecha = f.signed_at ? esc(formatDateTime(f.signed_at)) : "";
   const codigo = esc(codigoVerificacion(f.id));
+  const marca = dibujoValido(f.dibujo)
+    ? `<img src="${esc(f.dibujo as string)}" alt="${nombre}"` +
+      ' style="display:block;max-width:100%;max-height:34px;height:auto;" />'
+    : `<span style="display:block;font-family:Georgia,serif;font-style:italic;font-size:10pt;">${nombre}</span>`;
   return (
     '<span style="display:block;line-height:1.25;">' +
-    `<span style="display:block;font-family:Georgia,serif;font-style:italic;font-size:10pt;">${nombre}</span>` +
+    marca +
     `<span style="display:block;font-size:6.5pt;color:#555;">${fecha}</span>` +
     `<span style="display:block;font-size:6pt;color:#777;letter-spacing:.04em;">${codigo}</span>` +
     "</span>"
