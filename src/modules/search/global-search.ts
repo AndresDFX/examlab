@@ -43,6 +43,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { scopedCourseIds, visibleForScopedCourses } from "@/modules/courses/course-scope";
 import { isStaffActive } from "@/shared/lib/roles";
+import { esPropia } from "@/modules/whiteboard/student-whiteboards";
 import { MIN_QUERY_LENGTH, ilikePatternFor, matchesQuery, sortByRelevance } from "./search-text";
 
 // Los tipos generados de Supabase no reflejan `deleted_at` ni la tabla
@@ -493,15 +494,17 @@ async function searchWhiteboards(q: string, s: SearchScope): Promise<PaletteHit[
   // El Admin NO pasa el RBAC de `/app/teacher/whiteboards`: ofrecerle el
   // resultado lo mandaría a `/app/unauthorized`.
   if (s.staff && !s.canSearchWhiteboards) return [];
-  if (!s.staff && s.studentCourseIds.length === 0) return [];
+  // Ojo: NO se corta por "el alumno no tiene cursos". Desde que el estudiante
+  // tiene pizarras PROPIAS, uno sin cursos igual tiene qué buscar.
   type Row = {
     id: string;
     name: string;
+    owner_id: string | null;
     course_id: string | null;
     status: string | null;
     course: CourseRef;
   };
-  const select = "id, name, course_id, status, course:courses(id, name, deleted_at)";
+  const select = "id, name, owner_id, course_id, status, course:courses(id, name, deleted_at)";
   let query = db
     .from("whiteboards")
     .select(select)
@@ -521,16 +524,34 @@ async function searchWhiteboards(q: string, s: SearchScope): Promise<PaletteHit[
             );
     }
   } else {
-    query = query.eq("is_shared_with_course", true).in("course_id", s.studentCourseIds);
+    // El alumno busca entre las PROPIAS y las compartidas con sus cursos. Sin el
+    // `or`, el buscador ofrecía solo lo del docente y sus pizarras quedaban
+    // invisibles justo en la pantalla que existe para encontrar cosas.
+    // Con 0 cursos no se arma la rama de compartidas: un `.in("course_id", [])`
+    // en PostgREST devuelve TODAS las filas.
+    query = query.or(
+      s.studentCourseIds.length === 0
+        ? `owner_id.eq.${s.userId}`
+        : `owner_id.eq.${s.userId},and(is_shared_with_course.eq.true,course_id.in.(${s.studentCourseIds.join(",")}))`,
+    );
   }
 
   const { data } = await query;
   let rows = (data ?? []) as Row[];
+  // Los dos filtros de abajo son para lo que el alumno RECIBE, no para lo suyo:
+  // una pizarra propia no se le esconde porque el curso se cerró o se mandó a la
+  // papelera. Es la misma regla que reparte las dos listas de
+  // /app/student/whiteboards, y vive en un solo módulo para que no divergan.
+  const propiaDelAlumno = (r: Row) => !s.staff && esPropia(r, s.userId);
   // Una pizarra CERRADA sale del listado activo del alumno.
-  if (!s.staff) rows = rows.filter((r) => (r.status ?? "published") !== "closed");
+  if (!s.staff) {
+    rows = rows.filter((r) => propiaDelAlumno(r) || (r.status ?? "published") !== "closed");
+  }
   // Pizarra de un curso en papelera: el curso ya no existe. Las pizarras SIN
-  // curso (personales del docente) se quedan.
-  rows = rows.filter((r) => !r.course_id || liveCourse(r.course) !== null);
+  // curso (personales del docente o del alumno) se quedan.
+  rows = rows.filter(
+    (r) => propiaDelAlumno(r) || !r.course_id || liveCourse(r.course) !== null,
+  );
   return finish<Row>(
     rows,
     q,

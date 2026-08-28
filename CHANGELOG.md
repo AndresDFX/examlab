@@ -57,16 +57,75 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **cinco migraciones** (`20261600000000_bd_sql_support.sql`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **siete migraciones** (`20261600000000_bd_sql_support.sql`,
 > `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
-> todas defensivas con `to_regclass`) y **una edge function nueva** (`ai-generate-sql`); el resto es cliente.
+> `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
+> `20261910000000_student_own_whiteboards.sql`, todas defensivas con `to_regclass`) y **una edge
+> function nueva** (`ai-generate-sql`); el resto es cliente.
 >
 > Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** como
 > *GitHub Actions repository secret* y re-correr `deploy-secrets.yml` (no viaja en las migraciones,
 > a propósito).
 
 ### 🎉 Novedades
+
+- **El estudiante ahora tiene sus propias pizarras.** Hasta acá el módulo era una vitrina: solo
+  mostraba lo que el docente compartía con el curso, y si no había compartido nada, la pantalla
+  estaba vacía. Ahora el estudiante crea las suyas, las edita y las borra. Sirve para lo que ya le
+  pide el semestre —los talleres de Arquitectura le piden diagramas C4 y los de Bases de Datos un
+  modelo ER— y para lo que no le pide nadie: un cuaderno donde ensayar.
+
+  La pantalla queda partida en dos, **Mis pizarras** y **Compartidas por tus docentes**, cada una con
+  su paginación. La separación no es cosmética: a una pizarra propia NO se le aplican los filtros que
+  sí valen para lo que recibe. Si el docente finaliza el curso, la cascada de cierre marca como
+  cerradas las pizarras de ese curso, y lo compartido sale del listado — pero la del estudiante es
+  suya y se queda. Lo mismo si el curso se va a la papelera. Sin esa distinción, el día que el
+  docente cierra el semestre el alumno perdería de vista su propio trabajo.
+
+  **Compartir con todo el curso sigue siendo del docente, y eso se cierra en la base, no en la
+  pantalla.** La RLS ya dejaba al dueño de una fila escribir cualquiera de sus columnas, y dos no son
+  suyas: `is_shared_with_course` —ponerla en true le publicaría contenido a todos sus compañeros sin
+  que el docente lo autorice— y el vínculo con una sesión de clase. Un trigger nuevo
+  (`trg_whiteboard_student_guard`, mig `20261910000000`) las rechaza, y también rechaza atar la
+  pizarra a un curso donde el estudiante no esté matriculado o crearla a nombre de otro. Verificado
+  en PostgreSQL con la RLS activa, actuando como estudiante, como compañero y como docente: 17 casos,
+  incluido que un compañero no ve ni puede editar la pizarra personal de otro. El docente conserva lo
+  suyo, con un endurecimiento que vino de arrastre: ya no puede compartir con un curso que no dicta.
+
+  Asociar la pizarra a un curso es opcional y solo sirve para organizarlas; el aviso del diálogo dice
+  exactamente qué implica. El **borrado es definitivo, no va a la papelera**: el módulo Papelera es de
+  Docente/Admin, así que una pizarra del estudiante marcada como borrada quedaría irrecuperable para
+  él e invisible para todos — peor que un borrado explícito. El diálogo lo advierte.
+
+  El buscador (⌘K) también las encuentra; antes cortaba de plano si el alumno no tenía cursos.
+  Pendiente a propósito: si el estudiante asocia la pizarra a un curso, el docente puede abrirla por
+  enlace pero todavía no le aparece **listada** en su grid.
+
+- **Los talleres y los parciales de Arquitectura y de Bases de Datos II coinciden otra vez con el
+  material del curso.** El contenido de la plataforma se cargó el 2026-08-12 y los documentos se
+  reescribieron el 2026-08-15 al pasar el semestre a 13 sesiones, así que quedaron tres días de
+  deriva entre lo que el estudiante lee y lo que la plataforma le pide. Se comparó el texto de los 29
+  documentos entre las dos revisiones, y el resultado fue más chico de lo que parecía: el contrato de
+  preguntas de los 24 talleres es idéntico, y lo único que cambió de verdad son los Parciales 2 de
+  los dos cursos, porque el calendario comprimido metió la Clase 10 dentro del Corte 2. Ahí se
+  agregaron las preguntas que faltaban (right-sizing y costos en Arquitectura; niveles de aislamiento
+  y un caso de interbloqueo en Bases de Datos), se repartieron de nuevo los 100 puntos del papel y el
+  emparejamiento pasó de 4 a 6 pares.
+
+  De paso se arregló un defecto que traían los seis talleres por corte desde que se cargaron: dos
+  preguntas compartían posición, así que el orden que veía el estudiante quedaba a merced de lo que
+  devolviera la base y "Pregunta 4" no señalaba nada fijo. El orden correcto no se eligió por gusto:
+  en cada taller el enunciado de una de las dos preguntas depende de la otra ("Partiendo de la ficha
+  y el C4 Context", "el cuello de botella bajo ese pico", "para cada operación del contrato"), y eso
+  lo fija sin ambigüedad.
+
+  Quedó UNA cosa sin aplicar, a propósito: cuatro ítems del material movieron el enunciado de VetCare
+  a dominios ajenos al curso (un procedimiento de préstamo de equipos, una tabla Pedido, "una pyme").
+  No se aplicaron porque el propio documento se contradice —en el mismo Parcial 2, la pregunta nueva
+  y el caso final hablan de VetCare mientras la de optimización habla de Pedido— y porque los
+  talleres y el Proyecto Integrador siguen siendo VetCare de punta a punta. Si el cambio era
+  intencional, hay que corregirlo en el material, que es la fuente.
 
 - **El enlace público de asistencia ya dice de qué curso y de qué sesión es.** Antes era un formulario
   pelado: el estudiante escribía su correo sin saber qué estaba marcando, y con varias materias el mismo
