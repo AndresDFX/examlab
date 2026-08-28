@@ -213,3 +213,25 @@ describe("filas de cierre: total y vocero", () => {
     }
   });
 });
+
+describe("signatureTableHtml — la ranura firmable", () => {
+  it("por defecto la celda de Firma trae la ranura anclada al estudiante", () => {
+    // Una tabla de firmas existe para que la firmen: la ranura es lo que permite
+    // que el estudiante firme desde su propio renglon.
+    const h = signatureTableHtml();
+    expect(h).toContain("examlab-firma");
+    expect(h).toContain('data-firma-uid="{{user_id}}"');
+  });
+
+  it("la ranura va DENTRO del each, para que cada fila apunte a su estudiante", () => {
+    const h = signatureTableHtml();
+    const each = h.slice(h.indexOf("{{#each estudiantes}}"), h.indexOf("{{/each}}"));
+    expect(each).toContain('data-firma-uid="{{user_id}}"');
+  });
+
+  it("apagada vuelve al recuadro en blanco de antes", () => {
+    const h = signatureTableHtml({ firmaDigital: false });
+    expect(h).not.toContain("examlab-firma");
+    expect(h).toContain("height:30px;>&nbsp;</td>".replace(">&", '">&'));
+  });
+});

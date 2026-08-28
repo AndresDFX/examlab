@@ -57,11 +57,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **ocho migraciones** (`20261600000000_bd_sql_support.sql`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **nueve migraciones** (`20261600000000_bd_sql_support.sql`,
 > `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
 > `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
-> `20261910000000_student_own_whiteboards.sql` y `20261920000000_docente_enrollment_target_guard.sql`,
+> `20261910000000_student_own_whiteboards.sql`, `20261920000000_docente_enrollment_target_guard.sql`
+> y `20261930000000_report_signature_slots.sql`,
 > todas defensivas con `to_regclass`) y **una edge
 > function nueva** (`ai-generate-sql`); el resto es cliente.
 >
@@ -70,6 +71,34 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > a propósito).
 
 ### 🎉 Novedades
+
+- **El estudiante firma el Acuerdo Pedagógico EN SU RENGLÓN, y la firma queda dentro del
+  documento.** El flujo de firmas ya existía, pero la firma era un registro invisible: la tabla del
+  acuerdo seguía imprimiendo un recuadro en blanco por estudiante y el estudiante firmaba con un
+  botón al pie, después de tres páginas. Nadie podía mirar el acuerdo y ver quién firmó.
+
+  Ahora la celda de Firma de cada estudiante es una ranura con tres estados. **Firmada**: sale el
+  nombre, la fecha y un código de verificación de seis caracteres, distinto por firma, para que
+  alguien pueda señalar una firma concreta al reclamar. **Pendiente**: en blanco — es lo que hace
+  que el papel siga sirviendo, porque un acuerdo sin firmar se imprime y se firma a mano igual que
+  antes. **Firmable**: un botón "Firmar aquí", y solo en la fila de quien está mirando; al abrir el
+  documento la vista baja sola hasta ese renglón.
+
+  El docente ya no tiene que cambiar de pestaña para mandarlo a firmar: el botón está en el mismo
+  diálogo donde generó el documento, con el acuerdo en pantalla. Y cuando vuelve a descargar el
+  informe desde "Informes generados", el Word y el PDF salen con las firmas puestas — antes se
+  descargaba en blanco aunque el curso entero hubiera firmado.
+
+  Dos decisiones que no se ven pero sostienen el resto. La firma **no** se resuelve al generar el
+  informe: lo que se guarda es un snapshot inmutable —el hash de la firma se calcula sobre él— y al
+  generarlo todavía no hay ninguna firma, así que la plantilla deja una ranura anclada a cada
+  estudiante y las firmas se dibujan al MOSTRAR el documento. Y el ancla es el identificador de la
+  persona, no su nombre ni su correo: los nombres se repiten y un correo se puede corregir (de hecho
+  se corrigió uno esta semana), así que anclar por ahí pondría la firma de alguien en el renglón de
+  otro.
+
+  Los informes ya generados no tienen ranuras y siguen funcionando como hasta ahora, con el botón al
+  pie: nada obliga a regenerarlos.
 
 - **El docente puede matricular a un estudiante nuevo en VARIOS cursos de una vez.** El diálogo
   "Nuevo estudiante" pedía UN curso en un desplegable; ahora muestra los cursos que dicta con

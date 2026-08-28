@@ -34,6 +34,8 @@ import {
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { SignableDocument } from "@/modules/reports/SignableDocument";
+import type { FirmaDeInforme } from "@/modules/reports/signature-slots";
 import { formatDateTime } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/student/signatures")({
@@ -58,7 +60,15 @@ function StudentSignatures() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [items, setItems] = useState<Pendiente[]>([]);
-  const [abierto, setAbierto] = useState<{ id: string; html: string; nombre: string } | null>(null);
+  const [abierto, setAbierto] = useState<{
+    id: string;
+    html: string;
+    nombre: string;
+    /** Firmas ya puestas, para dibujarlas en el renglón de cada quien. */
+    firmas: FirmaDeInforme[];
+    /** El propio estudiante: identifica SU ranura dentro del documento. */
+    firmanteId: string | null;
+  } | null>(null);
   const [firmando, setFirmando] = useState(false);
   const [intento, setIntento] = useState(0);
 
@@ -120,13 +130,29 @@ function StudentSignatures() {
 
   const abrir = async (p: Pendiente) => {
     const { data, error: e } = await db.rpc("get_report_to_sign", { _report_id: p.report_id });
-    const r = data as { ok?: boolean; html?: string; error?: string } | null;
+    const r = data as {
+      ok?: boolean;
+      html?: string;
+      error?: string;
+      signer_id?: string | null;
+      firmas?: FirmaDeInforme[] | null;
+    } | null;
     if (e || !r?.ok || typeof r.html !== "string") {
       toast.error(friendlyError(e, t("studentSignatures.errOpen")));
       return;
     }
-    setAbierto({ id: p.report_id, html: r.html, nombre: p.template_name });
+    setAbierto({
+      id: p.report_id,
+      html: r.html,
+      nombre: p.template_name,
+      firmas: r.firmas ?? [],
+      firmanteId: r.signer_id ?? null,
+    });
   };
+
+  // Se calcula una vez: lo consultan el botón del pie Y la ranura del documento,
+  // y con dos `find` sueltos es fácil que uno quede desactualizado del otro.
+  const yaFirmo = !!abierto && !!items.find((i) => i.report_id === abierto.id)?.signed_at;
 
   const firmar = async () => {
     if (!abierto || firmando) return;
@@ -149,7 +175,16 @@ function StudentSignatures() {
         return;
       }
       toast.success(t("studentSignatures.signedOk"));
-      setAbierto(null);
+      // El documento NO se cierra: se vuelve a pedir para que el estudiante vea su
+      // firma aparecer en su renglón. Cerrarlo de golpe lo dejaba sin ninguna
+      // señal de qué cambió, que es justo lo que este flujo venía a arreglar.
+      const { data: d2 } = await db.rpc("get_report_to_sign", { _report_id: abierto.id });
+      const r2 = d2 as { ok?: boolean; html?: string; firmas?: FirmaDeInforme[] | null } | null;
+      if (r2?.ok && typeof r2.html === "string") {
+        setAbierto((prev) =>
+          prev ? { ...prev, html: r2.html as string, firmas: r2.firmas ?? [] } : prev,
+        );
+      }
       setIntento((n) => n + 1);
     } finally {
       setFirmando(false);
@@ -236,20 +271,25 @@ function StudentSignatures() {
           <DialogHeader>
             <DialogTitle className="truncate">{abierto?.nombre}</DialogTitle>
           </DialogHeader>
-          {/* El documento se pinta en un iframe con `sandbox` vacío: es HTML
-              compuesto por una plantilla que un docente puede editar, así que no
-              se le da acceso a scripts ni al origen de la app. */}
-          <iframe
-            title={abierto?.nombre ?? ""}
-            sandbox=""
-            srcDoc={abierto?.html ?? ""}
-            className="w-full h-[60dvh] rounded-md border bg-white"
-          />
+          {/* El documento, con las firmas puestas y —si todavía no firmó— el botón
+              en SU renglón, al que la vista baja sola. El aislamiento del iframe y
+              por qué el sandbox deja pasar `allow-same-origin` está explicado en
+              `SignableDocument`. */}
+          {abierto && (
+            <SignableDocument
+              title={abierto.nombre}
+              html={abierto.html}
+              firmas={abierto.firmas}
+              firmanteId={abierto.firmanteId}
+              onFirmar={yaFirmo || firmando ? null : () => void firmar()}
+              className="w-full h-[60dvh] rounded-md border bg-white"
+            />
+          )}
           <DialogFooter className="gap-2 sm:gap-2">
             <Button variant="outline" onClick={() => setAbierto(null)}>
               {t("common.close")}
             </Button>
-            {abierto && !items.find((i) => i.report_id === abierto.id)?.signed_at && (
+            {abierto && !yaFirmo && (
               <Button onClick={() => void firmar()} disabled={firmando}>
                 {firmando ? (
                   <Spinner size="sm" className="mr-1" />

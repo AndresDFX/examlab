@@ -32,6 +32,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { SignableDocument } from "@/modules/reports/SignableDocument";
+import type { FirmaDeInforme } from "@/modules/reports/signature-slots";
 
 export const Route = createFileRoute("/acuerdo/$token")({
   component: FirmaPublica,
@@ -55,6 +57,10 @@ interface Info {
   requested_at?: string;
   signed_at?: string | null;
   signed_via?: string | null;
+  /** A quién corresponde ESTE enlace: identifica su ranura en el documento. */
+  signer_id?: string | null;
+  /** Firmas ya puestas, para dibujarlas dentro del documento. */
+  firmas?: FirmaDeInforme[] | null;
 }
 
 function FirmaPublica() {
@@ -192,15 +198,17 @@ function FirmaPublica() {
           </CardContent>
         </Card>
 
-        {/* El documento va en un iframe con `sandbox` vacío: es HTML compuesto
-            por una plantilla que un docente edita, así que no se le da acceso a
-            scripts ni al origen de la app. */}
+        {/* El documento, con las firmas puestas y —si todavía no firmó— el botón
+            en SU renglón. El aislamiento y por qué el sandbox deja pasar
+            `allow-same-origin` está explicado en `SignableDocument`. */}
         <Card>
           <CardContent className="p-0">
-            <iframe
+            <SignableDocument
               title={info.template_name ?? ""}
-              sandbox=""
-              srcDoc={info.html ?? ""}
+              html={info.html ?? ""}
+              firmas={info.firmas ?? []}
+              firmanteId={info.signer_id ?? null}
+              onFirmar={yaFirmado || firmando ? null : () => void firmar()}
               className="w-full h-[70dvh] rounded-md bg-white"
             />
           </CardContent>

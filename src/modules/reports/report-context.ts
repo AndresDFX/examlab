@@ -675,6 +675,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   return {
     ...baseCtx,
     estudiantes: studentList.map((s) => ({
+      // Ancla de la ranura de firma: la celda "Firma" de la tabla emite
+      // `data-firma-uid="{{user_id}}"` y las firmas se pintan sobre ese id al
+      // mostrar el documento (ver `signature-slots.ts`). Se expone como
+      // `user_id` y no como `id` porque en una plantilla `{{id}}` dentro de un
+      // `{{#each}}` se lee como "el id de la fila" y no dice de quién.
+      user_id: s.id,
       nombre: s.nombre,
       email: s.email,
       codigo: s.codigo,
@@ -831,7 +837,9 @@ export async function buildReportContextFromActa(actaId: string): Promise<Templa
       integrity_hash: actaRow.integrity_hash,
       hash_corto: String(actaRow.integrity_hash).slice(0, 16),
     },
-    estudiantes: studentList,
+    // `user_id` también acá: un acta reimpresa desde su snapshot tiene que poder
+    // mostrar las firmas igual que el documento recién generado.
+    estudiantes: studentList.map((s: { id: string }) => ({ ...s, user_id: s.id })),
     total_estudiantes: Number(snap?.total_estudiantes ?? studentList.length),
     total_aprobados: Number(snap?.total_aprobados ?? 0),
     total_reprobados: Number(snap?.total_reprobados ?? 0),

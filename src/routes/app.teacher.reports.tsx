@@ -63,6 +63,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { SendToSignDialog } from "@/modules/reports/SendToSignDialog";
+import { renderizarRanuras, type FirmaDeInforme } from "@/modules/reports/signature-slots";
 import { toast } from "sonner";
 import {
   FileBarChart,
@@ -1094,8 +1095,17 @@ function Inner() {
   // Persiste el informe generado en el historial (una sola vez por preview).
   // Best-effort: si la tabla no existe / RLS rechaza, no bloquea la descarga
   // — pero AVISAMOS, porque si no el docente cree que quedó en el historial.
-  const persistGeneration = async () => {
-    if (!genHtml || !genTemplate || !genCourseId || genSavedId) return;
+  //
+  // DEVUELVE el id: "Enviar a firmar" lo necesita inmediatamente después, y leer
+  // `genSavedId` justo tras el await no sirve porque el setState de React todavía
+  // no se aplicó.
+  const persistGeneration = async (
+    // El aviso de fallo cambia según quién llame: desde una descarga el archivo SÍ
+    // se bajó, desde "Enviar a firmar" no se bajó nada y decir que sí confunde.
+    mensajeFallo?: string,
+  ): Promise<string | null> => {
+    if (!genHtml || !genTemplate || !genCourseId) return null;
+    if (genSavedId) return genSavedId;
     const meta = genMeta();
     const { data, error } = await db
       .from("generated_reports")
@@ -1117,15 +1127,43 @@ function Inner() {
       .single();
     if (error || !data) {
       toast.warning(
-        i18n.t("toast.routes_app_teacher_reports.persistFailed", {
-          defaultValue:
-            "El archivo se descargó, pero no pudimos guardarlo en “Informes generados”.",
-        }),
+        mensajeFallo ??
+          i18n.t("toast.routes_app_teacher_reports.persistFailed", {
+            defaultValue:
+              "El archivo se descargó, pero no pudimos guardarlo en “Informes generados”.",
+          }),
       );
-      return;
+      return null;
     }
     setGenSavedId(data.id as string);
     void loadGenReports();
+    return data.id as string;
+  };
+
+  // ── Enviar a firmar desde el diálogo de Generar ──────────────────────
+  //
+  // Firmar necesita un informe PERSISTIDO: lo que se firma es el snapshot de HTML,
+  // y el hash de la firma se calcula sobre él. Así que esta acción primero guarda
+  // el informe (o reusa el que ya se guardó en esta misma generación) y después
+  // abre el diálogo de envío. Antes esto solo se podía hacer desde la pestaña
+  // "Informes generados", o sea que había que generar, cambiar de pestaña y buscar
+  // la fila — con el documento ya en pantalla.
+  const [genSending, setGenSending] = useState(false);
+  const handleSendToSign = async () => {
+    if (!genHtml || !genTemplate || !genCourseId) return;
+    setGenSending(true);
+    try {
+      const id = await persistGeneration(
+        i18n.t("reportSign.persistFailed", {
+          defaultValue:
+            "No pudimos guardar el informe, así que todavía no se puede mandar a firmar.",
+        }),
+      );
+      if (!id) return;
+      setFirmarInforme({ id, courseId: genCourseId, nombre: genTemplate.name });
+    } finally {
+      setGenSending(false);
+    }
   };
 
   const handleDownloadWord = async () => {
@@ -1178,13 +1216,33 @@ function Inner() {
   // Ambas re-descargas son síncronas pero pueden tardar (HTML grande) y
   // pueden lanzar: sin el try/catch el fallo era invisible (nada pasaba al
   // hacer click). `histBusyId` bloquea el menú de esa fila mientras corre.
+  /**
+   * Trae las firmas PUESTAS del informe y las pinta sobre su snapshot.
+   *
+   * Sin esto, el docente descargaba el acuerdo y lo veía en blanco aunque el curso
+   * entero hubiera firmado: el snapshot es inmutable a propósito y las firmas se
+   * dibujan al mostrarlo. Es best-effort — si la consulta falla se descarga el
+   * documento sin firmas, que es lo que pasaba antes, en vez de no descargar nada.
+   */
+  const conFirmas = async (r: GeneratedReport): Promise<string> => {
+    try {
+      const { data } = await db.rpc("report_signatures_of", { _report_id: r.id });
+      const firmas = (Array.isArray(data) ? data : []) as FirmaDeInforme[];
+      if (firmas.length === 0) return r.html;
+      return renderizarRanuras(r.html, { firmas });
+    } catch {
+      return r.html;
+    }
+  };
+
   const reDownloadWord = async (r: GeneratedReport) => {
     if (histBusyId) return;
     setHistBusyId(r.id);
     setHistPreparing(true);
     try {
       await yieldToPaint();
-      downloadReportAsWord(r.html, {
+      const html = await conFirmas(r);
+      downloadReportAsWord(html, {
         templateName: r.template_name,
         courseName: r.course_name,
         studentName: r.student_name,
@@ -1211,7 +1269,7 @@ function Inner() {
     setHistPreparing(true);
     try {
       await yieldToPaint();
-      printReportHtml(r.html);
+      printReportHtml(await conFirmas(r));
     } catch (e) {
       toast.error(
         friendlyError(
@@ -1858,6 +1916,23 @@ function Inner() {
                       })
                     : t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" })}
                 </Button>
+                {/* Solo en informes de CURSO: el de un estudiante ya es de una
+                    sola persona y firmarlo no agrega nada. Misma regla que la
+                    acción de fila de "Informes generados". */}
+                {genTemplate?.scope === "curso" && (
+                  <Button
+                    variant="outline"
+                    onClick={() => void handleSendToSign()}
+                    disabled={!!genDownload || genSending}
+                  >
+                    {genSending ? (
+                      <Spinner size="sm" className="mr-1" />
+                    ) : (
+                      <PenLine className="h-4 w-4 mr-1" />
+                    )}
+                    {t("reportSign.rowAction")}
+                  </Button>
+                )}
               </>
             )}
           </div>
@@ -1870,10 +1945,17 @@ function Inner() {
 
           {genHtml && (
             <div className="border rounded-md overflow-hidden bg-white">
+              {/* `sandbox` vacío: es HTML compuesto por una plantilla que el
+                  docente edita, y esta vista previa no necesita interacción —a
+                  diferencia del documento del estudiante, que sí y por eso lleva
+                  `allow-same-origin` (ver `SignableDocument`)—. Los otros dos
+                  iframes de HTML compuesto del repo (TemplateEditor y
+                  SignatureBlockDialog) ya lo tenían; a este le faltaba. */}
               <iframe
                 ref={iframeRef}
                 title={t("hc_routesAppTeacherReports.previewTitle")}
                 srcDoc={genHtml}
+                sandbox=""
                 className="w-full h-[60dvh]"
               />
             </div>

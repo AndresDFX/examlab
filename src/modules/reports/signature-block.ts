@@ -28,6 +28,8 @@
  * filas otra vez.
  */
 
+import { ranuraPlantillaHtml } from "./signature-slots";
+
 /** Estilo de celda compartido, para que la tabla se vea como las del formato. */
 const CELDA = "padding:4px 6px;border:1px solid #444;";
 const CABECERA = `${CELDA}background-color:#d9d9d9;`;
@@ -52,6 +54,16 @@ export interface OpcionesFirmas {
   incluirTotal?: boolean;
   /** Filas de vocero y teléfono, en blanco para llenar a mano. */
   incluirVocero?: boolean;
+  /**
+   * La celda de Firma lleva una RANURA firmable en vez de quedar en blanco.
+   *
+   * Encendido por defecto: una tabla de firmas existe para que la firmen, y con
+   * la ranura el documento sirve para las dos cosas —el estudiante firma desde su
+   * renglón, y si nadie firmó se imprime y se firma a mano igual que antes—.
+   * Apagarlo tiene un solo caso de uso: un listado que NO se va a mandar a firmar
+   * y donde la ranura solo agregaría marcado inútil al exportar.
+   */
+  firmaDigital?: boolean;
 }
 
 /**
@@ -68,6 +80,7 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     incluirDocente = true,
     incluirTotal = false,
     incluirVocero = false,
+    firmaDigital = true,
   } = op;
 
   // Las columnas de dato tienen ancho FIJO y "Estudiante" absorbe el resto, de
@@ -107,9 +120,13 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     `<td style="${CABECERA}width:${anchoFirma}%;"><p style="text-align:center">` +
     `<span ${FUENTE}><strong>Firma</strong></span></p></td>`;
 
+  // La celda de Firma: la ranura queda anclada al `user_id` de cada estudiante,
+  // que el motor resuelve dentro del `{{#each}}`. Sin ranura vuelve al recuadro en
+  // blanco de antes.
+  const celdaFirma = firmaDigital ? ranuraPlantillaHtml() : "&nbsp;";
   const fila =
     columnas.map((c) => `<td style="${CELDA}"><span ${FUENTE}>${c.td}</span></td>`).join("") +
-    `<td style="${CELDA}height:30px;">&nbsp;</td>`;
+    `<td style="${CELDA}height:30px;">${celdaFirma}</td>`;
 
   const encabezado = titulo
     ? `<p style="text-align:center"><span ${FUENTE}><strong>${titulo}</strong></span></p>`
@@ -143,9 +160,7 @@ export function signatureTableHtml(op: OpcionesFirmas = {}): string {
     celdaEtiqueta(etiqueta, anchoEtiqueta) +
     `<td colspan="${nCols - anchoEtiqueta}" style="${CELDA}height:24px;">&nbsp;</td>` +
     "</tr>";
-  const vocero = incluirVocero
-    ? filaEnBlanco("Nombre del vocero") + filaEnBlanco("Teléfono")
-    : "";
+  const vocero = incluirVocero ? filaEnBlanco("Nombre del vocero") + filaEnBlanco("Teléfono") : "";
 
   const docente = incluirDocente
     ? '<table style="border-collapse:collapse;width:100%;margin-top:18px;table-layout:fixed;">' +
