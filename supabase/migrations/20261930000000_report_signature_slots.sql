@@ -221,10 +221,20 @@ BEGIN
     RETURN;
   END IF;
 
+  -- "Global" en `report_templates` NO es `tenant_id IS NULL`: esta tabla no tiene
+  -- columna `tenant_id`. Una plantilla global es la que no pertenece a un docente
+  -- ni a un curso ni deriva de otra — `owner_id`, `course_id` y `parent_id` en
+  -- NULL, que es exactamente como la inserta el seed (mig 20261760000000).
+  --
+  -- La primera versión de esta migración decía `tenant_id IS NULL` y falló al
+  -- aplicarse con "column tenant_id does not exist". El arnés de verificación no
+  -- lo detectó porque CREÓ la tabla con esa columna: probó el SQL contra un
+  -- esquema inventado. Se corrigió leyendo las columnas reales por REST.
   UPDATE public.report_templates
      SET body_html = replace(body_html, v_celda_vieja, v_celda_nueva)
    WHERE name = 'Acuerdo Pedagógico'
-     AND tenant_id IS NULL
+     AND owner_id IS NULL
+     AND course_id IS NULL
      AND position(v_celda_vieja in body_html) > 0
      AND position('examlab-firma' in body_html) = 0;
 
