@@ -9978,6 +9978,7 @@
     "generate": "Generate",
     "generating": "Generating…",
     "waitHint": "This may take a few seconds. You can keep typing in the editor meanwhile.",
+    "shortcutsHint": "Enter generates · Shift+Enter for a new line",
     "errorTitle": "Could not generate:",
     "genericError": "Could not generate the SQL. Try again in a few seconds.",
     "emptyResult": "The AI returned no statement. Rephrase your request with more detail.",

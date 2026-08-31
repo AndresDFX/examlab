@@ -47,7 +47,6 @@ import {
   Wand2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -57,6 +56,7 @@ import { hasSchemaSummary, summarizeSetupSql } from "@/modules/database/sql-sche
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { enterEnvia } from "@/shared/lib/submit-on-enter";
 import { cn } from "@/shared/lib/utils";
 
 interface Props {
@@ -242,21 +242,31 @@ export function SqlPageEditor({
           </div>
           <div className="flex flex-col gap-2 px-2.5 pb-2.5">
             <div className="flex flex-col gap-2 sm:flex-row">
-              <Input
+              {/* Caja de VARIOS renglones y no un `<Input>`: lo que se pide acá es la
+                  descripción de un esquema ("clientes y pedidos, 10 filas, un GRANT
+                  de solo lectura"), y en un `<input>` no cabe un salto de línea ni
+                  con Shift+Enter — la tecla no tiene dónde escribirlo. */}
+              <Textarea
                 value={aiPrompt}
                 onChange={(e) => setAiPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    void generateSql();
-                  }
+                  // Enter genera; Shift+Enter baja renglón. La regla vive en
+                  // `enterEnvia` porque este manejador la tenía mal: hacía
+                  // `preventDefault()` en CUALQUIER Enter, así que Shift+Enter
+                  // generaba en vez de bajar.
+                  if (!enterEnvia(e)) return;
+                  e.preventDefault();
+                  void generateSql();
                 }}
                 disabled={aiLoading}
+                rows={2}
                 placeholder={t("sqlAssistant.placeholder")}
-                className="flex-1 min-w-[160px] sm:min-w-48"
+                className="flex-1 min-w-[160px] resize-none text-sm sm:min-w-48"
               />
               <Button
                 variant="secondary"
+                // Sin esto el botón se estira al alto de la caja de 2 renglones.
+                className="sm:self-end"
                 onClick={() => void generateSql()}
                 disabled={aiLoading || !aiPrompt.trim()}
               >
@@ -270,9 +280,13 @@ export function SqlPageEditor({
             </div>
 
             {/* Expectativa explícita mientras corre (la generación tarda
-                varios segundos y el docente está frente al curso). */}
-            {aiLoading && (
+                varios segundos y el docente está frente al curso). En reposo, el
+                mismo renglón dice el atajo: la caja acepta varios renglones y
+                nadie descubre solo que el salto es Shift+Enter. */}
+            {aiLoading ? (
               <p className="text-2xs text-muted-foreground">{t("sqlAssistant.waitHint")}</p>
+            ) : (
+              <p className="text-2xs text-muted-foreground">{t("sqlAssistant.shortcutsHint")}</p>
             )}
 
             {aiError && (

@@ -9978,6 +9978,7 @@
     "generate": "Generar",
     "generating": "Generando…",
     "waitHint": "Puede tardar unos segundos. Podés seguir escribiendo en el editor mientras tanto.",
+    "shortcutsHint": "Enter genera · Shift+Enter salto de línea",
     "errorTitle": "No se pudo generar:",
     "genericError": "No se pudo generar el SQL. Volvé a intentar en unos segundos.",
     "emptyResult": "La IA no devolvió ninguna sentencia. Reformulá la petición con más detalle.",
