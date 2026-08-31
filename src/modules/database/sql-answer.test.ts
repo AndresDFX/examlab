@@ -10,6 +10,7 @@ import {
   sqlSourceForDisplay,
   type SqlAnswer,
 } from "./sql-answer";
+import { LIST_TABLES_SQL } from "./sql-help";
 
 const answer = (over: Partial<SqlAnswer> = {}): SqlAnswer => ({
   sql: "SELECT 1 AS n;",
@@ -165,5 +166,31 @@ describe("sqlResultsForDisplay / sqlSourceForDisplay", () => {
 
   it("sqlSourceForDisplay devuelve el SQL del alumno", () => {
     expect(sqlSourceForDisplay(serializeSqlAnswer(answer()))).toBe("SELECT 1 AS n;");
+  });
+});
+
+describe("isSqlAnswerBlank — lo que insertó un botón no es una respuesta", () => {
+  it("una hoja que SOLO tiene la consulta de la ayuda sigue en blanco", () => {
+    // El botón "Agregar al editor" de la ayuda "¿qué tablas hay?" escribe en el
+    // editor, y eso persiste. Sin descontarlo, pulsar un botón de AYUDA y no
+    // contestar nada hacía que la pregunta contara como respondida: el aviso de
+    // "entregás con N en blanco" no la listaba y el monitor del docente la sumaba.
+    expect(isSqlAnswerBlank(serializeSqlAnswer({ sql: LIST_TABLES_SQL, results: [] }))).toBe(true);
+  });
+
+  it("no importa el espaciado ni las mayúsculas con que haya quedado", () => {
+    const raro = `  ${LIST_TABLES_SQL.toUpperCase().replace(/ /g, "\n  ")}  `;
+    expect(isSqlAnswerBlank(serializeSqlAnswer({ sql: raro, results: [] }))).toBe(true);
+  });
+
+  it("pero si además escribió algo propio, SÍ respondió", () => {
+    const conRespuesta = `${LIST_TABLES_SQL}\n\nselect * from clientes;`;
+    expect(isSqlAnswerBlank(serializeSqlAnswer({ sql: conRespuesta, results: [] }))).toBe(false);
+  });
+
+  it("y un string plano igual a la consulta de la ayuda tampoco es respuesta", () => {
+    // Camino sin serializar (respuesta vieja o de otro flujo).
+    expect(isSqlAnswerBlank(LIST_TABLES_SQL)).toBe(true);
+    expect(isSqlAnswerBlank("select 1")).toBe(false);
   });
 });

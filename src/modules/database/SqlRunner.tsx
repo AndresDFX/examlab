@@ -60,6 +60,8 @@ import {
   type PgliteResult,
 } from "@/modules/database/pglite-loader";
 import { splitSqlStatements } from "@/modules/database/sql-split";
+import { appendSqlBlock, LIST_TABLES_SQL } from "@/modules/database/sql-help";
+import { SqlTablesHelp } from "@/modules/database/SqlTablesHelp";
 import {
   formatCell,
   MAX_PERSISTED_ROWS,
@@ -230,6 +232,34 @@ export function SqlRunner({
     [selectedSql],
   );
 
+  /**
+   * Agrega la consulta que lista las tablas AL FINAL de la hoja.
+   *
+   * Se edita por Monaco (`executeEdits`) y no por estado por dos motivos: el
+   * cambio entra en su pila de deshacer, así que Ctrl+Z lo revierte como
+   * cualquier otra escritura; y el modelo queda actualizado en el acto, que es
+   * lo que permite dejar el cursor al final. Eso último no es cosmético: con
+   * una selección viva el botón Ejecutar corre SOLO la selección (ver `run`),
+   * así que sin colapsarla se agregaría la consulta y al ejecutar no correría.
+   */
+  const insertListTables = () => {
+    if (readOnly) return;
+    const editor = editorRef.current;
+    const model = editor?.getModel();
+    const next = appendSqlBlock(model?.getValue() ?? sql, LIST_TABLES_SQL);
+    if (!editor || !model) {
+      setSql(next);
+      persist(next, results, false);
+      return;
+    }
+    editor.executeEdits("examlab-list-tables", [{ range: model.getFullModelRange(), text: next }]);
+    // `onChange` de Monaco ya disparó `onSqlChange` (estado + persistencia).
+    const fin = model.getFullModelRange().getEndPosition();
+    editor.setPosition(fin);
+    editor.revealPositionInCenter(fin);
+    editor.focus();
+  };
+
   const run = async () => {
     // Con selección se corre SOLO eso; sin selección, la hoja entera.
     const { sql: selected, inicio: inicioSeleccion } = selectedSql();
@@ -382,6 +412,13 @@ export function SqlRunner({
           <Database className="mt-0.5 h-3 w-3 shrink-0" />
           {t("bdSql.engineLabel")}
         </p>
+
+        {/* Qué contiene la base, a la vista y en un botón. En readOnly Monaco no
+            acepta escritura, así que la consulta no se podría insertar ni pegar en
+            ningún lado: ahí lo único que corre es la consulta fija del docente.
+            Es la única superficie que EJECUTA y queda sin la ayuda; cubrirla pide
+            un editor propio para el alumno, que es trabajo aparte. */}
+        {!readOnly && <SqlTablesHelp onInsert={insertListTables} />}
 
         {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
         {running && (

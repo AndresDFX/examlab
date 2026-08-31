@@ -9970,7 +9970,13 @@
     "schemaFromSetup": "Detected in the schema above. Postgres defines the real list when you run.",
     "setupSqlHintBoard": "Runs BEFORE your query, on a clean database. Put the CREATE TABLE and INSERT you want ready for class here.",
     "noSetupHintBoard": "With no starting schema the query runs on an empty database: define at least one table above.",
-    "firstRunHintIdle": "The first run downloads the engine (~16 MB). Worth testing before class."
+    "firstRunHintIdle": "The first run downloads the engine (~16 MB). Worth testing before class.",
+    "listTablesLabel": "Query to see which tables the database has",
+    "listTablesHint": "It asks Postgres instead of reading the text, so it shows the tables and views that exist in the database right now, with their type next to them.",
+    "listTablesPsqlPart1": "The",
+    "listTablesPsqlPart2": "shortcut does not work here: it is a psql command, not SQL. If you run it, the answer is",
+    "listTablesInsert": "Add to the editor",
+    "listTablesAppendNote": "It is added at the end of what you already wrote; it does not replace anything."
   },
   "sqlAssistant": {
     "title": "Generate SQL with AI",

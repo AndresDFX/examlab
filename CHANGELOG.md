@@ -73,6 +73,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **En las pantallas de SQL ahora se ve, y se puede agregar al editor con un botón, la consulta que
+  dice qué hay en la base.** El caso que lo originó: alguien escribió `SELECT * FROM
+  v_agenda_recepcion;` contra una base donde ese objeto no existía. Es un fallo de *no saber que
+  había que preguntar*, así que la consulta se muestra en pantalla y no detrás de un icono `?`: quien
+  no sabe qué contiene la base tampoco sabe que un `?` guarda la respuesta. El botón **agrega al
+  final** —nunca reemplaza lo que ya escribiste— y el cambio entra en la pila de deshacer, así que
+  Ctrl+Z lo revierte como cualquier otra escritura.
+
+  Detrás del `?` queda la aclaración que ahorra el error más probable: `dt` no funciona acá, porque
+  es un comando del programa psql y no SQL. El mensaje que se cita es el que Postgres emite de verdad
+  —medido, no supuesto—: falla en el primer token inesperado, que es la barra, y nunca llega a
+  `dt`. Citar un error parecido pero distinto lograría justo lo contrario de que la persona reconozca
+  en la ayuda lo que le pasó.
+
+  La caja aparece donde el SQL se **ejecuta** (examen, taller y la hoja de la pizarra) y no en los
+  formularios donde el docente escribe el esquema de partida: ahí ese SQL corre antes que el del
+  alumno y sus resultados no se muestran, así que insertar un `SELECT` correría en silencio — y quien
+  acaba de escribir el DDL ya sabe qué creó. Y la consulta pregunta por tablas **y vistas**
+  (`information_schema.tables`, no `pg_tables`, que omite las vistas): una vista es exactamente el
+  objeto del reporte original.
+
 - **La firma se dibuja: el estudiante traza su firma con el dedo, el lápiz o el ratón.** Firmar era
   un clic y la marca que quedaba era el nombre en cursiva. Funcionaba, pero en un teléfono el gesto
   de firmar es pasar el dedo, y un acuerdo impreso se lee distinto con un trazo que con un nombre

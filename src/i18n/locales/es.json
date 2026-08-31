@@ -9970,7 +9970,13 @@
     "schemaFromSetup": "Detectadas en el esquema de arriba. La lista real la define Postgres al ejecutar.",
     "setupSqlHintBoard": "Se ejecuta ANTES de tu consulta, sobre una base limpia. Acá van los CREATE TABLE e INSERT que quieras tener listos para la clase.",
     "noSetupHintBoard": "Sin esquema de partida la consulta corre sobre una base vacía: definí al menos una tabla acá arriba.",
-    "firstRunHintIdle": "La primera ejecución descarga el motor (~16 MB). Conviene probarla antes de la clase."
+    "firstRunHintIdle": "La primera ejecución descarga el motor (~16 MB). Conviene probarla antes de la clase.",
+    "listTablesLabel": "Consulta para ver qué tablas hay en la base",
+    "listTablesHint": "Le pregunta a Postgres en vez de leer el texto, así que muestra las tablas y las vistas que existen ahora en la base, con su tipo al lado.",
+    "listTablesPsqlPart1": "El atajo",
+    "listTablesPsqlPart2": "no sirve acá: es un comando del programa psql, no SQL. Si lo ejecutás, la respuesta es",
+    "listTablesInsert": "Agregar al editor",
+    "listTablesAppendNote": "Se agrega al final de lo que ya escribiste; no reemplaza nada."
   },
   "sqlAssistant": {
     "title": "Generar SQL con IA",

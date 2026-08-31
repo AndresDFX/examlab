@@ -52,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
 import { SqlRunner } from "@/modules/database/SqlRunner";
 import { parseSqlAnswer, serializeSqlAnswer } from "@/modules/database/sql-answer";
+import { appendSqlBlock } from "@/modules/database/sql-help";
 import { hasSchemaSummary, summarizeSetupSql } from "@/modules/database/sql-schema";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -72,15 +73,6 @@ interface Props {
   /** El padre persiste el patch en `whiteboard_pages` + actualiza su state. */
   onPersist: (patch: Record<string, unknown>) => void;
   className?: string;
-}
-
-/** Agrega `addition` al final de `base` dejando una línea en blanco entre
- *  bloques. Nunca pisa lo que ya estaba — ver el encabezado del archivo. */
-function appendSqlBlock(base: string, addition: string): string {
-  const head = (base ?? "").trimEnd();
-  const tail = (addition ?? "").trim();
-  if (!tail) return head;
-  return head ? `${head}\n\n${tail}\n` : `${tail}\n`;
 }
 
 export function SqlPageEditor({

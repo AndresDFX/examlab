@@ -16,6 +16,9 @@
  * TODO lo de este archivo es PURO (sin DOM, sin red) para poder testearlo.
  */
 
+// `sql-help` no importa este módulo: no hay ciclo.
+import { LIST_TABLES_SQL } from "@/modules/database/sql-help";
+
 /** Una sentencia ejecutada y su resultado, ya normalizado a texto. */
 export interface SqlStatementResult {
   /** El SQL de esta sentencia, tal como se envió. */
@@ -123,11 +126,31 @@ export function parseSqlAnswer(raw: unknown): SqlAnswer | null {
  * blanco — el alumno respondió, simplemente no lo probó. Solo cuenta como
  * blanco si no hay SQL. Tratar "sin ejecutar" como blanco dispararía la
  * confirmación de "entregar con respuestas vacías" a alguien que sí contestó.
+ *
+ * **Lo que el alumno NO escribió no cuenta como respuesta.** La ayuda "¿qué
+ * tablas hay?" tiene un botón que AGREGA su consulta al editor: sin descontarla,
+ * pulsar un botón de ayuda y no contestar nada dejaba la hoja no vacía y la
+ * pregunta pasaba a contar como respondida — así el aviso de "entregás con N en
+ * blanco" no la listaba y el monitor del docente la sumaba. Es el mismo criterio
+ * que ya rige para `codigo`, donde una plantilla intacta es NO respondida
+ * (`starters.ts`); ver la tabla de invariantes cross-file de CLAUDE.md.
  */
 export function isSqlAnswerBlank(raw: unknown): boolean {
   const parsed = parseSqlAnswer(raw);
-  if (!parsed) return typeof raw !== "string" || !raw.trim();
-  return parsed.sql.trim().length === 0;
+  if (!parsed) return sinContenidoPropio(typeof raw === "string" ? raw : "");
+  return sinContenidoPropio(parsed.sql);
+}
+
+/** Normaliza espacios y mayúsculas para comparar SQL "a ojo". */
+function normalizarSql(s: string): string {
+  return s.replace(/\s+/g, " ").trim().toLowerCase();
+}
+
+/** ¿Queda algo que haya escrito el alumno, descontando lo que insertó un botón? */
+function sinContenidoPropio(sql: string): boolean {
+  const n = normalizarSql(sql);
+  if (!n) return true;
+  return n === normalizarSql(LIST_TABLES_SQL);
 }
 
 /** El SQL del alumno, para el editor y para el prompt de la IA. `null` si no es
