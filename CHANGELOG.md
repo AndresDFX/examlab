@@ -73,6 +73,45 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Pegás el parcial que ya tenías escrito y la IA identifica el tipo de cada pregunta.** Botón
+  «Identificar desde texto» al lado de «Importar del banco», en examen, taller, proyecto y banco de
+  preguntas; también acepta un `.docx`, `.txt` o `.md`. Para cada pregunta propone el tipo y lo que
+  ese tipo necesita: las opciones y cuál es la correcta si es de selección, la rúbrica si es abierta,
+  el lenguaje si es de código, el esquema de partida si es de SQL. Y dice POR QUÉ eligió ese tipo, con
+  el trozo del texto del que salió.
+
+  **Nada se guarda hasta que confirmás.** La lista es editable: cambiás el tipo, corregís el
+  enunciado, agregás o borrás opciones, descartás filas. Hay un filtro «Solo las que requieren tu
+  revisión» para las que la IA marcó con menos confianza. «Identificación» es el nombre del paso, no
+  un tipo nuevo: lo que se inserta son preguntas de los tipos que ya existían, así que se responden y
+  se califican como cualquier otra.
+
+  Lo que queda a la vista si algo no salió: el texto que la IA no pudo clasificar se lista aparte (con
+  un botón para agregarlo como abierta), y una tanda que falla se puede reintentar sola sin perder lo
+  que ya estaba revisado.
+
+  Tres cosas las encontró la revisión adversarial del propio trabajo, no la implementación, y las tres
+  eran de la clase que no avisa:
+
+  1. **Se perdían las opciones al pegar un parcial de selección múltiple.** Medido: con
+     «1. …? / a) IaaS / b) PaaS / c) SaaS / d) FaaS» las cuatro opciones desaparecían del texto que se
+     le manda al modelo, y con ellas la única razón para proponer una cerrada con las opciones que ya
+     habías escrito. La causa: los `a)` cortaban el texto como si fueran preguntas nuevas y el trozo
+     resultante se descartaba por corto. Ahora las viñetas solo cortan cuando el texto no trae
+     numeración, y ningún bloque se descarta: se anexa al anterior.
+  2. **La clave de respuesta se corría si borrabas el texto de una opción del medio.** Medido:
+     marcabas «PaaS» y se insertaba «SaaS», sin ningún aviso, en un examen que después se califica
+     solo. El filtro de opciones vacías y la traducción de índices ahora viven juntos y en un solo
+     lugar, y una fila cuya opción marcada quedó en blanco ya no es válida.
+  3. **Un mínimo y un máximo incoherentes** (marcar entre 5 y 1 sobre 3 opciones) se insertaban sin
+     chistar, y la calificación determinista le daba **cero a todo el mundo**, marcara lo que marcara.
+
+  Además: los errores del servicio se leen en español (antes, cualquier respuesta no-2xx mostraba el
+  genérico en inglés «Edge Function returned a non-2xx status code», y el caso más probable acá es
+  justo uno de esos: el límite de uso de IA); el aviso ámbar en tema oscuro dejó de ser ilegible; la
+  acción queda registrada en Auditoría con nombre propio y ligada al examen o taller donde entraron
+  las preguntas; y en un curso en inglés los motivos ya no llegan en español.
+
 - **En las pantallas de SQL ahora se ve, y se puede agregar al editor con un botón, la consulta que
   dice qué hay en la base.** El caso que lo originó: alguien escribió `SELECT * FROM
   v_agenda_recepcion;` contra una base donde ese objeto no existía. Es un fallo de *no saber que

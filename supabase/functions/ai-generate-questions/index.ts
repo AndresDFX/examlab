@@ -12,6 +12,16 @@ import {
   type AiProvider,
 } from "../_shared/ai-model.ts";
 import {
+  MAX_TEXT_CHARS as IDENTIFY_MAX_TEXT_CHARS,
+  buildIdentifyTool,
+  clampMaxItems,
+  identifySystemPrompt,
+  identifyUserPrompt,
+  isIdentifyTarget,
+  normalizeIdentifiedItems,
+  type IdentifyCodeLanguage,
+} from "../_shared/identify-questions.ts";
+import {
   isNotebook,
   isOfficeDoc,
   notebookToReadableText,
@@ -480,17 +490,19 @@ Deno.serve(async (req) => {
       courseId: (body as { courseId?: string | null }).courseId ?? null,
       authHeader: req.headers.get("Authorization"),
     });
-    auditMode = body.projectDescriptionGeneration
-      ? "project_description"
-      : body.projectQuestionsAndAssets
-        ? "project_questions_assets"
-        : body.projectFilesGeneration
-          ? "project_files"
-          : body.workshopQuestionsGeneration
-            ? "workshop_questions"
-            : body.examQuestionsGeneration
-              ? "exam_questions"
-              : "unknown";
+    auditMode = body.questionIdentification
+      ? "question_identification"
+      : body.projectDescriptionGeneration
+        ? "project_description"
+        : body.projectQuestionsAndAssets
+          ? "project_questions_assets"
+          : body.projectFilesGeneration
+            ? "project_files"
+            : body.workshopQuestionsGeneration
+              ? "workshop_questions"
+              : body.examQuestionsGeneration
+                ? "exam_questions"
+                : "unknown";
 
     // Rate limit antes de hacer trabajo (gastar créditos de IA). 30
     // calls/hora por usuario es generoso para uso interactivo y atrapa
@@ -971,6 +983,141 @@ Idioma obligatorio: ${pfLangName}.`,
       return new Response(JSON.stringify({ ok: true, inserted }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── Modo: IDENTIFICAR preguntas desde un texto pegado ──────────────
+    // Body: { questionIdentification: true, text, target, courseId?,
+    //         courseLanguage?, codeLanguage?, maxItems? }
+    // Devuelve { ok, truncated, questions[], discarded[] } y NO ESCRIBE NADA:
+    // el docente revisa el borrador y el INSERT lo hace el cliente con SU JWT,
+    // bajo RLS. Precedentes de "devolver para que el docente decida":
+    // `projectStatement` y `projectDescriptionGeneration`, arriba.
+    //
+    // Va ANTES del destructuring del camino genérico a propósito: ese camino
+    // exige `topics` + `type` + `targetId` y este modo no tiene ninguno de los
+    // tres (el tipo es justamente lo que va a averiguar, y no hay destino donde
+    // insertar). Puesto después, sería 400 seguro.
+    if (body.questionIdentification) {
+      const rawText = typeof body.text === "string" ? body.text.trim() : "";
+      if (!rawText) {
+        return new Response(JSON.stringify({ error: "text requerido" }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      if (rawText.length > IDENTIFY_MAX_TEXT_CHARS) {
+        return new Response(
+          JSON.stringify({
+            error: `El texto supera el máximo de ${IDENTIFY_MAX_TEXT_CHARS} caracteres por lote`,
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      if (!isIdentifyTarget(body.target)) {
+        return new Response(JSON.stringify({ error: `target desconocido: ${body.target}` }), {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const target = body.target;
+      const identLang: "es" | "en" = body.courseLanguage === "en" ? "en" : "es";
+      const identCodeLanguage: IdentifyCodeLanguage =
+        body.codeLanguage === "python" || body.codeLanguage === "javascript"
+          ? body.codeLanguage
+          : "java";
+      const identMaxItems = clampMaxItems(body.maxItems);
+
+      // El texto va CRUDO al modelo: el cliente ya lo dividió en lotes, así que
+      // acá no se vuelve a segmentar (una sola implementación de la
+      // segmentación, y vive del lado del cliente).
+      const aiResIdent = await aiChatCompletion({
+        messages: [
+          { role: "system", content: identifySystemPrompt(identLang) },
+          { role: "user", content: identifyUserPrompt(rawText, identLang) },
+        ],
+        tools: [buildIdentifyTool(target)],
+        tool_choice: { type: "function", function: { name: "identify_questions" } },
+      });
+
+      // Caller-aware (ver bloque principal): worker → status real; sync → 200+{error}.
+      if (aiResIdent.status === 429) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "Límite de uso de IA. Intenta en un momento.",
+            rate_limited: true,
+          }),
+          {
+            status: isServiceRoleCaller ? 429 : 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (aiResIdent.status === 402) {
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.",
+            no_credits: true,
+          }),
+          {
+            status: isServiceRoleCaller ? 402 : 200,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+      if (!aiResIdent.ok) {
+        throw new Error(await describeAiError(aiResIdent));
+      }
+
+      // Sin tool_call, con `arguments` malformado o con cero preguntas tras
+      // normalizar: se responde `no_result` con un mensaje accionable. NUNCA
+      // `{ok:true, questions:[]}` — el camino genérico responde `ok:true,
+      // inserted:[]` cuando el modelo no llama al tool, y esa falla muda deja
+      // al docente ante una tabla vacía sin motivo. El JSON.parse va DENTRO
+      // del try (en el camino genérico está suelto y revienta con 500).
+      const noResultMsg =
+        identLang === "en"
+          ? "The AI could not identify questions in that text. Check that it contains questions, or paste a smaller portion."
+          : "La IA no pudo identificar preguntas en ese texto. Revisá que contenga preguntas, o pegá una parte más chica.";
+      let rawQuestions: unknown = null;
+      try {
+        const aiJsonIdent = await aiResIdent.json();
+        const tcIdent = aiJsonIdent.choices?.[0]?.message?.tool_calls?.[0];
+        if (tcIdent?.function?.arguments) {
+          rawQuestions = JSON.parse(tcIdent.function.arguments)?.questions ?? null;
+        }
+      } catch (parseErr) {
+        console.error("questionIdentification: respuesta del modelo ilegible:", parseErr);
+        rawQuestions = null;
+      }
+      if (rawQuestions === null) {
+        return new Response(JSON.stringify({ ok: false, error: noResultMsg, no_result: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const identified = normalizeIdentifiedItems(rawQuestions, {
+        target,
+        codeLanguage: identCodeLanguage,
+        maxItems: identMaxItems,
+        lang: identLang,
+      });
+      if (identified.questions.length === 0) {
+        return new Response(JSON.stringify({ ok: false, error: noResultMsg, no_result: true }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(
+        JSON.stringify({
+          ok: true,
+          truncated: identified.truncated,
+          questions: identified.questions,
+          discarded: identified.discarded,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const { topics, type, count = 5, examId, language, targetTable } = body;

@@ -60,7 +60,8 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
-import { Library } from "lucide-react";
+import { IdentifyQuestionsDialog } from "@/modules/questions/IdentifyQuestionsDialog";
+import { Library, ScanText } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import i18n from "@/i18n";
@@ -140,6 +141,7 @@ function ExamEditor() {
   // matriculados en el curso destino).
   const [originalCourseId, setOriginalCourseId] = useState<string | null>(null);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
 
   // New question manual (sirve para crear y editar — UPDATE cuando editingId)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -2060,6 +2062,15 @@ function ExamEditor() {
                     <Library className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.importFromBank")}
                   </Button>
                 )}
+                {!editingId && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setIdentifyOpen(true)}
+                    disabled={savingQuestion}
+                  >
+                    <ScanText className="h-4 w-4 mr-1" /> {t("identifyQuestions.button")}
+                  </Button>
+                )}
                 {editingId && (
                   <Button variant="outline" onClick={resetQForm} disabled={savingQuestion}>
                     <X className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.cancelEdit")}
@@ -2275,6 +2286,16 @@ function ExamEditor() {
         target="exam"
         targetId={examId}
         onImported={() => void load()}
+      />
+
+      <IdentifyQuestionsDialog
+        open={identifyOpen}
+        onOpenChange={setIdentifyOpen}
+        destino="exam"
+        targetId={examId}
+        courseId={exam?.course_id ?? null}
+        nextPosition={Math.max(-1, ...questions.map((q) => q.position ?? -1)) + 1}
+        onInserted={() => void load()}
       />
 
       <aiGate.GateDialog />

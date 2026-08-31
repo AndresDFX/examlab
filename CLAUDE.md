@@ -2092,6 +2092,83 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   Al agregar un tipo nuevo, el `Record<QuestionType, string>` del diálogo de importación **rompe el
   build** si falta su label — es el guardrail que ya existe, no lo silencies.
 
+### Identificar preguntas desde un texto pegado
+
+El docente PEGA un parcial ya escrito (o sube un `.docx` / `.txt` / `.md`) y la IA identifica, para
+cada pregunta, cuál de los tipos de la plataforma le corresponde y qué necesita ese tipo: las
+opciones y la correcta si es de selección, la rúbrica si es abierta, el lenguaje si es de código, el
+esquema de partida si es de SQL. Botón **«Identificar desde texto»** (ícono `ScanText`), al lado del
+«Importar del banco» que ya existía en las 4 superficies de autoría (examen, taller, proyecto y banco
+de preguntas). Los paneles «Generar con IA» NO se tocaron: quien ya sabe qué tipo quiere sigue por
+donde iba.
+
+- **«Identificación» es el nombre del PASO, no un tipo.** No se agregó ningún valor a ningún CHECK y
+  **no hay migración**: la salida son preguntas de los tipos que ya existen. El borrador vive en el
+  cliente hasta que el docente confirma, así que no hace falta persistir una pregunta sin tipo
+  definido — que es lo único que rompería no tener un tipo nuevo.
+- **La revisión antes de insertar es obligatoria** ([IdentifyQuestionsDialog.tsx](src/modules/questions/IdentifyQuestionsDialog.tsx)):
+  el docente cambia el tipo, edita el enunciado / las opciones / la rúbrica y descarta filas sueltas.
+  El modelo de staging se copió de `KahootQuestionsEditor`, la única superficie del repo que ya tenía
+  borrador editable; las otras cuatro hacen `invoke → load()` y por eso no había dónde revisar.
+  Insertar directo sería el peor resultado: preguntas con el tipo mal puesto que el alumno recibe en
+  el examen.
+- **El edge NO escribe.** Devuelve `{ ok, questions, discarded, truncated }` y el INSERT lo hace el
+  cliente con el JWT del docente, bajo RLS — al revés de los 5 modos de generación existentes, que
+  insertan con `service_role`. Precedentes de «devolver para que el docente decida»:
+  `projectStatement` y `projectDescriptionGeneration` del mismo edge.
+- **Sync-only**: el gate se invoca con `ensureAuthorized({ allowQueue: false })`. La cola
+  (`ai_generation_queue`) solo sabe invocar un edge y contar `data.inserted.length`; un borrador
+  devuelto no tiene dónde persistirse al drenar.
+- **Qué NO se propone**, y por qué: `red_consola` / `red_gui` (el escenario con sus aserciones ES la
+  rúbrica, y el repo los genera deterministamente con `generateNetworkQuestions`, sin modelo),
+  `codigo_zip` (prohibido en `questions` por CHECK, y es un entregable de proyecto entero),
+  `so_consola` (ninguna superficie de autoría lo crea hoy y depende de que el operador hostee la
+  imagen v86) y `java_gui` / `python_gui` (proponerlos desde prosa genérica es alucinación con
+  dependencia de runner — **sí** están en el `Select` de la revisión, para que el docente los
+  promueva a mano).
+- **`bd_sql` NO se ofrece cuando el destino es un PROYECTO**, en ninguno de los dos sets. El taker de
+  proyectos (`StudentProjectTaker`) es una cadena de `{q.type === "X" && …}` SIN fallback y sin rama
+  `bd_sql`, y no importa `SqlRunner`: la pregunta es insertable pero el alumno ve el enunciado y NADA
+  con qué responder. Ampliar esa whitelist sin arreglar antes el taker crea preguntas incontestables.
+- **Degradar, no descartar** (regla rectora de la validación del edge, espejada en el cliente): un
+  tipo que el destino no acepta, una `cerrada` sin `correct_index` o un `bd_sql` sin `CREATE TABLE`
+  caen a `abierta` con el motivo a la vista, en vez de perder el texto del docente. Lo único que se
+  descarta es un enunciado de menos de 10 caracteres (artefacto de segmentación).
+- **Una fila inválida NO se inserta y dice por qué**: una `cerrada` sin `options` no pinta opciones,
+  cae al textarea genérico y el scoring determinista la puntúa 0 SIEMPRE — sin error y sin
+  constraint, recién en el momento de la entrega. El rótulo del primario dice «Agregar 8 de 10
+  preguntas» cuando hay 2 bloqueadas: insertar no es todo-o-nada por confusión, es explícito.
+- **El parseo del texto pegado vive en un módulo PURO**
+  ([identify-text.ts](src/modules/questions/identify-text.ts), con tests): tolera `Pregunta N`, `N.`,
+  `N)`, `a)`, guiones, viñetas, enunciados de varias líneas, líneas en blanco y encabezados sueltos.
+  Es lo único de este flujo verificable sin gastar cuota del proveedor, así que también alimenta el
+  contador «Preguntas detectadas: N» que se muestra ANTES de llamar a la IA. **No se duplica en el
+  edge**: el edge recibe el texto crudo de una tanda y no vuelve a segmentar, así que por acá no hay
+  invariante cross-file.
+- **Tandas secuenciales, no un spinner**: el cupo de IA (30 llamadas/hora por usuario) es COMPARTIDO
+  con toda la generación existente, así que un `429` en la segunda tanda corta la secuencia en vez de
+  quemar la tercera y la cuarta. La tabla de revisión se va llenando por tanda, con «Detener»
+  (`AbortController`) y «Reintentar esta tanda», que re-gasta UNA llamada y no el documento entero.
+  El banner de reconciliación dice «Detectamos 10 y la IA clasificó 8» y ofrece agregar los bloques
+  huérfanos como `abierta`: no se pierde el texto del docente y no se le miente diciendo que está
+  completo.
+- **PDF no se acepta** (no hay parser en el lockfile y no se pueden agregar dependencias): se dice en
+  la zona de arrastre, no se deja intentar y fallar. El `.docx` se lee en el cliente con
+  `parseDocxToText` de [docx-import.ts](src/modules/reports/docx-import.ts).
+- El armado de la fila que se INSERTA vive en [identify-types.ts](src/modules/questions/identify-types.ts)
+  (`construirFilaPregunta`), porque el mapeo de columnas NO es el mismo por destino: `project_files`
+  guarda el enunciado en `title`, `question_bank` usa `suggested_points` y no tiene `position`, y
+  `workshop_questions` / `project_files` tienen `zip_single` mientras `questions` no. Escribir la
+  columna equivocada no falla: guarda la fila con el enunciado invisible.
+- **`nextPosition` lo pasa la superficie** como `Math.max(-1, ...positions) + 1` en las cuatro. El
+  formulario manual de taller y de proyecto usa `questions.length`, que con huecos de `position`
+  colisiona; este diálogo NO replica ese defecto.
+- Los tipos se pintan SIEMPRE con `questionTypeLabel` de
+  [question-type-label.ts](src/shared/lib/question-type-label.ts) — no se creó la sexta copia del
+  mapa de etiquetas.
+- El éxito se audita desde el cliente (`logEvent` con `action: "ai_questions.identified"`), y la
+  métrica que dice si el clasificador sirve es `tipos_corregidos`: cuántos tipos cambió el docente.
+
 ### Snippets de código por sesión
 
 Cada `attendance_session` puede tener N snippets de código (Java/Python/JavaScript) que el docente prepara en clase y los alumnos ven (y opcionalmente ejecutan) desde su vista de asistencia.
@@ -2455,6 +2532,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/modules/exams/answered.ts` (`isQuestionAnswered`) ↔ sus tres consumidores: `app.student.take.$examId.tsx` (aviso de entrega en blanco), `WorkshopQuestions.tsx` (ídem) y `app.teacher.monitor.$examId.tsx` (columna Respondidas) ↔ `src/modules/code/starters.ts` (las plantillas contra las que se compara) | Qué cuenta como pregunta RESPONDIDA. Estuvo duplicado en examen y taller con reglas **opuestas** para una pregunta de código intacta (examen: respondida; taller: en blanco), y por eso el examen no avisaba a quien entregaba sin tocar el editor. Ahora hay un solo módulo; si se agrega un tipo de pregunta, va acá y no en cada pantalla. Las plantillas viven en un módulo PURO para que el monitor no arrastre Monaco ni el runner de Java GUI solo para contar. | Divergen → el alumno recibe un aviso de "tenés N en blanco" y el docente ve otro número para la misma entrega; o una pregunta de código sin tocar vuelve a contarse como respondida y nadie avisa. |
 | `src/modules/code/combine-files.ts` (`combineFilesForExec` + `javaHasMain`) ↔ `supabase/functions/execute-code/index.ts` (`combineFiles` + `javaHasMain`)                                                                                                                                                                                                                                                               | Combinación de N archivos en un solo `sourceCode` (Java: clase con `main` primero + degradar `public` y quitar `package` en secundarios; script: encabezado `// ─── file ───` por archivo). El cliente combina y manda **ambos** `files` + `sourceCode` para que un edge SIN soporte multi-archivo (deploy viejo) no responda "Código fuente requerido" | Divergen → el combinado del cliente (fallback edge viejo) difiere del server (edge nuevo) — ej. Java compila distinto según qué clase queda primero, o el alumno ve una salida y otra según el deploy |
 | `src/modules/admin/teacher-student-courses.ts` (`COURSE_NAME_SEPARATOR`, el dedup en minúsculas, y el shape `ImportRowResult` con `ok`/`duplicate`/`enrolledExisting`/`enrollFailed`) ↔ `supabase/functions/bulk-import-users/index.ts` (`course_name.split("|")`, `courseNameToId` keyeado por `name.trim().toLowerCase()`, y los campos que empuja a `result`) | El contrato del alta multi-curso: separador de la lista de cursos, resolución case-insensitive del nombre → id, y qué campos distinguen "creado" de "ya existía y lo matriculé" de "ya existía y la matrícula FALLÓ" | Divergen → el alta multi-curso del docente falla con "el curso no existe" sobre cursos que él ve en su propia lista, o el aviso miente sobre qué pasó (un fallo de matrícula pintado como "ya estaba matriculado"). El separador es `|` porque el campo se comparte con `roles`; migrar el edge a `course_ids` obliga a cambiar el cliente en el mismo commit |
+| `supabase/functions/_shared/identify-questions.ts` (`TIPOS_PROPONIBLES_POR_DESTINO` + la escalera de degradación de `normalizeIdentifiedItems`) ↔ `src/modules/questions/identify-types.ts` (`TIPOS_ACEPTADOS_POR_DESTINO` + `validarBorrador` + `construirFilaPregunta`) | Qué tipo de pregunta se puede proponer y aceptar POR DESTINO. Lo proponible del edge debe ser un SUBCONJUNTO de lo aceptado por el cliente (que es superset a propósito: el docente promueve a mano `java_gui` / `python_gui`, que el modelo no propone). Deno no importa de `src/`, así que la constante se duplica | Divergen → el edge propone un tipo que el cliente bloquea (fila que el docente no puede insertar y no entiende), o el cliente ofrece uno que el CHECK del destino rechaza → **23514 DESPUÉS de que el docente revisó 30 preguntas**, el fallo más caro del flujo. Lo fija `src/modules/questions/identify-types.test.ts`, que IMPORTA la constante del edge por path relativo (import real, no un regex sobre el disco) |
 
 **Archivos donde no se debe explicar más de lo que ya está:**
 

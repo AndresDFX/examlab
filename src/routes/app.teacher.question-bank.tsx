@@ -68,6 +68,7 @@ import {
   Globe,
   CircleDashed,
   BarChart3,
+  ScanText,
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -90,6 +91,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { logEvent } from "@/shared/lib/audit";
+import { IdentifyQuestionsDialog } from "@/modules/questions/IdentifyQuestionsDialog";
 import { isStaffRole, isAdminLike as isAdminLikeRole } from "@/shared/lib/roles";
 
 export const Route = createFileRoute("/app/teacher/question-bank")({
@@ -168,6 +170,7 @@ function QuestionBankPage() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
   const [rows, setRows] = useState<BankRow[]>([]);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Gate del módulo. Si el admin lo desactivó, mostramos pantalla
@@ -762,6 +765,15 @@ function QuestionBankPage() {
             >
               <Sparkles className="h-4 w-4 mr-1" />
               {t("questionBank.generateWithAi")}
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIdentifyOpen(true)}
+              disabled={!courseId}
+            >
+              <ScanText className="h-4 w-4 mr-1" />
+              {t("identifyQuestions.button")}
             </Button>
             <Button
               size="sm"
@@ -1361,6 +1373,18 @@ function QuestionBankPage() {
         entityNamePlural={t("questionBank.bulkEntityPlural", { defaultValue: "preguntas" })}
         onConfirm={handleBulkDelete}
       />
+
+      {courseId && (
+        <IdentifyQuestionsDialog
+          open={identifyOpen}
+          onOpenChange={setIdentifyOpen}
+          destino="bank"
+          targetId={courseId}
+          courseId={courseId}
+          nextPosition={0}
+          onInserted={() => void load()}
+        />
+      )}
 
       <aiGate.GateDialog />
     </div>

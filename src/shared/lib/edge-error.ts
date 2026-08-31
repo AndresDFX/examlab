@@ -43,6 +43,21 @@ function resolveResponse(errLike: FunctionsHttpErrorLike): Response | undefined 
 }
 
 /**
+ * El mejor texto para el usuario de un cuerpo `{ error, message }`.
+ *
+ * `error` casi siempre trae un CODIGO (`rate_limited`, `no_credits`) y
+ * `message` la frase redactada. Preferir `error` a secas hacia que el usuario
+ * leyera `rate_limited` en pantalla — un identificador interno, justo lo que la
+ * convencion del proyecto prohibe. Heuristica: si `error` no tiene espacios es
+ * un codigo, y entonces gana `message`.
+ */
+function mejorMensaje(obj: Record<string, unknown>): string {
+  const err = typeof obj.error === "string" ? obj.error.trim() : "";
+  const msg = typeof obj.message === "string" ? obj.message.trim() : "";
+  if (err && !/s/.test(err) && msg) return msg;
+  return err || msg;
+}
+/**
  * Recupera el mensaje real de error de un edge function. Acepta:
  *  - FunctionsHttpError de supabase-js (con `.context.response`)
  *  - El segundo argumento `data` que invoke devuelve junto con el error
@@ -60,9 +75,8 @@ export async function extractEdgeError(
   // 1) Si supabase-js ya parseó el body como `data` y tiene `error`,
   //    usar eso (no consume el Response stream).
   if (data && typeof data === "object") {
-    const obj = data as Record<string, unknown>;
-    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
-    if (typeof obj.message === "string" && obj.message.trim()) return obj.message;
+    const elegido = mejorMensaje(data as Record<string, unknown>);
+    if (elegido) return elegido;
   }
 
   if (!error) return "";
@@ -84,9 +98,8 @@ export async function extractEdgeError(
         try {
           const parsed = JSON.parse(text);
           if (parsed && typeof parsed === "object") {
-            const p = parsed as Record<string, unknown>;
-            if (typeof p.error === "string" && p.error.trim()) return p.error;
-            if (typeof p.message === "string" && p.message.trim()) return p.message;
+            const elegido = mejorMensaje(parsed as Record<string, unknown>);
+            if (elegido) return elegido;
           }
         } catch {
           // No era JSON. Si es texto corto, lo devolvemos tal cual.
@@ -123,9 +136,8 @@ export async function extractEdgeError(
  */
 export function extractEdgeErrorSync(error: unknown, data?: unknown): string {
   if (data && typeof data === "object") {
-    const obj = data as Record<string, unknown>;
-    if (typeof obj.error === "string" && obj.error.trim()) return obj.error;
-    if (typeof obj.message === "string" && obj.message.trim()) return obj.message;
+    const elegido = mejorMensaje(data as Record<string, unknown>);
+    if (elegido) return elegido;
   }
   if (!error) return "";
   if (error instanceof Error) return error.message;

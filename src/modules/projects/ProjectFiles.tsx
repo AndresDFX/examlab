@@ -53,6 +53,7 @@ import {
   ChevronUp,
   ChevronDown,
   Library,
+  ScanText,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -60,6 +61,7 @@ import { SectionLoader } from "@/components/ui/loaders";
 import { ErrorState } from "@/components/ui/empty-state";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
+import { IdentifyQuestionsDialog } from "@/modules/questions/IdentifyQuestionsDialog";
 import { CodeEditor, getStarterCode, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
@@ -149,6 +151,7 @@ export function TeacherProjectFilesEditor({
   const [autoBusy, setAutoBusy] = useState(false);
   const [projectCourseId, setProjectCourseId] = useState<string | null>(null);
   const [bankDialogOpen, setBankDialogOpen] = useState(false);
+  const [identifyOpen, setIdentifyOpen] = useState(false);
 
   // manual form (sirve para crear y para editar — UPDATE cuando editingId)
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -1218,6 +1221,11 @@ export function TeacherProjectFilesEditor({
                 <Library className="h-4 w-4 mr-1" /> {t("projectFiles.btnImportBank")}
               </Button>
             )}
+            {!editingId && (
+              <Button variant="outline" onClick={() => setIdentifyOpen(true)}>
+                <ScanText className="h-4 w-4 mr-1" /> {t("identifyQuestions.button")}
+              </Button>
+            )}
             {editingId && (
               <Button
                 variant="outline"
@@ -1388,6 +1396,17 @@ export function TeacherProjectFilesEditor({
         target="project"
         targetId={projectId}
         onImported={() => void load()}
+      />
+
+      <IdentifyQuestionsDialog
+        open={identifyOpen}
+        onOpenChange={setIdentifyOpen}
+        destino="project"
+        courseLanguage={courseLanguage}
+        targetId={projectId}
+        courseId={projectCourseId}
+        nextPosition={Math.max(-1, ...questions.map((q) => q.position ?? -1)) + 1}
+        onInserted={() => void load()}
       />
       <aiGate.GateDialog />
     </div>
