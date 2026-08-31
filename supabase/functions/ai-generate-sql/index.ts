@@ -34,6 +34,7 @@ import {
   userClientFromRequest,
 } from "../_shared/admin.ts";
 import { getActiveAiModel, aiChatCompletionFailover } from "../_shared/ai-model.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 
 /**
@@ -134,7 +135,7 @@ async function callAi(
   const res = await aiChatCompletionFailover(m, { model: m.model, messages });
   if (res.ok) {
     const json = await res.json();
-    return json.choices?.[0]?.message?.content ?? "";
+    return textoUtil(json.choices?.[0]?.message?.content);
   }
   const errText = await res.text();
   const isKeyInvalid =

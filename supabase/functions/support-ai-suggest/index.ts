@@ -31,6 +31,7 @@
  * NO lleva entrada en config.toml.
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import {
   getActiveAiModel as resolveActiveModel,
   aiChatCompletionFailover,
@@ -92,7 +93,7 @@ async function callAi(
   const res = await aiChatCompletionFailover(m, { model: m.model, messages });
   if (res.ok) {
     const json = await res.json();
-    return json.choices?.[0]?.message?.content ?? "";
+    return textoUtil(json.choices?.[0]?.message?.content);
   }
   const errText = await res.text();
   const isKeyInvalid =

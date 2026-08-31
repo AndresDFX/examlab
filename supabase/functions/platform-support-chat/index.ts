@@ -20,6 +20,7 @@
  * Hereda verify_jwt=true (default) — no lleva entrada en config.toml.
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import {
   buildSupportSystemPrompt,
   truncateHistory,
@@ -87,7 +88,7 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
   }
   if (res.ok) {
     const json = await res.json();
-    const content = json.choices?.[0]?.message?.content ?? "";
+    const content = textoUtil(json.choices?.[0]?.message?.content);
     const usage = json.usage ?? {};
     return {
       content,

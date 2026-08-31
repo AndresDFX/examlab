@@ -2,6 +2,7 @@
 // configurado en `ai_model_settings` (openai | gemini), mismo patrón
 // que `ai-grade-submission` y `generate-contents`.
 import { adminClient, userClientFromRequest } from "../_shared/admin.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import { auditFromEdge } from "../_shared/audit.ts";
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { describeAiError as describeSharedAiError } from "../_shared/ai-error.ts";
@@ -578,7 +579,7 @@ Deno.serve(async (req) => {
         throw new Error(await describeAiError(aiResD));
       }
       const aiJsonD = await aiResD.json();
-      const description: string = aiJsonD.choices?.[0]?.message?.content?.toString().trim() ?? "";
+      const description: string = textoUtil(aiJsonD.choices?.[0]?.message?.content);
       return new Response(JSON.stringify({ ok: true, description }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

@@ -631,6 +631,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Amazon Bedrock queda usable como alternativa a Gemini.** Dos cosas lo impedían, y ninguna se veía
+  hasta activarlo:
+
+  El secret **nunca llegaba a las edge functions**. `CLAUDE.md` decía que bastaba con cargar
+  `AWS_BEARER_TOKEN_BEDROCK` como secret del repo y re-correr el workflow, pero ese nombre no estaba
+  ni en el bloque `env:` ni en la lista del workflow — justo el nombre que el código busca. Se podía
+  cargar la key y el proveedor seguía sin ninguna.
+
+  Y los modelos `openai.gpt-oss-*` que sirve Bedrock **devuelven su razonamiento interno dentro del
+  texto de la respuesta**, pegado a la respuesta real y sin ningún campo aparte. Medido: pidiéndole
+  «¿Qué es un ADR? Responde en dos frases» contesta
+  `<reasoning>We need to respond as a tutor, brief, Spanish…</reasoning>Un ADR es…`. Siete flujos leen
+  ese texto tal cual —el tutor del curso, el asistente de plataforma, la sugerencia de soporte, el
+  generador de SQL, el de informes, el de contenidos y la descripción de proyecto—, así que con Bedrock
+  activo esa deliberación se le mostraba al estudiante y se insertaba en los documentos generados. Ahora
+  se recorta en un solo lugar por el que pasan los siete. Para Gemini y OpenAI no cambia nada: ellos no
+  emiten esa marca.
+
+  Lo que sí funciona sin tocar nada: la calificación y la generación estructurada, que piden la
+  respuesta por `tool_calls` — verificado contra Bedrock, ahí el razonamiento no se mezcla.
+
 - **Crear tablas desde el editor de la hoja de SQL ahora surte efecto.** Escribir un `CREATE TABLE` en
   el editor y ejecutar podía dejar la tabla sin crear, con un error que apuntaba a otra línea. La causa:
   la hoja se mandaba completa en una sola llamada, y Postgres ejecuta un lote de sentencias dentro de

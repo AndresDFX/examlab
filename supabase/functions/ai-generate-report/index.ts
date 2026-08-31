@@ -26,6 +26,7 @@ import {
   userClientFromRequest,
 } from "../_shared/admin.ts";
 import { getActiveAiModel, aiChatCompletionFailover } from "../_shared/ai-model.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 
 // System prompt por defecto de la Generación IA de informes. DEBE quedar
 // byte-idéntico con DEFAULT_REPORT_GENERATION_PROMPT (src/modules/reports/
@@ -100,7 +101,7 @@ async function callAi(
   const res = await aiChatCompletionFailover(m, { model: m.model, messages });
   if (res.ok) {
     const json = await res.json();
-    return json.choices?.[0]?.message?.content ?? "";
+    return textoUtil(json.choices?.[0]?.message?.content);
   }
   const errText = await res.text();
   const isKeyInvalid =

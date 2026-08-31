@@ -17,6 +17,7 @@
  *   { ok: true, response: string, messageId: string }
  */
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
 import {
   getActiveAiModel as resolveActiveModel,
@@ -335,7 +336,7 @@ async function callAi(messages: Array<{ role: string; content: string }>) {
   const res = await aiChatCompletionFailover(m, { model: m.model, messages });
   if (res.ok) {
     const json = await res.json();
-    const content = json.choices?.[0]?.message?.content ?? "";
+    const content = textoUtil(json.choices?.[0]?.message?.content);
     const usage = json.usage ?? {};
     return {
       content,

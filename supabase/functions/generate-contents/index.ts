@@ -13,6 +13,7 @@
 // pasa a 'processing', llama IA, parsea, sube archivos y deja 'done'.
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { auditFromEdge } from "../_shared/audit.ts";
+import { textoUtil } from "../_shared/ai-content.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
 import {
   getActiveAiModel as resolveActiveModel,
@@ -475,9 +476,9 @@ Deno.serve(async (req: Request) => {
         }
         const rawOutput: string =
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (aiJson as any).choices?.[0]?.message?.content ??
+          textoUtil((aiJson as any).choices?.[0]?.message?.content) ||
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (aiJson as any).choices?.[0]?.message?.output_text ??
+          textoUtil((aiJson as any).choices?.[0]?.message?.output_text) ||
           "";
         if (!rawOutput.trim()) throw new Error(`[${label}] La IA devolvió contenido vacío`);
         return { blocks: parseFileBlocks(rawOutput), rawOutput };
