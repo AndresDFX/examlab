@@ -30,9 +30,21 @@
  * hoja con el esquema, los INSERT y varias consultas, correr el archivo entero
  * para ver UNA consulta significa recrear la base cada vez y leer la respuesta
  * al final de una lista de resultados. El docente que explica en vivo necesita
- * justo lo contrario: parar en una línea, correrla y hablar sobre ella. El
- * `setupSql` SIEMPRE corre antes, incluso con selección, porque la base es
- * limpia por corrida y sin esquema la selección no tendría contra qué correr.
+ * justo lo contrario: parar en una línea, correrla y hablar sobre ella. Antes de
+ * la selección corren SIEMPRE el `setupSql` **y las sentencias de la hoja que
+ * están más ARRIBA**, sin mostrar sus resultados: la base es limpia por corrida,
+ * así que sin eso una consulta suelta no tendría contra qué correr — ni contra el
+ * esquema del docente ni contra un `CREATE TABLE` escrito en el propio editor.
+ *
+ * **El guion se ejecuta SENTENCIA POR SENTENCIA y sigue después de un error.**
+ * Mandar la hoja completa en un solo `exec` la corre en una TRANSACCIÓN
+ * IMPLÍCITA de Postgres: cualquier error revierte lo que venía antes. Medido con
+ * PGlite 0.5.4, un `SELECT` a una vista inexistente en la línea 1 deshacía el
+ * `CREATE TABLE` de la línea 3 y la tabla NO quedaba creada — lo que se leía
+ * como "no puedo crear tablas desde el editor", porque el error visible era el de
+ * la primera línea y la creación desaparecía sin rastro. Partir el guion exige
+ * respetar literales, comentarios y bloques `$`: eso vive en
+ * `sql-split.ts`, con tests.
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -47,6 +59,7 @@ import {
   type PgliteDb,
   type PgliteResult,
 } from "@/modules/database/pglite-loader";
+import { splitSqlStatements } from "@/modules/database/sql-split";
 import {
   formatCell,
   MAX_PERSISTED_ROWS,
@@ -116,6 +129,8 @@ export function SqlRunner({
   const [running, setRunning] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [setupError, setSetupError] = useState<string | null>(null);
+  /** Cuántas sentencias de ARRIBA fallaron al correr una selección (ver `run`). */
+  const [contextoFallido, setContextoFallido] = useState(0);
   const dbRef = useRef<PgliteDb | null>(null);
   const cancelledRef = useRef(false);
   /** Instancia de Monaco: es la única fuente de la selección del usuario. */
@@ -173,10 +188,10 @@ export function SqlRunner({
    * hicieron los clics: si no, dos líneas elegidas de abajo hacia arriba se
    * ejecutarían al revés y un INSERT correría antes que su CREATE TABLE.
    */
-  const selectedSql = useCallback((): string => {
+  const selectedSql = useCallback((): { sql: string; inicio: number } => {
     const editor = editorRef.current;
     const model = editor?.getModel();
-    if (!editor || !model) return "";
+    if (!editor || !model) return { sql: "", inicio: 0 };
     const ranges = (editor.getSelections() ?? [])
       .filter((r) => !r.isEmpty())
       .sort((a, b) =>
@@ -184,10 +199,19 @@ export function SqlRunner({
           ? a.startLineNumber - b.startLineNumber
           : a.startColumn - b.startColumn,
       );
-    return ranges
-      .map((r) => model.getValueInRange(r))
-      .join("\n")
-      .trim();
+    if (ranges.length === 0) return { sql: "", inicio: 0 };
+    return {
+      sql: ranges
+        .map((r) => model.getValueInRange(r))
+        .join("\n")
+        .trim(),
+      // Dónde EMPIEZA la selección dentro de la hoja: es lo que permite correr
+      // antes lo que está arriba (ver `run`).
+      inicio: model.getOffsetAt({
+        lineNumber: ranges[0].startLineNumber,
+        column: ranges[0].startColumn,
+      }),
+    };
   }, []);
 
   const handleMount: OnMount = useCallback(
@@ -196,7 +220,7 @@ export function SqlRunner({
       // La etiqueta del botón tiene que decir la verdad sobre lo que va a
       // correr, así que el estado se sincroniza con cada cambio de selección.
       editor.onDidChangeCursorSelection(() => {
-        setHasSelection(!!selectedSql());
+        setHasSelection(!!selectedSql().sql);
       });
       // Ctrl/Cmd+Enter: el atajo que ya trae aprendido quien usa un cliente SQL.
       editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter, () => {
@@ -208,12 +232,13 @@ export function SqlRunner({
 
   const run = async () => {
     // Con selección se corre SOLO eso; sin selección, la hoja entera.
-    const selected = selectedSql();
+    const { sql: selected, inicio: inicioSeleccion } = selectedSql();
     const sqlToRun = selected || sql;
     if (running || !sqlToRun.trim()) return;
     setRunning(true);
     setLoadError(null);
     setSetupError(null);
+    setContextoFallido(0);
     try {
       // Base LIMPIA por corrida — ver el encabezado del archivo.
       if (dbRef.current) {
@@ -239,24 +264,61 @@ export function SqlRunner({
         }
       }
 
+      // 1b) Si se corre una SELECCIÓN, lo que está ARRIBA corre antes como
+      //     contexto. Es la misma razón por la que el `setupSql` siempre corre:
+      //     la base es NUEVA en cada corrida, así que una consulta suelta no
+      //     tiene contra qué correr si su tabla se crea más arriba EN LA HOJA.
+      //     Sin esto, un `CREATE TABLE` escrito en el editor solo servía
+      //     corriendo la hoja completa. Los errores del contexto no se detallan
+      //     —no es lo que se pidió ejecutar— pero se CUENTAN: si la selección
+      //     falla por algo de arriba, hay que poder verlo.
+      if (selected) {
+        let fallos = 0;
+        for (const previa of splitSqlStatements(sql).filter((x) => x.end <= inicioSeleccion)) {
+          try {
+            await db.exec(previa.sql);
+          } catch {
+            fallos++;
+          }
+          if (cancelledRef.current) return;
+        }
+        setContextoFallido(fallos);
+      }
+
       // 2) SQL del alumno. Un error de Postgres NO es una excepción de la app:
       //    es el resultado del ejercicio y hay que mostrarlo tal cual, porque
       //    leer el mensaje de error es parte de aprender SQL.
-      let next: SqlStatementResult[];
-      try {
-        const out = await db.exec(sqlToRun);
-        next = (out ?? []).map((r, i) => toStatementResult(nthStatement(sqlToRun, i), r));
-        if (next.length === 0)
-          next = [{ sql: sqlToRun.trim(), columns: [], rows: [], affectedRows: 0 }];
-      } catch (e) {
-        next = [
-          {
-            sql: sqlToRun.trim(),
+      //
+      //    Se corre SENTENCIA POR SENTENCIA y se sigue después de un error. Un
+      //    solo `exec` con la hoja entera la ejecuta en una TRANSACCIÓN
+      //    IMPLÍCITA: medido con PGlite 0.5.4, un `SELECT` a una vista
+      //    inexistente en la línea 1 REVERTÍA el `CREATE TABLE` de la línea 3 y
+      //    la tabla no quedaba creada — que es exactamente lo que se leía como
+      //    "no puedo crear tablas desde el editor". Así cada error queda junto a
+      //    SU sentencia y lo que era correcto surte efecto.
+      const next: SqlStatementResult[] = [];
+      for (const sentencia of splitSqlStatements(sqlToRun)) {
+        try {
+          const out = await db.exec(sentencia.sql);
+          if (!out || out.length === 0) {
+            next.push({ sql: sentencia.sql, columns: [], rows: [], affectedRows: 0 });
+          } else {
+            for (const r of out) next.push(toStatementResult(sentencia.sql, r));
+          }
+        } catch (e) {
+          next.push({
+            sql: sentencia.sql,
             columns: [],
             rows: [],
             error: e instanceof Error ? e.message : String(e),
-          },
-        ];
+          });
+        }
+        if (cancelledRef.current) return;
+      }
+      // Una hoja que son puros comentarios no produce sentencias: se muestra
+      // una fila igual para que el botón no parezca no haber hecho nada.
+      if (next.length === 0) {
+        next.push({ sql: sqlToRun.trim(), columns: [], rows: [], affectedRows: 0 });
       }
       if (cancelledRef.current) return;
       setResults(next);
@@ -339,6 +401,15 @@ export function SqlRunner({
           <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
         )}
 
+        {/* Si la selección falla por algo de más arriba, el motivo tiene que
+            estar en pantalla: el contexto corre sin mostrar sus resultados. */}
+        {!running && contextoFallido > 0 && (
+          <p className="flex items-start gap-1.5 text-2xs text-amber-700 dark:text-amber-300">
+            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+            {t("bdSql.contextFailed", { count: contextoFallido })}
+          </p>
+        )}
+
         <div className="overflow-hidden rounded-md border">
           <Editor
             height="14rem"
@@ -411,22 +482,4 @@ export function SqlRunner({
       </div>
     </div>
   );
-}
-
-/**
- * Etiqueta de la n-ésima sentencia, solo para MOSTRAR de qué sentencia es cada
- * resultado.
- *
- * PGlite devuelve un resultado por sentencia pero no dice cuál era. El split por
- * `;` es aproximado a propósito: no vale la pena un parser de SQL para una
- * etiqueta, y un `;` dentro de un string literal o de un bloque `$$ ... $$` de
- * PL/pgSQL solo desalinea el TEXTO del encabezado — nunca el resultado, que ya
- * viene emparejado por posición desde el motor.
- */
-function nthStatement(all: string, i: number): string {
-  const parts = all
-    .split(";")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  return parts[i] ?? all.trim();
 }

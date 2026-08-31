@@ -1025,6 +1025,1045 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   SQL, dejar estado entre corridas hace que un `INSERT` ejecutado dos veces duplique filas y el alumno
   vea resultados que su script no explica. Base limpia + `setupSql` ⇒ ejecutar dos veces da el MISMO
   resultado, que es lo que hace calificable el ejercicio.
+- **El guion se corre SENTENCIA POR SENTENCIA, y se sigue después de un error**
+  ([sql-split.ts](src/modules/database/sql-split.ts), 19 tests). Un solo `exec` con la hoja completa la
+  ejecuta en una **transacción implícita** de Postgres: cualquier error revierte lo anterior. Medido
+  con PGlite 0.5.4, un `SELECT` a una vista inexistente en la línea 1 deshacía el `CREATE TABLE` de la
+  línea 3 y la tabla NO quedaba creada — reportado como *"no puedo crear tablas desde el editor"*,
+  porque el error visible era el de la primera línea y la creación desaparecía sin rastro. Partir el
+  guion **no se hace con `split(";")`**: hay que respetar literales (`''` y `E'''`), identificadores
+  entre comillas dobles, comentarios `--` y `/* */` (que en Postgres **anidan**) y dólar-comillas
+  `$ … $` / `$tag$ … $tag# ExamLab — Claude Context
+
+## Setup en una máquina nueva
+
+```bash
+git clone git@github-personal:AndresDFX/examlab.git
+cd examlab
+bun install              # NO npm/pnpm — el lockfile es bun.lock
+bun run dev              # localhost:5173
+```
+
+**Archivos secretos que no se commitean** (recrearlos al clonar):
+
+- `.env` — Supabase URL + anon key. La anon key es pública (está en el bundle), pero la guardamos acá para que `bun run dev` arranque:
+  ```
+  VITE_SUPABASE_URL="https://uxxpzfsfcnqiwwdxoelm.supabase.co"
+  VITE_SUPABASE_PUBLISHABLE_KEY="eyJhbG...EdZ_3KlDGVSQ-i026ZriHu4FbLFJLwghkW-FlfcTlkE"
+  VITE_SUPABASE_PROJECT_ID="uxxpzfsfcnqiwwdxoelm"
+  VITE_VAPID_PUBLIC_KEY="BAg2gqFTm-P9_gNuumcJPQF7fj-6e2XjlSDZJGTGa2YMvZSDdKD6C6S3pc88UM7mvBNrlcebXUXeJzqKp4bROVo"
+  ```
+- `.env.recording` — credenciales para grabar los tours HeyGen (ver "Cuentas de testing" abajo). Solo necesario si vas a re-grabar.
+
+**Validaciones rápidas**:
+- `bun tsc --noEmit` debe dar `EXIT=0`.
+- `bun test` corre vitest (jsdom). Algunos tests requieren jsdom — usar `bun test` (NO el harness embebido).
+- `bun run build:cf` localmente — es el build que se publica (estático, con el cascarón de SPA). `bun run build` a secas sigue existiendo pero ya no es el de producción.
+
+**Cuentas de testing (tenant FESNA)** — verificadas el 2026-06-08:
+- **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
+- **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Tenía los 3 roles → útil para validar flows Admin/Docente/Estudiante con el mismo user. **⚠️ La contraseña `WyEBPdxMCRZVFp` YA NO funciona** (verificado 2026-07-19: "Invalid login credentials"): la cuenta migró a SSO el 2026-06-12, así que NO sirve para login por password/REST. Para testing programático por REST necesitás otra cuenta con password auth.
+
+**Tenant FESNA — estado** (snapshot 2026-06-08):
+- 1 curso activo: `Paradigmas de Programación-2682V` (id `01b397a3-e74f-4f66-becf-c63b643f247f`) — el nombre cambió; verificado por REST el 2026-08-07.
+- 93 estudiantes importados del CSV de "La Nueva América" (`*@lanuevaamerica.edu.co`), todos matriculados al curso de arriba.
+- `ai_model_settings.processing_mode = sync` (necesario para que la generación con IA del docente funcione inline sin pedir código).
+- `email_settings.enabled_kinds.welcome = false` (no manda welcome email al bulk import).
+
+**Consultar la base desde esta máquina** ([scripts/db-query.mjs](scripts/db-query.mjs)):
+`node scripts/db-query.mjs "polls?select=id,title&poll_type=eq.mixed"` — GET a PostgREST con la
+`service_role` (bypassa RLS), y POST si la ruta empieza con `rpc/`. La key va en `.env.local`
+(ignorado por el patrón `.env.*`), NO en el repo. Es **solo lectura** a propósito: para escribir
+están la migración versionada y el SQL Editor, que dejan rastro.
+
+**Qué credencial pedir cuando falta acceso a la base — y cuál NO.** La correcta es la
+`service_role` del proyecto (Supabase → Project Settings → API): acotada a este proyecto, rotable
+en un clic desde el dashboard, y es un secreto que el proyecto ya maneja. **Nunca una contraseña
+de cuenta personal** (GitHub, Google, el correo institucional): no está acotada —da acceso a todos
+los repos y, por SSO, a lo que esa identidad tenga federado—, no se puede rotar sin romper otras
+cosas, y los proveedores bloquean el inicio de sesión automatizado (verificación por dispositivo,
+CAPTCHA), así que además de ser desproporcionado **no funciona** y puede dejar la cuenta trabada.
+Si alguien ofrece una contraseña de cuenta, pedir la key acotada en su lugar y recomendar rotar la
+que quedó expuesta.
+
+**Validaciones de campo desde shell** (sin browser, via REST):
+
+> ⚠️ El ejemplo de abajo usa `test-fesna`, cuya contraseña ya NO funciona (migró a SSO, ver arriba). El PATRÓN sigue válido — reemplazá el email/password por una cuenta con password auth vigente.
+
+```bash
+# Login a Supabase Auth
+TOKEN=$(curl -s -X POST 'https://uxxpzfsfcnqiwwdxoelm.supabase.co/auth/v1/token?grant_type=password' \
+  -H 'Content-Type: application/json' -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" \
+  -d '{"email":"test-fesna@examlab.test","password":"WyEBPdxMCRZVFp"}' | jq -r .access_token)
+
+# Query como el user logueado (respeta RLS)
+curl -s "https://uxxpzfsfcnqiwwdxoelm.supabase.co/rest/v1/courses?select=id,name" \
+  -H "apikey: $VITE_SUPABASE_PUBLISHABLE_KEY" -H "Authorization: Bearer $TOKEN"
+```
+
+Patrón usado mucho en testing — se puede simular casi todo lo que el UI hace sin tener que abrir un browser. La cuenta test-fesna tiene los 3 roles, así que sirve para validar flows Admin/Docente/Estudiante con el mismo token.
+
+## Contenido académico de universidades (submódulos independientes)
+
+`universidades/<nombre>/` (ej. `universidades/CUN/`, `universidades/UNIAJ/`) son **submódulos
+de Git**, cada uno el repo real de esa universidad, con material fuente auténtico
+(presentaciones, manuales, apuntes, sílabos). Cada universidad tiene su propio historial,
+sus propios commits y su propio ciclo de vida — completamente separado del de Examlab.
+
+**Por qué existen acá dentro**: Examlab necesita poder LEER ese material como contexto para
+generar contenido dentro de la plataforma (bancos de preguntas, resúmenes, material
+interactivo vía IA — ver `ai-generate-questions`, `generate-contents`) sin que ese material
+viva desperdigado fuera del repo o haya que ir a buscarlo a mano cada vez. El submódulo lo
+trae adentro del checkout de Examlab sin fusionar los dos mundos.
+
+**Regla dura, la que no se negocia**: las universidades son **fuente de contexto, NUNCA
+dependencias de software**.
+
+- Examlab no importa código de `universidades/*` en ningún `import`, no lo empaqueta, no lo
+  ejecuta, no lo referencia desde `src/` ni desde `supabase/functions/`. Es contenido para
+  LEER como insumo (a mano, o pegado al armar un prompt de generación), no para requerir.
+- Nunca edites nada DENTRO de `universidades/<nombre>/` desde una sesión de trabajo en
+  Examlab. Si un documento de una universidad hay que corregirlo, se entra a SU propio repo
+  (`cd universidades/<nombre>` o clonándolo aparte) y se commitea ahí — nunca desde acá.
+- Para traer la versión más reciente de cada universidad, correr
+  **`scripts/update-universidades.sh`**. No corras `git submodule update`/`add` a mano: el
+  script deja además un commit en Examlab (`chore: actualizar contenido de universidades
+  <fecha>`) para que quede trazable CUÁNDO se sincronizó cada una — sin eso, un `git log` de
+  Examlab no dice nada sobre qué versión del material de cada universidad se usó para generar
+  qué.
+- Cada submódulo sigue la rama `main` del repo de la universidad (no un commit fijo), vía
+  `git submodule set-branch --branch main`. El estado y las URLs de cada universidad —incluidas
+  las que quedaron pendientes de agregar— están en
+  [`universidades/README.md`](universidades/README.md).
+
+`universidades/*/` está en `.gitignore` — no oculta los submódulos ya registrados (eso es un
+gitlink en el índice, `.gitignore` no toca lo que ya está tracked), es para que no se cuelen
+archivos sueltos si alguien deja algo directo en esa carpeta antes de que sea un submódulo real.
+
+## Plataforma y despliegue
+
+- **Hospedado en Cloudflare Workers** desde 2026-08-21, como **sitio estático** (SPA). Reemplazó a Lovable. Manual completo: [docs/subdominios-cloudflare.md](docs/subdominios-cloudflare.md).
+  - Un despliegue general + **uno por institución**, todos del mismo build. El nombre del Worker ES el slug, y `subdomain.ts` lo lee del hostname:
+
+    | Worker | URL | Abre |
+    |---|---|---|
+    | `app` | `app.examlab.workers.dev` | selector (etiqueta reservada) |
+    | `uniaj` / `fesna` / `examlab-demo` / `demo-global-corp` | `<slug>.examlab.workers.dev` | esa institución |
+
+  - Publicar: `bun run deploy:cf` (general) y `wrangler deploy --name <slug>` (por institución). **Una institución nueva NO funciona sola**: hay que desplegarle su Worker. Eso desaparece el día que haya dominio propio (DNS comodín + Route).
+  - **Por qué estático y no el Worker con SSR que el proyecto emitía**: pesa 5,34 MB gzip y el plan Free corta en 3 MB (`error 10027`); además el Free limita a 10 ms de CPU por request. Los dos techos son del SSR. Es seguro porque la app no tiene lógica de servidor (cero `createServerFn`, cero rutas de servidor, cero `loader:`): los datos ya iban del navegador a Supabase con la RLS.
+  - **Techo de producción del plan Free: 100.000 requests/día por cuenta.** Al superarlo Cloudflare devuelve `error 1027` y el sitio queda caído hasta medianoche UTC. Agrava que cada institución es un origen distinto, así que el navegador no comparte caché de assets entre subdominios. Workers Paid (5 USD/mes) lo elimina.
+- **Lovable ya NO publica.** `examlab.lovable.app` sigue sirviendo la última versión publicada, con código viejo contra la MISMA base que sí recibe migraciones nuevas. **NO apretar Publish en Lovable**: el build ya no emite Worker con SSR y rompería ese sitio.
+- El usuario **SÍ tiene acceso al dashboard de Supabase** (proyecto `uxxpzfsfcnqiwwdxoelm`). Para diagnósticos podemos darle queries SQL one-shot que él corre en el SQL Editor del dashboard.
+- Las migraciones van en `supabase/migrations/*.sql` y **las aplica GitHub Actions** ([apply-migrations.yml](.github/workflows/apply-migrations.yml)) en cada push a `main` que las toque — no Lovable, desde que la base es un Supabase propio. Igual para edge functions, secrets y cron: todo el pipeline vive en `.github/workflows/`.
+- **Defensiva clave**: cada migración nueva DEBE envolver `ALTER TABLE` en `DO $$ BEGIN IF to_regclass('public.X') IS NOT NULL THEN ... END IF; END $$` por si la tabla NO existe en el entorno del usuario. Lovable a veces marca migraciones como aplicadas aunque el CREATE TABLE no haya corrido — sin el guard, la migración falla y se aborta todo el deploy. Patrón confirmado al fallar `question_bank` en 20260813000000.
+- Remote git: `https://github.com/AndresDFX/examlab` (nombre: `origin`) — confirmado 2026-08-09 (antes este documento decía `vivetori/examlab`, dato incorrecto que causó un push al repo equivocado). De acá leen los workflows de GitHub Actions; y también leía Lovable Publish, mientras publicó.
+- Lockfile: el repo usa **`bun.lock`** (NO `package-lock.json` ni `pnpm-lock.yaml`). Cualquier cambio en `package.json` requiere `bun install` para regenerar el lockfile y commitear AMBOS — el CI valida sincronía.
+
+## Stack
+
+- React 19 + TanStack Router v1 + TypeScript
+- UI: shadcn/ui (Card, Button, Badge, Dialog, Alert…) + design system propio (ver abajo)
+- DB: Supabase (PostgreSQL + RLS)
+- i18n: react-i18next (es-CO default)
+- Offline: idb-keyval (IndexedDB)
+- Toast: sonner
+- AI grading: el provider sale de `ai_model_settings` — `gemini` / `openai` / `bedrock`. El provider `lovable` (gateway) se **deprecó** en la mig 20260824000000; ya no está en el CHECK.
+
+---
+
+## Agentes del proyecto (`.claude/agents/`)
+
+Tres, con alcances que NO se solapan. El cuerpo se edita en `.cursor/agents/` y se espeja con
+`python scripts/sync_agents_cursor_claude.py` (preserva `model`/`tools` del lado Claude).
+
+| Agente | Para qué | Cuándo |
+|---|---|---|
+| **`examlab-dev`** | Ingeniería de la plataforma: features, bugs, migraciones, diagnóstico de prod. Trae destilado el contexto operativo (despliegue, mapa de credenciales, tenants reales, trampas conocidas) porque **un subagente NO hereda la memoria del usuario** | Trabajo sobre el código |
+| **`consistencia`** | Revisor READ-ONLY de iconos, i18n, persistencia y coherencia | Al terminar una funcionalidad, antes de commitear |
+| **`examlab-practica`** | Diseño de la parte PRÁCTICA de un curso sobre la plataforma | Contenido pedagógico, no código |
+
+Al cambiar convenciones de este archivo, revisá si `examlab-dev` las repite: lo que está duplicado
+ahí es lo que un subagente no puede deducir solo, y se desincroniza en silencio.
+
+## Regla de consistencia (OBLIGATORIA al terminar una funcionalidad)
+
+Al terminar (o antes de commitear) **cualquier** funcionalidad nueva, cambio de UI, migración,
+edge o interacción que toque pantallas/textos/estado/datos, invocá el **agente `consistencia`**
+([.claude/agents/consistencia.md](.claude/agents/consistencia.md)) para validar que el cambio es
+**acorde** con el resto del proyecto y no introduce conflictos. Valida cuatro ejes:
+
+- **Iconos** — el mismo concepto (módulo/entidad/acción) usa el mismo icono lucide en todos lados
+  (sidebar ↔ PageHeader ↔ tour; acciones de fila; StatusBadge).
+- **Traducción (i18n)** — todo texto visible por `t(...)`; paridad es↔en; sin inglés filtrado en
+  es-CO; convenciones de marca ("institución" no "tenant", "Reto en vivo" no "Kahoot", naming del
+  asistente); fechas por `src/shared/lib/format.ts`.
+- **Persistencia** — claves `examlab*` únicas (paginación/orden/tema/override); sin lectura de
+  browser APIs en initializers de `useState` (hidratación #418); effects con guard `cancelled`;
+  migraciones defensivas + scope de tenant.
+- **Coherencia / no-conflicto** — usa el design system; respeta invariantes cross-file y RLS; no
+  rompe flujos existentes (papelera, pesos/cortes, rol activo, módulos registrados en el catálogo).
+
+Es READ-ONLY: devuelve un reporte con `file:line` + fix; los cambios los aplica quien lo invoca.
+Correr también `bun tsc --noEmit` (EXIT 0) y los tests de helpers puros afectados.
+
+---
+
+## Principios de diseño de UI (P1-P9) — cada uno con su check
+
+Nueve principios sacados de la auditoría de UX ([docs/plans/ux-mejoras.md](docs/plans/ux-mejoras.md) §3).
+Lo que los hace durar no es el enunciado, es el **check**: el repo ya sabía detectar estos bugs — el fix
+del doble padding y su justificación están escritos hace meses en
+[AuditLogsView.tsx:532-538](src/modules/admin/AuditLogsView.tsx) — y aun así nunca se propagó al resto
+de las rutas. Antes de cerrar un cambio de UI, correr los checks de los principios que ese cambio roza.
+
+> **Corré `node scripts/audit-ui.mjs`** en vez de los greps de una línea de abajo. Los greps siguen
+> documentados porque explican QUÉ mira cada principio, pero como comando son inservibles: el de P1
+> devuelve ~40 líneas sobre este repo y **ninguna** es una violación (matchea cualquier `<div>`
+> anidado dentro de un Card), el de P7 suma las columnas de todas las tablas del archivo (un grid de
+> 8 con otra tabla en un diálogo reporta 9), y el de fechas matchea sobre todo NÚMEROS. El script
+> implementa los mismos principios con las exclusiones necesarias, más las cuatro reglas responsive
+> de 375px, y lo fija [`src/shared/lib/ui-rules.test.ts`](src/shared/lib/ui-rules.test.ts) para que
+> corra en `bun test`. Tiene 3 excepciones revisadas, cada una con su motivo escrito en el propio
+> archivo — **no agregues una violación a esa lista para que pase el test**: es para casos donde el
+> principio no aplica. `--cobertura` dice cuántas pantallas alcanzó a revisar y cuáles no (P1 llegaba
+> al 60% con un tope de líneas que tenía, y reportaba "limpio" igual).
+
+### P1 — El padding de página lo provee el shell, no la ruta
+
+El shell ya aplica `px-4 md:px-8 py-5 md:py-8` ([AppLayout.tsx:1723](src/shared/components/AppLayout.tsx)); si la ruta lo repite, el contenido salta ~24px al navegar entre módulos y unas pantallas capean el ancho mientras otras van full-width.
+**Regla:** el `<div>` raíz de una ruta lleva SOLO `space-y-*` (más `flex`/`grid` si hace falta). Prohibido `p-*`, `px-*`, `py-*`, `container`, `mx-auto`, `max-w-screen-*`.
+**Check:** `grep -rnE '<div className="[^"]*(container|mx-auto|(^| )(p|px|py)-[0-9])' src/routes` → 0 en la
+raíz de una ruta. **Ojo:** el check original buscaba `'container mx-auto'` y por eso dejó pasar
+`app.teacher.calendar.tsx`, que decía `container max-w-4xl py-6` (sin `mx-auto`) — el calendario se
+veía más angosto y desplazado que el resto de los módulos. Grepear la combinación exacta no sirve:
+hay que buscar cada token por separado. Excepciones legítimas: rutas FUERA del shell (`/auth/*`,
+`asistencia`, `reto/$pin`, `verify/$shortCode`, las vistas de juego a pantalla completa) sí deben
+poner su propio padding, porque no hay shell que lo provea.
+
+### P2 — Tres tamaños de texto bajo `text-sm`, todos con nombre
+
+Sin token, cada pantalla nueva inventa su tamaño: 9, 10 y 11px en la misma tabla no leen como jerarquía, leen como azar.
+**Regla:** la escala completa es `text-3xs · text-2xs · text-xs · text-sm · text-base · text-lg · text-xl · text-2xl` (los dos primeros son tokens `--text-3xs` / `--text-2xs` del `@theme` en `src/styles.css`). Prohibido `text-[Npx]` arbitrario.
+**Check:** `grep -rnE 'text-\[[0-9]+px\]' src/` → 0 resultados.
+
+### P3 — El color de acento pertenece a la institución, no a la pantalla
+
+`PageHeader` ya pinta su ícono con `text-primary` = la CSS var del tenant ([page-header.tsx:95](src/components/ui/page-header.tsx)); sobreescribirlo con un hue crudo hace que una institución con marca roja vea encabezados indigo, y que un usuario multi-rol vea el MISMO módulo de otro color al cambiar de rol.
+**Regla:** el ícono que se pasa a `icon=` de `PageHeader` lleva **solo** `className="h-6 w-6"`. Los estados usan los tokens semánticos (`--success`, `--warning`, `--destructive`), nunca hues crudos de Tailwind.
+**Check:** `grep -rn 'PageHeader' -A3 src/routes | grep -E 'text-(cyan|indigo|violet|pink|amber|sky|rose|emerald)'` → 0 resultados.
+*Excepción legítima:* color que ES el dato (picker hex del tenant, dots por tipo de evento del calendario) y los tiles del dashboard si se mantiene el código de color por entidad — eso es gusto y lo decide el dueño.
+
+### P4 — Una acción primaria por pantalla, y tiene que ser un botón primario
+
+Una pantalla donde todo es `variant="ghost" size="sm"` no dice qué se vino a hacer: el usuario lee "Pendientes de calificación: 37", no encuentra el botón, y aprende en 5 segundos que la pantalla no sirve.
+**Regla:** toda pantalla de trabajo tiene exactamente **un** `<Button>` sin `variant` (o `variant="default"`) por encima del pliegue, y es la tarea que el usuario vino a hacer. Los tiles de conteo NO cuentan como acción.
+**Check:** `grep -n '<Button' <archivo-de-la-ruta>` → de los hits que se ven sin scroll, exactamente **1** no declara `variant` (o declara `variant="default"`). 0 primarios = la pantalla no tiene acción; ≥2 = no tiene jerarquía.
+**Ojo — punto ciego del check:** grepear SOLO el archivo de la ruta da falsos positivos, porque la
+acción primaria suele vivir en el componente hijo. `app.student.workshop.$workshopId` y
+`app.student.project.$projectId` aparecen con 0 primarios, pero el botón de Entregar es primario
+dentro de `WorkshopQuestions` / `ProjectFiles`. Hay que grepear la ruta **y** los componentes que
+renderiza. Y hay pantallas legítimamente sin primario: el dashboard (es un hub, no una pantalla de
+trabajo), el calendario (se viene a mirar) y la papelera (las acciones son por fila seleccionada).
+
+### P5 — Si una fila representa algo, la fila entera es la puerta
+
+Un `<div>` con `border` que parece clickeable y no lo es enseña que la lista está muerta; y `onClick` sobre `Card` no es alcanzable por teclado — `Card` renderiza un `<div>` pelado ([card.tsx:5-13](src/components/ui/card.tsx)).
+**Regla:** una fila de lista que muestra una entidad es `<Link>` (o `<button>`) con `hover:bg-accent`. Si un tile de conteo abre algo, es un `<button>` o trae `role="button"` + `tabIndex={0}`.
+**Check:** `grep -rn 'onClick' src/routes | grep -E '<(Card|div)'` → cada hit debe tener `role="button"` + `tabIndex={0}` en el mismo elemento.
+
+### P6 — La etiqueta nombra la tarea del usuario, no el mecanismo
+
+El docente entra al módulo de la cola justo cuando algo falló — el peor momento para leer un nombre de tabla, un UUID y un JSON crudo.
+**Regla:** un texto visible NO contiene nombre de tabla o columna (`submissions`, `session_date`, `period_id`), UUID, `job`, `worker`, `drain/drenar`, `pending/processing/failed/done` sin traducir, `cron`, `edge function`, `slug`, `tenant`, `cross-tenant`. Si el dato técnico hace falta para soporte, va detrás de un "Detalle técnico" visible solo para Admin/SuperAdmin.
+**Check:** `grep -inE '"[^"]*(job|worker|drenar|slug|cross-tenant|target)' src/i18n/locales/es.json` → solo claves internas (nunca un `value` que el usuario lea).
+
+### P7 — Una columna de grid existe si sirve para decidir sobre la fila
+
+Con `table-fixed` y 12 columnas, el título — el dato que identifica la fila — se comprime a ~18 caracteres; la configuración que el docente fijó una vez al crear (duración, navegación, tipo, modo) pertenece al detalle, no a la lista.
+**Regla:** ≤ 8 columnas visibles en `lg`; la suma de `w-*` declarados ≤ 900px; el identificador de la fila es la única celda con `flex-1`, y ningún adorno de esa misma celda es `shrink-0` cuando el nombre puede truncar. Las secundarias van con `hidden sm:table-cell` / `md:` / `lg:`.
+**Check:** contar `<TableHead` del grid y sumar sus `w-N` (`w-24`=96px, `w-48`=192px…): ≤ 8 y ≤ 900px.
+
+### P8 — Un formulario con más de 8 campos se agrupa
+
+Un modal de 512px con 17 controles en un solo `space-y-3`, ordenados como el `INSERT`, obliga a 1.400px de scroll para decidir sobre 6 campos que ya venían con default.
+**Regla:** ≥ 9 controles ⇒ secciones con título usando `rounded-md border p-3 space-y-3` (el patrón que ya existe en [app.admin.users.tsx:2343](src/routes/app.admin.users.tsx)), y todo lo que tenga default razonable va en una sección colapsada "Opciones avanzadas". El orden de las secciones es el orden de las decisiones del usuario, no el del `INSERT`.
+**Check:** en el archivo del form, `grep -cE '<(Input|Textarea|Select|Switch|Checkbox|DecimalInput|DateTimePicker)' <archivo>` ≥ 9 ⇒ `grep -c 'rounded-md border p-3'` ≥ 1.
+
+### P9 — Cada tarea larga tiene un estado intermedio con expectativa
+
+Las operaciones caras del producto (calificar con IA 5-15s, import de 93 alumnos, generación encolada) no se sirven con spinner + toast final. El instinto correcto ya existe en un lugar: `performSubmit` del examen awaitea SOLO la entrega y dispara notificación e IA con `void` — 300ms percibidos en vez de 10s.
+**Regla:** toda operación > 3s muestra progreso (`n de N`) o, si es asíncrona, la promesa explícita ("Te avisamos cuando esté; podés seguir trabajando"). Un bulk que falla parcialmente además muestra el PRIMER error real (ver convención de bulk operations).
+**Check:** para cada `await` de la operación, o hay un state de progreso que se actualiza por item, o hay un `void` + mensaje de "te avisamos". Un `setLoading(true)` + `toast` final no cumple.
+
+---
+
+## Regla de UI: usar el design system propio SIEMPRE
+
+Antes de añadir markup nuevo o tocar estilos en una pantalla, **revisar primero si existe un componente del design system propio que cubra el caso**. Si existe, usarlo. Si no existe pero el patrón se va a repetir, **proponer crear el componente y agregarlo a este CLAUDE.md** antes de implementarlo inline en una sola pantalla.
+
+Ej: estoy por agregar una nueva tabla → en el empty state usar `<TableEmpty>`, en el loading state usar `<TableSkeleton>`, en las acciones por fila usar `<RowAction>`. NO escribir `<Button variant="ghost" size="sm" title="...">` para acciones de fila.
+
+### Catálogo del design system
+
+Vive en `src/components/ui/`. Componentes propios (encima de shadcn):
+
+| Componente                                                                                                                                                                  | Para qué                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Label` (con prop `required`)                                                                                                                                               | Forms con asterisco rojo en campos obligatorios                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `DecimalInput`                                                                                                                                                              | Inputs numéricos con coma como separador (siempre). Bloquea el punto, lo auto-convierte a coma. Emite `number \| null` con punto al padre.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| `PasswordInput` ([password-input.tsx](src/components/ui/password-input.tsx))                                                                                                | Input de contraseña con botón "ojo" mostrar/ocultar integrado. **TODO campo de contraseña DEBE usar este componente** — no escribir el patrón inline `<Input type={show?"text":"password"}/> + <button ojo>`. Maneja su propio estado de visibilidad (el caller solo pasa `value`/`onChange`/`placeholder`/etc. como a un `Input`). Props extra: `wrapperClassName` (para el wrapper `relative` — ej. `flex-1`, `mt-1`), `revealLabel`/`hideLabel` (aria-label del botón, default español; en flujos i18n pasar `t("auth.showPassword")` / `t("auth.hidePassword")`). El botón es `tabIndex={-1}` (no entra en el tab order). Aplicado en `ForceChangePasswordDialog`, `ChangePasswordDialog`, `AdminModelPanel`. Quedan inline (ya tenían ojo, migrar oportunamente): `auth.index`, `auth.reset-password`, `AdminEdgeSecretsPanel`, `app.admin.users`.                                                                                                                                                                                                                                                                                                                                |
+| `BackLink` / `BackButton` ([back-button.tsx](src/components/ui/back-button.tsx)) | Afordancia de **volver**, y la única fuente del ícono. `BackLink` es la miga de pan chica y apagada que va ARRIBA del título de una página de detalle (la usa `PageHeader` vía `backTo`, no se agrega a mano en una pantalla que ya tiene `PageHeader`); `BackButton` es el botón fantasma para salir de una vista embebida (detalle de una entrega, tablero de un curso, conversación abierta en móvil), con `iconOnly` para el caso sin texto —hit de 32px y `aria-label`+`title`—. Los dos aceptan `to`+`params` o `onClick`, nunca ambos, y `to` usa `asChild` (antes se envolvía un `<Button>` en un `<Link>`, que anida un `<a>` alrededor de un `<button>`). **`ChevronLeft` NO es volver**: es "el anterior de una serie" (mes previo, diapositiva previa, pregunta previa, paginación) y ahí se queda. La flecha la pone el ícono, **nunca** el texto traducido: `"← Volver al inicio"` en `es.json` hacía que el enlace mostrara dos flechas, y hay un test que falla si vuelve a colarse un `←` en cualquier locale. |
+| `RowAction`                                                                                                                                                                 | Botones de acción icon-only en grids/listas. Tooltip + aria-label automáticos. Soporta `tone="destructive"` y `asChild` (para Link).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `RowActionsMenu` ([row-actions-menu.tsx](src/components/ui/row-actions-menu.tsx))                                                                                           | Menú "tres puntos" (`MoreVertical`) para acciones de fila en grids principales. API declarativa: `<RowActionsMenu actions={[{label, icon, onClick \| to+params \| href, tone?, iconColor?, separatorBefore?, disabled?, hint?}]} />`. Items nullish (`false`/`null`) se filtran automáticamente — útil para acciones condicionales sin envolver en `if`. **Cuándo usar `RowActionsMenu` vs `RowAction`**: 3+ acciones por fila → menú; 1-2 acciones inline en toolbars → `RowAction`. Aplicado en grids principales: Cursos (admin), Exámenes, Talleres, Proyectos, Usuarios y Certificados. Convención de orden: gestión de relaciones → contenido → editar → duplicar → separator + eliminar (`tone="destructive"`). **`iconColor`** (hex / CSS var / oklch): pinta el ícono del item con un color literal — usado para anclar acciones a la marca de la entidad de la fila. Ej. "Iniciar sesión como Admin" en `/app/superadmin/tenants` pasa `iconColor: t.primary_color`; "Iniciar como" en `/app/admin/users` pasa `iconColor: "var(--brand-primary)"`. |
+| `StatusBadge`                                                                                                                                                               | Estados de exam/workshop/project/submission con variant + ícono unificado. `sospechoso/requiere_revision` → destructive con AlertTriangle, etc.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `BadgeOverflow` ([badge-overflow.tsx](src/components/ui/badge-overflow.tsx))                                                                                                | Lista de badges con tope visual. Muestra los primeros N inline + un `+M` con tooltip que lista el resto. Usado en columnas de etiquetas (roles, programas, tags) para que filas con muchos items no rompan el ancho estable del grid. API: `<BadgeOverflow items={...} max={2} />`. Soporta `renderItem` / `renderTooltipItem` para casos custom. Default `max=2`, variant `secondary`, `text-3xs`. Empty state "—". **Cuándo usar:** cualquier columna con array donde el caso típico es 1-2 items pero hay outliers con 4+. Aplicado en Usuarios (columna Roles).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| `EmptyState` / `TableEmpty`                                                                                                                                                 | "Sin datos" con padding y tono consistente. `TableEmpty` se usa como fila dentro de `<TableBody>` con `colSpan`. Soporta prop `action` para CTA tipo "Crear primer X".                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| `ErrorState` ([empty-state.tsx](src/components/ui/empty-state.tsx))                                                                                                         | Placeholder cuando una query principal falla y deja la pantalla sin datos. Mismo layout que EmptyState pero ícono AlertTriangle + botón "Reintentar". Reemplaza el patrón "toast.error en catch + UI vacía" que dejaba al user adivinando si la app cargaba, estaba vacía o rota. Patrón: `const [loadError, setLoadError] = useState<string\|null>(null); ... if (loadError) return <ErrorState message="Título" hint={loadError} onRetry={retry} />;` donde `retry` bumpea un `retryNonce` para re-disparar el effect. Aplicado de muestra en `app.student.grades.tsx`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `Spinner`                                                                                                                                                                   | Wrapper sobre `Loader2` con tamaños semánticos (`xs`/`sm`/`md`/`lg`/`xl`). Reemplazo de `<Loader2 className="h-4 w-4 animate-spin" />` directo.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| `SectionLoader` / `PageLoader`                                                                                                                                              | Placeholders "Cargando…" para secciones / páginas completas.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `TableSkeleton` / `ListSkeleton`                                                                                                                                            | Placeholders pulsantes para grids/listas mientras cargan datos. Mejor UX que "Cargando…" sobre tabla vacía.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
+| `PageHeader`                                                                                                                                                                | Header de páginas de detalle: breadcrumb "← Volver" arriba (no compite con el título), `title` h1, `subtitle`, slot `actions` opcional, slot `icon` opcional.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `ErrorBoundary`                                                                                                                                                             | React error boundary global, montado en `__root.tsx`. Captura errores fuera de rutas. Errores DENTRO de rutas los maneja `defaultErrorComponent` del router.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| `useMultiSelect` + `MultiSelectHeaderCheckbox` / `MultiSelectCheckbox` / `MultiSelectToolbar` / `BulkDeleteDialog` ([multi-select.tsx](src/components/ui/multi-select.tsx)) | Multi-selección + bulk delete para grids/tablas. Hook devuelve `{ selectedIds, toggle, toggleAll, isSelected, allSelected, indeterminate, count, clear }`. Toolbar aparece arriba cuando `count > 0`. BulkDeleteDialog muestra conteo + lista expandible (preview 5, expansible al resto) y ejecuta `.delete().in('id', ids)` atómico. Aplicado en grids de Usuarios, Cursos, Exámenes, Talleres y Proyectos.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| `ListFilters` ([list-filters.tsx](src/components/ui/list-filters.tsx))                                                                                                      | Barra estándar de búsqueda + filtro por curso para grids docente (talleres, proyectos, exámenes). Search input con ícono lupa + Select con "Todos los cursos" como default + botón "Limpiar" cuando hay filtros activos. Presentacional: el padre arma `filteredItems = useMemo(...)` y los pasa a `useMultiSelect` para que "seleccionar todo" abarque solo lo visible.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `CourseCheckboxList` ([course-checkbox-list.tsx](src/components/ui/course-checkbox-list.tsx)) | Lista de cursos con casillas para elegir VARIOS dentro de un formulario. `<CourseCheckboxList courses={[{id,name,period?}]} selectedIds={ids} onChange={setIds} maxHeightClass? showSelectAll? />`. **Casillas y no un `Select` múltiple** a propósito: con un Select hay que abrirlo para saber qué quedó elegido, y en estos formularios lo elegido es justamente lo que hay que revisar antes de guardar (en qué cursos queda matriculada una cuenta, a qué cursos se difunde). Por lo mismo tampoco sirve un menú con casillas: esconde la selección detrás de un clic y la deja en un contador. Scrollea DENTRO de su caja (`maxHeightClass`, default `max-h-40`) porque los diálogos que lo usan son `sm:max-w-md` y nueve cursos los desbordan a 375px. `showSelectAll` es opt-in (usa `common.selectAll`/`common.deselectAll`) y solo aparece con más de un curso: se activa en las pantallas del DOCENTE —son SUS cursos— y no en el diálogo del Admin, donde la lista es de una institución entera y marcarla completa casi nunca es la intención. Aplicado en `TeacherStudentDialog` y en el diálogo de usuarios de `app.admin.users.tsx` (eran byte-idénticos). Quedan 4 variantes divergentes por migrar oportunamente al tocarlas: `ManageContentCoursesDialog`, `app.messages`, `app.teacher.polls`, `app.teacher.workshops`. |
+| `markdownToPlain` / `markdownToPlainPreview` ([markdown-plain.ts](src/shared/lib/markdown-plain.ts)) | Markdown → texto plano, para donde NO se puede renderizar: una celda con `truncate` (el markdown genera bloques y rompe el truncado a una línea), un `title=`, un `aria-label`, un asunto de correo. La alternativa que había era mostrar la sintaxis cruda —`**así**` con los asteriscos a la vista—, que es lo peor de las dos opciones. **Donde SÍ hay espacio va `MarkdownInline`**, no esto. No es un parser: es un limpiador de previews, devuelve string y nunca HTML. |
+| `HelpHint` ([help-hint.tsx](src/components/ui/help-hint.tsx))                                                                                                               | Icono `?` con tooltip para texto de ayuda inline. Uso: `<Label>Campo <HelpHint>explicación detallada</HelpHint></Label>`. Reemplaza el patrón anterior `<span className="text-xs text-muted-foreground font-normal">(explicación)</span>`. Self-contained con su propio TooltipProvider. Soporta `side` y `align`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| `DateCell` ([date-cell.tsx](src/components/ui/date-cell.tsx))                                                                                                               | Celda estandarizada para mostrar una fecha en grids/tablas. `<DateCell value={...} variant="auto"\|"date"\|"datetime"\|"short" withIcon={false} />`. `auto` detecta `YYYY-MM-DD` y usa `formatDateOnly` (evita el bug UTC -1 día); con hora usa `formatDateTime`. Render `tabular-nums` + estado vacío "—". **Headers de fechas en grids docentes**: usar siempre "Inicio" / "Fin" (no "Fecha inicio"/"Fecha fin"/"Fecha límite") — el contexto del grid hace innecesario el prefijo "Fecha". En forms / Labels sí mantenemos "Fecha inicio" / "Fecha fin". Aplicado en grids de Cursos, Exámenes, Talleres y Proyectos.                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| `usePagination` ([use-pagination.ts](src/hooks/use-pagination.ts)) + `DataPagination` ([data-pagination.tsx](src/components/ui/data-pagination.tsx))                        | Paginación client-side para grids. **Hook**: `usePagination(filteredItems, { defaultPageSize: 25, storageKey: "examlab_pag:<route>", resetKey: "<filtros>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | <concat>" })`retorna`{ paginatedItems, currentPage, setCurrentPage, totalPages, pageSize, setPageSize, totalItems, startIndex, endIndex, pageSizes }`. Persiste page+size en localStorage (key opt-in). Reset a página 1 cuando cambia el `resetKey`(concatenar todos los filtros activos). Clampea automáticamente cuando los items shrinken bajo el page actual. **Componente**:`<DataPagination state={pagination} entityNamePlural="usuarios" />`ANTES del`</CardContent>`que envuelve la tabla. Muestra "X-Y de Z", selector "Por página" y nav prev/next con ellipsis. **Regla`useMultiSelect`**: NO cambiar — debe seguir operando sobre `filteredItems`completos (no`paginatedItems`) para que "seleccionar todos" abarque todas las páginas del filtro activo. Aplicado en historial IA, Usuarios, Cursos, Exámenes, Talleres, Proyectos, Contenidos, Banco de preguntas, Videos, Certificados, Tenants, Errores, Auditoría. **Vistas del estudiante con cards** (Exámenes, Talleres, Proyectos, Cursos, Polls activas/cerradas, Certificados) usan `defaultPageSize: 12`y`pageSizes: [6, 12, 24, 48]` — las cards son más grandes que las filas de tabla. |
+| `useTableSort` ([use-table-sort.ts](src/hooks/use-table-sort.ts)) + `SortableHead` ([table.tsx](src/components/ui/table.tsx)) | Orden por columna (asc/desc) en grids de listado. **Hook**: `useTableSort(filteredItems, { columns: { key: (row) => valor }, defaultSort: { key, dir }, storageKey: "examlab_sort:<route>" })` → `{ sorted, sortKey, sortDir, toggleSort, resetKey }`. Orden client-side estable, collation es-CO (`numeric` + `base`), vacíos SIEMPRE al final (asc y desc). Persiste columna+dir en localStorage. **Componente**: `<SortableHead sortKey="name" sort={sort}>Nombre</SortableHead>` reemplaza al `<TableHead>` en columnas con orden natural (texto/fecha/número/estado); chevron indicador (arriba=asc, abajo=desc, doble-chevron tenue=inactiva); convive con `<Table resizable>`. **Flujo obligatorio**: filtrar → ORDENAR → paginar — `useMultiSelect` y `usePagination` operan sobre `sort.sorted`, y el `resetKey` de `usePagination` appendea `sort.resetKey` (re-ordenar vuelve a página 1). Columnas sin orden natural (checkbox de selección, Acciones) quedan como `<TableHead>`. Aplicado en los 13 grids de listado (Usuarios, Cursos, Exámenes, Talleres, Proyectos, Contenidos, Banco de preguntas, Videos, Certificados, Tenants, Auditoría, Errores, Papelera). NO aplica a vistas de cards del estudiante (ya tienen su `<Select>` de orden) ni a paneles de lista no-tabulares (ej. AiJobsHistoryPanel, `<div>` list). |
+
+### Helpers utilitarios (`src/lib/`)
+
+| Helper                         | Para qué                                                                                       |
+| ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| `formatDate(d)`                | "30 sep 2026"                                                                                  |
+| `formatDateLong(d)`            | "30 de septiembre de 2026"                                                                     |
+| `formatDateShort(d)`           | "30 sep" (sin año, para tiles angostos)                                                        |
+| `formatDateTime(d)`            | "30 sep 2026, 14:30"                                                                           |
+| `formatTime(d)`                | "14:30"                                                                                        |
+| `formatWeekday(d)`             | "lunes, 30 de septiembre"                                                                      |
+| `formatDateOnly("2026-09-30")` | Para columnas DATE sin TZ — ancla a 12:00 local para evitar el bug de descontar un día por UTC |
+| `formatDuration(90)`           | "1h 30m"                                                                                       |
+
+Locale es-CO hardcodeado en `Intl.DateTimeFormat` para que la app se vea igual independiente del SO/navegador del usuario.
+
+### Reglas de layout / scroll
+
+- **Sin scroll horizontal a nivel página**: nunca dejar que un grid o un Card haga overflow horizontal del viewport completo. El patrón estándar es envolver `<Table>` en `<CardContent className="p-0 overflow-x-auto">` (o un `<div className="overflow-x-auto">` interno si la Card tiene padding). Así, cuando una tabla tiene muchas columnas, hace scroll **dentro de su Card** sin empujar la página entera.
+- **Modales con muchas columnas o flex-row**: usar `max-w-5xl`/`max-w-6xl`/`max-w-7xl` según necesidad. NO insistir con `max-w-3xl` cuando el contenido obviamente no cabe — eso es lo que causa scroll horizontal del modal.
+- **Columnas progresivas**: las columnas secundarias del grid deben ir con `hidden sm:table-cell` / `hidden md:table-cell` / `hidden lg:table-cell` para que en pantallas chicas se oculten antes de forzar scroll.
+
+### Redimensionado de columnas (`<Table resizable>`)
+
+Los grids de listado aceptan `resizable` además de `fixed`: agrega handles tipo Excel en el borde derecho de cada encabezado. El usuario arrastra para redimensionar; doble clic restablece la columna.
+
+- `resizable` implica `table-fixed` (el resize no tiene sentido en layout `auto`).
+- **Persistencia automática, sin config por grid**: la clave de localStorage se deriva de `pathname + fingerprint de los textos de encabezado` (`examlab_colw:<ruta>:<hash>`). Si cambian las columnas, el fingerprint cambia y se descartan los anchos viejos.
+- El ancho de la `<table>` se fija a la suma de columnas visibles para que `table-fixed` no re-escale al arrastrar (la lógica vive en `syncTableWidth` dentro de `table.tsx`).
+- **Solo desktop** (`min-width: 640px`): en mobile los handles se ocultan (`hidden sm:block`) y los anchos pinneados se limpian → layout responsive normal.
+- Aplicado en los 9 grids de listado: Cursos, Usuarios, Exámenes, Talleres, Proyectos, Contenidos, Videos, Banco de preguntas y Auditoría. **NO** en gradebook / asistencia / monitor — son matrices con columna sticky o columnas dinámicas, no grids de listado.
+
+### Responsive (target 375-428px / iPhone Pro / Pixel grandes)
+
+Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
+
+1. **Modales**: `max-w-2xl` etc. rebasan 375px porque el viewport es más chico que el `max-w-`. Patrón obligatorio:
+
+   ```tsx
+   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-2xl">
+   ```
+
+   En mobile usa el viewport menos 2rem de margen; en sm+ aplica el cap deseado.
+
+2. **Grids**: empezar siempre en 1 columna y expandir con breakpoints:
+
+   ```tsx
+   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+   ```
+
+   Nunca `grid-cols-2` o `grid-cols-3` sin prefijo — fuerza columnas chicas e ilegibles en mobile.
+
+3. **Tablas anchas**: wrapper con scroll horizontal **dentro** del Card + columnas secundarias ocultas:
+
+   ```tsx
+   <CardContent className="p-0 overflow-x-auto">
+     <Table>
+       <TableHead className="min-w-32">Estudiante</TableHead>
+       <TableHead className="hidden sm:table-cell">Email</TableHead>
+       ...
+   ```
+
+   Las columnas con datos largos (emails, descripciones) van `hidden sm:table-cell` o `md:table-cell`. Para tablas con `sticky left-0` (gradebook), bajar el `min-w-` de la sticky col en mobile (`min-w-36 sm:min-w-48`).
+
+4. **Inputs con flex-1 + min-w**: el `min-w-48` (192px) en flex containers fuerza wrap raro a 375px. Bajar el piso en mobile:
+
+   ```tsx
+   <div className="flex-1 min-w-[160px] sm:min-w-48">
+   ```
+
+5. **Padding generoso**: `p-8` come 64px de cada lado a 375px. Usar `p-4 sm:p-8` cuando el padding sea decorativo (empty states, loaders).
+
+### Patrones de comportamiento
+
+- **`useConfirm()`** (de `ConfirmDialog`): para confirmaciones destructivas o de cambio importante. Retorna `Promise<boolean>`. NO construir Dialogs custom para esto.
+  - Reglas de tono: `destructive` (eliminar), `warning` (acción reversible pero ojo: cerrar sesión, descartar cambios, entregar con preguntas en blanco), `default` (info).
+  - Toda confirm destructive debe terminar con `"Esta acción no se puede deshacer."` o equivalente ("permanente").
+- **Confirmación al entregar con respuestas en blanco**: examen, taller y proyecto detectan respuestas vacías antes de entregar y usan `confirm({ tone: "warning" })`.
+- **`StatusBadge` para estados**: nunca pintar un Badge con clases ad-hoc para un estado. Usar `<StatusBadge status={x} />` que ya tiene el mapeo variant + ícono.
+
+---
+
+## Archivos clave
+
+| Archivo                                                     | Propósito                                                                                                                                               |
+| ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/routes/app.student.take.$examId.tsx`                   | Pantalla de toma de examen (estudiante)                                                                                                                 |
+| `src/routes/app.student.exams.tsx`                          | Lista de exámenes del estudiante                                                                                                                        |
+| `src/routes/app.student.review.$examId.tsx`                 | Revisión de resultados                                                                                                                                  |
+| `src/routes/app.student.grades.tsx`                         | Vista de notas por curso del estudiante                                                                                                                 |
+| `src/routes/app.teacher.gradebook.tsx`                      | Gradebook docente con consolidado por corte + export CSV                                                                                                |
+| `src/routes/app.teacher.monitor.$examId.tsx`                | Monitor en vivo del examen                                                                                                                              |
+| `src/modules/grading/ExternalGradesEditor.tsx`                   | Notas de actividades externas (presencial / otra plataforma)                                                                                            |
+| `src/modules/exams/FraudPanel.tsx`                             | Análisis IA + detección de copia entre estudiantes                                                                                                      |
+| `src/integrations/supabase/types.ts`                        | Tipos generados de Supabase (no editar a mano)                                                                                                          |
+| `src/modules/exams/offline-sync.ts`                                   | IndexedDB sync (`clearLocalAnswers`, `setupOfflineSync`)                                                                                                |
+| `src/shared/lib/format.ts`                                         | Helpers de formato de fechas/duraciones (es-CO)                                                                                                         |
+| `src/modules/exams/proctoring.ts`                                   | `MAX_WARNINGS=3`, `warningLabel`, `shouldMarkSuspicious`                                                                                                |
+| `src/modules/grading/grade.ts`                                        | `computeWeightedGrade(items)` — núcleo del cálculo de notas                                                                                             |
+| `src/modules/ai/AiCronPage.tsx`                             | Página del módulo "Cron" con tabs IA (cola grading) + Generaciones (cola generación) + Supabase (pg_cron)                                               |
+| `src/modules/ai/AiGenerationQueuePanel.tsx`                 | Panel de cola de generación IA (tab "Generaciones"); botón Zap para pending vs RefreshCw para failed                                                    |
+| `supabase/functions/ai-generation-worker/`                  | Worker que drena `ai_generation_queue`; auto-retry transitorio (429/5xx/timeout) hasta `MAX_ATTEMPTS=3`                                                 |
+| `src/modules/ai/AiGradingQueueWidget.tsx`                   | Card resumen de la cola IA (dashboard); link al módulo Cron                                                                                             |
+| `src/modules/admin/SupabaseCronPanel.tsx`                   | Admin: pausar/reagendar/describir jobs de pg_cron                                                                                                       |
+| `src/modules/code/CodeRunnerPicker.tsx`                     | Selector per-pregunta del runner de código (override del default)                                                                                       |
+| `src/modules/code/JavaGuiRunner.tsx`                        | Editor + ejecución de preguntas `java_gui` (CheerpJ / AWS shot)                                                                                         |
+| `src/modules/code/run-java.ts`                              | `runJavaInBrowser(src, signal?)` — Java client-side via CheerpJ                                                                                         |
+| `aws/code-runner/app.py`                                    | Lambda handler — modo `run` y `gui_screenshot` (Xvfb + Pillow)                                                                                          |
+| `aws/code-runner/GuiBootstrap.java`                         | Wrapper Java pre-compilado que evita pedir `Thread.sleep` al alumno                                                                                     |
+| `src/modules/tenants/use-tenant.ts`                         | Hook `useTenant()` + `readTenantOverride()` / `setTenantOverride()` + evento `examlab:tenant-override-changed`                                          |
+| `src/modules/tenants/TenantThemeProvider.tsx`               | Sobrescribe CSS vars OKLCH con los colores del tenant; light/dark via `washHex` / `darkVariant`                                                         |
+| `src/modules/tenants/active-role-signal.ts`                 | Signal compartido `activeRole` (AppLayout publica, TenantThemeProvider suscribe)                                                                        |
+| `src/modules/tenants/TenantOverrideBanner.tsx`              | Banner azul "Viendo como institución X" + botón "Salir del modo institución"                                                                            |
+| `src/modules/superadmin/AssignUsersToTenantDialog.tsx`      | Dialog SuperAdmin: gestiona membresía de un tenant (agregar + quitar usuarios con diff)                                                                 |
+| `src/routes/app.superadmin.tenants.tsx`                     | Panel SuperAdmin para tenants — CRUD, "Ver como", impersonar Admin                                                                                      |
+| `src/hooks/use-theme.ts`                                    | Hook `useTheme()` con state sincronizado entre instancias vía `examlab:theme-changed` event                                                             |
+| `src/shared/components/AppLayout.tsx`                       | Layout principal + role-switcher + `handleRoleChange` (limpia override al pasar a SuperAdmin)                                                           |
+| `supabase/functions/broadcast-course-message/index.ts`      | Edge function: notif `kind='broadcast'` + correo por destinatario + replica como mensaje 1-a-1. Acepta `courseIds[]` (multi-curso)                      |
+| `supabase/functions/bulk-import-users/index.ts`             | Edge function: CSV / single user create. Acepta Admin + SuperAdmin como callers; rol `SuperAdmin` solo asignable por SuperAdmin                         |
+| `src/modules/messaging/TagTextarea.tsx`                     | Textarea reusable con autocomplete `#` para etiquetar contenido + preview. Usado en chat 1-a-1 y composer de difusión                                   |
+| `src/modules/messaging/broadcast.ts`                        | Helpers puros de difusión (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`, `humanizeTags`) — replicados en el edge |
+| `src/modules/messaging/scheduled.ts`                        | Helpers de mensajes programados (`validateScheduledSend`, `localToIso`, `SCHEDULED_STATUS_LABEL`)                                                       |
+| `supabase/migrations/20260709000000_scheduled_messages.sql` | Tabla `scheduled_messages` + `dispatch_scheduled_messages()` (SQL) + cron cada minuto                                                                   |
+| `src/modules/auth/ForceChangePasswordDialog.tsx`            | Diálogo bloqueante de cambio de contraseña forzado (primer login). Montado en AppLayout cuando `profile.must_change_password`                           |
+
+---
+
+## Modelo de pesos / cortes (post-migración 20260507100000)
+
+Cada item (examen, taller, proyecto) y la asistencia de un corte tienen un peso que es **% de la nota final del curso**, no relativo dentro de un bucket.
+
+```
+cut.weight              = % de la nota final que aporta el corte (cuts suman 100)
+cut.workshop_weight     = bucket: cuánto del corte vale TODOS los talleres juntos
+cut.exam_weight         = bucket: cuánto del corte vale TODOS los exámenes juntos
+cut.project_weight      = bucket: cuánto del corte vale TODOS los proyectos juntos
+cut.attendance_weight   = bucket: cuánto del corte vale la asistencia
+exam.weight             = % de la nota final para ese examen (cap = exam_weight bucket)
+workshop.weight         = % de la nota final para ese taller (cap = workshop_weight bucket)
+project.weight          = % de la nota final para ese proyecto (cap = project_weight bucket)
+
+REGLA: workshop_weight + exam_weight + project_weight + attendance_weight = cut.weight.
+       Y items del mismo tipo no pueden exceder su bucket. La validación
+       vive en el form de cortes del curso (admin/courses) y en los
+       forms de cada item, que muestran "te queda X disponible" del bucket.
+```
+
+Migración 20260507130000 hizo backfill: para cada cut puso `workshop_weight = sum(workshops.weight asignados al corte)` etc, así que el comportamiento previo se preserva.
+
+**Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Eso refleja la realidad del estudiante: lo que debe y todavía no entregó/no tiene nota es nota perdida hasta que aparezca. Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Misma regla en `computeCutGrade` y `computeCourseFinalGrade`.
+
+**Asistencia → corte**: `attendance_sessions` NO tiene `cut_id`. La pertenencia se deriva por fechas: una sesión cuenta para el corte X si `session_date` está entre `cut.start_date` y `cut.end_date`. El score de asistencia del corte es `presentes / sesionesEnCorte` escalado a la escala del curso, y entra al weighted avg con `weight = cut.attendance_weight`. Implementado idéntico en `app.student.grades.tsx` y `app.teacher.gradebook.tsx`.
+
+**Forms de items**: input de Peso disabled cuando no hay corte; max = `cut.weight`.
+
+---
+
+## Módulo de examen estudiantil — decisiones de diseño
+
+### Session lock (sin migración DB)
+
+Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at` como heartbeat implícito (autosave cada 1.5s). Ventana de expiración: 10s. No se necesitan columnas adicionales.
+
+```ts
+// localStorage key: examlab_exam_session_${examId}
+function getOrCreateLocalSession(examId: string): string { ... }
+```
+
+### Proctoring — `recordWarning(type)`
+
+Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. Usa `blurLockUntil` (debounce 500ms) para evitar strikes rápidos. Hace fire-and-forget a Supabase + el autosave de 1.5s recoge lo que falle.
+
+**IMPORTANTE:** Para el botón "Atrás" del navegador, el modal de confirmación hace `await supabase.update(...)` antes de `navigate()` — esto es crítico porque el componente se desmonta al navegar y el autosave timer se cancela.
+
+### Esc bloqueado durante el examen
+
+El listener `onKeyDown` global (capture phase) intercepta Escape con `preventDefault + stopPropagation`. Eso impide que cierre dialogs del SPA o cancele otros defaults del navegador. **NO evita que el navegador salga de fullscreen al pulsar Esc** — esa salida la maneja el SO/browser y JavaScript no puede interceptarla. Cuando ocurre, `fullscreenchange` dispara y `recordWarning("fullscreen_exit")` suma el strike.
+
+### Navegación secuencial vs libre
+
+- `exam.navigation_type === "secuencial"`: botón "Anterior" siempre deshabilitado; botón "Siguiente" abre modal de confirmación cada vez (warning sobre que no podrá regresar).
+- `libre`: comportamiento normal, "Anterior" disabled solo en `currentIdx === 0`.
+- Siempre se renderiza una sola pregunta a la vez (`const visible = [questions[currentIdx]].filter(Boolean)`).
+
+### Timer
+
+Solo `computeSecondsLeft(exam?.end_time)`. El hook `useRealtimeTimer` inicializa una sola vez cuando `initialSeconds > 0`. No intentar calcular tiempo efectivo por estudiante.
+
+### Offline sync
+
+`clearLocalAnswers(examId)` debe llamarse antes de crear una nueva fila de submission, para evitar el toast "X respuesta(s) sincronizada(s)" cuando el docente borra la sesión anterior.
+
+### Suspensión / entrega — fire-and-forget
+
+`performSubmit` await SOLO el `submissions.update` (la entrega real). La notificación al docente vía RPC y la calificación con IA (`ai-grade-submission` edge function, ~5-15s) se disparan con `void` sin await. El alumno ve "Examen suspendido/entregado" en ~300ms en vez de ~10s. El servidor termina las tareas en background aunque el cliente navegue a otra ruta.
+
+---
+
+## Features adicionales
+
+### Actividades externas (`is_external` en exams, workshops y projects)
+
+Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presencial o virtual en otra herramienta) y solo se registran notas. Toggle en el dialog de creación esconde campos sin sentido (duración/navegación/proctoring/preguntas para examen, archivos esperados/instrucciones para proyecto). El editor de notas externas (`ExternalGradesEditor`) lista a los matriculados con columnas Nota + **Observación** (campo libre por estudiante), y guarda en `submissions.{final_override_grade, teacher_feedback}` / `workshop_submissions.{final_grade, teacher_feedback}` / `project_submissions.{final_grade, teacher_feedback}`. La columna `submissions.teacher_feedback` la agregó la migración 20260507130000.
+
+### Detección de fraude (FraudPanel)
+
+- **Análisis IA por entrega**: cada calificación con IA puebla `submissions.ai_detected_score / ai_detected_reasons` (0..1 + razones). Threshold 0.6 marca `ai_detected = true` y status `sospechoso`.
+- **Plagio entre estudiantes**: edge function `detect-plagiarism` compara entregas pares vía Gemini, persiste en tabla `similarity_pairs (kind, ref_id, score, reasons)`. RLS solo docente/admin.
+- `<FraudPanel kind refId>` reutilizable en monitor de examen, dialog de calificación de taller, dialog de entregas de proyecto.
+
+### Selección de modelo de IA (tabla `ai_model_settings`)
+
+Una sola configuración global activa a la vez (UNIQUE PARTIAL idx sobre `is_active=true`). Solo Admin escribe.
+
+- Providers soportados: `gemini` (Google Gemini directo), `openai` (gpt-4o, gpt-4o-mini, etc) y `bedrock` (mig 20261650000000). El viejo `lovable` salió del CHECK en la mig 20260824000000.
+- **API keys NO se guardan en DB**. Viven como **GitHub Actions repository secrets** (`GEMINI_API_KEY`, `OPENAI_API_KEY`, `AWS_BEARER_TOKEN_BEDROCK`) y [deploy-secrets.yml](.github/workflows/deploy-secrets.yml) las empuja a los secrets de las edge functions en cada push. La tabla solo elige `provider` + `model`. Si una key expira/se rota, se cambia el secret del repo y se re-corre ese workflow — NO se agregan inputs de API key al panel admin. Existió un override `ai_model_settings.gemini_api_key` (legacy, migración 20260524110000); las edges lo leen como fallback pero la UI ya no permite editarlo. La columna quedará deprecada cuando se haga la migración drop column.
+- Edge function lee la fila activa via `getActiveAiModel()` y construye URL/auth/header según provider en el helper `aiChatCompletion(body)`. Ambos providers hablan el mismo formato OpenAI chat-completions, así que el body (messages/tools/tool_choice) viaja idéntico — solo cambia `model`.
+- UI Admin en `app.admin.ai-prompts.tsx` con tabs: **Prompts** (editor de los 5 use_cases globales) + **Modelo** (provider + model). El path se mantuvo por compatibilidad.
+
+### Lista de API keys con failover (alta disponibilidad de IA)
+
+Cada fila de `ai_model_settings` tiene una key PRINCIPAL por provider (`gemini_api_key` / `openai_api_key`) **+ una lista ordenada de keys de RESPALDO** (`gemini_fallback_keys` / `openai_fallback_keys`, `TEXT[]`, mig [20261010000000](supabase/migrations/20261010000000_ai_api_key_failover.sql)). Cuando una llamada a IA falla con la principal, se rota automáticamente a las secundarias → la IA del tenant no se cae porque UNA key agotó su cuota del momento. Por ahora se prueba con Gemini, pero la estructura (columnas + failover + UI) ya cubre OpenAI.
+
+- **Lógica de rotación** ([supabase/functions/_shared/ai-failover.ts](supabase/functions/_shared/ai-failover.ts) — PURA, testeada bajo vitest): `runKeyFailover(keys, { fetchWithKey, sleep, onEvent })`. Intenta cada key en orden; rota a la siguiente cuando el status es **rotable** (`401/403` key inválida, `402` sin créditos, `429` rate/cuota, `5xx` caída) y quedan más keys. `400` NO rota (el body es idéntico → fallaría igual). En la ÚLTIMA key aplica retry-with-backoff transitorio (`429/502/503/504`, respeta `Retry-After` capeado a 8s). Devuelve la 1ª respuesta OK o, si todas fallan, la última (para que el caller muestre el error real).
+- **Cadena de candidatos** = `[principal, ...respaldo (DB), env legacy]` deduplicada y sin vacíos. La compone `getActiveAiModel()` en `ActiveModel.gemini_api_keys`/`openai_api_keys` (`_shared/ai-model.ts`); `candidateKeysFor()` agrega la env (`GEMINI_API_KEY`/`OPENAI_API_KEY`) como último recurso.
+- **`aiChatCompletionFailover(model, payload)`** (`_shared/ai-model.ts`): resuelve URL + inyecta el fetch/sleep reales en `runKeyFailover`. **Los 7 edges de IA delegan acá** (antes cada uno tenía su propio `aiChatCompletion` con `m.<provider>_api_key ?? env` + fetch): `ai-generate-questions`, `ai-grade-submission`, `generate-contents`, `tutor-chat`, `ai-generate-report`, `evaluate-exam-time`, `detect-plagiarism`. Funciona igual en modo **sync** (docente inline) y en el **worker** (cola/cron). Si cambias el set de statuses rotables o el comportamiento, hacelo en `ai-failover.ts` (un solo lugar) — NO re-dupliques en los edges.
+- **UI** ([AdminModelPanel](src/modules/admin/AdminModelPanel.tsx) → tab "Modelo"): bajo la key principal del provider activo hay un `FallbackKeysEditor` (lista add/remove de `PasswordInput`). Lo edita el **SuperAdmin** (fila platform-default, `tenant_id IS NULL`) o el **Admin** del tenant (su fila). Al guardar se escribe el array limpiado (dedup + sin vacíos; `[]` → `null`).
+- **Seguridad (mismo mig)**: `ai_model_settings` guarda secretos. El SELECT de la fila se endureció a **Admin del tenant + SuperAdmin** (antes lo leía cualquier miembro del tenant, y el platform-default era world-readable por todo `authenticated` → leak de las API keys). Las edges leen por `service_role` (bypassa RLS). El único campo no-secreto que el cliente no-admin necesita (`processing_mode`, para decidir sync vs encolar) se sirve por el RPC SECURITY DEFINER **`get_active_processing_mode()`** — `getProcessingMode()` en [src/modules/ai/ai-grading.ts](src/modules/ai/ai-grading.ts) lo invoca en vez de leer la tabla.
+
+### Prompts de IA customizables (tabla `ai_prompts`)
+
+Sistema de overrides de prompts para los modelos de IA, separado por **caso de uso** (no por módulo):
+
+- 5 use cases: `workshop_full`, `workshop_question`, `project_file`, `project_full`, `exam_question`.
+- Una fila por `(use_case, course_id)`. `course_id IS NULL` = prompt global del sistema (lo edita Admin). `course_id` no-null = override del curso (lo edita el docente del curso).
+- El edge `ai-grade-submission` resuelve via `resolveSystemPrompt(useCase, courseId, fallback)`: course override gana al global, fallback al texto hardcodeado si la tabla está vacía.
+- **Solo se persiste el system prompt** (rol/criterios). Los datos dinámicos (rúbrica, respuesta, idioma, puntaje máx.) se inyectan en el `user` message desde el código — el admin/docente no puede romper el contrato olvidando un placeholder.
+- UI: `app/admin/ai-prompts.tsx` (CRUD globales, restaurar default), `app/teacher/ai-prompts.tsx` (selector de curso, ver global de referencia, override editable, "Volver al global" elimina la fila).
+- RLS: SELECT abierto a authenticated; INSERT/UPDATE/DELETE de globales solo Admin; de overrides solo docente del curso (vía `course_teachers`) o Admin.
+
+### Asistencia self check-in con QR rotativo (TOTP-like)
+
+Los estudiantes se marcan presentes solos para que el docente no tenga que llamar uno a uno.
+
+- **DB**: `attendance_sessions.check_in_open` (visible a todos) + tabla privada `attendance_check_in_state(session_id, seed, rotation_seconds, opened_at, closes_at)` con RLS Docente/Admin only — la **seed nunca llega al estudiante**.
+- **Código**: derivación TOTP-like — `sha256(seed || ":" || period)[:7 hex] % 1000000` con `period = floor(epoch/rotation_seconds)`. La función SQL `compute_attendance_code(seed, period)` y el JS `computeAttendanceCode()` en [src/lib/attendance-code.ts](src/lib/attendance-code.ts) **deben coincidir bit-a-bit**.
+- **Validación**: el estudiante llama `student_check_in_attendance(session_id, code)` SECURITY DEFINER, que acepta el código del período actual y el anterior (gracia de rotación). Verifica matrícula, ventana abierta, no expirada.
+- **UI Docente** ([AttendanceCheckInProjector](src/components/AttendanceCheckInProjector.tsx)): overlay fullscreen vía Fullscreen API con QR + código + countdown + contador realtime de presentes (Supabase channel sobre `attendance_records` filtrado por `session_id`). Botón "Cerrar check-in" → opcional confirm "marcar pendientes como ausentes" → RPC `teacher_mark_pending_absent`.
+- **UI Estudiante** ([AttendanceQRScanner](src/components/AttendanceQRScanner.tsx)): `html5-qrcode` (~50KB) escanea QR. Fallback input manual de 6 dígitos. Card "Check-in disponible" arriba de la vista de asistencia cuando hay sesiones con `check_in_open=true`.
+- **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
+- **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
+
+### Proyectos: sustentación + link al repo obligatorio
+
+La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").
+
+- **DB** (migración 20260507170000): `project_submissions.submission_grade`, `defense_factor` (0..1, CHECK), `defense_notes`, `defense_at`, `repository_url`. Backfill: para entregas ya calificadas pone `submission_grade = final_grade` y `defense_factor = 1` para preservar el comportamiento previo.
+- **Estudiante**: el `submit` exige un link `https?://...` (validación en cliente, columna NULLABLE en DB para no romper históricos). La IA califica → llena `submission_grade`, deja `final_grade=null`. UI explica que la nota final llega tras la sustentación.
+- **Docente**: en el dialog de calificación se muestra el link prominente con borde ámbar y advertencia "verificar fechas vs entrega". Cada submission tiene un `<DefensePanel>` con: nota entrega + input factor 0–1 + preview de nota final + notas + botón "Guardar sustentación". Al guardar persiste `defense_factor`/`defense_notes`/`defense_at` y recalcula `final_grade = submission_grade × factor`.
+- **Verificación de fechas vs commits**: el sistema solo persiste el link y la fecha de entrega — la comparación contra fechas de modificación del repo es manual del docente. La verificación automática vía API de GitHub/Drive queda como mejora futura (requiere OAuth y casos edge).
+
+### Proyectos: entrega de código completo en ZIP (`type='codigo_zip'`)
+
+Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su código fuente. Diagramas y documentos siguen entregándose en preguntas separadas (tipo `abierta`/`diagrama`/etc).
+
+- **DB** (migración 20260507160000): bucket `project-files` (100MB max), columna `project_submission_files.zip_path`, nuevo tipo `codigo_zip` permitido en `project_files.type`. RLS de Storage: estudiante sube/lee/borra los suyos; docente/admin lee todos.
+- **UI Docente** ([ProjectFiles.tsx](src/components/ProjectFiles.tsx)): nuevo item "Código completo (ZIP)" en el selector de tipo del slot. La generación con IA NO ofrece este tipo — debe configurarse manualmente.
+- **UI Estudiante**: input `<input type="file" accept=".zip">` cuando el slot es `codigo_zip`. Al enviar, sube a `project-files/<user_id>/<submission_id>/<file_id>.zip` y persiste `zip_path` en `project_submission_files`.
+- **Edge function** (`ai-grade-submission`, modo `projectCodeZipGrading`): descarga el ZIP via `adminClient.storage.from('project-files').download()`, descomprime con `fflate`, **filtra por whitelist de extensiones de código** (.java, .py, .js/.ts/.tsx, .c/.cpp, .cs, .go, .rs, etc + makefile/dockerfile), trunca archivos >50KB, tope global 200K chars, concatena con encabezado `─── path ───` y manda al modelo. Usa el system prompt `project_full`.
+- **Caso vacío**: si el ZIP no contiene archivos de código reconocidos, retorna grade=0 con feedback claro al estudiante.
+
+### Trabajo en grupo en talleres y proyectos (V1: teacher_assigned, modo MIXTO)
+
+Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma nota. Replicado idéntico en talleres y proyectos.
+
+- **DB** (migraciones 20260507150000 talleres y 20260507180000 proyectos): `workshops.group_mode` / `projects.group_mode` (`individual` | `teacher_assigned` | `self_signup` — V1 expone solo individual y teacher_assigned). Tablas `{workshop|project}_groups(id, {workshop|project}_id, name, signup_code)` + `{workshop|project}_group_members(group_id, user_id)` con trigger que evita estar en >1 grupo del mismo taller/proyecto. Columna `{workshop|project}_submissions.group_id` (cuando hay grupo, la submission pertenece al grupo).
+- **RLS**: groups y members con SELECT abierto + write Docente/Admin. `*_submissions` extendido a "dueño O miembro del grupo de la submission O Docente/Admin" en SELECT/INSERT/UPDATE — eso permite que cualquier miembro del grupo edite la misma fila.
+- **Modo MIXTO**: en un mismo taller/proyecto con `group_mode != 'individual'` pueden coexistir estudiantes con grupo (entregan en grupo, comparten una sola entrega y nota) y sin grupo (entregan individual). El estudiante sin grupo NO se bloquea — entrega normalmente. La UI no muestra warnings de "espera a tu grupo".
+- **UI Docente**: toggle "Trabajo en grupo" en el form (solo cuando NO es externo). Botón "Grupos"/"Activar grupos" en el grid (icono UsersRound) — siempre visible para items no-externos. Click sin grupos activos auto-activa `teacher_assigned`. Abre [WorkshopGroupsEditor](src/components/WorkshopGroupsEditor.tsx) o [ProjectGroupsEditor](src/components/ProjectGroupsEditor.tsx) con **drag & drop nativo** (HTML5 drag API, sin librería) — arrastrar tarjeta de estudiante entre "Sin grupo" y los grupos creados; ring visual en drop target.
+- **UI Estudiante**: en `app.student.workshops.tsx` y `app.student.projects.tsx` la query de submission filtra por `group_id` cuando aplica (cualquier miembro ve la misma entrega), y por `user_id` cuando no (modo individual o mixto sin grupo). Card "Tu grupo: X" arriba solo si `myGroup != null`.
+- **Submission compartida**: `StudentWorkshopTaker` y `StudentProjectTaker` aceptan prop `groupId`. La query existente y el INSERT incluyen `group_id` cuando hay grupo. `user_id` se mantiene como "último editor".
+- **Notificación de calificación**: `saveGrade` lee `submission.group_id`; si existe, inserta una notificación por cada miembro del grupo. Caso individual: solo al `user_id`.
+- **Self-signup**: queda para V2. La columna `signup_code` ya está en la tabla para no migrar después.
+
+### Multi-tenant: SuperAdmin vs Admin
+
+La plataforma soporta varias instituciones (tenants) sobre la misma DB. Cada profile tiene `tenant_id`; el aislamiento de datos lo garantiza la RLS (cada tabla con `tenant_id` filtra por `current_tenant_id()` o joinea a `courses.tenant_id` cuando no tiene columna propia).
+
+- **Rol `SuperAdmin`**: dueño de la plataforma. Opera cross-tenant. Visible solo en su instancia de la app (RLS `is_super_admin()` bypassa todas las policies; el front filtra el menú "Instituciones" para que solo aparezca en este rol).
+- **Rol `Admin`**: dueño de una institución. Hace soporte/operación dentro de SU tenant.
+- **Override "Ver como esta institución"**: el SuperAdmin elige un tenant desde `/app/superadmin/tenants` → se guarda el slug en `localStorage["examlab_tenant_override"]`. A partir de ahí `useTenant()` resuelve a ESE tenant (no al del profile), y la UI (banner azul `TenantOverrideBanner`, branding completo, label del sidebar) actúa como si el SuperAdmin "viviera" dentro de ese tenant. **Limpieza automática**: cuando el usuario cambia su `activeRole` a `SuperAdmin` vía el role-switcher, `AppLayout.handleRoleChange` llama `setTenantOverride(null)` — sin esto, el SuperAdmin volvía al modo cross-tenant con el branding del último tenant visto.
+- **`isSuperAdminCrossTenant`**: helper sintético `activeRole === "SuperAdmin" && !hasTenantOverride`. Cuando es true: oculta logo + nombre del tenant en el sidebar (desktop + mobile + drawer), reemplaza el label sub-ExamLab por "Plataforma de Gestión Educativa" (key `tenant.platformBrand`), oculta `TenantQuotaCard`, y `TenantThemeProvider` limpia todas las CSS vars vía `clearTenantVars(root)`.
+- **Filtros cross-tenant en módulos compartidos**: cuando el SuperAdmin entra a una pantalla que originalmente era admin (Usuarios, Cursos, Certificados, Auditoría, Cron, Estadísticas), aparece un `Select` extra con "Todas las instituciones / Por institución". El filtro modifica la query principal: usa `.eq('tenant_id', X)` cuando la tabla tiene la columna, o el patrón "2-step" cuando no (ej. certificates → primero `courses.id` del tenant, después `.in('course_id', ids)`). Si el tenant elegido no tiene rows, **cortar el query a corto antes** de pegarle a la tabla principal — un `.in('course_id', [])` en PostgREST devuelve TODOS los rows, no ninguno.
+- **Crear / quitar usuarios de un tenant**: `/app/superadmin/tenants` → menú de tenant → "Gestionar usuarios". El dialog ([AssignUsersToTenantDialog](src/modules/superadmin/AssignUsersToTenantDialog.tsx)) muestra TODOS los profiles con un checkbox precargado al estado actual (miembros del tenant tildados). El diff calculado al guardar aplica UPDATE `profiles.tenant_id = tenant.id` para nuevos miembros y `tenant_id = NULL` para los que se desmarcan. Si hay quitados, `useConfirm({ tone: "destructive" })` pide confirmación con conteo. El trigger `tg_check_profile_tenant_change` rechaza individualmente si un user tiene cursos activos en su tenant viejo (la edge muestra el error friendly y sigue con los demás del batch).
+- **Crear SuperAdmins desde el UI**: el rol SuperAdmin se puede otorgar (a un usuario nuevo o existente) desde `/app/admin/users` → "Nuevo usuario" / editar. El checkbox `SuperAdmin` solo se renderiza si el caller también es SuperAdmin (filtrado en el `ALL_ROLES.filter()` del front). La edge `bulk-import-users` valida server-side: callers permitidos = Admin **o** SuperAdmin; el rol `SuperAdmin` en el payload solo se persiste si `callerIsSuperAdmin` — un Admin común que mande `SuperAdmin` en un CSV/payload lo verá silenciosamente ignorado.
+- **Impersonación tinted**: las acciones "Iniciar sesión como Admin" (`/app/superadmin/tenants`) y "Iniciar como" (`/app/admin/users`) usan la prop `iconColor` de `RowActionsMenu` para que el ícono adopte el primary del tenant correspondiente (literal por fila en el primer caso, `var(--brand-primary)` del theme en el segundo). Es pista visual: la acción te lleva al contexto de esa marca.
+
+### Branding por tenant ([TenantThemeProvider](src/modules/tenants/TenantThemeProvider.tsx))
+
+Sobrescribe los tokens OKLCH del theme (`--primary`, `--sidebar`, `--background`, `--card`, `--muted`, `--brand-primary`, etc.) con los colores del tenant activo en runtime — todos los componentes shadcn (Button primary, focus rings, Badge accent, sidebar nav, fondos de Card) heredan automáticamente.
+
+- **`--primary` / `--sidebar`**: se setean al hex del tenant (`tenant.primary_color`). El foreground (texto sobre fondo branded) sale por luminancia sRGB del hex (umbral 0.55) o, si el tenant tiene `text_color` override, gana ese. `tenant.icon_color` controla `--sidebar-icon-color`, leído por los íconos del nav vía inline `style={{ color: "var(--sidebar-icon-color, currentColor)" }}`.
+- **Fondos del área principal** dependen del theme actual (`useTheme().resolvedTheme`):
+  - **Light mode**: `washHex(secondary)` mezcla 92% con blanco → fondo casi blanco con tinte sutil de marca.
+  - **Dark mode**: `darkVariant(secondary, 8|12|15)` preserva hue + cap de saturación a 70% y baja lightness — secundario rojo → fondo rojo oscuro, azul → azul oscuro. Achromáticos (sat<5%) caen a neutro dark.
+- **`clearTenantVars(root)`**: limpia TODAS las vars que el provider haya seteado. Llamado en el early-return cuando `activeRole === "SuperAdmin" && !readTenantOverride()` — modo cross-tenant pidiendo theme default OKLCH.
+- **Reactividad al toggle de tema**: el effect tiene `resolvedTheme` en sus deps. Antes leía `classList.contains("dark")` una sola vez por run y dark-mode no propagaba sin recarga.
+
+### Tema claro / oscuro ([use-theme.ts](src/hooks/use-theme.ts))
+
+- **Default = `light`** (ex-`"system"`). Migración silenciosa: `readStoredTheme()` mapea cualquier valor distinto de `"light"`/`"dark"` (incluyendo `"system"` legacy y basura) a `"light"`. La opción "Sistema" del menú se removió — el usuario elige claro u oscuro explícitamente.
+- **Estado compartido entre instancias**: cada `useTheme()` tenía state local. Cuando `ThemeToggle` cambiaba el tema, `TenantThemeProvider`'s hook NO se enteraba y dejaba aplicadas las CSS vars del tema viejo (síntoma: bordes cambiaban pero backgrounds quedaban iguales). Fix: `setTheme()` dispara un `CustomEvent("examlab:theme-changed", { detail: theme })`; todas las instancias se suscriben (more `storage` event para cross-tab) y sincronizan su state. Mismo patrón que el override del tenant.
+- **Hidratación SSR (React #418)**: `useTheme()` inicializa el state DETERMINISTA a `"light"` — NO lee `localStorage` en el initializer. El HTML pre-renderizado no tiene `localStorage`, así que sale en "light"; si el primer render del cliente leyera "dark" de storage, el árbol React diferiría del pre-renderizado → hydration mismatch, visible en componentes theme-dependientes (`ThemeToggle`: ícono Sol vs Luna). El valor real se aplica **post-mount** (`sync()` en el effect). Para que el FONDO no parpadee claro→oscuro mientras tanto, un `<script>` inline al inicio del `<body>` en `__root.tsx` aplica la clase `.dark` desde `localStorage` ANTES del paint. El árbol React (íconos) puede parpadear un frame; el fondo no.
+- **Modo claro forzado independiente del SO**: `useTheme()` NUNCA lee `prefers-color-scheme`. El default es claro aunque el SO/navegador esté en oscuro — solo cambia a oscuro si el usuario lo elige explícitamente (queda en `localStorage` + perfil). No agregar media queries `prefers-color-scheme` en ningún lado; romperían el "claro forzado".
+- **Preferencia persistida en el perfil (cross-device)** ([use-theme-preference.ts](src/hooks/use-theme-preference.ts), mig 20261100000000): la columna `profiles.theme_preference` (`light`|`dark`, NULL=default claro) guarda la elección del usuario y lo sigue entre dispositivos. `useProfileThemeSync()` (montado en `AppLayout`) aplica la preferencia del perfil UNA vez por sesión al cargar (DB = fuente de verdad al entrar; guard por `profile.id` para no pisar alternancias en curso). Al alternar el tema, ambos switchers (`ThemeToggle` + el sub-menú de opciones en `AppLayout`) llaman `persistThemePreference(t)` que hace fire-and-forget al RPC `set_theme_preference(_theme)` (SECURITY DEFINER — escribe solo la fila del caller, no depende de la RLS de UPDATE de `profiles`; `anon` revocado, `authenticated` con `GRANT`). `localStorage examlab-theme` sigue siendo el cache/pre-paint POR EQUIPO; el perfil es la preferencia PORTÁTIL. En un equipo nuevo con pref=`dark` guardada hay un flash claro→oscuro en el primer load (localStorage vacío → pre-paint claro → `useProfileThemeSync` aplica oscuro post-mount y actualiza localStorage → sin flash en loads siguientes).
+
+### Dashboards — patrón uniforme (4 stats + 2 cards)
+
+Los 4 dashboards (`SuperAdmin`, `Admin`, `Teacher`, `Student`) en [app.index.tsx](src/routes/app.index.tsx) comparten estructura:
+
+```tsx
+<div className="flex flex-col gap-4 flex-1 min-h-0">
+  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{/* 4 <Stat /> */}</div>
+  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 flex-1 min-h-0">
+    {/* 2 cards que llenan el alto restante */}
+  </div>
+</div>
+```
+
+- 4 stat cards arriba (`<Stat icon label value sub? color onClick? />`) en grid 2-col mobile / 4-col desktop. El componente es shared.
+- 2 cards abajo en `grid-cols-1 sm:grid-cols-2`. `flex-1 + min-h-0` hace que crezcan hasta el final del viewport disponible. Cada card es `flex-col min-h-0`, con `flex-1 overflow-y-auto` en su lista interna para mantener el botón "Ver todos" anclado abajo.
+- **Contenido por rol:**
+  - **SuperAdmin**: Instituciones · Usuarios · Cursos · Cola IA | Instituciones recientes + Actividad reciente (audit_logs cross-tenant).
+  - **Admin**: Cursos · Usuarios · Pendientes calificar · Pendientes docente | Cursos recientes + Actividad reciente (audit_logs del tenant).
+  - **Teacher**: Notas pendientes · Cola IA · Pendientes mi respuesta · Sesiones hoy | Próximas clases + Próximos exámenes.
+  - **Student**: Exámenes pendientes · Talleres pendientes · Proyectos pendientes · Conversaciones pendientes | **Calendario de eventos (izq) + agenda (Próximas clases / Próximos exámenes, der)** lado a lado en una grid `lg:grid-cols-2 flex-1 min-h-0`.
+- **Regla**: no agregar cards anchos de 2 columnas ni filas secundarias de stats — el patrón es **rígido 4+2**. Los cards de información operativa (Cola IA detalle, Correos 24h) se accederon desde sus módulos dedicados del sidebar; el dashboard prioriza lo accionable.
+- **Excepción del Student**: tiene el `StudentEventsCalendar` (vista de mes con dots por tipo). NO va como bloque aparte entre los stats y los cards — eso empujaba la agenda fuera del viewport y forzaba scroll de página. Va **lado a lado** con los 2 cards de agenda dentro de la región `flex-1`: calendario a la izquierda (con `lg:overflow-y-auto` para scroll interno en pantallas bajas), los 2 cards apilados a la derecha (`lg:flex-1` cada uno para dividir la altura en desktop; altura de contenido en mobile). Así el dashboard del estudiante cabe en UNA pantalla sin scroll en desktop.
+- **Saludo del header**: muestra `profile.full_name` completo (no `.split(" ")[0]`).
+- **Patrón `let cancelled = false` obligatorio** en el effect que carga datos del dashboard — el usuario navega rápido entre roles/secciones y sin guard el setState dispara warnings + toasts huérfanos en pantallas distintas.
+
+### Broadcast docente → mensajes en /app/messages
+
+`/app/messages` tiene un botón "Difundir a curso" (rol Docente/Admin) que llama la edge function `broadcast-course-message`.
+
+**Multi-curso**: el dialog permite seleccionar **varios cursos** a la vez (lista de checkboxes + "Seleccionar todos"). El body manda `courseIds: string[]` (la edge sigue aceptando `courseId` legacy vía `normalizeCourseIds`). Un alumno matriculado en >1 curso seleccionado recibe **UNA sola** notif/correo/mensaje — la edge dedup por `user_id`. Autorización: Admin bypassa; Docente debe dictar **TODOS** los cursos seleccionados (uno no autorizado → 403, sin difusión parcial). Helpers puros en [src/modules/messaging/broadcast.ts](src/modules/messaging/broadcast.ts) (`normalizeCourseIds`, `dedupeRecipients`, `canonicalConvPair`, `buildBroadcastBody`) están testeados y **replicados** dentro del edge (Deno no importa de `src/` — si cambian, sincronizar ambos lados).
+
+Efectos del broadcast:
+
+1. **Notificación in-app por estudiante** (`kind='broadcast'`, título `📢 ...`). El predicado `_notification_kind_emails` excluye `broadcast`, así que NO dispara emails individuales.
+2. **UN solo correo SMTP** con TODOS los estudiantes en BCC (privacidad — ningún alumno ve la lista del resto).
+3. **Replicación al inbox de mensajes**: para cada alumno se asegura una conversación 1-a-1 con el sender (UPSERT con orden canónico `user_a < user_b`, `onConflict: "user_a,user_b", ignoreDuplicates: true` — preserva `cleared_at` / `last_read_at` existentes) y se inserta UN mensaje con body `"📢 subject\n\nmessage"` en cada una.
+
+**Saltar el trigger `tg_notify_new_message`** es crítico para que la replicación no genere notif + email extras por mensaje insertado:
+
+- Migración 20260707000000 agrega un check de GUC al trigger: `current_setting('app.skip_message_notif', true) = 'true'` → RETURN NEW sin crear notification.
+- Nueva RPC `insert_broadcast_messages(_sender_id, _conv_ids[], _body)` SECURITY DEFINER hace `PERFORM set_config('app.skip_message_notif', 'true', true)` (transaction-local) y bulk-inserta los mensajes. Trunca body a 4000 chars (CHECK de `messages.body`). Valida `auth.uid() = _sender_id`.
+- La edge llama la RPC con `userClient.rpc(...)` (no `admin`) para que `auth.uid()` coincida con el caller. Si falla la replicación, se audita `broadcast.messages_replication_failed` (severity warning) y se sigue — las notifs in-app y el BCC ya están aplicados.
+
+**Resultado neto por broadcast**: 1 notif (`📢 …`) por alumno + 1 correo por destinatario + N mensajes en las conversaciones 1-a-1. Sin duplicación.
+
+### Etiquetar contenido en mensajes (`#`)
+
+En el chat 1-a-1 y en el composer de difusión el usuario puede etiquetar talleres/exámenes/proyectos escribiendo `#`. El componente reusable [TagTextarea](src/modules/messaging/TagTextarea.tsx) maneja el autocomplete inline (dropdown estilo Slack, navegable con flechas + Enter), inserta el token `[[T:type:id:label]]` en el body, y muestra un preview con el **nombre humano** debajo (el textarea no puede renderizar chips). El picker por tabs (`MessageTagPicker`, botón `#`) sigue como alternativa.
+
+- **Detección del trigger**: `findActiveTagQuery(text, caret)` en [message-tags.ts](src/modules/messaging/message-tags.ts) — el `#` debe estar al inicio o tras espacio; un espacio cierra la mención (así "Taller #1" no se rompe). Testeado.
+- **Render del chip**: en el bubble, `parseMessageBody` → `<Link to={tagRoute(tag, role)}>` con ícono + label. Redirige al listado del módulo según rol.
+- **Difusión**: el body con tokens se replica como chips en /app/messages, pero en la notif/correo (que no renderizan chips) se **humaniza** a `#label` vía `humanizeTags` (replicado en SQL `dispatch_scheduled_messages` + en el edge de broadcast).
+
+### Mensajes programados (Docente/Admin)
+
+Permite programar el envío de un mensaje a futuro, en modo `direct` (1-a-1) o `broadcast` (a cursos). Tabla `scheduled_messages` + función SQL `dispatch_scheduled_messages()` que un **pg_cron cada minuto** ejecuta (migración 20260709000000).
+
+- **Dispatch 100% en SQL** (sin edge): para `direct` inserta el mensaje en la conversación (el trigger `tg_notify_new_message` notifica + emaila); para `broadcast` replica la lógica del edge en PL/pgSQL — notif `kind='broadcast'` humanizada por alumno único + mensaje replicado con tokens crudos (chips) usando el GUC `app.skip_message_notif`.
+- **Autorización RE-VALIDADA en dispatch** (no confía en lo agendado): `direct` → `can_message(creator, recipient)`; `broadcast` → Admin o el creator dicta TODOS los `course_ids`. Una fila no autorizada se marca `failed` con el motivo (no aborta el batch — loop con `BEGIN/EXCEPTION` por fila + `FOR UPDATE SKIP LOCKED`).
+- **UI**: en el dialog de difusión un `DateTimePicker` opcional ("Programar envío") cambia el botón a "Programar"; en el composer del chat un botón reloj abre una fila para programar el directo. El botón "Programados" del header abre el dialog de gestión (lista + cancelar). Validación client-side: `validateScheduledSend` exige ≥1 min en el futuro.
+- **RLS**: el creador gestiona los suyos (SELECT/INSERT/UPDATE/DELETE con `creator_id = auth.uid()`); INSERT exige rol Docente/Admin/SuperAdmin. SuperAdmin ve todos.
+
+### Cambio de contraseña forzado en el primer login
+
+Los usuarios los crea el Admin/SuperAdmin con contraseña temporal. En su primer inicio deben cambiarla antes de usar la app.
+
+- **DB** (mig 20260710000000): `profiles.must_change_password BOOLEAN DEFAULT false`. Lo pone `true`: la edge `bulk-import-users` al CREAR un usuario nuevo, y `admin-update-password` cuando un Admin resetea la contraseña de OTRO (no la propia). Lo baja a `false` el propio usuario al cambiarla **y también la edge `confirm-password-reset`** cuando el usuario elige su contraseña vía token (link de bienvenida o "olvidé mi contraseña"). Razón: ese flujo NO es una contraseña temporal asignada por un admin — el usuario YA eligió la suya, así que NO debe forzarse otro cambio al iniciar sesión. El cambio forzado es SOLO para la temporal que el usuario nunca eligió (login directo con la temp, sin pasar por token). El clear en `confirm-password-reset` es best-effort (si falla, peor caso: el diálogo aparece una vez de más — no bloquea el reset).
+- **UI**: [ForceChangePasswordDialog](src/modules/auth/ForceChangePasswordDialog.tsx) montado en `AppLayout` cuando `user && profile?.must_change_password`. Es BLOQUEANTE: sin X, sin Cancelar, `onEscapeKeyDown`/`onPointerDownOutside`/`onInteractOutside` con `preventDefault`. Única salida alternativa: "Cerrar sesión". Al guardar hace `auth.updateUser({password})` → `profiles.update({must_change_password:false})` → `refreshRoles()` (re-carga el perfil → el diálogo se desmonta).
+- **`useAuth` Profile** incluye `must_change_password?: boolean` (el `select("*")` ya lo trae; opcional en el type por compat con entornos sin la migración).
+- **No es control de seguridad** (un cliente podría flipear el flag por API) — es un nudge de UX. La sesión ya es válida; lo que forzamos es el cambio de la contraseña temporal.
+
+### Guardar contraseña en el navegador — Credential Management API ([credential-store.ts](src/shared/lib/credential-store.ts))
+
+ExamLab es una SPA: el login (`signInWithPassword` + `window.location.href`) y el cambio forzado (`updateUser` + desmontar el diálogo, SIN navegar) evitan el "submit de form real + navegación" del que depende el heurístico de Chrome para ofrecer **guardar contraseña**. Síntoma: al ENTRAR con una cuenta nueva el navegador no ofrecía guardarla (las ya guardadas se autocompletaban, por eso solo se notaba con cuentas nuevas). Fix: `requestBrowserSaveCredential(email, password)` llama `navigator.credentials.store(new PasswordCredential(...))` para disparar la burbuja nativa explícitamente.
+
+- Se llama en [auth.index.tsx](src/routes/auth.index.tsx) `onLogin` (solo en el camino válido, ANTES de `window.location.href` — awaiteado para que la burbuja quede encolada y Chrome la muestre tras el redirect) y en [ForceChangePasswordDialog](src/modules/auth/ForceChangePasswordDialog.tsx) tras `updateUser` (ANTES de `onChanged()`, que desmonta el diálogo — así el navegador actualiza la credencial a la contraseña REAL en vez de quedarse con la temporal).
+- Feature-detected + try/catch: `PasswordCredential` es Chromium-only (Firefox/Safari caen al heurístico del form, que ya tiene `autoComplete` username/current-password/new-password); en contextos http (no seguros) y SSR es no-op. Los `autoComplete` + el `<form>` se mantienen como fallback — NO quitarlos.
+
+### Notificaciones realtime + push
+
+`use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
+
+### Módulo Cron (Admin / Docente)
+
+Rutas: `/app/admin/ai-cron` (Admin, 2 tabs) y `/app/teacher/ai-cron` (Docente, solo cola IA). Etiqueta en sidebar: **"Cron"**. El `module_key` interno se mantiene como `ai_cron` por compat — renombrar implicaría migrar `module_visibility` + bookmarks.
+
+**Tab "IA"** (`AiCronPage.tsx` → `AiQueuePanel` interno):
+
+- Stats: pendientes / en proceso / fallados 24h / último éxito.
+- Filtro por estado (activos / pending / processing / failed / done / cancelled / todos).
+- Tabla de hasta 100 jobs. Por fila: panel expandible inline con id, target_table, target_row_id, intentos, error completo, fechas. Acciones: `Reintentar` (failed → pending vía `requeue_ai_grading_job`), `Procesar este job ahora` (bypass cron, invoca `ai-grading-worker` con `{ jobId }`), `Cancelar` (`cancel_ai_grading_job`).
+- Admin extra: botón global "Procesar ahora" que invoca el worker sin jobId (drena toda la cola pending).
+- Realtime: canal `ai_grading_queue_page` con debounce 800ms para evitar refresh-storm cuando el worker drena varios jobs a la vez.
+- **Resolución de títulos**: 3 pasos de lookups (submissions + project*submission_files → profiles + exams + projects). NO usar embeds PostgREST `profile:profiles!fk*...`—`submissions.user_id`apunta a`auth.users`, NO a `profiles`, y el embed falla silencioso dejando "Examen / Examen".
+- **Navegación**: TanStack file-routing necesita `navigate({ to: "/app/teacher/monitor/$examId", params: { examId } })`. URLs hand-built tipo `/app/teacher/monitor/abc-123` con `as any` **fallan silenciosas** — fue el bug original "ver detalle no abre". Plus, Admin no tiene RBAC a `/app/teacher/*` → para Admin devolvemos `null` y el detalle vive en el panel expandible.
+
+**Tab "Supabase"** (`SupabaseCronPanel.tsx`, Admin-only):
+
+- Lista `extensions.cron.job` vía RPC `admin_list_cron_jobs()` (que hace LEFT JOIN con `cron_job_descriptions`).
+- Por job: nombre + schedule (con traducción a lenguaje natural — `describeSchedule()` cubre patrones comunes), descripción humana, último run con su status, Switch active/pausado, ícono `FileText` para editar descripción, ícono `Pencil` para editar schedule.
+- Descripción en tabla `public.cron_job_descriptions(jobname PK, description, updated_at, updated_by)`. Seed inicial cubre los 11 jobs canónicos (migración 20260603104200). RPCs Admin-only: `admin_set_cron_job_description`, `admin_set_cron_job_active`, `admin_update_cron_job_schedule` — todas con `has_role(auth.uid(),'Admin')` + audit log.
+- **No** se permite editar el `command` (SQL) ni crear/borrar desde UI — eso queda en migraciones versionadas. Alcance: pausar / reagendar / describir.
+- **Inmediatez**: `cron.alter_job` es un UPDATE síncrono. Los cambios aplican al instante en la tabla; el scheduler de pg_cron los respeta en su próximo tick (~1 min). Los toasts y el banner del card lo aclaran. Tras toggle hacemos `await load()` para re-verificar contra DB.
+
+### Cola de Generación IA (`ai_generation_queue`)
+
+Análoga a la cola de calificación (`ai_grading_queue`) pero para **generación**: cuando el docente pide generar preguntas de taller/examen, archivos de proyecto o contenido didáctico con IA, y la mode global (`ai_model_settings.processing_mode`) es `async`, el job se **encola** en lugar de ejecutarse inline. El docente puede esperar a tener un código de "IA inmediata" o un Admin lo procesa más tarde sin bloquear el UI.
+
+- **Tabla** ([supabase/migrations/20260603070000_ai_generation_queue.sql](supabase/migrations/20260603070000_ai_generation_queue.sql)): `ai_generation_queue(id, kind, invoke_target, body jsonb, source_table, source_id, course_id, created_by, status, attempts, inserted_count, last_error, started_at, completed_at, created_at)`. `kind ∈ {workshop_questions, exam_questions, project_files, content_generation}`. `invoke_target` = nombre del edge a llamar (ej. `ai-generate-questions`, `generate-contents`). RLS: SELECT/INSERT/UPDATE/DELETE solo `created_by = auth.uid()` o Admin/SuperAdmin.
+- **Caso especial `content_generation`**: la fila destino (`generated_contents`) NO existe al encolar — el body lleva el form completo. El worker crea la fila + invoca `generate-contents`. `source_id` arranca en `NIL_UUID` (`00000000-...`) y se actualiza con el id real cuando el worker crea la fila, para que el panel pueda joinear.
+- **Worker** ([supabase/functions/ai-generation-worker/index.ts](supabase/functions/ai-generation-worker/index.ts)): `verify_jwt=false` + auth interna. Body `{ jobId?: string }` — sin id es **drain mode** (FIFO, hasta 10 jobs). Claim optimista (`UPDATE ... WHERE status='pending'`) evita doble-procesamiento entre invocaciones concurrentes (cron + UI manual). En drain mode lee `ai_model_settings.processing_mode` y **se autoexcluye si es async** — preserva la semántica "encolé porque quería esperar código". Si llega un `jobId` específico, asume que el caller (UI con código IA activo, o Admin) sabe lo que hace y procesa igual.
+- **Auto-retry transitorio**: `isTransientError(msg)` detecta `429 / 5xx / rate.limit / timeout / ECONN* / fetch.failed / quota.exceeded / service.unavailable / gateway.timeout / internal.server.error`. Si el error matchea y `attempts < MAX_ATTEMPTS (3)`, el worker re-encola el job a `pending` (limpia `started_at`, escribe `last_error="Reintento automático tras error transitorio (intento N/3): ..."`). El próximo tick del cron lo intenta otra vez. Errores NO transitorios (400, 401, content malformado) van a `failed` final sin reintentar — el docente decide manualmente. El patrón regex es **paralelo al del worker de grading** (`complete_ai_grading` SQL, mig 20260601001000) — si se actualiza uno, sincronizar el otro.
+- **Cron** ([supabase/migrations/20260603080000_ai_generation_worker_cron.sql](supabase/migrations/20260603080000_ai_generation_worker_cron.sql)): `ai-generation-worker-hourly` en `15 * * * *` (offset vs grading en `:05` para no chocar). Drain con body `{}`. Descripción seedeada en `cron_job_descriptions` para que aparezca en el panel SuperAdmin → Supabase Cron.
+- **Panel** (`AiGenerationQueuePanel.tsx`, montado como 3er tab de `/app/admin/ai-cron` y `/app/teacher/ai-cron` con ícono `Wand2`): lista jobs con filtro activos/all, expand inline (kind, target, source, body completo, error). Acciones:
+  - Pending → botón ícono `Zap` ("Procesar ahora"): invoca `ai-generation-worker` con `{ jobId }`.
+  - Failed → botón ícono `RefreshCw` ("Reintentar"): re-pone a `pending` y dispara el worker. Distinguir los íconos importa porque la intención semántica es distinta — el usuario debe saber si está forzando un job que ya estaba a la cola, o pidiendo un reintento de algo que ya falló.
+  - Admin: botón global "Procesar todos" sin `jobId` (drain).
+- **Distinción `processing_mode` global**: la mode `sync` vs `async` la setea Admin en `app.admin.ai-prompts.tsx` (tab "Modelo"). `sync` = la generación se ejecuta inline en el form (sin pedir código, sin encolar) y el cron del worker drena la cola que estuviera encolada. `async` = el form pide un código de "IA inmediata" o encola; el cron NO drena. Esto deja a los Admins decidir cuándo permitir generación libre vs cuándo controlar el gasto.
+- **Vista unificada "Jobs" en `/app/{admin,teacher}/ai-cron`** (refactor 2026-06): antes existían 3 tabs separadas para el Docente (Activos/Historial/Generaciones) y 5 para el Admin (IA/Historial/Generaciones/Configuración/Supabase). El docente quería ver TODO lo que la IA hizo o tiene pendiente sin saltar entre tabs. La tab "Generaciones" se eliminó: su panel (`AiGenerationQueuePanel`) ahora se renderiza DEBAJO de `AiQueuePanel` dentro de la tab "Jobs" (antes "IA"/"Activos"), separados por un divisor + header "Generaciones". Cada panel mantiene su propia card + filtros — solo se renderizan juntos. El módulo conserva el `module_key` interno `ai_cron` por compat con `module_visibility` + bookmarks.
+- **Edge `generate-contents` con `verify_jwt=false`** (supabase/config.toml): la edge la invoca tanto el `ai-generation-worker` (Bearer service*role_key, drain del job kind=content_generation) como la UI del docente (Bearer user JWT en flujo sync). Cuando el service_role del proyecto es del sistema nuevo (`sb_secret*\*`, no JWT parseable), el gateway con verify_jwt=true responde `401 UNAUTHORIZED_INVALID_JWT_FORMAT`antes de llegar al handler — error reportado: "generate-contents HTTP 401: Invalid JWT" desde Cola IA → Generaciones. Apagamos verify_jwt; la autorización fina se enforza via`body.id`+`adminClient`con RLS al leer/escribir`generated_contents`(mismo patrón que`ai-grading-worker`/`ai-grade-submission`).
+- **Edge `ai-generate-questions` con `verify_jwt=false`** (supabase/config.toml + handler): mismo problema y solución que `generate-contents`. La edge la invoca el frontend (Bearer user JWT, flujo sync del docente) y `ai-generation-worker` (Bearer service_role_key, drain de jobs `kind ∈ {workshop_questions, exam_questions, project_files}` que apuntan a `invoke_target = "ai-generate-questions"`). Con verify_jwt=true el service_role `sb_secret_*` se rebota con 401 antes del handler — error reportado en Cola IA: "HTTP 401: UNAUTHORIZED_INVALID_JWT_FORMAT" en jobs de "Preguntas de taller" desde el worker. El handler valida internamente al inicio del `Deno.serve`: `bearer === SUPABASE_SERVICE_ROLE_KEY` → pass (worker), o user JWT válido vía `userClientFromRequest` → pass (UI). Sin esa validación, agregar verify_jwt=false dejaría la edge abierta a cualquiera con la URL (gastaría créditos IA + podría inyectar preguntas via service_role bypass de RLS).
+
+### Módulo Soporte (PQRS Admin de tenant → SuperAdmin)
+
+Canal de peticiones, quejas, reclamos y sugerencias del Admin de un tenant hacia el dueño de plataforma. Reemplaza el "email al SuperAdmin" como mecanismo informal.
+
+- **DB** ([20260904000000_support_tickets.sql](supabase/migrations/20260904000000_support_tickets.sql)): tres tablas — `support_tickets` (cabecera + status + assignment + resolution_notes + soft-delete), `support_ticket_messages` (chat), `support_ticket_attachments` (archivos en bucket `support-attachments`). Categorías: `peticion`, `queja`, `reclamo`, `sugerencia`, `otro`. Status: `open` → `in_progress` → `waiting_admin` → `resolved` / `closed`. Trigger `_support_tickets_touch_updated_at` setea `resolved_at` automáticamente al pasar a resolved/closed.
+- **RLS**:
+  - SELECT: `created_by = auth.uid()` (admin del propio ticket) O `is_super_admin()`.
+  - INSERT: solo Admin del tenant. WITH CHECK valida `tenant_id = (select tenant_id from profiles where id = auth.uid())` para que el admin no pueda abrir tickets a nombre de otro tenant.
+  - UPDATE: SA puede todo; Admin solo puede modificar su ticket (típicamente status='closed' o priority). NO puede tocar `resolution_notes` ni `assigned_to`.
+  - DELETE: solo SA (hard-delete; el soft-delete pasa por el column `deleted_at` que NO se expone al Admin via UPDATE).
+- **Notificaciones (triggers SQL)**:
+  - INSERT en tickets → notif `🎫 Nuevo ticket de soporte` a TODOS los SuperAdmins (`source_role='Admin'`), link `/app/superadmin/support?ticket=<id>`.
+  - UPDATE de status → notif al `created_by` con label humano del status (`🎫 Ticket actualizado`).
+  - INSERT en messages → si sender es SA, notif al `created_by`; si es Admin, notif al `assigned_to` o a TODOS los SA si no hay asignado.
+- **Storage bucket `support-attachments`** (privado): RLS valida que el caller sea creator del ticket O SA. Path convention: `<ticket_id>/<random-uuid>.<ext>` — el ticket_id se extrae con `split_part(name, '/', 1)` en la policy para joinear con `support_tickets`. Las descargas usan `createSignedUrl(path, 60)` (60s de vigencia).
+- **UI**:
+  - [src/modules/support/SupportTicketDetailDialog.tsx](src/modules/support/SupportTicketDetailDialog.tsx): dialog COMPARTIDO entre Admin y SA con prop `mode`. Tiene chat realtime (suscripción a INSERT en `support_ticket_messages` filtrado por ticket_id), composer con Ctrl+Enter para enviar, adjuntar archivos (max 25 MB), download via signed URL.
+  - [src/routes/app.admin.support.tsx](src/routes/app.admin.support.tsx): lista de SUS tickets + botón "Nuevo ticket" + stats 4-card.
+  - [src/routes/app.superadmin.support.tsx](src/routes/app.superadmin.support.tsx): bandeja cross-tenant con filtros por estado/tenant/búsqueda. Default filter `active` (open + in_progress + waiting_admin).
+- **Auto-asignación**: cuando el SA responde por primera vez a un ticket `open`, el dialog lo mueve automáticamente a `in_progress` y setea `assigned_to = currentUserId`. Si el SA mueve a resolved/closed sin assignment, también se auto-asigna.
+- **Módulo en panel**: `{ key: "support", label: "Soporte" }` con roleKeyMap implícito (no virtual — directo). Solo aplica a Admin y SuperAdmin; Docente/Estudiante toggles quedan no-op. NAV item con icono `LifeBuoy`, label `nav.support` ("Soporte" / "Support").
+- **Onboarding tour**: ADMIN_TOUR tiene step Soporte después de Papelera y antes de Configuración. SuperAdmin no tiene tour (decisión de producto).
+
+### Restricción de mensajería al SuperAdmin
+
+`can_message(_a, _b)` actualizado (mig [20260903000000](supabase/migrations/20260903000000_can_message_block_to_superadmin.sql)) para bloquear que Docente/Estudiante inicien chat con un SuperAdmin. Si CUALQUIERA de los dos lados es SA (sin importar otros roles que tenga), el otro DEBE ser Admin o SA. Esto se aplica simétrico — `open_conversation` y RLS de `messages.INSERT` consumen la misma función, así que el bloqueo es consistente UI + DB.
+
+Caso operativo: el SuperAdmin recibe mensajes solo de Admins de tenants (cuestiones cross-tenant). El canal "Admin del tenant → SuperAdmin" para PQRS es el **módulo Soporte**, no mensajes directos.
+
+### Card "Email (SMTP)" en SystemDiagnosticsPanel
+
+El panel de Diagnósticos del SuperAdmin (`/app/superadmin/system` tab "Diagnósticos") tenía 9 `<StatusCard>` en grid `lg:grid-cols-2` — el último (Tareas programadas) quedaba huérfano en su fila. Se agregó un 10º card como contraparte natural de "Web Push": valida presencia de los 5 secrets críticos del SMTP (`SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD`, `EMAIL_FROM`). Si todos están presentes, status `ok`; si falta cualquiera, `error` con la lista de secrets ausentes. Mantiene la simetría visual del grid sin requerir un edge function de prueba.
+
+### Auto-sleep Java GUI runner (sin pedirle `Thread.sleep` al alumno)
+
+El estudiante escribe `JFrame f = new JFrame(); f.setVisible(true);` y termina su `main`. Sin algo que mantenga viva la JVM, Xvfb captura un framebuffer negro porque Swing no alcanzó a pintar. Pedirle al alumno que ponga `Thread.sleep(4000)` al final del main es ruido pedagógico — no es lo que evalúa la pregunta y se les olvida.
+
+- **`aws/code-runner/GuiBootstrap.java`**: wrapper que recibe `-Dexamlab.gui.mainClass=Main` y `-Dexamlab.gui.sleepMs=NNNN`, invoca el `main` del estudiante por reflection en un hilo daemon, espera `sleepMs` y hace `System.exit(0)`. Si el `main` lanza, desempaqueta `InvocationTargetException` para mostrar la causa real (NPE, etc.) y sale con code 2.
+- **Dockerfile**: `COPY GuiBootstrap.java /opt/` + `javac -d /opt` durante el build. Sin costo en runtime.
+- **`app.py`**: invoca `java -Dexamlab.gui.mainClass=Main -Dexamlab.gui.sleepMs=<delay-200> -cp tmp:/opt GuiBootstrap`. El sleep del bootstrap = `delay_ms` pedido − 200ms (margen para System.exit antes de que Python mate el proceso).
+- **Pillow BGRX (no BGRA)**: Xvfb depth-24 usa 32 bits por píxel donde el 4to byte es padding (X), no alpha. Leer como BGRA con `Image.frombytes("RGBA", ..., "raw", "BGRA")` interpretaba ese padding como alpha=0 → PNG con transparencia → el visor mostraba checkerboard a través de la ventana Swing. Usar `Image.frombytes("RGB", ..., "raw", "BGRX")` descarta el byte de padding y el PNG sale opaco. Side benefit: PNGs ~25% más chicos (3 canales vs 4).
+- **Fontconfig**: el Dockerfile hace `mkdir -p /var/cache/fontconfig && fc-cache -fv && chmod -R a+rX` en build. ENV `XDG_CACHE_HOME=/tmp` en runtime como fallback. Sin esto Swing pinta el JFrame pero sin texto (Fontconfig error: No writable cache directories).
+
+### Selector de runner por pregunta en examen (resiliencia)
+
+El admin configura UN proveedor global en `code_execution_settings`. Pero durante un examen pueden pasar fallos transitorios (Lambda cold start lento, OnlineCompiler 5xx, CheerpJ que no descarga `tools.jar`). Con UNA sola opción el estudiante pierde la pregunta.
+
+- **Backend** ([supabase/functions/execute-code/index.ts](supabase/functions/execute-code/index.ts)): acepta `provider?: string` en el body. Whitelist: `onlinecompiler / jdoodle / aws_lambda` (CheerpJ es client-side, no llega al edge). Si llega un override válido lo usa; si no, default del admin. Audit metadata registra `provider`, `default_provider`, `provider_overridden` para detectar patrones de fallo.
+- **Frontend** ([CodeRunnerPicker.tsx](src/modules/code/CodeRunnerPicker.tsx)): Select compacto sobre cada `CodeEditor` de pregunta `codigo`. Filtra opciones por lenguaje (CheerpJ solo para Java). Etiqueta "(default)" en la opción del admin; chip "Override" cuando el alumno cambia. Estado `runnerOverride: Record<questionId, provider>` en TakeExam.
+- **`JavaGuiRunner`**: Select propio al lado del badge para alternar entre `cheerp` y `aws_screenshot` sin esperar al admin.
+
+### Cancelar ejecución de código
+
+Hasta que el alumno tiene una opción para cambiar de compilador, necesita poder cancelar el run en curso. CheerpJ NO expone API para matar la JVM (corre en un Web Worker), y los edge functions siguen ejecutando server-side hasta que el provider responda. Lo que SÍ hacemos: liberar la UI inmediatamente.
+
+- **`CodeEditor`** acepta `onCancel?: () => void`. Botón `Cancelar` aparece a la derecha del de Ejecutar mientras `isRunning && onCancel`.
+- **`runJavaInBrowser(src, signal?)`** acepta `AbortSignal`. `withTimeout(p, ms, signal?)` añade `signal.addEventListener("abort", ...)` a la carrera, rechazando con el sentinel exportado `CANCELLED_SENTINEL`. El caller distingue cancelación-de-usuario de error real en su catch.
+- **TakeExam**: `runAbortersRef: Record<questionId, AbortController>`. `cancelRun(qid)` aborta el controller, limpia el slot, marca `runningCode=false`, toast informativo. `runCode` pasa el signal a CheerpJ y hace race con `cancelPromise` para el edge function (abandona la respuesta — el server termina solo). El catch silencia el sentinel.
+- **`JavaGuiRunner`**: `abortRef` interno + botón `Cancelar` en el footer del dialog cuando `running || loadingCJ`.
+- **Limitación documentada**: CheerpJ no se mata; el edge function tampoco se cancela server-side. Pero el alumno ya puede cambiar de compilador y reintentar sin esperar.
+
+### Onboarding tour guiado (driver.js)
+
+Tour interactivo de bienvenida que se dispara la primera vez que un usuario entra a la plataforma con un rol determinado. Anclado al sidebar — un paso por cada ítem visible + brand + role-switcher + footer (notificaciones, mensajes, opciones, logout).
+
+**Estado actual (V1)**:
+- ✅ **Admin**: 20 pasos completos (brand + role-switcher + 14 módulos del sidebar + 4 del footer)
+- ⏳ **Docente**: pendiente — array `TEACHER_TOUR` vacío en [tour-config.ts](src/modules/onboarding/tour-config.ts)
+- ⏳ **Estudiante**: pendiente — array `STUDENT_TOUR` vacío
+- ❌ **SuperAdmin**: NO tiene tour por decisión de producto (operación cross-tenant, ya conoce la plataforma)
+
+**Arquitectura**:
+
+| Archivo | Rol |
+|---|---|
+| [src/modules/onboarding/tour-config.ts](src/modules/onboarding/tour-config.ts) | Arrays de pasos por rol. Cada paso: `{ element: 'selector CSS', title, description, side?, align? }` |
+| [src/modules/onboarding/use-onboarding.ts](src/modules/onboarding/use-onboarding.ts) | Hook: lee `profile.onboarding_completed_roles` + `active-role-signal`. Decide `shouldShowFor` con 1s delay. Expone `complete()`, `restart()`, `dismiss()` |
+| [src/modules/onboarding/OnboardingTour.tsx](src/modules/onboarding/OnboardingTour.tsx) | Wrapper de driver.js. Filtra pasos cuyo selector no exista en DOM. Al cerrar llama `onComplete(role)` (o `onDismiss()` si `manualMode`) |
+| [src/modules/onboarding/onboarding-tour.css](src/modules/onboarding/onboarding-tour.css) | Overrides de `.driver-*` classes para que el popover use `var(--popover)`, `var(--primary)`, etc. Respeta dark mode y branding del tenant automáticamente |
+| [supabase/migrations/20260605000000_onboarding_completed_roles.sql](supabase/migrations/20260605000000_onboarding_completed_roles.sql) | Columna `profiles.onboarding_completed_roles TEXT[]` + RPCs `mark_onboarding_complete(_role)` y `reset_onboarding(_role)` |
+
+**Convenciones de anclaje**:
+
+- **Ítems del sidebar nav**: atributo `data-tour-nav={item.to}` en cada `<Link>` / `<button>` del nav.map en [AppLayout.tsx](src/shared/components/AppLayout.tsx). El selector en el tour-config es `[data-tour-nav="/app/admin/courses"]` (path completo).
+- **Elementos no-nav** (brand, role-switcher, footer): atributo `data-tour-id="<nombre>"` en el elemento. Selector: `[data-tour-id="brand"]`. Nombres existentes: `brand`, `role-switcher`, `user-info`, `notifications-bell`, `messages-bell`, `more-options`, `logout`.
+
+**Cómo agregar un paso nuevo al tour de un rol**:
+1. Identificar el elemento ancla en la UI.
+2. Si es un nav item, ya tiene `data-tour-nav`. Si es otro elemento, agregar `data-tour-id="nombre-único"`.
+3. Agregar entry en el array del rol correspondiente en `tour-config.ts`:
+   ```ts
+   { element: '[data-tour-id="nombre-único"]', title: '...', description: '...', side: 'right' }
+   ```
+4. El tour automáticamente lo incluye al desplegarse. Si el elemento no está en el DOM en ese momento (ej. visible solo en otra ruta), el filtro defensivo lo skipea sin error.
+
+**Cómo agregar el tour de Docente/Estudiante**:
+1. Llenar `TEACHER_TOUR` (o `STUDENT_TOUR`) en `tour-config.ts` con la misma estructura que `ADMIN_TOUR`.
+2. No requiere cambios en `useOnboarding`, `OnboardingTour` ni `AppLayout` — el resto del pipeline ya soporta los 3 roles.
+
+**Trigger del tour**:
+- **Automático**: hook detecta `activeRole NOT IN profile.onboarding_completed_roles` → dispara con 1s delay después del login. Al completar/cerrar llama RPC `mark_onboarding_complete(role)` que agrega el rol al array.
+- **Manual**: ítem "Ver tour guiado" en el dropdown del menú avatar (footer del sidebar). En modo manual NO toca el flag — el usuario puede ver el tour cuantas veces quiera.
+
+**Limitaciones conocidas**:
+- **Mobile**: el sidebar está oculto en `<md`. Los selectores no matchean → tour se cancela silenciosamente (filter elimina todos los pasos). Si se quiere tour en mobile, hay que abrir el drawer + agregar selectores específicos del drawer.
+- **Página de toma de examen**: el sidebar puede estar visible pero los nav items son no-funcionales (`isTakingExam`). El tour igual se mostraría sobre items inactivos. Si se vuelve un problema, agregar guard en `useOnboarding` para no disparar cuando `isTakingExam`.
+
+**Reset manual desde SQL (admin)**:
+```sql
+-- Re-mostrarle el tour a un usuario específico para un rol:
+SELECT public.reset_onboarding('Admin');  -- como el propio usuario
+-- O como service_role para forzar a un user específico:
+UPDATE profiles
+   SET onboarding_completed_roles = array_remove(onboarding_completed_roles, 'Admin')
+ WHERE id = '<user_id>';
+```
+
+### Alerta temprana (semáforo de riesgo por estudiante)
+
+Panel que le dice al docente **a quién buscar esta semana y por qué**. Vive dentro de
+`CourseDashboard` ([app.teacher.statistics.tsx](src/routes/app.teacher.statistics.tsx)), así que
+aparece igual en Estadísticas del Docente y del Admin sin duplicar código, y **arriba de las
+gráficas** a propósito: es lo accionable de la pantalla.
+
+- **Clasificador PURO** ([src/shared/lib/early-alert.ts](src/shared/lib/early-alert.ts), 35 tests):
+  consume el `CourseDataset` que `statistics.ts` ya carga → **cero queries extra** para calcular.
+  `classifyCourse(...)` devuelve `StudentRisk[]` ordenado de mayor a menor riesgo.
+- **Motivos, no puntaje**: cada estudiante acumula motivos discretos y verificables
+  (`inasistencia`, `reprobadas`, `no_entregadas`, `promedio_bajo`) y el nivel se deriva de CUÁNTOS
+  se cruzaron: 0 → `sin_riesgo`, 1 → `en_observacion`, 2+ → `en_riesgo`. **Que hagan falta DOS
+  señales independientes para el rojo es el corazón del diseño**: evita que un curso exigente donde
+  media clase reprobó un parcial amanezca todo en rojo y el docente deje de mirar el panel. Un score
+  0..100 se descartó: un número opaco no dice qué hacer y cuando no se entiende, no se le cree.
+- **Tres reglas de justicia en la asistencia** (si se rompen, el docente deja de confiar en el
+  semáforo — no cambiarlas sin motivo): `tarde` cuenta como que ASISTIÓ (es disciplina, no
+  deserción); `justificado` **sale del denominador** (una ausencia excusada no puede empujar a nadie
+  al rojo); y solo cuentan las sesiones donde el estudiante TIENE registro (si el docente no tomó
+  asistencia no hay filas, y tratar "sin registro" como ausente marcaría al curso entero). Sin
+  registros → `attendanceRate = null`, que es **ausencia de dato, NO 0% de asistencia**.
+- **`promedio_bajo` no tiene umbral propio**: usa `courses.passing_grade`, que YA es el umbral que la
+  institución definió. Tener dos sería pedir configurar dos veces lo mismo y dejarlos contradecirse.
+- **Umbrales por institución** (mig [20261580000000](supabase/migrations/20261580000000_early_alert_thresholds.sql)):
+  3 columnas en `app_settings` (singleton POR institución, ya con `tenant_id`, ya provisionada por
+  `tg_provision_tenant_defaults`, ya con RLS scopeada) → **sin tabla ni RLS nueva**. `NULL` = usar el
+  default del código; `thresholdsFromSettings` cae campo por campo, así que una institución a medio
+  configurar funciona igual. La asistencia se guarda como **fracción 0..1** y se pide en **%** en el
+  panel (`AdminGeneralSettingsPanel` → Configuración → General).
+- **Solo se listan los que requieren atención**: los `sin_riesgo` se cuentan en el resumen pero no se
+  enumeran — un listado de 90 filas donde 85 están bien entierra a los 5 que importan.
+- **`RiskBadge` no usa `StatusBadge` a propósito**: ese centraliza estados de
+  exam/workshop/project/submission sobre las 4 variantes de Badge y **ninguna expresa ámbar ni
+  verde**; un semáforo sin ámbar deja de ser semáforo. La regla de "no badges de estado ad-hoc por
+  pantalla" se respeta manteniendo el mapeo de tonos en un solo lugar (`RISK_TONE`).
+- **Ícono `TrendingDown`** (rendimiento en declive). NO `LifeBuoy` — ese es el módulo Soporte.
+- **Limitación conocida**: el universo de actividades se deriva de las entregas existentes, así que
+  una actividad que **nadie** entregó no cuenta como "no entregada". Es aceptable porque en ese caso
+  el faltante es igual para todo el curso y no distingue a nadie; el caso que importa (todos
+  entregaron menos este) sí queda cubierto.
+- **Pendiente (V2)**: notificación automática al docente y persistencia del nivel para ver su
+  evolución. Requiere replicar el clasificador server-side (SQL o Deno) + dedup por
+  "empeoró desde el último snapshot" + cadencia de digest. Se dejó afuera a propósito: sería la 15ª
+  invariante cross-file del proyecto y hacerla mal genera spam, que es peor que no tenerla.
+
+### Progreso de material + continuidad ("Seguías en…")
+
+Registra qué archivos del material del tablero abrió/descargó cada alumno, para mostrarle cuánto
+lleva y ofrecerle retomar donde iba. Mig
+[20261590000000](supabase/migrations/20261590000000_content_file_progress.sql).
+
+- **La clave estable es `file_path`** (no el índice, no el `name`, no el `kind`). Los archivos viven
+  en `generated_contents.files[]` y su `path` tiene formato `<owner_uid>/<content_id>/<slug>`, así que
+  **el path solo ya identifica el archivo** (embebe el contentId). Sobrevive las ediciones in-place
+  porque "nueva versión" es un `upsert` al MISMO path en todos los flujos. El **índice** se corre al
+  borrar un archivo y al regen parcial de IA; el **`name`** colisiona por slugificación; y el `kind`
+  es inservible como discriminador porque el tipo TS declara `"pptx-source"|"md"|"txt"` pero **todo el
+  material subido tiene `kind="uploaded"`** (por eso el cliente discrimina por EXTENSIÓN). Precedente:
+  `content_slide_annotations` (20261570000000) keyea por `"<file_path>#<slide_index>"`.
+- **Tabla `content_file_progress`** con PK `(user_id, course_id, content_id, file_path)`. `course_id`
+  va en la PK porque el mismo contenido puede estar en 2 cursos del alumno **y** porque da el scope de
+  tenant sin joins — `generated_contents.course_id` es NULLABLE y esa tabla no tiene `tenant_id`, así
+  que el tenant NO se puede derivar del contenido. `session_id` NO va en la PK (el mismo archivo se
+  renderiza bajo N sesiones; en la clave duplicaría filas).
+- **Escritura SOLO por RPC**: la tabla **no tiene policy de INSERT/UPDATE a propósito**. Con una
+  policy owner-writable un alumno podría POSTear `opened_at` sin abrir nada (la clase de vuln
+  self-tamper del repo). Precedente: `workshop_submission_video_views`.
+- **UN predicado de visibilidad compartido** (`content_file_visible_to_student`) usado por el RPC de
+  escritura **y** por el de lectura. Sin eso, la continuidad seguía ofreciendo material que el docente
+  ya había despublicado o mandado a la papelera, contradiciendo al conteo del tablero.
+- **NO se muestra un "% de avance"** — decisión deliberada, y por eso el helper puro
+  ([content-progress.ts](src/modules/progress/content-progress.ts)) **no expone un `pct`**: si lo
+  expusiera, alguien lo pintaría. Dos razones verificadas: (a) el denominador CRECE durante el
+  semestre (el tablero muestra el material de todas las sesiones y el gate `release_after_session_date`
+  no lo usa ningún contenido en prod), así que cada archivo que sube el docente bajaría el % de todos
+  — un alumno al día vería 100% en marzo y 60% en abril; (b) un archivo REEMPLAZADO sigue contando
+  como visto, porque el upsert al mismo path es justo lo que hace estable la clave. Lo que sí es
+  literalmente cierto es **"abriste N de M archivos"**, y eso es lo que se muestra.
+- **El denominador se calcula en el CLIENTE**, no en SQL: el filtro de visibilidad combina
+  `isTeacherOnlyFile`, el subconjunto explícito de la sesión y `classNumberFromFilename`, con un
+  fallback que decide sobre el CONJUNTO completo (no es un predicado por fila). Replicarlo en PL/pgSQL
+  sería un invariante frágil sobre dos regex con casos borde ya documentados. Por eso el conteo vive
+  **solo dentro del tablero** y las cards del índice reciben **continuidad**, que no necesita
+  denominador. No agregar un segundo número aproximado en las cards: dos cifras distintas para el
+  mismo curso se leen como bug.
+- **Huérfanas**: un regen COMPLETO con IA reescribe `files[]` con paths nuevos y deja filas colgadas.
+  Se ignoran por INTERSECCIÓN contra el `files[]` actual (no se borran, no inflan el número).
+- **Telemetría, no acción del usuario** ([mark-viewed.ts](src/modules/progress/mark-viewed.ts)):
+  fire-and-forget, sin `await` antes de abrir el visor, sin toast de error. El dedupe de módulo se
+  keyea **incluyendo la acción** — con solo (contenido, archivo) se perdería la transición
+  abrir→descargar, que es justo lo que las columnas `opened_at`/`downloaded_at` separadas existen para
+  registrar.
+- **`ContentFileChip` es el único lugar con el branch por tipo de archivo**, así que un solo
+  `onConsume` cubre los 5 tipos. Ojo: hay **DOS** call sites (material por sesión y material general
+  del curso) — sin el segundo, el material general nunca se marca y el conteo jamás llega al total.
+- **Limitación honesta de v1**: se registra el EVENTO (abrió / descargó), no la profundidad. Un click
+  marca "abierto" sin leer nada. Por eso **no debe alimentar notas ni gates de entrega**: para eso
+  haría falta señal de consumo real (tiempo mínimo, plausibilidad server-side), que es otro feature.
+- **Fuera de v1**: progreso/posición de VIDEOS. `/app/videos` no reproduce nada (es un
+  `<a target=_blank>`), así que el paso 0 sería crear un player extrayendo el tracker de
+  `IntroVideoGate`. Y la posición en YouTube/Vimeo es inaccesible con el código actual (son `<iframe>`
+  sin su API cargada, y no se pueden agregar dependencias npm). Cuando llegue, `video_views` —hoy una
+  tabla MUERTA, 0 referencias fuera de `types.ts`— es el lugar correcto: sumarle `position_sec` +
+  RPC de upsert con `GREATEST`, nunca una policy owner-writable.
+
+### Papelera (soft-delete) — `/app/trash`
+
+Sistema de "borrado reversible" para 8 entidades padre: `courses`, `exams`, `workshops`, `projects`, `attendance_sessions`, `whiteboards`, `generated_contents`, `polls`. Toda eliminación de estas entidades pasa por el flujo soft → trash → purge a 30 días.
+
+- **DB** ([20260816000000_trash_soft_delete.sql](supabase/migrations/20260816000000_trash_soft_delete.sql)): columnas `deleted_at TIMESTAMPTZ` + `deleted_by UUID REFERENCES auth.users` en las 8 tablas. Index parcial `WHERE deleted_at IS NOT NULL` por tabla. RPCs `trash_restore_item(_table, _id)` y `trash_hard_delete_item(_table, _id)` con `SECURITY INVOKER` (la RLS del caller aplica). Función `purge_deleted_items(_ttl INTERVAL DEFAULT '30 days')` con `SECURITY DEFINER` invocada por pg_cron job `purge-deleted-items-daily` a las 03:00 UTC.
+- **Seed** ([20260816000010_seed_trash_module_visibility.sql](supabase/migrations/20260816000010_seed_trash_module_visibility.sql)): fila en `module_visibility` (`tenant_id IS NULL`) con `display_order=250`, enabled para Docente/Admin/SuperAdmin, disabled para Estudiante.
+- **Helpers** ([src/modules/trash/soft-delete.ts](src/modules/trash/soft-delete.ts)): `softDelete(table, id)` y `softDeleteMany(table, ids)` para los handlers; `restoreItem(table, id)` y `hardDeleteItem(table, id)` invocan las RPCs. `TRASH_TABLE_LABEL` + `TRASH_NAME_COL` para mapping UI.
+- **UI** ([src/routes/app.trash.tsx](src/routes/app.trash.tsx)): tabla unificada de las 8 tablas con `usePagination` + search + `useMultiSelect`. Bulk restore + bulk hard-delete. Badge "días restantes" colorado (rojo ≤3d, ámbar ≤7d). RBAC: solo Docente/Admin/SuperAdmin (en `src/shared/lib/rbac.ts`).
+- **Handlers convertidos**: `app.admin.courses.tsx`, `app.teacher.exams.index.tsx`, `app.teacher.workshops.tsx`, `app.teacher.projects.tsx`, `app.teacher.attendance.tsx`, `app.teacher.whiteboards.index.tsx`, `app.teacher.contents.tsx`, `app.teacher.polls.tsx`. TODOS los listados principales filtran `is('deleted_at', null)` en su query inicial.
+- **`deleted_at` en TODA query/flujo, no solo en los listados principales** (regla obligatoria): un item en papelera NO debe verse en NINGÚN flujo ni rol hasta restaurarse. Los listados principales ya filtran, pero las vistas DERIVADAS (calendarios, dashboards/agenda, gradebook, reportes, el edge ICS) leían las entidades por **EMBED** (`courses(workshops(...))`, `exam_assignments(exams(...))`) o por query directa SIN el filtro → un taller/examen/proyecto/sesión en papelera seguía apareciendo (bug reportado: estudiante veía un taller borrado en su calendario). **Patrón de fix**: para query directa, agregar `.is("deleted_at", null)`; para EMBED (PostgREST no filtra fácil en anidados profundos), agregar `deleted_at` al `select` del embed y **saltar en JS** (`if (x.deleted_at) continue/return`). Flujos auditados+arreglados (2026-06): `app.student.calendar`, `StudentEventsCalendar` (dashboard), `app.index` (agenda estudiante + counts/sesiones/exámenes docente), `app.student.workshops`/`exams`/`grades`, `app.teacher.gradebook`, `report-context.ts`, edge `student-calendar-ics`. Ya OK desde antes: `app.student.projects`/`polls`/`whiteboards`/`attendance`/`courses`. Flujos auditados+arreglados (2026-06-10): **Kahoot en vivo** — `KahootJoinCard` (la lista de juegos activos joinea `polls` por embed; se agregó `deleted_at` al `select` y se saltan en JS los juegos cuyo poll está en papelera) + el RPC `kahoot_join_game` (rechaza unirse a un juego cuyo poll está soft-deleted, devolviendo el mismo error que un PIN inválido — cierra el camino por PIN/deep-link stale). **REGLA UNIVERSAL (obligatoria): cuando algo se elimina y va a la PAPELERA, deja de ser visualizable Y usable en CUALQUIER flujo y rol hasta que se restaure — sin excepción.** Al agregar CUALQUIER lectura de una de las 8 entidades soft-delete, filtrar `deleted_at` desde el inicio, en TODOS los caminos: query directa (`.is("deleted_at", null)`), embed PostgREST (agregar `deleted_at` al select + saltar en JS), RPC `SECURITY DEFINER` (guard `deleted_at IS NULL` server-side, no confiar solo en el filtro del cliente), suscripciones realtime / juegos en vivo, dashboards/agenda/calendarios, reportes y edges. Si una entidad nueva entra al set soft-delete, auditar sus flujos derivados ANTES de mergear.
+- **Tipo `ModuleKey`** en `use-module-visibility.ts` incluye `"trash"`. NAV path `/app/trash` mapeado en `NAV_PATH_TO_MODULE` para que respete display_order configurable.
+- **Limitación V1**: `generated_contents` soft-delete NO borra archivos del Storage. Quedan disponibles al restaurar; al hard-delete físico quedan huérfanos hasta cleanup manual (TODO v2 — job que limpie storage al purge).
+- **Tests** ([src/modules/trash/soft-delete.test.ts](src/modules/trash/soft-delete.test.ts)): cobertura del set canónico de tablas + `TRASH_TABLE_LABEL` / `TRASH_NAME_COL`.
+
+### Organización de módulos — fuente única + guardrail (OBLIGATORIO al crear un módulo)
+
+Un "módulo" es una unidad del menú/plataforma con visibilidad y orden configurables por rol
+(panel Admin **Módulos** → tabla `module_visibility`). La **fuente única de verdad** de qué módulos
+existen y cómo mapean vive en [src/shared/lib/module-catalog.ts](src/shared/lib/module-catalog.ts):
+`ALL_MODULE_KEYS` (lista runtime, exhaustiva vs el type `ModuleKey`), `MODULE_CATALOG` (filas del
+panel, incluye virtuales `calificaciones`→gradebook/grades y `users`→users/teacher_students vía
+`roleKeyMap`) y `NAV_PATH_TO_MODULE` (mapeo ruta del sidebar→módulo, para orden/visibility). El
+gating de RUTAS vive en `PREFIX_TO_MODULE` ([ModuleRouteGuard.tsx](src/shared/components/ModuleRouteGuard.tsx))
+— con prefijos + sub-rutas.
+
+**Guardrail automático** ([src/shared/lib/module-catalog.test.ts](src/shared/lib/module-catalog.test.ts)
++ el check de compile-time `_exhaustiveModuleKeys` en module-catalog.ts): rompe el build / los
+tests si un módulo no está registrado en todos lados. Corre en `bun test` (o vitest). NO editar el
+test para "hacerlo pasar" — arreglar la inconsistencia real.
+
+**Checklist para agregar un módulo nuevo** (o al renombrar/borrar uno):
+1. `ModuleKey` en [use-module-visibility.ts](src/hooks/use-module-visibility.ts) — agregar el key al union.
+2. `ALL_MODULE_KEYS` en [module-catalog.ts](src/shared/lib/module-catalog.ts) — agregar el key (el check de exhaustividad rompe el build si falta).
+3. `MODULE_CATALOG` (misma file) — agregar la fila del panel `{ key, label }` (o virtual con `roleKeyMap`).
+4. `NAV_PATH_TO_MODULE` (misma file) — mapear la(s) ruta(s) EXACTA(s) del sidebar → el módulo.
+5. `PREFIX_TO_MODULE` en [ModuleRouteGuard.tsx](src/shared/components/ModuleRouteGuard.tsx) — mapear el prefijo de ruta (para que el toggle enforce el acceso; sin esto la URL queda accesible aunque el módulo esté off). Excepciones intencionales: `dashboard` (`/app`) y `configuration` (escape hatch).
+6. NAV item en [AppLayout.tsx](src/shared/components/AppLayout.tsx) con `roles` + `data-tour-nav`.
+7. Regla RBAC en [rbac.ts](src/shared/lib/rbac.ts) si aplica (rutas `/app/teacher/*` que el SuperAdmin acceda necesitan excepción explícita — ver convención).
+8. Seed en `module_visibility` (migración) si querés un default distinto de "visible para todos".
+9. Clave `nav.*` en `src/i18n/locales/{es,en}.json` para el label del sidebar.
+10. Correr `bun test` — el guardrail valida 2–5 automáticamente.
+
+### Base de datos en el navegador — tipo de pregunta `bd_sql` (PostgreSQL real vía WASM)
+
+El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre en su propia pestaña
+(**PGlite** compilado a WASM). No hay servidor de base de datos, ni contenedor, ni red: la base es
+**efímera** y muere con la pestaña.
+
+- **Por qué un tipo aparte y no `codigo` con `language='sql'`**: el tipo `codigo` va al runner de
+  Judge0/Lambda, que ejecuta un proceso y devuelve stdout. SQL necesita un motor **con estado**
+  (esquema + datos sembrados) y devuelve **conjuntos de filas**, no texto. Mismo criterio por el que
+  `so_consola` es un tipo y no un `language`. **`sql` NO se agrega a `CodeLanguage`** — eso implicaría
+  que corre en el runner, y no corre ahí.
+- **Carga por CDN, no dependencia npm** ([pglite-loader.ts](src/modules/database/pglite-loader.ts)):
+  mismo patrón que CheerpJ, v86 y xterm — el lockfile es `bun.lock` y agregar deps obliga a
+  regenerarlo. Versión **pineada**. Se importa la **ruta directa del dist**, NO `/+esm`: PGlite resuelve
+  sus assets con `new URL(..., import.meta.url)` e importa chunks relativos, y el bundle `/+esm`
+  rompería esa resolución (el mismo tipo de fallo mudo que el BIOS de v86 en una ref móvil).
+- **Pesa ~16 MB** (`pglite.wasm` 9,9 MB + `pglite.data` 6,1 MB + `initdb.wasm`). El SW hace **bypass
+  total de jsdelivr**, así que los cachea el navegador por HTTP, no el SW: primera carga costosa,
+  siguientes instantáneas, **sin offline**. Por eso la base se crea al pulsar **Ejecutar y no al montar**:
+  un examen con 5 preguntas SQL no debe bajar 16 MB antes de que el alumno escriba una letra.
+- **Cada corrida arranca una base LIMPIA** (se cierra la anterior). Es lo contrario de una consola: en
+  SQL, dejar estado entre corridas hace que un `INSERT` ejecutado dos veces duplique filas y el alumno
+  vea resultados que su script no explica. Base limpia + `setupSql` ⇒ ejecutar dos veces da el MISMO
+ — si no, se destroza justo el ejemplo avanzado (una función plpgsql) que
+  hoy funciona. Y al correr una **selección**, antes corren el `setupSql` **y las sentencias de la hoja
+  que están más arriba**, sin mostrar sus resultados: con base nueva por corrida, sin eso una consulta
+  suelta no tiene contra qué correr. Si alguna de esas falla se avisa el CONTEO (no el detalle), porque
+  es la causa de que la selección falle.
 - **Sin columnas nuevas**: el esquema/datos de partida del docente va en `options.db.setupSql`; la
   respuesta (SQL **+ lo que devolvió la base**) se serializa a JSON en la columna de respuesta
   existente ([sql-answer.ts](src/modules/database/sql-answer.ts), 20 tests). **El resultado se persiste**

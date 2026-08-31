@@ -571,6 +571,37 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Crear tablas desde el editor de la hoja de SQL ahora surte efecto.** Escribir un `CREATE TABLE` en
+  el editor y ejecutar podía dejar la tabla sin crear, con un error que apuntaba a otra línea. La causa:
+  la hoja se mandaba completa en una sola llamada, y Postgres ejecuta un lote de sentencias dentro de
+  una **transacción implícita** — así que *cualquier* error revertía todo lo anterior. Con el guion de
+  la captura del reporte (un `SELECT` a una vista que no existía, y debajo el `CREATE TABLE`), la
+  creación se deshacía y la consulta siguiente fallaba diciendo que la tabla no existe: dos errores en
+  cascada de los cuales el usuario no había cometido ninguno en el `CREATE`.
+
+  Ahora cada sentencia se ejecuta por separado y la corrida **sigue después de un error**: lo que estaba
+  bien surte efecto y cada error queda al lado de la sentencia que lo produjo, en vez de un único
+  mensaje que se atribuye a toda la hoja. Partir el guion no se puede hacer con un `split(";")` —un
+  punto y coma dentro de un literal, de un comentario o de un bloque `$ … $` de plpgsql partiría la
+  sentencia al medio y el motor recibiría SQL inválido—, así que la partición vive en un módulo puro con
+  tests, verificado además contra un PostgreSQL real: una función plpgsql con `;` adentro y un literal
+  `'uno; dos'` sobreviven intactos.
+
+  Y al ejecutar **una selección**, ahora corre antes lo que está más arriba en la hoja (sin mostrar sus
+  resultados), igual que ya corría el esquema de partida. Con base nueva en cada ejecución, una consulta
+  suelta no tenía contra qué correr si su tabla se creaba tres líneas más arriba: seleccionar una línea
+  y ejecutar devolvía "la tabla no existe". Si alguna de esas sentencias previas falla se avisa cuántas
+  fueron, porque es justamente la causa de que la selección falle.
+
+- **Shift+Enter baja renglón en la caja del generador de SQL de la pizarra.** Era un campo de una sola
+  línea, así que la tecla no tenía dónde escribir el salto; y el manejador atajaba *cualquier* Enter, de
+  modo que Shift+Enter generaba en vez de bajar. Ahí se describe un esquema entero ("clientes y pedidos,
+  10 filas, un GRANT de solo lectura"), así que ahora son dos renglones que crecen, y la pantalla dice
+  el atajo. La regla quedó en un helper con tests en vez de repetida por pantalla —es exactamente el
+  olvido que causó el bug— y de paso cubre la composición de un IME, donde Enter confirma el candidato y
+  no debe enviar. Auditado el resto de las cajas: el asistente, el tutor y el composer de mensajes ya
+  estaban bien.
+
 - **Volver a escanear el QR ya no vuelve a marcar la asistencia: avisa que ya estaba.** Antes cada
   re-escaneo sobrescribía el registro y respondía "asistencia registrada" otra vez, así que el
   estudiante que escaneaba de nuevo —porque no vio el mensaje, porque recargó, porque el QR seguía
