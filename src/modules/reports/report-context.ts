@@ -34,9 +34,26 @@ import {
   type CourseScheduleBlock,
 } from "@/modules/schedules/course-schedule";
 import type { TemplateContext } from "./template-engine";
+import { ranuraHtml } from "./signature-slots";
+import {
+  construirEvaluacion,
+  preguntasDeBanco,
+  preguntasDeProyecto,
+  respuestasDeExamen,
+  respuestasDeFilas,
+  type FocoTipo,
+  type PreguntaFuente,
+  type RespuestaFuente,
+} from "./foco-evaluacion";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
+
+/** Qué evaluación concreta mira el informe. La elige el docente al GENERAR. */
+export interface FocoEvaluacion {
+  tipo: FocoTipo;
+  id: string;
+}
 
 export interface BuildReportArgs {
   courseId: string;
@@ -44,6 +61,12 @@ export interface BuildReportArgs {
   studentId?: string;
   /** Texto a usar como periodo (ej. "2026-1"). Opcional. */
   periodo?: string;
+  /**
+   * Una evaluación concreta (examen / taller / proyecto) para poblar
+   * `{{evaluacion.*}}` con su detalle por pregunta. Sin esto el contexto sigue
+   * igual que antes: la clave `evaluacion` no existe.
+   */
+  foco?: FocoEvaluacion;
 }
 
 // ── Tipos internos (lo que devolvemos al motor) ─────────────────────
@@ -139,16 +162,344 @@ function effectiveScore(sub: {
   return null;
 }
 
+/**
+ * Marca de la institución (nombre + logo) para el encabezado del documento.
+ *
+ * `certificate_settings` es un singleton POR institución, así que hay que
+ * ACOTARLO: un SuperAdmin bypassa la RLS y recibe una fila por institución, con lo
+ * cual `maybeSingle()` a secas devolvía null y el documento salía sin nombre y sin
+ * logo. Peor todavía sería quedarse con "la primera": pondría la marca de una
+ * institución en el documento de otra. Sin fila para esa institución se devuelve
+ * vacío, nunca la de al lado.
+ */
+async function leerInstitucion(
+  tenantId: string | null,
+): Promise<{ nombre: string; logo: string }> {
+  let q = db.from("certificate_settings").select("institution_name, institution_logo_url");
+  if (tenantId) q = q.eq("tenant_id", tenantId);
+  const { data } = await q.limit(1).maybeSingle();
+  return {
+    nombre: data?.institution_name ?? "—",
+    logo: data?.institution_logo_url ?? "",
+  };
+}
+
+// ── Carga de UNA evaluación concreta (el "foco") ────────────────────
+
+/**
+ * Lo que hace falta para armar `{{evaluacion.*}}` de TODO un curso: las
+ * preguntas una sola vez y las respuestas por estudiante.
+ *
+ * Se carga por CURSO y no por estudiante aunque el informe sea de uno solo,
+ * porque el documento compara al estudiante con su grupo (el promedio del curso y
+ * el porcentaje por pregunta) y eso necesita las entregas de todos. Es también lo
+ * que deja la puerta abierta a generar el informe de los 93 en un lote sin volver
+ * a escribir esto.
+ */
+export interface CargaEvaluacion {
+  tipo: FocoTipo;
+  titulo: string;
+  /** % de la nota final del curso que aporta la actividad, EN ESTE curso. */
+  peso: number;
+  preguntas: PreguntaFuente[];
+  /** userId → (preguntaId → respuesta). Solo los que tienen entrega. */
+  respuestasPorUsuario: Map<string, Map<string, RespuestaFuente>>;
+  /** Cabecera de la entrega de cada estudiante. */
+  entregaPorUsuario: Map<
+    string,
+    { fecha: string | null; estado: string | null; comentario: string | null }
+  >;
+}
+
+/** userId → id de la entrega, resolviendo también por MEMBRESÍA de grupo. */
+async function entregasPorUsuarioDeGrupo(
+  tabla: string,
+  colItem: string,
+  itemId: string,
+  tablaGrupos: string,
+  tablaMiembros: string,
+  userIds: string[],
+): Promise<{
+  porUsuario: Map<string, string>;
+  filas: Array<{ id: string; user_id: string; group_id: string | null; final_grade: number | null; ai_grade: number | null; status: string | null; teacher_feedback: string | null; submitted_at: string | null }>;
+}> {
+  const { data: subs } = await db
+    .from(tabla)
+    .select("id, user_id, group_id, final_grade, ai_grade, status, teacher_feedback, submitted_at")
+    .eq(colItem, itemId);
+  const filas = (subs ?? []) as Array<{
+    id: string;
+    user_id: string;
+    group_id: string | null;
+    final_grade: number | null;
+    ai_grade: number | null;
+    status: string | null;
+    teacher_feedback: string | null;
+    submitted_at: string | null;
+  }>;
+  const porUsuario = new Map<string, string>();
+  // Miembros de los grupos de ESTE item: en una entrega grupal `user_id` es solo
+  // el último editor, así que sin esto los demás miembros del grupo saldrían con
+  // el informe en blanco aunque su grupo entregó.
+  const { data: grupos } = await db.from(tablaGrupos).select("id").eq(colItem, itemId);
+  const gIds = ((grupos ?? []) as Array<{ id: string }>).map((g) => g.id);
+  const grupoPorUsuario = new Map<string, Set<string>>();
+  if (gIds.length > 0) {
+    const { data: miembros } = await db
+      .from(tablaMiembros)
+      .select("group_id, user_id")
+      .in("group_id", gIds);
+    for (const m of (miembros ?? []) as Array<{ group_id: string; user_id: string }>) {
+      if (!grupoPorUsuario.has(m.user_id)) grupoPorUsuario.set(m.user_id, new Set());
+      grupoPorUsuario.get(m.user_id)!.add(m.group_id);
+    }
+  }
+  for (const uid of userIds) {
+    const propia = filas.find((s) => s.user_id === uid);
+    const grupal = filas.find((s) => !!s.group_id && !!grupoPorUsuario.get(uid)?.has(s.group_id));
+    const elegida = propia ?? grupal;
+    if (elegida) porUsuario.set(uid, elegida.id);
+  }
+  return { porUsuario, filas };
+}
+
+/**
+ * Carga la evaluación elegida. Devuelve `null` si no existe, si está en la
+ * papelera o si no pertenece al curso del informe.
+ *
+ * La papelera se vuelve a verificar ACÁ y no se confía en el filtro del selector:
+ * el docente pudo elegirla y borrarla en otra pestaña, y un documento firmado que
+ * habla de una actividad eliminada no se puede deshacer.
+ */
+export async function cargarEvaluacionParaCurso(args: {
+  courseId: string;
+  foco: FocoEvaluacion;
+  userIds: string[];
+}): Promise<CargaEvaluacion | null> {
+  const { courseId, foco, userIds } = args;
+  if (!foco?.id) return null;
+
+  if (foco.tipo === "examen") {
+    const { data: ex } = await db
+      .from("exams")
+      .select("id, title, weight, course_id, deleted_at")
+      .eq("id", foco.id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!ex || ex.course_id !== courseId) return null;
+    const [{ data: qs }, { data: subs }] = await Promise.all([
+      db
+        .from("questions")
+        .select("id, content, type, points, position, expected_rubric, options, starter_code, language")
+        .eq("exam_id", foco.id)
+        .order("position"),
+      db
+        .from("submissions")
+        .select("user_id, answers, status, submitted_at, created_at, teacher_feedback, ai_grade, final_override_grade")
+        .eq("exam_id", foco.id)
+        .in("user_id", userIds.length ? userIds : ["00000000-0000-0000-0000-000000000000"]),
+    ]);
+    const preguntas = preguntasDeBanco((qs ?? []) as Array<{ id: string }>);
+    const filas = (subs ?? []) as Array<{
+      user_id: string;
+      answers: unknown;
+      status: string | null;
+      submitted_at: string | null;
+      created_at: string;
+      teacher_feedback: string | null;
+    }>;
+    const respuestasPorUsuario = new Map<string, Map<string, RespuestaFuente>>();
+    const entregaPorUsuario = new Map<
+      string,
+      { fecha: string | null; estado: string | null; comentario: string | null }
+    >();
+    for (const uid of userIds) {
+      const propias = filas.filter((f) => f.user_id === uid);
+      if (propias.length === 0) continue;
+      // Con varios intentos se muestra el DETALLE del más reciente. La NOTA la
+      // resuelve `resolveExamGrade` según `retry_mode`, así que en un examen
+      // "más alto" o "promedio" la nota puede no ser la suma del detalle — por
+      // eso el documento habla de "puntos" en el detalle y de "nota" aparte.
+      const ultima = [...propias].sort(
+        (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      )[0];
+      respuestasPorUsuario.set(uid, respuestasDeExamen(preguntas, ultima.answers));
+      entregaPorUsuario.set(uid, {
+        fecha: ultima.submitted_at ?? null,
+        estado: ultima.status ?? null,
+        comentario: ultima.teacher_feedback ?? null,
+      });
+    }
+    return {
+      tipo: "examen",
+      titulo: ex.title ?? "",
+      peso: Number(ex.weight ?? 0),
+      preguntas,
+      respuestasPorUsuario,
+      entregaPorUsuario,
+    };
+  }
+
+  if (foco.tipo === "taller") {
+    const { data: w } = await db
+      .from("workshops")
+      .select("id, title, deleted_at")
+      .eq("id", foco.id)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!w) return null;
+    // El peso y el corte de un taller son POR CURSO (`workshop_courses`): el
+    // `course_id` del taller es solo el ancla, y un taller compartido tiene un
+    // peso distinto en cada curso.
+    const { data: wc } = await db
+      .from("workshop_courses")
+      .select("weight")
+      .eq("workshop_id", foco.id)
+      .eq("course_id", courseId)
+      .maybeSingle();
+    if (!wc) return null;
+    const { data: qs } = await db
+      .from("workshop_questions")
+      .select("id, content, type, points, position, expected_rubric, options, starter_code, language")
+      .eq("workshop_id", foco.id)
+      .order("position");
+    const preguntas = preguntasDeBanco((qs ?? []) as Array<{ id: string }>);
+    const { porUsuario, filas } = await entregasPorUsuarioDeGrupo(
+      "workshop_submissions",
+      "workshop_id",
+      foco.id,
+      "workshop_groups",
+      "workshop_group_members",
+      userIds,
+    );
+    const subIds = [...new Set(porUsuario.values())];
+    const { data: ans } = subIds.length
+      ? await db
+          .from("workshop_submission_answers")
+          .select("submission_id, question_id, answer_text, selected_option, code_content, diagram_code, ai_grade, ai_feedback")
+          .in("submission_id", subIds)
+      : { data: [] as Array<Record<string, unknown>> };
+    const porSubmission = new Map<string, Array<Record<string, unknown>>>();
+    for (const r of (ans ?? []) as Array<{ submission_id: string }>) {
+      const arr = porSubmission.get(r.submission_id) ?? [];
+      arr.push(r as unknown as Record<string, unknown>);
+      porSubmission.set(r.submission_id, arr);
+    }
+    const respuestasPorUsuario = new Map<string, Map<string, RespuestaFuente>>();
+    const entregaPorUsuario = new Map<
+      string,
+      { fecha: string | null; estado: string | null; comentario: string | null }
+    >();
+    for (const [uid, subId] of porUsuario) {
+      const rows = (porSubmission.get(subId) ?? []).map((r) => ({
+        id: String(r.question_id ?? ""),
+        answer_text: (r.answer_text as string | null) ?? null,
+        selected_option: (r.selected_option as string | null) ?? null,
+        code_content: (r.code_content as string | null) ?? null,
+        diagram_code: (r.diagram_code as string | null) ?? null,
+        ai_grade: (r.ai_grade as number | null) ?? null,
+        ai_feedback: (r.ai_feedback as string | null) ?? null,
+      }));
+      respuestasPorUsuario.set(uid, respuestasDeFilas(preguntas, rows));
+      const sub = filas.find((f) => f.id === subId);
+      entregaPorUsuario.set(uid, {
+        fecha: sub?.submitted_at ?? null,
+        estado: sub?.status ?? null,
+        comentario: sub?.teacher_feedback ?? null,
+      });
+    }
+    return {
+      tipo: "taller",
+      titulo: w.title ?? "",
+      peso: Number(wc.weight ?? 0),
+      preguntas,
+      respuestasPorUsuario,
+      entregaPorUsuario,
+    };
+  }
+
+  const { data: p } = await db
+    .from("projects")
+    .select("id, title, deleted_at")
+    .eq("id", foco.id)
+    .is("deleted_at", null)
+    .maybeSingle();
+  if (!p) return null;
+  const { data: pc } = await db
+    .from("project_courses")
+    .select("weight")
+    .eq("project_id", foco.id)
+    .eq("course_id", courseId)
+    .maybeSingle();
+  if (!pc) return null;
+  const { data: fs } = await db
+    .from("project_files")
+    .select("id, title, description, type, points, position, expected_rubric, options, starter_code, language")
+    .eq("project_id", foco.id)
+    .order("position");
+  const preguntas = preguntasDeProyecto((fs ?? []) as Array<{ id: string }>);
+  const { porUsuario, filas } = await entregasPorUsuarioDeGrupo(
+    "project_submissions",
+    "project_id",
+    foco.id,
+    "project_groups",
+    "project_group_members",
+    userIds,
+  );
+  const subIds = [...new Set(porUsuario.values())];
+  const { data: pf } = subIds.length
+    ? await db
+        .from("project_submission_files")
+        .select("submission_id, file_id, content, selected_option, ai_grade, ai_feedback")
+        .in("submission_id", subIds)
+    : { data: [] as Array<Record<string, unknown>> };
+  const porSubmission = new Map<string, Array<Record<string, unknown>>>();
+  for (const r of (pf ?? []) as Array<{ submission_id: string }>) {
+    const arr = porSubmission.get(r.submission_id) ?? [];
+    arr.push(r as unknown as Record<string, unknown>);
+    porSubmission.set(r.submission_id, arr);
+  }
+  const respuestasPorUsuario = new Map<string, Map<string, RespuestaFuente>>();
+  const entregaPorUsuario = new Map<
+    string,
+    { fecha: string | null; estado: string | null; comentario: string | null }
+  >();
+  for (const [uid, subId] of porUsuario) {
+    const rows = (porSubmission.get(subId) ?? []).map((r) => ({
+      id: String(r.file_id ?? ""),
+      content: (r.content as string | null) ?? null,
+      selected_option: (r.selected_option as string | null) ?? null,
+      ai_grade: (r.ai_grade as number | null) ?? null,
+      ai_feedback: (r.ai_feedback as string | null) ?? null,
+    }));
+    respuestasPorUsuario.set(uid, respuestasDeFilas(preguntas, rows));
+    const sub = filas.find((f) => f.id === subId);
+    entregaPorUsuario.set(uid, {
+      fecha: sub?.submitted_at ?? null,
+      estado: sub?.status ?? null,
+      comentario: sub?.teacher_feedback ?? null,
+    });
+  }
+  return {
+    tipo: "proyecto",
+    titulo: p.title ?? "",
+    peso: Number(pc.weight ?? 0),
+    preguntas,
+    respuestasPorUsuario,
+    entregaPorUsuario,
+  };
+}
+
 // ── Builder principal ───────────────────────────────────────────────
 
 export async function buildReportContext(args: BuildReportArgs): Promise<TemplateContext> {
-  const { courseId, studentId, periodo } = args;
+  const { courseId, studentId, periodo, foco } = args;
 
   // ── Curso (con join al programa académico + periodo si tiene FKs) ──
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
+      "id, name, code, semestre, grupo, period, period_id, tenant_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -178,11 +529,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     }
   }
 
-  // ── Institución (settings globales) ─────────────────────────────
-  const { data: certSettings } = await db
-    .from("certificate_settings")
-    .select("institution_name, institution_logo_url")
-    .maybeSingle();
+  const institucion = await leerInstitucion(courseRow.tenant_id ?? null);
 
   // Horario del curso (bloques semanales). Lo formateamos a texto
   // plano para que la plantilla lo use como un campo simple.
@@ -200,11 +547,6 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       notes: null,
     })),
   );
-  const institucion = {
-    nombre: certSettings?.institution_name ?? "—",
-    logo: certSettings?.institution_logo_url ?? "",
-  };
-
   // ── Cortes + items + asistencia (mismas queries del gradebook) ──
   const [{ data: cuts }, { data: examsAll }, { data: wcRows }, { data: pcRows }, { data: sessions }] =
     await Promise.all([
@@ -642,13 +984,72 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     fecha_emision: formatDate(new Date()),
   };
 
+  // ── Evaluación concreta (el "foco"), si el generador la eligió ───
+  // La NOTA se toma de los MISMOS resolvers que el resto del boletín; el detalle
+  // por pregunta no la recalcula. Sin esto, el informe firmado podría imprimir una
+  // nota distinta de la que el libro de notas muestra para la misma prueba.
+  let evaluacionCtx: Record<string, unknown> | null = null;
+  let evaluacionPorUsuario: Map<string, Record<string, unknown>> | null = null;
+  if (foco) {
+    const carga = await cargarEvaluacionParaCurso({
+      courseId,
+      foco,
+      userIds: studentList.map((s) => s.id),
+    });
+    if (carga) {
+      const notaDe = (uid: string): number | null => {
+        if (carga.tipo === "examen") {
+          const e = examOriginals.find((x) => x.id === foco.id) ?? exams.find((x) => x.id === foco.id);
+          return e
+            ? resolveExamGrade(e.id, (e.retry_mode as RetryMode) ?? "last", uid)
+            : null;
+        }
+        if (carga.tipo === "taller") {
+          const w = workshops.find((x) => x.id === foco.id);
+          return w ? resolveWorkshopGrade(w, uid) : null;
+        }
+        const p2 = projects.find((x) => x.id === foco.id);
+        return p2 ? resolveProjectGrade(p2, uid) : null;
+      };
+      const respuestasCurso = [...carga.respuestasPorUsuario.values()];
+      const notasCurso = studentList.map((s) => notaDe(s.id));
+      evaluacionPorUsuario = new Map(
+        studentList.map((s) => {
+          const entrega = carga.entregaPorUsuario.get(s.id);
+          return [
+            s.id,
+            construirEvaluacion({
+              tipo: carga.tipo,
+              titulo: carga.titulo,
+              peso: carga.peso,
+              nota: notaDe(s.id),
+              fechaEntrega: entrega?.fecha ?? null,
+              estado: entrega?.estado ?? null,
+              comentarioDocente: entrega?.comentario ?? null,
+              preguntas: carga.preguntas,
+              respuestas: carga.respuestasPorUsuario.get(s.id) ?? new Map(),
+              respuestasCurso,
+              notasCurso,
+            }) as unknown as Record<string, unknown>,
+          ];
+        }),
+      );
+      if (studentId) evaluacionCtx = evaluacionPorUsuario.get(studentId) ?? null;
+    }
+  }
+
   if (studentId) {
     // Scope 'estudiante': aplanamos las propiedades del único alumno al root
     const s = studentList[0];
     if (!s) throw new Error("Estudiante no encontrado");
     return {
       ...baseCtx,
+      ...(evaluacionCtx ? { evaluacion: evaluacionCtx } : {}),
       estudiante: {
+        // Ancla de la ranura de firma. NO se expone en el panel de variables (un
+        // UUID a la vista no le sirve a nadie y es justo lo que P6 evita): quien
+        // lo usa es `firmantes.estudiante.ranura`, de acá abajo.
+        user_id: s.id,
         nombre: s.nombre,
         email: s.email,
         codigo: s.codigo,
@@ -656,6 +1057,19 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         cohorte: s.cohorte,
         estado: s.estado,
         programa: s.programa,
+      },
+      // La firma como VARIABLE: el valor es la RANURA ya anclada —un recuadro
+      // vacío—, nunca una firma. Al generar el informe todavía no hay ninguna, y
+      // el HTML que se guarda es exactamente lo que se firma. Esto es lo que
+      // permite poner la firma en cualquier lugar del documento, y no solo dentro
+      // de la tabla de `{{#each estudiantes}}`, que era el único sitio donde
+      // `{{user_id}}` resolvía.
+      firmantes: {
+        estudiante: {
+          user_id: s.id,
+          nombre: s.nombre,
+          ranura: ranuraHtml(s.id),
+        },
       },
       nota_final: s.nota_final,
       // aprobado / estado_aprobacion: se calculan por alumno en buildStudent y el
@@ -681,6 +1095,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // `user_id` y no como `id` porque en una plantilla `{{id}}` dentro de un
       // `{{#each}}` se lee como "el id de la fila" y no dice de quién.
       user_id: s.id,
+      // La ranura de esa fila, ya anclada: es la misma que emite la caja de
+      // firmas, disponible como variable para quien arma la tabla a mano.
+      ranura: ranuraHtml(s.id),
       nombre: s.nombre,
       email: s.email,
       codigo: s.codigo,
@@ -696,6 +1113,15 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       examenes: s.examenes,
       talleres: s.talleres,
       proyectos: s.proyectos,
+      // El detalle de la evaluación elegida, por estudiante: así un consolidado
+      // de curso puede recorrer `{{#each estudiantes}}` y mostrar cómo le fue a
+      // cada uno en la MISMA prueba.
+      //
+      // En el scope 'curso' `evaluacion` existe SOLO acá dentro y no en la raíz, a
+      // propósito: puntaje, nota y respondidas son de UNA persona, y ponerlos
+      // arriba haría que un `{{evaluacion.nota}}` fuera del bucle imprimiera la
+      // nota de alguien —la del primero de la lista— como si fuera del curso.
+      ...(evaluacionPorUsuario ? { evaluacion: evaluacionPorUsuario.get(s.id) ?? null } : {}),
     })),
     // Estructura de evaluación del curso, para documentos como el Acuerdo
     // Pedagógico que describen CÓMO se evalúa (no cuánto sacó cada uno). Antes
@@ -736,7 +1162,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 export async function buildReportContextFromActa(actaId: string): Promise<TemplateContext> {
   const { data: actaRow, error } = await db
     .from("course_actas")
-    .select("snapshot, generated_at, integrity_hash, periodo_codigo")
+    .select("snapshot, generated_at, integrity_hash, periodo_codigo, course_id")
     .eq("id", actaId)
     .maybeSingle();
   if (error || !actaRow) {
@@ -745,15 +1171,12 @@ export async function buildReportContextFromActa(actaId: string): Promise<Templa
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const snap = actaRow.snapshot as any;
 
-  // Institución se lee viva (branding actual, no histórico).
-  const { data: certSettings } = await db
-    .from("certificate_settings")
-    .select("institution_name, institution_logo_url")
-    .maybeSingle();
-  const institucion = {
-    nombre: certSettings?.institution_name ?? "—",
-    logo: certSettings?.institution_logo_url ?? "",
-  };
+  // Institución se lee viva (branding actual, no histórico), acotada a la
+  // institución del curso del acta — ver `leerInstitucion`.
+  const { data: cursoDelActa } = actaRow.course_id
+    ? await db.from("courses").select("tenant_id").eq("id", actaRow.course_id).maybeSingle()
+    : { data: null };
+  const institucion = await leerInstitucion(cursoDelActa?.tenant_id ?? null);
 
   const escalaMax = Number(snap?.curso?.escala_max ?? 5);
   const periodoCode = snap?.periodo?.code ?? actaRow.periodo_codigo ?? "";
@@ -837,9 +1260,13 @@ export async function buildReportContextFromActa(actaId: string): Promise<Templa
       integrity_hash: actaRow.integrity_hash,
       hash_corto: String(actaRow.integrity_hash).slice(0, 16),
     },
-    // `user_id` también acá: un acta reimpresa desde su snapshot tiene que poder
-    // mostrar las firmas igual que el documento recién generado.
-    estudiantes: studentList.map((s: { id: string }) => ({ ...s, user_id: s.id })),
+    // `user_id` y `ranura` también acá: un acta reimpresa desde su snapshot tiene
+    // que poder mostrar las firmas igual que el documento recién generado.
+    estudiantes: studentList.map((s: { id: string }) => ({
+      ...s,
+      user_id: s.id,
+      ranura: ranuraHtml(s.id),
+    })),
     total_estudiantes: Number(snap?.total_estudiantes ?? studentList.length),
     total_aprobados: Number(snap?.total_aprobados ?? 0),
     total_reprobados: Number(snap?.total_reprobados ?? 0),

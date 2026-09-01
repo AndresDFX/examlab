@@ -27,6 +27,29 @@
     "errLoad": "We could not load your documents",
     "untitled": "Document"
   },
+  "reportLint": {
+    "anclaVacia": "There are {{n}} signature space(s) that belong to nobody: once the report is generated they are boxes no one can sign.",
+    "firmaFueraDelBucle": "There are {{n}} signature space(s) outside the student list, so there is no way to tell whose they are and nobody will be able to sign them. Move them inside the list, or use the student signature space in a per-student report.",
+    "ranuraSoloPorEstudiante": "The student signature space only works in a per-student report. In a course report the signature goes inside the student list.",
+    "ranuraEscapada": "There are {{n}} signature space(s) written with double braces: the document would show them as text instead of a space to sign. Insert them from the variables panel.",
+    "pideEvaluacion": "This template is about an assessment: you will pick which one (an exam, a workshop or a project) when you generate the report.",
+    "tabHasErrors": "The check found problems"
+  },
+  "reportBase": {
+    "badge": "The base template changed",
+    "actionDiff": "See what changed in the base",
+    "actionPull": "Bring the changes from the base",
+    "actionPullHint": "Replaces your content with the base content.",
+    "actionIgnore": "Stop telling me",
+    "pullTitle": "Bring the changes from the base?",
+    "pullDesc": "The content of your customized template is replaced with the base template's. Anything you wrote in it is lost. The name and the course do not change.",
+    "pullConfirm": "Bring the changes",
+    "pullOk": "Your template now matches the base.",
+    "diffTitle": "What changed in the base template",
+    "diffDesc": "In green, what your customized template has. In red, what the base says and your copy is missing.",
+    "diffEmpty": "The content is the same. The base was updated, but nothing your template uses changed.",
+    "diffCounts": "{{nuevas}} yours · {{faltantes}} from the base"
+  },
   "reportSign": {
     "copyLink": "Copy link",
     "dialogHint": "Choose who should sign “{{name}}”. They will see the document exactly as generated.",
@@ -3660,6 +3683,7 @@
       "templateDuplicated": "Template duplicated as private",
       "actaTemplateNotFound": "The 'Course completion record' template was not found. Ask the admin to publish it.",
       "selectStudent": "Select a student",
+      "selectFoco": "Pick the assessment this report is about",
       "generateReportError": "Error generating the report",
       "previewUnavailable": "Preview unavailable",
       "docxEmpty": "The document contains no text to import.",
@@ -8946,6 +8970,13 @@
     "aiBusyHint": "It may take 30 to 90 seconds per file. Don't close this window."
   },
   "hc_routesAppTeacherReports": {
+    "focoLabel": "Assessment",
+    "focoPlaceholder": "Pick the exam, workshop or project",
+    "focoEmpty": "This course has no published exams, workshops or projects yet.",
+    "focoLoadError": "We could not load the course assessments.",
+    "focoTipoExamen": "Exam",
+    "focoTipoTaller": "Workshop",
+    "focoTipoProyecto": "Project",
     "badgeGlobal": "Global",
     "badgeCustom": "Customized",
     "badgePrivate": "Private",
@@ -10219,5 +10250,28 @@
     "frameworkLabel": "Framework",
     "noneVisible": "No questions to show with this filter.",
     "showAll": "Show all"
+  },
+  "publicDocument": {
+    "invalidTitle": "This link is not available",
+    "invalidBody": "The link may have been turned off, replaced by a new one, or the document may no longer exist. Ask your teacher for the current link.",
+    "loginToSign": "You can read the document without signing in. To sign it, log in with your platform email and password.",
+    "notASigner": "You are signed in, but this document does not request your signature. Tell your teacher if you think it should.",
+    "email": "Email",
+    "password": "Password",
+    "login": "Sign in",
+    "errLogin": "Wrong email or password.",
+    "errSign": "Your signature could not be recorded. Try again.",
+    "signedOk": "Your signature was recorded.",
+    "alreadySigned": "You already signed this document.",
+    "footerNote": "Signing here is a record of acceptance, not a certified digital signature. It is stored with the date, the time and your session.",
+    "share": "Public document link",
+    "shareAgain": "Copy the public link again",
+    "shareCopied": "Link copied. It can be read without signing in; signing asks for email and password.",
+    "shareError": "The public link could not be created.",
+    "revoke": "Turn off the public link",
+    "revokeTitle": "Turn off the public link?",
+    "revokeBody": "Any link already circulating stops opening the document. Whoever already signed stays signed. You can create a new one whenever you want.",
+    "revokeConfirm": "Turn off",
+    "revoked": "Link turned off."
   }
 }

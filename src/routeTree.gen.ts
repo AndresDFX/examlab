@@ -19,6 +19,7 @@ import { Route as AppIndexRouteImport } from './routes/app.index'
 import { Route as VerifyShortCodeRouteImport } from './routes/verify.$shortCode'
 import { Route as RetoPinRouteImport } from './routes/reto.$pin'
 import { Route as EncuestaTokenRouteImport } from './routes/encuesta.$token'
+import { Route as DocumentoTokenRouteImport } from './routes/documento.$token'
 import { Route as AuthSsoCallbackRouteImport } from './routes/auth.sso-callback'
 import { Route as AuthResetPasswordRouteImport } from './routes/auth.reset-password'
 import { Route as AuthConfirmEmailChangeRouteImport } from './routes/auth.confirm-email-change'
@@ -144,6 +145,11 @@ const RetoPinRoute = RetoPinRouteImport.update({
 const EncuestaTokenRoute = EncuestaTokenRouteImport.update({
   id: '/encuesta/$token',
   path: '/encuesta/$token',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DocumentoTokenRoute = DocumentoTokenRouteImport.update({
+  id: '/documento/$token',
+  path: '/documento/$token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthSsoCallbackRoute = AuthSsoCallbackRouteImport.update({
@@ -554,6 +560,7 @@ export interface FileRoutesByFullPath {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/documento/$token': typeof DocumentoTokenRoute
   '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -640,6 +647,7 @@ export interface FileRoutesByTo {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/documento/$token': typeof DocumentoTokenRoute
   '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -729,6 +737,7 @@ export interface FileRoutesById {
   '/auth/confirm-email-change': typeof AuthConfirmEmailChangeRoute
   '/auth/reset-password': typeof AuthResetPasswordRoute
   '/auth/sso-callback': typeof AuthSsoCallbackRoute
+  '/documento/$token': typeof DocumentoTokenRoute
   '/encuesta/$token': typeof EncuestaTokenRoute
   '/reto/$pin': typeof RetoPinRoute
   '/verify/$shortCode': typeof VerifyShortCodeRoute
@@ -819,6 +828,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/documento/$token'
     | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
@@ -905,6 +915,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/documento/$token'
     | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
@@ -993,6 +1004,7 @@ export interface FileRouteTypes {
     | '/auth/confirm-email-change'
     | '/auth/reset-password'
     | '/auth/sso-callback'
+    | '/documento/$token'
     | '/encuesta/$token'
     | '/reto/$pin'
     | '/verify/$shortCode'
@@ -1070,6 +1082,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
   AcuerdoTokenRoute: typeof AcuerdoTokenRoute
+  DocumentoTokenRoute: typeof DocumentoTokenRoute
   EncuestaTokenRoute: typeof EncuestaTokenRoute
   RetoPinRoute: typeof RetoPinRoute
   VerifyShortCodeRoute: typeof VerifyShortCodeRoute
@@ -1145,6 +1158,13 @@ declare module '@tanstack/react-router' {
       path: '/encuesta/$token'
       fullPath: '/encuesta/$token'
       preLoaderRoute: typeof EncuestaTokenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/documento/$token': {
+      id: '/documento/$token'
+      path: '/documento/$token'
+      fullPath: '/documento/$token'
+      preLoaderRoute: typeof DocumentoTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth/sso-callback': {
@@ -1880,6 +1900,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
   AcuerdoTokenRoute: AcuerdoTokenRoute,
+  DocumentoTokenRoute: DocumentoTokenRoute,
   EncuestaTokenRoute: EncuestaTokenRoute,
   RetoPinRoute: RetoPinRoute,
   VerifyShortCodeRoute: VerifyShortCodeRoute,
@@ -1887,12 +1908,3 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { createStart } from '@tanstack/react-start'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-  }
-}

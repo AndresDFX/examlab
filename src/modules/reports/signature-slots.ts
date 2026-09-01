@@ -21,7 +21,20 @@
  * UUID en un atributo no filtra nada que el documento no muestre ya: el documento
  * ES la lista del curso.
  *
- * ── Tres estados, y el tercero es el que hace que esto sirva ───────────
+ * ── Lo que resuelve el contexto es la RANURA, no la firma ──────────────
+ * `ranuraHtml(uid)` existe para que el contexto del informe pueda entregar la
+ * ranura YA ANCLADA como un valor (`{{{firmantes.estudiante.ranura}}}`), y así la
+ * firma se pueda poner en cualquier lugar del documento —al pie de una carta, en
+ * una celda, al lado de un párrafo— y no solo dentro de la tabla de
+ * `{{#each estudiantes}}`, que era el único sitio donde `{{user_id}}` resolvía.
+ *
+ * Eso NO rompe lo de arriba: lo que viaja por el contexto es el recuadro vacío
+ * con su ancla, nunca una firma. El snapshot sigue guardando una ranura en blanco
+ * y `renderizarRanuras` sigue siendo el único que dibuja. Si alguien "mejora"
+ * esto haciendo que el contexto resuelva la FIRMA, el documento firmado queda con
+ * el recuadro vacío para siempre, porque al generar todavía no hay firmas.
+ *
+ * ── Cuatro estados, y el tercero es el que hace que esto sirva ─────────
  *   firmada   → se dibuja la firma (nombre, fecha y código de verificación).
  *   pendiente → recuadro en blanco. Es lo que hace que el papel siga sirviendo:
  *               un documento sin firmar se imprime y se firma a mano igual que
@@ -30,6 +43,11 @@
  *               mismo. Sin esto el estudiante tiene que buscar un botón al final
  *               de un documento de tres páginas y confiar en que corresponde a su
  *               renglón.
+ *   sin ancla → un renglón para firmar a mano. Es el caso de una ranura que quedó
+ *               sin `data-firma-uid` (una plantilla que puso la firma donde el
+ *               ancla no resolvía). NUNCA el botón: ofrecer "firmar aquí" sobre
+ *               una ranura que la base no puede registrar es prometer algo que
+ *               falla al hacer clic.
  *
  * ── Estilos en línea, a propósito ─────────────────────────────────────
  * Este HTML va a Word y a la impresión, donde no llega ninguna hoja de estilos de
@@ -42,6 +60,15 @@ import { formatDateTime } from "@/shared/lib/format";
 
 /** Clase de la ranura. Se usa para encontrarla y para darle estilo al imprimir. */
 export const CLASE_RANURA = "examlab-firma";
+/**
+ * Clase del renglón para firmar A MANO. NO es una ranura: no se registra ninguna
+ * firma sobre él.
+ *
+ * El nombre NO puede contener `examlab-firma`: `tieneRanuras` compara por
+ * SUBSTRING, así que un `examlab-firma-manual` haría que un documento sin una
+ * sola ranura firmable se ofrezca para "enviar a firmar" — y nadie podría.
+ */
+export const CLASE_RENGLON = "examlab-renglon";
 /** Atributo con el id del firmante al que corresponde la ranura. */
 export const ATTR_UID = "data-firma-uid";
 /** Marca el botón de firmar, para la delegación de eventos del contenedor. */
@@ -96,6 +123,43 @@ export function ranuraPlantillaHtml(): string {
   return (
     `<span class="${CLASE_RANURA}" ${ATTR_UID}="{{user_id}}"` +
     ' style="display:block;min-height:30px;">&nbsp;</span>'
+  );
+}
+
+/**
+ * La misma ranura pero YA ANCLADA a una persona. Es lo que el contexto del
+ * informe entrega como valor (`{{{firmantes.estudiante.ranura}}}`), para que la
+ * firma se pueda poner en cualquier lugar del documento y no solo donde
+ * `{{user_id}}` resolvía.
+ *
+ * SIN ancla devuelve el renglón para firmar a mano, nunca una ranura vacía: una
+ * ranura sin `data-firma-uid` se ve idéntica a un recuadro para firmar pero no se
+ * puede firmar NUNCA —el motor de plantillas vacía en silencio los paths que no
+ * resuelven, así que ese caso no llega como error— y quedaría en el documento
+ * como una promesa que no se puede cumplir.
+ */
+export function ranuraHtml(uid: string | null | undefined): string {
+  const anclada = typeof uid === "string" ? uid.trim() : "";
+  if (!anclada) return renglonManualHtml();
+  return (
+    `<span class="${CLASE_RANURA}" ${ATTR_UID}="${esc(anclada)}"` +
+    ' style="display:block;min-height:30px;">&nbsp;</span>'
+  );
+}
+
+/**
+ * Renglón para firmar A MANO: la línea de toda la vida.
+ *
+ * Sirve para los firmantes que la plataforma no puede registrar —el docente, un
+ * coordinador, un acudiente—: `request_report_signatures` solo acepta estudiantes
+ * MATRICULADOS en el curso del informe, así que anclarles una ranura produciría un
+ * recuadro imposible de firmar. Con el renglón, el documento se imprime y se firma
+ * como siempre, y queda claro cuál firma es digital y cuál a mano.
+ */
+export function renglonManualHtml(): string {
+  return (
+    `<span class="${CLASE_RENGLON}"` +
+    ' style="display:block;min-height:30px;border-bottom:1px solid #444;">&nbsp;</span>'
   );
 }
 
@@ -221,29 +285,43 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
 
   // La etiqueta de apertura se repone INTACTA: el snapshot es inmutable —el hash
   // de la firma se calcula sobre él— así que renderizar no puede reescribirlo.
-  const reApertura = new RegExp(
-    `<span[^>]*class="[^"]*${CLASE_RANURA}[^"]*"[^>]*${ATTR_UID}="([^"]*)"[^>]*>`,
-    "gi",
-  );
+  //
+  // Se recorren TODAS las etiquetas `<span>` y se decide adentro si son una
+  // ranura, en vez de exigir en el propio patrón que `class` venga ANTES de
+  // `data-firma-uid`. Con el patrón acoplado al orden, una ranura que emitiera los
+  // atributos al revés —o que pasara por un editor que los normaliza— dejaba de
+  // reconocerse y el documento se volvía no firmable sin un solo error.
+  const reApertura = /<span\b[^>]*>/gi;
+  const reClaseRanura = new RegExp(`class\\s*=\\s*"[^"]*\\b${CLASE_RANURA}\\b[^"]*"`, "i");
+  const reUid = new RegExp(`${ATTR_UID}\\s*=\\s*"([^"]*)"`, "i");
 
   let salida = "";
   let cursor = 0;
   let m: RegExpExecArray | null;
   while ((m = reApertura.exec(html)) !== null) {
     const apertura = m[0];
-    const uid = m[1];
+    if (!reClaseRanura.test(apertura)) continue;
+    const mUid = reUid.exec(apertura);
+    if (!mUid) continue;
+    const uid = mUid[1].trim();
     const finContenido = finDelSpan(html, m.index);
     // Ranura sin cierre: se deja tal cual en vez de tragarse el resto del
     // documento. Un HTML roto no debería borrar el acuerdo.
     if (finContenido < 0) continue;
 
-    const f = porUsuario.get(uid);
-    const dentro = f?.signed_at
-      ? firmaHtml(f)
-      : firmanteId && uid === firmanteId
-        ? botonFirmarHtml(etiquetaFirmar)
-        : // Pendiente y no es quien mira: en blanco, para que el papel siga sirviendo.
-          "&nbsp;";
+    const f = uid ? porUsuario.get(uid) : undefined;
+    const dentro = !uid
+      ? // Sin ancla: NO es de nadie, así que no se puede firmar nunca. Se dibuja
+        // el renglón para firmar a mano para que el documento siga sirviendo, y
+        // NUNCA el botón (fallaría al hacer clic). La apertura igual se repone
+        // intacta: el snapshot no se toca.
+        renglonManualHtml()
+      : f?.signed_at
+        ? firmaHtml(f)
+        : firmanteId && uid === firmanteId
+          ? botonFirmarHtml(etiquetaFirmar)
+          : // Pendiente y no es quien mira: en blanco, para que el papel siga sirviendo.
+            "&nbsp;";
 
     salida += html.slice(cursor, m.index) + apertura + dentro;
     cursor = finContenido;

@@ -26,6 +26,8 @@
  * usar SOLO con datos que el desarrollador controla (no input de usuario).
  */
 
+import { ranuraHtml } from "./signature-slots";
+
 export type TemplateContext = Record<string, unknown>;
 
 // ── Lexer ─────────────────────────────────────────────────────────────
@@ -250,6 +252,15 @@ export interface VariableNode {
   labelEn?: string;
   path: string;
   kind: "scalar" | "each" | "group";
+  /**
+   * Inserta `{{{path}}}` (triple llave, SIN escapar) en vez de `{{path}}`.
+   *
+   * Existe para UN caso: variables cuyo valor es marcado que este código produce
+   * —hoy solo la ranura de firma de `signature-slots.ts`—. NO se usa para valores
+   * que vengan de la base (nombres, notas, retroalimentación): esos son input de
+   * usuario y sin escapar son un XSS en el documento.
+   */
+  raw?: boolean;
   hint?: string;
   hintEn?: string;
   children?: VariableNode[];
@@ -361,6 +372,123 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     ],
   },
   {
+    // UNA evaluación concreta (el examen, taller o proyecto que se elige al
+    // GENERAR el informe, no al redactar la plantilla). Es lo que permite que la
+    // MISMA plantilla sirva para cualquier prueba: el cuestionario se recorre con
+    // `{{#each evaluacion.preguntas}}` y el título sale de la variable, así que no
+    // hay que hacer una plantilla por prueba.
+    label: "Evaluación (la que elijas al generar)",
+    labelEn: "Assessment (chosen when generating)",
+    path: "evaluacion",
+    kind: "group",
+    hint: "Solo se llena si al generar el informe eliges un examen, taller o proyecto",
+    hintEn: "Only filled in if you pick an exam, workshop or project when generating",
+    children: [
+      { label: "Título", labelEn: "Title", path: "evaluacion.titulo", kind: "scalar" },
+      { label: "Clase de actividad", labelEn: "Activity kind", path: "evaluacion.tipo", kind: "scalar", hint: "examen / taller / proyecto", hintEn: "exam / workshop / project" },
+      { label: "Fecha de entrega", labelEn: "Submitted on", path: "evaluacion.fecha_entrega", kind: "scalar" },
+      { label: "Estado de la entrega", labelEn: "Submission status", path: "evaluacion.estado", kind: "scalar" },
+      { label: "Puntaje obtenido", labelEn: "Points earned", path: "evaluacion.puntaje_obtenido", kind: "scalar" },
+      { label: "Puntaje total", labelEn: "Points possible", path: "evaluacion.puntaje_total", kind: "scalar" },
+      { label: "Nota", labelEn: "Grade", path: "evaluacion.nota", kind: "scalar", hint: "En la escala del curso, la misma que muestra el libro de notas", hintEn: "On the course scale, the same one the gradebook shows" },
+      { label: "Cuánto aporta a la nota final", labelEn: "Weight in the final grade", path: "evaluacion.aporte_nota_final", kind: "scalar", hint: "Frase ya armada; dice 'no aporta' cuando la actividad no tiene peso", hintEn: "Ready-made sentence; says 'does not count' when the activity has no weight" },
+      { label: "Preguntas respondidas", labelEn: "Questions answered", path: "evaluacion.respondidas", kind: "scalar", hint: "Ej. '10 de 13'", hintEn: "e.g. '10 of 13'" },
+      { label: "Comentario del docente", labelEn: "Teacher comment", path: "evaluacion.comentario_docente", kind: "scalar" },
+      { label: "Promedio del grupo", labelEn: "Class average", path: "evaluacion.grupo.promedio_curso", kind: "scalar", hint: "Promedio de quienes entregaron, para ubicar al estudiante sin nombrar a nadie", hintEn: "Average of those who submitted, to place the student without naming anyone" },
+      { label: "Total de preguntas", labelEn: "Total questions", path: "evaluacion.total_preguntas", kind: "scalar" },
+      { label: "Correctas", labelEn: "Correct", path: "evaluacion.correctas", kind: "scalar" },
+      { label: "Parciales", labelEn: "Partially correct", path: "evaluacion.parciales", kind: "scalar" },
+      { label: "Incorrectas", labelEn: "Incorrect", path: "evaluacion.incorrectas", kind: "scalar" },
+      { label: "Sin responder", labelEn: "Unanswered", path: "evaluacion.sin_responder", kind: "scalar" },
+      {
+        label: "Iterar todas las preguntas",
+        labelEn: "Iterate every question",
+        path: "evaluacion.preguntas",
+        kind: "each",
+        hint: "Dentro: {{numero}}, {{enunciado}}, {{tipo}}, {{respuesta}}, {{respuesta_correcta}}, {{obtenido}}, {{puntos}}, {{retroalimentacion}}, {{resultado}}, {{porcentaje_curso}}",
+        hintEn: "Inside: {{numero}}, {{enunciado}}, {{tipo}}, {{respuesta}}, {{respuesta_correcta}}, {{obtenido}}, {{puntos}}, {{retroalimentacion}}, {{resultado}}, {{porcentaje_curso}}",
+      },
+      {
+        label: "Iterar lo que hay que reforzar",
+        labelEn: "Iterate what needs work",
+        path: "evaluacion.preguntas_a_reforzar",
+        kind: "each",
+        hint: "Las que no quedaron correctas. Mismos campos que la lista completa. Envolvelo en {{#if evaluacion.preguntas_a_reforzar}} para que la sección desaparezca cuando no hay ninguna",
+        hintEn: "The ones that were not correct. Same fields as the full list. Wrap it in {{#if evaluacion.preguntas_a_reforzar}} so the section disappears when there are none",
+      },
+      {
+        label: "Iterar las que quedaron bien",
+        labelEn: "Iterate the correct ones",
+        path: "evaluacion.preguntas_correctas",
+        kind: "each",
+        hint: "Mismos campos que la lista completa",
+        hintEn: "Same fields as the full list",
+      },
+      {
+        // El criterio de corrección está escrito PARA EL DOCENTE y en la práctica
+        // es la clave de respuestas ("Correcta: 'Una tabla intermedia…'"). Existe
+        // como variable porque un informe interno de revisión lo necesita, pero
+        // va en su propio grupo para que nadie lo ponga por descuido en el
+        // documento que se le entrega al estudiante.
+        label: "Solo uso docente",
+        labelEn: "Teacher-only",
+        path: "evaluacion.docente",
+        kind: "group",
+        hint: "No lo pongas en un informe que le entregas al estudiante",
+        hintEn: "Do not put this in a report you hand to the student",
+        children: [
+          {
+            label: "Criterio de corrección",
+            labelEn: "Grading criteria",
+            path: "criterio_docente",
+            kind: "scalar",
+            hint: "Es la clave de respuestas: dice qué se esperaba. Solo dentro de un bucle de preguntas, y solo en un informe interno",
+            hintEn: "It is the answer key: it states what was expected. Only inside a questions loop, and only in an internal report",
+          },
+        ],
+      },
+    ],
+  },
+  {
+    // La firma como VARIABLE, no como caja. El valor es la RANURA anclada a la
+    // persona (un recuadro vacío), nunca una firma: al generar el informe todavía
+    // no hay ninguna, y el documento guardado es justo lo que se firma.
+    label: "Firma",
+    labelEn: "Signature",
+    path: "firmantes",
+    kind: "group",
+    hint: "Insertá la ranura donde quieras: al pie, en una celda, al lado de un párrafo",
+    hintEn: "Insert the signature slot anywhere: in a footer, a cell, next to a paragraph",
+    children: [
+      {
+        label: "Ranura de firma del estudiante",
+        labelEn: "Student signature slot",
+        path: "firmantes.estudiante.ranura",
+        kind: "scalar",
+        raw: true,
+        hint: "Solo en informes POR ESTUDIANTE. Queda un recuadro donde ese estudiante —y solo él— puede firmar",
+        hintEn: "Student reports only. Leaves a box where that student — and only that student — can sign",
+      },
+      {
+        label: "Nombre de quien firma",
+        labelEn: "Signer name",
+        path: "firmantes.estudiante.nombre",
+        kind: "scalar",
+        hint: "Para rotular la ranura ('Firma de …')",
+        hintEn: "To label the slot ('Signed by …')",
+      },
+      {
+        label: "Ranura de firma de la fila",
+        labelEn: "Row signature slot",
+        path: "ranura",
+        kind: "scalar",
+        raw: true,
+        hint: "Solo sirve DENTRO de {{#each estudiantes}}: es la ranura del estudiante de esa fila",
+        hintEn: "Only works INSIDE {{#each estudiantes}}: it is that row's student slot",
+      },
+    ],
+  },
+  {
     label: "Asistencia",
     labelEn: "Attendance",
     path: "asistencia",
@@ -412,8 +540,28 @@ export function reportCatalogForScope(
 ): VariableNode[] {
   const order =
     scope === "estudiante"
-      ? ["estudiante", "notas", "asistencia", "curso", "docente", "institucion", "estudiantes"]
-      : ["curso", "estudiantes", "docente", "institucion", "notas", "asistencia", "estudiante"];
+      ? [
+          "estudiante",
+          "evaluacion",
+          "notas",
+          "asistencia",
+          "firmantes",
+          "curso",
+          "docente",
+          "institucion",
+          "estudiantes",
+        ]
+      : [
+          "curso",
+          "estudiantes",
+          "firmantes",
+          "docente",
+          "institucion",
+          "notas",
+          "asistencia",
+          "evaluacion",
+          "estudiante",
+        ];
   const rank = (path: string) => {
     const i = order.indexOf(path);
     return i < 0 ? order.length : i;
@@ -507,6 +655,13 @@ export function variableSnippet(node: VariableNode): string {
     return `{{#each ${node.path}}}\n  \n{{/each}}`;
   }
   if (node.kind === "group") return "";
+  // Triple llave para las variables cuyo valor ES marcado (la ranura de firma).
+  // Entra en el editor como TEXTO plano igual que cualquier otro token —el guard
+  // de bloques de `insertAtCursor` busca `{{#` o `{{/`, y acá el carácter que
+  // sigue a `{{` es `{`—, así que no hace falta ningún camino de inserción de
+  // HTML: ese pasa por `execCommand("insertHTML")`, que no garantiza preservar la
+  // clase de la que depende reconocer la ranura.
+  if (node.raw) return `{{{${node.path}}}}`;
   return `{{${node.path}}}`;
 }
 
@@ -630,8 +785,35 @@ export const SAMPLE_LOGO_DATA_URI =
  * PURA: sin DB ni red. Testeada.
  */
 export function buildSampleReportContext(overrides?: Partial<TemplateContext>): TemplateContext {
+  // Ids de muestra: la ranura de firma se ancla a un id, así que sin esto la
+  // vista previa siempre mostraría ranuras SIN ancla —o sea el renglón para
+  // firmar a mano— y el docente no podría comprobar en la previa que la firma
+  // quedó bien puesta, que es justo para lo que abre la previa.
+  const uidMuestra = "11111111-1111-4111-8111-111111111111";
+  const uidsFila = [uidMuestra, "22222222-2222-4222-8222-222222222222", "33333333-3333-4333-8333-333333333333"];
+  const preguntaMuestra = (
+    numero: number,
+    enunciado: string,
+    resultado: string,
+    obtenido: string,
+  ) => ({
+    numero: String(numero),
+    enunciado,
+    tipo: "Selección múltiple",
+    puntos: "1",
+    obtenido,
+    respuesta: "Una tabla intermedia con las dos llaves foráneas.",
+    respuesta_correcta: "Una tabla intermedia con las dos llaves foráneas.",
+    retroalimentacion: "La idea central está bien; falta nombrar la llave primaria compuesta.",
+    resultado,
+    porcentaje_curso: "62%",
+    criterio_docente: "Debe mencionar la tabla intermedia y las dos llaves foráneas.",
+  });
   const base: TemplateContext = {
     estudiante: {
+      // No se expone en el panel de variables (un UUID a la vista no le sirve a
+      // nadie); su único consumidor es la ranura de firma.
+      user_id: uidMuestra,
       nombre: "Juan Pérez Gómez",
       email: "juan.perez@correo.edu.co",
       codigo: "20211020",
@@ -670,6 +852,43 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
     fecha_emision: "15 de junio de 2026",
     docente: { nombre: "María Rodríguez", email: "maria.rodriguez@correo.edu.co" },
     institucion: { nombre: "Institución Universitaria", logo: SAMPLE_LOGO_DATA_URI },
+    firmantes: {
+      estudiante: {
+        user_id: uidMuestra,
+        nombre: "Juan Pérez Gómez",
+        ranura: ranuraHtml(uidMuestra),
+      },
+    },
+    evaluacion: {
+      tipo: "examen",
+      titulo: "Prueba diagnóstica",
+      fecha_entrega: "12 mar 2026, 10:24",
+      estado: "Calificada",
+      puntaje_obtenido: "8,5",
+      puntaje_total: "13",
+      nota: "3,3",
+      aporte_nota_final: "Esta actividad no aporta a la nota final del curso.",
+      respondidas: "10 de 13",
+      comentario_docente: "Buen manejo de las relaciones; repasá la normalización.",
+      total_preguntas: "13",
+      correctas: "7",
+      parciales: "2",
+      incorrectas: "1",
+      sin_responder: "3",
+      grupo: { promedio_curso: "3,1" },
+      preguntas: [
+        preguntaMuestra(1, "¿Cómo se representa una relación de muchos a muchos?", "Correcta", "1"),
+        preguntaMuestra(2, "¿Qué garantiza una llave foránea?", "Parcial", "0,5"),
+        preguntaMuestra(3, "¿Para qué sirve normalizar?", "Sin responder", "0"),
+      ],
+      preguntas_a_reforzar: [
+        preguntaMuestra(2, "¿Qué garantiza una llave foránea?", "Parcial", "0,5"),
+        preguntaMuestra(3, "¿Para qué sirve normalizar?", "Sin responder", "0"),
+      ],
+      preguntas_correctas: [
+        preguntaMuestra(1, "¿Cómo se representa una relación de muchos a muchos?", "Correcta", "1"),
+      ],
+    },
     nota_final: "4,3",
     aprobado: true,
     estado_aprobacion: "Aprobado",
@@ -687,9 +906,9 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
     proyectos: [{ titulo: "Proyecto final", nota: "4,5", peso: "20%" }],
     asistencia: { presentes: 18, ausentes: 2, total: 20, porcentaje: "90%" },
     estudiantes: [
-      { nombre: "Juan Pérez", email: "juan@correo.edu.co", codigo: "20211020", documento: "1.234.567.890", nota_final: "4,3", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "90%" } },
-      { nombre: "Ana Gómez", email: "ana@correo.edu.co", codigo: "20211021", documento: "1.234.567.891", nota_final: "3,1", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "85%" } },
-      { nombre: "Luis Torres", email: "luis@correo.edu.co", codigo: "20211022", documento: "1.234.567.892", nota_final: "2,4", estado_aprobacion: "Reprobado", asistencia: { porcentaje: "70%" } },
+      { user_id: uidsFila[0], ranura: ranuraHtml(uidsFila[0]), nombre: "Juan Pérez", email: "juan@correo.edu.co", codigo: "20211020", documento: "1.234.567.890", nota_final: "4,3", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "90%" } },
+      { user_id: uidsFila[1], ranura: ranuraHtml(uidsFila[1]), nombre: "Ana Gómez", email: "ana@correo.edu.co", codigo: "20211021", documento: "1.234.567.891", nota_final: "3,1", estado_aprobacion: "Aprobado", asistencia: { porcentaje: "85%" } },
+      { user_id: uidsFila[2], ranura: ranuraHtml(uidsFila[2]), nombre: "Luis Torres", email: "luis@correo.edu.co", codigo: "20211022", documento: "1.234.567.892", nota_final: "2,4", estado_aprobacion: "Reprobado", asistencia: { porcentaje: "70%" } },
     ],
     total_estudiantes: 25,
     total_aprobados: 20,

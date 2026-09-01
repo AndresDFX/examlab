@@ -38,7 +38,18 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
-import { ChevronDown, ChevronRight, Code2, Eye, PenLine, Search, Sparkles, X } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  Code2,
+  Eye,
+  Info,
+  PenLine,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import {
   filterVariableCatalog,
@@ -51,6 +62,7 @@ import {
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
+import { revisarPlantilla, type AvisoPlantilla } from "./plantilla-lint";
 
 export interface TemplateDraft {
   name: string;
@@ -213,6 +225,21 @@ export function TemplateEditor({
   const previewHtml = useMemo(
     () => composePreviewHtml(value, pvCtx ?? previewContext),
     [value, pvCtx, previewContext],
+  );
+
+  // Revisión de la plantilla. Va junto a la vista previa porque es ahí donde el
+  // docente cree que está comprobando el resultado — y hay dos cosas que la previa
+  // NO puede mostrarle: una firma sin ancla se ve idéntica a un recuadro para
+  // firmar a mano, y una variable que no resuelve sale vacía sin decir nada.
+  const avisos = useMemo(
+    () =>
+      revisarPlantilla({
+        bodyHtml: value.body_html,
+        headerHtml: value.header_html,
+        footerHtml: value.footer_html,
+        scope: value.scope,
+      }),
+    [value.body_html, value.header_html, value.footer_html, value.scope],
   );
 
   // Número de páginas del cuerpo = saltos de página + 1. Sirve para mostrar
@@ -433,6 +460,17 @@ export function TemplateEditor({
                 <TabsTrigger value="preview">
                   <Eye className="h-3.5 w-3.5 mr-1" />
                   {t("hc_modulesReportsTemplateEditor.tabPreview")}
+                  {/* Punto rojo cuando la revisión encontró algo que deja el
+                      documento roto: el detalle está DENTRO de esta pestaña, y sin
+                      esta señal el docente no tiene motivo para abrirla. */}
+                  {avisos.some((a) => a.nivel === "error") && (
+                    <span
+                      className="ml-1 h-1.5 w-1.5 rounded-full bg-destructive"
+                      aria-label={t("reportLint.tabHasErrors", {
+                        defaultValue: "La revisión encontró problemas",
+                      })}
+                    />
+                  )}
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="body" className="mt-2 space-y-2">
@@ -608,6 +646,7 @@ export function TemplateEditor({
                     ? ` · ${t("hc_modulesReportsTemplateEditor.previewLoading", { defaultValue: "cargando datos…" })}`
                     : ""}
                 </p>
+                <RevisionPlantilla avisos={avisos} />
                 <iframe
                   srcDoc={previewHtml}
                   sandbox=""
@@ -797,6 +836,75 @@ export function TemplateEditor({
           </DialogContent>
         </Dialog>
       )}
+    </div>
+  );
+}
+
+/**
+ * Lo que la revisión encontró, en lenguaje de tarea.
+ *
+ * Cada aviso dice QUÉ va a pasar con el documento, no qué atributo falta: el
+ * docente no tiene por qué saber cómo se ancla una firma para entender que un
+ * recuadro va a quedar imposible de firmar.
+ */
+function RevisionPlantilla({ avisos }: { avisos: ReadonlyArray<AvisoPlantilla> }) {
+  const { t } = useTranslation();
+  if (avisos.length === 0) return null;
+
+  const texto = (a: AvisoPlantilla): string => {
+    switch (a.codigo) {
+      case "anclaVacia":
+        return t("reportLint.anclaVacia", {
+          n: a.cantidad,
+          defaultValue:
+            "Hay {{n}} firma(s) que no corresponden a ninguna persona: al generar el informe quedan como un recuadro imposible de firmar.",
+        });
+      case "firmaFueraDelBucle":
+        return t("reportLint.firmaFueraDelBucle", {
+          n: a.cantidad,
+          defaultValue:
+            "Hay {{n}} firma(s) fuera del listado de estudiantes, así que no se sabe de quién son y nadie va a poder firmarlas. Movelas dentro del listado, o usá la ranura de firma del estudiante en un informe por estudiante.",
+        });
+      case "ranuraSoloPorEstudiante":
+        return t("reportLint.ranuraSoloPorEstudiante", {
+          defaultValue:
+            "La ranura de firma del estudiante solo funciona en un informe por estudiante. En un informe de curso, la firma va dentro del listado de estudiantes.",
+        });
+      case "ranuraEscapada":
+        return t("reportLint.ranuraEscapada", {
+          n: a.cantidad,
+          defaultValue:
+            "Hay {{n}} ranura(s) de firma escritas con dos llaves: en el documento se verían como texto en vez de un espacio para firmar. Insertalas desde el panel de variables.",
+        });
+      case "pideEvaluacion":
+      default:
+        return t("reportLint.pideEvaluacion", {
+          defaultValue:
+            "Esta plantilla habla de una evaluación: al generar el informe vas a elegir cuál (un examen, un taller o un proyecto).",
+        });
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      {avisos.map((a) => (
+        <div
+          key={a.codigo}
+          className={cn(
+            "flex items-start gap-2 rounded-md border p-2 text-2xs",
+            a.nivel === "error"
+              ? "border-destructive/40 bg-destructive/10 text-destructive"
+              : "border-warning/40 bg-warning/10 text-warning-on-subtle",
+          )}
+        >
+          {a.nivel === "error" ? (
+            <AlertTriangle className="h-3.5 w-3.5 shrink-0 mt-px" />
+          ) : (
+            <Info className="h-3.5 w-3.5 shrink-0 mt-px" />
+          )}
+          <span className="min-w-0">{texto(a)}</span>
+        </div>
+      ))}
     </div>
   );
 }

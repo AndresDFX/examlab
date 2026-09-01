@@ -116,7 +116,9 @@ describe("filterVariableCatalog", () => {
 describe("countCatalogLeaves", () => {
   it("cuenta las clickables, no los grupos", () => {
     const total = countCatalogLeaves(REPORT_VARIABLE_CATALOG);
-    expect(total).toBe(49);
+    // 49 → 72 al agregar los grupos "Evaluación" (una prueba concreta, con su
+    // detalle por pregunta) y "Firma" (la ranura como variable).
+    expect(total).toBe(72);
     // Y el filtro nunca puede devolver más de las que hay.
     expect(
       countCatalogLeaves(filterVariableCatalog(REPORT_VARIABLE_CATALOG, "o")),

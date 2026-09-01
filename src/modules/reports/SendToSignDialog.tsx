@@ -55,12 +55,20 @@ export function SendToSignDialog({
   reportId,
   courseId,
   reportName,
+  studentId = null,
   onOpenChange,
 }: {
   /** `null` cierra el diálogo. */
   reportId: string | null;
   courseId: string | null;
   reportName: string;
+  /**
+   * De quién es el informe, cuando es POR ESTUDIANTE
+   * (`generated_reports.student_id`). Con esto la lista muestra a esa persona y
+   * no a los 93 matriculados: el documento habla de UNA sola, y ofrecer el curso
+   * completo invita a mandarle a un estudiante el informe de otro.
+   */
+  studentId?: string | null;
   onOpenChange: (abierto: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -111,16 +119,27 @@ export function SendToSignDialog({
         .eq("report_id", reportId);
       const mapa = new Map<string, Solicitud>();
       for (const f of (firmas ?? []) as Solicitud[]) mapa.set(f.user_id, f);
-      setAlumnos(perfiles);
+      // Informe de UN estudiante: se muestra solo a esa persona (y a quien ya
+      // tuviera una solicitud, para no esconder algo que ya se pidió). Si ese
+      // estudiante no está entre los matriculados —se retiró del curso— se deja
+      // la lista completa antes que un diálogo vacío sin explicación.
+      const acotada = studentId
+        ? perfiles.filter((p) => p.id === studentId || mapa.has(p.id))
+        : perfiles;
+      const lista = acotada.length > 0 ? acotada : perfiles;
+      setAlumnos(lista);
       setSolicitudes(mapa);
       // Se preseleccionan los que ya tienen solicitud, para que el diálogo
       // muestre el estado real en vez de arrancar en blanco y dar la impresión
-      // de que no se le pidió a nadie.
-      setElegidos(new Set(mapa.keys()));
+      // de que no se le pidió a nadie. En un informe por estudiante, además,
+      // arranca marcado el destinatario: es el único que puede firmarlo.
+      const marcados = new Set(mapa.keys());
+      if (studentId && lista.some((p) => p.id === studentId)) marcados.add(studentId);
+      setElegidos(marcados);
     } finally {
       setCargando(false);
     }
-  }, [reportId, courseId]);
+  }, [reportId, courseId, studentId]);
 
   useEffect(() => {
     let cancelado = false;

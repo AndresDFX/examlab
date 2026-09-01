@@ -37,7 +37,7 @@ const RAIZ = process.cwd();
  * declara explícitamente, más las vistas a pantalla completa.
  */
 const FUERA_DEL_SHELL =
-  /(^|\/)(index|privacy|asistencia|acuerdo\.|encuesta\.|reto\.|verify\.|auth\.|__root|dev-preview)|kahoot\.\$gameId|\.take\.\$examId/;
+  /(^|\/)(index|privacy|asistencia|acuerdo\.|documento\.|encuesta\.|reto\.|verify\.|auth\.|__root|dev-preview)|kahoot\.\$gameId|\.take\.\$examId/;
 
 /**
  * Matrices, no grids de listado: columna sticky y/o columnas dinámicas (una por

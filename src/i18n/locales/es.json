@@ -27,6 +27,29 @@
     "errLoad": "No pudimos cargar tus documentos",
     "untitled": "Documento"
   },
+  "reportLint": {
+    "anclaVacia": "Hay {{n}} firma(s) que no corresponden a ninguna persona: al generar el informe quedan como un recuadro imposible de firmar.",
+    "firmaFueraDelBucle": "Hay {{n}} firma(s) fuera del listado de estudiantes, así que no se sabe de quién son y nadie va a poder firmarlas. Movelas dentro del listado, o usá la ranura de firma del estudiante en un informe por estudiante.",
+    "ranuraSoloPorEstudiante": "La ranura de firma del estudiante solo funciona en un informe por estudiante. En un informe de curso, la firma va dentro del listado de estudiantes.",
+    "ranuraEscapada": "Hay {{n}} ranura(s) de firma escritas con dos llaves: en el documento se verían como texto en vez de un espacio para firmar. Insertalas desde el panel de variables.",
+    "pideEvaluacion": "Esta plantilla habla de una evaluación: al generar el informe vas a elegir cuál (un examen, un taller o un proyecto).",
+    "tabHasErrors": "La revisión encontró problemas"
+  },
+  "reportBase": {
+    "badge": "La plantilla base cambió",
+    "actionDiff": "Ver qué cambió en la base",
+    "actionPull": "Traer los cambios de la base",
+    "actionPullHint": "Reemplaza tu contenido por el de la base.",
+    "actionIgnore": "Dejar de avisarme",
+    "pullTitle": "¿Traer los cambios de la base?",
+    "pullDesc": "El contenido de tu plantilla personalizada se reemplaza por el de la plantilla base. Lo que hayas escrito en ella se pierde. El nombre y el curso no cambian.",
+    "pullConfirm": "Traer los cambios",
+    "pullOk": "Tu plantilla quedó igual a la base.",
+    "diffTitle": "Qué cambió en la plantilla base",
+    "diffDesc": "En verde, lo que tiene tu plantilla personalizada. En rojo, lo que dice la base y a tu copia le falta.",
+    "diffEmpty": "El contenido es el mismo. La base se actualizó, pero no cambió nada de lo que tu plantilla usa.",
+    "diffCounts": "{{nuevas}} tuyas · {{faltantes}} de la base"
+  },
   "reportSign": {
     "copyLink": "Copiar enlace",
     "dialogHint": "Elegí a quién le pedís la firma de «{{name}}». Verán el documento tal como se generó.",
@@ -3660,6 +3683,7 @@
       "templateDuplicated": "Plantilla duplicada como privada",
       "actaTemplateNotFound": "No se encontró la plantilla 'Acta de finalización del curso'. Pídele al admin que la publique.",
       "selectStudent": "Selecciona un estudiante",
+      "selectFoco": "Elegí la evaluación de la que habla este informe",
       "generateReportError": "Error al generar el informe",
       "previewUnavailable": "Vista previa no disponible",
       "docxEmpty": "El documento no contiene texto que importar.",
@@ -8946,6 +8970,13 @@
     "aiBusyHint": "Puede tardar entre 30 y 90 segundos por archivo. No cierres esta ventana."
   },
   "hc_routesAppTeacherReports": {
+    "focoLabel": "Evaluación",
+    "focoPlaceholder": "Elegí el examen, taller o proyecto",
+    "focoEmpty": "Este curso todavía no tiene exámenes, talleres ni proyectos publicados.",
+    "focoLoadError": "No pudimos cargar las evaluaciones del curso.",
+    "focoTipoExamen": "Examen",
+    "focoTipoTaller": "Taller",
+    "focoTipoProyecto": "Proyecto",
     "badgeGlobal": "Global",
     "badgeCustom": "Personalizada",
     "badgePrivate": "Privada",
@@ -10219,5 +10250,28 @@
     "frameworkLabel": "Framework",
     "noneVisible": "No hay preguntas para mostrar con este filtro.",
     "showAll": "Ver todas"
+  },
+  "publicDocument": {
+    "invalidTitle": "Este enlace no está disponible",
+    "invalidBody": "Puede que el enlace se haya desactivado, que se haya generado uno nuevo, o que el documento ya no exista. Pedile al docente el enlace actual.",
+    "loginToSign": "Podés leer el documento sin iniciar sesión. Para firmarlo, entrá con tu correo y contraseña de la plataforma.",
+    "notASigner": "Entraste, pero este documento no te pide firma. Si creés que sí, avisale al docente.",
+    "email": "Correo",
+    "password": "Contraseña",
+    "login": "Entrar",
+    "errLogin": "Correo o contraseña incorrectos.",
+    "errSign": "No se pudo registrar tu firma. Intentá de nuevo.",
+    "signedOk": "Tu firma quedó registrada.",
+    "alreadySigned": "Ya firmaste este documento.",
+    "footerNote": "Firmar acá es un registro de aceptación, no una firma digital certificada. Queda guardado con la fecha, la hora y tu sesión.",
+    "share": "Enlace público del documento",
+    "shareAgain": "Copiar el enlace público otra vez",
+    "shareCopied": "Enlace copiado. Se puede leer sin iniciar sesión; para firmar se pide correo y contraseña.",
+    "shareError": "No se pudo generar el enlace público.",
+    "revoke": "Cortar el enlace público",
+    "revokeTitle": "¿Cortar el enlace público?",
+    "revokeBody": "El enlace que esté circulando deja de abrir el documento. Los que ya firmaron siguen firmados. Podés generar uno nuevo cuando quieras.",
+    "revokeConfirm": "Cortar",
+    "revoked": "Enlace cortado."
   }
 }

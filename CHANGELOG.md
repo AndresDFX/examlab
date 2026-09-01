@@ -73,6 +73,39 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Informe de una evaluación, para entregarle al estudiante.** Nueva plantilla general —disponible en
+  todas las instituciones y personalizable por curso— que arma un informe de un examen, taller o
+  proyecto concreto: pregunta por pregunta, qué respondió, cuánto sacó en cada una, la
+  retroalimentación, y una sección de "para reforzar" con las que no quedaron correctas (que
+  desaparece sola cuando no hay ninguna). Trae además el puntaje, la nota en la escala del curso y
+  cuánto aporta a la nota final, escrito en una frase en vez de un porcentaje suelto.
+
+  Para personalizarla en un curso se guarda una copia con el curso, y esa copia gana sobre la general
+  para ese curso. La general sigue intacta para el resto.
+
+- **La firma dejó de ser una caja especial: ahora es una variable que se pone donde uno quiera.** Antes
+  el editor solo sabía insertar una tabla de firmas completa. Ahora la ranura es un valor del panel de
+  variables, así que se puede poner al pie de una carta, dentro de una tabla propia, o donde haga
+  falta — y sigue funcionando igual dentro de la tabla que ya existía.
+
+  Una ranura que quede **sin anclar a nadie** no se convierte en una firma vacía que cualquiera pueda
+  usar: se convierte en un renglón para firmar a mano. Es la diferencia entre un documento que se
+  imprime y firma como siempre, y un botón de "firmar aquí" ofrecido a la persona equivocada.
+
+- **Un solo enlace público del documento, y se firma con correo y contraseña.** Hasta ahora el enlace
+  de firma era uno por persona, y ese enlace *era* la credencial: quien lo tuviera podía firmar en
+  nombre de otro. Ahora hay además un enlace **del documento**, para pegar una sola vez en el grupo
+  del curso. Ese enlace **no identifica a nadie**: solo deja leer. Para firmar hay que entrar con el
+  correo y la contraseña de la plataforma.
+
+  Eso lo hace más fuerte, no más débil: firmar sigue pasando por el mismo camino autenticado de
+  siempre, así que la firma queda registrada con sesión de verdad — mejor evidencia que la del enlace
+  personal. Los dos enlaces conviven: el personal es comodidad, el público es para compartir. Y se
+  puede **cortar**: quien tenga el enlace viejo deja de abrir el documento, y los que ya firmaron
+  siguen firmados.
+
+
+
 - **Ahora podés terminar un examen que quedó en curso, y los que vencen se terminan solos.** Si un
   estudiante cerró la pestaña y su intento quedó "En progreso", no había forma de calificarlo: el
   botón de ver y calificar solo aparece para intentos finalizados, y lo único que el monitor sabía

@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
+import { cn } from "@/shared/lib/utils";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { usePagination } from "@/hooks/use-pagination";
@@ -81,6 +82,11 @@ import {
   Upload,
   History,
   PenLine,
+  RefreshCw,
+  Eye,
+  EyeOff,
+  Link2,
+  Link2Off,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -99,7 +105,20 @@ import {
   type TemplateContext,
 } from "@/modules/reports/template-engine";
 import { useTenant } from "@/modules/tenants/use-tenant";
-import { buildReportContext, buildReportContextFromActa } from "@/modules/reports/report-context";
+import {
+  buildReportContext,
+  buildReportContextFromActa,
+  type FocoEvaluacion,
+} from "@/modules/reports/report-context";
+import { pidePlantillaEvaluacion } from "@/modules/reports/plantilla-lint";
+import {
+  baseMasNueva,
+  contarCambios,
+  diffPlantillas,
+  soloCambios,
+  type LineaDiff,
+} from "@/modules/reports/plantilla-diff";
+import type { FocoTipo } from "@/modules/reports/foco-evaluacion";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -119,6 +138,94 @@ const NONE_COURSE = "__none__";
  * hilo principal. Sin esto el spinner se seteaba en el state pero nunca
  * llegaba a la pantalla en informes grandes (imágenes del .docx).
  */
+/**
+ * Las diferencias entre la base y la copia del docente, en el cuerpo, la
+ * cabecera y el pie.
+ *
+ * Se muestran SOLO las líneas que cambiaron con una de contexto: un diff completo
+ * de una plantilla son cientos de líneas iguales y las tres que importan quedan
+ * enterradas. El HTML se muestra como texto (es lo que el docente edita en la
+ * pestaña HTML), no renderizado: renderizarlo esconde justo lo que cambió.
+ */
+function DiffPlantilla({ base, propia }: { base: Template; propia: Template }) {
+  const { t } = useTranslation();
+  const secciones = useMemo(
+    () =>
+      (
+        [
+          ["body", base.body_html, propia.body_html],
+          ["header", base.header_html, propia.header_html],
+          ["footer", base.footer_html, propia.footer_html],
+          ["css", base.css, propia.css],
+        ] as const
+      )
+        .map(([clave, b, p]) => {
+          const completo = diffPlantillas(b, p);
+          return {
+            clave,
+            lineas: soloCambios(completo, 1),
+            cambios: contarCambios(completo),
+          };
+        })
+        .filter((s) => s.lineas.length > 0),
+    [base, propia],
+  );
+
+  const rotulo: Record<string, string> = {
+    body: t("hc_modulesReportsTemplateEditor.tabBody"),
+    header: t("hc_modulesReportsTemplateEditor.tabHeader"),
+    footer: t("hc_modulesReportsTemplateEditor.tabFooter"),
+    css: "CSS",
+  };
+
+  if (secciones.length === 0) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t("reportBase.diffEmpty", {
+          defaultValue:
+            "El contenido es el mismo. La base se actualizó, pero no cambió nada de lo que tu plantilla usa.",
+        })}
+      </p>
+    );
+  }
+
+  const clase = (l: LineaDiff) =>
+    l.tipo === "agregada"
+      ? "text-emerald-700 dark:text-emerald-400 bg-emerald-500/10"
+      : l.tipo === "quitada"
+        ? "text-destructive bg-destructive/10"
+        : "text-muted-foreground";
+
+  return (
+    <div className="space-y-3">
+      {secciones.map((s) => (
+        <div key={s.clave} className="space-y-1">
+          <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+            {rotulo[s.clave]}
+            <span className="ml-2 normal-case tabular-nums font-normal">
+              {t("reportBase.diffCounts", {
+                nuevas: s.cambios.agregadas,
+                faltantes: s.cambios.quitadas,
+                defaultValue: "{{nuevas}} tuyas · {{faltantes}} de la base",
+              })}
+            </span>
+          </p>
+          <div className="rounded-md border overflow-x-auto">
+            {s.lineas.map((l, i) => (
+              <div
+                key={`${s.clave}-${i}`}
+                className={cn("font-mono text-3xs whitespace-pre px-2 py-0.5", clase(l))}
+              >
+                {(l.tipo === "agregada" ? "+ " : l.tipo === "quitada" ? "- " : "  ") + l.texto}
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function yieldToPaint(): Promise<void> {
   return new Promise((resolve) => {
     if (typeof requestAnimationFrame === "undefined") {
@@ -159,11 +266,58 @@ type GeneratedReport = {
   scope: "estudiante" | "curso";
   course_id: string;
   course_name: string | null;
+  /** De quién es el informe, cuando es por estudiante. Lo usa "enviar a firmar". */
+  student_id: string | null;
   student_name: string | null;
   periodo: string | null;
   html: string;
   created_at: string;
+  /** Token del enlace publico del DOCUMENTO. Distinto del token por firmante. */
+  public_token: string | null;
+  public_enabled: boolean | null;
 };
+
+/** Una evaluación del curso, para elegir el foco del informe. */
+type EvaluacionElegible = { tipo: FocoTipo; id: string; titulo: string };
+
+/** Cómo se nombra cada clase de actividad en el selector. */
+const ETIQUETA_FOCO: Record<FocoTipo, () => string> = {
+  examen: () => i18n.t("hc_routesAppTeacherReports.focoTipoExamen", { defaultValue: "Examen" }),
+  taller: () => i18n.t("hc_routesAppTeacherReports.focoTipoTaller", { defaultValue: "Taller" }),
+  proyecto: () =>
+    i18n.t("hc_routesAppTeacherReports.focoTipoProyecto", { defaultValue: "Proyecto" }),
+};
+
+/** Clave del Select del foco: el tipo y el id en un solo valor. */
+function focoKey(f: { tipo: FocoTipo; id: string }): string {
+  return `${f.tipo}:${f.id}`;
+}
+function parseFocoKey(k: string): FocoEvaluacion | null {
+  const i = k.indexOf(":");
+  if (i < 0) return null;
+  const tipo = k.slice(0, i);
+  const id = k.slice(i + 1);
+  if (tipo !== "examen" && tipo !== "taller" && tipo !== "proyecto") return null;
+  if (!id) return null;
+  return { tipo, id };
+}
+
+/**
+ * Plantillas base que el docente decidió dejar como están, por si la plataforma
+ * las cambia. Vive en el navegador de cada uno: es una comodidad de lectura
+ * ("ya lo vi"), no un dato del curso, y no vale una columna ni una migración.
+ */
+const CLAVE_IGNORADAS = "examlab_reportbase_vistas";
+
+function leerIgnoradas(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CLAVE_IGNORADAS);
+    const obj = raw ? JSON.parse(raw) : null;
+    return obj && typeof obj === "object" ? (obj as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
 
 type Origin = "global" | "override" | "privada";
 
@@ -221,7 +375,22 @@ function Inner() {
     id: string;
     courseId: string;
     nombre: string;
+    /** Solo en un informe POR ESTUDIANTE: de quién es. */
+    studentId: string | null;
   } | null>(null);
+  /**
+   * Plantillas base que el docente marcó como "ya lo vi", con la fecha de la base
+   * en ese momento. Se lee POST-mount y nunca en el inicializador del estado: leer
+   * `localStorage` en el primer render hace que el árbol difiera del pre-renderizado
+   * (React #418).
+   */
+  const [baseVistas, setBaseVistas] = useState<Record<string, string>>({});
+  useEffect(() => {
+    setBaseVistas(leerIgnoradas());
+  }, []);
+  /** Plantilla personalizada abierta en el comparador. `null` = cerrado. */
+  const [comparar, setComparar] = useState<{ propia: Template; base: Template } | null>(null);
+
   // Historial de informes generados (tab "Informes generados").
   const [genReports, setGenReports] = useState<GeneratedReport[]>([]);
   const [genReportsLoading, setGenReportsLoading] = useState(true);
@@ -273,6 +442,12 @@ function Inner() {
   const [genPeriodo, setGenPeriodo] = useState<string>("");
   const [genStudents, setGenStudents] = useState<Student[]>([]);
   const [genLoadingStudents, setGenLoadingStudents] = useState(false);
+  // Evaluación elegida (el "foco"): solo se pide cuando la plantilla habla de
+  // una. La MISMA plantilla sirve para cualquier prueba; qué prueba es se decide
+  // acá, al generar, no al redactarla.
+  const [genEvaluaciones, setGenEvaluaciones] = useState<EvaluacionElegible[]>([]);
+  const [genLoadingEvaluaciones, setGenLoadingEvaluaciones] = useState(false);
+  const [genFocoKey, setGenFocoKey] = useState<string>("");
   const [genHtml, setGenHtml] = useState<string | null>(null);
   const [genBuilding, setGenBuilding] = useState(false);
   // Si el docente abrió el generador desde "Imprimir acta" en
@@ -344,7 +519,7 @@ function Inner() {
     setGenReportsError(null);
     const { data, error } = await db
       .from("generated_reports")
-      .select("id, template_name, scope, course_id, course_name, student_name, periodo, html, created_at")
+      .select("id, template_name, scope, course_id, course_name, student_id, student_name, periodo, html, created_at, public_token, public_enabled")
       .order("created_at", { ascending: false })
       .limit(200);
     if (isCancelled?.()) return;
@@ -477,6 +652,72 @@ function Inner() {
     setEditorParentId(t.id);
     setEditorTemplateId(null);
     setEditorOpen(true);
+  };
+
+  // ── La plantilla base cambió ─────────────────────────────────────
+  //
+  // Una plantilla personalizada es una COPIA de la global. Cuando la plataforma
+  // corrige la base —un dato mal puesto, una sección nueva—, la copia se queda
+  // atrás y hoy nadie se enteraba: el docente sigue generando el documento viejo.
+  const baseDe = (tpl: Template): Template | null =>
+    tpl.parent_id ? (templates.find((x) => x.id === tpl.parent_id) ?? null) : null;
+
+  /** ¿La base cambió después de esta copia, y el docente no lo marcó como visto? */
+  const baseCambio = (tpl: Template): boolean => {
+    const base = baseDe(tpl);
+    if (!base) return false;
+    if (!baseMasNueva(base.updated_at, tpl.updated_at)) return false;
+    return baseVistas[tpl.id] !== (base.updated_at ?? "");
+  };
+
+  /** "Ya lo vi": deja de avisar hasta que la base vuelva a cambiar. */
+  const ignorarCambioBase = (tpl: Template) => {
+    const base = baseDe(tpl);
+    if (!base) return;
+    const siguiente = { ...baseVistas, [tpl.id]: base.updated_at ?? "" };
+    setBaseVistas(siguiente);
+    try {
+      localStorage.setItem(CLAVE_IGNORADAS, JSON.stringify(siguiente));
+    } catch {
+      // Navegador sin almacenamiento (ventana privada): el aviso vuelve a
+      // aparecer la próxima vez, que es preferible a romper la acción.
+    }
+  };
+
+  /** Traer los cambios de la base: PISA lo que el docente editó. */
+  const traerCambiosBase = async (tpl: Template) => {
+    const base = baseDe(tpl);
+    if (!base || rowBusyId) return;
+    const ok = await confirm({
+      title: t("reportBase.pullTitle", { defaultValue: "¿Traer los cambios de la base?" }),
+      description: t("reportBase.pullDesc", {
+        defaultValue:
+          "El contenido de tu plantilla personalizada se reemplaza por el de la plantilla base. Lo que hayas escrito en ella se pierde. El nombre y el curso no cambian.",
+      }),
+      confirmLabel: t("reportBase.pullConfirm", { defaultValue: "Traer los cambios" }),
+      tone: "warning",
+    });
+    if (!ok) return;
+    setRowBusyId(tpl.id);
+    const { error } = await db
+      .from("report_templates")
+      .update({
+        body_html: base.body_html,
+        header_html: base.header_html,
+        footer_html: base.footer_html,
+        css: base.css,
+        page_orientation: base.page_orientation,
+        page_size: base.page_size,
+        scope: base.scope,
+      })
+      .eq("id", tpl.id);
+    setRowBusyId(null);
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    toast.success(t("reportBase.pullOk", { defaultValue: "Tu plantilla quedó igual a la base." }));
+    await load();
   };
 
   const openEdit = (t: Template) => {
@@ -927,6 +1168,8 @@ function Inner() {
     setGenPeriodo("");
     setGenStudents([]);
     setGenHtml(null);
+    setGenFocoKey("");
+    setGenEvaluaciones([]);
     // Generación normal (no desde acta) — limpia el actaId para
     // forzar el path 'datos vivos'.
     setGenActaId(null);
@@ -1031,11 +1274,116 @@ function Inner() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [genOpen, genTemplate, genCourseId]);
 
+  /**
+   * ¿Esta plantilla habla de una evaluación concreta?
+   *
+   * Se deduce del cuerpo —igual que `tieneRanuras` deduce si el documento se
+   * puede firmar— y no de una columna: así no hay una bandera que pueda quedar en
+   * desacuerdo con la plantilla que el docente acaba de editar.
+   */
+  const genNecesitaFoco = useMemo(
+    () =>
+      !!genTemplate &&
+      pidePlantillaEvaluacion(
+        genTemplate.body_html,
+        genTemplate.header_html,
+        genTemplate.footer_html,
+      ),
+    [genTemplate],
+  );
+
+  // Evaluaciones del curso para elegir el foco. Se excluyen las de la papelera y
+  // los borradores: un borrador no tiene entregas y su peso todavía no cuenta
+  // para la nota, así que el informe saldría vacío y con la nota en "—".
+  useEffect(() => {
+    if (!genOpen || !genNecesitaFoco || !genCourseId) {
+      setGenEvaluaciones([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      setGenLoadingEvaluaciones(true);
+      const noBorrador = (s: string | null | undefined) => (s ?? "published") !== "draft";
+      const [ex, wc, pc] = await Promise.all([
+        db
+          .from("exams")
+          .select("id, title, status, parent_exam_id")
+          .eq("course_id", genCourseId)
+          .is("deleted_at", null),
+        db
+          .from("workshop_courses")
+          .select("workshop:workshops(id, title, status, deleted_at)")
+          .eq("course_id", genCourseId),
+        db
+          .from("project_courses")
+          .select("project:projects(id, title, status, deleted_at)")
+          .eq("course_id", genCourseId),
+      ]);
+      if (cancelled) return;
+      const errores = [ex.error, wc.error, pc.error].filter(Boolean);
+      if (errores.length > 0) {
+        toast.error(
+          friendlyError(
+            errores[0],
+            t("hc_routesAppTeacherReports.focoLoadError", {
+              defaultValue: "No pudimos cargar las evaluaciones del curso.",
+            }),
+          ),
+        );
+        setGenEvaluaciones([]);
+        setGenLoadingEvaluaciones(false);
+        return;
+      }
+      const lista: EvaluacionElegible[] = [];
+      for (const e of (ex.data ?? []) as Array<{
+        id: string;
+        title: string;
+        status: string | null;
+        parent_exam_id: string | null;
+      }>) {
+        // Las recuperaciones se cuentan dentro del examen original (así lo hace
+        // el libro de notas), así que no se ofrecen por separado.
+        if (e.parent_exam_id) continue;
+        if (!noBorrador(e.status)) continue;
+        lista.push({ tipo: "examen", id: e.id, titulo: e.title });
+      }
+      for (const r of (wc.data ?? []) as Array<{
+        workshop: { id: string; title: string; status: string | null; deleted_at: string | null } | null;
+      }>) {
+        const w = r.workshop;
+        if (!w || w.deleted_at || !noBorrador(w.status)) continue;
+        lista.push({ tipo: "taller", id: w.id, titulo: w.title });
+      }
+      for (const r of (pc.data ?? []) as Array<{
+        project: { id: string; title: string; status: string | null; deleted_at: string | null } | null;
+      }>) {
+        const p2 = r.project;
+        if (!p2 || p2.deleted_at || !noBorrador(p2.status)) continue;
+        lista.push({ tipo: "proyecto", id: p2.id, titulo: p2.title });
+      }
+      setGenEvaluaciones(lista);
+      setGenFocoKey((prev) => (lista.some((x) => focoKey(x) === prev) ? prev : ""));
+      setGenLoadingEvaluaciones(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [genOpen, genNecesitaFoco, genCourseId]);
+
   const handleGenerate = async () => {
     if (!genTemplate || !genCourseId) return;
     if (genBuilding) return; // anti doble-submit
     if (genTemplate.scope === "estudiante" && !genStudentId) {
       toast.error(i18n.t("toast.routes_app_teacher_reports.selectStudent", { defaultValue: "Selecciona un estudiante" }));
+      return;
+    }
+    if (genNecesitaFoco && !parseFocoKey(genFocoKey)) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_reports.selectFoco", {
+          defaultValue: "Elegí la evaluación de la que habla este informe",
+        }),
+      );
       return;
     }
     setGenBuilding(true);
@@ -1046,6 +1394,7 @@ function Inner() {
             courseId: genCourseId,
             studentId: genTemplate.scope === "estudiante" ? genStudentId : undefined,
             // Sin `periodo`: el contexto lo toma del curso.
+            foco: genNecesitaFoco ? (parseFocoKey(genFocoKey) ?? undefined) : undefined,
           });
       // Se guarda el resuelto para el nombre del archivo.
       if (typeof ctx.periodo === "string") setGenPeriodo(ctx.periodo);
@@ -1107,24 +1456,38 @@ function Inner() {
     if (!genHtml || !genTemplate || !genCourseId) return null;
     if (genSavedId) return genSavedId;
     const meta = genMeta();
-    const { data, error } = await db
+    const fila = {
+      template_id: genTemplate.id,
+      template_name: genTemplate.name,
+      scope: genTemplate.scope,
+      course_id: genCourseId,
+      course_name: meta.courseName,
+      student_id: genTemplate.scope === "estudiante" ? genStudentId || null : null,
+      student_name: meta.studentName,
+      periodo: meta.periodo,
+      acta_id: genActaId,
+      html: genHtml,
+      page_orientation: genTemplate.page_orientation,
+      page_size: genTemplate.page_size,
+    };
+    // De qué evaluación habla el informe: sin esto, al re-descargarlo un mes
+    // después no hay forma de saber de cuál era.
+    const f = genNecesitaFoco ? parseFocoKey(genFocoKey) : null;
+    let { data, error } = await db
       .from("generated_reports")
-      .insert({
-        template_id: genTemplate.id,
-        template_name: genTemplate.name,
-        scope: genTemplate.scope,
-        course_id: genCourseId,
-        course_name: meta.courseName,
-        student_id: genTemplate.scope === "estudiante" ? genStudentId || null : null,
-        student_name: meta.studentName,
-        periodo: meta.periodo,
-        acta_id: genActaId,
-        html: genHtml,
-        page_orientation: genTemplate.page_orientation,
-        page_size: genTemplate.page_size,
-      })
+      .insert(f ? { ...fila, foco_tipo: f.tipo, foco_id: f.id } : fila)
       .select("id")
       .single();
+    // Entorno donde la migración de esas dos columnas todavía no corrió: se
+    // guarda el informe SIN la referencia en vez de perder la generación entera.
+    // Es trazabilidad, no el documento.
+    if (error && f && /foco_(tipo|id)/.test(String(error.message ?? ""))) {
+      ({ data, error } = await db
+        .from("generated_reports")
+        .insert(fila)
+        .select("id")
+        .single());
+    }
     if (error || !data) {
       toast.warning(
         mensajeFallo ??
@@ -1160,7 +1523,12 @@ function Inner() {
         }),
       );
       if (!id) return;
-      setFirmarInforme({ id, courseId: genCourseId, nombre: genTemplate.name });
+      setFirmarInforme({
+        id,
+        courseId: genCourseId,
+        nombre: genTemplate.name,
+        studentId: genTemplate.scope === "estudiante" ? genStudentId || null : null,
+      });
     } finally {
       setGenSending(false);
     }
@@ -1224,6 +1592,60 @@ function Inner() {
    * dibujan al mostrarlo. Es best-effort — si la consulta falla se descarga el
    * documento sin firmas, que es lo que pasaba antes, en vez de no descargar nada.
    */
+  /**
+   * Activa el enlace publico del DOCUMENTO y lo copia. Un solo enlace para pegar
+   * en el grupo del curso.
+   *
+   * Es distinto del enlace por firmante que manda "Enviar a firmar": ese llega al
+   * correo de cada uno y ES la credencial —quien lo tenga puede firmar en su
+   * nombre—; este no identifica a nadie y solo deja LEER. Para firmar hay que
+   * entrar con correo y contrasena, asi que la firma queda con sesion de verdad.
+   */
+  const compartirPublico = async (r: GeneratedReport) => {
+    const { data, error } = await db.rpc("report_set_public", {
+      _report_id: r.id,
+      _enabled: true,
+    });
+    const res = data as { ok?: boolean; error?: string; token?: string | null } | null;
+    if (error || !res?.ok || !res.token) {
+      toast.error(friendlyError(error, i18n.t("publicDocument.shareError")));
+      return;
+    }
+    const origen = typeof window !== "undefined" ? window.location.origin : "";
+    const url = origen + "/documento/" + res.token;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(i18n.t("publicDocument.shareCopied"));
+    } catch {
+      // Si el portapapeles esta bloqueado, el enlace igual quedo activo: se
+      // muestra para que se pueda copiar a mano.
+      toast.success(url, { duration: 15000 });
+    }
+    void loadGenReports();
+  };
+
+  /** Corta el enlace publico. El que este circulando deja de abrir. */
+  const cortarPublico = async (r: GeneratedReport) => {
+    const ok = await confirm({
+      title: i18n.t("publicDocument.revokeTitle"),
+      description: i18n.t("publicDocument.revokeBody"),
+      confirmLabel: i18n.t("publicDocument.revokeConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    const { data, error } = await db.rpc("report_set_public", {
+      _report_id: r.id,
+      _enabled: false,
+    });
+    const res = data as { ok?: boolean } | null;
+    if (error || !res?.ok) {
+      toast.error(friendlyError(error, i18n.t("publicDocument.shareError")));
+      return;
+    }
+    toast.success(i18n.t("publicDocument.revoked"));
+    void loadGenReports();
+  };
+
   const conFirmas = async (r: GeneratedReport): Promise<string> => {
     try {
       const { data } = await db.rpc("report_signatures_of", { _report_id: r.id });
@@ -1506,6 +1928,19 @@ function Inner() {
                             <div className="truncate" title={tpl.name}>
                               {tpl.name}
                             </div>
+                            {/* La base cambió después de esta copia. Va bajo el
+                                nombre y no en una columna nueva: es un aviso
+                                temporal, no un atributo de la plantilla. */}
+                            {baseCambio(tpl) && (
+                              <Badge
+                                variant="outline"
+                                className="mt-1 text-3xs border-warning/50 text-warning-on-subtle"
+                              >
+                                {t("reportBase.badge", {
+                                  defaultValue: "La plantilla base cambió",
+                                })}
+                              </Badge>
+                            )}
                           </TableCell>
                           <TableCell className="hidden sm:table-cell">
                             {originBadge(
@@ -1545,6 +1980,39 @@ function Inner() {
                                   icon: Pencil,
                                   onClick: () => openEdit(tpl),
                                   separatorBefore: true,
+                                },
+                                // Las tres acciones del aviso "la base cambió":
+                                // ver qué cambió, traerlo (pisa la edición del
+                                // docente) o dejar de avisar. Solo aparecen
+                                // cuando hay algo que reconciliar.
+                                baseCambio(tpl) && {
+                                  label: t("reportBase.actionDiff", {
+                                    defaultValue: "Ver qué cambió en la base",
+                                  }),
+                                  icon: Eye,
+                                  separatorBefore: true,
+                                  onClick: () => {
+                                    const base = baseDe(tpl);
+                                    if (base) setComparar({ propia: tpl, base });
+                                  },
+                                },
+                                baseCambio(tpl) && {
+                                  label: t("reportBase.actionPull", {
+                                    defaultValue: "Traer los cambios de la base",
+                                  }),
+                                  icon: RefreshCw,
+                                  disabled: !!rowBusyId,
+                                  hint: t("reportBase.actionPullHint", {
+                                    defaultValue: "Reemplaza tu contenido por el de la base.",
+                                  }),
+                                  onClick: () => void traerCambiosBase(tpl),
+                                },
+                                baseCambio(tpl) && {
+                                  label: t("reportBase.actionIgnore", {
+                                    defaultValue: "Dejar de avisarme",
+                                  }),
+                                  icon: EyeOff,
+                                  onClick: () => ignorarCambioBase(tpl),
                                 },
                                 {
                                   label: t("hc_routesAppTeacherReports.actionDuplicate"),
@@ -1672,10 +2140,11 @@ function Inner() {
                                     disabled: !!histBusyId,
                                     onClick: () => void reDownloadPdf(r),
                                   },
-                                  // Enviar a firmar solo tiene sentido en un
-                                  // informe de CURSO: el de un estudiante ya es
-                                  // de una sola persona y firmarlo no agrega
-                                  // nada que el docente no sepa.
+                                  // Enviar a firmar necesita el curso (de ahí
+                                  // sale quién puede firmar). Sirve igual para un
+                                  // informe de curso y para el de un estudiante:
+                                  // el flujo de firmas es la única forma en que
+                                  // el estudiante ve un informe.
                                   ...(r.course_id
                                     ? [
                                         {
@@ -1687,7 +2156,34 @@ function Inner() {
                                               id: r.id,
                                               courseId: r.course_id,
                                               nombre: r.template_name,
+                                              studentId: r.student_id,
                                             }),
+                                        },
+                                      ]
+                                    : []),
+                                  // El enlace publico del DOCUMENTO: uno solo
+                                  // para el grupo del curso. Necesita curso por
+                                  // lo mismo que firmar — de ahi salen los
+                                  // firmantes.
+                                  ...(r.course_id
+                                    ? [
+                                        {
+                                          label: r.public_enabled
+                                            ? t("publicDocument.shareAgain")
+                                            : t("publicDocument.share"),
+                                          icon: Link2,
+                                          disabled: !!histBusyId,
+                                          onClick: () => void compartirPublico(r),
+                                        },
+                                      ]
+                                    : []),
+                                  ...(r.public_enabled
+                                    ? [
+                                        {
+                                          label: t("publicDocument.revoke"),
+                                          icon: Link2Off,
+                                          disabled: !!histBusyId,
+                                          onClick: () => void cortarPublico(r),
                                         },
                                       ]
                                     : []),
@@ -1863,6 +2359,52 @@ function Inner() {
               </div>
             )}
 
+            {/* La evaluación de la que habla el informe. Solo aparece si la
+                plantilla la usa: así la MISMA plantilla sirve para cualquier
+                prueba y no hay que hacer una copia por parcial. */}
+            {genNecesitaFoco && (
+              <div className="space-y-1">
+                <Label required>
+                  {t("hc_routesAppTeacherReports.focoLabel", { defaultValue: "Evaluación" })}
+                </Label>
+                <Select
+                  value={genFocoKey}
+                  onValueChange={(v) => {
+                    setGenFocoKey(v);
+                    setGenHtml(null);
+                  }}
+                  disabled={!genCourseId || genLoadingEvaluaciones}
+                >
+                  <SelectTrigger>
+                    <SelectValue
+                      placeholder={
+                        genLoadingEvaluaciones
+                          ? t("hc_routesAppTeacherReports.loading")
+                          : t("hc_routesAppTeacherReports.focoPlaceholder", {
+                              defaultValue: "Elegí el examen, taller o proyecto",
+                            })
+                      }
+                    />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {genEvaluaciones.map((e) => (
+                      <SelectItem key={focoKey(e)} value={focoKey(e)}>
+                        {e.titulo} · {ETIQUETA_FOCO[e.tipo]()}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {!genLoadingEvaluaciones && genCourseId && genEvaluaciones.length === 0 && (
+                  <p className="text-2xs text-muted-foreground">
+                    {t("hc_routesAppTeacherReports.focoEmpty", {
+                      defaultValue:
+                        "Este curso todavía no tiene exámenes, talleres ni proyectos publicados.",
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* El campo "Periodo" se quitó: lo sabe el curso. Pedirlo a mano
                 solo permitía escribirlo distinto de como figura en el sistema. */}
           </div>
@@ -1874,7 +2416,8 @@ function Inner() {
               disabled={
                 genBuilding ||
                 !genCourseId ||
-                (genTemplate?.scope === "estudiante" && !genStudentId)
+                (genTemplate?.scope === "estudiante" && !genStudentId) ||
+                (genNecesitaFoco && !genFocoKey)
               }
             >
               {genBuilding ? (
@@ -1916,23 +2459,24 @@ function Inner() {
                       })
                     : t("hc_routesAppTeacherReports.downloadPdf", { defaultValue: "Descargar PDF" })}
                 </Button>
-                {/* Solo en informes de CURSO: el de un estudiante ya es de una
-                    sola persona y firmarlo no agrega nada. Misma regla que la
-                    acción de fila de "Informes generados". */}
-                {genTemplate?.scope === "curso" && (
-                  <Button
-                    variant="outline"
-                    onClick={() => void handleSendToSign()}
-                    disabled={!!genDownload || genSending}
-                  >
-                    {genSending ? (
-                      <Spinner size="sm" className="mr-1" />
-                    ) : (
-                      <PenLine className="h-4 w-4 mr-1" />
-                    )}
-                    {t("reportSign.rowAction")}
-                  </Button>
-                )}
+                {/* También en un informe POR ESTUDIANTE: es el canal real de
+                    entrega —el estudiante ve un informe solo por el flujo de
+                    firmas— y ahora la firma puede ir en cualquier lugar del
+                    documento, no solo dentro de la tabla del listado de curso.
+                    Antes esto estaba limitado a los informes de curso y dejaba
+                    afuera justo el caso de darle a cada uno su informe. */}
+                <Button
+                  variant="outline"
+                  onClick={() => void handleSendToSign()}
+                  disabled={!!genDownload || genSending}
+                >
+                  {genSending ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <PenLine className="h-4 w-4 mr-1" />
+                  )}
+                  {t("reportSign.rowAction")}
+                </Button>
               </>
             )}
           </div>
@@ -1963,10 +2507,45 @@ function Inner() {
         </DialogContent>
       </Dialog>
 
+      {/* ── Dialog: qué cambió en la plantilla base ── */}
+      <Dialog open={!!comparar} onOpenChange={(o) => !o && setComparar(null)}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[85dvh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>
+              {t("reportBase.diffTitle", { defaultValue: "Qué cambió en la plantilla base" })}
+            </DialogTitle>
+            <DialogDescription>
+              {t("reportBase.diffDesc", {
+                defaultValue:
+                  "En verde, lo que tiene tu plantilla personalizada. En rojo, lo que dice la base y a tu copia le falta.",
+              })}
+            </DialogDescription>
+          </DialogHeader>
+          {comparar && <DiffPlantilla base={comparar.base} propia={comparar.propia} />}
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setComparar(null)}>
+              {t("common.close")}
+            </Button>
+            <Button
+              onClick={() => {
+                const tpl = comparar?.propia;
+                setComparar(null);
+                if (tpl) void traerCambiosBase(tpl);
+              }}
+              disabled={!!rowBusyId}
+            >
+              <RefreshCw className="h-4 w-4 mr-1" />
+              {t("reportBase.actionPull", { defaultValue: "Traer los cambios de la base" })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <SendToSignDialog
         reportId={firmarInforme?.id ?? null}
         courseId={firmarInforme?.courseId ?? null}
         reportName={firmarInforme?.nombre ?? ""}
+        studentId={firmarInforme?.studentId ?? null}
         onOpenChange={(abierto) => {
           if (!abierto) setFirmarInforme(null);
         }}

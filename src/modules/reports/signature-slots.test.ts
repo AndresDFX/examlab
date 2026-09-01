@@ -4,8 +4,10 @@ import {
   CLASE_RANURA,
   codigoVerificacion,
   firmaHtml,
+  ranuraHtml,
   ranuraPlantillaHtml,
   renderizarRanuras,
+  renglonManualHtml,
   dibujoValido,
   tieneRanuras,
   type FirmaDeInforme,
@@ -268,5 +270,102 @@ describe("dibujoValido — es la frontera de lo que se inyecta como <img>", () =
     });
     expect(h).not.toContain("<img");
     expect(h).toContain("Ana Gómez");
+  });
+});
+
+describe("ranuraHtml — la ranura como VALOR del contexto", () => {
+  it("ancla la ranura a la persona, con la clase que el renderizador busca", () => {
+    const h = ranuraHtml(ANA);
+    expect(h).toContain(`class="${CLASE_RANURA}"`);
+    expect(h).toContain(`data-firma-uid="${ANA}"`);
+    expect(h).toContain("min-height:30px");
+  });
+
+  it("es BYTE-IDÉNTICA a la de la plantilla, con el uid en el lugar del token", () => {
+    // Un carácter de diferencia y `renderizarRanuras` deja de pintarla, sin error.
+    expect(ranuraHtml(ANA)).toBe(ranuraPlantillaHtml().replace("{{user_id}}", ANA));
+  });
+
+  it("SIN ancla devuelve el renglón para firmar a mano, nunca una ranura vacía", () => {
+    for (const vacio of ["", "   ", null, undefined]) {
+      const h = ranuraHtml(vacio);
+      expect(h).toBe(renglonManualHtml());
+      expect(h).not.toContain(CLASE_RANURA);
+      expect(h).not.toContain("data-firma-uid");
+    }
+  });
+
+  it("el renglón a mano NO se cuenta como ranura firmable", () => {
+    // `tieneRanuras` compara por substring: si la clase del renglón contuviera
+    // "examlab-firma", la app ofrecería firmar un documento que nadie puede firmar.
+    expect(tieneRanuras(renglonManualHtml())).toBe(false);
+    expect(renglonManualHtml()).not.toContain(CLASE_RANURA);
+  });
+
+  it("un uid con caracteres peligrosos no puede romper el atributo ni inyectar", () => {
+    const h = ranuraHtml('" onmouseover="alert(1)" x="');
+    // Las comillas quedan escapadas, así que el payload no se sale del atributo:
+    // no hay ningún `onmouseover="` real, solo texto inerte adentro del valor.
+    expect(h).not.toContain('onmouseover="');
+    expect(h).toContain("&quot;");
+    expect((h.match(/<span/g) ?? []).length).toBe(1);
+  });
+
+  it("nada de lo que emite trae script ni manejadores de evento", () => {
+    for (const h of [ranuraHtml(ANA), renglonManualHtml()]) {
+      expect(h).not.toMatch(/<script/i);
+      expect(h).not.toMatch(/\son\w+\s*=/i);
+    }
+  });
+});
+
+describe("renderizarRanuras — ranura sin ancla y orden de atributos", () => {
+  const sinAncla =
+    `<p><span class="${CLASE_RANURA}" data-firma-uid=""` +
+    ' style="display:block;min-height:30px;">&nbsp;</span></p>';
+
+  it("una ranura sin ancla se pinta como renglón a mano, no como botón", () => {
+    const h = renderizarRanuras(sinAncla, { firmanteId: ANA, etiquetaFirmar: "Firmar aquí" });
+    expect(h).not.toContain(ATTR_ACCION);
+    expect(h).toContain("examlab-renglon");
+  });
+
+  it("y la etiqueta de apertura se repone INTACTA (el snapshot no se toca)", () => {
+    const h = renderizarRanuras(sinAncla, { firmanteId: ANA });
+    expect(h).toContain(`<span class="${CLASE_RANURA}" data-firma-uid=""`);
+  });
+
+  it("una ranura sin ancla NO se confunde con la firma de nadie", () => {
+    const h = renderizarRanuras(sinAncla, { firmas: [firma()], firmanteId: ANA });
+    expect(h).not.toContain("Ana Gómez");
+  });
+
+  it("reconoce la ranura aunque los atributos vengan en el orden inverso", () => {
+    // El editor de texto rico puede reordenar atributos al pasar por el DOM.
+    const invertido =
+      `<span data-firma-uid="${ANA}" class="${CLASE_RANURA}"` +
+      ' style="display:block;">&nbsp;</span>';
+    const h = renderizarRanuras(invertido, { firmas: [firma()] });
+    expect(h).toContain("Ana Gómez");
+  });
+
+  it("un <span> que no es ranura se deja intacto y no descuadra el resto", () => {
+    const html = `<span class="otro">hola</span>${snapshot(ANA)}`;
+    const h = renderizarRanuras(html, { firmas: [firma()] });
+    expect(h).toContain('<span class="otro">hola</span>');
+    expect(h).toContain("Ana Gómez");
+  });
+
+  it("sigue siendo idempotente con la ranura sin ancla", () => {
+    const una = renderizarRanuras(sinAncla, { firmanteId: ANA });
+    expect(renderizarRanuras(una, { firmanteId: ANA })).toBe(una);
+  });
+
+  it("una ranura sin ancla junto a una anclada no le roba la firma", () => {
+    const h = renderizarRanuras(sinAncla + snapshot(BETO), {
+      firmas: [firma({ user_id: BETO, nombre: "Beto Ruiz" })],
+    });
+    expect(h).toContain("Beto Ruiz");
+    expect(h).toContain("examlab-renglon");
   });
 });
