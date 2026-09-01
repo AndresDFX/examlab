@@ -70,7 +70,13 @@
     "signedCount_other": "{{count}} signed",
     "signedOn": "Signed on {{date}}",
     "withdrawnOk_one": "{{count}} request withdrawn.",
-    "withdrawnOk_other": "{{count}} requests withdrawn."
+    "withdrawnOk_other": "{{count}} requests withdrawn.",
+    "clearAction": "Delete this signature",
+    "clearTitle": "Delete {{name}}'s signature?",
+    "clearBody": "The request goes back to pending, so that person can sign again. They are not removed from the document and nobody else is affected.",
+    "clearConfirm": "Delete signature",
+    "clearOk": "Signature deleted. The person can sign again.",
+    "clearError": "The signature could not be deleted."
   },
   "pollPrint": {
     "unnamed": "Unnamed",
@@ -5098,7 +5104,10 @@
     "labelMaxFailed": "Failed activities tolerated",
     "labelMaxFailedHint": "How many activities a student may fail before the reason is flagged. With 2, it flags from the third onward.",
     "labelMaxMissing": "Missing activities tolerated",
-    "labelMaxMissingHint": "How many activities may be left unsubmitted before the reason is flagged. With 2, it flags from the third onward."
+    "labelMaxMissingHint": "How many activities may be left unsubmitted before the reason is flagged. With 2, it flags from the third onward.",
+    "labelCiudad": "Campus city",
+    "placeholderCiudad": "e.g. Cali",
+    "hintCiudad": "Used by the reports that ask for it, like the Pedagogical Agreement. Set once here instead of in every document."
   },
   "superadminSupport": {
     "title": "Support",
@@ -10133,7 +10142,11 @@
     "filterHint": "Show only students designated as representative.",
     "designate": "Designate representative",
     "pickCourseFirst": "Pick a course first: the representative belongs to a course, not to the whole list.",
-    "studentLabel": "Course representative:"
+    "studentLabel": "Course representative:",
+    "phoneLabel": "Class rep phone",
+    "phonePlaceholder": "For the record",
+    "phoneOk": "Phone saved.",
+    "phoneError": "The phone could not be saved."
   },
   "tenantBrandPreview": {
     "primaryAction": "Primary action"

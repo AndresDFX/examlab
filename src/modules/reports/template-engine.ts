@@ -304,6 +304,15 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
       { label: "Intensidad horaria", labelEn: "Weekly hours", path: "curso.intensidad_horaria", kind: "scalar" },
       { label: "Sistema de evaluación", labelEn: "Assessment system", path: "curso.sistema_evaluacion", kind: "scalar" },
       { label: "Horario", labelEn: "Schedule", path: "curso.horario", kind: "scalar", hint: "Bloques semanales formateados: 'Lun 10:00–12:00 · Jue 14:00–16:00'", hintEn: "Formatted weekly blocks: 'Mon 10:00–12:00 · Thu 14:00–16:00'" },
+      // El vocero del curso: quien es y como contactarlo. NO es un campo de
+      // texto del curso — es el matriculado que el docente marco como vocero
+      // (course_enrollments.vocero_marcado_at). El dato existia y no habia
+      // variable, y por eso el Acuerdo Pedagogico salia con esas casillas en
+      // blanco aunque el docente ya lo hubiera marcado.
+      { label: "Vocero · Nombre", labelEn: "Class rep · Name", path: "curso.vocero.nombre", kind: "scalar", hint: "El matriculado marcado como vocero. Se marca en el curso, en «Vocero»", hintEn: "The enrolled student marked as class rep. Set it on the course, under «Vocero»" },
+      { label: "Vocero · Teléfono", labelEn: "Class rep · Phone", path: "curso.vocero.telefono", kind: "scalar", hint: "Se escribe al marcar al vocero. Vacío si nadie lo cargó: la casilla queda para llenar a mano", hintEn: "Entered when marking the class rep. Empty if nobody filled it in: the box is left to write by hand" },
+      { label: "Vocero · Correo", labelEn: "Class rep · Email", path: "curso.vocero.email", kind: "scalar", hint: "El institucional; si no tiene, el personal", hintEn: "The institutional one; the personal one as a fallback" },
+      { label: "Vocero · Documento", labelEn: "Class rep · ID document", path: "curso.vocero.documento", kind: "scalar" },
       { label: "Periodo", labelEn: "Term", path: "periodo", kind: "scalar" },
       { label: "Periodo · Inicio", labelEn: "Term · Start", path: "periodo_obj.start_date", kind: "scalar" },
       { label: "Periodo · Fin", labelEn: "Term · End", path: "periodo_obj.end_date", kind: "scalar" },
@@ -329,6 +338,7 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
     children: [
       { label: "Nombre", labelEn: "Name", path: "institucion.nombre", kind: "scalar" },
       { label: "Logo (URL)", labelEn: "Logo (URL)", path: "institucion.logo", kind: "scalar" },
+      { label: "Ciudad", labelEn: "City", path: "institucion.ciudad", kind: "scalar", hint: "La ciudad de la sede. Se escribe una vez en Configuración → General y la usan todos los informes", hintEn: "The campus city. Set it once in Settings → General and every report uses it" },
     ],
   },
   {

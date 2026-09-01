@@ -118,7 +118,11 @@ describe("countCatalogLeaves", () => {
     const total = countCatalogLeaves(REPORT_VARIABLE_CATALOG);
     // 49 → 72 al agregar los grupos "Evaluación" (una prueba concreta, con su
     // detalle por pregunta) y "Firma" (la ranura como variable).
-    expect(total).toBe(72);
+    // 72 → 77 al conectar las casillas que el Acuerdo Pedagógico traía en blanco:
+    // las cuatro del vocero (nombre, teléfono, correo, documento) y la ciudad de
+    // la sede. El dato del vocero ya existía —es el matriculado marcado— y lo que
+    // faltaba era la variable.
+    expect(total).toBe(77);
     // Y el filtro nunca puede devolver más de las que hay.
     expect(
       countCatalogLeaves(filterVariableCatalog(REPORT_VARIABLE_CATALOG, "o")),

@@ -174,13 +174,79 @@ function effectiveScore(sub: {
  */
 async function leerInstitucion(
   tenantId: string | null,
-): Promise<{ nombre: string; logo: string }> {
+): Promise<{ nombre: string; logo: string; ciudad: string }> {
   let q = db.from("certificate_settings").select("institution_name, institution_logo_url");
   if (tenantId) q = q.eq("tenant_id", tenantId);
   const { data } = await q.limit(1).maybeSingle();
+
+  // La ciudad de la sede vive en `app_settings` (el singleton POR institución que
+  // ya existe y ya tiene panel de Admin) y no en `certificate_settings`, que es
+  // configuración de certificados. No cambia por curso ni por documento: se
+  // escribe una vez y la usan todos los informes.
+  let qs = db.from("app_settings").select("ciudad");
+  if (tenantId) qs = qs.eq("tenant_id", tenantId);
+  const { data: ajustes } = await qs.limit(1).maybeSingle();
+
   return {
     nombre: data?.institution_name ?? "—",
     logo: data?.institution_logo_url ?? "",
+    // Vacío y no "—": va dentro de una casilla del formato que, si no hay dato,
+    // se llena a mano sobre el papel. Un guion ahí obligaría a tacharlo.
+    ciudad: (ajustes as { ciudad?: string | null } | null)?.ciudad ?? "",
+  };
+}
+
+/**
+ * El VOCERO del curso, ya resuelto: quién es, cómo contactarlo.
+ *
+ * El dato existía y no había variable — por eso el Acuerdo Pedagógico salía con
+ * las casillas del vocero en blanco aunque el docente ya lo hubiera marcado.
+ *
+ * El vocero no es un campo de texto del curso: es el MATRICULADO marcado
+ * (`course_enrollments.vocero_marcado_at`, mig 20261880000000). Si hubiera más de
+ * uno marcado gana el más reciente — la marca es exclusiva por diseño, pero
+ * ordenar evita que un residuo histórico decida por azar.
+ *
+ * Dos consultas y no un embed: `course_enrollments.user_id` apunta a
+ * `auth.users`, NO a `profiles`, y el embed de PostgREST falla en silencio
+ * (convención documentada del proyecto).
+ */
+async function leerVocero(courseId: string): Promise<{
+  nombre: string;
+  email: string;
+  telefono: string;
+  documento: string;
+}> {
+  const vacio = { nombre: "", email: "", telefono: "", documento: "" };
+  const { data: fila } = await db
+    .from("course_enrollments")
+    .select("user_id, vocero_telefono, vocero_marcado_at")
+    .eq("course_id", courseId)
+    .not("vocero_marcado_at", "is", null)
+    .order("vocero_marcado_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const f = fila as { user_id?: string; vocero_telefono?: string | null } | null;
+  if (!f?.user_id) return vacio;
+
+  const { data: perfil } = await db
+    .from("profiles")
+    .select("full_name, institutional_email, personal_email, documento")
+    .eq("id", f.user_id)
+    .maybeSingle();
+  const pr = perfil as {
+    full_name?: string | null;
+    institutional_email?: string | null;
+    personal_email?: string | null;
+    documento?: string | null;
+  } | null;
+
+  return {
+    nombre: pr?.full_name ?? "",
+    // El institucional primero: es el que la institución reconoce en un acta.
+    email: pr?.institutional_email ?? pr?.personal_email ?? "",
+    telefono: f.vocero_telefono ?? "",
+    documento: pr?.documento ?? "",
   };
 }
 
@@ -530,6 +596,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   }
 
   const institucion = await leerInstitucion(courseRow.tenant_id ?? null);
+  const vocero = await leerVocero(courseId);
 
   // Horario del curso (bloques semanales). Lo formateamos a texto
   // plano para que la plantilla lo use como un campo simple.
@@ -969,6 +1036,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // Horario semanal formateado: "Lun 10:00–12:00 (Aula 301) · Jue 14:00–16:00 (virtual)".
       // Vacío si el curso no tiene bloques definidos todavía.
       horario: scheduleText,
+      vocero,
     },
     docente,
     institucion,

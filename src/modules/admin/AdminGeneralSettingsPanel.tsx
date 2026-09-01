@@ -71,6 +71,10 @@ interface AppSettings {
   early_alert_min_attendance_rate: number;
   early_alert_max_failed: number;
   early_alert_max_missing: number;
+  /** Ciudad de la sede. La usan los INFORMES (la casilla "Ciudad" del Acuerdo
+   *  Pedagógico salía en blanco porque el dato no existía en ninguna tabla). Se
+   *  escribe una vez por institución; no cambia por curso ni por documento. */
+  ciudad: string;
   updated_at: string;
 }
 
@@ -230,6 +234,9 @@ export function AdminGeneralSettingsPanel() {
           early_alert_min_attendance_rate: draft.early_alert_min_attendance_rate,
           early_alert_max_failed: draft.early_alert_max_failed,
           early_alert_max_missing: draft.early_alert_max_missing,
+          // Vacío se guarda como NULL: una cadena vacía haría que el documento
+          // imprima "" en vez de dejar la casilla para llenar a mano.
+          ciudad: draft.ciudad.trim() || null,
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -544,6 +551,21 @@ export function AdminGeneralSettingsPanel() {
             />
             <p className="text-2xs text-muted-foreground mt-1">
               {t("adminGeneralSettings.hintCheckinHours")}
+            </p>
+          </div>
+
+          {/* La ciudad de la sede. La piden los INFORMES: la casilla "Ciudad"
+              del Acuerdo Pedagógico salía en blanco porque el dato no existía en
+              ninguna tabla. Se escribe una vez acá y la usan todos. */}
+          <div className="max-w-xs">
+            <Label>{t("adminGeneralSettings.labelCiudad")}</Label>
+            <Input
+              value={draft.ciudad}
+              onChange={(e) => setDraft({ ...draft, ciudad: e.target.value })}
+              placeholder={t("adminGeneralSettings.placeholderCiudad")}
+            />
+            <p className="text-2xs text-muted-foreground mt-1">
+              {t("adminGeneralSettings.hintCiudad")}
             </p>
           </div>
         </CardContent>

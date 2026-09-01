@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { PenLine, Users } from "lucide-react";
+import { Eraser, PenLine, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -34,6 +34,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
+import { RowAction } from "@/components/ui/row-action";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -72,7 +74,10 @@ export function SendToSignDialog({
   onOpenChange: (abierto: boolean) => void;
 }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const [cargando, setCargando] = useState(false);
+  /** Qué firma se está borrando, para deshabilitar solo esa fila. */
+  const [borrando, setBorrando] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [alumnos, setAlumnos] = useState<Matriculado[]>([]);
   const [solicitudes, setSolicitudes] = useState<Map<string, Solicitud>>(new Map());
@@ -161,6 +166,43 @@ export function SendToSignDialog({
       else s.add(id);
       return s;
     });
+  };
+
+  /**
+   * Borra la firma de UNA persona y deja la solicitud pendiente.
+   *
+   * Se borra la FIRMA, no la solicitud: el caso real es "firmó por error" o
+   * "firmó el equivocado", y hay que poder pedirle que lo haga de nuevo. Quitarlo
+   * del documento dejaría a alguien fuera sin que nadie lo note.
+   *
+   * Tono `warning` y no `destructive`: se puede volver a firmar. Pero el aviso
+   * dice el NOMBRE, porque borrarle la firma a la persona equivocada es
+   * exactamente el error que hay que evitar.
+   */
+  const borrarFirma = async (userId: string, nombre: string) => {
+    const ok = await confirm({
+      title: t("reportSign.clearTitle", { name: nombre }),
+      description: t("reportSign.clearBody"),
+      confirmLabel: t("reportSign.clearConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    setBorrando(userId);
+    try {
+      const { data, error } = await db.rpc("teacher_clear_report_signature", {
+        _report_id: reportId,
+        _user_id: userId,
+      });
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (error || !r?.ok) {
+        toast.error(friendlyError(error, t("reportSign.clearError")));
+        return;
+      }
+      toast.success(t("reportSign.clearOk"));
+      await cargar();
+    } finally {
+      setBorrando(null);
+    }
   };
 
   const firmados = alumnos.filter((a) => solicitudes.get(a.id)?.signed_at).length;
@@ -271,10 +313,21 @@ export function SendToSignDialog({
                       )}
                     </span>
                     {yaFirmo ? (
-                      <span className="text-2xs text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
-                        {t("reportSign.signedOn", {
-                          date: formatDateTime(sol!.signed_at as string),
-                        })}
+                      <span className="flex items-center gap-2 whitespace-nowrap">
+                        <span className="text-2xs text-emerald-600 dark:text-emerald-400">
+                          {t("reportSign.signedOn", {
+                            date: formatDateTime(sol!.signed_at as string),
+                          })}
+                        </span>
+                        {/* Borrar la firma vive acá y no en un menú aparte: es el
+                            único lugar donde el docente ya está viendo QUIÉN firmó
+                            y cuándo, que es lo que necesita para decidir. */}
+                        <RowAction
+                          label={t("reportSign.clearAction")}
+                          icon={Eraser}
+                          disabled={borrando === a.id}
+                          onClick={() => void borrarFirma(a.id, a.nombre)}
+                        />
                       </span>
                     ) : (
                       sol?.public_token && (

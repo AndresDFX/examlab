@@ -73,6 +73,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Las casillas en blanco del Acuerdo Pedagógico, conectadas.** El formato salía con seis vacías, y
+  cada una lo estaba por un motivo distinto. Las que faltaba **cablear**:
+
+  - **Nombre y correo del vocero**: el dato ya existía —es el estudiante que marcaste como vocero— y
+    simplemente no había variable. Ahora sale solo.
+  - **Teléfono del vocero**: no existía en ninguna tabla. Ahora se escribe al marcar al vocero, en la
+    misma tarjeta donde queda designado (que es donde se sabe de quién es el teléfono).
+  - **Ciudad de la sede**: tampoco existía. Se escribe una vez en Configuración → General y la usan
+    todos los informes que la piden.
+
+  Las otras tres no eran de la plantilla y conviene saberlo: **Grupo** y **Semestre** ya tenían su
+  variable y salen vacías porque el curso los tiene en blanco; **Objetivos del Curso** salen de la
+  asignatura del plan, así que aparecen cuando el curso está vinculado a una.
+
+- **El docente puede borrar la firma de un estudiante puntual.** En el diálogo de firmas, junto a la
+  fecha en que firmó. Se borra la **firma**, no la solicitud: la persona queda pendiente otra vez y
+  puede volver a firmar. Es para el caso real —firmó por error, o firmó el equivocado—, y no saca a
+  nadie del documento.
+
+
+
 - **Informe de una evaluación, para entregarle al estudiante.** Nueva plantilla general —disponible en
   todas las instituciones y personalizable por curso— que arma un informe de un examen, taller o
   proyecto concreto: pregunta por pregunta, qué respondió, cuánto sacó en cada una, la

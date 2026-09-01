@@ -70,7 +70,13 @@
     "signedCount_other": "{{count}} firmados",
     "signedOn": "Firmó el {{date}}",
     "withdrawnOk_one": "Se retiró {{count}} solicitud.",
-    "withdrawnOk_other": "Se retiraron {{count}} solicitudes."
+    "withdrawnOk_other": "Se retiraron {{count}} solicitudes.",
+    "clearAction": "Borrar esta firma",
+    "clearTitle": "¿Borrar la firma de {{name}}?",
+    "clearBody": "La solicitud queda pendiente otra vez, así que esa persona puede volver a firmar. No se quita del documento y nadie más se ve afectado.",
+    "clearConfirm": "Borrar la firma",
+    "clearOk": "Firma borrada. La persona puede volver a firmar.",
+    "clearError": "No se pudo borrar la firma."
   },
   "pollPrint": {
     "unnamed": "Sin nombre",
@@ -5098,7 +5104,10 @@
     "labelMaxFailed": "Actividades reprobadas toleradas",
     "labelMaxFailedHint": "Cuántas actividades puede reprobar un estudiante sin que se marque el motivo. Con 2, se marca a partir de la tercera.",
     "labelMaxMissing": "Actividades no entregadas toleradas",
-    "labelMaxMissingHint": "Cuántas actividades puede dejar sin entregar sin que se marque el motivo. Con 2, se marca a partir de la tercera."
+    "labelMaxMissingHint": "Cuántas actividades puede dejar sin entregar sin que se marque el motivo. Con 2, se marca a partir de la tercera.",
+    "labelCiudad": "Ciudad de la sede",
+    "placeholderCiudad": "Ej.: Cali",
+    "hintCiudad": "La usan los informes que la piden, como el Acuerdo Pedagógico. Se escribe una vez acá en vez de en cada documento."
   },
   "superadminSupport": {
     "title": "Soporte",
@@ -10133,7 +10142,11 @@
     "filterHint": "Mostrar únicamente a los estudiantes designados como vocero.",
     "designate": "Designar vocero",
     "pickCourseFirst": "Elegí un curso primero: el vocero es de un curso, no de la lista completa.",
-    "studentLabel": "Vocero del curso:"
+    "studentLabel": "Vocero del curso:",
+    "phoneLabel": "Teléfono del vocero",
+    "phonePlaceholder": "Para el acta",
+    "phoneOk": "Teléfono guardado.",
+    "phoneError": "No se pudo guardar el teléfono."
   },
   "tenantBrandPreview": {
     "primaryAction": "Acción principal"

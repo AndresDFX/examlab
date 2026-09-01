@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -48,6 +49,8 @@ interface Matriculado {
   institutional_email: string | null;
   codigo: string | null;
   vocero_marcado_at: string | null;
+  /** Teléfono de contacto del vocero PARA ESTE acuerdo. */
+  vocero_telefono: string | null;
 }
 
 interface Props {
@@ -69,6 +72,8 @@ export function SetCourseVoceroDialog({
   const { t } = useTranslation();
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState<string | null>(null);
+  /** Lo tipeado en el campo del teléfono del vocero. */
+  const [telefono, setTelefono] = useState("");
   const [lista, setLista] = useState<Matriculado[]>([]);
   const [q, setQ] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -83,12 +88,13 @@ export function SetCourseVoceroDialog({
       // silencio (convención documentada del proyecto).
       const enr = await db
         .from("course_enrollments")
-        .select("user_id, vocero_marcado_at")
+        .select("user_id, vocero_marcado_at, vocero_telefono")
         .eq("course_id", courseId);
       if (enr.error) throw enr.error;
       const filas = (enr.data ?? []) as Array<{
         user_id: string;
         vocero_marcado_at: string | null;
+        vocero_telefono: string | null;
       }>;
       if (filas.length === 0) {
         setLista([]);
@@ -117,6 +123,7 @@ export function SetCourseVoceroDialog({
               institutional_email: p?.institutional_email ?? null,
               codigo: p?.codigo ?? null,
               vocero_marcado_at: f.vocero_marcado_at,
+              vocero_telefono: f.vocero_telefono,
             };
           })
           .sort((a, b) => a.full_name.localeCompare(b.full_name, "es-CO")),
@@ -145,6 +152,12 @@ export function SetCourseVoceroDialog({
   }, [open]);
 
   const vocero = useMemo(() => lista.find((m) => m.vocero_marcado_at), [lista]);
+
+  // Sincroniza el campo con el vocero cargado: si arrancara vacío teniendo
+  // teléfono guardado, el docente lo re-escribiría creyendo que se perdió.
+  useEffect(() => {
+    setTelefono(vocero?.vocero_telefono ?? "");
+  }, [vocero?.user_id, vocero?.vocero_telefono]);
   const filtrada = useMemo(() => {
     const n = normalizeForSearch(q);
     if (!n) return lista;
@@ -155,6 +168,34 @@ export function SetCourseVoceroDialog({
         normalizeForSearch(m.codigo ?? "").includes(n),
     );
   }, [lista, q]);
+
+  /**
+   * Guarda el teléfono del vocero. Va por su propio RPC en vez de reescribir
+   * `set_course_vocero`: esa función ya tiene su autorización probada, y
+   * reemplazarla entera para sumarle un campo es la clase de cambio que rompe lo
+   * que ya andaba.
+   */
+  const guardarTelefono = async (userId: string) => {
+    if (!courseId) return;
+    setGuardando(userId);
+    try {
+      const { data, error } = await db.rpc("set_course_vocero_telefono", {
+        _course_id: courseId,
+        _user_id: userId,
+        _telefono: telefono,
+      });
+      const r = data as { ok?: boolean } | null;
+      if (error || !r?.ok) {
+        toast.error(friendlyError(error, t("vocero.phoneError")));
+        return;
+      }
+      toast.success(t("vocero.phoneOk"));
+      await cargar();
+      onChanged?.();
+    } finally {
+      setGuardando(null);
+    }
+  };
 
   const designar = async (userId: string | null) => {
     if (!courseId) return;
@@ -208,13 +249,44 @@ export function SetCourseVoceroDialog({
           <div className="space-y-2">
             {vocero && (
               <div className="rounded-md border bg-muted/40 p-2 flex items-center justify-between gap-2">
-                <div className="min-w-0">
+                <div className="min-w-0 space-y-1.5">
                   <p className="text-xs font-medium truncate">{vocero.full_name}</p>
                   <p className="text-2xs text-muted-foreground">
                     {t("vocero.markedOn", {
                       date: formatDateTime(vocero.vocero_marcado_at as string),
                     })}
                   </p>
+                  {/* El teléfono se pide ACÁ y no antes: recién con el vocero
+                      designado se sabe de quién es. Lo usa la casilla "Teléfono"
+                      del Acuerdo Pedagógico, que hasta ahora salía en blanco
+                      porque el dato no existía en ninguna tabla. */}
+                  <div className="flex items-end gap-2">
+                    <div className="space-y-1">
+                      <Label htmlFor="vocero-tel" className="text-2xs">
+                        {t("vocero.phoneLabel")}
+                      </Label>
+                      <Input
+                        id="vocero-tel"
+                        className="h-7 text-xs"
+                        inputMode="tel"
+                        value={telefono}
+                        onChange={(e) => setTelefono(e.target.value)}
+                        placeholder={t("vocero.phonePlaceholder")}
+                        disabled={guardando !== null}
+                      />
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs shrink-0"
+                      onClick={() => void guardarTelefono(vocero.user_id)}
+                      disabled={
+                        guardando !== null || telefono === (vocero.vocero_telefono ?? "")
+                      }
+                    >
+                      {t("common.save")}
+                    </Button>
+                  </div>
                 </div>
                 <Button
                   variant="outline"
