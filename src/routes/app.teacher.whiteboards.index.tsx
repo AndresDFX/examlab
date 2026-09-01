@@ -686,7 +686,7 @@ function TeacherWhiteboards() {
 
     if (opts.copyContent) {
       // Copiamos el CONTENIDO preparado por el docente de cada tipo de hoja
-      // (dibujo/texto/lenguaje+fuente de código/esquema SQL), pero NO la
+      // (dibujo/texto/lenguaje+fuente de código/esquema SQL/diagrama), pero NO la
       // evidencia de ejecución (last_stdout/stderr/exit_code/executed_at,
       // console_transcript, sql_answer) — mismo criterio que "Duplicar
       // sesión" (copySnippets excluye su caché `last_*`): la copia es una
@@ -695,7 +695,9 @@ function TeacherWhiteboards() {
       // igual que al crearlas desde cero.
       const { data: pages, error: pagesErr } = await db
         .from("whiteboard_pages")
-        .select("position, name, scene_json, page_type, text_content, code_language, code_source, sql_setup")
+        .select(
+          "position, name, scene_json, page_type, text_content, code_language, code_source, sql_setup, diagram_source",
+        )
         .eq("whiteboard_id", w.id)
         .order("position");
       if (pagesErr) {
@@ -712,6 +714,7 @@ function TeacherWhiteboards() {
         code_language: string | null;
         code_source: string | null;
         sql_setup: string | null;
+        diagram_source: string | null;
       }>;
       if (rows.length > 0) {
         const { error: copyErr } = await db.from("whiteboard_pages").insert(
@@ -725,6 +728,7 @@ function TeacherWhiteboards() {
             code_language: p.code_language,
             code_source: p.code_source,
             sql_setup: p.sql_setup,
+            diagram_source: p.diagram_source,
           })),
         );
         if (copyErr) {

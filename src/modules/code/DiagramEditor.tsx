@@ -128,7 +128,13 @@ function cleanupMermaidArtifacts(): void {
 
 export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEditorProps) {
   const { t } = useTranslation();
-  const [tab, setTab] = useState<"edit" | "preview">("edit");
+  // En solo lectura arranca en la VISTA PREVIA, no en el código. El trigger
+  // "Código" lleva `disabled={readOnly}` pero eso no cambia la pestaña activa:
+  // arrancando en "edit" el lector caía en una pestaña deshabilitada mirando la
+  // sintaxis cruda en un textarea gris, sin poder volver. Con `readOnly=false`
+  // (los tres flujos de la pregunta `diagrama`, que no pasan la prop) la
+  // expresión da "edit" y el comportamiento es idéntico al anterior.
+  const [tab, setTab] = useState<"edit" | "preview">(readOnly ? "preview" : "edit");
   const [svgHtml, setSvgHtml] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);

@@ -1256,6 +1256,38 @@ Las pizarras standalone (`whiteboard_pages`) ya eran multi-hoja con `page_type` 
 
 Render por `page_type` en [MultiPageWhiteboard](src/modules/whiteboard/MultiPageWhiteboard.tsx) (helpers `pageIcon`/`pageIconColor`), items en el menú "Agregar hoja". El alumno ve las hojas en modo lectura (RLS `is_shared_with_course`); en la de código puede ejecutar (output local, no persiste), en la de consola ve el transcript. Ícono de código/consola: usar **`Code2`** para código y **`Terminal`** para consola (consistente con todo el proyecto — NO `TerminalSquare`).
 
+### Hoja de diagrama en la pizarra (`page_type` 'diagram')
+
+Sexto tipo de hoja (mig [20262020000000](supabase/migrations/20262020000000_whiteboard_pages_diagram.sql)):
+el docente escribe un diagrama en **mermaid** —clases, secuencia, entidad-relación, flujo— dentro de
+la pizarra, y queda como artefacto que el alumno revisa después. Reusa **`DiagramEditor` TAL CUAL**,
+el mismo componente que ya usa el tipo de pregunta `diagrama`: no se escribió un segundo editor de
+mermaid.
+
+- **El valor es `'diagram'`, en inglés, aunque el tipo de PREGUNTA sea `'diagrama'`.** Son dos
+  columnas distintas de dos tablas distintas, y los otros cinco valores de `page_type` son en inglés
+  (`drawing`, `text`, `code`, `console`, `sql`). Un `'diagrama'` en esa lista se lee como un error de
+  tipeo y alguien lo va a "corregir".
+- **Columna propia `diagram_source`**, no reusar `code_source`. Se evaluó reusarla con
+  `code_language='mermaid'` como discriminador (ahorraba la migración y dos listas de columnas que ya
+  incluyen `code_source`), y se descartó por un modo de falla concreto: el `Select` de lenguaje de
+  `CodePageEditor` hace `onPersist({ code_language, code_source: nextStarter })`, o sea que cambiar el
+  lenguaje **borraría el mermaid**.
+- **Ícono `Waypoints`** ámbar. `Workflow` está tomado por la categoría "Flujo" de la paleta de
+  Excalidraw en la MISMA pantalla, y `Shapes`, `Network` y `GitBranch` también están en uso.
+- **El alumno arranca en la vista previa**, no en el código: `DiagramEditor` toma la pestaña inicial
+  de `readOnly ? "preview" : "edit"`. El trigger "Código" ya venía `disabled` en solo lectura, pero
+  eso no cambia la pestaña activa — el lector caía en una pestaña deshabilitada mirando sintaxis cruda
+  y sin forma de volver. Los tres flujos de la pregunta `diagrama` NO pasan `readOnly`, así que su
+  comportamiento es idéntico al anterior (verificado en los tres call sites).
+- **Un test fija la invariante cross-file** ([page-types.test.ts](src/modules/whiteboard/page-types.test.ts)):
+  lee del disco la última migración que toca `whiteboard_pages_page_type_check` y compara su lista
+  contra `PAGE_TYPES` del cliente. Sin él, agregar un tipo en un solo lado no da ningún error visible:
+  el que la base no acepta rebota con 23514 recién al crear la hoja, y el que el cliente no conoce cae
+  **en silencio** a la rama de dibujo, porque los ternarios del despacho tienen `else` final y
+  TypeScript no dice nada.
+
+
 ### Salida de consola / ejecución como insumo del prompt de calificación IA
 
 Antes el grader IA de preguntas de código solo veía `enunciado + rúbrica + código fuente`. Ahora `BatchItem`/`GradeBatchItem` tienen un campo opcional **`executionOutput`** que el edge [ai-grade-submission](supabase/functions/ai-grade-submission/index.ts) renderiza como sección **"SALIDA DE EJECUCIÓN / SESIÓN DE CONSOLA"** en el prompt (+ directiva `so_consola`). El tipo **`so_consola`** (consola Linux real) pasó de "revisión manual" a **calificación IA usando el transcript**: `userAnswer` = comandos tecleados, `executionOutput` = transcript de la terminal — poblado en el submit del taller (sync/async, [WorkshopQuestions.tsx](src/modules/workshops/WorkshopQuestions.tsx)) y en el re-grade docente (`buildWorkshopItems` de [grade-submission.ts](src/modules/ai/grade-submission.ts)). Las vistas de revisión (docente/alumno) muestran el transcript legible vía `v86TranscriptForDisplay`, no el JSON crudo.

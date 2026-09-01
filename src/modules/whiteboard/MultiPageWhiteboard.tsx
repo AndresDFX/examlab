@@ -9,12 +9,16 @@
  *   - 'console': consola Linux real (v86) → renderiza `<V86Console>` (mig 20261410000000).
  *   - 'sql': PostgreSQL real en el navegador → renderiza `<SqlPageEditor>` (mig 20261610000000),
  *      reusa `SqlRunner`/`sql-answer.ts` (mismo motor que la pregunta `bd_sql`).
+ *   - 'diagram': diagrama escrito como texto → renderiza `<DiagramPageEditor>`
+ *      (mig 20262020000000), que reusa `DiagramEditor` (mismo motor mermaid que
+ *      la pregunta `diagrama`).
  *
- * Schema (migs 20260811000000 + 20260812000000 + 20261410000000 + 20261610000000):
+ * Schema (migs 20260811000000 + 20260812000000 + 20261410000000 + 20261610000000
+ * + 20262020000000):
  *   - `whiteboard_pages(id, whiteboard_id, position, name, scene_json,
  *      page_type, text_content, code_language, code_source, last_stdout,
  *      last_stderr, last_exit_code, last_executed_at, console_transcript,
- *      sql_setup, sql_answer)`
+ *      sql_setup, sql_answer, diagram_source)`
  *   - Cada pizarra = N hojas. Position 0-indexed, gaps tolerados.
  *
  * UX cuando hay muchas hojas (rediseño V2):
@@ -60,6 +64,7 @@ import {
   Code2,
   Terminal,
   Database,
+  Waypoints,
   Search,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
@@ -69,6 +74,8 @@ import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
 import { CodePageEditor } from "@/modules/whiteboard/CodePageEditor";
 import { V86Console } from "@/modules/serverconsole/V86Console";
 import { SqlPageEditor } from "@/modules/whiteboard/SqlPageEditor";
+import { DiagramPageEditor } from "@/modules/whiteboard/DiagramPageEditor";
+import type { PageType } from "@/modules/whiteboard/page-types";
 import { getStarterCode } from "@/modules/code/CodeEditor";
 import {
   DropdownMenu,
@@ -82,7 +89,9 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
-type PageType = "drawing" | "text" | "code" | "console" | "sql";
+// El set de tipos de hoja vive en `page-types.ts` (módulo puro) porque está bajo
+// una invariante contra el CHECK de la tabla y el test que la fija no puede
+// importar este archivo — arrastraría Excalidraw, Monaco y la consola v86.
 
 interface WhiteboardPage {
   id: string;
@@ -104,6 +113,8 @@ interface WhiteboardPage {
   // Hojas 'sql' (PostgreSQL real vía PGlite) — mig 20261610000000.
   sql_setup: string | null;
   sql_answer: string | null;
+  // Hojas 'diagram' (código del diagrama, sintaxis mermaid) — mig 20262020000000.
+  diagram_source: string | null;
 }
 
 /** Icono lucide por tipo de hoja (sidebar tab + dropdown de lista). */
@@ -116,7 +127,9 @@ function pageIcon(pt: PageType) {
         ? Terminal
         : pt === "sql"
           ? Database
-          : Palette;
+          : pt === "diagram"
+            ? Waypoints
+            : Palette;
 }
 /** Color del icono por tipo de hoja — ancla visual consistente. */
 function pageIconColor(pt: PageType) {
@@ -128,7 +141,9 @@ function pageIconColor(pt: PageType) {
         ? "text-emerald-500"
         : pt === "sql"
           ? "text-cyan-600"
-          : "text-violet-500";
+          : pt === "diagram"
+            ? "text-amber-500"
+            : "text-violet-500";
 }
 
 interface Props {
@@ -145,8 +160,11 @@ interface Props {
   className?: string;
 }
 
+// Toda columna de contenido va acá: la que falte llega `undefined` al editor y
+// la hoja abre en blanco SIEMPRE, sin que PostgREST se queje (simplemente no se
+// pidió). Es la falla más silenciosa de este archivo.
 const PAGE_SELECT_COLS =
-  "id, whiteboard_id, position, name, page_type, scene_json, text_content, code_language, code_source, last_stdout, last_stderr, last_exit_code, last_executed_at, console_transcript, sql_setup, sql_answer";
+  "id, whiteboard_id, position, name, page_type, scene_json, text_content, code_language, code_source, last_stdout, last_stderr, last_exit_code, last_executed_at, console_transcript, sql_setup, sql_answer, diagram_source";
 
 const EMPTY_SCENE: WhiteboardScene = { elements: [], appState: {} };
 
@@ -333,6 +351,8 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
       }
       // 'console' no requiere init: el VM arranca fresco y console_transcript queda NULL.
       // 'sql' tampoco: sql_setup/sql_answer quedan NULL, SqlRunner arranca en blanco.
+      // 'diagram' tampoco: diagram_source queda NULL y DiagramEditor ofrece sus
+      // plantillas en un clic — sembrar una obligaría a borrarla.
       const { data, error } = await db
         .from("whiteboard_pages")
         .insert(insertPayload)
@@ -801,6 +821,26 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                   </span>
                 </div>
               </DropdownMenuItem>
+              {/* El diagrama va acá, con dibujo y texto: es contenido que el
+                  docente PREPARA. Las tres hojas ejecutables (código, consola,
+                  SQL) quedan después, agrupadas. Ojo: el icono y su color van
+                  literales en el item, no salen de pageIcon/pageIconColor — si
+                  se cambian en un solo lado, el menú y la pestaña dejan de
+                  coincidir. */}
+              <DropdownMenuItem
+                onSelect={() => {
+                  setNewPageName("");
+                  setNewPageKind("diagram");
+                }}
+              >
+                <Waypoints className="h-4 w-4 mr-2 text-amber-500" />
+                <div className="flex flex-col">
+                  <span className="text-sm">{t("hc_modulesWhiteboardMultiPageWhiteboard.diagramPage")}</span>
+                  <span className="text-2xs text-muted-foreground">
+                    {t("hc_modulesWhiteboardMultiPageWhiteboard.diagramPageHint")}
+                  </span>
+                </div>
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onSelect={() => {
                   setNewPageName("");
@@ -897,6 +937,15 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
             readOnly={readOnly}
             className="w-full h-full"
           />
+        ) : activePage.page_type === "diagram" ? (
+          <DiagramPageEditor
+            key={activePage.id}
+            pageId={activePage.id}
+            diagramSource={activePage.diagram_source}
+            onPersist={persistCodePage}
+            readOnly={readOnly}
+            className="w-full h-full"
+          />
         ) : activePage.page_type === "sql" ? (
           <SqlPageEditor
             key={activePage.id}
@@ -980,7 +1029,9 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                       ? t("hc_modulesWhiteboardMultiPageWhiteboard.newSqlPageTitle", {
                           defaultValue: "Nueva hoja SQL",
                         })
-                      : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
+                      : newPageKind === "diagram"
+                        ? t("hc_modulesWhiteboardMultiPageWhiteboard.newDiagramPageTitle")
+                        : t("hc_modulesWhiteboardMultiPageWhiteboard.newDrawingPageTitle")}
             </DialogTitle>
             <DialogDescription>{t("hc_modulesWhiteboardMultiPageWhiteboard.namePageDescription")}</DialogDescription>
           </DialogHeader>
@@ -1014,7 +1065,9 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                         ? t("hc_modulesWhiteboardMultiPageWhiteboard.sqlPagePlaceholder", {
                             defaultValue: "Ej. Consulta con JOIN",
                           })
-                        : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
+                        : newPageKind === "diagram"
+                          ? t("hc_modulesWhiteboardMultiPageWhiteboard.diagramPagePlaceholder")
+                          : t("hc_modulesWhiteboardMultiPageWhiteboard.drawingPagePlaceholder")
               }
             />
           </div>

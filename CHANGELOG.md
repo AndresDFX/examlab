@@ -73,6 +73,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Hoja de diagrama en la pizarra.** Sexto tipo de hoja: el docente escribe un diagrama —clases,
+  secuencia, entidad-relación, flujo— dentro de la pizarra y queda ahí para que el alumno lo revise
+  después. Es el mismo editor que ya usan las preguntas de tipo diagrama, así que la sintaxis y las
+  plantillas son las de siempre.
+
+  Al alumno se le abre directamente el **diagrama dibujado**, no el código: antes, en modo lectura,
+  caía en una pestaña deshabilitada mirando la sintaxis cruda y sin forma de volver.
+
+
+
 - **Las casillas en blanco del Acuerdo Pedagógico, conectadas.** El formato salía con seis vacías, y
   cada una lo estaba por un motivo distinto. Las que faltaba **cablear**:
 
