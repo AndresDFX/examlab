@@ -290,6 +290,25 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
     };
 
     void recargar();
+
+    /**
+     * Sondeo cada 8 s ADEMÁS del canal. No es cinturón y tirantes: es que el
+     * costo de equivocarse es asimétrico. Esta pantalla está proyectada al
+     * frente del salón mientras la gente escanea, y quedarse en "0 presentes"
+     * con quince personas ya marcadas es peor que cualquier latencia.
+     *
+     * El canal se puede caer sin avisar por varios motivos reales: la política
+     * de `attendance_records` pasa por `attendance_session_in_my_tenant`, y
+     * evaluar eso en el canal de realtime es frágil; el navegador duerme la
+     * pestaña; el socket se reconecta. Ninguno de esos casos deja rastro en
+     * pantalla — el contador simplemente no se mueve.
+     *
+     * Mismo criterio que `use-notifications`, que ya poll-ea cada 15 s teniendo
+     * realtime. Ocho segundos porque acá el usuario está MIRANDO el número, y
+     * son decenas de filas de una sola sesión: la consulta es barata.
+     */
+    const sondeo = window.setInterval(() => void recargar(), 8000);
+
     const channel = supabase
       .channel(`checkin-${state.sessionId}`)
       .on(
@@ -305,6 +324,7 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
       .subscribe();
     return () => {
       cancelled = true;
+      window.clearInterval(sondeo);
       supabase.removeChannel(channel);
     };
   }, [state.sessionId]);

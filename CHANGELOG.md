@@ -655,6 +655,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **El contador de presentes de la proyección de check-in se quedaba en cero.** Con quince personas ya
+  marcadas, la pantalla del frente del salón seguía diciendo "0 / 21" — verificado contra los datos
+  reales: la carga inicial estaba bien y ninguno de los check-in posteriores llegaba.
+
+  Dos cosas. Una: la tabla de asistencia estaba publicada para tiempo real pero sin la configuración
+  que hace falta para que un **UPDATE** llegue, y acá los UPDATE son el camino normal, no el raro —
+  quien ya tenía una fila (porque el docente pasó lista antes, porque volvió a escanear, o porque
+  estaba en ausente) entra por ahí. Todas las demás pantallas en vivo del producto ya la tenían; esta
+  se había quedado afuera.
+
+  Y dos, la que garantiza el resultado: la proyección ahora **también refresca sola cada 8 segundos**,
+  además del canal en vivo. Un canal se puede caer sin avisar —el navegador duerme la pestaña, el
+  socket se reconecta, la política de permisos no se puede evaluar ahí— y ninguno de esos casos deja
+  rastro en pantalla: el número simplemente no se mueve. En una pantalla proyectada mientras la gente
+  escanea, mostrar un cero falso es peor que unos segundos de demora.
+
+
+
 - **Tres defectos que la revisión adversarial encontró en los arreglos anteriores.** Los tres eran de
   la clase que no avisa, y los tres estaban ya publicados:
 
