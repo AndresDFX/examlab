@@ -1162,7 +1162,26 @@
     "notEnteredTitle_one": "{{count}} estudiante no ha ingresado",
     "notEnteredTitle_other": "{{count}} estudiantes no han ingresado",
     "notEnteredHint": "De {{total}} con el examen asignado. Todavía no abrieron la prueba: podés avisarles mientras la ventana esté abierta.",
-    "allEntered": "Los {{total}} con el examen asignado ya ingresaron."
+    "allEntered": "Los {{total}} con el examen asignado ya ingresaron.",
+    "closeAttempt": "Terminar intento",
+    "closeAttemptTitle": "¿Terminar el intento de {{name}}?",
+    "closeAttemptBody": "Se da por terminado con las respuestas que el estudiante ya guardó, y queda listo para calificar. No se borra nada. Si el estudiante sigue conectado, no podrá seguir respondiendo.",
+    "closeAttemptConfirm": "Terminar",
+    "closeAttemptDone": "Intento terminado. Ya se puede calificar.",
+    "closeAttemptAlready": "Ese intento ya estaba terminado.",
+    "closeAllButton": "Terminar los que siguen en curso ({{count}})",
+    "closeAllTitle": "¿Terminar {{count}} intento(s) en curso?",
+    "closeAllBody": "Se dan por terminados con lo que cada estudiante ya guardó, y quedan listos para calificar. No se borra nada.",
+    "closeAllDone": "{{count}} intento(s) terminado(s).",
+    "closeAllPartial": "Terminados: {{done}}. El primero que falló: {{error}}",
+    "closedByTeacher": "Terminado por el docente",
+    "closedByDeadline": "Terminado al vencer el plazo",
+    "closeAttemptError": {
+      "no_auth": "Tu sesión venció. Volvé a entrar.",
+      "not_found": "Ese intento ya no existe.",
+      "forbidden": "No podés terminar intentos de este examen.",
+      "generic": "No se pudo terminar el intento."
+    }
   },
   "grading": {
     "configTitle": "Configuración de calificaciones",

@@ -1162,7 +1162,26 @@
     "notEnteredTitle_one": "{{count}} student has not started",
     "notEnteredTitle_other": "{{count}} students have not started",
     "notEnteredHint": "Out of {{total}} assigned this exam. They have not opened it yet — you can reach out while the window is open.",
-    "allEntered": "All {{total}} students assigned this exam have started."
+    "allEntered": "All {{total}} students assigned this exam have started.",
+    "closeAttempt": "End attempt",
+    "closeAttemptTitle": "End {{name}}'s attempt?",
+    "closeAttemptBody": "It is ended with the answers the student already saved, and becomes ready to grade. Nothing is deleted. If the student is still connected, they will not be able to keep answering.",
+    "closeAttemptConfirm": "End",
+    "closeAttemptDone": "Attempt ended. It can be graded now.",
+    "closeAttemptAlready": "That attempt had already ended.",
+    "closeAllButton": "End the ones still in progress ({{count}})",
+    "closeAllTitle": "End {{count}} attempt(s) in progress?",
+    "closeAllBody": "They are ended with whatever each student already saved, and become ready to grade. Nothing is deleted.",
+    "closeAllDone": "{{count}} attempt(s) ended.",
+    "closeAllPartial": "Ended: {{done}}. First failure: {{error}}",
+    "closedByTeacher": "Ended by the teacher",
+    "closedByDeadline": "Ended when the deadline passed",
+    "closeAttemptError": {
+      "no_auth": "Your session expired. Sign in again.",
+      "not_found": "That attempt no longer exists.",
+      "forbidden": "You cannot end attempts for this exam.",
+      "generic": "The attempt could not be ended."
+    }
   },
   "grading": {
     "configTitle": "Grading configuration",

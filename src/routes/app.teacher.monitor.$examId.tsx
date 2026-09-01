@@ -43,6 +43,7 @@ import {
   X as XIcon,
   Check,
   Bot,
+  SquareCheckBig,
   Users,
   ChevronRight,
   ChevronDown,
@@ -2096,6 +2097,90 @@ function ExamMonitor() {
     monitorSel.clear();
   };
 
+  /**
+   * Da por terminado un intento que quedó en curso, para poder calificarlo.
+   *
+   * El ojo de "ver y calificar" solo se renderiza para intentos finalizados, así
+   * que un intento `en_progreso` es literalmente incalificable desde acá — y las
+   * únicas órdenes que este monitor sabe mandar (pausar, +5m) viajan por realtime
+   * a la pantalla del alumno, o sea que no sirven justamente cuando el alumno ya
+   * se fue. El cierre lo hace el servidor.
+   *
+   * Tono `warning` y NO `destructive`: terminar preserva las respuestas; el tacho
+   * de al lado, que sí es destructive, las borra. Que se distingan importa porque
+   * viven en la misma fila.
+   */
+  /** Los intentos que siguen abiertos. Alimenta el botón global y su rótulo. */
+  const enCurso = submissions.filter((x) => x.status === "en_progreso");
+
+  const closeAttempt = async (sub: Submission, nombre?: string | null) => {
+    const ok = await confirm({
+      title: t("monitor.closeAttemptTitle", { name: nombre ?? "" }),
+      description: t("monitor.closeAttemptBody"),
+      confirmLabel: t("monitor.closeAttemptConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    setLoading(`close-${sub.id}`);
+    // `types.ts` es generado y todavia no conoce esta RPC: mismo patron que
+    // SupabaseCronPanel usa para las suyas.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("teacher_close_exam_attempt", {
+      _submission_id: sub.id,
+    });
+    setLoading(null);
+    if (error) return toast.error(friendlyError(error));
+    const r = data as { ok?: boolean; error?: string; changed?: boolean } | null;
+    if (!r?.ok) return toast.error(t(`monitor.closeAttemptError.${r?.error ?? "generic"}`));
+    toast.success(r.changed ? t("monitor.closeAttemptDone") : t("monitor.closeAttemptAlready"));
+    void load();
+  };
+
+  /**
+   * Termina TODOS los que siguen en curso. Es lo que el docente quiere al cerrar
+   * la sesión de examen: no ir uno por uno.
+   *
+   * Se informa el PRIMER error real y no solo el conteo — la convención del repo
+   * para bulk, porque "3 con error" sin el motivo no deja hacer nada.
+   */
+  const closeAllInProgress = async () => {
+    const abiertos = enCurso;
+    if (!abiertos.length) return;
+    const ok = await confirm({
+      title: t("monitor.closeAllTitle", { count: abiertos.length }),
+      description: t("monitor.closeAllBody"),
+      confirmLabel: t("monitor.closeAttemptConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    setLoading("close-all");
+    let hechos = 0;
+    let primerError: string | null = null;
+    for (const sub of abiertos) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error } = await (supabase as any).rpc("teacher_close_exam_attempt", {
+        _submission_id: sub.id,
+      });
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (error) {
+        if (!primerError) primerError = friendlyError(error);
+      } else if (!r?.ok) {
+        if (!primerError) primerError = t(`monitor.closeAttemptError.${r?.error ?? "generic"}`);
+      } else {
+        hechos++;
+      }
+    }
+    setLoading(null);
+    if (primerError) {
+      toast.error(t("monitor.closeAllPartial", { done: hechos, error: primerError }), {
+        duration: 12000,
+      });
+    } else {
+      toast.success(t("monitor.closeAllDone", { count: hechos }));
+    }
+    void load();
+  };
+
   const deleteOneAttempt = async (sub: Submission) => {
     const ok = await confirm({
       title: t("monitor.deleteAttemptTitle", { date: formatDateTime(sub.created_at) }),
@@ -2215,6 +2300,25 @@ function ExamMonitor() {
                     <span aria-hidden>↙</span>
                     {t("hc_routesAppTeacherMonitorExamId.multiSelectHint")}
                   </span>
+                )}
+                {/* Terminar todos los que siguen en curso. Va ANTES de las
+                    acciones de IA porque es su prerrequisito: un intento en
+                    curso no se puede calificar, así que "Recalificar" lo saltea
+                    en silencio. Solo aparece si hay alguno. */}
+                {enCurso.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => void closeAllInProgress()}
+                    disabled={loading === "close-all" || regradeAllLoading || detecting}
+                  >
+                    {loading === "close-all" ? (
+                      <Spinner size="sm" className="mr-1.5" />
+                    ) : (
+                      <SquareCheckBig className="h-3.5 w-3.5 mr-1.5" />
+                    )}
+                    {t("monitor.closeAllButton", { count: enCurso.length })}
+                  </Button>
                 )}
                 <Button
                   size="sm"
@@ -2683,6 +2787,13 @@ function ExamMonitor() {
                             <span className="ml-1 text-2xs">+5m</span>
                           </Button>
                         )}
+                        {inProg && (
+                          <RowAction
+                            label={t("monitor.closeAttempt")}
+                            icon={SquareCheckBig}
+                            onClick={() => void closeAttempt(row.inProgress!, row.profile?.full_name)}
+                          />
+                        )}
                         <RowAction
                           label={t("hc_routesAppTeacherMonitorExamId.viewAttempts")}
                           icon={Eye}
@@ -2803,11 +2914,19 @@ function ExamMonitor() {
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {isFinal && (
+                          {isFinal ? (
                             <RowAction
                               label={t("hc_routesAppTeacherMonitorExamId.viewAnswersAndGrade")}
                               icon={Eye}
                               onClick={() => openView(a)}
+                            />
+                          ) : (
+                            /* El else que faltaba: acá es donde el docente se
+                               queda sin salida con un intento en curso. */
+                            <RowAction
+                              label={t("monitor.closeAttempt")}
+                              icon={SquareCheckBig}
+                              onClick={() => void closeAttempt(a)}
                             />
                           )}
                           <RowAction

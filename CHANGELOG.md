@@ -73,6 +73,30 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Ahora podés terminar un examen que quedó en curso, y los que vencen se terminan solos.** Si un
+  estudiante cerró la pestaña y su intento quedó "En progreso", no había forma de calificarlo: el
+  botón de ver y calificar solo aparece para intentos finalizados, y lo único que el monitor sabía
+  mandarle (pausar, +5m) viaja a la pantalla del alumno — inútil justo cuando el alumno ya no está.
+
+  En el monitor hay una acción **Terminar intento** en la fila y en el detalle de intentos, y un botón
+  **Terminar los que siguen en curso (N)** para no ir uno por uno. Se da por terminado con las
+  respuestas que el estudiante ya había guardado y queda listo para calificar: **no borra nada** — es
+  lo que lo distingue del tacho, que sí las borra.
+
+  Y por defecto, un minuto después de que se cumple el plazo, los intentos que sigan abiertos se
+  terminan solos. El plazo respeta lo que tiene que respetar: el tiempo extra que hayas concedido
+  (individual o a todo el curso), las pausas —un intento pausado no vence—, los exámenes con horario
+  relativo y los que están en la papelera. Y deja un minuto de gracia para no cortar una entrega en
+  vuelo.
+
+  Queda registrado quién terminó cada intento y por qué (a mano o por vencimiento), y un intento
+  terminado **no lo puede reabrir el estudiante**: eso está bloqueado en la base de datos y no solo en
+  la pantalla, porque hasta ahora un intento cerrado y una entrega limpia sin nota eran
+  indistinguibles, y el alumno podía deshacer el cierre y de paso cancelar la calificación que el
+  cierre existía para habilitar.
+
+
+
 - **Pegás el parcial que ya tenías escrito y la IA identifica el tipo de cada pregunta.** Botón
   «Identificar desde texto» al lado de «Importar del banco», en examen, taller, proyecto y banco de
   preguntas; también acepta un `.docx`, `.txt` o `.md`. Para cada pregunta propone el tipo y lo que

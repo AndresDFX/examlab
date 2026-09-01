@@ -583,9 +583,19 @@ function TakeExam() {
       // Solo `completado` SIN calificación es reanudable. `sospechoso`
       // queda bloqueado para revisión del docente — el alumno no puede
       // re-editar para "limpiar" su entrega marcada por proctoring.
+      // `closed_at` distingue lo que HOY es la misma fila byte a byte: "entregué
+      // limpio y todavía no hay nota" (reanudable, es el caso legítimo de abajo)
+      // vs "el docente lo dio por terminado, o se venció el plazo" (NO
+      // reanudable). Sin esa condición el estudiante deshace el cierre y además
+      // cancela la calificación que el cierre existía para habilitar. El bloqueo
+      // de verdad vive en un trigger de la base — esto es para que la pantalla no
+      // ofrezca algo que el servidor va a rechazar.
       const resumableUngraded = allSubs.find(
         (s: any) =>
-          s.status === "completado" && s.ai_grade == null && s.final_override_grade == null,
+          s.status === "completado" &&
+          s.closed_at == null &&
+          s.ai_grade == null &&
+          s.final_override_grade == null,
       );
       const maxAttempts = Math.max(
         1,
