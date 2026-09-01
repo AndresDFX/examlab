@@ -289,3 +289,80 @@ describe("segmentarPreguntas — no se pierde texto del docente", () => {
     }
   });
 });
+
+/**
+ * El mismo invariante que el bloque de arriba, sobre las líneas que el descarte
+ * del preámbulo y el filtro de bloques cortos SÍ estaban borrando. El arreglo
+ * anterior se había aplicado a una sola de las dos rutas de segmentación, así
+ * que el invariante valía para la vía de marcas y era falso para la de párrafos.
+ */
+describe("segmentarPreguntas — el enunciado tampoco se pierde", () => {
+  /** Todas las líneas no vacías del texto aparecen en la unión de los `crudo`. */
+  function nadaPerdido(texto: string) {
+    const segs = segmentarPreguntas(texto);
+    const unido = segs.map((s) => s.crudo).join("\n");
+    const lineas = texto
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    for (const linea of lineas) {
+      expect(unido).toContain(linea);
+    }
+    return segs;
+  }
+
+  it("stem IMPERATIVO sin «?» con una sola marca alta: no se descarta", () => {
+    // Sin el rescate: usandoAltas=false (una sola marca alta), se corta por las
+    // bajas, y el enunciado cae en el preámbulo, que se conservaba solo con «?»
+    // o con 120+ caracteres. Al modelo le llegaban cuatro opciones sin pregunta.
+    const t = ["1. Seleccione el modelo correcto", "a) IaaS", "b) PaaS", "c) SaaS", "d) FaaS"].join(
+      "\n",
+    );
+    const segs = nadaPerdido(t);
+    expect(segs.map((s) => s.crudo).join("\n")).toContain("Seleccione el modelo correcto");
+  });
+
+  it("stem terminado en «:» tampoco se descarta", () => {
+    const t = [
+      "Marque la afirmación verdadera:",
+      "a) IaaS es plataforma",
+      "b) PaaS es plataforma",
+    ].join("\n");
+    const segs = nadaPerdido(t);
+    expect(segs.map((s) => s.crudo).join("\n")).toContain("Marque la afirmación verdadera:");
+  });
+
+  it("una opción huérfana ANTES de la primera marca alta se conserva", () => {
+    const t = ["d) FaaS", "1. ¿Cuál es el modelo correcto?", "2. ¿Cuál NO lo es?"].join("\n");
+    nadaPerdido(t);
+  });
+
+  it("bloque corto entre párrafos se anexa al anterior, no se descarta", () => {
+    const t = [
+      "Explique qué es la computación en la nube.",
+      "",
+      "IaaS",
+      "",
+      "Compare IaaS con PaaS en términos de responsabilidad.",
+    ].join("\n");
+    const segs = nadaPerdido(t);
+    expect(segs).toHaveLength(2);
+    expect(segs[0].crudo).toContain("IaaS");
+  });
+
+  it("NO regresión: un encabezado de verdad se sigue descartando", () => {
+    // La contraparte del rescate. Con DOS marcas altas, un encabezado sin «?»,
+    // corto y que no empieza con viñeta ni letra de opción, no es contenido:
+    // pegarlo al primer enunciado haría que la reconciliación lo ofreciera como
+    // pregunta suelta.
+    const t = [
+      "Parcial de Arquitectura de Software 2026-2",
+      "Nombre: ______",
+      "1. ¿Qué es un ADR y para qué sirve?",
+      "2. ¿Qué es PaaS y en qué se diferencia?",
+    ].join("\n");
+    const segs = segmentarPreguntas(t);
+    expect(segs).toHaveLength(2);
+    expect(segs.map((s) => s.crudo).join("\n")).not.toContain("Nombre:");
+  });
+});

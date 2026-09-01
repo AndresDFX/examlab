@@ -357,7 +357,7 @@ function ExamEditor() {
     setLoadError(null);
     const { data: e, error: eErr } = await supabase
       .from("exams")
-      .select("*, course:courses(max_exam_attempts, grade_scale_max)")
+      .select("*, course:courses(max_exam_attempts, grade_scale_max, language)")
       .eq("id", examId)
       .is("deleted_at", null)
       .single();
@@ -2294,6 +2294,7 @@ function ExamEditor() {
         destino="exam"
         targetId={examId}
         courseId={exam?.course_id ?? null}
+        courseLanguage={exam?.course?.language === "en" ? "en" : "es"}
         nextPosition={Math.max(-1, ...questions.map((q) => q.position ?? -1)) + 1}
         onInserted={() => void load()}
       />

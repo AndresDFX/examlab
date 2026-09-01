@@ -190,9 +190,38 @@ export function clampMaxItems(v: unknown): number {
   return clampInt(v, 1, MAX_ITEMS, MAX_ITEMS);
 }
 
-function cleanChoices(v: unknown): string[] {
-  if (!Array.isArray(v)) return [];
-  return v.map((c) => asString(c).trim()).filter((c) => c.length > 0);
+/**
+ * Opciones sin las vacías Y la traducción de índices que ese filtro obliga.
+ *
+ * Filtrar los textos vacíos y emitir `correct_index` / `correct_indices` CRUDOS
+ * CORRE LA CLAVE DE RESPUESTA, y el guard `idx < choices.length` no lo detecta
+ * porque se evalúa contra el array YA RECORTADO. Medido con este código:
+ * `{choices:["","IaaS","PaaS","SaaS"], correct_index:1}` —el modelo marcó
+ * IaaS— salía como `{choices:["IaaS","PaaS","SaaS"], correct_index:1}`, o sea
+ * PaaS, con `confidence:"alta"` y sin `degraded_from`. La fila pasaba la
+ * revisión del docente como coherente y se insertaba con la respuesta
+ * equivocada. `asString` convierte `null` y cualquier objeto en `""`, así que
+ * un solo elemento nulo del modelo alcanza.
+ *
+ * Espejo de `opcionesConIndices` en `src/modules/questions/identify-types.ts`:
+ * el filtro y el remapeo viven juntos y en un solo lugar por lado, porque
+ * quien use uno sin el otro reintroduce el bug.
+ */
+function cleanChoices(v: unknown): {
+  choices: string[];
+  /** índice original → índice después del filtro. Si no está, esa opción se fue. */
+  mapa: Map<number, number>;
+} {
+  const mapa = new Map<number, number>();
+  if (!Array.isArray(v)) return { choices: [], mapa };
+  const choices: string[] = [];
+  v.forEach((c, original) => {
+    const texto = asString(c).trim();
+    if (!texto) return;
+    mapa.set(original, choices.length);
+    choices.push(texto);
+  });
+  return { choices, mapa };
 }
 
 function proponibles(target: IdentifyTarget): readonly string[] {
@@ -464,25 +493,31 @@ export function normalizeIdentifiedItems(
     } else if (type === "cerrada") {
       // 3. Una cerrada con `options` inválido no pinta opciones, cae al textarea
       // y puntúa 0 SIEMPRE (el scoring de cerrada es determinista).
-      const choices = cleanChoices(rawOptions?.choices);
+      const { choices, mapa } = cleanChoices(rawOptions?.choices);
       const idx = toInt(rawOptions?.correct_index);
-      const idxOk = idx !== null && idx >= 0 && idx < choices.length;
-      if (choices.length >= 2 && choices.length <= 6 && idxOk) {
-        options = { choices, correct_index: idx };
+      // El rango se valida contra el MAPA, no contra `choices.length`: si la
+      // opción marcada era justo una de las vacías, no hay respuesta correcta
+      // que insertar y la fila se degrada (visible en la revisión) en vez de
+      // apuntar en silencio a la opción siguiente.
+      const nuevo = idx === null ? undefined : mapa.get(idx);
+      if (choices.length >= 2 && choices.length <= 6 && nuevo !== undefined) {
+        options = { choices, correct_index: nuevo };
       } else {
         degradar("cerrada", msg.sinOpciones);
       }
     } else if (type === "cerrada_multi") {
-      const choices = cleanChoices(rawOptions?.choices);
+      const { choices, mapa } = cleanChoices(rawOptions?.choices);
       const rawIdx = Array.isArray(rawOptions?.correct_indices)
         ? (rawOptions.correct_indices as unknown[])
         : [];
       const indices: number[] = [];
+      // Igual que en `cerrada`: cada índice viaja por el mapa. Uno que
+      // apuntaba a una opción vacía se cae —no se conserva corrido—, y si se
+      // caen todos la fila termina degradada.
       for (const v of rawIdx) {
         const n = toInt(v);
-        if (n !== null && n >= 0 && n < choices.length && !indices.includes(n)) {
-          indices.push(n);
-        }
+        const nuevo = n === null ? undefined : mapa.get(n);
+        if (nuevo !== undefined && !indices.includes(nuevo)) indices.push(nuevo);
       }
       indices.sort((a, b) => a - b);
       const choicesOk = choices.length >= 3 && choices.length <= 8;
@@ -496,7 +531,21 @@ export function normalizeIdentifiedItems(
         const min = toInt(rawOptions?.min_selections);
         const max = toInt(rawOptions?.max_selections);
         // min/max se conservan solo si son coherentes; NO se inventan.
-        if (min !== null && max !== null && min >= 1 && min <= max && max <= choices.length) {
+        //
+        // `min <= indices.length` no es redundante: sin él entra un min POR
+        // ENCIMA de la cantidad de correctas, y con el scoring proporcional del
+        // taller (matched / totalCorrect, sin penalización) el incentivo se
+        // invierte — quien marca solo las correctas queda en 0 por no llegar al
+        // mínimo, y quien rellena con incorrectas se lleva el 100%. No es una
+        // clave equivocada: es una pregunta que premia adivinar.
+        if (
+          min !== null &&
+          max !== null &&
+          min >= 1 &&
+          min <= max &&
+          max <= choices.length &&
+          min <= indices.length
+        ) {
           base.min_selections = min;
           base.max_selections = max;
         }

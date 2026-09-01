@@ -353,11 +353,31 @@ describe("escalera: cerrada", () => {
     expect(questions[0].degraded_from).toBe("cerrada_multi");
   });
 
-  it("filtra choices vacíos y recalcula el rango del índice sobre lo que quedó", () => {
+  /**
+   * Este caso afirmaba lo contrario: que `correct_index: 1` sobre
+   * `["IaaS","   ","PaaS",""]` daba `{choices:["IaaS","PaaS"], correct_index:1}`.
+   * Pero el índice 1 ERA la opción en blanco, así que eso equivale a decir que
+   * la correcta pasa a ser «PaaS» — una respuesta que el modelo nunca marcó,
+   * insertada con `confidence:"alta"` y sin ninguna señal. El filtro no
+   * «recalcula el rango»: corre la clave.
+   */
+  it("la opción MARCADA estaba en blanco → degrada en vez de correr la clave", () => {
     const { questions } = normalizar([
       crudo({
         type: "cerrada",
         options: { choices: ["IaaS", "   ", "PaaS", ""], correct_index: 1 },
+      }),
+    ]);
+    expect(questions[0].type).toBe("abierta");
+    expect(questions[0].options).toBeNull();
+    expect(questions[0].degraded_from).toBe("cerrada");
+  });
+
+  it("filtra choices vacíos y la correcta sigue apuntando al MISMO texto", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada",
+        options: { choices: ["IaaS", "   ", "PaaS", ""], correct_index: 2 },
       }),
     ]);
     expect(questions[0].type).toBe("cerrada");
@@ -691,5 +711,131 @@ describe("lote mixto realista (el pedido del docente)", () => {
     ]);
     expect(r.questions.map((q) => q.type)).toEqual(["abierta", "diagrama"]);
     expect(r.discarded).toHaveLength(1);
+  });
+});
+
+/**
+ * Opciones vacías: el filtro NO debe correr la clave de respuesta.
+ *
+ * Cada caso asserta el TEXTO de la opción correcta, nunca su índice: el bug
+ * original era justo un índice que seguía «dentro del rango» del array ya
+ * recortado y por eso ningún guard lo veía.
+ */
+describe("escalera: opciones vacías y la clave de respuesta", () => {
+  const marcada = (q: { options?: { choices: string[]; correct_index: number } }) =>
+    q.options ? q.options.choices[q.options.correct_index] : null;
+
+  it("vacía ADELANTE: la correcta sigue siendo la misma opción", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada",
+        options: { choices: ["", "IaaS", "PaaS", "SaaS"], correct_index: 1 },
+      }),
+    ]);
+    expect(questions[0].type).toBe("cerrada");
+    expect(questions[0].options?.choices).toEqual(["IaaS", "PaaS", "SaaS"]);
+    expect(marcada(questions[0])).toBe("IaaS");
+  });
+
+  it("null AL MEDIO: la correcta sigue siendo la misma opción", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada",
+        options: { choices: ["IaaS", null, "PaaS", "SaaS"], correct_index: 2 },
+      }),
+    ]);
+    expect(questions[0].options?.choices).toEqual(["IaaS", "PaaS", "SaaS"]);
+    expect(marcada(questions[0])).toBe("PaaS");
+  });
+
+  it("DOS vacías antes de la correcta", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada",
+        options: { choices: ["", "   ", "PaaS", "SaaS"], correct_index: 3 },
+      }),
+    ]);
+    expect(questions[0].options?.choices).toEqual(["PaaS", "SaaS"]);
+    expect(marcada(questions[0])).toBe("SaaS");
+  });
+
+  it("la MARCADA era la vacía → degrada, no inventa una correcta", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada",
+        options: { choices: ["", "IaaS", "PaaS"], correct_index: 0 },
+      }),
+    ]);
+    expect(questions[0].type).toBe("abierta");
+    expect(questions[0].options).toBeNull();
+    expect(questions[0].degraded_from).toBe("cerrada");
+    expect(questions[0].confidence).toBe("baja");
+  });
+
+  it("cerrada_multi: las correctas siguen siendo las mismas opciones", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada_multi",
+        options: {
+          choices: ["", "IaaS", "PaaS", "SaaS"],
+          correct_indices: [1, 2],
+        },
+      }),
+    ]);
+    expect(questions[0].type).toBe("cerrada_multi");
+    const opts = questions[0].options as { choices: string[]; correct_indices: number[] };
+    expect(opts.choices).toEqual(["IaaS", "PaaS", "SaaS"]);
+    expect(opts.correct_indices.map((i) => opts.choices[i])).toEqual(["IaaS", "PaaS"]);
+  });
+
+  it("cerrada_multi: si una marcada era vacía y queda UNA, cae a cerrada con la correcta buena", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada_multi",
+        options: {
+          choices: ["", "IaaS", "PaaS", "SaaS"],
+          correct_indices: [0, 2],
+        },
+      }),
+    ]);
+    expect(questions[0].type).toBe("cerrada");
+    expect(marcada(questions[0])).toBe("PaaS");
+    expect(questions[0].degraded_from).toBe("cerrada_multi");
+  });
+});
+
+describe("escalera: min_selections nunca por encima de la cantidad de correctas", () => {
+  it("min > correctas → min/max se descartan (no se inventan)", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada_multi",
+        options: {
+          choices: ["IaaS", "PaaS", "SaaS", "FaaS"],
+          correct_indices: [0, 1],
+          min_selections: 3,
+          max_selections: 4,
+        },
+      }),
+    ]);
+    const opts = questions[0].options as Record<string, unknown>;
+    expect(opts.min_selections).toBeUndefined();
+    expect(opts.max_selections).toBeUndefined();
+  });
+
+  it("min <= correctas → se conserva", () => {
+    const { questions } = normalizar([
+      crudo({
+        type: "cerrada_multi",
+        options: {
+          choices: ["IaaS", "PaaS", "SaaS", "FaaS"],
+          correct_indices: [0, 1],
+          min_selections: 2,
+          max_selections: 3,
+        },
+      }),
+    ]);
+    const opts = questions[0].options as Record<string, unknown>;
+    expect(opts.min_selections).toBe(2);
+    expect(opts.max_selections).toBe(3);
   });
 });

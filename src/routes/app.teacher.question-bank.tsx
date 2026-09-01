@@ -139,6 +139,9 @@ interface Course {
   id: string;
   name: string;
   status?: string | null;
+  /** Idioma del curso: decide en qué idioma redacta la IA los motivos y
+   *  descartes que el diálogo de identificación pinta sin traducir. */
+  language?: string | null;
 }
 
 // Mapa de tipo → clave i18n. Resolvemos el label vía i18n.t() en cada uso
@@ -255,13 +258,13 @@ function QuestionBankPage() {
       if (!scopeToMyCourses) {
         query = db
           .from("courses")
-          .select("id, name, status")
+          .select("id, name, status, language")
           .is("deleted_at", null)
           .order("name");
       } else {
         query = db
           .from("courses")
-          .select("id, name, status, course_teachers!inner(user_id)")
+          .select("id, name, status, language, course_teachers!inner(user_id)")
           .eq("course_teachers.user_id", user.id)
           .is("deleted_at", null)
           .order("name");
@@ -1381,6 +1384,9 @@ function QuestionBankPage() {
           destino="bank"
           targetId={courseId}
           courseId={courseId}
+          courseLanguage={
+            courses.find((c) => c.id === courseId)?.language === "en" ? "en" : "es"
+          }
           nextPosition={0}
           onInserted={() => void load()}
         />

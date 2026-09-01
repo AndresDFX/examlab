@@ -42,6 +42,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,13 +61,14 @@ import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { extractEdgeError } from "@/shared/lib/edge-error";
+import { extractEdgeError, partirMensajeDeError } from "@/shared/lib/edge-error";
 import { logEvent } from "@/shared/lib/audit";
 import { questionTypeLabel, questionTypeLabelKey } from "@/shared/lib/question-type-label";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { MAX_DOCX_BYTES, parseDocxToText } from "@/modules/reports/docx-import";
 import {
   MAX_FILAS_BORRADOR,
+  MAX_ITEMS_POR_LLAMADA,
   MAX_PREGUNTAS_POR_LOTE,
   MAX_TEXTO_CHARS,
   MAX_TEXTO_TOTAL_CHARS,
@@ -78,6 +80,7 @@ import {
   TABLA_POR_DESTINO,
   TIPOS_ACEPTADOS_POR_DESTINO,
   construirFilaPregunta,
+  rubricaFaltante,
   validarBorrador,
   type BorradorPregunta,
   type Confianza,
@@ -107,6 +110,35 @@ interface RespuestaEdge {
   truncated?: boolean;
   questions?: unknown[];
   discarded?: { reason?: string }[];
+}
+
+/**
+ * Aviso de tanda fallida, con «Reintentar». Uno solo montado en las dos fases
+ * («pegar» y «revisar») porque el bloque era byte-idéntico en las dos.
+ */
+function BannerErrorLote({ mensaje, onReintentar }: { mensaje: string; onReintentar: () => void }) {
+  const { t } = useTranslation();
+  const { visible, detalle } = partirMensajeDeError(mensaje);
+  return (
+    <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
+      <p className="flex items-start gap-2">
+        <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
+        <span className="break-words">{visible ?? t("identifyQuestions.aiFailed")}</span>
+      </p>
+      {detalle && (
+        <details className="text-2xs">
+          <summary className="cursor-pointer">{t("identifyQuestions.technicalDetail")}</summary>
+          <pre className="mt-1 whitespace-pre-wrap break-words rounded bg-background p-2">
+            {detalle}
+          </pre>
+        </details>
+      )}
+      <Button size="sm" variant="outline" onClick={onReintentar}>
+        <RefreshCw className="h-3.5 w-3.5 mr-1" />
+        {t("identifyQuestions.retryBatch")}
+      </Button>
+    </div>
+  );
 }
 
 export interface IdentifyQuestionsDialogProps {
@@ -148,8 +180,18 @@ function aBorrador(
   const propuesto = comoTexto(q.type);
   const tipo = (aceptados.includes(propuesto) ? propuesto : "abierta") as TipoAceptado;
   const options = (q.options ?? null) as Record<string, unknown> | null;
+  // Las opciones NO se filtran acá: `correct_index` / `correct_indices` se
+  // copian tal como vienen, así que descartar las vacías correría la clave de
+  // respuesta — el mismo bug que `cleanChoices` (edge) y `opcionesConIndices`
+  // (identify-types) ya resuelven cada uno en su lado, filtro y remapeo juntos.
+  // Esta era la tercera copia del filtro SIN el remapeo: estaba dormida porque
+  // el edge ya recorta, pero era justo lo que volvía invisible un índice
+  // corrido que llegara de otra fuente (un edge desplegado viejo, un pegado de
+  // JSON, un reintento que no pase por la escalera). Una opción vacía del
+  // modelo se ve ahora como un Input vacío en la revisión —información útil— y
+  // si era la marcada, `validarBorrador` rechaza la fila con motivo.
   const choices = Array.isArray(options?.choices)
-    ? (options?.choices as unknown[]).map((c) => comoTexto(c)).filter((c) => c.trim())
+    ? (options?.choices as unknown[]).map((c) => comoTexto(c))
     : [];
   const correctIndices = Array.isArray(options?.correct_indices)
     ? (options?.correct_indices as unknown[]).filter(
@@ -245,6 +287,8 @@ export function IdentifyQuestionsDialog({
   const [progreso, setProgreso] = useState({ hechos: 0, total: 0, preguntas: 0 });
   const [soloRevision, setSoloRevision] = useState(false);
   const [guardando, setGuardando] = useState(false);
+  /** Texto del input masivo de puntos. String porque el campo puede estar vacío. */
+  const [puntosMasivos, setPuntosMasivos] = useState("");
 
   const abortRef = useRef<AbortController | null>(null);
   // `true` cuando ya escribimos el espejo en esta sesión. Sin esta marca, el
@@ -295,6 +339,27 @@ export function IdentifyQuestionsDialog({
     }
   }, [open, clave, borradores]);
 
+  // La clasificación en curso se aborta al desmontar. `abortRef` solo se
+  // abortaba desde `cerrar()` y desde «Detener», así que si el diálogo se
+  // desmontaba mientras corría —en el banco está envuelto en `{courseId && …}`,
+  // así que cambiar de curso lo desmonta, y cualquier navegación del router
+  // también— el bucle de lotes seguía haciendo `setBorradores` / `setProgreso` /
+  // `toast` sobre un componente muerto: el toast huérfano en la pantalla nueva
+  // que la convención de `useEffect` con async existe para evitar.
+  //
+  // `montadoRef` es aparte del signal a propósito: «Detener» TAMBIÉN aborta, y
+  // ahí el cierre sí tiene que correr (mueve a «revisar» con los resultados
+  // parciales, que es lo que anuncia `partialKept`). Lo que hay que saltar es
+  // solo el caso desmontado.
+  const montadoRef = useRef(true);
+  useEffect(() => {
+    montadoRef.current = true;
+    return () => {
+      montadoRef.current = false;
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const limpiarTodo = useCallback(() => {
     setFase("pegar");
     setTexto("");
@@ -308,6 +373,7 @@ export function IdentifyQuestionsDialog({
     setErrorLote(null);
     setProgreso({ hechos: 0, total: 0, preguntas: 0 });
     setSoloRevision(false);
+    setPuntosMasivos("");
     espejoEscritoRef.current = false;
     try {
       window.localStorage.removeItem(clave);
@@ -340,6 +406,36 @@ export function IdentifyQuestionsDialog({
   // ── Segmentación en vivo, sin gastar cuota ──────────────────────────
   const segmentosDelTexto = useMemo(() => segmentarPreguntas(texto), [texto]);
 
+  /**
+   * `true` solo cuando el conteo de segmentos es un DATO y no una adivinanza.
+   *
+   * El discriminador es `Segmento.confiable`, que ya existe y solo se pone en
+   * `true` cuando el corte lo produjo una marca ALTA (`1.`, `Pregunta N`). Es
+   * el mismo umbral que usa `agruparEnLotes` para cortar lotes, y medido es la
+   * única vía cuyo conteo coincide con las preguntas reales:
+   *
+   *  - SUBCONTEO: tres preguntas en líneas consecutivas sin numeración dan UN
+   *    segmento. Y ese es el caso por DEFECTO del .docx que el drop-zone ofrece
+   *    como entrada de primera clase — la numeración automática de Word no vive
+   *    en los `w:t`, así que un parcial de 12 preguntas llega sin números y sin
+   *    líneas en blanco, y el docente leía «1 pregunta detectada» justo en el
+   *    momento en que decide si la herramienta sirve.
+   *  - SOBRECONTEO: por líneas en blanco, un encabezado y un bloque de
+   *    instrucciones cuentan como preguntas (esa vía no tiene el filtro de
+   *    preámbulo que sí tiene la de marcas), y los distractores de una cerrada
+   *    sin numerar cuentan uno cada uno.
+   *
+   * El sobreconteo es el que hace daño: `detectadas` alimenta el aviso ámbar
+   * («Detectamos 4 y la IA clasificó 1») y la lista de «texto sin clasificar»,
+   * cuyo botón inserta esos bloques como `abierta` ya tildados. La IA hizo bien
+   * su trabajo —su regla 1 le dice ignorar encabezados— y el cliente la
+   * contradecía ofreciendo de vuelta lo que ella descartó.
+   */
+  const conteoConfiable = useMemo(
+    () => segmentosDelTexto.filter((s) => s.confiable).length >= 2,
+    [segmentosDelTexto],
+  );
+
   const validaciones = useMemo(() => {
     const mapa = new Map<string, string | null>();
     for (const fila of borradores) {
@@ -349,17 +445,29 @@ export function IdentifyQuestionsDialog({
     return mapa;
   }, [borradores, destino]);
 
+  /**
+   * Qué merece una mirada del docente antes de insertar. Un predicado y no la
+   * condición repetida en dos `useMemo`, que es como se desincronizan.
+   *
+   * `rubricaFaltante` entra acá y NO en `validarBorrador`: rechazar la fila
+   * deshabilitaría su casilla y la sacaría de `seleccionadas`, y además dejaría
+   * a «Dejarlas como abierta» siendo un botón que no arregla nada (pone
+   * `tipo: "abierta"` y no llena ninguna rúbrica).
+   */
+  const pideRevision = useCallback(
+    (b: BorradorPregunta) =>
+      validaciones.get(b.id) != null || b.confianza !== "alta" || rubricaFaltante(b),
+    [validaciones],
+  );
+
   const requierenRevision = useMemo(
-    () => borradores.filter((b) => validaciones.get(b.id) != null || b.confianza !== "alta").length,
-    [borradores, validaciones],
+    () => borradores.filter(pideRevision).length,
+    [borradores, pideRevision],
   );
 
   const visibles = useMemo(
-    () =>
-      soloRevision
-        ? borradores.filter((b) => validaciones.get(b.id) != null || b.confianza !== "alta")
-        : borradores,
-    [borradores, soloRevision, validaciones],
+    () => (soloRevision ? borradores.filter(pideRevision) : borradores),
+    [borradores, soloRevision, pideRevision],
   );
 
   const seleccionadas = useMemo(
@@ -424,15 +532,22 @@ export function IdentifyQuestionsDialog({
         // no lo pasa, se deriva del idioma activo de la app.
         courseLanguage: courseLanguage ?? (i18n.language?.startsWith("en") ? "en" : "es"),
         codeLanguage: lenguajeCodigo,
-        maxItems: 12,
+        // Espejo del `MAX_ITEMS` del edge, no un 12 suelto: ver el bloque de
+        // topes en `identify-text.ts` y el test que lo fija.
+        maxItems: MAX_ITEMS_POR_LLAMADA,
       },
       signal,
     });
     // 429 y 402 llegan con status 200 y `{ ok:false, error }` (el frontend
     // desplegado no lee el body de un no-2xx), así que el error del BODY se
     // mira ANTES del error del transporte.
+    //
+    // También pasa por `extractEdgeError`: leer `resp.error` crudo salteaba la
+    // elección entre `error` y `message` que el helper centraliza, así que un
+    // cuerpo con un CÓDIGO en `error` y la frase redactada en `message` pintaba
+    // el código. Con `error: null` el helper no toca ningún Response.
     const resp = (data ?? null) as RespuestaEdge | null;
-    if (resp?.error) return { error: resp.error };
+    if (resp?.error) return { error: await extractEdgeError(null, data) };
     // La version ASINCRONA: la sincrona no puede leer el body de un Response,
     // y en todo no-2xx `functions.invoke` devuelve `data: null`, asi que
     // devolvia el generico EN INGLES "Edge Function returned a non-2xx status
@@ -492,7 +607,14 @@ export function IdentifyQuestionsDialog({
     }
     setProgreso({ hechos: 0, total: lotes.length, preguntas: 0 });
     setPegadoTotal((prev) => prev + limpio.length);
-    setDetectadas((prev) => (acumular ? prev : 0) + segmentos.length);
+    // La reconciliación («detectamos N y la IA clasificó M») y la lista de texto
+    // sin clasificar SOLO tienen sentido cuando el conteo es un dato: con dos o
+    // más cortes por marca ALTA. Sin eso el número es una adivinanza y el aviso
+    // ámbar afirmaba algo falso, además de ofrecer encabezados, instrucciones y
+    // distractores como preguntas listas para insertar. Mismo umbral que
+    // `conteoConfiable` y que `agruparEnLotes`.
+    const segmentacionConfiable = segmentos.filter((s) => s.confiable).length >= 2;
+    setDetectadas((prev) => (acumular ? prev : 0) + (segmentacionConfiable ? segmentos.length : 0));
 
     const nuevos: BorradorPregunta[] = [];
     const yaEnLista = acumular ? borradores.length : 0;
@@ -502,7 +624,9 @@ export function IdentifyQuestionsDialog({
       if (yaEnLista + nuevos.length >= MAX_FILAS_BORRADOR) {
         // El tope existe porque más de esto no se revisa, se hojea. Se avisa:
         // descartar filas en silencio sería perder el texto del docente.
-        toast.info(t("identifyQuestions.rowCapReached", { max: MAX_FILAS_BORRADOR }));
+        if (montadoRef.current) {
+          toast.info(t("identifyQuestions.rowCapReached", { max: MAX_FILAS_BORRADOR }));
+        }
         break;
       }
       let r: Awaited<ReturnType<typeof pedirLote>>;
@@ -532,10 +656,14 @@ export function IdentifyQuestionsDialog({
     }
 
     abortRef.current = null;
-    const { huerfanos: sinClasificar } = emparejarConSegmentos(
-      segmentos,
-      nuevos.map((n) => n.enunciado),
-    );
+    // Desmontado: nada de setState ni de mover la fase. «Detener» sí sigue.
+    if (!montadoRef.current) return;
+    const { huerfanos: sinClasificar } = segmentacionConfiable
+      ? emparejarConSegmentos(
+          segmentos,
+          nuevos.map((n) => n.enunciado),
+        )
+      : { huerfanos: [] as number[] };
     setHuerfanos((prev) => [
       ...(acumular ? prev : []),
       ...sinClasificar.map((i) => segmentos[i].texto),
@@ -567,13 +695,24 @@ export function IdentifyQuestionsDialog({
     const filas = r.items
       .map((q) => aBorrador(q, destino, lenguajeCodigo))
       .filter((f) => f.enunciado.length > 0);
-    setBorradores((prev) => [...prev, ...filas].slice(0, MAX_FILAS_BORRADOR));
-    setClasificadas((prev) => prev + filas.length);
+    // Se recorta con aviso, igual que en `clasificar`: el `.slice()` que había
+    // descartaba en silencio las filas que pasaban el tope, y el motivo por el
+    // que el camino principal avisa está escrito ahí mismo — descartar filas sin
+    // decirlo es perder el texto del docente.
+    const caben = filas.slice(0, Math.max(0, MAX_FILAS_BORRADOR - borradores.length));
+    if (caben.length < filas.length) {
+      toast.info(t("identifyQuestions.rowCapReached", { max: MAX_FILAS_BORRADOR }));
+    }
+    setBorradores((prev) => [...prev, ...caben]);
+    setClasificadas((prev) => prev + caben.length);
     // Los bloques que el reintento SÍ clasificó dejan de ser «texto sin
     // clasificar». Sin esto el panel seguía listándolos —el panel existe para
     // que el docente confíe en que no se perdió nada— y su botón «Agregar como
     // abierta» insertaba DUPLICADOS, además degradados a `abierta`.
-    const clasificadosAhora = filas.map((f) => f.enunciado.trim().toLowerCase());
+    // Solo las que ENTRARON al borrador dejan de ser huérfanas: una fila que el
+    // tope recortó sigue siendo texto sin clasificar y tiene que seguir en la
+    // lista, o el docente la pierde de vista.
+    const clasificadosAhora = caben.map((f) => f.enunciado.trim().toLowerCase());
     setHuerfanos((prev) =>
       prev.filter((bloque) => {
         const b = bloque.trim().toLowerCase();
@@ -720,9 +859,13 @@ export function IdentifyQuestionsDialog({
                 />
                 <div className="flex flex-wrap items-center justify-between gap-2 mt-1">
                   <span className="text-2xs text-muted-foreground">
-                    {texto.trim()
-                      ? t("identifyQuestions.detected", { count: segmentosDelTexto.length })
-                      : t("identifyQuestions.detectedNone")}
+                    {!texto.trim()
+                      ? t("identifyQuestions.detectedNone")
+                      : conteoConfiable
+                        ? t("identifyQuestions.detected", { count: segmentosDelTexto.length })
+                        : // Sin numeración el conteo es una adivinanza: se dice
+                          // eso en vez de afirmar un número falso.
+                          t("identifyQuestions.detectedUnknown")}
                   </span>
                   <span
                     className={`text-2xs tabular-nums ${
@@ -769,16 +912,10 @@ export function IdentifyQuestionsDialog({
               </p>
 
               {errorLote && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
-                  <p className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                    <span className="break-words">{errorLote.mensaje}</span>
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => void reintentarLote()}>
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                    {t("identifyQuestions.retryBatch")}
-                  </Button>
-                </div>
+                <BannerErrorLote
+                  mensaje={errorLote.mensaje}
+                  onReintentar={() => void reintentarLote()}
+                />
               )}
             </div>
           )}
@@ -809,17 +946,28 @@ export function IdentifyQuestionsDialog({
           )}
 
           {/* ── Fase 2 · revisar ───────────────────────────────────── */}
+          {/* `flex flex-col min-h-0 flex-1` para que la `ScrollArea` de las
+              tarjetas funcione: su `flex-1 min-h-0` era inerte porque el padre
+              era un `div` en `display:block`, así que la lista tomaba alto de
+              contenido y con 20 filas había que scrollear todas las tarjetas
+              para llegar al primario del pie. Mismo patrón que
+              `QuestionBankImportDialog`, dentro de un `DialogContent` que ya es
+              `flex flex-col max-h-[90dvh]`. */}
           {fase === "revisar" && (
-            <div className="space-y-3">
+            <div className="space-y-3 flex flex-col min-h-0 flex-1">
               {(detectadas > clasificadas || truncado) && (
                 <div className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs space-y-2">
                   <p className="flex items-start gap-2">
-                    {/* `text-warning` para el ícono y color heredado para el
-                        texto: `--warning-foreground` es el mismo valor oscuro en
-                        los dos temas porque está pensado para ir sobre
-                        `bg-warning` opaco, no sobre el 10% — en tema oscuro el
-                        contraste quedaba ~1:1. */}
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-warning" />
+                    {/* `text-warning-on-subtle`, el token para ámbar sobre un
+                        fondo TRASLÚCIDO (`bg-warning/10`).
+                        `--warning-foreground` no sirve acá: vale oklch(0.2) en
+                        los dos temas porque está pensado para `bg-warning`
+                        opaco, y sobre el 10% en tema oscuro el contraste queda
+                        ~1:1. La primera versión de esta pantalla usó
+                        `text-warning` a secas, que se lee en oscuro pero queda
+                        flojo en claro; el token cambia por tema y es el mismo
+                        que usan los dos avisos de la pantalla de examen. */}
+                    <AlertTriangle className="h-4 w-4 shrink-0 text-warning-on-subtle" />
                     <span>
                       {t("identifyQuestions.reconcile", {
                         detected: detectadas,
@@ -873,7 +1021,13 @@ export function IdentifyQuestionsDialog({
               )}
 
               <div className="flex flex-wrap items-end gap-2">
-                {requierenRevision > 0 && (
+                {/* La condición incluye `soloRevision` porque el botón es el
+                    ÚNICO control que apaga el filtro: si el docente filtra y
+                    después descarta todas las filas marcadas —que es el uso del
+                    filtro—, `requierenRevision` cae a 0, el botón desaparecía y
+                    `visibles` seguía filtrando ⇒ lista en blanco sin forma de
+                    volver salvo cerrando el diálogo. */}
+                {(requierenRevision > 0 || soloRevision) && (
                   <Button
                     size="sm"
                     variant={soloRevision ? "secondary" : "outline"}
@@ -886,15 +1040,27 @@ export function IdentifyQuestionsDialog({
                   <Label htmlFor="identify-points" className="text-2xs">
                     {t("identifyQuestions.pointsForAll")}
                   </Label>
+                  {/* CONTROLADO a propósito. Sin `value` propio, borrar el campo
+                      disparaba `onChange` con "" → `Number("") || 1` → 1, y
+                      escribía `puntos: 1` en TODAS las filas, pisando los
+                      ajustes fila por fila. Es aplicación masiva y no tiene
+                      deshacer, así que solo se aplica cuando el valor parsea a
+                      un entero del rango. */}
                   <Input
                     id="identify-points"
                     type="number"
                     min={1}
                     max={100}
                     className="h-8 w-24"
+                    value={puntosMasivos}
                     onChange={(e) => {
-                      const n = Math.max(1, Math.min(100, Math.round(Number(e.target.value) || 1)));
-                      setBorradores((prev) => prev.map((b) => ({ ...b, puntos: n })));
+                      const crudo = e.target.value;
+                      setPuntosMasivos(crudo);
+                      const n = Number(crudo);
+                      if (!crudo.trim() || !Number.isFinite(n)) return;
+                      const entero = Math.round(n);
+                      if (entero < 1 || entero > 100) return;
+                      setBorradores((prev) => prev.map((b) => ({ ...b, puntos: entero })));
                     }}
                   />
                 </div>
@@ -920,32 +1086,48 @@ export function IdentifyQuestionsDialog({
 
               <ScrollArea className="flex-1 min-h-0 pr-2">
                 <div className="space-y-3">
-                  {visibles.map((fila) => (
-                    <FilaBorrador
-                      key={fila.id}
-                      fila={fila}
-                      tipos={tiposDelDestino}
-                      motivoInvalido={validaciones.get(fila.id) ?? null}
-                      onCambiar={(cambios) => actualizar(fila.id, cambios)}
-                      onDescartar={() =>
-                        setBorradores((prev) => prev.filter((b) => b.id !== fila.id))
+                  {visibles.length === 0 ? (
+                    // El filtro puede dejar la lista vacía sin que nada lo diga
+                    // (se descartaron todas las marcadas). Sin este estado el
+                    // área quedaba en blanco mientras el pie seguía ofreciendo
+                    // «Agregar N preguntas» sobre filas que no se ven.
+                    <EmptyState
+                      icon={ScanText}
+                      title={t("identifyQuestions.noneVisible")}
+                      action={
+                        soloRevision ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setSoloRevision(false)}
+                          >
+                            {t("identifyQuestions.showAll")}
+                          </Button>
+                        ) : undefined
                       }
                     />
-                  ))}
+                  ) : (
+                    visibles.map((fila) => (
+                      <FilaBorrador
+                        key={fila.id}
+                        fila={fila}
+                        tipos={tiposDelDestino}
+                        motivoInvalido={validaciones.get(fila.id) ?? null}
+                        onCambiar={(cambios) => actualizar(fila.id, cambios)}
+                        onDescartar={() =>
+                          setBorradores((prev) => prev.filter((b) => b.id !== fila.id))
+                        }
+                      />
+                    ))
+                  )}
                 </div>
               </ScrollArea>
 
               {errorLote && (
-                <div className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs space-y-2">
-                  <p className="flex items-start gap-2">
-                    <AlertTriangle className="h-4 w-4 shrink-0 text-destructive" />
-                    <span className="break-words">{errorLote.mensaje}</span>
-                  </p>
-                  <Button size="sm" variant="outline" onClick={() => void reintentarLote()}>
-                    <RefreshCw className="h-3.5 w-3.5 mr-1" />
-                    {t("identifyQuestions.retryBatch")}
-                  </Button>
-                </div>
+                <BannerErrorLote
+                  mensaje={errorLote.mensaje}
+                  onReintentar={() => void reintentarLote()}
+                />
               )}
 
               <p className="text-2xs text-muted-foreground">
@@ -1280,7 +1462,7 @@ function FilaBorrador({
 
       {fila.tipo === "java_gui" && (
         <div>
-          <Label className="text-2xs">{t("hc_routesAppTeacherExamsExamId.fieldFramework")}</Label>
+          <Label className="text-2xs">{t("identifyQuestions.frameworkLabel")}</Label>
           <RadioGroup
             value={fila.javaFramework}
             onValueChange={(v) => onCambiar({ javaFramework: v as JavaFramework })}
@@ -1289,7 +1471,7 @@ function FilaBorrador({
             <div className="flex items-center gap-2">
               <RadioGroupItem value="swing" id={`${fila.id}-swing`} />
               <Label htmlFor={`${fila.id}-swing`} className="font-normal">
-                {t("hc_routesAppTeacherExamsExamId.frameworkSwing")}
+                {t("javaGuiRunner.frameworkSwing")}
               </Label>
             </div>
             <div className="flex items-center gap-2">
@@ -1303,7 +1485,15 @@ function FilaBorrador({
       )}
 
       <div>
-        <Label className="text-2xs">{t("identifyQuestions.rubricLabel")}</Label>
+        {/* `required` cuando el tipo la espera: es la misma exigencia que el
+            formulario manual de examen aborta si falta, y este paso escribe en
+            la misma tabla. Sin rúbrica, el grader de IA recibe la sección
+            «RÚBRICA ESPERADA:» vacía e improvisa los criterios. El asterisco es
+            la convención del design system para esto; la fila igual se puede
+            insertar (cae en «Solo las que requieren tu revisión»). */}
+        <Label className="text-2xs" required={rubricaFaltante(fila)}>
+          {t("identifyQuestions.rubricLabel")}
+        </Label>
         <Textarea
           rows={2}
           value={fila.rubrica}
@@ -1316,7 +1506,7 @@ function FilaBorrador({
         <div className="text-2xs">
           <button
             type="button"
-            className="text-muted-foreground underline"
+            className="text-muted-foreground underline inline-flex items-center min-h-8 py-1"
             onClick={() => setVerOriginal((v) => !v)}
           >
             {t("identifyQuestions.toggleSource")}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractEdgeError, extractEdgeErrorSync } from "./edge-error";
+import { extractEdgeError, partirMensajeDeError } from "./edge-error";
 
 // Helper para construir un FunctionsHttpError-like sin tener que importar
 // la clase real de supabase-js. Solo necesitamos el shape:
@@ -102,32 +102,85 @@ describe("extractEdgeError", () => {
   });
 });
 
-describe("extractEdgeErrorSync", () => {
-  it("happy path: lee `data.error` cuando está disponible", () => {
-    expect(extractEdgeErrorSync(new Error("ignored"), { error: "del data" })).toBe(
-      "del data",
+/**
+ * La eleccion entre `error` y `message` cuando llegan LOS DOS.
+ *
+ * Existe porque la heuristica se escribio como `/s/` en vez de `/\s/` —una
+ * barra invertida perdida al escribir el archivo— y preguntaba «¿el `error` no
+ * tiene la LETRA s?». Sin estos casos nada lo detenia: la unica prueba manual
+ * que se hizo fue con `rate_limited`, que no lleva «s» y por eso funcionaba de
+ * casualidad. Los dos grupos son cuerpos REALES de edges del proyecto.
+ */
+describe("mejorMensaje: codigo vs frase", () => {
+  it("codigo CON la letra «s» → gana `message` (era el bug)", async () => {
+    // `server_error` / `bad_credentials` los emite public-attendance-check-in;
+    // `no_blocks`, generate-contents.
+    for (const code of ["server_error", "bad_credentials", "no_blocks", "insufficient_quota"]) {
+      const err = makeFunctionsHttpError(
+        JSON.stringify({ error: code, message: "No pudimos completar la operación." }),
+      );
+      expect(await extractEdgeError(err)).toBe("No pudimos completar la operación.");
+    }
+  });
+
+  it("codigo SIN la letra «s» → gana `message`", async () => {
+    const err = makeFunctionsHttpError(
+      JSON.stringify({ error: "rate_limited", message: "Demasiadas solicitudes." }),
     );
+    expect(await extractEdgeError(err)).toBe("Demasiadas solicitudes.");
   });
 
-  it("Error instance → devuelve .message", () => {
-    expect(extractEdgeErrorSync(new Error("boom"))).toBe("boom");
+  it("frase SIN la letra «s» → gana `error`, no el `message`", async () => {
+    // Cuerpos reales: «Token invalido», «No autenticado», «text requerido».
+    for (const frase of ["No autenticado", "Token invalido", "text requerido"]) {
+      const err = makeFunctionsHttpError(
+        JSON.stringify({ error: frase, message: "Unhandled error in edge function" }),
+      );
+      expect(await extractEdgeError(err)).toBe(frase);
+    }
   });
 
-  it("string crudo → se devuelve tal cual", () => {
-    expect(extractEdgeErrorSync("plain error")).toBe("plain error");
+  it("frase redactada con espacios → gana `error` aunque haya `message`", async () => {
+    const err = makeFunctionsHttpError(
+      JSON.stringify({
+        error: "Sin créditos de IA.",
+        message: "insufficient_quota",
+      }),
+    );
+    expect(await extractEdgeError(err)).toBe("Sin créditos de IA.");
   });
 
-  it("error null/undefined sin data → string vacío", () => {
-    expect(extractEdgeErrorSync(null)).toBe("");
-    expect(extractEdgeErrorSync(undefined)).toBe("");
+  it("sin `message` hermano → el codigo se devuelve igual (lo cura friendlyError)", async () => {
+    const err = makeFunctionsHttpError(JSON.stringify({ error: "server_error" }));
+    expect(await extractEdgeError(err)).toBe("server_error");
+  });
+});
+
+/**
+ * Separa la frase que el usuario tiene que leer del volcado del proveedor, que
+ * antes se pintaba literal en el banner del diálogo de identificación:
+ * `describeAiError` arma `Error de IA [500]: <200 chars del body crudo>`, que es
+ * inglés técnico y no dice qué hacer.
+ */
+describe("partirMensajeDeError", () => {
+  it("el volcado del proveedor va a «Detalle técnico», no al banner", () => {
+    const crudo = 'Error de IA [500]: {"error":{"message":"internal server error"}}';
+    expect(partirMensajeDeError(crudo)).toEqual({ visible: null, detalle: crudo });
   });
 
-  it("fallback 'Error desconocido' para objetos sin shape conocido", () => {
-    expect(extractEdgeErrorSync({ foo: "bar" })).toBe("Error desconocido");
+  it("una frase redactada en español se muestra tal cual", () => {
+    const frase =
+      "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.";
+    expect(partirMensajeDeError(frase)).toEqual({ visible: frase, detalle: null });
   });
 
-  it("ignora data.error vacío/whitespace y cae al Error", () => {
-    expect(extractEdgeErrorSync(new Error("real"), { error: "" })).toBe("real");
-    expect(extractEdgeErrorSync(new Error("real"), { error: "   " })).toBe("real");
+  it("el mensaje de la key inválida —accionable y en español— también se muestra", () => {
+    const frase =
+      "La API key del proveedor de IA (gemini) está inválida o expirada. Pídele al administrador que configure la key correcta en Admin → IA → Modelo.";
+    expect(partirMensajeDeError(frase).visible).toBe(frase);
+  });
+
+  it("vacío no pinta nada", () => {
+    expect(partirMensajeDeError("   ")).toEqual({ visible: null, detalle: null });
   });
 });

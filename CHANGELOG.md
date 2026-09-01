@@ -631,6 +631,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Tres defectos que la revisión adversarial encontró en los arreglos anteriores.** Los tres eran de
+  la clase que no avisa, y los tres estaban ya publicados:
+
+  1. **La clave de respuesta seguía corriéndose, pero en el servidor** — que es el lado que gobierna
+     los datos reales. El arreglo anterior cubrió el cliente y dejó vivo el mismo patrón en el edge:
+     al filtrar una opción vacía, el índice de la correcta se emitía crudo. Medido: el modelo marcaba
+     «IaaS» y llegaba marcada «PaaS», con confianza «alta» y sin ninguna señal de que algo se hubiera
+     ajustado, así que la fila pasaba la revisión del docente como coherente.
+  2. **Se perdía el enunciado** cuando la pregunta lo tiene en imperativo — «Seleccione el modelo
+     correcto», «Marque la verdadera», o cualquiera terminado en «:» — y debajo van las opciones. Al
+     modelo le llegaban cuatro opciones sin pregunta. El rescate anterior dependía de que el enunciado
+     tuviera un signo de pregunta, y en los parciales en español los imperativos son mayoría.
+  3. **Los mensajes de error volvían a salir crudos.** El helper que decide si un texto es un código
+     interno o una frase para el usuario preguntaba «¿tiene la letra s?» en vez de «¿tiene espacios?»
+     — una barra invertida que se perdió al escribir el archivo. Con eso, `server_error`,
+     `no_blocks` o `bad_credentials` se seguían pintando tal cual, y una frase sin ninguna «s» perdía
+     contra el código. Le pegaba a los ~57 llamadores del helper.
+
+  De paso, el amarillo de los avisos dejó de ser ilegible en tema oscuro en todo el producto, no solo
+  en la pantalla nueva: ahora hay un token propio para texto sobre fondo ámbar translúcido, que sí
+  cambia por tema.
+
 - **Amazon Bedrock queda usable como alternativa a Gemini.** Dos cosas lo impedían, y ninguna se veía
   hasta activarlo:
 

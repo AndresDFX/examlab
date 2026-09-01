@@ -22,6 +22,13 @@ import type { PostgrestError } from "@supabase/supabase-js";
  *  inútil para el usuario; nunca lo devolvemos si hay algo mejor. */
 const GENERIC_FUNCTIONS_MSG = "Edge Function returned a non-2xx status code";
 
+/**
+ * Un espacio en blanco cualquiera. Con nombre a propósito: escrito inline como
+ * `/\s/` la barra invertida se pierde sin que nada lo note y queda `/s/`, que
+ * matchea la LETRA «s» y rompe `mejorMensaje` en silencio. Ya pasó una vez.
+ */
+const ESPACIO = /\s/;
+
 interface FunctionsHttpErrorLike {
   message?: string;
   name?: string;
@@ -50,11 +57,25 @@ function resolveResponse(errLike: FunctionsHttpErrorLike): Response | undefined 
  * leyera `rate_limited` en pantalla — un identificador interno, justo lo que la
  * convencion del proyecto prohibe. Heuristica: si `error` no tiene espacios es
  * un codigo, y entonces gana `message`.
+ *
+ * OJO al editar: el patron es ESPACIO EN BLANCO (`\s`), no la letra «s». Esta
+ * linea nacio como `/s/` —una barra invertida que se perdio al escribir el
+ * archivo— y con eso la heuristica preguntaba «¿no tiene la letra s?»:
+ * `rate_limited` funcionaba de casualidad y `server_error`, `no_blocks` o
+ * `bad_credentials` seguian pintandose crudos. Al reves, una frase redactada
+ * sin ninguna «s» («No autenticado») perdia contra `message`. Los dos modos de
+ * falla estan fijados en `edge-error.test.ts`.
+ *
+ * Limite conocido de la heuristica: «tiene espacios» no equivale a «es prosa
+ * apta para el usuario». `Error de IA [400]: {...}` los tiene y es ingles
+ * tecnico; `Unauthorized` no los tiene y no trae `message` hermano. Por eso el
+ * resultado de estos helpers se envuelve SIEMPRE en `friendlyError` antes de
+ * pintarlo — el juicio final de que es legible vive ahi, no aca.
  */
 function mejorMensaje(obj: Record<string, unknown>): string {
   const err = typeof obj.error === "string" ? obj.error.trim() : "";
   const msg = typeof obj.message === "string" ? obj.message.trim() : "";
-  if (err && !/s/.test(err) && msg) return msg;
+  if (err && !ESPACIO.test(err) && msg) return msg;
   return err || msg;
 }
 /**
@@ -130,17 +151,40 @@ export async function extractEdgeError(
 }
 
 /**
- * Versión síncrona — útil cuando estás seguro de que el body NO está
- * en un Response stream (ej. errores que ya vienen como Error con
- * mensaje propio, o `data` ya parseado).
+ * `Error de IA [500]: {"error":{"message":…}}` — la forma que `describeAiError`
+ * (`supabase/functions/_shared/ai-error.ts`) arma en el catch de los edges de
+ * IA: el status más 200 caracteres del cuerpo CRUDO del proveedor.
  */
-export function extractEdgeErrorSync(error: unknown, data?: unknown): string {
-  if (data && typeof data === "object") {
-    const elegido = mejorMensaje(data as Record<string, unknown>);
-    if (elegido) return elegido;
-  }
-  if (!error) return "";
-  if (error instanceof Error) return error.message;
-  if (typeof error === "string") return error;
-  return "Error desconocido";
+const FORMA_TECNICA_DE_IA = /^Error de IA \[\d+\]/;
+
+/**
+ * Separa lo que el usuario tiene que leer de lo que solo sirve para soporte.
+ *
+ * Los edges de IA devuelven dos clases de mensaje por el mismo campo: frases
+ * redactadas en español («Sin créditos de IA…», «La API key del proveedor…
+ * pídele al administrador que…»), que se muestran tal cual, y el volcado del
+ * proveedor, que está en inglés y no dice qué hacer. Pintar el segundo literal
+ * en un banner es la convención P6 al revés: el usuario entra al flujo justo
+ * cuando algo falló, que es el peor momento para leer un JSON del proveedor.
+ *
+ * `visible === null` significa «no hay nada que este usuario pueda leer»: el
+ * caller pone su propia frase accionable y manda `detalle` a un «Detalle
+ * técnico» colapsado, donde sigue disponible para pegarlo en un ticket.
+ */
+export function partirMensajeDeError(raw: string): {
+  visible: string | null;
+  detalle: string | null;
+} {
+  const m = String(raw ?? "").trim();
+  if (!m) return { visible: null, detalle: null };
+  if (FORMA_TECNICA_DE_IA.test(m)) return { visible: null, detalle: m };
+  return { visible: m, detalle: null };
 }
+
+/**
+ * Nota: existió una `extractEdgeErrorSync`. Se borró al quedar sin un solo
+ * llamador de producción: no puede leer el body de un `Response`, así que en
+ * cualquier no-2xx devolvía el genérico en inglés — que es justo el bug que
+ * arrastró hasta que su último call site pasó a la versión asíncrona. Si hace
+ * falta el mensaje de un error que YA es un `Error`, `friendlyError` alcanza.
+ */

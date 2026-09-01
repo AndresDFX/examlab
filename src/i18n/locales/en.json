@@ -10193,6 +10193,12 @@
     "discardBody_other": "There are {{count}} reviewed questions not added yet. If you close, they are lost.",
     "discardConfirm": "Discard",
     "rowCapReached": "We reached the cap of {{max}} questions per review. Add these and identify the rest afterwards.",
-    "notProposedNotice": "The types this step does not propose —Network, Linux console and Code ZIP— are still created from this screen's form, which knows how to ask for the topology and the scenario."
+    "notProposedNotice": "The types this step does not propose —Network, Linux console and Code ZIP— are still created from this screen's form, which knows how to ask for the topology and the scenario.",
+    "detectedUnknown": "We could not count them from this format; the AI will split them.",
+    "aiFailed": "The AI could not process the text. Retry, or paste a smaller part.",
+    "technicalDetail": "Technical detail",
+    "frameworkLabel": "Framework",
+    "noneVisible": "No questions to show with this filter.",
+    "showAll": "Show all"
   }
 }

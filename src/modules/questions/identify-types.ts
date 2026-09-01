@@ -168,6 +168,39 @@ export function tipoAceptado(destino: DestinoIdentificacion, tipo: string): bool
   return (TIPOS_ACEPTADOS_POR_DESTINO[destino] as readonly string[]).includes(tipo);
 }
 
+/**
+ * Tipos para los que el formulario manual de EXAMEN aborta si falta la rúbrica
+ * ([app.teacher.exams.$examId.tsx](../../routes/app.teacher.exams.$examId.tsx),
+ * `submitQuestion`). Es exactamente ese set y no «todo lo que califica la IA»
+ * para no inventar una segunda regla que se contradiga con la primera: `bd_sql`
+ * queda afuera porque el formulario lo deja pasar y porque ya tiene su propio
+ * campo obligatorio (`setupSql`, que `validarBorrador` sí exige).
+ *
+ * Este paso entra por la ventana a la MISMA tabla que ese formulario, así que
+ * sin esto una `abierta` con rúbrica vacía llega al grader de IA con la sección
+ * «RÚBRICA ESPERADA:» en blanco y el modelo improvisa los criterios. Río abajo
+ * es invisible: `grade-submission.ts` manda `rubric: expected_rubric ?? ""`.
+ *
+ * NO es motivo de rechazo (ver `validarBorrador`): un docente puede querer una
+ * abierta para calificar a mano. Solo empuja la fila al filtro «Solo las que
+ * requieren tu revisión» y le pone el asterisco al campo.
+ */
+const TIPOS_CON_RUBRICA_OBLIGATORIA: readonly string[] = [
+  "abierta",
+  "codigo",
+  "diagrama",
+  "java_gui",
+  "python_gui",
+];
+
+/** `true` si el tipo espera rúbrica y la fila no la tiene. */
+export function rubricaFaltante(fila: BorradorPregunta): boolean {
+  return (
+    TIPOS_CON_RUBRICA_OBLIGATORIA.includes(fila.tipo) &&
+    String(fila.rubrica ?? "").trim().length === 0
+  );
+}
+
 /** Opciones no vacías de la fila, ya recortadas. */
 /**
  * Opciones sin las vacias Y la traduccion de indices que ese filtro obliga.
@@ -261,6 +294,19 @@ export function validarBorrador(
     if (correctas.length < 1 || correctas.length >= choices.length) {
       return { ok: false, motivo: "identifyQuestions.invalid.faltanCorrectas" };
     }
+    // Espejo de la regla de `cerrada`: si el docente blanqueó el TEXTO de una
+    // opción que estaba marcada, la fila se rechaza. Sin esto había una
+    // asimetría silenciosa frente al mismo gesto — `correctasRemapeadas`
+    // descartaba el índice huérfano y la fila quedaba válida con la clave
+    // RECORTADA (la IA propuso dos correctas y se guardaba una). No es un
+    // índice que apunte al texto equivocado, pero con el scoring proporcional
+    // (matched / totalCorrect) cambia la nota de todo el curso y nada avisa.
+    const marcadasEnBlanco = (fila.correctas ?? []).some(
+      (i) => Number.isInteger(i) && i >= 0 && i < (fila.opciones ?? []).length && !mapa.has(i),
+    );
+    if (marcadasEnBlanco) {
+      return { ok: false, motivo: "identifyQuestions.invalid.faltanCorrectas" };
+    }
     // Coherencia de min/max. Sin esto se podia insertar min=5 y max=1 sobre 3
     // opciones: la calificacion deterministica (belowMin / exceededMax del
     // taller) le da CERO a todo el mundo, marque lo que marque. El edge ya
@@ -278,7 +324,14 @@ export function validarBorrador(
         !Number.isInteger(techo) ||
         piso < 1 ||
         techo > choices.length ||
-        piso > techo
+        piso > techo ||
+        // `piso <= correctas.length` no es redundante con lo de arriba: sin él
+        // entra un mínimo POR ENCIMA de la cantidad de correctas, y con el
+        // scoring proporcional sin penalización el incentivo se invierte —
+        // quien marca solo la correcta queda en 0 por no llegar al mínimo, y
+        // quien rellena con incorrectas se lleva el 100%. No es una clave
+        // equivocada: es una pregunta que premia adivinar.
+        piso > correctas.length
       ) {
         return { ok: false, motivo: "identifyQuestions.invalid.selecciones" };
       }
@@ -309,9 +362,16 @@ export function validarBorrador(
 export function optionsDeFila(fila: BorradorPregunta): Record<string, unknown> | null {
   if (fila.tipo === "cerrada") {
     const { choices, mapa } = opcionesConIndices(fila);
-    // El indice viaja por el mapa: la fila ya paso por validarBorrador, que
-    // rechaza el caso en que la marcada sea la que quedo en blanco.
-    return { choices, correct_index: mapa.get(fila.correcta ?? 0) ?? 0 };
+    // El indice viaja por el mapa. Si NO esta —la marcada era la que quedo en
+    // blanco— se devuelve null en vez de rellenar con 0: el `?? 0` que habia
+    // INVENTABA una respuesta correcta (la primera opcion) en vez de fallar.
+    // Hoy es inalcanzable porque `construirFilaPregunta` valida primero, pero
+    // la funcion es exportada y su firma no obliga a validar antes: el proximo
+    // call site que la use sin validar insertaria la opcion 0 como correcta sin
+    // ningun sintoma.
+    const nuevo = fila.correcta == null ? undefined : mapa.get(fila.correcta);
+    if (nuevo === undefined) return null;
+    return { choices, correct_index: nuevo };
   }
   if (fila.tipo === "cerrada_multi") {
     const { choices, mapa } = opcionesConIndices(fila);
@@ -384,6 +444,19 @@ export function construirFilaPregunta(
   posicion: number,
   extras: ExtrasInsercion,
 ): Record<string, unknown> {
+  // La precondicion se HACE CUMPLIR, no se documenta: `optionsDeFila` y
+  // `starterDeFila` asumen una fila ya validada, y el unico call site actual
+  // (el dialogo) filtra por `validarBorrador` antes de llamar. Sin este guard
+  // no existe nada que impida que un call site futuro —una importacion masiva,
+  // un reintento, un test usandola de fixture— inserte una `cerrada` sin
+  // respuesta correcta o un `bd_sql` con la base vacia.
+  const validacion = validarBorrador(destino, fila);
+  if (!validacion.ok) {
+    throw new Error(
+      `No se puede construir la pregunta: la fila no pasa la validación (${validacion.motivo}).`,
+    );
+  }
+
   const enunciado = String(fila.enunciado ?? "").trim();
   const rubrica = String(fila.rubrica ?? "").trim() || null;
   const options = optionsDeFila(fila);

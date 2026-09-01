@@ -10193,6 +10193,12 @@
     "discardBody_other": "Hay {{count}} preguntas revisadas que todavía no se agregaron. Si cerrás, se pierden.",
     "discardConfirm": "Descartar",
     "rowCapReached": "Llegamos al tope de {{max}} preguntas por revisión. Agregá estas y volvé a identificar el resto.",
-    "notProposedNotice": "Los tipos que este paso no propone —Red, Consola Linux y Código ZIP— se siguen creando en el formulario de esta pantalla, que sabe pedir la topología y el escenario."
+    "notProposedNotice": "Los tipos que este paso no propone —Red, Consola Linux y Código ZIP— se siguen creando en el formulario de esta pantalla, que sabe pedir la topología y el escenario.",
+    "detectedUnknown": "No pudimos contarlas por el formato del texto; la IA las va a separar.",
+    "aiFailed": "La IA no pudo procesar el texto. Reintenta, o pega una parte más chica.",
+    "technicalDetail": "Detalle técnico",
+    "frameworkLabel": "Framework",
+    "noneVisible": "No hay preguntas para mostrar con este filtro.",
+    "showAll": "Ver todas"
   }
 }

@@ -2045,7 +2045,7 @@ function TakeExam() {
             <h1 className="text-2xl font-semibold">{exam.title}</h1>
             <div className="rounded-lg border border-warning/40 bg-warning/10 p-4 text-sm space-y-2">
               <p className="font-semibold flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4 text-warning-foreground" />
+                <AlertTriangle className="h-4 w-4 text-warning-on-subtle" />
                 {t("hc_routesAppStudentTakeExamId.beforeYouStart")}
               </p>
               <ul className="list-disc list-inside text-muted-foreground space-y-1">
@@ -2198,7 +2198,7 @@ function TakeExam() {
           {offline && (
             <Badge
               variant="outline"
-              className="text-3xs sm:text-xs text-warning-foreground border-warning/40 bg-warning/10"
+              className="text-3xs sm:text-xs text-warning-on-subtle border-warning/40 bg-warning/10"
             >
               <WifiOff className="h-3 w-3 sm:mr-1" />
               <span className="hidden sm:inline">

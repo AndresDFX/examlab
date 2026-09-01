@@ -571,7 +571,7 @@ Deno.serve(async (req) => {
       }
       if (aiResD.status === 402) {
         return new Response(
-          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.", no_credits: true }),
           { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -647,7 +647,7 @@ Idioma obligatorio: ${langName}.`,
       }
       if (aiRes.status === 402) {
         return new Response(
-          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.", no_credits: true }),
           { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -776,7 +776,7 @@ Idioma obligatorio: ${langName}.`,
       }
       if (aiResPQA.status === 402) {
         return new Response(
-          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.", no_credits: true }),
           { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -943,7 +943,7 @@ Idioma obligatorio: ${pfLangName}.`,
       }
       if (aiRes.status === 402) {
         return new Response(
-          JSON.stringify({ ok: false, error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.", no_credits: true }),
+          JSON.stringify({ ok: false, error: "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.", no_credits: true }),
           { status: isServiceRoleCaller ? 402 : 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
@@ -1058,7 +1058,7 @@ Idioma obligatorio: ${pfLangName}.`,
         return new Response(
           JSON.stringify({
             ok: false,
-            error: "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.",
+            error: "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.",
             no_credits: true,
           }),
           {
@@ -1424,7 +1424,7 @@ Idioma de salida obligatorio: ${langName}.`;
       });
     }
     if (aiRes.status === 402) {
-      const msg = "Sin créditos de IA. Agrega créditos en Settings → Workspace → Usage.";
+      const msg = "Sin créditos de IA. Pídele al administrador de la plataforma que revise el saldo del proveedor.";
       return new Response(JSON.stringify({ ok: false, error: msg, no_credits: true }), {
         status: isServiceRoleCaller ? 402 : 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

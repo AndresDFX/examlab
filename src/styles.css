@@ -32,6 +32,7 @@
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
   --color-warning-foreground: var(--warning-foreground);
+  --color-warning-on-subtle: var(--warning-on-subtle);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
@@ -103,6 +104,12 @@
 
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.2 0.04 260);
+  /* Texto e iconos sobre un fondo ambar TRASLUCIDO (bg-warning/10), que es
+     otro problema que sobre bg-warning opaco: --warning-foreground vale
+     oklch(0.2) en los DOS temas porque esta pensado para el fondo opaco, y
+     sobre el 10% en tema oscuro el contraste queda ~1:1. Este token si
+     cambia por tema. */
+  --warning-on-subtle: oklch(0.42 0.11 75);
 
   --border: oklch(0.92 0.008 260);
   --input: oklch(0.92 0.008 260);
@@ -139,6 +146,7 @@
   --success-foreground: oklch(0.99 0 0);
   --warning: oklch(0.75 0.15 75);
   --warning-foreground: oklch(0.2 0.04 260);
+  --warning-on-subtle: oklch(0.82 0.13 75);
   --border: oklch(0.28 0.03 260 / 50%);
   --input: oklch(0.28 0.03 260 / 50%);
   --ring: oklch(0.65 0.2 265);

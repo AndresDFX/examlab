@@ -21,14 +21,26 @@
  * Es puro (sin React, sin DOM, sin red) porque es la única parte de este
  * flujo verificable sin gastar cuota del proveedor de IA.
  *
- * ── Por qué NO se duplica en el edge ──────────────────────────────────
- * El edge recibe el texto CRUDO de un lote y lo manda al modelo tal cual; no
- * vuelve a segmentar. Así que no hay invariante cross-file por acá: si esta
- * heurística cambia, el edge sigue funcionando igual.
+ * ── Qué se duplica en el edge y qué no ────────────────────────────────
+ * La SEGMENTACIÓN no: el edge recibe el texto crudo de un lote y lo manda al
+ * modelo tal cual, así que si esta heurística cambia el edge sigue igual.
+ *
+ * Los TOPES sí, y ahí hay invariante cross-file: `MAX_TEXTO_CHARS` y
+ * `MAX_ITEMS_POR_LLAMADA` son espejo de `MAX_TEXT_CHARS` / `MAX_ITEMS` de
+ * `supabase/functions/_shared/identify-questions.ts`. Si el edge baja su tope y
+ * acá no, el diálogo deja pegar texto que el edge rechaza con un 400 y el
+ * docente lo cobra recién al pulsar «Identificar». Lo fija
+ * `identify-types.test.ts`, que importa las constantes REALES de los dos lados.
  */
 
 /** Tope de caracteres por lote enviado al edge (espejo de `MAX_TEXT_CHARS`). */
 export const MAX_TEXTO_CHARS = 20000;
+
+/**
+ * Cuántas preguntas se le piden al modelo por llamada (espejo de `MAX_ITEMS`).
+ * Iba hardcodeada en el body del diálogo, donde nada la ataba al edge.
+ */
+export const MAX_ITEMS_POR_LLAMADA = 12;
 
 /** Tope total de texto pegado acumulado, sumando los «Pegar más texto». */
 export const MAX_TEXTO_TOTAL_CHARS = 60000;
@@ -190,11 +202,38 @@ export function segmentarPreguntas(textoOriginal: string): Segmento[] {
 
   if (marcas.length >= 2) {
     const segmentos: Segmento[] = [];
-    // Encabezado: lo que va antes de la primera marca. Se conserva solo si
-    // parece contenido (tiene un «?» o es largo); un «Parcial de
-    // Arquitectura — 2026-2» no es una pregunta y ensuciaría la revisión.
+    // Encabezado: lo que va antes de la primera marca. Se descarta solo cuando
+    // de verdad parece un encabezado; un «Parcial de Arquitectura — 2026-2» no
+    // es una pregunta y ensuciaría la revisión.
+    //
+    // Las tres razones para CONSERVARLO, y las dos últimas se agregaron porque
+    // el descarte estaba borrando contenido del docente:
+    //
+    //  - Tiene «?» o es largo: parece un enunciado. Es lo que ya había.
+    //
+    //  - `!usandoAltas`: si no estamos cortando por marcas ALTAS, entonces las
+    //    marcas son bajas (`a)`, `-`) y esas son las OPCIONES de una pregunta
+    //    cuyo enunciado es justo el preámbulo. Un stem imperativo —«1.
+    //    Seleccione el modelo correcto», «Marque la verdadera», o cualquiera
+    //    terminado en «:»— no tiene «?» y no llega a 120 caracteres, así que se
+    //    descartaba en silencio y al modelo le llegaban CUATRO opciones sin
+    //    pregunta. Los stems imperativos son mayoría en los parciales en
+    //    español; el rescate por «?» era accidental.
+    //
+    //  - Empieza con una marca BAJA: una viñeta o una letra de opción nunca es
+    //    el encabezado de un parcial, es una opción que el docente pegó
+    //    cortada. Se dispara con `usandoAltas === true`, así que no lo cubre la
+    //    condición anterior.
+    //
+    // Invariante que esto sostiene: la unión de los `crudo` contiene todas las
+    // líneas del texto pegado.
     const preambulo = recortarBloque(lineas.slice(0, marcas[0]).join("\n"));
-    if (preambulo && (preambulo.includes("?") || preambulo.length >= 120)) {
+    const preambuloEsContenido =
+      preambulo.includes("?") ||
+      preambulo.length >= 120 ||
+      !usandoAltas ||
+      MARCA_BAJA.test(preambulo);
+    if (preambulo && preambuloEsContenido) {
       segmentos.push({ texto: preambulo, crudo: preambulo, confiable: false });
     }
     for (let m = 0; m < marcas.length; m++) {
@@ -221,10 +260,22 @@ export function segmentarPreguntas(textoOriginal: string): Segmento[] {
     if (segmentos.length) return segmentos;
   }
 
-  const bloques = texto
-    .split(/\n\s*\n+/)
-    .map((b) => recortarBloque(b))
-    .filter((b) => b.length >= MIN_SEGMENTO_CHARS);
+  // Mismo rescate que en la vía de marcas: un bloque corto NO se descarta, se
+  // anexa al anterior. Antes esta vía lo filtraba, así que el invariante «la
+  // unión de los `crudo` contiene todas las líneas» valía para una vía y no
+  // para la otra: con «Explique…» / línea en blanco / «IaaS» / línea en blanco
+  // / «Compare…», el bloque «IaaS» desaparecía del texto que se le manda al
+  // modelo. El arreglo se había aplicado a una sola de las dos rutas.
+  const bloques: string[] = [];
+  for (const bruto of texto.split(/\n\s*\n+/)) {
+    const b = recortarBloque(bruto);
+    if (!b) continue;
+    if (b.length < MIN_SEGMENTO_CHARS && bloques.length) {
+      bloques[bloques.length - 1] = bloques[bloques.length - 1] + "\n" + b;
+      continue;
+    }
+    bloques.push(b);
+  }
 
   if (bloques.length >= 2) {
     return bloques.map((b) => {

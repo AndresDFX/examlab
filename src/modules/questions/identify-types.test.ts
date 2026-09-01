@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 // INVARIANTE CROSS-FILE: se importa la constante REAL del edge, no un regex
 // sobre el disco, así que reformatear ese archivo no rompe el test pero
 // cambiar el set sí. Precedente: `src/modules/ai/ai-model-normalize.test.ts`.
-import { TIPOS_PROPONIBLES_POR_DESTINO } from "../../../supabase/functions/_shared/identify-questions";
+import {
+  MAX_ITEMS,
+  MAX_TEXT_CHARS,
+  TIPOS_PROPONIBLES_POR_DESTINO,
+} from "../../../supabase/functions/_shared/identify-questions";
+import { MAX_ITEMS_POR_LLAMADA, MAX_TEXTO_CHARS } from "./identify-text";
 import { JAVAFX_STARTER, JAVA_GUI_STARTER, PYTHON_GUI_STARTER } from "@/modules/code/starters";
 import {
   PROPONIBLES_ESPERADO,
@@ -480,5 +485,156 @@ describe("cerrada_multi — min y max coherentes", () => {
   it("un rango razonable pasa", () => {
     expect(validarBorrador("exam", fila(1, 2))).toEqual({ ok: true });
     expect(validarBorrador("exam", fila(undefined, undefined))).toEqual({ ok: true });
+  });
+});
+
+/**
+ * INVARIANTE CROSS-FILE: los topes del cliente son espejo de los del edge.
+ * Se importan las constantes REALES de los dos lados; si el edge baja el suyo,
+ * este test rompe en vez de dejar que el docente cobre un 400 al pulsar
+ * «Identificar» después de pegar 20 000 caracteres.
+ */
+describe("topes espejo del edge", () => {
+  it("MAX_TEXTO_CHARS === MAX_TEXT_CHARS del edge", () => {
+    expect(MAX_TEXTO_CHARS).toBe(MAX_TEXT_CHARS);
+  });
+
+  it("MAX_ITEMS_POR_LLAMADA === MAX_ITEMS del edge", () => {
+    expect(MAX_ITEMS_POR_LLAMADA).toBe(MAX_ITEMS);
+  });
+});
+
+describe("validarBorrador — la opción marcada quedó en blanco", () => {
+  const base = {
+    id: "z",
+    tipoPropuesto: "",
+    enunciado: "Si solo despliega código y el proveedor gestiona el runtime, ¿qué modelo es?",
+    rubrica: "r",
+    puntos: 5,
+    incluida: true,
+    confianza: "alta",
+    motivo: "",
+    fragmento: "",
+    degradadoDe: null,
+    minSelecciones: null,
+    maxSelecciones: null,
+    setupSql: "",
+    lenguaje: "java",
+    javaFramework: "swing",
+  };
+
+  it("cerrada: se rechaza (ya estaba)", () => {
+    const f = {
+      ...base,
+      tipo: "cerrada",
+      opciones: ["", "PaaS", "SaaS"],
+      correcta: 0,
+      correctas: [],
+    } as never;
+    expect(validarBorrador("exam", f)).toEqual({
+      ok: false,
+      motivo: "identifyQuestions.invalid.faltanOpciones",
+    });
+  });
+
+  it("cerrada_multi: se rechaza igual que cerrada, no se guarda la clave RECORTADA", () => {
+    // Antes `correctasRemapeadas` descartaba en silencio el índice huérfano y la
+    // fila quedaba válida con UNA de las dos correctas que la IA propuso. Con el
+    // scoring proporcional eso cambia la nota de todo el curso sin avisar.
+    const f = {
+      ...base,
+      tipo: "cerrada_multi",
+      opciones: ["", "PaaS", "SaaS", "FaaS"],
+      correcta: null,
+      correctas: [0, 1],
+    } as never;
+    expect(validarBorrador("exam", f)).toEqual({
+      ok: false,
+      motivo: "identifyQuestions.invalid.faltanCorrectas",
+    });
+  });
+
+  it("cerrada_multi: si ninguna marcada quedó en blanco, sigue válida", () => {
+    const f = {
+      ...base,
+      tipo: "cerrada_multi",
+      opciones: ["IaaS", "", "SaaS", "FaaS"],
+      correcta: null,
+      correctas: [0, 2],
+    } as never;
+    expect(validarBorrador("exam", f)).toEqual({ ok: true });
+  });
+});
+
+describe("cerrada_multi — el mínimo no puede exceder la cantidad de correctas", () => {
+  const f = (correctas: number[], min: number, max: number) =>
+    ({
+      id: "m",
+      tipo: "cerrada_multi",
+      tipoPropuesto: "",
+      enunciado: "¿Cuáles de los siguientes son modelos de servicio en la nube?",
+      rubrica: "r",
+      puntos: 5,
+      incluida: true,
+      confianza: "alta",
+      motivo: "",
+      fragmento: "",
+      degradadoDe: null,
+      opciones: ["IaaS", "PaaS", "SaaS", "FaaS"],
+      correcta: null,
+      correctas,
+      minSelecciones: min,
+      maxSelecciones: max,
+      setupSql: "",
+      lenguaje: "java",
+      javaFramework: "swing",
+    }) as never;
+
+  it("min 3 con UNA correcta se rechaza (premiaba adivinar)", () => {
+    // Con el scoring proporcional sin penalización, quien marca solo la
+    // correcta queda en 0 por no llegar al mínimo y quien rellena con dos
+    // incorrectas se lleva el 100%.
+    expect(validarBorrador("exam", f([0], 3, 4))).toEqual({
+      ok: false,
+      motivo: "identifyQuestions.invalid.selecciones",
+    });
+  });
+
+  it("min 2 con DOS correctas es válido", () => {
+    expect(validarBorrador("exam", f([0, 1], 2, 3))).toEqual({ ok: true });
+  });
+});
+
+describe("optionsDeFila / construirFilaPregunta — la precondición se hace cumplir", () => {
+  const invalida = {
+    id: "q",
+    tipo: "cerrada",
+    tipoPropuesto: "",
+    enunciado: "Si solo despliega código y el proveedor gestiona el runtime, ¿qué modelo es?",
+    rubrica: "r",
+    puntos: 5,
+    incluida: true,
+    confianza: "alta",
+    motivo: "",
+    fragmento: "",
+    degradadoDe: null,
+    opciones: ["", "PaaS", "SaaS"],
+    correcta: 0,
+    correctas: [],
+    minSelecciones: null,
+    maxSelecciones: null,
+    setupSql: "",
+    lenguaje: "java",
+    javaFramework: "swing",
+  } as never;
+
+  it("optionsDeFila devuelve null en vez de inventar la opción 0 como correcta", () => {
+    expect(optionsDeFila(invalida)).toBeNull();
+  });
+
+  it("construirFilaPregunta lanza si la fila no pasa validarBorrador", () => {
+    expect(() => construirFilaPregunta("exam", invalida, 0, { targetId: "ex-1" })).toThrow(
+      /no pasa la validación/,
+    );
   });
 });
