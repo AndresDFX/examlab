@@ -13,6 +13,7 @@
  * `{{#each}}` correctamente. Esto es deliberadamente simple.
  */
 import { SignatureBlockDialog } from "./SignatureBlockDialog";
+import { HeaderBlockDialog } from "./HeaderBlockDialog";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -41,6 +42,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import {
   AlertTriangle,
   ChevronDown,
+  ImageIcon,
   ChevronRight,
   Code2,
   Eye,
@@ -338,6 +340,7 @@ export function TemplateEditor({
   const [varQuery, setVarQuery] = useState("");
   /** Caja de firmas abierta. */
   const [firmasOpen, setFirmasOpen] = useState(false);
+  const [encabezadoOpen, setEncabezadoOpen] = useState(false);
 
   // Las variables del panel derecho DEPENDEN del tipo de informe: por
   // estudiante muestra las del alumno único; por curso, el grupo consolidado
@@ -550,7 +553,20 @@ export function TemplateEditor({
                   />
                 )}
               </TabsContent>
-              <TabsContent value="header" className="mt-2">
+              <TabsContent value="header" className="mt-2 space-y-2">
+                {/* Armar el membrete a mano significaba escribir una tabla de 3
+                    celdas en HTML dentro de un textarea. El botón lo arma con la
+                    posición estándar de los formatos institucionales. */}
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="h-8 text-xs"
+                  onClick={() => setEncabezadoOpen(true)}
+                >
+                  <ImageIcon className="h-3.5 w-3.5 mr-1" />
+                  {t("headerBlock.insertButton", { defaultValue: "Encabezado institucional" })}
+                </Button>
                 <Textarea
                   ref={headerRef}
                   value={value.header_html}
@@ -750,6 +766,13 @@ export function TemplateEditor({
       {/* Caja de firmas. Recibe el contexto del curso elegido en Vista previa
           para que la previa muestre los estudiantes REALES: es ahí donde se ve
           que una columna (código, documento) sale a medias. */}
+      <HeaderBlockDialog
+        open={encabezadoOpen}
+        onOpenChange={setEncabezadoOpen}
+        onInsert={(html) => insertAtCursor(html)}
+        context={pvCtx}
+      />
+
       <SignatureBlockDialog
         open={firmasOpen}
         onOpenChange={setFirmasOpen}

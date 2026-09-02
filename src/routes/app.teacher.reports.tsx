@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { CourseSelect } from "@/modules/courses/CourseSelect";
+import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -483,7 +484,17 @@ function Inner() {
           ? {
               institucion: {
                 nombre: tenant.name,
-                ...(tenant.logo_url ? { logo: tenant.logo_url } : {}),
+                // `resolveTenantLogoUrl` y NO `tenant.logo_url`: esa es la columna
+                // LEGACY y está en NULL en las 6 instituciones; el logo real vive
+                // en `logo_path`. Leyendo la vieja, la vista previa nunca mostró el
+                // logo de nadie.
+                //
+                // Y se pasa SIEMPRE, también cuando es null: sin la clave, el
+                // merge del contexto de muestra deja sobrevivir su logo de
+                // ejemplo, así que una institución SIN logo veía uno en el editor
+                // y el documento salía en blanco. Mentirle en la vista previa es
+                // peor que no mostrar nada.
+                logo: resolveTenantLogoUrl(tenant, supabase) ?? "",
               },
             }
           : undefined,
@@ -1608,7 +1619,11 @@ function Inner() {
       // Armar el OOXML corre en el hilo principal: con informes grandes
       // (imágenes del .docx) tarda y antes no había ningún indicador.
       await yieldToPaint();
-      downloadReportAsWord(genHtml, { ...genMeta(), stamp: fileStamp(new Date()) });
+      const { imagenesPerdidas } = await downloadReportAsWord(genHtml, {
+        ...genMeta(),
+        stamp: fileStamp(new Date()),
+      });
+      avisarImagenesPerdidas(imagenesPerdidas);
       await persistGeneration();
     } catch (e) {
       toast.error(
@@ -1712,6 +1727,27 @@ function Inner() {
     void loadGenReports();
   };
 
+  /**
+   * El logo no llegó al Word.
+   *
+   * Se avisa en vez de fallar: el archivo ya se descargó y es utilizable, solo le
+   * falta la imagen. Y se dice QUÉ hacer, porque el motivo casi siempre es que el
+   * logo de la institución se reemplazó y el documento viejo apunta al archivo
+   * anterior, que el panel de marca borra al cambiar la extensión.
+   */
+  const avisarImagenesPerdidas = (n: number) => {
+    if (n > 0) {
+      toast.warning(
+        i18n.t("toast.routes_app_teacher_reports.logoNoIncrustado", {
+          count: n,
+          defaultValue:
+            "El Word se descargó, pero {{count}} imagen(es) no se pudieron incrustar (el logo puede haberse reemplazado). El PDF sí las muestra.",
+        }),
+        { duration: 10000 },
+      );
+    }
+  };
+
   // El envoltorio va UNA sola vez acá y el cuerpo tiene sus tres salidas adentro:
   // así el día que se agregue un cuarto `return` no queda un camino que se baje o
   // se imprima sin la regla de corte de celdas.
@@ -1736,13 +1772,14 @@ function Inner() {
     try {
       await yieldToPaint();
       const html = await conFirmas(r);
-      downloadReportAsWord(html, {
+      const { imagenesPerdidas } = await downloadReportAsWord(html, {
         templateName: r.template_name,
         courseName: r.course_name,
         studentName: r.student_name,
         periodo: r.periodo,
         stamp: fileStamp(new Date(r.created_at)),
       });
+      avisarImagenesPerdidas(imagenesPerdidas);
     } catch (e) {
       toast.error(
         friendlyError(

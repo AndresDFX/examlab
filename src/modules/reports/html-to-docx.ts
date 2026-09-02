@@ -19,6 +19,8 @@
  */
 import { strToU8, zipSync } from "fflate";
 
+import { altoProporcional, intrinsicSize } from "./image-size";
+
 const NS_W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 const ROOT_NS =
   `xmlns:w="${NS_W}" ` +
@@ -194,7 +196,21 @@ function imageRun(img: Element, ctx: PartCtx): string {
   if (!parsed) return "";
   const st = styleMap(img);
   const wPx = parseFloat(st["width"] ?? "") || 120;
-  const hPx = parseFloat(st["height"] ?? "") || Math.round(wPx * 0.4);
+  // El alto: el declarado, o el PROPORCIONAL leído de los bytes de la imagen.
+  //
+  // En un .docx no hay `height:auto`: hay que dar una medida. Y el HTML de los
+  // encabezados dice justamente `height:auto`, que `parseFloat` devuelve como NaN.
+  // Antes eso caía a `0,4 × ancho`, y con los dos logos reales de producción
+  // —casi cuadrados: 205×225 y 240×240— el Word los achataba 2,5 y 2,75 veces.
+  // El PDF sale del navegador, que sí respeta `height:auto`, así que el mismo
+  // informe salía bien en PDF y deformado en Word, y nadie compara los dos.
+  const hDeclarado = parseFloat(st["height"] ?? "");
+  const hPx =
+    (Number.isFinite(hDeclarado) && hDeclarado > 0 ? hDeclarado : null) ??
+    altoProporcional(wPx, intrinsicSize(parsed.bytes)) ??
+    // Último recurso: un formato que no sabemos leer. Se conserva el 4:3 de
+    // antes, que al menos no es un valor absurdo.
+    Math.round(wPx * 0.75);
   let cx = Math.max(1, Math.round(wPx * EMU_PER_PX));
   let cy = Math.max(1, Math.round(hPx * EMU_PER_PX));
   // Tope de ancho: la celda actual (si la imagen va en una tabla) o la página.

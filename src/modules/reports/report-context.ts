@@ -29,6 +29,7 @@ import {
   type RetryMode,
 } from "@/modules/exams/exam-attempts";
 import { formatDate, formatDateOnly } from "@/shared/lib/format";
+import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import {
   formatScheduleText,
   type CourseScheduleBlock,
@@ -203,9 +204,33 @@ async function leerInstitucion(
   if (tenantId) qs = qs.eq("tenant_id", tenantId);
   const { data: ajustes } = await qs.limit(1).maybeSingle();
 
+  // El logo: primero el de `certificate_settings` (donde el Admin lo pone para los
+  // certificados) y si no está, el de la MARCA de la institución (`tenants`), que
+  // es el que se sube en Configuración → Mi institución y el que se ve en la barra
+  // lateral.
+  //
+  // No es un adorno defensivo: medido en producción, `institution_logo_url` está
+  // en NULL en las 6 instituciones, mientras que UNIAJ y FESNA SÍ tienen su logo
+  // cargado en `tenants.logo_path`. Sin este respaldo, `{{institucion.logo}}`
+  // resuelve a "" para todo el mundo y el encabezado sale sin logo aunque la
+  // institución lo haya subido.
+  //
+  // `tenants.logo_url` es la columna LEGACY y está en NULL en las 6: por eso se
+  // pasa por `resolveTenantLogoUrl`, que prefiere `logo_path` y lo convierte en
+  // URL pública, en vez de leer `logo_url` a secas.
+  let logo = (data as { institution_logo_url?: string | null } | null)?.institution_logo_url ?? "";
+  if (!logo && tenantId) {
+    const { data: tnt } = await db
+      .from("tenants")
+      .select("logo_path, logo_url")
+      .eq("id", tenantId)
+      .maybeSingle();
+    logo = resolveTenantLogoUrl(tnt ?? null, supabase) ?? "";
+  }
+
   return {
     nombre: data?.institution_name ?? "—",
-    logo: data?.institution_logo_url ?? "",
+    logo,
     // Vacío y no "—": va dentro de una casilla del formato que, si no hay dato,
     // se llena a mano sobre el papel. Un guion ahí obligaría a tacharlo.
     ciudad: (ajustes as { ciudad?: string | null } | null)?.ciudad ?? "",

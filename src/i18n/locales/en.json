@@ -3715,6 +3715,7 @@
       "downloadWordError": "Could not generate the Word file.",
       "generateReportError": "Error generating the report",
       "genReportDeleted": "Report removed from the history",
+      "logoNoIncrustado": "The Word file was downloaded, but {{count}} image(s) could not be embedded (the logo may have been replaced). The PDF does show them.",
       "nameAdjusted": "A template with that name already existed; saved as \"{{name}}\".",
       "nameRequired": "The name is required",
       "overrideSinCambios": "You did not change the content, so no new template was created: the generator opens for your course.",
@@ -10332,5 +10333,27 @@
     "revokeBody": "Any link already circulating stops opening the document. Whoever already signed stays signed. You can create a new one whenever you want.",
     "revokeConfirm": "Turn off",
     "revoked": "Link turned off."
+  },
+  "headerBlock": {
+    "anchoLogo": "Logo width (px)",
+    "anchoLogoHint": "The height is computed from the image real aspect ratio.",
+    "codigo": "Form code",
+    "codigoHint": "Top right, like institutional forms (e.g. DO-F-021).",
+    "dialogDesc": "Your institution logo on the left, the title in the center and the form code on the right, like the forms you already use.",
+    "dialogTitle": "Institutional header",
+    "insert": "Insert",
+    "insertButton": "Institutional header",
+    "optFecha": "Issue date on the right",
+    "optNombre": "Institution name under the logo",
+    "previewLabel": "How it will look",
+    "previewReal": "With the branding of the course picked in «Preview».",
+    "previewSample": "With sample data.",
+    "sinLogo": "Your institution has no logo uploaded yet, so that cell will be empty. Upload it in Settings → My institution. The header still works: the logo shows up as soon as it exists.",
+    "subtitulo": "Subtitle",
+    "subtituloHint": "A small line under the title. Optional.",
+    "titulo": "Title",
+    "tituloHint": "Large and centered (e.g. PEDAGOGICAL AGREEMENT).",
+    "version": "Version",
+    "versionHint": "E.g. V – 1.0 – 2019. Optional."
   }
 }

@@ -16,6 +16,7 @@
  * Las funciones que tocan DOM/`window` son no-op en SSR (guard `typeof`).
  */
 import { htmlToDocxBlob } from "./html-to-docx";
+import { inlineRemoteImages } from "./inline-images";
 
 /** Dispara la descarga de un Blob con el nombre dado (no-op en SSR). */
 export function downloadBlob(blob: Blob, filename: string): void {
@@ -76,12 +77,24 @@ export function fileStamp(d: Date): string {
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}${p(d.getMinutes())}`;
 }
 
-/** Descarga el HTML compuesto como archivo Word REAL (.docx OOXML). */
-export function downloadReportAsWord(
+/**
+ * Descarga el HTML compuesto como archivo Word REAL (.docx OOXML).
+ *
+ * Es `async` porque antes de exportar hay que EMBEBER las imágenes remotas: el
+ * exportador solo puede meter una imagen dentro del archivo si su `src` ya es un
+ * data URI, así que el logo institucional —que vive en el bucket de marcas y llega
+ * como URL— se perdía sin ningún error justo en el Word que la gente entrega.
+ *
+ * Devuelve cuántas imágenes no se pudieron traer, para que la pantalla lo avise.
+ * No se lanza: un logo que no baja no puede impedir que el informe se descargue.
+ */
+export async function downloadReportAsWord(
   composedHtml: string,
   parts: Parameters<typeof reportFileName>[0],
-): void {
-  downloadBlob(htmlToDocxBlob(composedHtml), reportFileName(parts, "docx"));
+): Promise<{ imagenesPerdidas: number }> {
+  const { html, fallidas } = await inlineRemoteImages(composedHtml);
+  downloadBlob(htmlToDocxBlob(html), reportFileName(parts, "docx"));
+  return { imagenesPerdidas: fallidas };
 }
 
 /**

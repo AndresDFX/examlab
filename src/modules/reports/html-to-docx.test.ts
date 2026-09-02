@@ -179,3 +179,44 @@ describe("styles.xml — permitir que una palabra larga parta dentro de la celda
     expect(r).toBeLessThan(p);
   });
 });
+
+describe("logo con height:auto — el achatamiento del Word", () => {
+  /** PNG válido de 205×225: las medidas REALES del logo de FESNA en producción. */
+  const PNG_205x225 = "iVBORw0KGgoAAAANSUhEUgAAAM0AAADh";
+
+  const conLogo = (estilo: string) =>
+    `<!doctype html><html><head><style>@page{size:A4 portrait}</style></head><body>` +
+    `<header><p><img src="data:image/png;base64,${PNG_205x225}" style="${estilo}" alt=""/></p></header>` +
+    `<main><p>x</p></main></body></html>`;
+
+  const extentDe = (html: string) => {
+    const hdr = strFromU8(htmlToDocxFiles(html)["word/header1.xml"]);
+    const m = /<wp:extent cx="(\d+)" cy="(\d+)"\/>/.exec(hdr);
+    return m ? { cx: Number(m[1]), cy: Number(m[2]) } : null;
+  };
+
+  it("con height:auto usa la proporción REAL de la imagen, no un 0,4 inventado", () => {
+    // El encabezado de las plantillas dice `height:auto`, que parseFloat devuelve
+    // como NaN. Antes eso caía a `0,4 × ancho` y el Word pintaba el logo de 150×60
+    // en vez de 150×165: un achatamiento de 2,75×. El PDF sale del navegador, que
+    // sí respeta height:auto, así que el mismo informe salía bien en PDF y
+    // deformado en Word.
+    const e = extentDe(conLogo("width:150px;max-width:100%;height:auto;"));
+    expect(e).not.toBeNull();
+    expect(e!.cx).toBe(150 * 9525);
+    expect(e!.cy).toBe(165 * 9525); // 150 × 225/205
+    expect(e!.cy).not.toBe(60 * 9525); // lo que emitía el bug
+  });
+
+  it("una altura declarada sigue mandando sobre la proporción", () => {
+    const e = extentDe(conLogo("width:100px;height:40px;"));
+    expect(e!.cy).toBe(40 * 9525);
+  });
+
+  it("sin ancho ni alto no revienta y respeta la proporción", () => {
+    const e = extentDe(conLogo("max-width:100%;"));
+    // 120px es el ancho por defecto del exportador.
+    expect(e!.cx).toBe(120 * 9525);
+    expect(e!.cy).toBe(Math.round((120 * 225) / 205) * 9525);
+  });
+});

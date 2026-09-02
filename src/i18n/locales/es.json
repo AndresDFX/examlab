@@ -3715,6 +3715,7 @@
       "downloadWordError": "No se pudo generar el archivo Word.",
       "generateReportError": "Error al generar el informe",
       "genReportDeleted": "Informe eliminado del historial",
+      "logoNoIncrustado": "El Word se descargó, pero {{count}} imagen(es) no se pudieron incrustar (el logo puede haberse reemplazado). El PDF sí las muestra.",
       "nameAdjusted": "Ya existía una plantilla con ese nombre; se guardó como \"{{name}}\".",
       "nameRequired": "El nombre es obligatorio",
       "overrideSinCambios": "No cambiaste el contenido, así que no se creó una plantilla nueva: se abre el generador para tu curso.",
@@ -10332,5 +10333,27 @@
     "revokeBody": "El enlace que esté circulando deja de abrir el documento. Los que ya firmaron siguen firmados. Podés generar uno nuevo cuando quieras.",
     "revokeConfirm": "Cortar",
     "revoked": "Enlace cortado."
+  },
+  "headerBlock": {
+    "anchoLogo": "Ancho del logo (px)",
+    "anchoLogoHint": "El alto se calcula solo, con la proporción real de la imagen.",
+    "codigo": "Código del formato",
+    "codigoHint": "Arriba a la derecha, como en los formatos institucionales (ej. DO-F-021).",
+    "dialogDesc": "El logo de tu institución a la izquierda, el título al centro y el código del formato a la derecha, como en los formatos que ya usás.",
+    "dialogTitle": "Encabezado institucional",
+    "insert": "Insertar",
+    "insertButton": "Encabezado institucional",
+    "optFecha": "Fecha de emisión a la derecha",
+    "optNombre": "Nombre de la institución bajo el logo",
+    "previewLabel": "Cómo va a quedar",
+    "previewReal": "Con la marca del curso elegido en «Vista previa».",
+    "previewSample": "Con datos de muestra.",
+    "sinLogo": "Tu institución todavía no tiene logo cargado, así que esa celda va a salir vacía. Se sube en Configuración → Mi institución. El encabezado igual sirve: el logo aparece solo cuando esté.",
+    "subtitulo": "Subtítulo",
+    "subtituloHint": "Una línea chica bajo el título. Opcional.",
+    "titulo": "Título",
+    "tituloHint": "Va grande y centrado (ej. ACUERDO PEDAGÓGICO).",
+    "version": "Versión",
+    "versionHint": "Ej. V – 1.0 – 2019. Opcional."
   }
 }
