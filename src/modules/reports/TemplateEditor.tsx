@@ -63,6 +63,8 @@ import {
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
 import { cssCorteEnCeldas } from "./document-css";
+import { CourseSelect, type CourseSelectCourse } from "@/modules/courses/CourseSelect";
+import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { revisarPlantilla, type AvisoPlantilla } from "./plantilla-lint";
 
 export interface TemplateDraft {
@@ -93,7 +95,7 @@ interface Props {
    */
   previewContext?: TemplateContext;
   /** Cursos del docente — alimentan los selectores de curso (preview + IA). */
-  courses?: { id: string; name: string }[];
+  courses?: CourseSelectCourse[];
   /**
    * Carga el contexto REAL (no mock) para previsualizar: notas, asistencia y
    * lista de estudiantes del curso (y de UN estudiante en scope 'estudiante').
@@ -169,7 +171,8 @@ export function TemplateEditor({
 
   // Auto-seleccionar el primer curso al montar → datos reales de entrada.
   useEffect(() => {
-    if (!pvCourseId && courses && courses.length > 0) setPvCourseId(courses[0].id);
+    if (!pvCourseId && courses && courses.length > 0)
+      setPvCourseId(sortCoursesByPriority(courses)[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [courses]);
 
@@ -593,22 +596,15 @@ export function TemplateEditor({
                           defaultValue: "Datos del curso",
                         })}
                       </Label>
-                      <Select value={pvCourseId} onValueChange={setPvCourseId}>
-                        <SelectTrigger className="h-8 w-56 text-xs">
-                          <SelectValue
-                            placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", {
-                              defaultValue: "Elige un curso",
-                            })}
-                          />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {courses.map((c) => (
-                            <SelectItem key={c.id} value={c.id}>
-                              {c.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <CourseSelect
+                        courses={courses}
+                        value={pvCourseId}
+                        onChange={(v) => setPvCourseId(v ?? "")}
+                        triggerClassName="h-8 w-56 text-xs"
+                        placeholder={t("hc_modulesReportsTemplateEditor.aiCoursePlaceholder", {
+                          defaultValue: "Elige un curso",
+                        })}
+                      />
                     </div>
                     {value.scope === "estudiante" && pvStudents.length > 0 && (
                       <div className="space-y-1">

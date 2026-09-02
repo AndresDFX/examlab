@@ -60,6 +60,7 @@ import {
 import { toast } from "sonner";
 import { FileBarChart, Plus, Pencil, Trash2, Copy, Upload, Sparkles } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { CourseSelect, type CourseSelectCourse } from "@/modules/courses/CourseSelect";
 import {
   TemplateEditor,
   emptyDraft,
@@ -120,7 +121,7 @@ function Inner() {
   // Cursos (para el contexto de la generación con IA). El admin/SA ve todos
   // por RLS. Se usan SOLO como "curso de referencia" para que la IA conozca
   // el shape de datos disponibles; la plantilla global NO queda atada al curso.
-  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [courses, setCourses] = useState<CourseSelectCourse[]>([]);
   // Cargar Word (.docx) → importa como plantilla global editable inline.
   const docxInputRef = useRef<HTMLInputElement>(null);
   // Generar con IA.
@@ -165,10 +166,10 @@ function Inner() {
     void (async () => {
       const { data } = await db
         .from("courses")
-        .select("id, name")
+        .select("id, name, status")
         .is("deleted_at", null)
         .order("name");
-      if (!cancelled) setCourses((data ?? []) as Array<{ id: string; name: string }>);
+      if (!cancelled) setCourses((data ?? []) as CourseSelectCourse[]);
     })();
     return () => {
       cancelled = true;
@@ -784,18 +785,12 @@ function Inner() {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label required>{t("adminReportTemplates.aiRefCourseLabel")}</Label>
-              <Select value={aiCourseId} onValueChange={setAiCourseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("adminReportTemplates.aiSelectCoursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CourseSelect
+                courses={courses}
+                value={aiCourseId}
+                onChange={(v) => setAiCourseId(v ?? "")}
+                placeholder={t("adminReportTemplates.aiSelectCoursePlaceholder")}
+              />
             </div>
             <div className="space-y-1">
               <Label>{t("adminReportTemplates.aiInstructionLabel")}</Label>

@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
+import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page-header";
@@ -128,10 +130,6 @@ import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/repo
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
-
-// Sentinel para "sin curso" en el Select de asociación de plantillas
-// privadas — Radix Select no admite SelectItem con value="".
-const NONE_COURSE = "__none__";
 
 /**
  * Cede un frame al navegador para que PINTE el estado "Preparando archivo…"
@@ -256,7 +254,7 @@ type Template = {
   updated_at: string | null;
 };
 
-type Course = { id: string; name: string };
+type Course = { id: string; name: string; status?: string | null };
 type Student = { id: string; full_name: string; institutional_email: string };
 
 // Informe GENERADO persistido (historial). Es un snapshot del HTML compuesto
@@ -492,7 +490,7 @@ function Inner() {
         )
         .order("name"),
       // El docente ve SOLO los cursos que dicta (ver course-scope.ts).
-      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name"),
+      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name, status"),
     ]);
     if (isCancelled?.()) return;
     if (tErr) {
@@ -649,7 +647,11 @@ function Inner() {
     setDraft(d);
     setOriginal(d);
     setEditorMode("new_override");
-    setEditorCourseId(courses[0]?.id ?? "");
+    // El primero por PRIORIDAD y no el primero alfabetico: fetchScopedCourses
+    // ordena solo por nombre, y hay docentes con todos sus cursos finalizados o
+    // con uno activo que alfabeticamente cae ultimo. Preseleccionar un curso
+    // cerrado obliga a corregirlo a mano en cada personalizacion.
+    setEditorCourseId(sortCoursesByPriority(courses)[0]?.id ?? "");
     setEditorParentId(t.id);
     setEditorTemplateId(null);
     setEditorOpen(true);
@@ -1163,7 +1165,7 @@ function Inner() {
   const openGenerate = (t: Template) => {
     setGenTemplate(t);
     // Si el template tiene course_id fijo (override), usar ese
-    const defaultCourse = t.course_id ?? courses[0]?.id ?? "";
+    const defaultCourse = t.course_id ?? sortCoursesByPriority(courses)[0]?.id ?? "";
     setGenCourseId(defaultCourse);
     setGenStudentId("");
     setGenPeriodo("");
@@ -2237,18 +2239,12 @@ function Inner() {
           {editorMode === "new_override" || editorMode === "edit_override" ? (
             <div className="space-y-1">
               <Label required>{t("hc_routesAppTeacherReports.courseLabel")}</Label>
-              <Select value={editorCourseId} onValueChange={setEditorCourseId}>
-                <SelectTrigger>
-                  <SelectValue placeholder={t("hc_routesAppTeacherReports.overrideCoursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CourseSelect
+                courses={courses}
+                value={editorCourseId}
+                onChange={(v) => setEditorCourseId(v ?? "")}
+                placeholder={t("hc_routesAppTeacherReports.overrideCoursePlaceholder")}
+              />
             </div>
           ) : (
             // Plantilla privada: asociación a curso OPCIONAL. Si se elige un
@@ -2256,24 +2252,17 @@ function Inner() {
             // ligada a él; "Sin curso" la deja reutilizable en cualquiera.
             <div className="space-y-1">
               <Label>{t("hc_routesAppTeacherReports.associatedCourseLabel")}</Label>
-              <Select
-                value={editorCourseId || NONE_COURSE}
-                onValueChange={(v) => setEditorCourseId(v === NONE_COURSE ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={NONE_COURSE}>
-                    {t("hc_routesAppTeacherReports.noCourseOption")}
-                  </SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* `editorCourseId || null` y no `editorCourseId`: CourseSelect
+                  resuelve el valor con `??`, que NO atrapa el string vacío, así que
+                  un "" dejaría el disparador en blanco en vez de mostrar
+                  "Sin curso". */}
+              <CourseSelect
+                courses={courses}
+                value={editorCourseId || null}
+                onChange={(v) => setEditorCourseId(v ?? "")}
+                includeAll
+                allLabel={t("hc_routesAppTeacherReports.noCourseOption")}
+              />
               <p className="text-2xs text-muted-foreground">
                 {t("hc_routesAppTeacherReports.associatedCourseHint")}
               </p>
@@ -2317,26 +2306,23 @@ function Inner() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="space-y-1">
               <Label required>{t("hc_routesAppTeacherReports.courseLabel")}</Label>
-              <Select
+              <CourseSelect
+                courses={courses}
                 value={genCourseId}
-                onValueChange={(v) => {
+                onChange={(v) => {
+                  // El `if (!v)` protege el curso ya elegido: sin `includeAll` este
+                  // selector no emite null, pero limpiarlo dejaría el generador sin
+                  // curso y sin forma de volver.
+                  if (!v) return;
                   setGenCourseId(v);
                   setGenStudentId("");
+                  // Sin esto el docente ve el HTML del curso anterior sobre el
+                  // curso nuevo.
                   setGenHtml(null);
                 }}
                 disabled={!!genTemplate?.course_id}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("hc_routesAppTeacherReports.selectCoursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+                placeholder={t("hc_routesAppTeacherReports.selectCoursePlaceholder")}
+              />
             </div>
 
             {genTemplate?.scope === "estudiante" && (

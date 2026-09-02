@@ -22,6 +22,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
+import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
@@ -36,13 +38,6 @@ import { SearchInput } from "@/components/ui/search-input";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   SortableHead,
   Table,
@@ -85,6 +80,7 @@ interface Acta {
 interface Course {
   id: string;
   name: string;
+  status?: string | null;
 }
 
 interface Props {
@@ -128,7 +124,7 @@ export function ActasManager({ onPrintActa }: Props) {
         )
         .order("generated_at", { ascending: false }),
       // El docente ve SOLO los cursos que dicta (ver course-scope.ts).
-      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name"),
+      fetchScopedCourses<Course>(activeRole, roles, user.id, "id, name, status"),
     ]);
     if (isCancelled?.()) return;
     if (aErr) {
@@ -200,7 +196,7 @@ export function ActasManager({ onPrintActa }: Props) {
   }, [courses, actas]);
 
   const openGenerate = () => {
-    setGenCourseId(coursesWithoutActa[0]?.id ?? "");
+    setGenCourseId(sortCoursesByPriority(coursesWithoutActa)[0]?.id ?? "");
     setGenOpen(true);
   };
 
@@ -470,18 +466,12 @@ export function ActasManager({ onPrintActa }: Props) {
           </DialogHeader>
           <div className="space-y-2">
             <label className="text-sm font-medium">{t("hc_modulesReportsActasManager.courseLabel")}</label>
-            <Select value={genCourseId} onValueChange={setGenCourseId}>
-              <SelectTrigger>
-                <SelectValue placeholder={t("hc_modulesReportsActasManager.selectCoursePlaceholder")} />
-              </SelectTrigger>
-              <SelectContent>
-                {coursesWithoutActa.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <CourseSelect
+              courses={coursesWithoutActa}
+              value={genCourseId}
+              onChange={(v) => setGenCourseId(v ?? "")}
+              placeholder={t("hc_modulesReportsActasManager.selectCoursePlaceholder")}
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setGenOpen(false)} disabled={generating}>
