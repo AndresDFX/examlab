@@ -14,9 +14,9 @@
  * tampoco lo permite (solo borra pendientes). Lo que sí se puede es retirar una
  * solicitud que nadie firmó todavía.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eraser, PenLine, Users } from "lucide-react";
+import { Eraser, PenLine, Search, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -35,7 +35,15 @@ import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { RowAction } from "@/components/ui/row-action";
+import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import {
+  alternarVisibles,
+  calcularDiff,
+  filtrarFirmantes,
+  seleccionables,
+  todosVisiblesMarcados,
+} from "./send-to-sign-selection";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -82,6 +90,7 @@ export function SendToSignDialog({
   const [alumnos, setAlumnos] = useState<Matriculado[]>([]);
   const [solicitudes, setSolicitudes] = useState<Map<string, Solicitud>>(new Map());
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
+  const [q, setQ] = useState("");
 
   const cargar = useCallback(async () => {
     if (!reportId || !courseId) return;
@@ -157,6 +166,36 @@ export function SendToSignDialog({
     };
   }, [cargar]);
 
+  // El buscador es de ESTA sesión del diálogo. No se limpia dentro de `cargar()`
+  // porque `cargar()` también corre después de borrar una firma, y ahí borrarle el
+  // filtro al docente le hace perder de vista a quien estaba mirando.
+  useEffect(() => {
+    setQ("");
+  }, [reportId]);
+
+  const firmoYa = useCallback(
+    (id: string) => !!solicitudes.get(id)?.signed_at,
+    [solicitudes],
+  );
+  const filtrados = useMemo(() => filtrarFirmantes(alumnos, q), [alumnos, q]);
+  /** Sobre lo que la acción masiva puede operar: lo visible y sin firmar. */
+  const masivos = useMemo(() => seleccionables(filtrados, firmoYa), [filtrados, firmoYa]);
+  const todosMarcados = useMemo(
+    () => todosVisiblesMarcados(elegidos, filtrados, firmoYa),
+    [elegidos, filtrados, firmoYa],
+  );
+  // El diff se calcula sobre la lista COMPLETA, nunca sobre la filtrada: con la
+  // filtrada, los pendientes que el buscador esconde caerían en `retirados` y se
+  // borrarían sus solicitudes.
+  const diff = useMemo(
+    () =>
+      calcularDiff(alumnos, elegidos, (id) => {
+        const s = solicitudes.get(id);
+        return s ? { firmada: !!s.signed_at } : undefined;
+      }),
+    [alumnos, elegidos, solicitudes],
+  );
+
   const alternar = (id: string) => {
     // Una firma puesta no se toca.
     if (solicitudes.get(id)?.signed_at) return;
@@ -215,15 +254,25 @@ export function SendToSignDialog({
     // Solo los NUEVOS: pedir de nuevo a quien ya tiene solicitud no hace nada
     // (la RPC lo omite por el UNIQUE) pero mandarlos igual haría que el
     // resultado diga "0 enviadas" y parezca un fallo.
-    const nuevos = [...elegidos].filter((id) => !solicitudes.has(id));
-    const retirados = alumnos
-      .filter((a) => solicitudes.has(a.id) && !solicitudes.get(a.id)?.signed_at)
-      .filter((a) => !elegidos.has(a.id))
-      .map((a) => a.id);
+    const { nuevos, retirados } = diff;
 
     if (nuevos.length === 0 && retirados.length === 0) {
       toast.info(t("reportSign.nothingToDo"));
       return;
+    }
+    // Retirar borra la solicitud, y con ella el enlace personal de esa persona: el
+    // que ya le compartieron deja de funcionar y volver a pedirla genera otro
+    // distinto. Antes había que desmarcar de a uno; con la acción masiva son N de
+    // un clic, así que se confirma. Tono `warning` y no `destructive` porque se
+    // puede volver a pedir, pero el aviso dice CUÁNTOS.
+    if (retirados.length > 0) {
+      const ok = await confirm({
+        title: t("reportSign.withdrawTitle", { count: retirados.length }),
+        description: t("reportSign.withdrawBody"),
+        confirmLabel: t("reportSign.withdrawConfirm"),
+        tone: "warning",
+      });
+      if (!ok) return;
     }
     setEnviando(true);
     try {
@@ -280,16 +329,58 @@ export function SendToSignDialog({
           <EmptyState icon={Users} title={t("reportSign.noStudents")} />
         ) : (
           <>
-            <div className="flex items-center gap-2 text-xs">
-              <Badge variant="outline" className="text-3xs">
-                {t("reportSign.signedCount", { count: firmados })}
-              </Badge>
-              <Badge variant="outline" className="text-3xs">
-                {t("reportSign.pendingCount", { count: pendientes })}
-              </Badge>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <Badge variant="outline" className="text-3xs">
+                  {t("reportSign.signedCount", { count: firmados })}
+                </Badge>
+                <Badge variant="outline" className="text-3xs">
+                  {t("reportSign.pendingCount", { count: pendientes })}
+                </Badge>
+              </div>
+              {masivos.length > 1 && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 text-2xs"
+                  onClick={() =>
+                    setElegidos((prev) =>
+                      alternarVisibles(prev, filtrados, firmoYa, !todosMarcados),
+                    )
+                  }
+                >
+                  {q.trim()
+                    ? todosMarcados
+                      ? t("reportSign.deselectShown", { count: masivos.length })
+                      : t("reportSign.selectShown", { count: masivos.length })
+                    : todosMarcados
+                      ? t("common.deselectAll")
+                      : t("common.selectAll")}
+                </Button>
+              )}
             </div>
+            {/* El buscador aparece cuando la lista deja de caber de un vistazo. En
+                producción hay cursos de 96, 66 y 64 matriculados: ahí marcar a mano
+                es scrollear una caja de 45dvh. */}
+            {alumnos.length > 8 && (
+              <div className="relative">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder={t("assignSelector.searchPlaceholder")}
+                  className="pl-7 h-8 text-xs"
+                />
+              </div>
+            )}
             <div className="max-h-[45dvh] overflow-y-auto space-y-1 rounded-md border p-2">
-              {alumnos.map((a) => {
+              {filtrados.length === 0 ? (
+                <p className="text-2xs text-muted-foreground py-3 text-center">
+                  {t("common.noResults")}
+                </p>
+              ) : (
+                filtrados.map((a) => {
                 const sol = solicitudes.get(a.id);
                 const yaFirmo = !!sol?.signed_at;
                 return (
@@ -353,8 +444,25 @@ export function SendToSignDialog({
                     )}
                   </label>
                 );
-              })}
+                })
+              )}
             </div>
+            {/* Qué va a pasar al pulsar Guardar. Sin esto el botón no dice si
+                dispara 3 correos o 96, y son irreversibles. */}
+            {(diff.nuevos.length > 0 || diff.retirados.length > 0) && (
+              <p className="text-2xs text-muted-foreground">
+                {[
+                  diff.nuevos.length > 0
+                    ? t("reportSign.willRequest", { count: diff.nuevos.length })
+                    : null,
+                  diff.retirados.length > 0
+                    ? t("reportSign.willWithdraw", { count: diff.retirados.length })
+                    : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </p>
+            )}
           </>
         )}
 
