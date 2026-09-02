@@ -125,6 +125,7 @@ import type { FocoTipo } from "@/modules/reports/foco-evaluacion";
 import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-import";
 import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DateCell } from "@/components/ui/date-cell";
 import { formatDateTime } from "@/shared/lib/format";
 import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
@@ -442,6 +443,19 @@ function Inner() {
   const [genPeriodo, setGenPeriodo] = useState<string>("");
   const [genStudents, setGenStudents] = useState<Student[]>([]);
   const [genLoadingStudents, setGenLoadingStudents] = useState(false);
+  /**
+   * Quiénes quedan FUERA del informe de curso.
+   *
+   * Se guardan los EXCLUIDOS y no los incluidos: el informe habla del curso, así
+   * que por defecto va todo el mundo. Con una lista de incluidos, quien se
+   * matricule después de que el docente la armó quedaría afuera en silencio y el
+   * documento diría "Total de estudiantes: 20" sobre un curso de 21.
+   *
+   * No se persiste: es una decisión de ESTA generación. Guardarla haría que un
+   * informe generado meses después excluyera a alguien por un motivo que nadie
+   * recuerda, sin nada en pantalla que lo explique.
+   */
+  const [genExcluidos, setGenExcluidos] = useState<Set<string>>(new Set());
   // Evaluación elegida (el "foco"): solo se pide cuando la plantilla habla de
   // una. La MISMA plantilla sirve para cualquier prueba; qué prueba es se decide
   // acá, al generar, no al redactarla.
@@ -1211,6 +1225,7 @@ function Inner() {
     setGenHtml(null);
     setGenFocoKey("");
     setGenEvaluaciones([]);
+    setGenExcluidos(new Set());
     // Generación normal (no desde acta) — limpia el actaId para
     // forzar el path 'datos vivos'.
     setGenActaId(null);
@@ -1254,7 +1269,10 @@ function Inner() {
   // Cargar alumnos del curso cuando cambia el curso seleccionado y
   // scope='estudiante' (no necesitamos lista de alumnos para scope='curso')
   useEffect(() => {
-    if (!genOpen || !genTemplate || genTemplate.scope !== "estudiante" || !genCourseId) {
+    // También en scope 'curso': la lista alimenta la caja de "estudiantes
+    // incluidos". Antes solo se cargaba en scope 'estudiante', donde es el Select
+    // del destinatario.
+    if (!genOpen || !genTemplate || !genCourseId) {
       setGenStudents([]);
       return;
     }
@@ -1436,6 +1454,13 @@ function Inner() {
             studentId: genTemplate.scope === "estudiante" ? genStudentId : undefined,
             // Sin `periodo`: el contexto lo toma del curso.
             foco: genNecesitaFoco ? (parseFocoKey(genFocoKey) ?? undefined) : undefined,
+            // Solo en scope 'curso': en un informe POR ESTUDIANTE el
+            // destinatario ES el informe, y excluirlo dejaría un documento sin
+            // nadie.
+            excludeStudentIds:
+              genTemplate.scope === "curso" && genExcluidos.size > 0
+                ? [...genExcluidos]
+                : undefined,
           });
       // Se guarda el resuelto para el nombre del archivo.
       if (typeof ctx.periodo === "string") setGenPeriodo(ctx.periodo);
@@ -2364,6 +2389,9 @@ function Inner() {
                   if (!v) return;
                   setGenCourseId(v);
                   setGenStudentId("");
+                  // Los excluidos son ids de OTRO curso: mantenerlos dejaría
+                  // afuera a alguien que no se eligió.
+                  setGenExcluidos(new Set());
                   // Sin esto el docente ve el HTML del curso anterior sobre el
                   // curso nuevo.
                   setGenHtml(null);
@@ -2449,6 +2477,74 @@ function Inner() {
             {/* El campo "Periodo" se quitó: lo sabe el curso. Pedirlo a mano
                 solo permitía escribirlo distinto de como figura en el sistema. */}
           </div>
+
+          {/* Quiénes van en el informe.
+              El caso real: el docente está matriculado en su propio curso para
+              probarlo, y no tiene por qué figurar en el acta que firman sus
+              estudiantes. Solo en scope 'curso': en un informe por estudiante el
+              destinatario ES el informe. Y no cuando viene de un acta, donde la
+              lista es la que quedó CONGELADA al cerrar el curso. */}
+          {genTemplate?.scope === "curso" && !genActaId && genCourseId && genStudents.length > 0 && (
+            <div className="rounded-md border p-3 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-medium">
+                  {t("hc_routesAppTeacherReports.includedStudents", {
+                    defaultValue: "Estudiantes incluidos ({{n}} de {{total}})",
+                    n: genStudents.length - genExcluidos.size,
+                    total: genStudents.length,
+                  })}
+                </p>
+                {genStudents.length > 1 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-2xs"
+                    onClick={() => {
+                      setGenExcluidos(
+                        genExcluidos.size === 0
+                          ? new Set(genStudents.map((x) => x.id))
+                          : new Set(),
+                      );
+                      setGenHtml(null);
+                    }}
+                  >
+                    {genExcluidos.size === 0 ? t("common.deselectAll") : t("common.selectAll")}
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-40 overflow-y-auto space-y-1">
+                {genStudents.map((st) => (
+                  <label
+                    key={st.id}
+                    className="flex items-center gap-2 rounded p-1 text-sm cursor-pointer hover:bg-accent"
+                  >
+                    <Checkbox
+                      checked={!genExcluidos.has(st.id)}
+                      onCheckedChange={(v) => {
+                        setGenExcluidos((prev) => {
+                          const next = new Set(prev);
+                          if (v) next.delete(st.id);
+                          else next.add(st.id);
+                          return next;
+                        });
+                        // El HTML ya generado habla de otra lista de personas.
+                        setGenHtml(null);
+                      }}
+                    />
+                    <span className="truncate">{st.full_name}</span>
+                  </label>
+                ))}
+              </div>
+              {genExcluidos.size > 0 && (
+                <p className="text-2xs text-muted-foreground">
+                  {t("hc_routesAppTeacherReports.excludedHint", {
+                    defaultValue:
+                      "Los desmarcados no aparecen en el documento ni cuentan en los totales.",
+                  })}
+                </p>
+              )}
+            </div>
+          )}
 
           <div className="flex flex-wrap items-center gap-2">
             <Button

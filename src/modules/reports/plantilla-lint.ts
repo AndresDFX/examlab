@@ -57,6 +57,21 @@ export interface ArgsRevision {
 const PATHS_DE_FILA = new Set(["user_id", "ranura"]);
 /** Ranura del estudiante del informe. */
 const PATH_ESTUDIANTE = "firmantes.estudiante.ranura";
+/**
+ * TODAS las ranuras de firma. Se usa para el aviso de "escapada": cualquiera de
+ * ellas escrita con DOS llaves imprime la etiqueta en letras dentro del
+ * documento, y eso hay que avisarlo igual para las cuatro.
+ *
+ * Al agregar una ranura nueva al catálogo de variables, agregarla acá: si no, el
+ * docente que la escriba mal no recibe ningún aviso y el error aparece recién en
+ * el papel.
+ */
+const PATHS_RANURA = new Set([
+  PATH_ESTUDIANTE,
+  "ranura",
+  "firmantes.docente.ranura",
+  "firmantes.vocero.ranura",
+]);
 
 interface Uso {
   path: string;
@@ -124,7 +139,7 @@ export function revisarPlantilla(args: ArgsRevision): AvisoPlantilla[] {
       }
       // La ranura ES marcado: con doble llave el motor la escapa y el documento
       // muestra la etiqueta escrita en letras.
-      if ((u.path === PATH_ESTUDIANTE || u.path === "ranura") && !u.cruda) {
+      if (PATHS_RANURA.has(u.path) && !u.cruda) {
         sumar("ranuraEscapada");
       }
       if (u.path === "evaluacion" || u.path.startsWith("evaluacion.")) sumar("pideEvaluacion");

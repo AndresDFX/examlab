@@ -150,11 +150,17 @@ export function ranuraHtml(uid: string | null | undefined): string {
 /**
  * Renglón para firmar A MANO: la línea de toda la vida.
  *
- * Sirve para los firmantes que la plataforma no puede registrar —el docente, un
- * coordinador, un acudiente—: `request_report_signatures` solo acepta estudiantes
- * MATRICULADOS en el curso del informe, así que anclarles una ranura produciría un
- * recuadro imposible de firmar. Con el renglón, el documento se imprime y se firma
- * como siempre, y queda claro cuál firma es digital y cuál a mano.
+ * Sirve para los firmantes que la plataforma NO puede registrar: alguien que no
+ * pertenece al curso —un coordinador, un acudiente, el "Director" del Acuerdo
+ * Pedagógico— y el vocero de un curso que todavía no marcó ninguno. Anclarles una
+ * ranura produciría un recuadro imposible de firmar, porque
+ * `request_report_signatures` solo acepta a quien esté matriculado en el curso o
+ * lo dicte. Con el renglón, el documento se imprime y se firma como siempre, y
+ * queda claro cuál firma es digital y cuál a mano.
+ *
+ * El DOCENTE ya no está en esa lista: desde la migración 20262030000000 puede
+ * firmar como cualquier otro firmante del curso, y su ranura se ancla igual
+ * (`{{{firmantes.docente.ranura}}}`).
  */
 export function renglonManualHtml(): string {
   return (

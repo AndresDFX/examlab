@@ -488,6 +488,24 @@ export const REPORT_VARIABLE_CATALOG: VariableNode[] = [
         hintEn: "To label the slot ('Signed by …')",
       },
       {
+        label: "Ranura de firma del docente",
+        labelEn: "Teacher signature slot",
+        path: "firmantes.docente.ranura",
+        kind: "scalar",
+        raw: true,
+        hint: "Sirve en los dos tipos de informe. Se ancla al docente del curso, el mismo que imprime {{docente.nombre}}",
+        hintEn: "Works in both report types. Anchored to the course teacher, the same one {{docente.nombre}} prints",
+      },
+      {
+        label: "Ranura de firma del vocero",
+        labelEn: "Class rep signature slot",
+        path: "firmantes.vocero.ranura",
+        kind: "scalar",
+        raw: true,
+        hint: "Se ancla al matriculado marcado como vocero. Si el curso no marcó ninguno, queda un renglón para firmar a mano",
+        hintEn: "Anchored to the enrolled student marked as class rep. If none is marked, it leaves a line to sign by hand",
+      },
+      {
         label: "Ranura de firma de la fila",
         labelEn: "Row signature slot",
         path: "ranura",
@@ -867,6 +885,16 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
         user_id: uidMuestra,
         nombre: "Juan Pérez Gómez",
         ranura: ranuraHtml(uidMuestra),
+      },
+      // Uids de muestra distintos entre si: en la vista previa se tiene que ver
+      // que son ranuras de personas DISTINTAS, no la misma repetida.
+      docente: {
+        nombre: "María Rodríguez",
+        ranura: ranuraHtml("44444444-4444-4444-8444-444444444444"),
+      },
+      vocero: {
+        nombre: "Ana Gómez",
+        ranura: ranuraHtml("55555555-5555-4555-8555-555555555555"),
       },
     },
     evaluacion: {

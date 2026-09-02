@@ -16,7 +16,7 @@
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Eraser, PenLine, Search, Users } from "lucide-react";
+import { BellOff, Eraser, PenLine, Search, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -37,6 +37,8 @@ import { formatDateTime } from "@/shared/lib/format";
 import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { useAuth } from "@/hooks/use-auth";
+import { SignaturePadDialog } from "./SignaturePadDialog";
 import {
   alternarVisibles,
   calcularDiff,
@@ -52,6 +54,8 @@ interface Matriculado {
   id: string;
   nombre: string;
   email: string | null;
+  /** Docente del curso. Su casilla en el Acuerdo es "El Docente / Tutor". */
+  esDocente?: boolean;
 }
 
 interface Solicitud {
@@ -83,6 +87,7 @@ export function SendToSignDialog({
 }) {
   const { t } = useTranslation();
   const confirm = useConfirm();
+  const { user, profile } = useAuth();
   const [cargando, setCargando] = useState(false);
   /** Qué firma se está borrando, para deshabilitar solo esa fila. */
   const [borrando, setBorrando] = useState<string | null>(null);
@@ -91,6 +96,10 @@ export function SendToSignDialog({
   const [solicitudes, setSolicitudes] = useState<Map<string, Solicitud>>(new Map());
   const [elegidos, setElegidos] = useState<Set<string>>(new Set());
   const [q, setQ] = useState("");
+  /** Pedir la firma SIN avisar: el docente reparte los enlaces el mismo. */
+  const [notificar, setNotificar] = useState(true);
+  const [lienzoAbierto, setLienzoAbierto] = useState(false);
+  const [firmandoPropia, setFirmandoPropia] = useState(false);
 
   const cargar = useCallback(async () => {
     if (!reportId || !courseId) return;
@@ -104,7 +113,20 @@ export function SendToSignDialog({
         toast.error(friendlyError(e1));
         return;
       }
-      const ids = (matriculas ?? []).map((m: { user_id: string }) => m.user_id);
+      // El o los DOCENTES del curso también firman: el Acuerdo Pedagógico tiene
+      // una casilla "El Docente / Tutor", y hasta ahora no había forma de
+      // llenarla porque la lista salía solo de las matrículas.
+      const { data: docentes } = await db
+        .from("course_teachers")
+        .select("user_id")
+        .eq("course_id", courseId);
+      const idsDocentes = new Set(
+        (docentes ?? []).map((d: { user_id: string }) => d.user_id),
+      );
+      const idsMatriculados = (matriculas ?? []).map((m: { user_id: string }) => m.user_id);
+      // Un mismo usuario puede ser docente Y estar matriculado (pasa en los cursos
+      // de prueba): se pide su perfil una sola vez.
+      const ids = [...new Set([...idsMatriculados, ...idsDocentes])];
       // Patrón 2-query: `course_enrollments.user_id` apunta a `auth.users`, así
       // que no se puede embeber `profiles` (el embed falla en silencio).
       let perfiles: Matriculado[] = [];
@@ -124,8 +146,15 @@ export function SendToSignDialog({
             id: p.id,
             nombre: p.full_name ?? p.institutional_email ?? "—",
             email: p.institutional_email,
+            esDocente: idsDocentes.has(p.id),
           }))
-          .sort((a, b) => a.nombre.localeCompare(b.nombre, "es-CO"));
+          // El docente primero: su casilla va arriba en el documento y es la que
+          // el propio docente viene a firmar.
+          .sort(
+            (a, b) =>
+              Number(!!b.esDocente) - Number(!!a.esDocente) ||
+              a.nombre.localeCompare(b.nombre, "es-CO"),
+          );
       }
       const { data: firmas } = await db
         .from("report_signatures")
@@ -244,6 +273,35 @@ export function SendToSignDialog({
     }
   };
 
+  /**
+   * Mi propia firma, desde acá.
+   *
+   * Sin esto el docente tendría que pedirse la firma a sí mismo, esperar la
+   * notificación —que ya no se manda, porque avisarle de algo que acaba de hacer
+   * es ruido— y buscar el enlace. Firma en el mismo lugar donde acaba de pedirla.
+   */
+  const firmarMiPropia = async (dibujo: string | null) => {
+    if (!reportId || !user?.id) return;
+    setFirmandoPropia(true);
+    try {
+      const { data, error } = await db.rpc("sign_report", {
+        _report_id: reportId,
+        _user_agent: navigator.userAgent,
+        _drawing: dibujo,
+      });
+      const r = data as { ok?: boolean; already?: boolean; error?: string } | null;
+      if (error || !r?.ok) {
+        toast.error(friendlyError(error, t("reportSign.signMineError")));
+        return;
+      }
+      toast.success(t("reportSign.signMineOk"));
+      setLienzoAbierto(false);
+      await cargar();
+    } finally {
+      setFirmandoPropia(false);
+    }
+  };
+
   const firmados = alumnos.filter((a) => solicitudes.get(a.id)?.signed_at).length;
   const pendientes = alumnos.filter(
     (a) => solicitudes.has(a.id) && !solicitudes.get(a.id)?.signed_at,
@@ -292,13 +350,26 @@ export function SendToSignDialog({
         const { data, error } = await db.rpc("request_report_signatures", {
           _report_id: reportId,
           _user_ids: nuevos,
+          _notificar: notificar,
         });
-        const r = data as { ok?: boolean; requested?: number; error?: string } | null;
+        const r = data as {
+          ok?: boolean;
+          requested?: number;
+          skipped?: number;
+          not_eligible?: number;
+          error?: string;
+        } | null;
         if (error || !r?.ok) {
           toast.error(friendlyError(error, t("reportSign.errRequest")));
           return;
         }
         toast.success(t("reportSign.requestedOk", { count: r.requested ?? nuevos.length }));
+        // `not_eligible` es gente que NO puede firmar este documento (no es del
+        // curso). Antes se sumaba a `skipped` y desaparecía: el docente veía
+        // "se pidió a 0" sin ninguna pista de por qué.
+        if ((r.not_eligible ?? 0) > 0) {
+          toast.warning(t("reportSign.notEligible", { count: r.not_eligible }));
+        }
       } else {
         toast.success(t("reportSign.withdrawnOk", { count: retirados.length }));
       }
@@ -403,6 +474,11 @@ export function SendToSignDialog({
                         </span>
                       )}
                     </span>
+                    {a.esDocente && (
+                      <Badge variant="secondary" className="text-3xs shrink-0">
+                        {t("reportSign.roleTeacher")}
+                      </Badge>
+                    )}
                     {yaFirmo ? (
                       <span className="flex items-center gap-2 whitespace-nowrap">
                         <span className="text-2xs text-emerald-600 dark:text-emerald-400">
@@ -421,6 +497,19 @@ export function SendToSignDialog({
                         />
                       </span>
                     ) : (
+                      a.id === user?.id ? (
+                        /* Mi propia fila: firmo acá mismo. Pedirme el enlace a mí
+                           mismo y buscarlo en el correo no tiene sentido. */
+                        <RowAction
+                          label={t("reportSign.signMine")}
+                          icon={PenLine}
+                          disabled={!sol}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setLienzoAbierto(true);
+                          }}
+                        />
+                      ) : (
                       sol?.public_token && (
                         /* Enlace PERSONAL: identifica al firmante, así que es su
                            credencial. Se copia uno por uno a propósito — un botón
@@ -440,6 +529,7 @@ export function SendToSignDialog({
                         >
                           {t("reportSign.copyLink")}
                         </button>
+                      )
                       )
                     )}
                   </label>
@@ -466,6 +556,28 @@ export function SendToSignDialog({
           </>
         )}
 
+        {/* Pedir la firma sin avisar. El caso real: el docente reparte los enlaces
+            él mismo (en clase, por el grupo del curso) y no quiere que salgan 21
+            correos antes de haberlo explicado. */}
+        {!cargando && alumnos.length > 0 && (
+          <label className="flex items-start gap-2 text-xs cursor-pointer">
+            <Checkbox
+              checked={!notificar}
+              onCheckedChange={(v) => setNotificar(!v)}
+              className="mt-0.5"
+            />
+            <span>
+              <span className="flex items-center gap-1.5 font-medium">
+                <BellOff className="h-3.5 w-3.5" />
+                {t("reportSign.dontNotify")}
+              </span>
+              <span className="block text-2xs text-muted-foreground">
+                {t("reportSign.dontNotifyHint")}
+              </span>
+            </span>
+          </label>
+        )}
+
         <DialogFooter className="gap-2 sm:gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.close")}
@@ -480,6 +592,13 @@ export function SendToSignDialog({
           </Button>
         </DialogFooter>
       </DialogContent>
+      <SignaturePadDialog
+        open={lienzoAbierto}
+        onOpenChange={setLienzoAbierto}
+        onConfirmar={(dibujo) => void firmarMiPropia(dibujo)}
+        firmando={firmandoPropia}
+        nombre={profile?.full_name}
+      />
     </Dialog>
   );
 }

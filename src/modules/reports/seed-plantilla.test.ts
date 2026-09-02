@@ -267,14 +267,19 @@ describe("catálogo de variables — paths congelados", () => {
     }
   });
 
-  it("expone la firma como variable, y las dos ranuras son CRUDAS", () => {
+  it("expone la firma como variable, y TODAS las ranuras son CRUDAS", () => {
     expect(paths).toContain("firmantes.estudiante.ranura");
     expect(paths).toContain("firmantes.estudiante.nombre");
     expect(paths).toContain("ranura");
+    // El Acuerdo Pedagógico tiene tres casillas de firma y solo la del vocero
+    // —un matriculado— se podía firmar. Estas dos son las que faltaban.
+    expect(paths).toContain("firmantes.docente.ranura");
+    expect(paths).toContain("firmantes.vocero.ranura");
     const firma = REPORT_VARIABLE_CATALOG.find((n) => n.path === "firmantes");
     expect(firma).toBeDefined();
     const ranuras = (firma!.children ?? []).filter((n) => n.path.endsWith("ranura"));
-    expect(ranuras).toHaveLength(2);
+    // 2 → 4: estudiante, fila del listado, docente y vocero.
+    expect(ranuras).toHaveLength(4);
     // Sin `raw`, el editor insertaría `{{…}}` y el marcado saldría escapado como
     // texto visible en el documento.
     for (const r of ranuras) expect(r.raw, `${r.path} debe ser cruda`).toBe(true);

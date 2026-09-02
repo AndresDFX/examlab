@@ -67,6 +67,22 @@ export interface BuildReportArgs {
    * igual que antes: la clave `evaluacion` no existe.
    */
   foco?: FocoEvaluacion;
+  /**
+   * Quiénes NO van en el informe de curso.
+   *
+   * Es una lista de EXCLUIDOS y no de incluidos a propósito: el informe habla del
+   * curso, así que su contenido por defecto tiene que ser "todos los
+   * matriculados". Con una lista de incluidos, un estudiante que se matricula
+   * después de que el docente armó la lista quedaría afuera en silencio, y el
+   * documento diría "Total de estudiantes: 20" sobre un curso de 21.
+   *
+   * El caso real: el docente está matriculado en su propio curso para probarlo, y
+   * no tiene por qué aparecer en el acta que firman sus estudiantes.
+   *
+   * Solo aplica al scope 'curso'. En un informe POR ESTUDIANTE el destinatario ES
+   * el informe: excluirlo dejaría un documento sin nadie.
+   */
+  excludeStudentIds?: string[];
 }
 
 // ── Tipos internos (lo que devolvemos al motor) ─────────────────────
@@ -216,8 +232,14 @@ async function leerVocero(courseId: string): Promise<{
   email: string;
   telefono: string;
   documento: string;
+  /**
+   * Ancla de la ranura de firma del vocero. Se devuelve aparte y NO se expone en
+   * el contexto publico (`{{curso.vocero.*}}`): un UUID a la vista no le sirve a
+   * nadie. Lo consume `firmantes.vocero.ranura`.
+   */
+  user_id: string;
 }> {
-  const vacio = { nombre: "", email: "", telefono: "", documento: "" };
+  const vacio = { nombre: "", email: "", telefono: "", documento: "", user_id: "" };
   const { data: fila } = await db
     .from("course_enrollments")
     .select("user_id, vocero_telefono, vocero_marcado_at")
@@ -247,6 +269,7 @@ async function leerVocero(courseId: string): Promise<{
     email: pr?.institutional_email ?? pr?.personal_email ?? "",
     telefono: f.vocero_telefono ?? "",
     documento: pr?.documento ?? "",
+    user_id: f.user_id,
   };
 }
 
@@ -559,7 +582,7 @@ export async function cargarEvaluacionParaCurso(args: {
 // ── Builder principal ───────────────────────────────────────────────
 
 export async function buildReportContext(args: BuildReportArgs): Promise<TemplateContext> {
-  const { courseId, studentId, periodo, foco } = args;
+  const { courseId, studentId, periodo, foco, excludeStudentIds } = args;
 
   // ── Curso (con join al programa académico + periodo si tiene FKs) ──
   const { data: courseRow } = await db
@@ -581,6 +604,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     .limit(1)
     .maybeSingle();
   let docente = { nombre: "—", email: "—" };
+  // El uid del docente se guarda aparte: es el ANCLA de su ranura de firma. Se
+  // leía y se tiraba, y por eso la casilla "El Docente / Tutor" del Acuerdo no
+  // se podia firmar.
+  const docenteUid: string | null = tcRow?.user_id ?? null;
   if (tcRow?.user_id) {
     const { data: docProf } = await db
       .from("profiles")
@@ -684,7 +711,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       .from("course_enrollments")
       .select("user_id")
       .eq("course_id", courseId);
-    userIds = ((enr ?? []) as Array<{ user_id: string }>).map((r) => r.user_id);
+    const excluidos = new Set(excludeStudentIds ?? []);
+    userIds = ((enr ?? []) as Array<{ user_id: string }>)
+      .map((r) => r.user_id)
+      .filter((id) => !excluidos.has(id));
   }
   if (userIds.length === 0) {
     throw new Error("No hay estudiantes para el informe");
@@ -1002,6 +1032,23 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
 
   const studentList: StudentCtx[] = (profs ?? []).map(buildStudent);
 
+  // El uid del vocero es su ANCLA de firma y no parte de sus datos publicos: se
+  // separa aca para que `{{curso.vocero.*}}` no exponga un UUID.
+  const { user_id: voceroUid, ...voceroPublico } = vocero;
+
+  // Las dos ranuras de firma que no son del estudiante. Van como VARIABLE, igual
+  // que `firmantes.estudiante.ranura`: el valor es el recuadro vacio YA anclado,
+  // nunca una firma (al generar el informe todavia no hay ninguna, y el HTML que
+  // se guarda es exactamente lo que se firma).
+  //
+  // Sin ancla, `ranuraHtml` devuelve el renglon para firmar A MANO. Eso cubre al
+  // "Director" del Acuerdo, que no es un usuario de la plataforma, y al curso que
+  // todavia no marco su vocero.
+  const firmantesFijos = {
+    docente: { nombre: docente.nombre, ranura: ranuraHtml(docenteUid) },
+    vocero: { nombre: voceroPublico.nombre, ranura: ranuraHtml(voceroUid) },
+  };
+
   // ── Contexto base común ─────────────────────────────────────────
   const baseCtx: TemplateContext = {
     curso: {
@@ -1036,7 +1083,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // Horario semanal formateado: "Lun 10:00–12:00 (Aula 301) · Jue 14:00–16:00 (virtual)".
       // Vacío si el curso no tiene bloques definidos todavía.
       horario: scheduleText,
-      vocero,
+      vocero: voceroPublico,
     },
     docente,
     institucion,
@@ -1138,6 +1185,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
           nombre: s.nombre,
           ranura: ranuraHtml(s.id),
         },
+        ...firmantesFijos,
       },
       nota_final: s.nota_final,
       // aprobado / estado_aprobacion: se calculan por alumno en buildStudent y el
@@ -1191,6 +1239,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // nota de alguien —la del primero de la lista— como si fuera del curso.
       ...(evaluacionPorUsuario ? { evaluacion: evaluacionPorUsuario.get(s.id) ?? null } : {}),
     })),
+    // Las ranuras del docente y del vocero. NO se agrega `firmantes.estudiante`
+    // aca: en un informe de curso no hay UN estudiante, y anclarla al primero de
+    // la lista pondria la firma de una persona en el lugar de otra.
+    firmantes: firmantesFijos,
     // Estructura de evaluación del curso, para documentos como el Acuerdo
     // Pedagógico que describen CÓMO se evalúa (no cuánto sacó cada uno). Antes
     // esta sección se escribía a mano dentro de la plantilla —"Primer corte

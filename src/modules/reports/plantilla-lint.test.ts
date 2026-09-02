@@ -194,3 +194,34 @@ describe("pidePlantillaEvaluacion", () => {
     expect(pidePlantillaEvaluacion("<p>{{evaluaciones_totales}}</p>")).toBe(false);
   });
 });
+
+describe("las ranuras del docente y del vocero", () => {
+  it("son válidas en scope 'curso' (a diferencia de la del estudiante)", () => {
+    // El Acuerdo Pedagógico es scope 'curso' y usa las dos: avisar acá sería un
+    // falso positivo justo en el documento para el que existen.
+    const r = revisarPlantilla({
+      bodyHtml: "<p>{{{firmantes.docente.ranura}}} {{{firmantes.vocero.ranura}}}</p>",
+      scope: "curso",
+    });
+    expect(r.map((a) => a.codigo)).not.toContain("ranuraSoloPorEstudiante");
+    expect(r.map((a) => a.codigo)).not.toContain("ranuraEscapada");
+  });
+
+  it("con DOS llaves avisan que quedarían escapadas", () => {
+    // Con dos llaves el motor escapa el marcado y el documento muestra la
+    // etiqueta escrita en letras, en el lugar donde debería ir la firma.
+    const r = revisarPlantilla({
+      bodyHtml: "<p>{{firmantes.docente.ranura}}</p>",
+      scope: "curso",
+    });
+    expect(r.map((a) => a.codigo)).toContain("ranuraEscapada");
+  });
+
+  it("la del vocero también", () => {
+    const r = revisarPlantilla({
+      bodyHtml: "<p>{{firmantes.vocero.ranura}}</p>",
+      scope: "curso",
+    });
+    expect(r.map((a) => a.codigo)).toContain("ranuraEscapada");
+  });
+});

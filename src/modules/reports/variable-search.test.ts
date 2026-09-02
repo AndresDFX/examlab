@@ -122,7 +122,11 @@ describe("countCatalogLeaves", () => {
     // las cuatro del vocero (nombre, teléfono, correo, documento) y la ciudad de
     // la sede. El dato del vocero ya existía —es el matriculado marcado— y lo que
     // faltaba era la variable.
-    expect(total).toBe(77);
+    // 77 → 79 al sumar las dos ranuras de firma que el Acuerdo Pedagógico
+    // necesitaba y no tenía: la del docente y la del vocero. No se agregaron sus
+    // NOMBRES: `{{docente.nombre}}` y `{{curso.vocero.nombre}}` ya existían, y
+    // duplicarlos bajo "Firma" sería ofrecer dos variables para el mismo dato.
+    expect(total).toBe(79);
     // Y el filtro nunca puede devolver más de las que hay.
     expect(
       countCatalogLeaves(filterVariableCatalog(REPORT_VARIABLE_CATALOG, "o")),
