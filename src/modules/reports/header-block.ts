@@ -33,6 +33,8 @@
  * logos 2,5 veces.
  */
 
+import { TOPE_ALTO_LOGO } from "./document-css";
+
 export interface OpcionesEncabezado {
   /** Título grande al centro. Vacío ⇒ la celda queda en blanco. */
   titulo?: string;
@@ -71,17 +73,24 @@ export function institutionalHeaderHtml(op: OpcionesEncabezado = {}): string {
     version = "",
     mostrarNombre = false,
     mostrarFecha = false,
-    anchoLogo = 150,
+    // 68 px, no 150: es el ancho que un logo casi cuadrado puede tener sin pasarse
+    // del tope de alto. Con 150 el navegador lo achicaba igual por `max-height` y el
+    // número del formulario mentía sobre lo que se iba a ver.
+    anchoLogo = 68,
   } = op;
 
-  const ancho = Number.isFinite(anchoLogo) && anchoLogo > 0 ? Math.round(anchoLogo) : 150;
+  const ancho = Number.isFinite(anchoLogo) && anchoLogo > 0 ? Math.round(anchoLogo) : 68;
 
   // El `{{#if}}` envuelve al `<img>`, nunca al contrario: sin logo cargado, un
   // `src` vacío pinta el recuadro roto del navegador.
   const izquierda =
     `{{#if institucion.logo}}` +
     `<img src="{{institucion.logo}}" alt="" ` +
-    `style="width:${ancho}px;max-width:100%;height:auto;" />` +
+    // `max-height` en el estilo, además de la regla del documento: así el HTML es
+    // correcto por sí solo, y si alguien lo copia a otra plantilla se lleva el
+    // tope puesto. Sin él, en impresión el encabezado tapa las primeras líneas
+    // del cuerpo (medido: 3,07 cm de solape con el logo real de FESNA).
+    `style="width:${ancho}px;max-width:100%;max-height:${TOPE_ALTO_LOGO};height:auto;" />` +
     `{{/if}}` +
     (mostrarNombre
       ? `<p style="margin:2px 0"><span style="font-size:8pt">{{institucion.nombre}}</span></p>`

@@ -343,3 +343,43 @@ export function tieneRanuras(html: string | null | undefined): boolean {
   if (!html) return false;
   return new RegExp(`class="[^"]*${CLASE_RANURA}[^"]*"`).test(html);
 }
+
+/**
+ * Los `user_id` que el documento REALMENTE ancla, en orden de aparición y sin
+ * repetir.
+ *
+ * ── Para qué ──────────────────────────────────────────────────────────────
+ * El documento es la fuente de verdad de quién firma. Reconstruir la lista de
+ * firmantes desde `course_enrollments` da la respuesta equivocada en dos casos que
+ * ya existen:
+ *
+ *   - Un informe de curso del que el docente EXCLUYÓ estudiantes: el documento
+ *     lista 19 y dice "Total: 19", pero la matrícula sigue teniendo 21. Ofrecerles
+ *     la firma —y peor, marcarlos con el botón de selección masiva— les manda a
+ *     firmar un documento en el que no aparecen.
+ *   - Un informe POR ESTUDIANTE con la ranura del docente: el docente no está
+ *     matriculado, así que la lista de matriculados no lo incluye y su casilla
+ *     queda imposible de firmar para siempre.
+ *
+ * ── Una ranura sin ancla no devuelve nada ─────────────────────────────────
+ * `data-firma-uid=""` es el renglón para firmar A MANO (el "Director" del Acuerdo,
+ * o el vocero de un curso que no marcó ninguno). No hay a quién pedírsela, así que
+ * se omite en vez de devolver una cadena vacía que el caller tendría que filtrar.
+ */
+export function uidsDeRanuras(html: string | null | undefined): string[] {
+  if (!html) return [];
+  const re = new RegExp(
+    `class="[^"]*${CLASE_RANURA}[^"]*"[^>]*${ATTR_UID}="([^"]*)"|${ATTR_UID}="([^"]*)"[^>]*class="[^"]*${CLASE_RANURA}[^"]*"`,
+    "g",
+  );
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    const uid = (m[1] ?? m[2] ?? "").trim();
+    if (!uid || vistos.has(uid)) continue;
+    vistos.add(uid);
+    salida.push(uid);
+  }
+  return salida;
+}

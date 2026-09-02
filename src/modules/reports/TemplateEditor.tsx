@@ -64,7 +64,7 @@ import {
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
-import { cssCorteEnCeldas } from "./document-css";
+import { cssCorteEnCeldas, cssTopeLogo, RESERVA_ENCABEZADO } from "./document-css";
 import { CourseSelect, type CourseSelectCourse } from "@/modules/courses/CourseSelect";
 import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { revisarPlantilla, type AvisoPlantilla } from "./plantilla-lint";
@@ -763,9 +763,9 @@ export function TemplateEditor({
         </Card>
       </div>
 
-      {/* Caja de firmas. Recibe el contexto del curso elegido en Vista previa
-          para que la previa muestre los estudiantes REALES: es ahí donde se ve
-          que una columna (código, documento) sale a medias. */}
+      {/* Encabezado institucional. Recibe el contexto del curso elegido en Vista
+          previa para que la previa use la marca REAL: es ahí donde el docente ve
+          que su institución todavía no tiene logo cargado. */}
       <HeaderBlockDialog
         open={encabezadoOpen}
         onOpenChange={setEncabezadoOpen}
@@ -773,6 +773,9 @@ export function TemplateEditor({
         context={pvCtx}
       />
 
+      {/* Caja de firmas. Recibe el contexto del curso elegido en Vista previa
+          para que la previa muestre los estudiantes REALES: es ahí donde se ve
+          que una columna (código, documento) sale a medias. */}
       <SignatureBlockDialog
         open={firmasOpen}
         onOpenChange={setFirmasOpen}
@@ -1017,6 +1020,10 @@ export function composeTemplateHtml(
 body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
 /* Imágenes (logo de cabecera importada del .docx) nunca rebasan el ancho. */
 img { max-width: 100%; height: auto; }
+/* El logo del encabezado se acota: en impresión el encabezado va fijo y el cuerpo
+   le reserva un alto constante, así que si el logo crece tapa las primeras líneas
+   (medido: 3,07 cm de solape y tres cláusulas debajo del logo). */
+${cssTopeLogo()}
 table { border-collapse: collapse; width: 100%; }
 /* Un correo o una URL no traen espacios: en una tabla de ancho fijo (las que
    importa docx-import) no tienen dónde partir y se salen del borde de la celda. */
@@ -1033,7 +1040,7 @@ footer { margin-top: 12px; }
 @media print {
   header { position: fixed; top: 0; left: 0; right: 0; }
   footer { position: fixed; bottom: 0; left: 0; right: 0; }
-  main { padding-top: 2.2cm; padding-bottom: 1.4cm; }
+  main { padding-top: ${RESERVA_ENCABEZADO}; padding-bottom: 1.4cm; }
 }
 /* Salto de página explícito. En impresión/PDF fuerza un corte real; en
    pantalla (editor + generador) lo decoramos como un divisor visible para
@@ -1119,6 +1126,7 @@ body { background: #e5e7eb; padding: 18px 0; font-family: -apple-system, "Segoe 
 .examlab-page-label { display: inline-block; font: 700 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace; color: #fff; background: #6b7280; border-radius: 999px; padding: 4px 10px; margin: 0 0 6px 4px; }
 .examlab-page { background: #fff; min-height: ${dims.h}mm; box-shadow: 0 1px 8px rgba(0,0,0,.18); padding: 18mm; box-sizing: border-box; overflow: hidden; }
 .examlab-page img { max-width: 100%; height: auto; }
+${cssTopeLogo(".examlab-page")}
 .examlab-page table { border-collapse: collapse; width: 100%; }
 ${cssCorteEnCeldas(".examlab-page")}
 .examlab-page td p { margin: 2px 0; }

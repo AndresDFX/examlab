@@ -10,6 +10,7 @@ import {
   renglonManualHtml,
   dibujoValido,
   tieneRanuras,
+  uidsDeRanuras,
   type FirmaDeInforme,
 } from "./signature-slots";
 
@@ -367,5 +368,45 @@ describe("renderizarRanuras — ranura sin ancla y orden de atributos", () => {
     });
     expect(h).toContain("Beto Ruiz");
     expect(h).toContain("examlab-renglon");
+  });
+});
+
+describe("uidsDeRanuras", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const ranura = (uid: string) =>
+    `<span class="examlab-firma" data-firma-uid="${uid}" style="display:block;min-height:30px;">&nbsp;</span>`;
+
+  it("sin ranuras devuelve vacío", () => {
+    expect(uidsDeRanuras("<p>hola</p>")).toEqual([]);
+    expect(uidsDeRanuras("")).toEqual([]);
+    expect(uidsDeRanuras(null)).toEqual([]);
+  });
+
+  it("devuelve los uids en orden de aparición", () => {
+    expect(uidsDeRanuras(`<div>${ranura(A)}${ranura(B)}</div>`)).toEqual([A, B]);
+  });
+
+  it("el mismo uid dos veces cuenta una sola", () => {
+    // Pasa de verdad: el vocero tiene su celda de firma Y su fila en el listado.
+    expect(uidsDeRanuras(`${ranura(B)}<p>x</p>${ranura(B)}`)).toEqual([B]);
+  });
+
+  it("una ranura SIN ancla se omite", () => {
+    // Es el renglón para firmar a mano (el "Director" del Acuerdo): no hay a quién
+    // pedirle esa firma, así que no puede aparecer en la lista de firmantes.
+    expect(uidsDeRanuras(`${ranura("")}${ranura(A)}`)).toEqual([A]);
+  });
+
+  it("no confunde otros atributos data-* con el ancla", () => {
+    expect(uidsDeRanuras(`<span class="examlab-firma" data-otro="${A}"></span>`)).toEqual([]);
+  });
+
+  it("encuentra el ancla aunque venga ANTES de la clase", () => {
+    expect(uidsDeRanuras(`<span data-firma-uid="${A}" class="examlab-firma"></span>`)).toEqual([A]);
+  });
+
+  it("ignora un data-firma-uid que no sea de una ranura", () => {
+    expect(uidsDeRanuras(`<span class="otra-cosa" data-firma-uid="${A}"></span>`)).toEqual([]);
   });
 });

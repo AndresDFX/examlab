@@ -196,7 +196,16 @@ export function ActasManager({ onPrintActa }: Props) {
   }, [courses, actas]);
 
   const openGenerate = () => {
-    setGenCourseId(sortCoursesByPriority(coursesWithoutActa)[0]?.id ?? "");
+    // Acá la prioridad es la INVERSA que en el resto de la aplicación: el "Acta de
+    // finalización del curso" es el documento de un curso CERRADO, así que se
+    // propone el primero finalizado.
+    //
+    // Y si no hay ninguno finalizado NO se propone nada, aunque haya cursos en
+    // curso: `generate_course_acta` no valida el estado del curso, así que un clic
+    // de más congelaría un acta con notas parciales — y el acta es única por curso,
+    // o sea que después hay que borrarla para poder hacer la de verdad.
+    const finalizados = coursesWithoutActa.filter((c) => c.status === "finalizado");
+    setGenCourseId(sortCoursesByPriority(finalizados)[0]?.id ?? "");
     setGenOpen(true);
   };
 

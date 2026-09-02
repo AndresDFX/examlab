@@ -218,18 +218,27 @@ async function leerInstitucion(
   // `tenants.logo_url` es la columna LEGACY y está en NULL en las 6: por eso se
   // pasa por `resolveTenantLogoUrl`, que prefiere `logo_path` y lo convierte en
   // URL pública, en vez de leer `logo_url` a secas.
+  //
+  // El NOMBRE va por el mismo camino, y por el mismo motivo: `institution_name` es
+  // NULL en las 6 instituciones, así que TODO documento imprimía "—" en esa casilla
+  // aunque la institución tenga su nombre puesto en la marca. Arreglar solo el logo
+  // dejaba el encabezado con la imagen correcta y el nombre en un guion.
   let logo = (data as { institution_logo_url?: string | null } | null)?.institution_logo_url ?? "";
-  if (!logo && tenantId) {
+  let nombre = (data as { institution_name?: string | null } | null)?.institution_name ?? "";
+  if ((!logo || !nombre) && tenantId) {
     const { data: tnt } = await db
       .from("tenants")
-      .select("logo_path, logo_url")
+      .select("name, logo_path, logo_url")
       .eq("id", tenantId)
       .maybeSingle();
-    logo = resolveTenantLogoUrl(tnt ?? null, supabase) ?? "";
+    if (!logo) logo = resolveTenantLogoUrl(tnt ?? null, supabase) ?? "";
+    if (!nombre) nombre = (tnt as { name?: string | null } | null)?.name ?? "";
   }
 
   return {
-    nombre: data?.institution_name ?? "—",
+    // "—" y no vacío: es una casilla del formato, y si queda en blanco no se
+    // distingue de un campo que hay que llenar a mano.
+    nombre: nombre || "—",
     logo,
     // Vacío y no "—": va dentro de una casilla del formato que, si no hay dato,
     // se llena a mano sobre el papel. Un guion ahí obligaría a tacharlo.

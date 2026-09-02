@@ -46,7 +46,7 @@ export function HeaderBlockDialog({
   const [version, setVersion] = useState("");
   const [mostrarNombre, setMostrarNombre] = useState(false);
   const [mostrarFecha, setMostrarFecha] = useState(false);
-  const [anchoLogo, setAnchoLogo] = useState(150);
+  const [anchoLogo, setAnchoLogo] = useState(68);
 
   const html = useMemo(
     () =>
@@ -159,10 +159,10 @@ export function HeaderBlockDialog({
                 <Input
                   id="hb-ancho"
                   type="number"
-                  min={40}
-                  max={400}
+                  min={30}
+                  max={90}
                   value={anchoLogo}
-                  onChange={(e) => setAnchoLogo(Number(e.target.value) || 150)}
+                  onChange={(e) => setAnchoLogo(Number(e.target.value) || 68)}
                 />
                 <p className="text-2xs text-muted-foreground">
                   {t("headerBlock.anchoLogoHint", {
@@ -178,7 +178,7 @@ export function HeaderBlockDialog({
                 <p className="text-2xs">
                   {t("headerBlock.sinLogo", {
                     defaultValue:
-                      "Tu institución todavía no tiene logo cargado, así que esa celda va a salir vacía. Se sube en Configuración → Mi institución. El encabezado igual sirve: el logo aparece solo cuando esté.",
+                      "Tu institución todavía no tiene logo cargado, así que esa celda va a salir vacía. Lo sube un Admin en Configuración → Mi institución. El encabezado igual sirve: el logo aparece solo cuando esté, sin volver a tocar la plantilla.",
                   })}
                 </p>
               </div>

@@ -22,6 +22,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { CourseSelect } from "@/modules/courses/CourseSelect";
+import { filtrarFirmantes } from "@/modules/reports/send-to-sign-selection";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { Card, CardContent } from "@/components/ui/card";
@@ -91,6 +92,7 @@ import {
   EyeOff,
   Link2,
   Link2Off,
+  Search,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -379,6 +381,8 @@ function Inner() {
     nombre: string;
     /** Solo en un informe POR ESTUDIANTE: de quién es. */
     studentId: string | null;
+    /** El snapshot: de sus ranuras sale la lista exacta de firmantes. */
+    html: string | null;
   } | null>(null);
   /**
    * Plantillas base que el docente marcó como "ya lo vi", con la fecha de la base
@@ -457,6 +461,16 @@ function Inner() {
    * recuerda, sin nada en pantalla que lo explique.
    */
   const [genExcluidos, setGenExcluidos] = useState<Set<string>>(new Set());
+  /** Buscador de la caja de estudiantes incluidos: hay cursos de 96 matriculados. */
+  const [genBuscaAlumno, setGenBuscaAlumno] = useState("");
+  const genAlumnosFiltrados = useMemo(
+    () =>
+      filtrarFirmantes(
+        genStudents.map((x) => ({ id: x.id, nombre: x.full_name })),
+        genBuscaAlumno,
+      ).map((x) => ({ id: x.id, full_name: x.nombre })),
+    [genStudents, genBuscaAlumno],
+  );
   // Evaluación elegida (el "foco"): solo se pide cuando la plantilla habla de
   // una. La MISMA plantilla sirve para cualquier prueba; qué prueba es se decide
   // acá, al generar, no al redactarla.
@@ -1237,6 +1251,7 @@ function Inner() {
     setGenFocoKey("");
     setGenEvaluaciones([]);
     setGenExcluidos(new Set());
+    setGenBuscaAlumno("");
     // Generación normal (no desde acta) — limpia el actaId para
     // forzar el path 'datos vivos'.
     setGenActaId(null);
@@ -1280,9 +1295,9 @@ function Inner() {
   // Cargar alumnos del curso cuando cambia el curso seleccionado y
   // scope='estudiante' (no necesitamos lista de alumnos para scope='curso')
   useEffect(() => {
-    // También en scope 'curso': la lista alimenta la caja de "estudiantes
-    // incluidos". Antes solo se cargaba en scope 'estudiante', donde es el Select
-    // del destinatario.
+    // Se carga en los DOS scopes: en 'estudiante' alimenta el Select del
+    // destinatario, y en 'curso' la caja de "Estudiantes incluidos". Antes solo se
+    // cargaba en 'estudiante'.
     if (!genOpen || !genTemplate || !genCourseId) {
       setGenStudents([]);
       return;
@@ -1605,6 +1620,7 @@ function Inner() {
         courseId: genCourseId,
         nombre: genTemplate.name,
         studentId: genTemplate.scope === "estudiante" ? genStudentId || null : null,
+        html: genHtml,
       });
     } finally {
       setGenSending(false);
@@ -2276,6 +2292,7 @@ function Inner() {
                                               courseId: r.course_id,
                                               nombre: r.template_name,
                                               studentId: r.student_id,
+                                              html: r.html,
                                             }),
                                         },
                                       ]
@@ -2429,6 +2446,7 @@ function Inner() {
                   // Los excluidos son ids de OTRO curso: mantenerlos dejaría
                   // afuera a alguien que no se eligió.
                   setGenExcluidos(new Set());
+                  setGenBuscaAlumno("");
                   // Sin esto el docente ve el HTML del curso anterior sobre el
                   // curso nuevo.
                   setGenHtml(null);
@@ -2537,20 +2555,48 @@ function Inner() {
                     size="sm"
                     className="h-8 text-2xs"
                     onClick={() => {
-                      setGenExcluidos(
-                        genExcluidos.size === 0
-                          ? new Set(genStudents.map((x) => x.id))
-                          : new Set(),
-                      );
+                      // Opera sobre lo VISIBLE y preserva el resto, igual que el
+                      // diálogo de firmas: con el buscador activo, reemplazar el
+                      // conjunto entero excluiría a gente que quedó fuera del filtro.
+                      const visibles = genAlumnosFiltrados.map((x) => x.id);
+                      const todosExcluidos =
+                        visibles.length > 0 && visibles.every((id) => genExcluidos.has(id));
+                      setGenExcluidos((prev) => {
+                        const next = new Set(prev);
+                        for (const id of visibles) {
+                          if (todosExcluidos) next.delete(id);
+                          else next.add(id);
+                        }
+                        return next;
+                      });
                       setGenHtml(null);
                     }}
                   >
-                    {genExcluidos.size === 0 ? t("common.deselectAll") : t("common.selectAll")}
+                    {genAlumnosFiltrados.every((x) => genExcluidos.has(x.id)) &&
+                    genAlumnosFiltrados.length > 0
+                      ? t("common.selectAll")
+                      : t("common.deselectAll")}
                   </Button>
                 )}
               </div>
+              {genStudents.length > 8 && (
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                  <Input
+                    value={genBuscaAlumno}
+                    onChange={(e) => setGenBuscaAlumno(e.target.value)}
+                    placeholder={t("assignSelector.searchPlaceholder")}
+                    className="pl-7 h-8 text-xs"
+                  />
+                </div>
+              )}
               <div className="max-h-40 overflow-y-auto space-y-1">
-                {genStudents.map((st) => (
+                {genAlumnosFiltrados.length === 0 ? (
+                  <p className="text-2xs text-muted-foreground py-2 text-center">
+                    {t("common.noResults")}
+                  </p>
+                ) : (
+                genAlumnosFiltrados.map((st) => (
                   <label
                     key={st.id}
                     className="flex items-center gap-2 rounded p-1 text-sm cursor-pointer hover:bg-accent"
@@ -2570,7 +2616,8 @@ function Inner() {
                     />
                     <span className="truncate">{st.full_name}</span>
                   </label>
-                ))}
+                ))
+                )}
               </div>
               {genExcluidos.size > 0 && (
                 <p className="text-2xs text-muted-foreground">
@@ -2720,6 +2767,7 @@ function Inner() {
         courseId={firmarInforme?.courseId ?? null}
         reportName={firmarInforme?.nombre ?? ""}
         studentId={firmarInforme?.studentId ?? null}
+        html={firmarInforme?.html ?? null}
         onOpenChange={(abierto) => {
           if (!abierto) setFirmarInforme(null);
         }}

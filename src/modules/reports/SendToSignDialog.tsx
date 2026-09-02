@@ -39,6 +39,7 @@ import { Input } from "@/components/ui/input";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useAuth } from "@/hooks/use-auth";
 import { SignaturePadDialog } from "./SignaturePadDialog";
+import { uidsDeRanuras } from "./signature-slots";
 import {
   alternarVisibles,
   calcularDiff,
@@ -70,6 +71,7 @@ export function SendToSignDialog({
   courseId,
   reportName,
   studentId = null,
+  html = null,
   onOpenChange,
 }: {
   /** `null` cierra el diálogo. */
@@ -83,6 +85,16 @@ export function SendToSignDialog({
    * completo invita a mandarle a un estudiante el informe de otro.
    */
   studentId?: string | null;
+  /**
+   * El HTML del informe generado. Cuando viene, la lista de firmantes se deriva de
+   * las RANURAS que el documento ancla, y no de la matrícula del curso.
+   *
+   * Es lo correcto porque el documento es la fuente de verdad de quién firma, y
+   * arregla dos casos que la matrícula responde mal: un informe del que el docente
+   * EXCLUYÓ estudiantes (siguen matriculados, pero no están en el documento) y un
+   * informe por estudiante con la ranura del docente (que no está matriculado).
+   */
+  html?: string | null;
   onOpenChange: (abierto: boolean) => void;
 }) {
   const { t } = useTranslation();
@@ -101,7 +113,7 @@ export function SendToSignDialog({
   const [lienzoAbierto, setLienzoAbierto] = useState(false);
   const [firmandoPropia, setFirmandoPropia] = useState(false);
 
-  const cargar = useCallback(async () => {
+  const cargar = useCallback(async (cancelado?: () => boolean) => {
     if (!reportId || !courseId) return;
     setCargando(true);
     try {
@@ -162,34 +174,53 @@ export function SendToSignDialog({
         .eq("report_id", reportId);
       const mapa = new Map<string, Solicitud>();
       for (const f of (firmas ?? []) as Solicitud[]) mapa.set(f.user_id, f);
-      // Informe de UN estudiante: se muestra solo a esa persona (y a quien ya
-      // tuviera una solicitud, para no esconder algo que ya se pidió). Si ese
-      // estudiante no está entre los matriculados —se retiró del curso— se deja
-      // la lista completa antes que un diálogo vacío sin explicación.
-      const acotada = studentId
-        ? perfiles.filter((p) => p.id === studentId || mapa.has(p.id))
-        : perfiles;
-      const lista = acotada.length > 0 ? acotada : perfiles;
-      setAlumnos(lista);
-      setSolicitudes(mapa);
+      // Quién firma lo dice el DOCUMENTO, no la matrícula.
+      //
+      // El snapshot ancla una ranura por firmante (`data-firma-uid`), así que de
+      // ahí sale la lista exacta: sin los estudiantes que el docente excluyó del
+      // informe —que siguen matriculados y a los que no hay que pedirles firmar un
+      // documento donde no aparecen— y CON el docente, que no está matriculado y
+      // hasta ahora quedaba fuera de la lista aunque su casilla existiera.
+      //
+      // Se suma siempre a quien ya tenga una solicitud: esconder algo que ya se
+      // pidió sería peor que mostrarlo.
+      const anclados = uidsDeRanuras(html);
+      let lista: Matriculado[];
+      if (anclados.length > 0) {
+        const permitidos = new Set([...anclados, ...mapa.keys()]);
+        lista = perfiles.filter((p) => permitidos.has(p.id));
+        // Un ancla cuyo perfil no vino en la consulta (se retiró del curso y ya no
+        // está en `course_enrollments` ni en `course_teachers`) no se puede mostrar
+        // con nombre; se omite en vez de inventar una fila.
+      } else {
+        // Sin ranuras: es un documento que se firma "en general" (o de antes de que
+        // existieran). Se conserva el comportamiento previo — en un informe POR
+        // ESTUDIANTE, solo esa persona.
+        const acotada = studentId
+          ? perfiles.filter((p) => p.id === studentId || mapa.has(p.id))
+          : perfiles;
+        lista = acotada.length > 0 ? acotada : perfiles;
+      }
       // Se preseleccionan los que ya tienen solicitud, para que el diálogo
       // muestre el estado real en vez de arrancar en blanco y dar la impresión
       // de que no se le pidió a nadie. En un informe por estudiante, además,
       // arranca marcado el destinatario: es el único que puede firmarlo.
       const marcados = new Set(mapa.keys());
       if (studentId && lista.some((p) => p.id === studentId)) marcados.add(studentId);
+      // Se comprueba DESPUÉS de los await: si el docente ya abrió el diálogo de otro
+      // informe, esta carga vieja no puede pisar la nueva.
+      if (cancelado?.()) return;
+      setAlumnos(lista);
+      setSolicitudes(mapa);
       setElegidos(marcados);
     } finally {
-      setCargando(false);
+      if (!cancelado?.()) setCargando(false);
     }
-  }, [reportId, courseId, studentId]);
+  }, [reportId, courseId, studentId, html]);
 
   useEffect(() => {
     let cancelado = false;
-    void (async () => {
-      if (cancelado) return;
-      await cargar();
-    })();
+    void cargar(() => cancelado);
     return () => {
       cancelado = true;
     };
@@ -200,6 +231,16 @@ export function SendToSignDialog({
   // filtro al docente le hace perder de vista a quien estaba mirando.
   useEffect(() => {
     setQ("");
+    // Y se vacía la lista del informe ANTERIOR: mientras carga la nueva, el diálogo
+    // mostraba sus firmantes y sus contadores de firmas, que son de otro documento.
+    setAlumnos([]);
+    setSolicitudes(new Map());
+    setElegidos(new Set());
+    // "No avisar" también se reinicia: es una decision sobre ESTE envio. Sin esto
+    // se hereda del informe anterior y el docente manda 40 solicitudes sin
+    // notificacion ni correo creyendo que si avisaron — y no hay forma de darse
+    // cuenta despues, porque no queda nada que mirar.
+    setNotificar(true);
   }, [reportId]);
 
   const firmoYa = useCallback(

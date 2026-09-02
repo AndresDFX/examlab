@@ -10348,7 +10348,7 @@
     "previewLabel": "Cómo va a quedar",
     "previewReal": "Con la marca del curso elegido en «Vista previa».",
     "previewSample": "Con datos de muestra.",
-    "sinLogo": "Tu institución todavía no tiene logo cargado, así que esa celda va a salir vacía. Se sube en Configuración → Mi institución. El encabezado igual sirve: el logo aparece solo cuando esté.",
+    "sinLogo": "Tu institución todavía no tiene logo cargado, así que esa celda va a salir vacía. Lo sube un Admin en Configuración → Mi institución. El encabezado igual sirve: el logo aparece solo cuando esté, sin volver a tocar la plantilla.",
     "subtitulo": "Subtítulo",
     "subtituloHint": "Una línea chica bajo el título. Opcional.",
     "titulo": "Título",

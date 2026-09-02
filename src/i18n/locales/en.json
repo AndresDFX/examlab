@@ -10348,7 +10348,7 @@
     "previewLabel": "How it will look",
     "previewReal": "With the branding of the course picked in «Preview».",
     "previewSample": "With sample data.",
-    "sinLogo": "Your institution has no logo uploaded yet, so that cell will be empty. Upload it in Settings → My institution. The header still works: the logo shows up as soon as it exists.",
+    "sinLogo": "Your institution has no logo uploaded yet, so that cell will be empty. An Admin uploads it in Settings → My institution. The header still works: the logo shows up as soon as it exists, without touching the template again.",
     "subtitulo": "Subtitle",
     "subtituloHint": "A small line under the title. Optional.",
     "titulo": "Title",

@@ -43,6 +43,42 @@ export function cssCorteEnCeldas(prefijo = ""): string {
   return `${p}td, ${p}th { overflow-wrap: anywhere; }`;
 }
 
+/**
+ * Tope de alto del logo del encabezado, y el alto que el cuerpo le reserva en
+ * impresión. Los dos números van JUNTOS: el segundo tiene que ser mayor que el
+ * primero más el alto del texto del membrete.
+ *
+ * ── Por qué existe el tope ────────────────────────────────────────────────
+ * En impresión el encabezado va `position:fixed` para repetirse en cada página, y
+ * el cuerpo le reserva un alto CONSTANTE con `padding-top`. Mientras el logo
+ * resolvía a la cadena vacía eso alcanzaba: el encabezado medía 1,45 cm contra
+ * 2,2 cm reservados. Al hacer que el logo se vea de verdad, el `<img>` de
+ * `width:173px` con una imagen casi cuadrada pasó a medir 190 px de alto y el
+ * encabezado creció a 5,27 cm: **3,07 cm de solape, con las tres primeras
+ * cláusulas impresas debajo del logo**.
+ *
+ * Medido con Chromium en `media: print`, con los logos REALES de las dos
+ * instituciones que los tienen cargados (FESNA 205×225, UNIAJ 240×240) y las
+ * cuatro plantillas con encabezado. Y no se ve en ningún otro lado: la vista
+ * previa no usa `position:fixed` y Word agranda su área de encabezado, así que el
+ * defecto aparecía SOLO en el papel ya impreso.
+ *
+ * ── Por qué `width:auto` y `!important` ───────────────────────────────────
+ * `max-height` a secas, con el `width` fijo de la plantilla, achata la imagen. Hay
+ * que liberar el ancho para que la proporción se conserve. Y va con `!important`
+ * porque las plantillas traen el ancho en un estilo EN LÍNEA, que gana a cualquier
+ * hoja de estilos: sin eso la regla no aplica y el solape vuelve.
+ */
+export const TOPE_ALTO_LOGO = "1.8cm";
+/** Lo que el cuerpo reserva arriba en impresión. Debe superar el tope + el texto. */
+export const RESERVA_ENCABEZADO = "2.6cm";
+
+/** Acota el logo del encabezado para que no tape el cuerpo al imprimir. */
+export function cssTopeLogo(prefijo = ""): string {
+  const p = prefijo ? `${prefijo} ` : "";
+  return `${p}header img { max-height: ${TOPE_ALTO_LOGO} !important; width: auto !important; }`;
+}
+
 /** Marca de idempotencia: si ya está inyectado, no se vuelve a poner. */
 const MARCA = "data-examlab-doc-css";
 

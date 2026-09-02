@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { TOPE_ALTO_LOGO } from "./document-css";
 import { institutionalHeaderHtml } from "./header-block";
 
 describe("institutionalHeaderHtml", () => {
@@ -29,9 +30,18 @@ describe("institutionalHeaderHtml", () => {
   });
 
   it("un ancho inválido cae al valor por defecto en vez de emitir NaN", () => {
-    expect(institutionalHeaderHtml({ anchoLogo: 0 })).toContain("width:150px");
-    expect(institutionalHeaderHtml({ anchoLogo: NaN })).toContain("width:150px");
+    expect(institutionalHeaderHtml({ anchoLogo: 0 })).toContain("width:68px");
+    expect(institutionalHeaderHtml({ anchoLogo: NaN })).toContain("width:68px");
     expect(institutionalHeaderHtml({ anchoLogo: -5 })).not.toContain("width:-5px");
+  });
+
+  it("SIEMPRE acota el alto del logo", () => {
+    // Sin el tope, en impresión el encabezado va fijo, el cuerpo le reserva un alto
+    // constante y el logo lo hace crecer hasta tapar las primeras líneas. Medido con
+    // el logo real de FESNA: 3,07 cm de solape y tres cláusulas debajo del logo.
+    for (const op of [{}, { anchoLogo: 90 }, { titulo: "X" }]) {
+      expect(institutionalHeaderHtml(op)).toContain(`max-height:${TOPE_ALTO_LOGO}`);
+    }
   });
 
   it("escapa el texto que escribe el docente", () => {
