@@ -86,6 +86,9 @@ export function PrintPollResultsButton({
           sinNombresNota: t("pollPrint.withoutNamesNote"),
           conNombresNota: t("pollPrint.withNamesNote"),
           variasMarcasNota: t("pollPrint.multiNote"),
+          faltanTitulo: t("pollPrint.faltanTitulo"),
+          faltanResumen: t("pollPrint.faltanResumen"),
+          faltanNadie: t("pollPrint.faltanNadie"),
         },
       });
       printReportHtml(html);

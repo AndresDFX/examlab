@@ -61,6 +61,27 @@ export interface MarcaImpresion {
 export interface ParticipanteImpresion {
   nombre: string;
   email?: string | null;
+  /**
+   * Documento de identidad. Se imprime cuando está porque hay trámites que lo
+   * piden por nombre Y documento —el consolidado de recursos tecnológicos que la
+   * vicerrectoría pide por curso es exactamente ese caso— y sin él quien recibe la
+   * hoja tiene que ir a buscar 20 cédulas a otra pantalla.
+   *
+   * Nullable: un perfil puede no tenerlo cargado, y ahí se imprime solo el nombre
+   * en vez de un hueco o un "null".
+   */
+  documento?: string | null;
+}
+
+/** Quiénes NO respondieron, por curso. Lo que dice si la lista está completa. */
+export interface PendientesImpresion {
+  curso: string;
+  /** Con acceso a la encuesta por este curso. */
+  total: number;
+  /** Cuántos ya respondieron. */
+  respondieron: number;
+  /** Quiénes faltan. Vacío en modo anónimo (los conteos se conservan). */
+  faltan: ParticipanteImpresion[];
 }
 
 export interface OpcionImpresion {
@@ -77,7 +98,13 @@ export interface PreguntaImpresion {
   tipo: "abierta" | "cerrada";
   /** Cerrada que admite varias marcas: los porcentajes pueden pasar de 100. */
   multi: boolean;
-  opciones: Array<{ etiqueta: string; conteo: number }>;
+  /**
+   * `quienes` es quién eligió esa opción. Antes la hoja de una encuesta mixta
+   * decía "Celular: 3" sin decir QUIÉNES, así que para responder un requerimiento
+   * por persona había que volver a la pantalla y anotar a mano. Vacío en modo
+   * anónimo.
+   */
+  opciones: Array<{ etiqueta: string; conteo: number; quienes?: ParticipanteImpresion[] }>;
   /** Respuestas de texto. `autor` es `null` en modo anónimo. */
   abiertas: Array<{ autor: string | null; email?: string | null; texto: string }>;
   /** Cuántas personas respondieron ESTA pregunta. */
@@ -108,6 +135,12 @@ export interface TextosImpresion {
   sinNombresNota: string;
   conNombresNota: string;
   variasMarcasNota: string;
+  /** Título de la sección de quienes no respondieron. */
+  faltanTitulo: string;
+  /** "N de M respondieron" del encabezado de cada curso. */
+  faltanResumen: string;
+  /** Cuando un curso respondió completo. */
+  faltanNadie: string;
 }
 
 export interface DatosImpresion {
@@ -126,6 +159,15 @@ export interface DatosImpresion {
   opciones: OpcionImpresion[];
   /** Encuestas `mixed`. Vacío en el resto. */
   preguntas: PreguntaImpresion[];
+  /**
+   * Quiénes faltan por responder, por curso. Opcional: sin esto el documento se
+   * arma igual que antes.
+   *
+   * Importa que esté EN LA HOJA y no solo en pantalla: un consolidado que dice
+   * "3 estudiantes sin computador" sobre una encuesta que respondió el 46% del
+   * curso no es un consolidado, y quien lo recibe no tiene forma de saberlo.
+   */
+  pendientes?: PendientesImpresion[];
   /** Si el documento incluye nombres. Cambia la nota del pie. */
   conNombres: boolean;
   /** Textos ya traducidos: este módulo NO llama a i18next. */
@@ -180,6 +222,9 @@ function listaParticipantes(gente: readonly ParticipanteImpresion[]): string {
   const items = gente
     .map((g, i) => {
       const nombre = `<span class="pn">${esc(g.nombre)}</span>`;
+      // El documento primero y el correo después: quien usa la hoja para un
+      // trámite busca por documento, y quien la usa para escribirle busca el correo.
+      const doc = g.documento ? `<span class="pd">${esc(g.documento)}</span>` : "";
       const mail = g.email ? `<span class="pm">${esc(g.email)}</span>` : "";
       // El separador se PEGA al participante que termina, con espacio duro
       // (&#160;), y el corte de línea queda del otro lado. Así se comporta como
@@ -188,7 +233,7 @@ function listaParticipantes(gente: readonly ParticipanteImpresion[]): string {
       // por donde el navegador partía — en la medición del curso de 23 personas
       // dejaba viñetas huérfanas abriendo renglón.
       const sep = i < ultimo ? `<span class="sep">&#160;·</span>` : "";
-      return `<span class="p">${nombre}${mail}${sep}</span>`;
+      return `<span class="p">${nombre}${doc}${mail}${sep}</span>`;
     })
     .join(" ");
   return `<p class="nombres">${items}</p>`;
@@ -262,6 +307,40 @@ function filaOpcion(a: {
   );
 }
 
+/**
+ * Quiénes faltan por responder, por curso.
+ *
+ * Va DESPUÉS de los resultados y no antes: lo primero que se busca en la hoja es
+ * el dato, y esto es la advertencia de cuánto le falta. Pero va en la hoja, no
+ * aparte, porque separarlos es cómo un consolidado parcial termina circulando
+ * como si fuera completo.
+ */
+function bloquePendientes(d: DatosImpresion): string {
+  const cursos = d.pendientes ?? [];
+  if (cursos.length === 0) return "";
+  const secciones = cursos
+    .map((c) => {
+      const resumen = d.textos.faltanResumen
+        .replace("{{n}}", String(c.respondieron))
+        .replace("{{total}}", String(c.total));
+      const cuerpo =
+        c.faltan.length === 0 && c.respondieron >= c.total
+          ? `<p class="vacio">${esc(d.textos.faltanNadie)}</p>`
+          : listaParticipantes(c.faltan);
+      return (
+        '<section class="fila">' +
+        '<div class="cab">' +
+        `<h3>${esc(c.curso)}</h3>` +
+        `<span class="meta">${esc(resumen)}</span>` +
+        "</div>" +
+        cuerpo +
+        "</section>"
+      );
+    })
+    .join("");
+  return `<section class="pregunta pendientes"><h2>${esc(d.textos.faltanTitulo)}</h2>${secciones}</section>`;
+}
+
 function bloquePreguntas(d: DatosImpresion, color: string): string {
   if (d.preguntas.length === 0) {
     return `<p class="vacio">${esc(d.textos.sinRespuestas)}</p>`;
@@ -310,7 +389,14 @@ function bloquePreguntas(d: DatosImpresion, color: string): string {
           });
           const meta = [esc(plural(o.conteo, d.textos.respuesta, d.textos.respuestas))];
           if (fill.showPct) meta.push(`${fill.pct}%`);
-          return filaOpcion({ etiqueta: o.etiqueta, meta, pct: fill.pct, color, nivel: "h3" });
+          return filaOpcion({
+            etiqueta: o.etiqueta,
+            meta,
+            pct: fill.pct,
+            color,
+            nivel: "h3",
+            participantes: o.quienes,
+          });
         })
         .join("");
       return `<section class="pregunta">${encabezado}${opciones}</section>`;
@@ -332,14 +418,26 @@ function bloquePreguntas(d: DatosImpresion, color: string): string {
  * autor solo se imprime si hay autor, pero eso es un detalle del renderizador y
  * el anonimato no puede depender de que nadie lo cambie.
  */
-export function anonimizarDatos<T extends Pick<DatosImpresion, "opciones" | "preguntas">>(d: T): T {
+export function anonimizarDatos<
+  T extends Partial<Pick<DatosImpresion, "pendientes">> &
+    Pick<DatosImpresion, "opciones" | "preguntas">,
+>(d: T): T {
   return {
     ...d,
     opciones: d.opciones.map((o) => ({ ...o, votantes: [] })),
     preguntas: d.preguntas.map((q) => ({
       ...q,
       abiertas: q.abiertas.map((a) => ({ ...a, autor: null, email: null })),
+      // Quién eligió cada opción es identidad igual que un votante: en una
+      // encuesta de bienestar es la parte que NO debe circular.
+      opciones: q.opciones.map((o) => ({ ...o, quienes: [] })),
     })),
+    // De los pendientes se borran los NOMBRES y se conservan los CONTEOS: cuántos
+    // faltan no identifica a nadie, y es justamente el dato que hace honesto al
+    // documento.
+    ...(d.pendientes
+      ? { pendientes: d.pendientes.map((c) => ({ ...c, faltan: [] })) }
+      : {}),
   };
 }
 
@@ -451,6 +549,12 @@ export function buildPollResultsHtml(d: DatosImpresion): string {
   .nombres .sep { color: #9ca3af; }
   .nombres .pn { white-space: nowrap; }
   .pm { font-size: 7.5pt; color: #6b7280; margin-left: 3px; white-space: nowrap; }
+  /* El documento de identidad: monoespaciado y tabular para poder cotejar una
+     columna de cédulas de un vistazo, que es para lo que se usa la hoja. */
+  .pd { font-size: 8pt; color: #374151; margin-left: 4px; white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+  .pendientes { border-top: 2px solid #e5e7eb; margin-top: 18px; padding-top: 10px; }
   .pregunta { margin: 0 0 12px; padding: 0 0 3px; border-bottom: 1px solid #f1f5f9; }
   .pregunta > h2 { margin: 0 0 2px; font-size: 11.5pt; }
   .num { color: ${color}; font-weight: 700; }
@@ -477,6 +581,7 @@ export function buildPollResultsHtml(d: DatosImpresion): string {
   ${d.descripcion ? `<p class="desc">${markdownInlineToHtml(d.descripcion)}</p>` : ""}
   <div class="resumen">${esc(t.generado)}: ${esc(d.generadoEl)}</div>
   ${cuerpo}
+  ${bloquePendientes(d)}
   <footer class="pie"><span>${esc(d.conNombres ? t.conNombresNota : t.sinNombresNota)}</span><span>${esc(d.titulo)}</span></footer>
 </div></body></html>`;
 }

@@ -46,6 +46,7 @@ import {
   type MatriculaEncuesta,
   type ResumenPendientes,
 } from "@/modules/polls/pending-respondents";
+import { PendingRespondentsCard } from "@/modules/polls/PendingRespondentsCard";
 import {
   Table,
   TableBody,
@@ -3595,53 +3596,7 @@ function ResultsDialog({
               recordarle. El desglose es por curso porque una encuesta se puede
               compartir con varios y una lista plana de 40 nombres no dice a qué
               grupo escribirle. */}
-          {pendientes && pendientes.totalUnico > 0 && (
-            <div className="rounded-md border p-2.5 space-y-2">
-              <div className="flex items-center gap-2">
-                <UserX className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-                <p className="text-xs font-medium">
-                  {pendientes.faltanUnico === 0
-                    ? t("teacherPolls.pendingNone", { total: pendientes.totalUnico })
-                    : t("teacherPolls.pendingTitle", {
-                        count: pendientes.faltanUnico,
-                        total: pendientes.totalUnico,
-                      })}
-                </p>
-              </div>
-              {pendientes.faltanUnico > 0 &&
-                pendientes.porCurso.map((c) => (
-                  <div key={c.courseId} className="space-y-1">
-                    {/* El encabezado del curso se muestra SIEMPRE que haya más
-                        de uno, incluso si ese curso ya respondió completo: sin
-                        él, no se distingue "este curso está al día" de "este
-                        curso no está en la encuesta". */}
-                    {pendientes.porCurso.length > 1 && (
-                      <p className="text-2xs font-medium text-muted-foreground">
-                        {c.courseName}{" "}
-                        <span className="tabular-nums">
-                          ({c.faltan.length}/{c.total})
-                        </span>
-                      </p>
-                    )}
-                    {c.faltan.length === 0 ? (
-                      <p className="text-2xs text-emerald-600 dark:text-emerald-400">
-                        {t("teacherPolls.pendingCourseComplete")}
-                      </p>
-                    ) : (
-                      <ul className="flex flex-wrap gap-1">
-                        {c.faltan.map((f) => (
-                          <li key={`${c.courseId}:${f.userId}`}>
-                            <Badge variant="outline" className="text-3xs font-normal">
-                              {f.fullName}
-                            </Badge>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                ))}
-            </div>
-          )}
+          <PendingRespondentsCard pendientes={pendientes} />
           {/* Primera carga sin datos todavía → loader de sección (antes se
               veía un bloque vacío hasta que respondía la query). Los refetch
               del realtime dejan la lista visible y usan el indicador de abajo. */}
@@ -3851,6 +3806,12 @@ interface MixedResp {
   created_at: string;
   full_name: string | null;
   email: string | null;
+  /**
+   * Documento de identidad. Va al PDF porque hay requerimientos que piden nombre
+   * Y documento —el consolidado de recursos tecnologicos de la vicerrectoria es
+   * ese caso— y sin el hay que ir a buscar cada cedula a otra pantalla.
+   */
+  documento: string | null;
 }
 
 function MixedResultsDialog({
@@ -3865,6 +3826,23 @@ function MixedResultsDialog({
   const [loading, setLoading] = useState(false);
   const [questions, setQuestions] = useState<MixedQ[]>([]);
   const [responses, setResponses] = useState<MixedResp[]>([]);
+  /**
+   * Quienes NO respondieron, por curso.
+   *
+   * El dialogo de encuestas por OPCION ya lo mostraba; el de encuestas con
+   * preguntas propias no, asi que en una encuesta de inicio de semestre el docente
+   * veia "38 respuestas" sin saber si faltaban 3 o 44 — ni a quien recordarle.
+   */
+  const [pendientes, setPendientes] = useState<ResumenPendientes | null>(null);
+  /**
+   * Documento de identidad por usuario, incluidos los que NO respondieron.
+   *
+   * Va aparte de `responses` porque `resumirPendientes` solo devuelve id y nombre,
+   * y la hoja impresa necesita el documento tambien de los que faltan: el
+   * requerimiento pide "documento y nombre completos" de una lista de personas, y
+   * media lista con documento no sirve.
+   */
+  const [docPorUsuario, setDocPorUsuario] = useState<Map<string, string | null>>(new Map());
   const [clearing, setClearing] = useState<Set<string>>(new Set());
 
   const refetch = useCallback(async () => {
@@ -3906,19 +3884,22 @@ function MixedResultsDialog({
       const userIds = Array.from(new Set(rawResp.map((r) => r.user_id)));
       const nameById = new Map<string, string | null>();
       const mailById = new Map<string, string | null>();
+      const docById = new Map<string, string | null>();
       if (userIds.length > 0) {
         const { data: profs, error: pErr } = await db
           .from("profiles")
-          .select("id, full_name, institutional_email")
+          .select("id, full_name, institutional_email, documento")
           .in("id", userIds);
         if (pErr) toast.error(friendlyError(pErr));
         for (const p of (profs ?? []) as Array<{
           id: string;
           full_name: string | null;
           institutional_email: string | null;
+          documento: string | null;
         }>) {
           nameById.set(p.id, p.full_name ?? null);
           mailById.set(p.id, p.institutional_email ?? null);
+          docById.set(p.id, p.documento ?? null);
         }
       }
       setQuestions(qrows);
@@ -3927,8 +3908,61 @@ function MixedResultsDialog({
           ...r,
           full_name: nameById.get(r.user_id) ?? null,
           email: mailById.get(r.user_id) ?? null,
+          documento: docById.get(r.user_id) ?? null,
         })),
       );
+
+      // ── Quienes faltan por responder, por curso ──
+      // El universo son los matriculados en los cursos VINCULADOS a la encuesta,
+      // igual que en el dialogo de encuestas por opcion: el acceso no es una lista
+      // de invitados, se deriva de la matricula.
+      const { data: pc } = await db
+        .from("poll_courses")
+        .select("course_id, courses!inner(id, name, deleted_at)")
+        .eq("poll_id", poll.id);
+      const cursosVinculados = ((pc ?? []) as Array<{
+        course_id: string;
+        courses: { id: string; name: string; deleted_at: string | null } | null;
+      }>)
+        // Un curso en la papelera no cuenta: sus matriculados no deberian sumar al
+        // denominador de una encuesta que ya no les aplica.
+        .filter((x) => x.courses && !x.courses.deleted_at)
+        .map((x) => ({ id: x.course_id, name: x.courses!.name }));
+      if (cursosVinculados.length === 0) {
+        setPendientes(null);
+      } else {
+        const { data: enr } = await db
+          .from("course_enrollments")
+          .select("course_id, user_id")
+          .in(
+            "course_id",
+            cursosVinculados.map((c) => c.id),
+          );
+        const matriculas = ((enr ?? []) as Array<{ course_id: string; user_id: string }>).map(
+          (x) => ({ courseId: x.course_id, userId: x.user_id }),
+        );
+        const respondieron = new Set(rawResp.map((r) => r.user_id));
+        const faltanIds = matriculas
+          .map((x) => x.userId)
+          .filter((id) => !respondieron.has(id) && !nameById.has(id));
+        if (faltanIds.length > 0) {
+          const { data: profs2 } = await db
+            .from("profiles")
+            .select("id, full_name, documento")
+            .in("id", Array.from(new Set(faltanIds)));
+          for (const pr of (profs2 ?? []) as Array<{
+            id: string;
+            full_name: string | null;
+            documento: string | null;
+          }>) {
+            nameById.set(pr.id, pr.full_name ?? null);
+            docById.set(pr.id, pr.documento ?? null);
+          }
+        }
+        const nombres = new Map<string, string>();
+        for (const [id, n] of nameById) nombres.set(id, n ?? "—");
+        setPendientes(resumirPendientes(cursosVinculados, matriculas, nombres, respondieron));
+      }
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -4073,6 +4107,12 @@ function MixedResultsDialog({
             {t("teacherPolls.refresh")}
           </Button>
         </div>
+
+        {/* Quiénes faltan. Va ARRIBA de los resultados porque lo primero que hay
+            que saber de una encuesta de inicio de semestre es si el dato ya está
+            completo: leer los porcentajes de una encuesta que respondió la mitad
+            del curso, sin saberlo, es peor que no leerlos. */}
+        <PendingRespondentsCard pendientes={pendientes} />
 
         {/* Respondientes: la única vista de este diálogo orientada a la
             PERSONA. Sin ella, "borrar todo lo de este alumno" no tiene dónde
@@ -4287,14 +4327,26 @@ function MixedResultsDialog({
                   totalRespuestas: qResp.length,
                   opciones:
                     q.type === "cerrada"
-                      ? q.choices.map((choice, ci) => ({
-                          etiqueta: choice,
-                          conteo: qResp.filter((r) =>
+                      ? q.choices.map((choice, ci) => {
+                          const eligieron = qResp.filter((r) =>
                             Array.isArray(r.selected_indexes)
                               ? r.selected_indexes.includes(ci)
                               : r.selected_index === ci,
-                          ).length,
-                        }))
+                          );
+                          return {
+                            etiqueta: choice,
+                            conteo: eligieron.length,
+                            // QUIENES la eligieron. Antes la hoja decia
+                            // "Celular: 3" y para responder un requerimiento por
+                            // persona habia que volver a la pantalla y anotar a
+                            // mano. En modo anonimo `anonimizarDatos` los borra.
+                            quienes: eligieron.map((r) => ({
+                              nombre: r.full_name ?? t("pollPrint.unnamed"),
+                              email: r.email,
+                              documento: r.documento,
+                            })),
+                          };
+                        })
                       : [],
                   abiertas:
                     q.type === "abierta"
@@ -4308,6 +4360,18 @@ function MixedResultsDialog({
                       : [],
                 };
               }),
+              // Quienes faltan, EN LA HOJA. Un consolidado que dice "3 sin
+              // computador" sobre una encuesta que respondio el 46% del curso no
+              // es un consolidado, y quien lo recibe no tiene como saberlo.
+              pendientes: (pendientes?.porCurso ?? []).map((c) => ({
+                curso: c.courseName,
+                total: c.total,
+                respondieron: c.respondieron,
+                faltan: c.faltan.map((x) => ({
+                  nombre: x.fullName,
+                  documento: docPorUsuario.get(x.userId) ?? null,
+                })),
+              })),
             })}
           />
           <Button variant="outline" onClick={() => onOpenChange(false)}>

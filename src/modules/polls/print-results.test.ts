@@ -25,6 +25,9 @@ const TEXTOS: TextosImpresion = {
   sinNombresNota: "Documento sin nombres",
   conNombresNota: "Documento con nombres",
   variasMarcasNota: "admite varias marcas",
+  faltanTitulo: "Faltan por responder",
+  faltanResumen: "{{n}} de {{total}} respondieron",
+  faltanNadie: "Respondió todo el curso.",
 };
 
 function datos(over: Partial<DatosImpresion> = {}): DatosImpresion {
@@ -651,5 +654,105 @@ describe("anonimizarDatos", () => {
     expect(r.opciones[0].etiqueta).toBe("Sí");
     expect(r.preguntas[0].texto).toBe("¿Cómo vas?");
     expect(r.preguntas[0].totalRespuestas).toBe(1);
+  });
+});
+
+describe("quiénes eligieron cada opción (encuesta mixta)", () => {
+  const conQuienes = (quienes: Array<{ nombre: string; documento?: string | null }>) =>
+    datos({
+    tipo: "mixed",
+    opciones: [],
+    preguntas: [
+      {
+        texto: "¿Desde qué dispositivo vas a ver las clases?",
+        tipo: "cerrada" as const,
+        multi: false,
+        totalRespuestas: quienes.length,
+        opciones: [{ etiqueta: "Celular", conteo: quienes.length, quienes }],
+        abiertas: [],
+      },
+    ],
+  });
+
+  it("imprime los NOMBRES de quienes eligieron la opción", () => {
+    // Antes la hoja decía "Celular: 3" sin decir quiénes, así que para responder un
+    // requerimiento por persona había que volver a la pantalla y anotar a mano.
+    const html = buildPollResultsHtml(conQuienes([{ nombre: "Ana Gómez" }, { nombre: "Luis Paz" }]));
+    expect(html).toContain("Ana Gómez");
+    expect(html).toContain("Luis Paz");
+  });
+
+  it("imprime el DOCUMENTO junto al nombre cuando está", () => {
+    // El requerimiento que originó esto pide "documento de identidad y nombre
+    // completos": con el nombre solo hay que ir a buscar cada cédula aparte.
+    const html = buildPollResultsHtml(conQuienes([{ nombre: "Ana Gómez", documento: "1144055123" }]));
+    expect(html).toContain("1144055123");
+  });
+
+  it("un participante sin documento no imprime un hueco ni 'null'", () => {
+    const html = buildPollResultsHtml(conQuienes([{ nombre: "Ana Gómez", documento: null }]));
+    expect(html).toContain("Ana Gómez");
+    expect(html).not.toContain("null");
+    expect(html).not.toContain('class="pd"');
+  });
+
+  it("el modo SIN NOMBRES los borra, y conserva el conteo", () => {
+    // Es la garantía que importa: en una encuesta de bienestar, quién eligió qué es
+    // justo lo que no debe circular.
+    const datos = conQuienes([{ nombre: "Ana Gómez", documento: "1144055123" }]);
+    const html = buildPollResultsHtml({ ...anonimizarDatos(datos), conNombres: false });
+    expect(html).not.toContain("Ana Gómez");
+    expect(html).not.toContain("1144055123");
+    expect(html).toContain("Celular");
+  });
+});
+
+describe("quiénes faltan por responder", () => {
+  const conPendientes = () =>
+    datos({
+    tipo: "mixed",
+    opciones: [],
+    preguntas: [],
+    pendientes: [
+      {
+        curso: "Bases de Datos II",
+        total: 20,
+        respondieron: 9,
+        faltan: [
+          { nombre: "Pedro Ruiz", documento: "1002003004" },
+          { nombre: "Sara Díaz", documento: null },
+        ],
+      },
+      { curso: "Programación II", total: 5, respondieron: 5, faltan: [] },
+    ],
+  });
+
+  it("la hoja dice CUÁNTOS respondieron y QUIÉNES faltan", () => {
+    // Un consolidado que dice "3 sin computador" sobre una encuesta que respondió
+    // el 46% del curso no es un consolidado, y quien lo recibe no puede saberlo.
+    const html = buildPollResultsHtml(conPendientes());
+    expect(html).toContain("Faltan por responder");
+    expect(html).toContain("Bases de Datos II");
+    expect(html).toContain("9 de 20 respondieron");
+    expect(html).toContain("Pedro Ruiz");
+    expect(html).toContain("1002003004");
+  });
+
+  it("un curso que respondió completo lo dice, no queda vacío", () => {
+    const html = buildPollResultsHtml(conPendientes());
+    expect(html).toContain("Respondió todo el curso.");
+  });
+
+  it("sin la sección, el documento se arma igual que antes", () => {
+    const html = buildPollResultsHtml(datos({ tipo: "mixed", opciones: [], preguntas: [] }));
+    expect(html).not.toContain("Faltan por responder");
+  });
+
+  it("el modo SIN NOMBRES borra los nombres y conserva los conteos", () => {
+    // Cuántos faltan no identifica a nadie, y es el dato que hace honesto al papel.
+    const html = buildPollResultsHtml({ ...anonimizarDatos(conPendientes()), conNombres: false });
+    expect(html).not.toContain("Pedro Ruiz");
+    expect(html).not.toContain("1002003004");
+    expect(html).toContain("9 de 20 respondieron");
   });
 });
