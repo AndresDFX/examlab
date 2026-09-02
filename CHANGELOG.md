@@ -73,6 +73,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Repartir los grupos de un taller al azar, y poder dejar afuera a los que no vinieron.** Los grupos
+  ya existían pero se armaban a mano: crear cada uno escribiendo su nombre y arrastrar a cada
+  estudiante. Para un curso de 31 en grupos de 4 eran 8 nombres y 31 arrastres, en clase y con la
+  gente esperando — en toda la plataforma había **un** grupo creado.
+
+  Ahora, al lado de "Crear grupo", hay **Repartir al azar**: elegís integrantes por grupo o cantidad de
+  grupos, y arriba te dice cuántos van a quedar antes de tocar nada. La lista de matriculados viene
+  toda tildada y **destildás a quien no vino a la sesión** donde se reparte el taller: esos quedan sin
+  grupo en vez de repartidos a ciegas.
+
+  Dos cosas que hace bien y que conviene saber:
+
+  - **Los tamaños se equilibran, no se llenan hasta el tope.** Con 25 estudiantes en grupos de 4, el
+    reparto ingenuo haría 6 de 4 y **uno de 1**; acá salen 7 grupos de 4 y 3 personas, sin que nadie
+    quede solo haciendo el taller sin habérselo pedido.
+  - **Ahora se respeta el tamaño que definiste en el taller.** Los talleres ya declaraban un mínimo y
+    un máximo de integrantes y **nada en la pantalla los leía**: se podía armar un grupo de una persona
+    o de doce sin ningún aviso. Si el reparto se sale de ese rango, ahora te lo dice antes.
+
+  Y no toca lo que no debe: si alguno de los grupos actuales ya tiene una entrega, la opción de
+  reemplazarlos queda bloqueada con el motivo a la vista — borrarlo dejaría esa entrega sin grupo, y
+  una entrega sin grupo el sistema la lee como individual de una sola persona.
+
+
+
 - **Hoja de diagrama en la pizarra.** Sexto tipo de hoja: el docente escribe un diagrama —clases,
   secuencia, entidad-relación, flujo— dentro de la pizarra y queda ahí para que el alumno lo revise
   después. Es el mismo editor que ya usan las preguntas de tipo diagrama, así que la sintaxis y las
