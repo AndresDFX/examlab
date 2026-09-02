@@ -157,3 +157,25 @@ describe("htmlToDocxFiles — estructura OOXML del .docx", () => {
     expect((document.match(/<w:gridCol/g) ?? []).length).toBe(3);
   });
 });
+
+describe("styles.xml — permitir que una palabra larga parta dentro de la celda", () => {
+  it("declara wordWrap=0 en pPrDefault (equivalente Word de overflow-wrap:anywhere)", () => {
+    // El bug: un correo en una celda angosta se salía del borde de la tabla. En
+    // HTML se arregla con overflow-wrap; en Word el interruptor es este.
+    const styles = strFromU8(htmlToDocxFiles(composedSample())["word/styles.xml"]);
+    expect(styles).toContain('<w:wordWrap w:val="0"/>');
+    expect(styles).toContain("<w:pPrDefault>");
+  });
+
+  it("respeta el ORDEN del esquema: rPrDefault ANTES de pPrDefault", () => {
+    // No es estético: en CT_DocDefaults la secuencia es rPrDefault y después
+    // pPrDefault. Invertirlos hace que Word declare el archivo corrupto y no lo
+    // abra — y el fallo aparece recién al abrir el .docx descargado, no acá.
+    const styles = strFromU8(htmlToDocxFiles(composedSample())["word/styles.xml"]);
+    const r = styles.indexOf("<w:rPrDefault>");
+    const p = styles.indexOf("<w:pPrDefault>");
+    expect(r).toBeGreaterThan(-1);
+    expect(p).toBeGreaterThan(-1);
+    expect(r).toBeLessThan(p);
+  });
+});

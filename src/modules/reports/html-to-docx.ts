@@ -382,7 +382,14 @@ function relsXml(rels: { id: string; target: string; type: string }[]): string {
 const STYLES_XML =
   `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
   `<w:styles xmlns:w="${NS_W}">` +
-  `<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault></w:docDefaults>` +
+  // `w:wordWrap w:val="0"` = "partir la palabra a nivel de carácter". Es el
+  // equivalente en Word de `overflow-wrap: anywhere` del HTML: sin esto, un correo
+  // en una celda angosta desborda el recuadro igual que en la vista previa.
+  // El ORDEN importa y no es estético: en el esquema OOXML `CT_DocDefaults` la
+  // secuencia es `rPrDefault` y DESPUÉS `pPrDefault`. Invertirlos hace que Word
+  // rechace el archivo como corrupto.
+  `<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri"/><w:sz w:val="22"/></w:rPr></w:rPrDefault>` +
+  `<w:pPrDefault><w:pPr><w:wordWrap w:val="0"/></w:pPr></w:pPrDefault></w:docDefaults>` +
   `<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style>` +
   [1, 2, 3, 4]
     .map(

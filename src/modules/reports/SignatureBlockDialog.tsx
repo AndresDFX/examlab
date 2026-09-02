@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { HelpHint } from "@/components/ui/help-hint";
+import { cssCorteEnCeldas } from "./document-css";
 import { signatureTableHtml, type OpcionesFirmas } from "./signature-block";
 import { buildSampleReportContext, renderTemplate, type TemplateContext } from "./template-engine";
 
@@ -81,6 +82,9 @@ export function SignatureBlockDialog({ open, onOpenChange, onInsert, context }: 
       '<!doctype html><html><head><meta charset="utf-8"><style>' +
       'body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:12px;font-size:12px}' +
       "table{border-collapse:collapse;width:100%}p{margin:2px 0}" +
+      // Misma regla que el resto de las superficies: un correo largo en una celda
+      // angosta desborda el recuadro si no se le permite partir.
+      cssCorteEnCeldas() +
       "</style></head><body>" +
       cuerpo +
       "</body></html>"

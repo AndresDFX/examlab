@@ -302,7 +302,7 @@ export const RichTextEditor = forwardRef<RichTextEditorHandle, Props>(function R
           "[&_p]:my-2 [&_p]:leading-relaxed",
           "[&_ul]:list-disc [&_ul]:pl-6 [&_ul]:my-2 [&_ol]:list-decimal [&_ol]:pl-6 [&_ol]:my-2",
           "[&_li]:my-0.5",
-          "[&_table]:border-collapse [&_table]:w-full [&_td]:border [&_td]:border-border [&_td]:p-1.5",
+          "[&_table]:border-collapse [&_table]:w-full [&_td]:border [&_td]:border-border [&_td]:p-1.5 [&_td]:break-words",
           "empty:before:content-[attr(data-placeholder)] empty:before:text-muted-foreground",
         )}
       />

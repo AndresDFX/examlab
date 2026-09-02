@@ -62,6 +62,7 @@ import {
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
+import { cssCorteEnCeldas } from "./document-css";
 import { revisarPlantilla, type AvisoPlantilla } from "./plantilla-lint";
 
 export interface TemplateDraft {
@@ -998,6 +999,9 @@ body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; 
 /* Imágenes (logo de cabecera importada del .docx) nunca rebasan el ancho. */
 img { max-width: 100%; height: auto; }
 table { border-collapse: collapse; width: 100%; }
+/* Un correo o una URL no traen espacios: en una tabla de ancho fijo (las que
+   importa docx-import) no tienen dónde partir y se salen del borde de la celda. */
+${cssCorteEnCeldas()}
 td p { margin: 2px 0; }
 header { margin-bottom: 10px; }
 footer { margin-top: 12px; }
@@ -1097,6 +1101,7 @@ body { background: #e5e7eb; padding: 18px 0; font-family: -apple-system, "Segoe 
 .examlab-page { background: #fff; min-height: ${dims.h}mm; box-shadow: 0 1px 8px rgba(0,0,0,.18); padding: 18mm; box-sizing: border-box; overflow: hidden; }
 .examlab-page img { max-width: 100%; height: auto; }
 .examlab-page table { border-collapse: collapse; width: 100%; }
+${cssCorteEnCeldas(".examlab-page")}
 .examlab-page td p { margin: 2px 0; }
 .examlab-page header { margin-bottom: 10px; }
 .examlab-page footer { margin-top: 12px; border-top: 1px solid #eee; padding-top: 6px; font-size: .85em; color: #555; }

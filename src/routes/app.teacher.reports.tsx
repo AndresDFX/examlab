@@ -64,6 +64,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { SendToSignDialog } from "@/modules/reports/SendToSignDialog";
+import { conEstilosDeDocumento } from "@/modules/reports/document-css";
 import { renderizarRanuras, type FirmaDeInforme } from "@/modules/reports/signature-slots";
 import { toast } from "sonner";
 import {
@@ -1646,7 +1647,13 @@ function Inner() {
     void loadGenReports();
   };
 
-  const conFirmas = async (r: GeneratedReport): Promise<string> => {
+  // El envoltorio va UNA sola vez acá y el cuerpo tiene sus tres salidas adentro:
+  // así el día que se agregue un cuarto `return` no queda un camino que se baje o
+  // se imprima sin la regla de corte de celdas.
+  const conFirmas = async (r: GeneratedReport): Promise<string> =>
+    conEstilosDeDocumento(await htmlConFirmas(r));
+
+  const htmlConFirmas = async (r: GeneratedReport): Promise<string> => {
     try {
       const { data } = await db.rpc("report_signatures_of", { _report_id: r.id });
       const firmas = (Array.isArray(data) ? data : []) as FirmaDeInforme[];

@@ -427,7 +427,11 @@ function tableToHtml(tableXml: string, resolveImage: ImageResolver = NO_IMAGES):
       const bg = fill && fill.toLowerCase() !== "auto" ? `background-color:#${fill};` : "";
       const colspanAttr = span > 1 ? ` colspan="${span}"` : "";
       cells.push(
-        `<td${colspanAttr} style="padding:4px 6px;vertical-align:${vAlign};${widthStyle}${border}${bg}">${cellHtml}</td>`,
+        // `overflow-wrap:anywhere` en la celda misma: el HTML importado viaja al
+        // Word y al PDF, donde la hoja de estilos de la aplicación no llega. Sin
+        // esto, en una tabla `table-layout:fixed` un correo o una URL desbordan el
+        // recuadro (se midió: 106px por fuera, en el Acuerdo Pedagógico).
+        `<td${colspanAttr} style="padding:4px 6px;vertical-align:${vAlign};overflow-wrap:anywhere;${widthStyle}${border}${bg}">${cellHtml}</td>`,
       );
     }
     if (cells.length > 0) rows.push(`<tr>${cells.join("")}</tr>`);

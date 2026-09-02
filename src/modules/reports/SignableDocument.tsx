@@ -31,6 +31,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { conEstilosDeDocumento } from "./document-css";
 import { ATTR_ACCION, ATTR_UID, renderizarRanuras, type FirmaDeInforme } from "./signature-slots";
 
 export function SignableDocument({
@@ -60,6 +61,10 @@ export function SignableDocument({
 
   const htmlFinal = useMemo(
     () =>
+      // El snapshot guardado no se toca (es lo que se firmó y sobre lo que se
+      // calculó el hash): la regla de corte se inyecta al MOSTRARLO, igual que
+      // las firmas se dibujan encima sin modificarlo.
+      conEstilosDeDocumento(
       renderizarRanuras(html, {
         firmas,
         // Sin `onFirmar` no se ofrece el botón: es el caso de un documento ya
@@ -67,6 +72,7 @@ export function SignableDocument({
         firmanteId: onFirmar ? firmanteId : null,
         etiquetaFirmar: t("publicSignature.signHere", { defaultValue: "Firmar aquí" }),
       }),
+      ),
     // `onFirmar` entra como booleano: lo que cambia el render es si HAY acción,
     // no la identidad de la función (que cambia en cada render del padre y
     // recargaría el iframe entero).
