@@ -135,3 +135,27 @@ describe("composeTemplateHtml", () => {
     expect(out).toContain("<style>");
   });
 });
+
+describe("el CURSO no es parte del borrador — la invariante del guard", () => {
+  it("TemplateDraft no tiene ningún campo de curso", () => {
+    // Es lo que hace correcto el guard de "elegir el curso no es personalizar":
+    // el curso vive en `editorCourseId`, estado APARTE del borrador, así que
+    // `draftEqual(draft, original)` sigue siendo verdadero cuando lo único que el
+    // docente tocó fue el curso. Si alguien mete `course_id` dentro de
+    // TemplateDraft, el guard deja de disparar en silencio y vuelven a crearse
+    // plantillas personalizadas idénticas a su global.
+    expect(Object.keys(emptyDraft()).filter((k) => /course|curso/i.test(k))).toEqual([]);
+  });
+
+  it("los 9 campos que compara draftEqual son exactamente los del borrador", () => {
+    // Un campo nuevo en TemplateDraft que draftEqual no compare haría que el guard
+    // trate como "sin cambios" algo que el docente sí cambió, y le perdería el
+    // trabajo al no crear la plantilla.
+    const base = emptyDraft();
+    for (const k of Object.keys(base) as Array<keyof typeof base>) {
+      const distinto = { ...base } as Record<string, unknown>;
+      distinto[k] = k === "scope" ? "curso" : k === "page_orientation" ? "landscape" : k === "page_size" ? "letter" : "≠";
+      expect(draftEqual(base, distinto as unknown as typeof base)).toBe(false);
+    }
+  });
+});

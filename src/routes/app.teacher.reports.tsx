@@ -126,6 +126,7 @@ import { parseDocxBundle, extractPlaceholders } from "@/modules/reports/docx-imp
 import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { DateCell } from "@/components/ui/date-cell";
+import { formatDateTime } from "@/shared/lib/format";
 import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -792,6 +793,40 @@ function Inner() {
       return;
     }
 
+    // ── Elegir el curso NO es personalizar ────────────────────────────────
+    //
+    // "Personalizar para un curso" abre este editor con una copia del contenido
+    // de la plantilla global. Si el docente solo elige el curso y guarda, la copia
+    // queda IDÉNTICA a la base y no aporta nada: se suma para siempre a la lista,
+    // hay que mantenerla sincronizada cuando la plataforma corrija la global, y
+    // duplica el nombre con "(personalizada)". Medido en producción: las 2
+    // personalizadas que existían eran byte-idénticas a su global (10.259 y 12.848
+    // caracteres, iguales al carácter).
+    //
+    // Lo que el docente quería era GENERAR el informe para su curso, así que se lo
+    // abre directo. `editorCourseId` NO forma parte de `TemplateDraft` —el curso es
+    // estado aparte—, y por eso `draftEqual` es verdadero justamente en este caso.
+    //
+    // Solo en `new_override`: sobre una personalizada que YA existe, guardar sin
+    // cambios es un UPDATE inocuo, y borrarla sería una sorpresa desagradable.
+    if (editorMode === "new_override" && draftEqual(draft, original)) {
+      const global = templates.find((x) => x.id === editorParentId) ?? null;
+      if (global) {
+        const cursoElegido = editorCourseId;
+        setEditorOpen(false);
+        toast.info(
+          i18n.t("toast.routes_app_teacher_reports.overrideSinCambios", {
+            defaultValue:
+              "No cambiaste el contenido, así que no se creó una plantilla nueva: se abre el generador para tu curso.",
+          }),
+        );
+        openGenerate(global, cursoElegido);
+        return;
+      }
+      // Sin la global a mano no se puede abrir el generador; se guarda como antes
+      // antes que dejar al docente sin salida.
+    }
+
     setEditorSaving(true);
     const finalName = uniqueTemplateName(draft.name.trim(), editorTemplateId);
     if (finalName !== draft.name.trim()) {
@@ -1162,10 +1197,13 @@ function Inner() {
 
   // ── Generador handlers ───────────────────────────────────────────
 
-  const openGenerate = (t: Template) => {
+  const openGenerate = (t: Template, cursoPreferido?: string) => {
     setGenTemplate(t);
-    // Si el template tiene course_id fijo (override), usar ese
-    const defaultCourse = t.course_id ?? sortCoursesByPriority(courses)[0]?.id ?? "";
+    // Si el template tiene course_id fijo (override), usar ese. `cursoPreferido`
+    // es para cuando se llega acá desde "personalizar sin cambiar nada": el curso
+    // que el docente ya eligió no se le puede pedir dos veces.
+    const defaultCourse =
+      t.course_id ?? cursoPreferido ?? sortCoursesByPriority(courses)[0]?.id ?? "";
     setGenCourseId(defaultCourse);
     setGenStudentId("");
     setGenPeriodo("");
@@ -2121,6 +2159,16 @@ function Inner() {
                           <TableRow key={r.id}>
                             <TableCell className="font-medium">
                               <div className="truncate" title={r.template_name}>{r.template_name}</div>
+                              {/* En móvil las columnas Curso / Estudiante / Generado
+                                  están ocultas (`hidden sm:table-cell`), así que dos
+                                  informes de la misma plantilla se leen IGUALES y no
+                                  hay forma de saber cuál es cuál. Acá va lo que los
+                                  distingue, solo en el ancho donde falta. */}
+                              <div className="sm:hidden text-2xs text-muted-foreground truncate">
+                                {[r.course_name, r.student_name, formatDateTime(r.created_at)]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </div>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                               <div className="truncate" title={r.course_name ?? undefined}>{r.course_name ?? "—"}</div>
