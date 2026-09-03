@@ -270,46 +270,32 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
 
   const activePage = pages.find((p) => p.id === activePageId) ?? null;
 
-  /** Persist de hoja DRAWING — guarda en `scene_json`. */
-  const persistDrawingPage = useCallback(
-    async (scene: WhiteboardScene) => {
-      if (!activePageId) return;
-      try {
-        const { error } = await db
-          .from("whiteboard_pages")
-          .update({ scene_json: scene })
-          .eq("id", activePageId);
-        if (error) toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
-      } catch (e) {
-        toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
-      }
-    },
-    [activePageId, t],
-  );
-
-  /** Persist de hoja TEXT — guarda en `text_content`. */
-  const persistTextPage = useCallback(
-    async (text: string) => {
-      if (!activePageId) return;
-      try {
-        const { error } = await db
-          .from("whiteboard_pages")
-          .update({ text_content: text })
-          .eq("id", activePageId);
-        if (error) toast.error(friendlyError(error, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
-      } catch (e) {
-        toast.error(friendlyError(e, t("hc_modulesWhiteboardMultiPageWhiteboard.savePageError")));
-      }
-    },
-    [activePageId, t],
-  );
-
-  /** Persist de hoja CODE/CONSOLE/SQL — patch multi-campo (source/lenguaje/cache de
-   *  ejecución para code; transcript para console; setup/respuesta serializada
-   *  para sql). Actualiza el state local además de la DB para que el cache
-   *  sobreviva un cambio de hoja + vuelta (cada hoja re-monta por `key`,
-   *  leyendo de `pages`). */
-  const persistCodePage = useCallback(
+  /**
+   * El ÚNICO camino para guardar una hoja. Escribe en la base **y** sincroniza el
+   * state local, en ese orden.
+   *
+   * ── Por qué las dos cosas, y por qué un solo handler ──────────────────
+   * Cada hoja se re-monta al cambiar de pestaña (`key={activePage.id}`) y se
+   * siembra desde `pages`, que es state LOCAL: cambiar de hoja NO relee de la base
+   * (`load()` solo corre por `whiteboardId`/`readOnly`/reintento). Así que guardar
+   * sin sincronizar deja el state con el contenido VIEJO, y al volver a la hoja el
+   * editor se siembra con eso.
+   *
+   * Eso no es un parpadeo cosmético: el editor arranca con el contenido viejo, su
+   * propio auto-guardado se dispara y lo escribe de vuelta a la base. El trabajo se
+   * pierde de verdad, no solo en pantalla.
+   *
+   * Pasaba con las hojas de DIBUJO y de TEXTO —sus handlers escribían en la base y
+   * no tocaban `pages`— mientras la de código sí sincronizaba, que es exactamente
+   * el reporte: "la de código se guarda automático pero la de dibujo no". Un solo
+   * handler para las tres es lo que impide que la próxima hoja nueva vuelva a
+   * olvidarse: el patch dice QUÉ columna se toca y el resto es igual para todas.
+   *
+   * El id se toma de la closure y no de un ref: al FLUSHear un guardado pendiente
+   * porque la hoja se desmonta, `activePageId` ya cambió a la hoja nueva, y usar el
+   * valor actual escribiría el dibujo de una hoja sobre otra.
+   */
+  const persistPagePatch = useCallback(
     async (patch: Record<string, unknown>) => {
       if (!activePageId) return;
       setPages((prev) =>
@@ -324,6 +310,25 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
     },
     [activePageId, t],
   );
+
+  /** Persist de hoja DRAWING — guarda en `scene_json`. */
+  const persistDrawingPage = useCallback(
+    (scene: WhiteboardScene) => persistPagePatch({ scene_json: scene }),
+    [persistPagePatch],
+  );
+
+  /** Persist de hoja TEXT — guarda en `text_content`. */
+  const persistTextPage = useCallback(
+    (text: string) => persistPagePatch({ text_content: text }),
+    [persistPagePatch],
+  );
+
+  /** Persist de hoja CODE/CONSOLE/SQL — patch multi-campo (source/lenguaje/cache de
+   *  ejecución para code; transcript para console; setup/respuesta serializada
+   *  para sql). Actualiza el state local además de la DB para que el cache
+   *  sobreviva un cambio de hoja + vuelta (cada hoja re-monta por `key`,
+   *  leyendo de `pages`). */
+  const persistCodePage = persistPagePatch;
 
   const addPage = async (kind: PageType, name: string) => {
     if (busy) return;
