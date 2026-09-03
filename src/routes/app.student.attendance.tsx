@@ -74,6 +74,35 @@ import i18n from "@/i18n";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+/**
+ * A dónde mandar al estudiante para completar el ítem que le falta.
+ *
+ * La encuesta con enlace PÚBLICO va por ahí: se abre sin iniciar sesión, que es lo
+ * que sirve cuando está con el teléfono en clase. Sin enlace público, cae al
+ * deep-link autenticado de la app, que ya existe y enfoca la encuesta.
+ *
+ * Para taller, proyecto y examen no hay enlace público —se entregan estando
+ * logueado— así que se manda al listado del estudiante. No se arma una URL con el
+ * id del ítem: esas rutas son listados, no detalles, y una ruta inventada falla en
+ * silencio (el router no matchea y no pasa nada).
+ */
+function enlaceDeRequisito(req: {
+  kind: "poll" | "workshop" | "project" | "exam";
+  id: string;
+  public_token: string | null;
+}): string | null {
+  const origen = typeof window !== "undefined" ? window.location.origin : "";
+  if (req.kind === "poll") {
+    return req.public_token
+      ? `${origen}/encuesta/${req.public_token}`
+      : `${origen}/app/student/polls?poll=${req.id}`;
+  }
+  if (req.kind === "workshop") return `${origen}/app/student/workshops`;
+  if (req.kind === "project") return `${origen}/app/student/projects`;
+  if (req.kind === "exam") return `${origen}/app/student/exams`;
+  return null;
+}
+
 const CHECK_IN_ERROR_MESSAGES: Record<string, string> = {
   no_auth: "studentAttendance.errNoAuth",
   session_not_found: "studentAttendance.errSessionNotFound",
@@ -448,8 +477,39 @@ function StudentAttendance() {
           /** La asistencia YA estaba puesta: no se volvió a marcar ni se pisó. */
           already?: boolean;
           status?: string;
+          /** Falta completar un ítem del curso para poder marcarse. */
+          requirement?: {
+            kind: "poll" | "workshop" | "project" | "exam";
+            id: string;
+            title: string;
+            public_token: string | null;
+          } | null;
         };
         if (!result?.ok) {
+          // Un requisito pendiente NO es un error genérico: hay algo concreto que
+          // hacer, y decirlo con el nombre del ítem y su enlace es la diferencia
+          // entre resolverlo en un minuto y quedarse sin asistencia. El toast dura
+          // más y trae la acción, porque se lee de pie y con la clase empezando.
+          if (result?.error === "requirement_pending" && result.requirement) {
+            const req = result.requirement;
+            const url = enlaceDeRequisito(req);
+            toast.error(
+              t("studentAttendance.reqPending", {
+                defaultValue: "Antes de marcar asistencia tenés que completar «{{title}}».",
+                title: req.title,
+              }),
+              {
+                duration: 15000,
+                action: url
+                  ? {
+                      label: t("studentAttendance.reqGo", { defaultValue: "Ir" }),
+                      onClick: () => window.open(url, "_blank", "noopener"),
+                    }
+                  : undefined,
+              },
+            );
+            return false;
+          }
           { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : (result?.error ?? t("studentAttendance.errGeneric"))); }
           return false;
         }

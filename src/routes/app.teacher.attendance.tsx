@@ -26,10 +26,13 @@ import { CalendarCheck } from "lucide-react";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -132,9 +135,30 @@ estudiante1@uni.edu,2025-08-03,presente,`;
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
 type Course = { id: string; name: string; period: string | null; status?: string | null };
+/**
+ * Un item del curso que puede ser REQUISITO para marcar asistencia.
+ *
+ * `disponible` en false = existe pero no se puede exigir (borrador, cerrado, o un
+ * Reto en vivo). Se listan igual, deshabilitados: esconderlos deja al docente
+ * buscando por que su taller no aparece.
+ */
+/** Centinela: Radix no admite un `SelectItem` con `value=""`. */
+const SIN_REQUISITO = "__sin_requisito__";
+
+type RequisitoItem = {
+  kind: "poll" | "workshop" | "project" | "exam";
+  id: string;
+  title: string;
+  disponible: boolean;
+  motivo?: string;
+};
+
 type Session = {
   id: string;
   course_id: string;
+  /** Tipo del item requerido para marcar asistencia. `null` = sin requisito. */
+  requirement_kind?: string | null;
+  requirement_id?: string | null;
   session_date: string;
   title: string | null;
   created_by: string;
@@ -351,6 +375,24 @@ function TeacherAttendance() {
    */
   const [checkInClosesTouched, setCheckInClosesTouched] = useState(false);
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
+  /**
+   * Requisito para marcar asistencia: un item del curso que el estudiante tiene que
+   * haber completado. `""` = sin requisito. El valor viaja como "<tipo>:<id>" para
+   * que un solo `Select` cubra los cuatro tipos.
+   */
+  const [checkInReq, setCheckInReq] = useState<string>("");
+  const [checkInReqItems, setCheckInReqItems] = useState<RequisitoItem[]>([]);
+  const [checkInReqLoading, setCheckInReqLoading] = useState(false);
+  /** Cuantos ya lo cumplen, para no abrir un check-in que bloquea a media clase. */
+  const [checkInReqCumplen, setCheckInReqCumplen] = useState<{ ok: number; total: number } | null>(null);
+  /**
+   * Aplicar el mismo requisito a las sesiones que VIENEN de este curso.
+   *
+   * Es el pedido textual ("lo quiero hacer para las asistencias de las siguientes
+   * sesiones"): configurarlo sesion por sesion en un curso de 16 clases es el tipo
+   * de tarea que se abandona a la tercera.
+   */
+  const [checkInReqFuturas, setCheckInReqFuturas] = useState(false);
   /** Opt-in: el enlace público acepta solo el correo, sin contraseña. Arranca
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
    *  con la asistencia en la nota herede el modo flojo de la clase anterior. */
@@ -1269,6 +1311,106 @@ function TeacherAttendance() {
   // Total de matriculados — el proyector lo necesita para mostrar X/Y
   const totalEnrolled = students.length;
 
+  /**
+   * Los items del curso que se pueden exigir.
+   *
+   * Cuatro lecturas y no una: talleres y proyectos son M:N (`workshop_courses` /
+   * `project_courses`) y `course_id` es solo el ANCLA, asi que filtrar por el ancla
+   * esconde los que estan COMPARTIDOS con este curso. Las encuestas se ligan por
+   * `poll_courses`, y los examenes si son de un curso.
+   *
+   * Todas filtran `deleted_at`: la regla universal de papelera.
+   */
+  const cargarItemsRequisito = async (courseId: string) => {
+    setCheckInReqLoading(true);
+    try {
+      const [ex, wc, pc, pl] = await Promise.all([
+        (supabase as any)
+          .from("exams")
+          .select("id, title, status")
+          .eq("course_id", courseId)
+          .is("deleted_at", null),
+        (supabase as any)
+          .from("workshop_courses")
+          .select("workshops!inner(id, title, status, deleted_at)")
+          .eq("course_id", courseId),
+        (supabase as any)
+          .from("project_courses")
+          .select("projects!inner(id, title, status, deleted_at)")
+          .eq("course_id", courseId),
+        (supabase as any)
+          .from("poll_courses")
+          .select("polls!inner(id, title, poll_type, is_published, closes_at, deleted_at)")
+          .eq("course_id", courseId),
+      ]);
+
+      const items: RequisitoItem[] = [];
+      const porEstado = (st: string | null | undefined) =>
+        st === "published"
+          ? { disponible: true }
+          : {
+              disponible: false,
+              motivo: t("teacherAttendance.reqUnavailableStatus", {
+                defaultValue: st === "closed" ? "cerrado" : "borrador",
+              }),
+            };
+
+      for (const e of (ex.data ?? []) as Array<{ id: string; title: string; status: string }>) {
+        items.push({ kind: "exam", id: e.id, title: e.title, ...porEstado(e.status) });
+      }
+      for (const r of (wc.data ?? []) as Array<{
+        workshops: { id: string; title: string; status: string; deleted_at: string | null } | null;
+      }>) {
+        const w = r.workshops;
+        if (!w || w.deleted_at) continue;
+        items.push({ kind: "workshop", id: w.id, title: w.title, ...porEstado(w.status) });
+      }
+      for (const r of (pc.data ?? []) as Array<{
+        projects: { id: string; title: string; status: string; deleted_at: string | null } | null;
+      }>) {
+        const pr = r.projects;
+        if (!pr || pr.deleted_at) continue;
+        items.push({ kind: "project", id: pr.id, title: pr.title, ...porEstado(pr.status) });
+      }
+      for (const r of (pl.data ?? []) as Array<{
+        polls: {
+          id: string;
+          title: string;
+          poll_type: string;
+          is_published: boolean;
+          closes_at: string | null;
+          deleted_at: string | null;
+        } | null;
+      }>) {
+        const po = r.polls;
+        if (!po || po.deleted_at) continue;
+        // Un Reto en vivo se juega en clase, en vivo: exigirlo bloquearia a quien no
+        // estuvo en ESA partida, que es justo la clase a la que si vino. Ni se lista.
+        if (po.poll_type === "kahoot") continue;
+        const cerrada = !!po.closes_at && new Date(po.closes_at).getTime() <= Date.now();
+        items.push({
+          kind: "poll",
+          id: po.id,
+          title: po.title,
+          disponible: po.is_published && !cerrada,
+          motivo: !po.is_published
+            ? t("teacherAttendance.reqDraft", { defaultValue: "borrador" })
+            : cerrada
+              ? t("teacherAttendance.reqClosed", { defaultValue: "cerrada" })
+              : undefined,
+        });
+      }
+      // Los disponibles primero: son los unicos elegibles y suelen ser pocos.
+      items.sort(
+        (a, b) =>
+          Number(b.disponible) - Number(a.disponible) || a.title.localeCompare(b.title, "es-CO"),
+      );
+      setCheckInReqItems(items);
+    } finally {
+      setCheckInReqLoading(false);
+    }
+  };
+
   const openCheckInConfig = (sess: Session) => {
     // Se PRELLENAN las dos fechas: desde ahora y por las horas configuradas.
     // Antes arrancaban vacías y el servidor aplicaba 10 minutos, así que el
@@ -1281,7 +1423,73 @@ function TeacherAttendance() {
     setCheckInClosesTouched(false);
     setCheckInRotation(ATTENDANCE_CODE_ROTATION_DEFAULT);
     setCheckInEmailOnly(false);
+    // Se PRE-CARGA el requisito que la sesion ya tenga: la RPC escribe lo que
+    // recibe, asi que arrancar en blanco lo BORRARIA al reabrir el check-in.
+    setCheckInReq(
+      sess.requirement_kind && sess.requirement_id
+        ? `${sess.requirement_kind}:${sess.requirement_id}`
+        : "",
+    );
+    setCheckInReqFuturas(false);
+    setCheckInReqCumplen(null);
+    setCheckInReqItems([]);
+    void cargarItemsRequisito(sess.course_id);
     setCheckInConfigSession(sess);
+  };
+
+  /**
+   * Cuantos matriculados ya cumplen el requisito elegido.
+   *
+   * Se calcula ANTES de abrir: abrir un check-in que bloquea a 15 de 20 personas y
+   * enterarse en el salon, con la clase esperando, es el peor momento para
+   * descubrirlo.
+   */
+  const contarCumplimiento = async (courseId: string, valor: string) => {
+    if (!valor) {
+      setCheckInReqCumplen(null);
+      return;
+    }
+    const [kind, id] = valor.split(":");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sb = supabase as any;
+    const { data: enr } = await sb
+      .from("course_enrollments")
+      .select("user_id")
+      .eq("course_id", courseId);
+    const ids = ((enr ?? []) as Array<{ user_id: string }>).map((x) => x.user_id);
+    if (ids.length === 0) {
+      setCheckInReqCumplen({ ok: 0, total: 0 });
+      return;
+    }
+    // Una sola consulta por tipo, y el conteo se hace acá: `attendance_requirement_met`
+    // es por persona y llamarla 20 veces seria 20 idas y vueltas.
+    let cumplen = new Set<string>();
+    if (kind === "poll") {
+      const [a, b] = await Promise.all([
+        sb.from("poll_question_responses").select("user_id").eq("poll_id", id),
+        sb.from("poll_responses").select("user_id").eq("poll_id", id),
+      ]);
+      cumplen = new Set(
+        [...((a.data ?? []) as Array<{ user_id: string }>), ...((b.data ?? []) as Array<{ user_id: string }>)].map(
+          (x) => x.user_id,
+        ),
+      );
+    } else {
+      const tabla =
+        kind === "workshop"
+          ? "workshop_submissions"
+          : kind === "project"
+            ? "project_submissions"
+            : "submissions";
+      const col = kind === "workshop" ? "workshop_id" : kind === "project" ? "project_id" : "exam_id";
+      const { data } = await sb
+        .from(tabla)
+        .select("user_id")
+        .eq(col, id)
+        .not("submitted_at", "is", null);
+      cumplen = new Set(((data ?? []) as Array<{ user_id: string }>).map((x) => x.user_id));
+    }
+    setCheckInReqCumplen({ ok: ids.filter((u) => cumplen.has(u)).length, total: ids.length });
   };
 
   const startCheckIn = async () => {
@@ -1298,6 +1506,8 @@ function TeacherAttendance() {
         p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
         p_rotation_seconds: checkInRotation,
         p_email_only: checkInEmailOnly,
+        p_requirement_kind: checkInReq ? checkInReq.split(":")[0] : null,
+        p_requirement_id: checkInReq ? checkInReq.split(":")[1] : null,
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -1338,8 +1548,50 @@ function TeacherAttendance() {
           closes_at: checkInClosesAt || null,
           rotation_seconds: checkInRotation,
           email_only: checkInEmailOnly,
+          requirement: checkInReq || null,
+          requirement_futuras: checkInReqFuturas,
         },
       });
+
+      // ── Aplicar el requisito a las sesiones que VIENEN ──────────────────
+      // Es el pedido textual ("para las asistencias de las siguientes sesiones").
+      // Se escribe directo en la tabla y no por la RPC: esa ABRE el check-in, y
+      // abrirlo en 15 sesiones futuras a la vez seria un desastre (notificaria a
+      // todo el curso 15 veces por el trigger de `check_in_open`). Acá solo se
+      // guarda el requisito; cada sesion se abre cuando toque.
+      if (checkInReqFuturas) {
+        const desde = checkInConfigSession.session_date;
+        const [kind, id] = checkInReq ? checkInReq.split(":") : [null, null];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: filas, error: eFut } = await (supabase as any)
+          .from("attendance_sessions")
+          .update({ requirement_kind: kind, requirement_id: id })
+          .eq("course_id", checkInConfigSession.course_id)
+          .gt("session_date", desde)
+          .is("deleted_at", null)
+          .select("id");
+        if (eFut) {
+          // El check-in de ESTA sesion ya quedo abierto: se avisa y no se aborta.
+          toast.warning(
+            friendlyError(
+              eFut,
+              t("teacherAttendance.reqFuturasError", {
+                defaultValue: "El check-in se abrió, pero no se pudo aplicar el requisito a las próximas sesiones.",
+              }),
+            ),
+          );
+        } else {
+          const n = ((filas ?? []) as Array<{ id: string }>).length;
+          if (n > 0) {
+            toast.success(
+              t("teacherAttendance.reqFuturasOk", {
+                defaultValue: "El requisito también quedó en las próximas {{count}} sesión(es).",
+                count: n,
+              }),
+            );
+          }
+        }
+      }
 
       // NO notificamos desde el cliente: el trigger de DB
       // `trg_notify_attendance_check_in_open` (AFTER UPDATE OF check_in_open,
@@ -2417,6 +2669,105 @@ function TeacherAttendance() {
                 </p>
               )}
             </div>
+            {/* ── Requisito para marcar asistencia ──────────────────────────
+                El pedido: que para marcarse haya que tener completado un ítem del
+                curso. Los que están en borrador o cerrados se listan pero
+                DESHABILITADOS: esconderlos deja al docente buscando por qué su
+                taller no aparece, y exigirlos sería un bloqueo que el estudiante no
+                puede resolver. */}
+            <div className="rounded-md border p-3 space-y-2">
+              <Label>
+                {t("teacherAttendance.reqLabel", {
+                  defaultValue: "Requisito para marcar asistencia",
+                })}{" "}
+                <HelpHint>
+                  {t("teacherAttendance.reqHelp", {
+                    defaultValue:
+                      "Quien no lo haya completado no puede marcarse. Se le muestra qué le falta y el enlace para hacerlo. Vos podés marcarlo a mano igual.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Select
+                value={checkInReq || SIN_REQUISITO}
+                onValueChange={(v) => {
+                  const val = v === SIN_REQUISITO ? "" : v;
+                  setCheckInReq(val);
+                  if (checkInConfigSession) void contarCumplimiento(checkInConfigSession.course_id, val);
+                }}
+                disabled={checkInReqLoading}
+              >
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={
+                      checkInReqLoading
+                        ? t("common.loading", { defaultValue: "Cargando…" })
+                        : t("teacherAttendance.reqNone", { defaultValue: "Sin requisito" })
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={SIN_REQUISITO}>
+                    {t("teacherAttendance.reqNone", { defaultValue: "Sin requisito" })}
+                  </SelectItem>
+                  {(["poll", "workshop", "project", "exam"] as const).map((kind) => {
+                    const grupo = checkInReqItems.filter((x) => x.kind === kind);
+                    if (grupo.length === 0) return null;
+                    return (
+                      <SelectGroup key={kind}>
+                        <SelectLabel>{t(`teacherAttendance.reqKind_${kind}`)}</SelectLabel>
+                        {grupo.map((x) => (
+                          <SelectItem
+                            key={`${x.kind}:${x.id}`}
+                            value={`${x.kind}:${x.id}`}
+                            disabled={!x.disponible}
+                          >
+                            {x.title}
+                            {!x.disponible && x.motivo ? ` · ${x.motivo}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+              {checkInReqCumplen && (
+                <p
+                  className={cn(
+                    "text-2xs",
+                    checkInReqCumplen.ok < checkInReqCumplen.total
+                      ? "text-amber-600 dark:text-amber-400"
+                      : "text-emerald-600 dark:text-emerald-400",
+                  )}
+                >
+                  {t("teacherAttendance.reqProgress", {
+                    defaultValue: "Ya lo cumplieron {{ok}} de {{total}}.",
+                    ok: checkInReqCumplen.ok,
+                    total: checkInReqCumplen.total,
+                  })}
+                </p>
+              )}
+              {checkInReq && (
+                <label className="flex items-start gap-2 text-xs cursor-pointer">
+                  <Checkbox
+                    checked={checkInReqFuturas}
+                    onCheckedChange={(v) => setCheckInReqFuturas(!!v)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    {t("teacherAttendance.reqFuturas", {
+                      defaultValue: "Dejarlo también en las próximas sesiones de este curso",
+                    })}
+                    <span className="block text-2xs text-muted-foreground">
+                      {t("teacherAttendance.reqFuturasHint", {
+                        defaultValue:
+                          "No abre su check-in: solo queda guardado el requisito para cuando lo abras.",
+                      })}
+                    </span>
+                  </span>
+                </label>
+              )}
+            </div>
+
             {/* Debilita un control de fraude, así que se elige a conciencia y
                 el texto dice exactamente qué se gana y qué se pierde. */}
             <div className="rounded-md border p-3 flex items-start justify-between gap-3">
