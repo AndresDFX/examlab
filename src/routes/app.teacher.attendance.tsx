@@ -142,11 +142,8 @@ type Course = { id: string; name: string; period: string | null; status?: string
  * Reto en vivo). Se listan igual, deshabilitados: esconderlos deja al docente
  * buscando por que su taller no aparece.
  */
-/** Centinela: Radix no admite un `SelectItem` con `value=""`. */
-const SIN_REQUISITO = "__sin_requisito__";
-
 type RequisitoItem = {
-  kind: "poll" | "workshop" | "project" | "exam";
+  kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
   id: string;
   title: string;
   disponible: boolean;
@@ -156,9 +153,7 @@ type RequisitoItem = {
 type Session = {
   id: string;
   course_id: string;
-  /** Tipo del item requerido para marcar asistencia. `null` = sin requisito. */
-  requirement_kind?: string | null;
-  requirement_id?: string | null;
+
   session_date: string;
   title: string | null;
   created_by: string;
@@ -380,7 +375,9 @@ function TeacherAttendance() {
    * haber completado. `""` = sin requisito. El valor viaja como "<tipo>:<id>" para
    * que un solo `Select` cubra los cuatro tipos.
    */
-  const [checkInReq, setCheckInReq] = useState<string>("");
+  /** Requisitos elegidos, como "<tipo>:<id>". VARIOS: el pedido es exigir la
+   *  encuesta Y la firma del acuerdo a la vez. */
+  const [checkInReqs, setCheckInReqs] = useState<Set<string>>(new Set());
   const [checkInReqItems, setCheckInReqItems] = useState<RequisitoItem[]>([]);
   const [checkInReqLoading, setCheckInReqLoading] = useState(false);
   /** Cuantos ya lo cumplen, para no abrir un check-in que bloquea a media clase. */
@@ -1324,7 +1321,7 @@ function TeacherAttendance() {
   const cargarItemsRequisito = async (courseId: string) => {
     setCheckInReqLoading(true);
     try {
-      const [ex, wc, pc, pl] = await Promise.all([
+      const [ex, wc, pc, pl, gr] = await Promise.all([
         (supabase as any)
           .from("exams")
           .select("id, title, status")
@@ -1342,6 +1339,14 @@ function TeacherAttendance() {
           .from("poll_courses")
           .select("polls!inner(id, title, poll_type, is_published, closes_at, deleted_at)")
           .eq("course_id", courseId),
+        // Los informes GENERADOS del curso que se pueden firmar. Solo sirven los que
+        // tienen al menos una solicitud: sin solicitudes nadie puede firmar, y
+        // exigirlo sería un bloqueo sin salida.
+        (supabase as any)
+          .from("generated_reports")
+          .select("id, template_name, created_at, report_signatures(report_id)")
+          .eq("course_id", courseId)
+          .order("created_at", { ascending: false }),
       ]);
 
       const items: RequisitoItem[] = [];
@@ -1400,6 +1405,24 @@ function TeacherAttendance() {
               : undefined,
         });
       }
+      for (const g of (gr.data ?? []) as Array<{
+        id: string;
+        template_name: string;
+        report_signatures: Array<{ report_id: string }> | null;
+      }>) {
+        const conSolicitudes = (g.report_signatures ?? []).length > 0;
+        items.push({
+          kind: "report_signature",
+          id: g.id,
+          title: g.template_name,
+          disponible: conSolicitudes,
+          motivo: conSolicitudes
+            ? undefined
+            : t("teacherAttendance.reqNoSignRequests", {
+                defaultValue: "todavía no se envió a firmar",
+              }),
+        });
+      }
       // Los disponibles primero: son los unicos elegibles y suelen ser pocos.
       items.sort(
         (a, b) =>
@@ -1409,6 +1432,25 @@ function TeacherAttendance() {
     } finally {
       setCheckInReqLoading(false);
     }
+  };
+
+  /** Los requisitos que la sesión YA tenía, para pre-cargarlos en el diálogo.
+   *
+   * Sin esto la RPC —que escribe el set que recibe— los borraría al reabrir el
+   * check-in de una sesión que ya los tenía configurados. */
+  const cargarRequisitosDeSesion = async (sessionId: string) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data } = await (supabase as any)
+      .from("attendance_session_requirements")
+      .select("kind, item_id")
+      .eq("session_id", sessionId);
+    setCheckInReqs(
+      new Set(
+        ((data ?? []) as Array<{ kind: string; item_id: string }>).map(
+          (x) => `${x.kind}:${x.item_id}`,
+        ),
+      ),
+    );
   };
 
   const openCheckInConfig = (sess: Session) => {
@@ -1425,11 +1467,8 @@ function TeacherAttendance() {
     setCheckInEmailOnly(false);
     // Se PRE-CARGA el requisito que la sesion ya tenga: la RPC escribe lo que
     // recibe, asi que arrancar en blanco lo BORRARIA al reabrir el check-in.
-    setCheckInReq(
-      sess.requirement_kind && sess.requirement_id
-        ? `${sess.requirement_kind}:${sess.requirement_id}`
-        : "",
-    );
+    setCheckInReqs(new Set());
+    void cargarRequisitosDeSesion(sess.id);
     setCheckInReqFuturas(false);
     setCheckInReqCumplen(null);
     setCheckInReqItems([]);
@@ -1474,6 +1513,13 @@ function TeacherAttendance() {
           (x) => x.user_id,
         ),
       );
+    } else if (kind === "report_signature") {
+      const { data } = await sb
+        .from("report_signatures")
+        .select("user_id")
+        .eq("report_id", id)
+        .not("signed_at", "is", null);
+      cumplen = new Set(((data ?? []) as Array<{ user_id: string }>).map((x) => x.user_id));
     } else {
       const tabla =
         kind === "workshop"
@@ -1506,8 +1552,10 @@ function TeacherAttendance() {
         p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
         p_rotation_seconds: checkInRotation,
         p_email_only: checkInEmailOnly,
-        p_requirement_kind: checkInReq ? checkInReq.split(":")[0] : null,
-        p_requirement_id: checkInReq ? checkInReq.split(":")[1] : null,
+        p_requirements: [...checkInReqs].map((v) => {
+          const [kind, id] = v.split(":");
+          return { kind, id };
+        }),
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -1548,7 +1596,7 @@ function TeacherAttendance() {
           closes_at: checkInClosesAt || null,
           rotation_seconds: checkInRotation,
           email_only: checkInEmailOnly,
-          requirement: checkInReq || null,
+          requirements: [...checkInReqs],
           requirement_futuras: checkInReqFuturas,
         },
       });
@@ -1561,15 +1609,31 @@ function TeacherAttendance() {
       // guarda el requisito; cada sesion se abre cuando toque.
       if (checkInReqFuturas) {
         const desde = checkInConfigSession.session_date;
-        const [kind, id] = checkInReq ? checkInReq.split(":") : [null, null];
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: filas, error: eFut } = await (supabase as any)
+        const sb = supabase as any;
+        const { data: futuras, error: eLista } = await sb
           .from("attendance_sessions")
-          .update({ requirement_kind: kind, requirement_id: id })
+          .select("id")
           .eq("course_id", checkInConfigSession.course_id)
           .gt("session_date", desde)
-          .is("deleted_at", null)
-          .select("id");
+          .is("deleted_at", null);
+        const ids = ((futuras ?? []) as Array<{ id: string }>).map((x) => x.id);
+        let eFut = eLista;
+        let filas: Array<{ id: string }> = [];
+        if (!eFut && ids.length > 0) {
+          // Se REEMPLAZA el set de cada sesión: dejar los viejos y sumar los nuevos
+          // haría que un requisito quitado acá siguiera exigiéndose más adelante.
+          await sb.from("attendance_session_requirements").delete().in("session_id", ids);
+          const nuevas = [...checkInReqs].flatMap((v) => {
+            const [kind, id] = v.split(":");
+            return ids.map((sid) => ({ session_id: sid, kind, item_id: id }));
+          });
+          if (nuevas.length > 0) {
+            const { error } = await sb.from("attendance_session_requirements").insert(nuevas);
+            eFut = error;
+          }
+          filas = ids.map((id) => ({ id }));
+        }
         if (eFut) {
           // El check-in de ESTA sesion ya quedo abierto: se avisa y no se aborta.
           toast.warning(
@@ -2669,67 +2733,80 @@ function TeacherAttendance() {
                 </p>
               )}
             </div>
-            {/* ── Requisito para marcar asistencia ──────────────────────────
-                El pedido: que para marcarse haya que tener completado un ítem del
-                curso. Los que están en borrador o cerrados se listan pero
-                DESHABILITADOS: esconderlos deja al docente buscando por qué su
-                taller no aparece, y exigirlos sería un bloqueo que el estudiante no
-                puede resolver. */}
+            {/* ── Requisitos para marcar asistencia ─────────────────────────
+                Se pueden exigir VARIOS: el caso real es la encuesta de bienestar Y
+                la firma del acuerdo pedagógico. Los que están en borrador o
+                cerrados se listan DESHABILITADOS — esconderlos deja al docente
+                buscando por qué su taller no aparece, y exigirlos sería un bloqueo
+                que el estudiante no puede resolver. */}
             <div className="rounded-md border p-3 space-y-2">
               <Label>
-                {t("teacherAttendance.reqLabel", {
-                  defaultValue: "Requisito para marcar asistencia",
-                })}{" "}
-                <HelpHint>
-                  {t("teacherAttendance.reqHelp", {
-                    defaultValue:
-                      "Quien no lo haya completado no puede marcarse. Se le muestra qué le falta y el enlace para hacerlo. Vos podés marcarlo a mano igual.",
-                  })}
-                </HelpHint>
+                {t("teacherAttendance.reqLabel")}{" "}
+                <HelpHint>{t("teacherAttendance.reqHelp")}</HelpHint>
               </Label>
-              <Select
-                value={checkInReq || SIN_REQUISITO}
-                onValueChange={(v) => {
-                  const val = v === SIN_REQUISITO ? "" : v;
-                  setCheckInReq(val);
-                  if (checkInConfigSession) void contarCumplimiento(checkInConfigSession.course_id, val);
-                }}
-                disabled={checkInReqLoading}
-              >
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={
-                      checkInReqLoading
-                        ? t("common.loading", { defaultValue: "Cargando…" })
-                        : t("teacherAttendance.reqNone", { defaultValue: "Sin requisito" })
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value={SIN_REQUISITO}>
-                    {t("teacherAttendance.reqNone", { defaultValue: "Sin requisito" })}
-                  </SelectItem>
-                  {(["poll", "workshop", "project", "exam"] as const).map((kind) => {
-                    const grupo = checkInReqItems.filter((x) => x.kind === kind);
-                    if (grupo.length === 0) return null;
-                    return (
-                      <SelectGroup key={kind}>
-                        <SelectLabel>{t(`teacherAttendance.reqKind_${kind}`)}</SelectLabel>
-                        {grupo.map((x) => (
-                          <SelectItem
-                            key={`${x.kind}:${x.id}`}
-                            value={`${x.kind}:${x.id}`}
-                            disabled={!x.disponible}
-                          >
-                            {x.title}
-                            {!x.disponible && x.motivo ? ` · ${x.motivo}` : ""}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
+              {checkInReqLoading ? (
+                <p className="text-2xs text-muted-foreground">{t("common.loading")}</p>
+              ) : checkInReqItems.length === 0 ? (
+                <p className="text-2xs text-muted-foreground">{t("teacherAttendance.reqEmpty")}</p>
+              ) : (
+                <div className="max-h-48 overflow-y-auto space-y-2">
+                  {(["poll", "report_signature", "workshop", "project", "exam"] as const).map(
+                    (kind) => {
+                      const grupo = checkInReqItems.filter((x) => x.kind === kind);
+                      if (grupo.length === 0) return null;
+                      return (
+                        <div key={kind} className="space-y-1">
+                          <p className="text-2xs font-medium text-muted-foreground">
+                            {t(`teacherAttendance.reqKind_${kind}`)}
+                          </p>
+                          {grupo.map((x) => {
+                            const valor = `${x.kind}:${x.id}`;
+                            return (
+                              <label
+                                key={valor}
+                                className={cn(
+                                  "flex items-start gap-2 rounded p-1 text-sm",
+                                  x.disponible
+                                    ? "cursor-pointer hover:bg-accent"
+                                    : "opacity-60 cursor-not-allowed",
+                                )}
+                              >
+                                <Checkbox
+                                  className="mt-0.5"
+                                  checked={checkInReqs.has(valor)}
+                                  disabled={!x.disponible}
+                                  onCheckedChange={(v) => {
+                                    setCheckInReqs((prev) => {
+                                      const next = new Set(prev);
+                                      if (v) next.add(valor);
+                                      else next.delete(valor);
+                                      return next;
+                                    });
+                                    if (checkInConfigSession) {
+                                      void contarCumplimiento(
+                                        checkInConfigSession.course_id,
+                                        v ? valor : "",
+                                      );
+                                    }
+                                  }}
+                                />
+                                <span className="min-w-0">
+                                  <span className="block truncate">{x.title}</span>
+                                  {!x.disponible && x.motivo && (
+                                    <span className="block text-2xs text-muted-foreground">
+                                      {x.motivo}
+                                    </span>
+                                  )}
+                                </span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      );
+                    },
+                  )}
+                </div>
+              )}
               {checkInReqCumplen && (
                 <p
                   className={cn(
@@ -2740,13 +2817,12 @@ function TeacherAttendance() {
                   )}
                 >
                   {t("teacherAttendance.reqProgress", {
-                    defaultValue: "Ya lo cumplieron {{ok}} de {{total}}.",
                     ok: checkInReqCumplen.ok,
                     total: checkInReqCumplen.total,
                   })}
                 </p>
               )}
-              {checkInReq && (
+              {checkInReqs.size > 0 && (
                 <label className="flex items-start gap-2 text-xs cursor-pointer">
                   <Checkbox
                     checked={checkInReqFuturas}
@@ -2754,14 +2830,9 @@ function TeacherAttendance() {
                     className="mt-0.5"
                   />
                   <span>
-                    {t("teacherAttendance.reqFuturas", {
-                      defaultValue: "Dejarlo también en las próximas sesiones de este curso",
-                    })}
+                    {t("teacherAttendance.reqFuturas")}
                     <span className="block text-2xs text-muted-foreground">
-                      {t("teacherAttendance.reqFuturasHint", {
-                        defaultValue:
-                          "No abre su check-in: solo queda guardado el requisito para cuando lo abras.",
-                      })}
+                      {t("teacherAttendance.reqFuturasHint")}
                     </span>
                   </span>
                 </label>

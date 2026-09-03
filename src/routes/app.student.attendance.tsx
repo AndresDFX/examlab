@@ -87,7 +87,7 @@ const db = supabase as any;
  * silencio (el router no matchea y no pasa nada).
  */
 function enlaceDeRequisito(req: {
-  kind: "poll" | "workshop" | "project" | "exam";
+  kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
   id: string;
   public_token: string | null;
 }): string | null {
@@ -96,6 +96,14 @@ function enlaceDeRequisito(req: {
     return req.public_token
       ? `${origen}/encuesta/${req.public_token}`
       : `${origen}/app/student/polls?poll=${req.id}`;
+  }
+  // El documento a firmar: el enlace PÚBLICO abre sin iniciar sesión y pide correo
+  // y contraseña solo para firmar, que es lo que sirve con el teléfono en clase.
+  // Sin enlace público, la pantalla de firmas del estudiante.
+  if (req.kind === "report_signature") {
+    return req.public_token
+      ? `${origen}/documento/${req.public_token}`
+      : `${origen}/app/student/signatures`;
   }
   if (req.kind === "workshop") return `${origen}/app/student/workshops`;
   if (req.kind === "project") return `${origen}/app/student/projects`;
@@ -477,32 +485,44 @@ function StudentAttendance() {
           /** La asistencia YA estaba puesta: no se volvió a marcar ni se pisó. */
           already?: boolean;
           status?: string;
-          /** Falta completar un ítem del curso para poder marcarse. */
-          requirement?: {
-            kind: "poll" | "workshop" | "project" | "exam";
+          /** Ítems del curso que faltan completar. Pueden ser VARIOS. */
+          requirements?: Array<{
+            kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
             id: string;
             title: string;
             public_token: string | null;
-          } | null;
+          }> | null;
         };
         if (!result?.ok) {
           // Un requisito pendiente NO es un error genérico: hay algo concreto que
           // hacer, y decirlo con el nombre del ítem y su enlace es la diferencia
           // entre resolverlo en un minuto y quedarse sin asistencia. El toast dura
           // más y trae la acción, porque se lee de pie y con la clase empezando.
-          if (result?.error === "requirement_pending" && result.requirement) {
-            const req = result.requirement;
-            const url = enlaceDeRequisito(req);
+          if (result?.error === "requirement_pending" && result.requirements?.length) {
+            const pend = result.requirements;
+            // Se listan TODAS: informar de a una obliga a resolver, reintentar y
+            // descubrir la segunda, en clase y con el profesor esperando. El botón
+            // lleva a la primera, que es la única acción que un toast puede tener.
+            const titulos = pend.map((r) => `«${r.title}»`).join(" y ");
+            const url = enlaceDeRequisito(pend[0]);
             toast.error(
-              t("studentAttendance.reqPending", {
-                defaultValue: "Antes de marcar asistencia tenés que completar «{{title}}».",
-                title: req.title,
-              }),
+              pend.length === 1
+                ? t("studentAttendance.reqPending", { title: pend[0].title })
+                : t("studentAttendance.reqPendingVarios", {
+                    defaultValue:
+                      "Antes de marcar asistencia te falta completar {{items}}.",
+                    items: titulos,
+                  }),
               {
                 duration: 15000,
                 action: url
                   ? {
-                      label: t("studentAttendance.reqGo", { defaultValue: "Ir" }),
+                      label:
+                        pend.length === 1
+                          ? t("studentAttendance.reqGo")
+                          : t("studentAttendance.reqGoFirst", {
+                              defaultValue: "Ir al primero",
+                            }),
                       onClick: () => window.open(url, "_blank", "noopener"),
                     }
                   : undefined,
