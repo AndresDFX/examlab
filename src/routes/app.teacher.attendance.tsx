@@ -378,6 +378,16 @@ function TeacherAttendance() {
   /** Requisitos elegidos, como "<tipo>:<id>". VARIOS: el pedido es exigir la
    *  encuesta Y la firma del acuerdo a la vez. */
   const [checkInReqs, setCheckInReqs] = useState<Set<string>>(new Set());
+  /**
+   * Si los requisitos de la sesión ya se LEYERON.
+   *
+   * Sin esta bandera, abrir el check-in antes de que la consulta resuelva enviaba
+   * una lista vacía y BORRABA los requisitos de la sesión. Pasó en producción, en
+   * clase: la única sesión a la que se le abrió el check-in fue la única de 45 que
+   * perdió su configuración. Mientras esto sea false se manda `null`, que la RPC
+   * interpreta como "no toques los requisitos".
+   */
+  const [checkInReqsCargados, setCheckInReqsCargados] = useState(false);
   const [checkInReqItems, setCheckInReqItems] = useState<RequisitoItem[]>([]);
   const [checkInReqLoading, setCheckInReqLoading] = useState(false);
   /** Cuantos ya lo cumplen, para no abrir un check-in que bloquea a media clase. */
@@ -1440,10 +1450,13 @@ function TeacherAttendance() {
    * check-in de una sesión que ya los tenía configurados. */
   const cargarRequisitosDeSesion = async (sessionId: string) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data } = await (supabase as any)
+    const { data, error } = await (supabase as any)
       .from("attendance_session_requirements")
       .select("kind, item_id")
       .eq("session_id", sessionId);
+    // Si la lectura FALLA no se marca como cargado: enviar una lista vacía por un
+    // error de red borraría la configuración de la sesión.
+    if (error) return;
     setCheckInReqs(
       new Set(
         ((data ?? []) as Array<{ kind: string; item_id: string }>).map(
@@ -1451,6 +1464,7 @@ function TeacherAttendance() {
         ),
       ),
     );
+    setCheckInReqsCargados(true);
   };
 
   const openCheckInConfig = (sess: Session) => {
@@ -1468,6 +1482,7 @@ function TeacherAttendance() {
     // Se PRE-CARGA el requisito que la sesion ya tenga: la RPC escribe lo que
     // recibe, asi que arrancar en blanco lo BORRARIA al reabrir el check-in.
     setCheckInReqs(new Set());
+    setCheckInReqsCargados(false);
     void cargarRequisitosDeSesion(sess.id);
     setCheckInReqFuturas(false);
     setCheckInReqCumplen(null);
@@ -1552,10 +1567,15 @@ function TeacherAttendance() {
         p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
         p_rotation_seconds: checkInRotation,
         p_email_only: checkInEmailOnly,
-        p_requirements: [...checkInReqs].map((v) => {
-          const [kind, id] = v.split(":");
-          return { kind, id };
-        }),
+        // `null` = "no toques los requisitos". Solo se manda el arreglo cuando se
+        // leyó lo que la sesión ya tenía; si no, abrir el check-in apurado los
+        // borraría.
+        p_requirements: checkInReqsCargados
+          ? [...checkInReqs].map((v) => {
+              const [kind, id] = v.split(":");
+              return { kind, id };
+            })
+          : null,
       });
       if (error) {
         toast.error(friendlyError(error));
@@ -1607,7 +1627,7 @@ function TeacherAttendance() {
       // abrirlo en 15 sesiones futuras a la vez seria un desastre (notificaria a
       // todo el curso 15 veces por el trigger de `check_in_open`). Acá solo se
       // guarda el requisito; cada sesion se abre cuando toque.
-      if (checkInReqFuturas) {
+      if (checkInReqFuturas && checkInReqsCargados) {
         const desde = checkInConfigSession.session_date;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sb = supabase as any;

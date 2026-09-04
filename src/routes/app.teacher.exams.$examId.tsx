@@ -1678,7 +1678,13 @@ function ExamEditor() {
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="abierta">{t("hc_routesAppTeacherExamsExamId.typeOpen")}</SelectItem>
-                          <SelectItem value="cerrada">{t("hc_routesAppTeacherExamsExamId.typeMultipleChoice")}</SelectItem>
+                          {/* `cerrada` es de UNA respuesta y `cerrada_multi` de varias.
+                              Este selector rotulaba la primera como "Opción múltiple"
+                              —el rótulo de la otra— y encima no ofrecía la de varias,
+                              así que en pantalla el mismo texto aparecía por dos tipos
+                              distintos y uno de ellos no se podía elegir. */}
+                          <SelectItem value="cerrada">{t("hc_routesAppTeacherExamsExamId.typeSingleChoice")}</SelectItem>
+                          <SelectItem value="cerrada_multi">{t("hc_routesAppTeacherExamsExamId.typeMultipleChoice")}</SelectItem>
                           <SelectItem value="codigo">{t("hc_routesAppTeacherExamsExamId.typeCode")}</SelectItem>
                           <SelectItem value="diagrama">{t("hc_routesAppTeacherExamsExamId.typeDiagram")}</SelectItem>
                           <SelectItem value="java_gui">{t("hc_routesAppTeacherExamsExamId.typeJavaGuiShort")}</SelectItem>

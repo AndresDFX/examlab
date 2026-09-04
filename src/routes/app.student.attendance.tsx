@@ -121,6 +121,12 @@ const CHECK_IN_ERROR_MESSAGES: Record<string, string> = {
   not_enrolled: "studentAttendance.errNotEnrolled",
   invalid_code: "studentAttendance.errInvalidCode",
   unauthorized: "studentAttendance.errUnauthorized",
+  // Red de seguridad. El mensaje BUENO lo arma la rama de `requirement_pending`
+  // más abajo, con el nombre del ítem y su enlace; esta entrada existe para que si
+  // esa rama no aplica —una respuesta sin el detalle, un cliente futuro que cambie—
+  // el estudiante lea una frase en vez del código de error crudo. Es exactamente lo
+  // que se vio en producción: en pantalla decía "requirement_pending".
+  requirement_pending: "studentAttendance.errRequirement",
 };
 
 export const Route = createFileRoute("/app/student/attendance")({
@@ -492,14 +498,32 @@ function StudentAttendance() {
             title: string;
             public_token: string | null;
           }> | null;
+          /** Formato anterior: una sola. Se sigue leyendo por compatibilidad. */
+          requirement?: {
+            kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
+            id: string;
+            title: string;
+            public_token: string | null;
+          } | null;
         };
         if (!result?.ok) {
           // Un requisito pendiente NO es un error genérico: hay algo concreto que
           // hacer, y decirlo con el nombre del ítem y su enlace es la diferencia
           // entre resolverlo en un minuto y quedarse sin asistencia. El toast dura
           // más y trae la acción, porque se lee de pie y con la clase empezando.
-          if (result?.error === "requirement_pending" && result.requirements?.length) {
-            const pend = result.requirements;
+          if (result?.error === "requirement_pending") {
+            // Se aceptan los DOS formatos: `requirements` (varias) y `requirement`
+            // (una sola, el formato anterior). Una respuesta de un despliegue viejo
+            // no puede dejar al estudiante con un mensaje ilegible.
+            const pend = result.requirements?.length
+              ? result.requirements
+              : result.requirement
+                ? [result.requirement]
+                : [];
+            if (pend.length === 0) {
+              toast.error(t("studentAttendance.errRequirement"));
+              return false;
+            }
             // Se listan TODAS: informar de a una obliga a resolver, reintentar y
             // descubrir la segunda, en clase y con el profesor esperando. El botón
             // lleva a la primera, que es la única acción que un toast puede tener.
