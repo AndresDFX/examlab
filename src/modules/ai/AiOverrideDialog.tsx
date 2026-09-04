@@ -105,7 +105,9 @@ export function AiOverrideDialog({ open, onOpenChange }: Props) {
         expired: t("hc_modulesAiAiOverrideDialog.errorExpired"),
         exhausted: t("hc_modulesAiAiOverrideDialog.errorExhausted"),
       };
-      toast.error(map[res.error] ?? res.error);
+      // Genérico y no `res.error`: el mapa cubre los 3 códigos que la RPC emite hoy,
+      // pero si mañana suma uno, el respaldo no puede ser el identificador crudo.
+      toast.error(map[res.error] ?? t("hc_modulesAiAiOverrideDialog.errorGeneric"));
       return;
     }
     writeOverrideExpiry(res.expires_at);

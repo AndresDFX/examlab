@@ -455,6 +455,11 @@ function TeacherProjects() {
   const [formIntroVideos, setFormIntroVideos] = useState<
     Array<{ library_id: string | null; url: string; title: string }>
   >([]);
+  /**
+   * `true` cuando la lista de arriba REFLEJA lo que hay en la base. En `false` una
+   * lista vacía significa "no sé", y sobre eso no se puede borrar.
+   */
+  const [videosConocidos, setVideosConocidos] = useState(false);
   const projectDirty = useDirtyDialog(open, form);
   // Generación de descripción con IA: dialog modal con input "tema" +
   // botón que invoca la edge function `ai-generate-questions` modo
@@ -923,6 +928,8 @@ function TeacherProjects() {
     });
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
     setFormIntroVideos([]);
+    // Proyecto nuevo: el vacío ES la verdad, no ignorancia.
+    setVideosConocidos(true);
     setOpen(true);
   };
 
@@ -943,12 +950,19 @@ function TeacherProjects() {
     // aparte en 20260603180000). El backfill convirtió legacy
     // `code_intro_video_url` a una fila position=0 — al editar se
     // ven y se pueden quitar/agregar igual que un set fresco.
+    // La carrera que sí tiene talleres acá NO existe: el diálogo se abre DESPUÉS de
+    // esta consulta (ver el comentario de arriba). Lo que faltaba era el error: se
+    // descartaba, la lista quedaba vacía —indistinguible de "este proyecto no tiene
+    // videos"— y al guardar el DELETE por `project_id` los borraba todos.
+    let conocidos = false;
     try {
-      const { data: videos } = await db
+      const { data: videos, error: vErr } = await db
         .from("project_intro_videos")
         .select("url, title, position")
         .eq("project_id", p.id)
         .order("position");
+      if (vErr) throw vErr;
+      conocidos = true;
       setFormIntroVideos(
         (
           (videos as Array<{ url: string; title: string | null; position: number }> | null) ?? []
@@ -958,9 +972,13 @@ function TeacherProjects() {
           title: v.title ?? "",
         })),
       );
-    } catch {
+    } catch (e) {
       setFormIntroVideos([]);
+      // Se avisa Y queda `conocidos = false`, así que guardar no toca los videos: es
+      // mejor no guardar un cambio de videos que borrar los que ya estaban.
+      toast.error(friendlyError(e, t("hc_routesAppTeacherProjects.introVideosLoadFailed")));
     }
+    setVideosConocidos(conocidos);
     // Init per-course cut+weight from stored project_courses data.
     // Falls back to projects.cut_id/weight for the primary course for
     // rows that predate the migration.
@@ -1233,8 +1251,30 @@ function TeacherProjects() {
       // Borrar todo lo existente del proyecto. CASCADE de
       // `project_submission_video_views` se dispara y resetea el progreso
       // de los estudiantes — esperado.
-      await db.from("project_intro_videos").delete().eq("project_id", projectId);
-      if (cleanedVideoRows.length > 0) {
+      //
+      // Pero NO si no sabemos qué hay: cuando el prellenado falló, la lista queda
+      // vacía y este DELETE borraría los videos del proyecto (y con ellos el progreso
+      // de todos los estudiantes, por el CASCADE) sin que nadie lo pida. Si el docente
+      // escribió algo, la lista no está vacía y se sincroniza normal.
+      //
+      // Se SALTA el bloque, no se corta el guardado: un problema con los videos no
+      // puede cancelar el resto (vínculos de cursos, asignaciones, matrículas).
+      let videosBorrados = false;
+      if (videosConocidos || cleanedVideoRows.length > 0) {
+        const { error: dVidErr } = await db
+          .from("project_intro_videos")
+          .delete()
+          .eq("project_id", projectId);
+        if (dVidErr) {
+          // Sin el aviso, un DELETE rechazado dejaba los viejos y los nuevos encima.
+          toast.error(
+            friendlyError(dVidErr, t("hc_routesAppTeacherProjects.introVideosSaveFailed")),
+          );
+        } else {
+          videosBorrados = true;
+        }
+      }
+      if (videosBorrados && cleanedVideoRows.length > 0) {
         const insertRows = cleanedVideoRows.map((v) => ({
           project_id: projectId,
           url: v.url,

@@ -33,11 +33,36 @@ import { toast } from "sonner";
 import { CheckCircle2, XCircle, CalendarCheck, LogIn } from "lucide-react";
 
 /** Lo que devuelven las RPC de marcado. `already` = la asistencia YA estaba. */
+interface RequisitoPendiente {
+  kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
+  id: string;
+  title: string;
+  public_token: string | null;
+}
+
 interface RespuestaCheckIn {
   ok?: boolean;
   error?: string;
   already?: boolean;
   status?: string;
+  /** Ítems del curso que faltan completar. Pueden ser VARIOS. */
+  requirements?: RequisitoPendiente[] | null;
+  /** Formato anterior: una sola. Se sigue leyendo por compatibilidad. */
+  requirement?: RequisitoPendiente | null;
+}
+
+/**
+ * El enlace donde se resuelve un requisito, o `null` si no hay uno público.
+ *
+ * Esta página la abre gente SIN sesión (es su razón de existir), así que solo
+ * sirven los enlaces públicos: mandar a `/app/...` deja a la persona en el login,
+ * que es peor que no ofrecer nada.
+ */
+function enlacePublicoDeRequisito(r: RequisitoPendiente): string | null {
+  if (!r.public_token) return null;
+  if (r.kind === "poll") return `/encuesta/${r.public_token}`;
+  if (r.kind === "report_signature") return `/documento/${r.public_token}`;
+  return null;
 }
 
 /** Lo que devuelve `attendance_check_in_public_info`. */
@@ -98,6 +123,23 @@ function errorText(t: (k: string, o?: Record<string, unknown>) => string, code: 
       return t("publicAttendance.errSession", {
         defaultValue: "La sesión no existe o fue eliminada.",
       });
+    case "requirement_pending":
+      // Red de seguridad: el mensaje BUENO —con el nombre del ítem y su enlace— lo
+      // arma el bloque de requisitos del render. Esta rama cubre el caso en que la
+      // respuesta no traiga el detalle, para que nadie lea «Intentá de nuevo» sobre
+      // algo que reintentar no arregla.
+      return t("publicAttendance.errRequirement", {
+        defaultValue:
+          "Te falta completar un ítem del curso antes de poder marcar asistencia.",
+      });
+    case "invalid_email":
+      return t("publicAttendance.errInvalidEmail", {
+        defaultValue: "Ese correo no está registrado en el curso de esta sesión.",
+      });
+    case "password_required":
+      return t("publicAttendance.errPasswordRequired", {
+        defaultValue: "Esta sesión pide tu contraseña además del correo.",
+      });
     default:
       return t("publicAttendance.errGeneric", {
         defaultValue: "No se pudo registrar la asistencia. Intentá de nuevo.",
@@ -116,6 +158,7 @@ function PublicAttendance() {
   const [code, setCode] = useState(codeFromUrl);
   const [status, setStatus] = useState<Status>("idle");
   const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [pendientes, setPendientes] = useState<RequisitoPendiente[]>([]);
   /** `null` mientras no se sabe: el campo de contraseña no se pinta hasta que
    *  el servidor dice si este check-in la pide. Asumir que sí y esconderla
    *  después haría saltar el formulario; asumir que no la pediría de más. */
@@ -171,6 +214,16 @@ function PublicAttendance() {
       setEstadoPrevio(res.status ?? null);
       setStatus("success");
     } else {
+      // Un requisito pendiente NO es un fallo genérico: hay algo concreto que hacer.
+      // Sin esta rama la persona leía «Intentá de nuevo» —el `default` de
+      // `errorText`— y reintentar no funciona nunca, así que el mensaje la manda a
+      // un callejón sin salida justo cuando la clase está empezando.
+      const pend = res?.requirements?.length
+        ? res.requirements
+        : res?.requirement
+          ? [res.requirement]
+          : [];
+      setPendientes(pend);
       setErrorCode(res?.error ?? "unknown");
       setStatus("error");
     }
@@ -406,9 +459,42 @@ function PublicAttendance() {
                 </>
               )}
 
-              {status === "error" && (
+              {status === "error" && errorCode === "requirement_pending" && pendientes.length > 0 ? (
+                // Se listan TODOS: informar de a uno obliga a resolver, reintentar y
+                // descubrir el siguiente, de pie y con el docente esperando.
+                <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">
+                  <p className="text-xs font-medium">
+                    {t("publicAttendance.reqTitle", {
+                      defaultValue: "Antes de marcar asistencia te falta:",
+                    })}
+                  </p>
+                  <ul className="space-y-1">
+                    {pendientes.map((r) => {
+                      const url = enlacePublicoDeRequisito(r);
+                      return (
+                        <li key={`${r.kind}:${r.id}`} className="text-xs">
+                          <span className="font-medium">{r.title}</span>
+                          {url ? (
+                            <>
+                              {" — "}
+                              <a href={url} className="underline text-primary">
+                                {t("publicAttendance.reqOpen", { defaultValue: "abrir" })}
+                              </a>
+                            </>
+                          ) : null}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                  <p className="text-2xs text-muted-foreground">
+                    {t("publicAttendance.reqAfter", {
+                      defaultValue: "Cuando lo completes, volvé a marcar con el mismo código.",
+                    })}
+                  </p>
+                </div>
+              ) : status === "error" ? (
                 <p className="text-xs text-destructive text-center">{errorText(t, errorCode)}</p>
-              )}
+              ) : null}
             </>
           )}
         </CardContent>

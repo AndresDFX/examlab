@@ -1378,6 +1378,30 @@ export function AdminCourses() {
         }),
       );
     } else {
+      // Solo se pregunta cuando hay algo que perder: confirmar cada casilla que se
+      // desmarca convierte el diálogo en un trámite y se responde que sí de reflejo.
+      const perdidas = await contarPerdidas(enrollCourse.id, [uid]);
+      if (perdidas !== 0) {
+        const ok = await confirm({
+          title: t("adminCourses.unenrollOneTitle", {
+            defaultValue: "¿Quitar a este estudiante del curso?",
+          }),
+          description:
+            perdidas > 0
+              ? t("adminCourses.unenrollOneDescLoss", {
+                  defaultValue:
+                    "Se eliminan {{n}} intento(s) que dejó empezados sin entregar. Lo que YA entregó se conserva. Esta acción no se puede deshacer.",
+                  n: perdidas,
+                })
+              : t("adminCourses.unenrollOneDescUnknown", {
+                  defaultValue:
+                    "No se pudo verificar si tiene intentos en curso. Los que dejó empezados sin entregar se eliminarán; lo que ya entregó se conserva.",
+                }),
+          confirmLabel: t("adminCourses.unenrollConfirm", { defaultValue: "Quitar del curso" }),
+          tone: "destructive",
+        });
+        if (!ok) return;
+      }
       const { error } = await supabase
         .from("course_enrollments")
         .delete()
@@ -1414,10 +1438,54 @@ export function AdminCourses() {
     );
   };
 
+  /**
+   * Cuántos intentos en curso se van a destruir al desmatricular, según la MISMA
+   * regla que el trigger de la base (`count_unenroll_losses`, mig 20262080000000).
+   *
+   * Se pregunta al servidor en vez de calcularlo acá: si el criterio cambia, el
+   * número que se le muestra al docente sigue siendo el que de verdad se borra.
+   */
+  const contarPerdidas = async (courseId: string, userIds: string[]): Promise<number> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("count_unenroll_losses", {
+      _course_id: courseId,
+      _user_ids: userIds,
+    });
+    // Si no se puede contar, se devuelve -1 y el diálogo avisa en términos generales.
+    // Callarse el riesgo porque falló una cuenta sería lo peor de las dos opciones.
+    if (error) return -1;
+    return typeof data === "number" ? data : 0;
+  };
+
   const unenrollMany = async (visibleIds: string[]) => {
     if (!enrollCourse) return;
     const toRemove = visibleIds.filter((id) => enrolledIds.has(id));
     if (!toRemove.length) return;
+    // ── Confirmación obligatoria ────────────────────────────────────────────
+    // Esto lo dispara «Deseleccionar todos», un botón del mismo tamaño y variante que
+    // «Seleccionar todos» y pegado al lado. Sin confirmación, un clic quitaba a TODO
+    // el curso y —hasta la mig 20262080000000— destruía sus entregas sin calificar.
+    const perdidas = await contarPerdidas(enrollCourse.id, toRemove);
+    const ok = await confirm({
+      title: t("adminCourses.unenrollManyTitle", {
+        defaultValue: "¿Quitar a {{count}} estudiante(s) del curso?",
+        count: toRemove.length,
+      }),
+      description:
+        perdidas > 0
+          ? t("adminCourses.unenrollManyDescLoss", {
+              defaultValue:
+                "Pierden el acceso al curso y se eliminan {{n}} intento(s) que dejaron empezados sin entregar. Lo que YA entregaron se conserva. Esta acción no se puede deshacer.",
+              n: perdidas,
+            })
+          : t("adminCourses.unenrollManyDesc", {
+              defaultValue:
+                "Pierden el acceso al curso y sus asignaciones. Lo que ya entregaron se conserva. Esta acción no se puede deshacer.",
+            }),
+      confirmLabel: t("adminCourses.unenrollConfirm", { defaultValue: "Quitar del curso" }),
+      tone: "destructive",
+    });
+    if (!ok) return;
     // Antes el loop hacía `await ...delete()` DESCARTANDO el `error` y luego
     // toast.success incondicional: si la RLS o una FK rechazaba el borrado, el
     // admin leía "N desmatriculados" y en realidad no se había quitado a nadie.

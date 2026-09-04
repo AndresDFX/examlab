@@ -517,11 +517,36 @@ function ExamEditor() {
         // matriculados del nuevo curso. Idempotente: si vuelves a guardar
         // sin cambiar curso, no pasa nada (originalCourseId se actualiza
         // tras el reload).
-        await supabase.from("exam_assignments").delete().eq("exam_id", examId);
-        const { data: enr } = await supabase
+        // Las matrículas se leen ANTES de borrar, y si esa lectura FALLA no se
+        // borra nada.
+        //
+        // Al revés —borrar primero y leer después— un fallo de red deja `enr` en
+        // undefined, `(enr ?? [])` lo convierte en "el curso no tiene alumnos", el
+        // INSERT se saltea por `rows.length === 0` y el `if (asgErr)` de abajo nunca
+        // se evalúa: el examen queda SIN asignaciones, invisible para todo el curso,
+        // y nadie se entera. Es exactamente el caso que el aviso de abajo dice
+        // querer cubrir.
+        //
+        // Un curso legítimamente vacío sí borra y no avisa, que es correcto: la
+        // diferencia la hace el `error`, no el conteo.
+        const { data: enr, error: enrErr } = await supabase
           .from("course_enrollments")
           .select("user_id")
           .eq("course_id", newCourseId);
+        if (enrErr) {
+          toast.error(
+            friendlyError(
+              enrErr,
+              t("hc_routesAppTeacherExamsExamId.reassignReadFailed", {
+                defaultValue:
+                  "El examen se guardó, pero no se pudieron leer los matriculados del curso nuevo: las asignaciones quedaron como estaban. Volvé a guardar.",
+              }),
+            ),
+            { duration: 12000 },
+          );
+          return;
+        }
+        await supabase.from("exam_assignments").delete().eq("exam_id", examId);
         const rows = (enr ?? []).map((r: any) => ({ exam_id: examId, user_id: r.user_id }));
         if (rows.length) {
           const { error: asgErr } = await supabase.from("exam_assignments").insert(rows);

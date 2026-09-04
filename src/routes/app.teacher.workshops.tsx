@@ -487,6 +487,12 @@ function TeacherWorkshops() {
   const [formIntroVideos, setFormIntroVideos] = useState<
     Array<{ library_id: string | null; url: string; title: string }>
   >([]);
+  /**
+   * `true` cuando la lista de arriba REFLEJA lo que hay en la base: en creación
+   * (todavía no hay nada) o cuando el prellenado del taller terminó bien. En `false`
+   * una lista vacía significa "no sé", y no se puede borrar sobre esa base.
+   */
+  const [videosConocidos, setVideosConocidos] = useState(false);
   // Biblioteca de videos para el selector del form de taller. Carga
   // perezosa: solo cuando el dialog se abre.
   const [videoLibrary, setVideoLibrary] = useState<
@@ -530,13 +536,25 @@ function TeacherWorkshops() {
     const wsId = (form as any).id as string | undefined;
     if (!wsId) return;
     let cancelled = false;
+    // Mientras la consulta viaja NO sabemos qué videos hay. Sin esto, guardar en esos
+    // milisegundos los borra todos.
+    setVideosConocidos(false);
     void (async () => {
-      const { data: videos } = await supabase
+      const { data: videos, error: vErr } = await supabase
         .from("workshop_intro_videos")
         .select("url, title, position")
         .eq("workshop_id", wsId)
         .order("position");
       if (cancelled) return;
+      if (vErr) {
+        // El error se descartaba: la lista quedaba vacía, indistinguible de "este
+        // taller no tiene videos", y guardar los borraba.
+        toast.error(
+          friendlyError(vErr, t("hc_routesAppTeacherWorkshops.introVideosLoadFailed")),
+        );
+        return;
+      }
+      setVideosConocidos(true);
       setFormIntroVideos(
         (
           (videos as Array<{ url: string; title: string | null; position: number }> | null) ?? []
@@ -945,6 +963,8 @@ function TeacherWorkshops() {
     setSelectedCourseIds(new Set(first ? [first] : []));
     setCourseCuts(first ? { [first]: { cut_id: null, weight: 1 } } : {});
     setFormIntroVideos([]);
+    // Taller nuevo: el vacío ES la verdad, no ignorancia.
+    setVideosConocidos(true);
     setOpen(true);
   };
 
@@ -994,11 +1014,40 @@ function TeacherWorkshops() {
   const syncWorkshopIntroVideos = async (
     workshopId: string,
     rows: Array<{ library_id: string | null; url: string; title: string }>,
+    /**
+     * `true` solo si sabemos qué videos tiene HOY el taller: en creación (no tiene
+     * ninguno) o cuando el prellenado del formulario terminó bien.
+     */
+    conocidos: boolean,
   ) => {
     const cleaned = rows
       .map((v, idx) => ({ url: v.url.trim(), title: v.title.trim() || null, position: idx }))
       .filter((v) => v.url.length > 0);
-    await supabase.from("workshop_intro_videos").delete().eq("workshop_id", workshopId);
+    // ── No borrar por ignorancia ────────────────────────────────────────────
+    // La lista se prellena con una consulta ASÍNCRONA y nada bloquea el botón de
+    // Guardar, así que guardar apurado —o un fallo de esa consulta, cuyo error se
+    // descartaba— dejaba `rows` vacío y este DELETE borraba todos los videos del
+    // taller. Es el mismo modo de falla que ya destruyó los requisitos de una sesión
+    // de asistencia en producción: mandar vacío se interpretaba como "quitar todo".
+    //
+    // La guarda es "vacío Y no sabemos": si el docente escribió un video, la lista NO
+    // está vacía y se sincroniza normal — así no se pierde lo que acaba de tipear.
+    if (!conocidos && cleaned.length === 0) return;
+    const { error: dErr } = await supabase
+      .from("workshop_intro_videos")
+      .delete()
+      .eq("workshop_id", workshopId);
+    if (dErr) {
+      // Sin este aviso, un DELETE rechazado dejaba los videos viejos y los nuevos
+      // insertados encima: la lista quedaba duplicada sin que nadie se enterara.
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.introVideosSaveFailed", {
+          defaultValue: "No se pudieron guardar los videos introductorios: {{error}}",
+          error: friendlyError(dErr),
+        }),
+      );
+      return;
+    }
     if (cleaned.length === 0) return;
     const insertRows = cleaned.map((v) => ({
       workshop_id: workshopId,
@@ -1226,7 +1275,7 @@ function TeacherWorkshops() {
       // Estrategia idéntica a proyectos: DELETE all + INSERT all. El
       // CASCADE de `workshop_submission_video_views` resetea el progreso
       // de los estudiantes — esperado cuando el docente reedita la lista.
-      await syncWorkshopIntroVideos(form.id, formIntroVideos);
+      await syncWorkshopIntroVideos(form.id, formIntroVideos, videosConocidos);
       if (courseChanged) {
         await supabase.from("workshop_assignments").delete().eq("workshop_id", form.id);
       }
@@ -1319,7 +1368,7 @@ function TeacherWorkshops() {
         toast.error(friendlyUniqueViolation(wcErr) ?? friendlyError(wcErr));
         return;
       }
-      await syncWorkshopIntroVideos(newWs.id, formIntroVideos);
+      await syncWorkshopIntroVideos(newWs.id, formIntroVideos, true);
       // Auto-assign + notify por cada curso. RLS de workshops sigue
       // filtrando por course_id legacy, así que para que el alumno del
       // segundo curso vea el taller, dependemos de la próxima fase del

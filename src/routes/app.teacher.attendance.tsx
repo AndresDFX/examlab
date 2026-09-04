@@ -107,6 +107,7 @@ import {
   ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   ATTENDANCE_CODE_ROTATION_DEFAULT,
 } from "@/modules/attendance/attendance-code";
+import { claveDeErrorCheckIn } from "@/modules/attendance/checkin-errors";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { buildNewSessionPayload } from "@/modules/sessions/create-session";
 import { SESSION_TYPES, type SessionType } from "@/modules/sessions/session-type";
@@ -1590,7 +1591,12 @@ function TeacherAttendance() {
         closes_at?: string;
       };
       if (!result?.ok || !result.seed || !result.closes_at || !result.rotation_seconds) {
-        toast.error(result?.error ?? t("teacherAttendance.checkInStartFailed"));
+        // El código NUNCA se muestra tal cual: si no está en el mapa, el mensaje es
+        // el genérico. Antes esta línea imprimía `result.error`, así que un
+        // `closes_in_past` o un `requirement_unavailable` salía a pantalla en inglés
+        // con guiones bajos.
+        const clave = claveDeErrorCheckIn(result?.error);
+        toast.error(clave ? t(clave) : t("teacherAttendance.checkInStartFailed"));
         return;
       }
       setProjector({
@@ -1816,7 +1822,8 @@ function TeacherAttendance() {
       );
       void loadCourse();
     } else {
-      toast.error(result?.error ?? t("teacherAttendance.markPendingFailed"));
+      const clave = claveDeErrorCheckIn(result?.error);
+      toast.error(clave ? t(clave) : t("teacherAttendance.markPendingFailed"));
     }
   };
 

@@ -554,7 +554,12 @@ function StudentAttendance() {
             );
             return false;
           }
-          { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : (result?.error ?? t("studentAttendance.errGeneric"))); }
+          // El código NUNCA se muestra tal cual. Esta línea tenía
+          // `?? result.error` en el medio, y por eso un estudiante leyó
+          // «requirement_pending» en pantalla: alcanzaba con que un código no
+          // estuviera en el mapa. Un mensaje genérico es peor que uno preciso, pero
+          // muchísimo mejor que un identificador técnico.
+          { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : t("studentAttendance.errGeneric")); }
           return false;
         }
         // "Ya estabas marcado" vs "marcado": sin la distinción, el alumno que
