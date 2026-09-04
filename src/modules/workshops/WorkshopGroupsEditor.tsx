@@ -19,7 +19,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check, Shuffle } from "lucide-react";
+import {
+  Plus,
+  Trash2,
+  GripVertical,
+  Users,
+  ArrowRightLeft,
+  Check,
+  Shuffle,
+  ImageUp,
+} from "lucide-react";
+import { GruposDesdeImagenDialog } from "./GruposDesdeImagenDialog";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -75,6 +85,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const [repartiendo, setRepartiendo] = useState(false);
   /** Grupos del taller con entrega ya asociada: no se pueden borrar sin perderla. */
   const [gruposConEntrega, setGruposConEntrega] = useState<Set<string>>(new Set());
+  /** Quién ya entregó individual: la base no lo deja pasar a un grupo. */
+  const [conEntregaIndividual, setConEntregaIndividual] = useState<Set<string>>(new Set());
+  const [imagenAbierta, setImagenAbierta] = useState(false);
   /**
    * Tamaños que declaró el taller (`group_size_min` / `group_size_max`).
    *
@@ -165,6 +178,20 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         setMembers([]);
         setGruposConEntrega(new Set());
       }
+
+      // Quién ya entregó POR SU CUENTA (sin grupo). Es imprescindible para armar
+      // grupos en lote: `tg_block_ws_group_member_with_individual` (mig 20261068000000)
+      // rechaza con P0001 meter a esa persona en un grupo, y ese rechazo hace fallar el
+      // INSERT del LOTE ENTERO — el docente vería "no se pudo" sin poder deducir a
+      // quién tiene que sacar de la lista.
+      const { data: indiv } = await db
+        .from("workshop_submissions")
+        .select("user_id")
+        .eq("workshop_id", workshopId)
+        .is("group_id", null);
+      setConEntregaIndividual(
+        new Set(((indiv ?? []) as { user_id: string }[]).map((x) => x.user_id)),
+      );
     } finally {
       setLoading(false);
     }
@@ -508,6 +535,18 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
               <Shuffle className="h-4 w-4 mr-1" />
               {t("hc_modulesWorkshopsWorkshopGroupsEditor.randomAction")}
             </Button>
+            {/* Va acá por el mismo motivo que "repartir al azar": es la alternativa a
+                hacerlo a mano cuando los grupos YA existen —los armaron en las salas de
+                la videollamada— y transcribir 30 nombres en clase no es viable. */}
+            <Button
+              variant="outline"
+              onClick={() => setImagenAbierta(true)}
+              disabled={students.length === 0}
+              title={t("hc_modulesWorkshopsWorkshopGroupsEditor.fromImageHint")}
+            >
+              <ImageUp className="h-4 w-4 mr-1" />
+              {t("hc_modulesWorkshopsWorkshopGroupsEditor.fromImageAction")}
+            </Button>
           </div>
 
           {azarAbierto && (
@@ -769,6 +808,22 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
           </div>
         </div>
       )}
+
+      {/* Recibe el estado que el editor YA tiene en memoria: no re-consulta nada. */}
+      <GruposDesdeImagenDialog
+        open={imagenAbierta}
+        onOpenChange={setImagenAbierta}
+        workshopId={workshopId}
+        courseId={courseId}
+        students={students}
+        groups={groups}
+        memberByUser={memberByUser}
+        gruposConEntrega={gruposConEntrega}
+        conEntregaIndividual={conEntregaIndividual}
+        groupSizeMin={groupSizeMin}
+        groupSizeMax={groupSizeMax}
+        onAplicado={() => void load()}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TUTOR_CHAT_FALLBACK } from "./tutor-default-prompt";
 import { SQL_GENERATION_FALLBACK } from "@/modules/database/sql-generation-prompt";
+import { GRUPOS_DESDE_IMAGEN_FALLBACK } from "@/modules/workshops/grupos-imagen-prompt";
 
 /**
  * Estos dos prompts están bajo un invariante de 3 lados (seed SQL ↔ copia Deno del
@@ -105,5 +106,35 @@ describe("prompt de generación SQL — invariante de 3 lados", () => {
   it("la constante de src coincide con el seed y con el edge", () => {
     expect(SQL_GENERATION_FALLBACK.trim()).toBe(seed);
     expect(SQL_GENERATION_FALLBACK.trim()).toBe(edge);
+  });
+});
+
+describe("prompt de grupos desde una imagen — invariante de 3 lados", () => {
+  const seed = readDollarQuoted(
+    "supabase/migrations/20262090000000_ai_prompt_grupos_desde_imagen.sql",
+    "grupos",
+  );
+  const edge = readTsTemplate(
+    "supabase/functions/ai-read-groups-image/index.ts",
+    "FALLBACK_GRUPOS_DESDE_IMAGEN_PROMPT",
+  );
+
+  it("la constante de src coincide con el seed y con el edge", () => {
+    expect(GRUPOS_DESDE_IMAGEN_FALLBACK.trim()).toBe(seed);
+    expect(GRUPOS_DESDE_IMAGEN_FALLBACK.trim()).toBe(edge);
+  });
+
+  it("no lleva caracteres que se escaparían distinto en cada lado", () => {
+    // Los tres lados lo embeben literal: dos plantillas de TypeScript y una cadena con
+    // dólar-comillas en SQL. Un acento grave, una barra invertida o una interpolación
+    // divergen al escaparse y el invariante se rompe sin que se note al leerlo.
+    expect(GRUPOS_DESDE_IMAGEN_FALLBACK).not.toMatch(/[`\\]/);
+    expect(GRUPOS_DESDE_IMAGEN_FALLBACK).not.toContain("${");
+  });
+
+  it("nombra la herramienta que el edge fuerza con tool_choice", () => {
+    // Si el prompt pide llamar a otra herramienta que la que el edge declara, el
+    // modelo devuelve texto libre y la lectura falla con un 502 sin explicación.
+    expect(GRUPOS_DESDE_IMAGEN_FALLBACK).toContain("leer_grupos");
   });
 });

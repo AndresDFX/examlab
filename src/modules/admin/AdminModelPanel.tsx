@@ -39,6 +39,12 @@ import { Save, Info, Cpu, AlertTriangle, Plus, Trash2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
+// La regla de qué modelo lee imágenes vive en el edge (un solo lugar), y de ahí se
+// importa: duplicarla acá hace que el panel diga una cosa y el servidor haga otra.
+import {
+  MODELO_VISION_GEMINI,
+  modeloAceptaImagen,
+} from "../../../supabase/functions/_shared/ai-vision.ts";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -635,6 +641,17 @@ export function AdminModelPanel() {
               <option key={m} value={m} />
             ))}
           </datalist>
+          {/* Cierra el hueco de cambiar de modelo sin saber que la LECTURA DE IMÁGENES
+              (armar grupos desde una captura) puede estar usando otro. Sin esta línea,
+              el Admin ve consumo de Gemini con Bedrock configurado y no entiende por
+              qué. La regla vive en `_shared/ai-vision.ts`, no duplicada acá. */}
+          {!modeloAceptaImagen(draftProvider, draftModel) && (
+            <p className="text-2xs text-muted-foreground mt-1">
+              {t("hc_modulesAdminAdminModelPanel.visionNote", {
+                model: MODELO_VISION_GEMINI,
+              })}
+            </p>
+          )}
         </div>
 
         {/* API key del provider ACTIVO solamente. Mostrar las 2 era ruido —

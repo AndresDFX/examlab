@@ -45,6 +45,9 @@ import {
 // Byte-idéntico con el seed SQL (20261620000000) y el FALLBACK del edge
 // `ai-generate-sql` — ver invariante en CLAUDE.md.
 import { SQL_GENERATION_FALLBACK } from "@/modules/database/sql-generation-prompt";
+// Invariante de 3 lados con el seed de la mig 20262090000000 y el fallback del edge
+// ai-read-groups-image. Lo fija tutor-default-prompt.test.ts.
+import { GRUPOS_DESDE_IMAGEN_FALLBACK } from "@/modules/workshops/grupos-imagen-prompt";
 import { TUTOR_CHAT_FALLBACK } from "@/modules/tutor/tutor-default-prompt";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -72,7 +75,8 @@ type UseCase =
   | "platform_support"
   | "platform_support_docente"
   | "platform_support_estudiante"
-  | "sql_generation";
+  | "sql_generation"
+  | "group_assignment_from_image";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
  * solo agrupa visualmente los prompts en el Select de filtro. Si se
@@ -315,6 +319,14 @@ const USE_CASES: UseCaseDef[] = [
     description:
       "System prompt de la caja 'Generar SQL con IA' de la hoja SQL de la pizarra. El docente escribe en lenguaje natural lo que quiere mostrar en clase (crear tablas con datos de ejemplo, una consulta, un permiso) y recibe SQL comentado para insertar como esquema de partida o en el editor. Los datos dinámicos (la petición y el esquema de partida actual) los inyecta el código en el mensaje del usuario — este prompt define el ROL, el entorno (PostgreSQL real en el navegador, base temporal que arranca limpia) y el formato de salida. Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: SQL_GENERATION_FALLBACK,
+  },
+  {
+    key: "group_assignment_from_image",
+    module: "workshops",
+    label: "Grupos desde una imagen",
+    description:
+      "System prompt de la lectura de una captura de la videollamada para armar los grupos de un taller. Define qué cuenta como grupo (rótulos de sala, bloques separados), que el nombre se copie TAL CUAL sin completarlo, que la confianza sea un dato real y que lo ilegible se cuente en vez de inventarse — un nombre inventado mete a una persona en el grupo de otra, y en un trabajo en grupo eso afecta la nota de todo el equipo. La propuesta SIEMPRE la revisa el docente antes de aplicarse. Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
+    defaultPrompt: GRUPOS_DESDE_IMAGEN_FALLBACK,
   },
 ];
 

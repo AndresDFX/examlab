@@ -179,6 +179,16 @@ verify_jwt = false
 enabled = true
 verify_jwt = true
 
+# Lee una captura de la videollamada para armar los grupos de un taller.
+# verify_jwt = TRUE por el mismo motivo que ai-generate-sql: no hay worker que la
+# invoque (es síncrona por diseño — devuelve un borrador para revisar, y la cola de
+# generación solo sabe contar filas insertadas). El único caller es el frontend con el
+# JWT del docente, y el handler además exige rol Docente/Admin/SuperAdmin y que el
+# taller sea visible para ese JWT antes de gastar cuota de IA.
+[functions."ai-read-groups-image"]
+enabled = true
+verify_jwt = true
+
 # Dispara el workflow que publica en Cloudflare (un Worker por institución).
 # verify_jwt = TRUE por el mismo motivo que ai-generate-sql: el único caller es
 # el frontend con el JWT del SuperAdmin, no hay worker ni pg_cron llamándola.
