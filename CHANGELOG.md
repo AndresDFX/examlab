@@ -63,7 +63,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
 > `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
 > `20261910000000_student_own_whiteboards.sql`, `20261920000000_docente_enrollment_target_guard.sql`
-> `20261930000000_report_signature_slots.sql` y `20261940000000_report_signature_drawing.sql`,
+> `20261930000000_report_signature_slots.sql`, `20261940000000_report_signature_drawing.sql` y
+> `20262110000000_db_backup_cron_dispara_de_verdad.sql`,
 > todas defensivas con `to_regclass`) y **una edge
 > function nueva** (`ai-generate-sql`); el resto es cliente.
 >
@@ -743,6 +744,21 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   `20261610000000_whiteboard_pages_sql.sql`, columnas `sql_setup`/`sql_answer` en `whiteboard_pages`).
 
 ### 🔧 Correcciones
+
+- **La base de datos llevaba 105 días sin una sola copia de respaldo, y nada lo avisaba.** El
+  respaldo automático semanal encolaba su tarea todos los domingos y **nunca la ejecutaba**: once
+  semanas seguidas en cola, sin error, sin aviso y sin una fila en rojo. El último respaldo real era
+  del 24 de mayo. Un sistema con los datos de 163 estudiantes reales estuvo tres meses y medio sin
+  copia.
+
+  Eran dos fallas que se tapaban entre sí —la llamada al servicio de respaldo estaba escrita contra
+  un nombre que no existe, y la configuración se leía de un lugar que en Supabase Cloud siempre está
+  vacío—, las dos envueltas en un manejo de errores que las convertía en un mensaje que nadie lee.
+
+  Ya se **ejecutó un respaldo completo** (130 tablas, 45.161 filas), así que el hueco está cerrado. Y
+  el semanal quedó arreglado con una regla nueva: **si el respaldo no puede correr, la tarea queda
+  marcada como fallida con el motivo y se registra en Auditoría.** Que un respaldo falle puede pasar;
+  que no se sepa, no.
 
 - **Una falla de la IA podía convertirse en la nota del estudiante.** Cuando el proveedor de IA
   fallaba al calificar un examen —la cuota agotada, o el modelo devolviendo algo que el sistema no
