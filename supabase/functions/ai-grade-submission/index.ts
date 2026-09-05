@@ -2735,27 +2735,31 @@ Idioma de salida: ${langName}.`,
       const batchOut = await gradeOpenAnswersInBatch(batchInput, customExamSystem, examLangName);
 
       if ("batchError" in batchOut) {
-        // Falla del batch entero — distribuimos el mismo error a todas las
-        // preguntas. Un solo audit log con el response completo (1 vez,
-        // no N veces) para no inundar Auditoría.
+        // Falla del batch entero: NO se califica nada.
+        //
+        // Antes se repartía `earned: 0` a cada pregunta del lote y se seguía
+        // hasta el UPDATE final, que guardaba `ai_grade` y `status:
+        // "completado"`. O sea que una falla de INFRAESTRUCTURA —la cuota del
+        // proveedor agotada, o un modelo que no emite `tool_call`— se convertía
+        // en la nota del estudiante, indistinguible de haber respondido mal.
+        // Medido el 2026-08-31: 22 entregas con 9 de 13 preguntas en cero por
+        // esta vía (por suerte en pruebas diagnósticas de peso 0). Y como el
+        // edge devolvía `ok: true`, el worker marcaba el job como hecho y la
+        // maquinaria de reintento —que existe justo para el 429— nunca corría.
+        //
+        // Los otros tres lotes de este mismo archivo (taller, taller completo y
+        // archivos de proyecto) ya devolvían el error; el de exámenes era el
+        // único que no. Se devuelve con el status de arriba para que
+        // `complete_ai_grading` reencole los transitorios por su regex.
+        //
+        // El audit se AWAITEA (los hermanos usan `void`) porque acá se retorna
+        // inmediatamente después: con `void` la escritura corre una carrera
+        // contra el fin del isolate. En producción esa carrera se gana —hay 8
+        // registros del camino de talleres, que ya retornaba así— pero ahora es
+        // el registro principal del fallo, y `auditFromEdge` se traga sus
+        // propios errores, así que esperarlo no puede cambiar la respuesta.
         const err = batchOut.batchError;
-        const feedback =
-          err.kind === "http"
-            ? `Error IA (HTTP ${err.http_status}). Revisa audit logs para el detalle.`
-            : err.kind === "no_tool_call"
-              ? "El modelo no devolvió la calificación en el formato esperado (sin tool_call). Revisa audit logs."
-              : "El modelo devolvió un JSON inválido al calificar. Revisa audit logs.";
-        for (const { q } of aiBatch) {
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: 0,
-            feedback,
-            ai_error: err,
-          });
-        }
-        void auditFromEdge(adminClient, {
+        await auditFromEdge(adminClient, {
           actorId: auditCallerId,
           action: "ai.grading_failed",
           category: "grading",
@@ -2773,6 +2777,18 @@ Idioma de salida: ${langName}.`,
             provider: (await getActiveAiModel()).provider,
           },
         });
+        return new Response(
+          JSON.stringify({
+            error: "Fallo al calificar en bloque",
+            kind: err.kind,
+            http_status: err.http_status ?? null,
+            response_snippet: err.response_snippet,
+          }),
+          {
+            status: err.http_status ?? 500,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
       } else {
         // Batch OK — distribuimos los resultados por qid. Las preguntas
         // que el modelo OMITIO (no devolvió score para su qid) se marcan

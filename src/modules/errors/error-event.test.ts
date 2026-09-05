@@ -234,3 +234,56 @@ describe("aggregateGroupStatus", () => {
     );
   });
 });
+
+/**
+ * Casos sacados de eventos REALES de producción (auditoría del 2026-09-04).
+ *
+ * Los tres se veían mal en el panel de Errores y ninguno estaba clasificado: dos acciones
+ * salían como «(sin mensaje)» aunque el motivo estaba en el registro, y un mismo rechazo de
+ * SMTP se partía en decenas de grupos por el id de sesión que Gmail agrega al final.
+ */
+describe("errores reales que el panel no sabía mostrar", () => {
+  it("saca el motivo de `error_message` (lo escribe bulk-import-users)", () => {
+    // 64 fallos de importación en un mes se veían como «(sin mensaje)» con el
+    // motivo ahí mismo.
+    expect(
+      errorMessage({
+        email: "alguien@estudiante.uniajc.edu.co",
+        error_name: "Error",
+        error_message: "No se pudo asignar el rol Estudiante: Cuota de estudiantes alcanzada (100 / 100).",
+      }),
+    ).toMatch(/Cuota de estudiantes alcanzada/);
+  });
+
+  it("sintetiza una etiqueta con `kind` + `http_status` cuando no hay mensaje", () => {
+    // `ai.grading_failed` no guarda un mensaje: guarda el tipo de falla. Sin esto,
+    // un 429 de cuota y un modelo que no emite tool_call caían en el mismo grupo
+    // mudo, y son dos problemas distintos con dos respuestas distintas.
+    expect(errorMessage({ kind: "http", http_status: 429, scope: "batch" })).toBe("http (HTTP 429)");
+    expect(errorMessage({ kind: "no_tool_call", scope: "batch" })).toBe("no_tool_call");
+  });
+
+  it("un mensaje de verdad le gana a la etiqueta sintetizada", () => {
+    // El metadata de correo trae `kind` (el tipo de notificación) Y `error`. Si
+    // ganara `kind`, todos los fallos de correo dirían "report_signature".
+    expect(errorMessage({ kind: "report_signature", error: "Gateway Timeout" })).toBe(
+      "Gateway Timeout",
+    );
+  });
+
+  it("dos rechazos de la MISMA credencial SMTP dan el mismo fingerprint", () => {
+    const rechazo = (sesion: string) =>
+      `535: 5.7.8 Username and Password not accepted. For more information, go to,5.7.8 https://support.google.com/mail/?p=BadCredentials ${sesion} - gsmtp`;
+    expect(normalizeErrorMessage(rechazo("af79cd13be357-93749abeba9sm605545185a.3"))).toBe(
+      normalizeErrorMessage(rechazo("d75a77b69052e-52e09aae6f4sm50954461cf.3")),
+    );
+  });
+
+  it("pero NO junta dos códigos HTTP distintos", () => {
+    // La regla de arriba no puede llevarse por delante la distinción entre un 429
+    // (que se reintenta solo) y un 503 (que es del proveedor).
+    expect(normalizeErrorMessage("fallo del proveedor HTTP 429")).not.toBe(
+      normalizeErrorMessage("fallo del proveedor HTTP 503"),
+    );
+  });
+});

@@ -16,6 +16,7 @@ import { KeyRound } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { severidadCambioContrasena } from "./password-change-severity";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 
@@ -68,7 +69,9 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
         void logEvent({
           action: "user.password_change_failed",
           category: "user",
-          severity: "error",
+          // Que la persona repita su contraseña anterior no es una falla del
+          // sistema: es la validación funcionando. Ver el helper.
+          severity: severidadCambioContrasena(error.message),
           metadata: { reason: error.message },
         });
         toast.error(friendlyError(error));

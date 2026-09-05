@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
 import { strToU8, zipSync } from "fflate";
+
+/**
+ * `strToU8` envuelto en un `new Uint8Array` DEL REALM DE ESTE ARCHIVO.
+ *
+ * Bajo jsdom, el Uint8Array que devuelve fflate no pasa el `instanceof` que
+ * `zipSync` usa para distinguir un archivo de una carpeta, asi que armaba un
+ * directorio por cada indice de byte: el .docx salia con entradas
+ * "word/document.xml/", "word/document.xml/0/", "word/document.xml/1/"...
+ * `parseDocxBundle` no encontraba document.xml, lanzaba al evaluar el modulo, y
+ * vitest reportaba este archivo con CERO pruebas — 655 lineas de cobertura que
+ * no corrian y nadie notaba, porque un archivo en 0 no dice que fallo nada.
+ */
+const u8 = (texto: string) => new Uint8Array(strToU8(texto));
 import {
   extractPlaceholders,
   extractTextFromDocumentXml,
@@ -38,10 +51,10 @@ function run(text: string): string {
 function buildDocx(paragraphsInnerXml: string[]): Uint8Array {
   const xml = documentXml(paragraphsInnerXml);
   const zipped = zipSync({
-    "[Content_Types].xml": strToU8(
+    "[Content_Types].xml": u8(
       `<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`,
     ),
-    "word/document.xml": strToU8(xml),
+    "word/document.xml": u8(xml),
   });
   // fflate.zipSync devuelve Uint8Array — pero su .buffer puede ser un
   // ArrayBuffer compartido. Normalizamos a una copia exacta.
@@ -126,12 +139,12 @@ describe("parseDocxToText", () => {
   });
 
   it("lanza error si no es un ZIP válido", () => {
-    const notZip = strToU8("esto no es un docx, es texto plano cualquiera");
+    const notZip = u8("esto no es un docx, es texto plano cualquiera");
     expect(() => parseDocxToText(notZip)).toThrow(/válido/i);
   });
 
   it("lanza error si el ZIP no contiene word/document.xml", () => {
-    const zipped = zipSync({ "otro.txt": strToU8("contenido irrelevante") });
+    const zipped = zipSync({ "otro.txt": u8("contenido irrelevante") });
     expect(() => parseDocxToText(new Uint8Array(zipped))).toThrow(/document\.xml/i);
   });
 
@@ -437,14 +450,14 @@ function buildDocxWithHeader(): Uint8Array {
   <Relationship Id="rId2" Type="image" Target="media/image1.png"/>
 </Relationships>`;
   const zipped = zipSync({
-    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
-    "word/document.xml": strToU8(documentXmlStr),
-    "word/_rels/document.xml.rels": strToU8(documentRels),
-    "word/header1.xml": strToU8(headerXml),
-    "word/_rels/header1.xml.rels": strToU8(headerRels),
+    "[Content_Types].xml": u8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": u8(documentXmlStr),
+    "word/_rels/document.xml.rels": u8(documentRels),
+    "word/header1.xml": u8(headerXml),
+    "word/_rels/header1.xml.rels": u8(headerRels),
     // El contenido real no importa para el test: parseDocxBundle sólo lo
     // base64-codifica en un data URI.
-    "word/media/image1.png": strToU8("FAKE-PNG-BYTES"),
+    "word/media/image1.png": u8("FAKE-PNG-BYTES"),
   });
   return new Uint8Array(zipped);
 }
@@ -501,12 +514,12 @@ function buildDocxWithTextboxHeader(): Uint8Array {
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId2" Type="image" Target="media/image1.png"/></Relationships>`;
   const zipped = zipSync({
-    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
-    "word/document.xml": strToU8(documentXmlStr),
-    "word/_rels/document.xml.rels": strToU8(documentRels),
-    "word/header1.xml": strToU8(headerXml),
-    "word/_rels/header1.xml.rels": strToU8(headerRels),
-    "word/media/image1.png": strToU8("PNG"),
+    "[Content_Types].xml": u8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": u8(documentXmlStr),
+    "word/_rels/document.xml.rels": u8(documentRels),
+    "word/header1.xml": u8(headerXml),
+    "word/_rels/header1.xml.rels": u8(headerRels),
+    "word/media/image1.png": u8("PNG"),
   });
   return new Uint8Array(zipped);
 }
@@ -621,12 +634,12 @@ function buildDocxWithGridHeader(): Uint8Array {
   <Relationship Id="rId2" Type="image" Target="media/image1.png"/>
 </Relationships>`;
   const zipped = zipSync({
-    "[Content_Types].xml": strToU8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
-    "word/document.xml": strToU8(documentXmlStr),
-    "word/_rels/document.xml.rels": strToU8(documentRels),
-    "word/header1.xml": strToU8(headerXml),
-    "word/_rels/header1.xml.rels": strToU8(headerRels),
-    "word/media/image1.png": strToU8("FAKE-PNG"),
+    "[Content_Types].xml": u8(`<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>`),
+    "word/document.xml": u8(documentXmlStr),
+    "word/_rels/document.xml.rels": u8(documentRels),
+    "word/header1.xml": u8(headerXml),
+    "word/_rels/header1.xml.rels": u8(headerRels),
+    "word/media/image1.png": u8("FAKE-PNG"),
   });
   return new Uint8Array(zipped);
 }

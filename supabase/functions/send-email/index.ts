@@ -373,11 +373,23 @@ Deno.serve(async (req: Request) => {
     .maybeSingle();
 
   if (rowErr || !row) {
+    // Se distingue "la consulta falló" de "la fila no está", porque son dos
+    // problemas distintos y antes los dos se registraban como
+    // `notification_not_found` con un 404.
+    //
+    // Caso real (2026-09-04): la consulta devolvió "Gateway Timeout" y quedó
+    // auditada como que la notificación no existía — existía, y ahí seguía. Quien
+    // fuera a diagnosticarlo se iba a buscar una notificación borrada. Además el
+    // 404 dice "no insistas" para algo que era transitorio: se responde 503, que
+    // es reintentable, y así el cron de reintentos hace su trabajo.
+    const falloConsulta = !!rowErr;
     await auditEmail(notificationId, "email.failed", "error", {
-      reason: "notification_not_found",
+      reason: falloConsulta ? "notification_lookup_failed" : "notification_not_found",
       error: rowErr?.message ?? "unknown",
     });
-    return jsonError(`notification not found: ${rowErr?.message ?? "unknown"}`, 404);
+    return falloConsulta
+      ? jsonError(`notification lookup failed: ${rowErr.message}`, 503)
+      : jsonError("notification not found", 404);
   }
 
   // Chequeo del kill switch + toggles por tipo (tabla email_settings).

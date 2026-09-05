@@ -174,10 +174,21 @@ describe("isFileAllowed", () => {
 function makeZipFile(entries: Record<string, string>, fileName = "code.zip"): File {
   const data: Record<string, Uint8Array> = {};
   for (const [path, content] of Object.entries(entries)) {
-    data[path] = strToU8(content);
+    // El `new Uint8Array(...)` NO es decorativo. Bajo jsdom, el Uint8Array que
+    // devuelve `strToU8` viene de otro realm que el que `zipSync` comprueba con
+    // `instanceof`, así que fflate lo tomaba por un OBJETO y armaba una carpeta
+    // por cada índice de byte: el zip salía con entradas "src/Main.java/",
+    // "src/Main.java/0/", "src/Main.java/1/"… Todas terminan en "/", o sea que
+    // `validateCodeArchive` las saltaba como directorios, no quedaba nada que
+    // rechazar y CINCO pruebas de la whitelist pasaban a verde por la razón
+    // contraria a la que decían. Reconstruirlo en este realm lo arregla.
+    data[path] = new Uint8Array(strToU8(content));
   }
   const zipped = zipSync(data);
-  return new File([zipped], fileName, { type: "application/zip" });
+  // `.buffer` explícito: un Uint8Array como BlobPart además no tipa
+  // (`Uint8Array<ArrayBufferLike>` no es asignable a `BlobPart`).
+  const ab = zipped.buffer.slice(zipped.byteOffset, zipped.byteOffset + zipped.byteLength) as ArrayBuffer;
+  return new File([ab], fileName, { type: "application/zip" });
 }
 
 describe("preValidateZipInBrowser", () => {
@@ -279,7 +290,7 @@ describe("preValidateZipInBrowser", () => {
   });
 
   it("archivo corrupto / no-ZIP → ok=false con mensaje de lectura fallida", async () => {
-    const file = new File([strToU8("esto no es un zip")], "fake.zip", {
+    const file = new File([new Uint8Array(strToU8("esto no es un zip")).buffer as ArrayBuffer], "fake.zip", {
       type: "application/zip",
     });
     const result = await preValidateZipInBrowser(file, null);

@@ -36,8 +36,21 @@ export interface ErrorEventLike {
 export function errorMessage(meta: unknown): string | null {
   if (!meta || typeof meta !== "object") return null;
   const m = meta as Record<string, unknown>;
-  for (const k of ["error", "reason", "message", "detail"]) {
+  // `error_message` la escribe `bulk-import-users`. Sin ella, los 64 fallos de
+  // importación de un mes se veían como «(sin mensaje)» en el panel, aunque el
+  // motivo estaba en el registro: «Cuota de estudiantes alcanzada (100 / 100)».
+  for (const k of ["error", "reason", "message", "detail", "error_message"]) {
     if (typeof m[k] === "string" && m[k]) return m[k] as string;
+  }
+  // Sin ninguna clave de mensaje se arma una etiqueta corta con lo que el evento
+  // SÍ trae. `ai.grading_failed` es el caso: no guarda un mensaje, guarda `kind`
+  // ("http" / "no_tool_call" / "parse_failed") y `http_status`. Sin esto, un 429
+  // de cuota y un modelo que no emite tool_call caían en el mismo grupo mudo, que
+  // es justo la distinción que decide qué hacer con cada uno.
+  const kind = typeof m.kind === "string" && m.kind ? m.kind : null;
+  if (kind) {
+    const status = typeof m.http_status === "number" ? m.http_status : null;
+    return status ? `${kind} (HTTP ${status})` : kind;
   }
   return null;
 }
@@ -59,6 +72,16 @@ export function normalizeErrorMessage(msg: string): string {
     .toLowerCase()
     .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, "?")
     .replace(/[0-9a-f]{12,}/g, "?")
+    // Un token de 6+ que MEZCLA letras y dígitos es un identificador, no
+    // vocabulario: el id de sesión que Gmail agrega al final de cada rechazo
+    // hacía que 124 rechazos de la MISMA credencial cayeran en 124 grupos
+    // distintos, y el panel dejaba de servir para triaje. Medido sobre 1000
+    // eventos reales: 893 grupos → 160, y lo único que se junta son mensajes
+    // idénticos salvo ese id.
+    .replace(/\b(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{6,}\b/g, "?")
+    // Los números CORTOS se dejan a propósito: colapsarlos fundiría
+    // "HTTP 429" con "HTTP 503", que es justo la distinción que decide si el
+    // error se reintenta solo o hay que ir a mirarlo.
     .replace(/\b\d{4,}\b/g, "N")
     .replace(/\s+/g, " ")
     .trim()

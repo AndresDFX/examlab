@@ -96,7 +96,7 @@ describe("tour-config — shape de cada step", () => {
     });
 
     it(`${name}_TOUR side es válido cuando se especifica`, () => {
-      const validSides = new Set(["top", "right", "bottom", "left", "over"]);
+      const validSides = new Set(["top", "right", "bottom", "left"]);
       for (const step of steps) {
         if (step.side !== undefined) {
           expect(validSides.has(step.side)).toBe(true);

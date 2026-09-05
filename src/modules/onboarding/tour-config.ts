@@ -47,7 +47,10 @@ export interface TourStep {
   /** Posición del popover. Auto-detecta si no se especifica.
    *  Para items del sidebar conviene 'right' (sidebar es izquierdo).
    *  Para items del footer del sidebar, 'right' también. */
-  side?: "top" | "right" | "bottom" | "left" | "over";
+  // driver.js NO acepta "over" en `side` (su `DriveStep` solo admite los cuatro
+  // lados). Estaba declarado igual, asi que TypeScript habria dejado pasar un paso
+  // con un valor que la libreria no entiende. Ningun paso lo usaba.
+  side?: "top" | "right" | "bottom" | "left";
   /** Alineación dentro del lado: 'start' | 'center' | 'end'. */
   align?: "start" | "center" | "end";
   /** Si está presente, el tour navega a esa ruta ANTES de intentar

@@ -76,7 +76,13 @@ export default defineConfig({
   // `index.js`, y el build moría con ERR_MODULE_NOT_FOUND. Sin el plugin, la
   // salida vuelve al nombre que el prerender espera. El servidor que genera se
   // usa solo durante el build, para producir el HTML, y después se descarta.
-  cloudflare: false,
+  // La opción se llama `nitro` (así la declara @lovable.dev/vite-tanstack-config
+  // 1.8.0). Estuvo escrita `cloudflare: false` desde la migración del 21/08, o sea
+  // que no hacía NADA: era una propiedad de más que el plugin ignoraba, y solo el
+  // chequeo de tipos la delataba. El build seguía saliendo estático de casualidad,
+  // porque el default de `nitro` es «auto» y solo se activa dentro de Lovable. Con
+  // el nombre correcto la intención queda cumplida y no depende de esa casualidad.
+  nitro: false,
   vite: {
     optimizeDeps: {
       exclude: ["@excalidraw/excalidraw"],

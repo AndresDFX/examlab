@@ -744,6 +744,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **Una falla de la IA podía convertirse en la nota del estudiante.** Cuando el proveedor de IA
+  fallaba al calificar un examen —la cuota agotada, o el modelo devolviendo algo que el sistema no
+  entiende— cada pregunta abierta de esa entrega quedaba en **cero** y la entrega se marcaba como
+  calificada. Para el estudiante era indistinguible de haber respondido mal, y para el docente no
+  había ninguna señal salvo leer la retroalimentación pregunta por pregunta.
+
+  Pasó de verdad el 31 de agosto: 22 entregas con 9 de sus 13 preguntas en cero por esta vía. Por
+  suerte fueron pruebas diagnósticas que pesan 0 %, así que **ninguna nota final quedó mal**, y
+  ninguna de esas entregas había sido corregida a mano todavía. En un parcial con peso habría sido
+  una nota injusta y silenciosa.
+
+  Ahora, si la IA falla al calificar, **no se guarda ninguna nota**: el trabajo vuelve a la cola y
+  se reintenta solo cuando la falla es pasajera (una cuota agotada, por ejemplo), o queda visible
+  como fallo para que el docente lo reintente. Los talleres y los proyectos ya se comportaban así;
+  el examen era el único que no.
+
+- **El panel de Errores no mostraba el motivo de casi la mitad de los errores.** De los 231 errores
+  del último mes, 95 se veían como «(sin mensaje)» aunque el motivo estaba guardado: los fallos de
+  importación de usuarios decían textualmente «Cuota de estudiantes alcanzada (100/100)» y no se
+  leía. Y un mismo rechazo del servidor de correo aparecía partido en **124 filas distintas**,
+  porque cada rechazo trae un identificador de sesión diferente; ahora se agrupan en una sola.
+
+- **Un problema momentáneo de la base de datos se registraba como «la notificación no existe».**
+  Quien fuera a diagnosticar por qué no salió un correo se encontraba buscando algo borrado que
+  seguía ahí. Ahora se distingue, y el caso pasajero se reintenta en vez de darse por perdido.
+
+- **Repetir la contraseña anterior ya no figura como un error del sistema.** Era la validación
+  funcionando; competía por atención con fallas reales en el panel de Errores.
+
 - **El contador de presentes de la proyección de check-in se quedaba en cero.** Con quince personas ya
   marcadas, la pantalla del frente del salón seguía diciendo "0 / 21" — verificado contra los datos
   reales: la carga inicial estaba bien y ninguno de los check-in posteriores llegaba.
@@ -1040,6 +1069,48 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   opción del perfil, no el encabezado del calendario.
 
 ### Interno (equipo)
+
+- **El build de producción está ROTO en `main`, y no es por nada de este cambio.** `bun run build`
+  falla en el paso de prerender con `SyntaxError: The requested module '@tanstack/router-core' does
+  not provide an export named '_getRenderedMatches'`. Verificado con un build de control sobre el
+  estado de `main` sin tocar nada: falla idéntico. Es deriva de versiones entre
+  `@tanstack/start-plugin-core` y `@tanstack/router-core` en `node_modules`. Mientras no se arregle
+  **no se puede publicar**, porque `deploy:cf` es `build:cf && wrangler deploy`.
+
+- **Las dos compuertas del repo llevaban semanas en rojo, y eso las apaga.** `bun tsc --noEmit`
+  daba 4 errores y `bun test` tenía 2 archivos fallando. Cuando la línea base ya está roja, el error
+  que introduce el cambio siguiente no se distingue del ruido — me pasó en esta misma sesión y solo
+  lo vi porque estaba comparando conteos contra la base, no leyendo un ✓. Las tres causas:
+
+  - Bajo jsdom, `zipSync({ ruta: strToU8(x) })` **no produce un archivo**: produce una carpeta por
+    cada índice de byte, porque el `Uint8Array` que devuelve fflate no pasa su propio `instanceof`
+    (otro realm). En `code-upload.test.ts` eso dejaba 5 pruebas en rojo **y el caso feliz en verde
+    por la razón contraria** (todo daba `ok` porque no quedaba nada que validar); en
+    `docx-import.test.ts` tumbaba el módulo al evaluarlo y vitest reportaba **CERO pruebas** — 655
+    líneas que no corrían y que en el resumen no se leen como un fallo. Recuperadas 55 pruebas, de
+    las que 10 fallan si se rompe el parser a propósito.
+  - `tour-config.ts` declaraba `side: "over"`, que driver.js no acepta: el tipo era más ancho que la
+    librería y habría dejado pasar un paso roto. Ningún paso lo usaba.
+  - `vite.config.ts` decía `cloudflare: false` y **esa opción no existe** (se llama `nitro`). La
+    línea que documenta «no desplegar Worker» no hacía nada; el build salía estático sólo porque el
+    default de `nitro` es «auto» y no detecta contexto Lovable fuera de él.
+
+  Al cierre: `bun tsc --noEmit` en EXIT 0 y `bun test` en 195/195 archivos, 3449/3449 pruebas.
+
+- **Los 231 errores del último mes quedaron clasificados** en `error_event_status`, que estaba
+  **vacía**: ninguno se había triado nunca, así que el panel los mostraba todos como «nuevo» y no
+  distinguía lo pendiente de lo ya resuelto. 224 resueltos, 4 ignorados, 3 en revisión, por el RPC
+  del propio panel.
+
+- **El modelo que hoy califica en TODA la plataforma es el que falló las dos veces que se usó.** La
+  fila platform-default está en `bedrock` / `openai.gpt-oss-120b-1:0` desde el 31/08 20:07, y las 6
+  instituciones están en `ai_mode='shared'`, así que ese modelo las gobierna a todas. Sus dos únicos
+  intentos de calificación devolvieron el razonamiento como texto en vez de llamar a la herramienta
+  (`no_tool_call`, `finish_reason: "stop"`). No hubo más intentos desde entonces, así que **no se
+  puede afirmar que falle siempre** — pero 2 de 2 es lo único medido, y contradice el supuesto del
+  repo de que con `tool_calls` estos modelos se portan bien. El arreglo de arriba hace que eso se
+  vea como fallo en vez de convertirse en un cero; **elegir si se cambia el modelo es decisión
+  aparte y del dueño.**
 
 - **`.env` estaba trackeado en un repositorio público.** `.gitignore` lo lista desde hace mucho, pero
   `.gitignore` **no aplica a lo que ya está tracked** — y el repo es `visibility=public`. De sus 7
