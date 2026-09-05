@@ -745,6 +745,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔧 Correcciones
 
+- **El código que un estudiante ejecuta dentro de un TALLER no se guardaba.** Se ejecutaba y el
+  resultado se le mostraba, pero al archivarlo la base lo rechazaba y se descartaba en silencio: el
+  registro apuntaba a las tablas de examen, y un taller no vive ahí. Queda el error textual auditado
+  el 5 de septiembre. Importa porque esa evidencia es lo que respalda un reclamo de nota, y los
+  cursos que arrancan la semana próxima tienen talleres con código.
+
+- **Un examen que la IA no supiera calificar bloqueaba la cola de todos los demás.** Efecto de la
+  corrección de arriba: al dejar de convertir un fallo de IA en un cero, el fallo pasó a detener el
+  procesamiento de la cola entera, y con el modelo actual eso era todas las veces. Ahora se
+  distingue: si el proveedor está caído se para (no tiene sentido insistir), pero si el problema es
+  de *esa* entrega, la cola sigue con la siguiente. Y lo que el modelo no puede resolver repitiendo
+  la misma llamada ya no se reintenta tres veces gastando cuota: queda a la vista para que el
+  docente lo relance.
+
+- **Un correo perdido por un problema momentáneo de la base ahora sí se reintenta.** El aviso
+  anterior decía que se reintentaba y no era cierto: la notificación quedaba fuera del reintento
+  automático para siempre.
+
 - **La base de datos llevaba 105 días sin una sola copia de respaldo, y nada lo avisaba.** El
   respaldo automático semanal encolaba su tarea todos los domingos y **nunca la ejecutaba**: once
   semanas seguidas en cola, sin error, sin aviso y sin una fila en rojo. El último respaldo real era

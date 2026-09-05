@@ -274,8 +274,12 @@ describe("errores reales que el panel no sabía mostrar", () => {
   it("dos rechazos de la MISMA credencial SMTP dan el mismo fingerprint", () => {
     const rechazo = (sesion: string) =>
       `535: 5.7.8 Username and Password not accepted. For more information, go to,5.7.8 https://support.google.com/mail/?p=BadCredentials ${sesion} - gsmtp`;
+    // El par es el REAL de producción, y los sufijos terminan DISTINTO (`.3` y `.39`)
+    // a propósito: con dos que terminan igual, esta prueba pasaba aunque la regla
+    // dejara sin colapsar el sufijo — y de hecho lo dejaba, con 147 grupos para un
+    // solo error.
     expect(normalizeErrorMessage(rechazo("af79cd13be357-93749abeba9sm605545185a.3"))).toBe(
-      normalizeErrorMessage(rechazo("d75a77b69052e-52e09aae6f4sm50954461cf.3")),
+      normalizeErrorMessage(rechazo("d75a77b69052e-52e09aae6f4sm50954461cf.39")),
     );
   });
 

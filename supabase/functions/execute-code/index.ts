@@ -845,16 +845,34 @@ Deno.serve(async (req) => {
     }
     requestContext.provider_used = usedProvider;
 
-    // Persistir ejecución. question_id es FK a questions(id): SOLO el flujo de
-    // EXAMEN pasa un questions.id genuino (y siempre trae submissionId). Los
-    // runners de snippet de sesión / contenido / notebook pasan un id que NO es
-    // de questions (o undefined) → enlazar question_id ahí violaba el FK/NOT NULL
-    // y la ejecución nunca se persistía (falla silenciosa). Solo lo enlazamos
-    // cuando hay submissionId (examen); si no, queda NULL (columna nullable tras
-    // la migración de code_executions).
+    // Persistir ejecución. Las DOS columnas de enlace apuntan a tablas de EXAMEN:
+    // `submission_id` → submissions(id) y `question_id` → questions(id).
+    //
+    // "Tiene submissionId" NO alcanza para saber que es un examen: el TALLER
+    // también lo manda (WorkshopQuestions.tsx pasa el workshop_submissions.id
+    // junto al workshop_questions.id), y el proyecto igual. Con el guard viejo
+    // esas ejecuciones violaban el FK y se descartaban EN SILENCIO — el error
+    // exacto quedó auditado en producción el 2026-09-05: «violates foreign key
+    // constraint "code_executions_question_id_fkey"», con un id que está en
+    // `workshop_questions`. Y arreglar solo ese FK movía el fallo al de
+    // `submission_id`, que apunta a `submissions`.
+    //
+    // Así que se COMPRUEBA que la entrega sea de examen antes de enlazar: una
+    // consulta por clave primaria. Si no lo es, las dos columnas quedan NULL y la
+    // ejecución se guarda igual — que es lo que se quiere: la evidencia de lo que
+    // corrió el estudiante no se pierde por no saber de dónde viene.
+    let esDeExamen = false;
+    if (submissionId) {
+      const { data: entrega } = await admin
+        .from("submissions")
+        .select("id")
+        .eq("id", submissionId)
+        .maybeSingle();
+      esDeExamen = !!entrega;
+    }
     const { error: insErr } = await admin.from("code_executions").insert({
-      submission_id: submissionId || null,
-      question_id: submissionId ? questionId : null,
+      submission_id: esDeExamen ? submissionId : null,
+      question_id: esDeExamen ? questionId : null,
       user_id: u.user.id,
       language,
       source_code: sourceCode,

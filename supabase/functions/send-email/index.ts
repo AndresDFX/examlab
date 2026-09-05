@@ -379,16 +379,40 @@ Deno.serve(async (req: Request) => {
     //
     // Caso real (2026-09-04): la consulta devolvió "Gateway Timeout" y quedó
     // auditada como que la notificación no existía — existía, y ahí seguía. Quien
-    // fuera a diagnosticarlo se iba a buscar una notificación borrada. Además el
-    // 404 dice "no insistas" para algo que era transitorio: se responde 503, que
-    // es reintentable, y así el cron de reintentos hace su trabajo.
+    // fuera a diagnosticarlo se iba a buscar una notificación borrada.
+    //
+    // ── Lo que habilita el reintento es la COLUMNA, no el status HTTP ──
+    // Los dos invocadores de esta edge son `PERFORM net.http_post`
+    // fire-and-forget: nadie lee la respuesta. Lo que mira el cron
+    // `retry_failed_email_notifications` (mig 20261320000000) es
+    // `email_skipped_reason`, y esta rama no la escribía — así que la
+    // notificación quedaba fuera del reintento PARA SIEMPRE. Por eso se escribe
+    // acá. El 503 se mantiene porque es el status correcto para un fallo
+    // transitorio, no porque hoy alguien lo lea.
     const falloConsulta = !!rowErr;
-    await auditEmail(notificationId, "email.failed", "error", {
+    const detalle = rowErr?.message ?? "unknown";
+    // El cron reintenta por PATRÓN sobre el motivo (timeout / temporary / try
+    // again / provider_error 4xx). Un fallo de consulta que no encaja en
+    // ninguno no es transitorio, y no debe entrar en un bucle de reintentos.
+    const seReintenta = falloConsulta && /timeout|temporary|try again/i.test(detalle);
+    if (falloConsulta) {
+      // Best-effort: si la base está caída esto también falla, y no pasa nada —
+      // el audit de abajo ya deja la traza.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (adminClient as any)
+        .from("notifications")
+        .update({ email_skipped_reason: `notification_lookup_failed: ${detalle}`.slice(0, 500) })
+        .eq("id", notificationId);
+    }
+    // Misma regla que `failureSeverity` más abajo: lo que se va a reintentar es
+    // un aviso, no un error accionable.
+    await auditEmail(notificationId, "email.failed", seReintenta ? "warning" : "error", {
       reason: falloConsulta ? "notification_lookup_failed" : "notification_not_found",
-      error: rowErr?.message ?? "unknown",
+      error: detalle,
+      se_reintenta: seReintenta,
     });
     return falloConsulta
-      ? jsonError(`notification lookup failed: ${rowErr.message}`, 503)
+      ? jsonError(`notification lookup failed: ${detalle}`, 503)
       : jsonError("notification not found", 404);
   }
 

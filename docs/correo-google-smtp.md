@@ -282,6 +282,16 @@ Filtrá por estas cuatro acciones ([AuditLogsView.tsx:142](../src/modules/admin/
 | `email.skipped` | Se decidió no mandarlo. La metadata trae `reason` y `stage` (`"trigger"` o `"edge"`). |
 | `email.failed` | Error real. La metadata trae el motivo: `smtp_env_missing` (con el mapa de cuál secret falta), `smtp_port_invalid`, o el error del proveedor. |
 
+Dos motivos de `email.failed` que se parecen y NO son lo mismo:
+
+| `reason` | Qué pasó | ¿Hay que hacer algo? |
+|---|---|---|
+| `notification_not_found` | La notificación **no existe**: la borraron entre que el trigger disparó y que la edge la fue a buscar. | No. Es esperable si alguien limpió notificaciones. |
+| `notification_lookup_failed` | La notificación **sí existe**, pero la consulta falló (p. ej. `Gateway Timeout`). | Sólo si `se_reintenta` viene en `false`: ahí el correo se perdió. Con `true`, el cron lo reintenta solo y el evento queda como `warning`. |
+
+Hasta el 2026-09-05 los dos se registraban como `notification_not_found`, así que un problema
+momentáneo de la base mandaba a buscar una notificación borrada que en realidad seguía ahí.
+
 **Camino B — SQL Editor** (más directo para diagnosticar):
 
 ```sql

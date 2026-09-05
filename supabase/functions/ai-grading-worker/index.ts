@@ -20,6 +20,7 @@
  * errores no transitorios quedan `failed` para inspección.
  */
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
+import { isTransientError } from "../_shared/transient-errors.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -143,7 +144,11 @@ Deno.serve(async (req) => {
 
   // Procesa UN job ya reclamado (status=processing). Devuelve el desenlace.
   // NO relanza: siempre deja el job en done/failed/cancelled.
-  const runJob = async (job: QueueJob): Promise<"ok" | "failed" | "skipped"> => {
+  // `failed_proveedor` = la falla es del PROVEEDOR (429, 5xx, timeout), no de
+  // este job. La distincion existe porque el drenado corta al primer fallo, y
+  // sin ella UNA entrega que el modelo no sabe calificar bloquea la cola entera.
+  type ResultadoJob = "ok" | "failed" | "failed_proveedor" | "skipped";
+  const runJob = async (job: QueueJob): Promise<ResultadoJob> => {
     try {
       // Guard: si el target de TALLER/PROYECTO ya está CALIFICADO, el job
       // quedó obsoleto — lo cancelamos SIN gastar IA. (Exámenes NO entran:
@@ -243,7 +248,7 @@ Deno.serve(async (req) => {
       // complete_ai_grading reintenta transitorios (re-pending); el resto → failed.
       await adminClient.rpc("complete_ai_grading", { _job_id: job.id, _ok: false, _error: msg });
       await auditJob("ai_grading.job_failed", "error", job, { error_message: msg.slice(0, 500) });
-      return "failed";
+      return isTransientError(msg) ? "failed_proveedor" : "failed";
     }
   };
 
@@ -263,7 +268,7 @@ Deno.serve(async (req) => {
       mode: "single",
       processed: r === "ok" ? 1 : 0,
       succeeded: r === "ok" ? 1 : 0,
-      failed: r === "failed" ? 1 : 0,
+      failed: r === "failed" || r === "failed_proveedor" ? 1 : 0,
       skipped: r === "skipped" ? 1 : 0,
     });
   }
@@ -303,8 +308,16 @@ Deno.serve(async (req) => {
     else if (r === "skipped") skipped++;
     else {
       failed++;
-      stopped = "failure"; // si falla alguno, hasta ahí llega
-      break;
+      // Cortar SOLO si la falla es del proveedor (429, 5xx, timeout): ahi seguir
+      // es martillar algo que esta caido. Si la falla es de ESTE job --el modelo
+      // no devolvio el formato esperado, el contenido rompe el parseo-- cortar
+      // dejaria a toda la cola detras de una sola entrega. Antes daba igual,
+      // porque un lote fallido devolvia `ok`; desde que se dejo de convertir un
+      // fallo de IA en un cero, esta rama decide si la cola avanza.
+      if (r === "failed_proveedor") {
+        stopped = "failure";
+        break;
+      }
     }
   }
 

@@ -76,9 +76,12 @@ export function normalizeErrorMessage(msg: string): string {
     // vocabulario: el id de sesión que Gmail agrega al final de cada rechazo
     // hacía que 124 rechazos de la MISMA credencial cayeran en 124 grupos
     // distintos, y el panel dejaba de servir para triaje. Medido sobre 1000
-    // eventos reales: 893 grupos → 160, y lo único que se junta son mensajes
+    // El identificador puede llevar PUNTOS dentro: Gmail cierra el suyo con un
+    // sufijo `.3` / `.39`, y sin contemplarlo el mismo rechazo seguia partido en
+    // 147 grupos. Medido sobre 1000 eventos reales: 893 grupos → 18, y lo unico
+    // que se junta son mensajes
     // idénticos salvo ese id.
-    .replace(/\b(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{6,}\b/g, "?")
+    .replace(/\b(?=[a-z0-9]*[a-z])(?=[a-z0-9]*\d)[a-z0-9]{6,}(?:\.[a-z0-9]+)*\b/g, "?")
     // Los números CORTOS se dejan a propósito: colapsarlos fundiría
     // "HTTP 429" con "HTTP 503", que es justo la distinción que decide si el
     // error se reintenta solo o hay que ir a mirarlo.

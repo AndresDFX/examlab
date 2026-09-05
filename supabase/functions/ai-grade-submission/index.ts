@@ -748,7 +748,7 @@ Deno.serve(async (req) => {
             response_snippet: out.batchError.response_snippet,
           }),
           {
-            status: out.batchError.http_status ?? 500,
+            status: out.batchError.kind === "http" ? (out.batchError.http_status ?? 502) : 422,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
@@ -862,7 +862,7 @@ Deno.serve(async (req) => {
         // detecte como error transiente cuando aplica (http_status 429/5xx).
         // El retry automático que metimos en complete_ai_grading mira
         // el mensaje — incluimos http_status para que matchee el regex.
-        const httpStatus = outWf.batchError.http_status ?? 500;
+        const httpStatus = outWf.batchError.kind === "http" ? (outWf.batchError.http_status ?? 502) : 422;
         const snippet = outWf.batchError.response_snippet ?? "sin detalle";
         throw new Error(
           `workshop_full batch failed: ${outWf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
@@ -1204,7 +1204,7 @@ Deno.serve(async (req) => {
 
       const outPf = await gradeOpenAnswersInBatch(batchInput, systemWithCtx, pfLangName);
       if ("batchError" in outPf) {
-        const httpStatus = outPf.batchError.http_status ?? 500;
+        const httpStatus = outPf.batchError.kind === "http" ? (outPf.batchError.http_status ?? 502) : 422;
         const snippet = outPf.batchError.response_snippet ?? "sin detalle";
         throw new Error(
           `project_full batch failed: ${outPf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
@@ -2777,6 +2777,13 @@ Idioma de salida: ${langName}.`,
             provider: (await getActiveAiModel()).provider,
           },
         });
+        // El status NO es decorativo: el worker lanza `Edge function ... -> <status>`
+        // y `TRANSIENT_ERROR_PATTERN` matchea `5\d\d`, asi que un 500 se reintenta
+        // tres veces. Un `no_tool_call` o un `parse_failed` no mejoran repitiendo la
+        // MISMA llamada al MISMO modelo: gastan cuota y, desde el arreglo del drenado,
+        // ademas lo cortan como si el proveedor estuviera caido. Por eso 422 cuando la
+        // falla no es del proveedor: 4xx no entra en el patron, el job queda `failed` a
+        // la vista y el docente decide. Los otros tres lotes de este archivo hacen lo mismo.
         return new Response(
           JSON.stringify({
             error: "Fallo al calificar en bloque",
@@ -2785,7 +2792,7 @@ Idioma de salida: ${langName}.`,
             response_snippet: err.response_snippet,
           }),
           {
-            status: err.http_status ?? 500,
+            status: err.kind === "http" ? (err.http_status ?? 502) : 422,
             headers: { ...corsHeaders, "Content-Type": "application/json" },
           },
         );
