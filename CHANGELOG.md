@@ -1070,13 +1070,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### Interno (equipo)
 
-- **El build de producción está ROTO en `main`, y no es por nada de este cambio.** `bun run build`
-  falla en el paso de prerender con `SyntaxError: The requested module '@tanstack/router-core' does
-  not provide an export named '_getRenderedMatches'`. Verificado con un build de control sobre el
-  estado de `main` sin tocar nada: falla idéntico. Es deriva de versiones entre
-  `@tanstack/start-plugin-core` y `@tanstack/router-core` en `node_modules`. Mientras no se arregle
-  **no se puede publicar**, porque `deploy:cf` es `build:cf && wrangler deploy`.
+- **El `node_modules` de la máquina de trabajo se había ido del lockfile, y eso hace mentir al
+  build local.** `bun run build` falla acá con `SyntaxError: The requested module
+  '@tanstack/router-core' does not provide an export named '_getRenderedMatches'`. **El build de
+  `main` está bien**: el workflow *Deploy a Cloudflare* corre ese mismo `bun run build:cf` y pasó en
+  verde sobre este commit. La diferencia es la instalación: local tiene `router-core 1.171.27` +
+  `start-plugin-core 1.171.39`, y `bun.lock` fija `1.168.15` + `1.167.34`; CI instala con
+  `--frozen-lockfile` y obtiene un par consistente. Se arregla con `bun install --frozen-lockfile`.
 
+  Lo que hay que llevarse: **un build local rojo no prueba nada sobre producción si el
+  `node_modules` no viene del lockfile.** Lo escribí primero como «el build está roto en `main`» y
+  era falso; lo desmintió mirar la conclusión real del workflow en vez de confiar en mi propia
+  máquina.
 - **Las dos compuertas del repo llevaban semanas en rojo, y eso las apaga.** `bun tsc --noEmit`
   daba 4 errores y `bun test` tenía 2 archivos fallando. Cuando la línea base ya está roja, el error
   que introduce el cambio siguiente no se distingue del ruido — me pasó en esta misma sesión y solo
