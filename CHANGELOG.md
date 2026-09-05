@@ -1110,7 +1110,10 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   `main` está bien**: el workflow *Deploy a Cloudflare* corre ese mismo `bun run build:cf` y pasó en
   verde sobre este commit. La diferencia es la instalación: local tiene `router-core 1.171.27` +
   `start-plugin-core 1.171.39`, y `bun.lock` fija `1.168.15` + `1.167.34`; CI instala con
-  `--frozen-lockfile` y obtiene un par consistente. Se arregla con `bun install --frozen-lockfile`.
+  `--frozen-lockfile` y obtiene un par consistente. La causa exacta: dos copias FÍSICAS de
+  `@tanstack/router-core` conviviendo —restos de un `npm install` viejo sombreando la instalación
+  nueva—, así que el build compilaba contra una y el prerender resolvía la otra. Se arregla con
+  `rm -rf node_modules && bun install --frozen-lockfile`, y tras hacerlo el build local pasa.
 
   Lo que hay que llevarse: **un build local rojo no prueba nada sobre producción si el
   `node_modules` no viene del lockfile.** Lo escribí primero como «el build está roto en `main`» y
@@ -1130,9 +1133,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     las que 10 fallan si se rompe el parser a propósito.
   - `tour-config.ts` declaraba `side: "over"`, que driver.js no acepta: el tipo era más ancho que la
     librería y habría dejado pasar un paso roto. Ningún paso lo usaba.
-  - `vite.config.ts` decía `cloudflare: false` y **esa opción no existe** (se llama `nitro`). La
-    línea que documenta «no desplegar Worker» no hacía nada; el build salía estático sólo porque el
-    default de `nitro` es «auto» y no detecta contexto Lovable fuera de él.
+  - `vite.config.ts` marcaba error en `cloudflare: false`, lo cambié a `nitro: false` y **me
+    equivoqué**: lo roto era el `node_modules` local, que tenía el plugin en 1.8.0 (donde la opción
+    sí se llama `nitro`) mientras `bun.lock` —lo que instala CI— fija la **1.4.0**, que declara
+    `cloudflare`. Con el nombre "corregido" la opción pasaba a ser la propiedad de más que el plugin
+    ignora, y se perdía la única línea que dice «no generes Worker». Revertido. Es el mismo error de
+    método que el del build: **medir contra una instalación que no viene del lockfile**.
 
   Al cierre: `bun tsc --noEmit` en EXIT 0 y `bun test` en 195/195 archivos, 3449/3449 pruebas.
 

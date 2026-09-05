@@ -70,7 +70,7 @@ export function ForceChangePasswordDialog({ userId, onChanged, onSignOut }: Prop
           category: "user",
           // Que la persona repita su contraseña anterior no es una falla del
           // sistema: es la validación funcionando. Ver el helper.
-          severity: severidadCambioContrasena(pwErr.message),
+          severity: severidadCambioContrasena(pwErr),
           metadata: { reason: pwErr.message, forced: true },
         });
         toast.error(friendlyError(pwErr));

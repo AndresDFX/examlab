@@ -47,9 +47,10 @@ export interface TourStep {
   /** Posición del popover. Auto-detecta si no se especifica.
    *  Para items del sidebar conviene 'right' (sidebar es izquierdo).
    *  Para items del footer del sidebar, 'right' también. */
-  // driver.js NO acepta "over" en `side` (su `DriveStep` solo admite los cuatro
-  // lados). Estaba declarado igual, asi que TypeScript habria dejado pasar un paso
-  // con un valor que la libreria no entiende. Ningun paso lo usaba.
+  // driver.js NO acepta "over" en `side`: su `DriveStep` solo admite los cuatro
+  // lados. Declararlo acá no "dejaba pasar" nada — al contrario, hacía que el
+  // array entero de pasos NO tipara contra `DriveStep[]`, y ese era uno de los
+  // cuatro errores que tenían `bun tsc --noEmit` en rojo. Ningún paso lo usaba.
   side?: "top" | "right" | "bottom" | "left";
   /** Alineación dentro del lado: 'start' | 'center' | 'end'. */
   align?: "start" | "center" | "end";

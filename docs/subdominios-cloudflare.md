@@ -209,6 +209,14 @@ cloudflare: false,                            // no generes Worker
 importa `dist/server/server.js`, pero el plugin de Cloudflare nombra esa entrada
 `index.js` y el build moría con `ERR_MODULE_NOT_FOUND`.
 
+> **Ojo con el nombre de la opción: depende de la versión del plugin.** `bun.lock`
+> fija `@lovable.dev/vite-tanstack-config` en la **1.4.0**, que declara `cloudflare`.
+> En la 1.8.0 esa opción pasó a llamarse `nitro`. El 2026-09-05 se cambió a `nitro`
+> creyendo que `cloudflare` no existía — el chequeo de tipos lo rechazaba— y se
+> revirtió: lo que estaba mal era el `node_modules` local, que tenía la 1.8.0
+> mientras CI instala la 1.4.0 desde el lockfile. Antes de "corregir" el nombre,
+> comprobar qué versión instala el lockfile.
+
 En `wrangler.jsonc`, **sin `main`** — eso es lo que lo vuelve un despliegue solo de
 assets:
 

@@ -1,8 +1,9 @@
 # Corre la suite de tests unitarios (vitest) + gate de coverage en
 # cada push a main, cada PR, y bajo demanda (workflow_dispatch).
 #
-# Cubre: helpers puros de src/lib + src/utils + modulos. Edge functions
-# y E2E quedan para workflows separados (no en esta fase).
+# Cubre: chequeo de tipos (`bun tsc --noEmit`) + helpers puros de src/lib +
+# src/utils + modulos. Edge functions y E2E quedan para workflows separados
+# (no en esta fase).
 #
 # Tiempo aprox: 1-2 min total (instalacion + ~5s de tests + coverage).
 #
@@ -75,6 +76,25 @@ jobs:
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
+
+      # ── Chequeo de tipos ────────────────────────────────────────────────
+      # Hasta el 2026-09-05 `bun tsc --noEmit` NO corría en NINGÚN workflow, así
+      # que un error de tipos llegaba a `main` sin que nada se pusiera rojo. Se
+      # descubrió con CUATRO errores acumulados —dos de ellos anulaban archivos
+      # de prueba enteros, uno declaraba un valor que driver.js no acepta, y otro
+      # delataba una opción de `vite.config.ts` que no existe y por eso no hacía
+      # nada—. Una compuerta que nadie mira no es una compuerta.
+      #
+      # Va ANTES de los tests a propósito: es más rápido y su mensaje es más
+      # directo que un fallo de runtime derivado del mismo problema.
+      - name: Type check (bun tsc --noEmit)
+        run: |
+          set -e
+          if ! bun tsc --noEmit; then
+            echo "::error title=Errores de tipos::'bun tsc --noEmit' falló. Corrélo local y arreglá los errores antes de mergear."
+            exit 1
+          fi
+          echo "✓ sin errores de tipos"
 
       # Coverage SIEMPRE corre (no es un step "opcional"). El gate
       # configurado en vitest.config.ts:thresholds está en 80% — si

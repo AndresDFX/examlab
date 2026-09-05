@@ -76,13 +76,20 @@ export default defineConfig({
   // `index.js`, y el build moría con ERR_MODULE_NOT_FOUND. Sin el plugin, la
   // salida vuelve al nombre que el prerender espera. El servidor que genera se
   // usa solo durante el build, para producir el HTML, y después se descarta.
-  // La opción se llama `nitro` (así la declara @lovable.dev/vite-tanstack-config
-  // 1.8.0). Estuvo escrita `cloudflare: false` desde la migración del 21/08, o sea
-  // que no hacía NADA: era una propiedad de más que el plugin ignoraba, y solo el
-  // chequeo de tipos la delataba. El build seguía saliendo estático de casualidad,
-  // porque el default de `nitro` es «auto» y solo se activa dentro de Lovable. Con
-  // el nombre correcto la intención queda cumplida y no depende de esa casualidad.
-  nitro: false,
+  // `cloudflare: false` — y NO `nitro: false`.
+  //
+  // El 2026-09-05 lo cambié a `nitro` porque el chequeo de tipos rechazaba
+  // `cloudflare`, y me equivoqué: lo que estaba mal era mi `node_modules`, que
+  // tenía el plugin en 1.8.0 (donde la opción sí se llama `nitro`) mientras
+  // `bun.lock` —lo que instala CI— fija la **1.4.0**, que declara
+  // `cloudflare?: Record<string, unknown> | false`. Con el nombre "corregido" la
+  // opción pasaba a ser la propiedad de más que el plugin ignora, y se perdía la
+  // única línea que dice "no generes Worker".
+  //
+  // Si alguna vez este chequeo vuelve a marcar `cloudflare`, lo primero que hay
+  // que mirar NO es el nombre de la opción: es si el `node_modules` local viene
+  // del lockfile (`rm -rf node_modules && bun install --frozen-lockfile`).
+  cloudflare: false,
   vite: {
     optimizeDeps: {
       exclude: ["@excalidraw/excalidraw"],

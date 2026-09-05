@@ -71,7 +71,7 @@ export function ChangePasswordDialog({ open, onOpenChange }: ChangePasswordDialo
           category: "user",
           // Que la persona repita su contraseña anterior no es una falla del
           // sistema: es la validación funcionando. Ver el helper.
-          severity: severidadCambioContrasena(error.message),
+          severity: severidadCambioContrasena(error),
           metadata: { reason: error.message },
         });
         toast.error(friendlyError(error));
