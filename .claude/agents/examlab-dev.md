@@ -123,8 +123,10 @@ lado hasta que se consultó producción, así que la fuente de verdad es la DB, 
 
 **Lo que NO está acá y no podés conseguir por tu cuenta** — vive como *GitHub Actions repository
 secret* (`deploy-secrets.yml` los empuja a los secrets de las edge functions), ni en la DB ni en el
-repo: `SUPABASE_SERVICE_ROLE_KEY`, API keys de IA (`GEMINI_API_KEY` / `OPENAI_API_KEY` /
-`AWS_BEARER_TOKEN_BEDROCK`), `JUDGE0_URL` + `JUDGE0_AUTH_TOKEN`, `APP_PUBLIC_URL` y los 5 secrets de
+repo: `SUPABASE_SERVICE_ROLE_KEY`, API keys de IA (`GEMINI_API_KEY`; `OPENAI_API_KEY` y
+`AWS_BEARER_TOKEN_BEDROCK` **no están cargadas** — la de Bedrock se quitó el 2026-09-07, así que
+activar `bedrock` u `openai` en la fila platform-default deja sin IA a las 7 instituciones, todas en
+`ai_mode='shared'`), `JUDGE0_URL` + `JUDGE0_AUTH_TOKEN`, `APP_PUBLIC_URL` y los 5 secrets de
 SMTP (`SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM`). Si una tarea los necesita, **pedíselos al
 usuario**: no los derives ni improvises un fallback. Las de grabación de demos están en
 `.env.recording`.

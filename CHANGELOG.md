@@ -68,9 +68,42 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > todas defensivas con `to_regclass`) y **una edge
 > function nueva** (`ai-generate-sql`); el resto es cliente.
 >
-> Además, para que Bedrock funcione hay que cargar el secret **`AWS_BEARER_TOKEN_BEDROCK`** como
-> *GitHub Actions repository secret* y re-correr `deploy-secrets.yml` (no viaja en las migraciones,
-> a propósito).
+> **La API key de Bedrock se quitó** (2026-09-07, ver «Seguridad» abajo). El proveedor `bedrock`
+> sigue existiendo como opción en el panel, pero **ya no tiene credencial**: activarlo en la fila
+> platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
+> Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
+> **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🔒 Seguridad
+
+- **Se quitó la API key de Bedrock (`AWS_BEARER_TOKEN_BEDROCK`).** El token quedó expuesto en un
+  chat, así que se retiró de la plataforma. Verificado antes de tocar nada: **no estaba en ningún
+  archivo del repo y nunca se commiteó** (`git log --all -S`), así que la exposición se limitó a esa
+  conversación; y **tampoco estaba en la base** — las columnas `bedrock_api_key` /
+  `bedrock_fallback_keys` de `ai_model_settings` están en `NULL`, la credencial vivía solo en el
+  entorno.
+
+  **El orden importó, y es el inverso del que documenta la mig `20261650000000` para activar un
+  proveedor.** Borrar la key primero habría dejado sin IA a las 7 instituciones —tutor, calificación
+  y generación—, porque **todas están en `ai_mode='shared'` y el proveedor de la fila
+  platform-default las gobierna a todas**, y esa fila estaba en `bedrock` sin ninguna key en la base.
+  Es exactamente la caída del 2026-08-19. Así que primero se movió el proveedor:
+
+  1. `ai_model_settings` → las **dos** filas que estaban en `bedrock` (la platform-default y la de
+     **UNIAJ**) pasaron a `gemini` / `gemini-2.5-flash`, que es lo que ya usaban las otras 6 y cuya
+     `GEMINI_API_KEY` **sí** está cargada en las edges (confirmado preguntándole al `health-check`,
+     no suponiéndolo). Se verificó leyendo de vuelta: un `UPDATE` que la RLS filtra devuelve 204 sin
+     error y sin tocar nada.
+  2. Se esperó a que expirara el caché de 60 s de `getActiveAiModel` y se hizo **una** llamada real
+     (`ai-generate-sql`): respondió en 3,5 s con SQL válido. De paso arregla otra cosa — el modelo de
+     Bedrock (`openai.gpt-oss-120b-1:0`) venía fallando 2 de 2 intentos de calificación.
+  3. Recién entonces se borró el secret del repo, y se verificó que ya no figura en `gh secret list`.
+
+  **Ojo con lo que NO alcanza este cambio**, porque es lo que de verdad cierra la fuga: borrar el
+  secret de GitHub **no lo quita de los secrets de las edge functions** — `deploy-secrets.yml` solo
+  *setea* los no vacíos, nunca quita (`if [ -n "$v" ]`), así que ahí sigue guardado hasta que alguien
+  lo saque del dashboard de Supabase. Y sobre todo: **quitarlo de ExamLab no invalida el token en
+  AWS**; mientras no se revoque allá, sigue siendo una credencial válida.
 
 ### 🎉 Novedades
 
