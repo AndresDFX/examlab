@@ -6,6 +6,8 @@
  * etc.) y un item mal-formado se ignora silenciosamente en el panel
  * "Library", lo cual es difícil de diagnosticar visualmente.
  */
+import { readFileSync } from "node:fs";
+
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_LIBRARY_ITEMS,
@@ -70,7 +72,7 @@ describe("DEFAULT_LIBRARY_ITEMS", () => {
     }
   });
 
-  it("incluye al menos un item por cada categoría curada (flowchart, UML, data structures, DB, POO, AWS)", () => {
+  it("incluye al menos un item por cada categoría curada (flowchart, UML, componentes, data structures, DB, POO, AWS)", () => {
     const names = DEFAULT_LIBRARY_ITEMS.map((i) => (i.name as string).toLowerCase());
     expect(names.some((n) => n.includes("flowchart"))).toBe(true);
     expect(names.some((n) => n.includes("uml"))).toBe(true);
@@ -78,6 +80,7 @@ describe("DEFAULT_LIBRARY_ITEMS", () => {
     expect(names.some((n) => n.startsWith("db ·"))).toBe(true);
     expect(names.some((n) => n.startsWith("poo ·"))).toBe(true);
     expect(names.some((n) => n.startsWith("aws ·"))).toBe(true);
+    expect(names.some((n) => n.startsWith("componentes ·"))).toBe(true);
   });
 
   it("cubre los servicios AWS clave (EC2, S3, Lambda, RDS, API Gateway, DynamoDB)", () => {
@@ -92,6 +95,58 @@ describe("DEFAULT_LIBRARY_ITEMS", () => {
     expect(names.some((n) => n.includes("db · tabla"))).toBe(true);
     expect(names.some((n) => n.includes("db · entidad"))).toBe(true);
     expect(names.some((n) => n.includes("db · relación"))).toBe(true);
+  });
+
+  it("Componentes incluye el vocabulario mínimo del diagrama", () => {
+    // Un diagrama de componentes sin las DOS interfaces no se puede dibujar:
+    // la provista y la requerida son las que, encajadas, forman el conector
+    // de ensamblaje. Y la dependencia punteada es lo que lo distingue de un
+    // diagrama de clases.
+    const ids = DEFAULT_LIBRARY_ITEMS.map((i) => i.id as string);
+    for (const id of [
+      "lib-comp-component",
+      "lib-comp-interface-provided",
+      "lib-comp-interface-required",
+      "lib-comp-port",
+      "lib-comp-dependency",
+      "lib-comp-package",
+    ]) {
+      expect(ids).toContain(id);
+    }
+  });
+
+  it("la dependencia de componentes es PUNTEADA, y la herencia de POO no", () => {
+    // Si las dos se dibujan igual, el diagrama miente: en UML la dependencia
+    // es punteada con punta abierta y la herencia sólida con punta triangular.
+    const dep = DEFAULT_LIBRARY_ITEMS.find((i) => i.id === "lib-comp-dependency");
+    const flecha = (dep!.elements as Array<Record<string, unknown>>).find((e) => e.type === "arrow");
+    expect(flecha?.strokeStyle).toBe("dashed");
+    expect(flecha?.endArrowhead).toBe("arrow");
+
+    const her = DEFAULT_LIBRARY_ITEMS.find((i) => i.id === "lib-poo-inheritance");
+    const flechaHer = (her!.elements as Array<Record<string, unknown>>).find((e) => e.type === "arrow");
+    expect(flechaHer?.endArrowhead).toBe("triangle");
+    expect(flechaHer?.strokeStyle ?? "solid").toBe("solid");
+  });
+
+  it("la interfaz requerida traza una media circunferencia que ABRE a la derecha", () => {
+    // La copa se dibuja como polilínea porque Excalidraw no tiene arco. Si
+    // los puntos quedaran al revés, la copa abriría al lado contrario y no
+    // encajaría con la bolita de la interfaz provista.
+    const req = DEFAULT_LIBRARY_ITEMS.find((i) => i.id === "lib-comp-interface-required");
+    const arco = (req!.elements as Array<Record<string, unknown>>)
+      .filter((e) => e.type === "line")
+      .map((e) => e.points as number[][])
+      .find((pts) => pts.length > 2);
+    expect(arco).toBeTruthy();
+    const xs = arco!.map(([x]) => x);
+    // El punto más a la IZQUIERDA está en el medio del trazo (es el fondo de
+    // la copa); los extremos son los más a la derecha.
+    const iMin = xs.indexOf(Math.min(...xs));
+    expect(iMin).toBeGreaterThan(0);
+    expect(iMin).toBeLessThan(xs.length - 1);
+    expect(xs[0]).toBeGreaterThan(xs[iMin]);
+    expect(xs[xs.length - 1]).toBeGreaterThan(xs[iMin]);
   });
 
   it("POO incluye interfaz, abstracta y enum", () => {
@@ -139,6 +194,39 @@ describe("LIBRARY_CATEGORIES", () => {
       expect(typeof cat.icon).toBe("string");
       expect(cat.icon.length).toBeGreaterThan(0);
     }
+  });
+
+  it("el ícono de CADA categoría está registrado en CATEGORY_ICONS del editor", () => {
+    // Invariante cross-file con fallo SILENCIOSO: el editor resuelve
+    // `CATEGORY_ICONS[cat.icon] ?? Shapes`, así que una categoría cuyo ícono no
+    // esté en ese mapa NO rompe el build ni ningún otro test — simplemente sale
+    // con el ícono genérico y nadie se entera. Es la misma clase de agujero que
+    // los `data-tour-*` del onboarding, que se filtran sin error.
+    //
+    // El mapa se lee del DISCO (mismo patrón que `page-types.test.ts` con su
+    // migración) y no se importa: `WhiteboardEditor.tsx` arrastra Excalidraw
+    // entero, que no tiene por qué entrar a una prueba de un módulo puro.
+    const src = readFileSync("src/modules/whiteboard/WhiteboardEditor.tsx", "utf8");
+    const bloque = /const CATEGORY_ICONS[^=]*=\s*\{([^}]*)\}/.exec(src);
+    expect(bloque, "no encontré el mapa CATEGORY_ICONS en WhiteboardEditor.tsx").toBeTruthy();
+    const registrados = new Set(
+      (bloque![1].match(/[A-Za-z][A-Za-z0-9]*/g) ?? []).map((x) => x.trim()),
+    );
+    // Si el regex dejara de matchear, el Set quedaría vacío y la prueba pasaría
+    // en vacío: se exige que haya encontrado varios.
+    expect(registrados.size).toBeGreaterThanOrEqual(5);
+    for (const cat of LIBRARY_CATEGORIES) {
+      expect(
+        registrados.has(cat.icon),
+        `la categoría "${cat.key}" usa el ícono "${cat.icon}", que no está en CATEGORY_ICONS`,
+      ).toBe(true);
+    }
+  });
+
+  it("el Diagrama de componentes va SEGUNDO, pegado al de clases (los dos son UML)", () => {
+    expect(LIBRARY_CATEGORIES[1].key).toBe("componentes");
+    expect(LIBRARY_CATEGORIES[1].items.length).toBeGreaterThanOrEqual(6);
+    expect(LIBRARY_CATEGORIES[1].icon).toBe("Blocks");
   });
 
   it("el Diagrama de clases (UML) va PRIMERO y agrupa clase UML + figuras POO", () => {

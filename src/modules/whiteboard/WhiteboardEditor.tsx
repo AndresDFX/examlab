@@ -50,6 +50,7 @@ import {
   ChevronDown,
   ChevronRight,
   Boxes,
+  Blocks,
   Workflow,
   Database,
   Binary,
@@ -80,6 +81,7 @@ import {
 // no acoplar el módulo puro a componentes React).
 const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Boxes,
+  Blocks,
   Workflow,
   Database,
   Binary,

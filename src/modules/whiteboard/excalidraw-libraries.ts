@@ -18,6 +18,10 @@
  *    pointer).
  *  - **Bases de datos**: tabla relacional (3 zonas: nombre, PK,
  *    columnas), entidad ER, relación ER (rombo), atributo ER (óvalo).
+ *  - **Componentes (UML)**: componente con su ícono de pestañas,
+ *    interfaz provista (bolita) y requerida (copa) —que juntas forman el
+ *    conector de ensamblaje—, puerto, dependencia `<<use>>` punteada y
+ *    paquete/subsistema como contenedor.
  *  - **POO**: interfaz (UML con `<<interface>>`), clase abstracta
  *    (`<<abstract>>`), enum y flecha de herencia (extends).
  *  - **AWS**: bloques esquemáticos para EC2, S3, RDS, Lambda, API
@@ -401,6 +405,153 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
         endArrowhead: "triangle",
       }),
       makeText(40, -22, 100, 18, "extends", 13),
+    ],
+  },
+  // ──────────────────────────────────────────────────────────────────
+  // Componentes (UML) — el diagrama que faltaba
+  // ──────────────────────────────────────────────────────────────────
+  // Un diagrama de componentes necesita cuatro cosas que ninguna otra
+  // categoría de este set daba: la caja con el ícono de componente, las
+  // interfaces PROVISTA y REQUERIDA (la bolita y la copa, que juntas forman
+  // el conector de ensamblaje), el puerto, y la dependencia punteada. Sin
+  // ellas el docente terminaba dibujando rectángulos a mano y el diagrama
+  // dejaba de leerse como UML.
+  // ── Componentes: Componente ──
+  // La caja lleva el ícono clásico —un rectángulo con dos pestañas al
+  // costado— porque es lo que distingue un componente de una clase a simple
+  // vista. El nombre se centra en los 170px de la IZQUIERDA para no quedar
+  // debajo del ícono.
+  {
+    id: "lib-comp-component",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Componente",
+    elements: [
+      makeElement("rectangle", 0, 0, 220, 80, {
+        backgroundColor: FILL_LIGHT,
+        roundness: null,
+      }),
+      makeText(0, 12, 220, 16, "<<component>>", 12),
+      makeText(0, 38, 170, 20, "NombreComponente", 17),
+      // El ícono: caja chica + las dos pestañas.
+      makeElement("rectangle", 180, 12, 26, 20, { roundness: null }),
+      makeElement("rectangle", 174, 16, 10, 5, {
+        roundness: null,
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeElement("rectangle", 174, 25, 10, 5, {
+        roundness: null,
+        backgroundColor: FILL_LIGHT,
+      }),
+    ],
+  },
+  // ── Componentes: Interfaz provista (bolita) ──
+  // "Lo que el componente OFRECE". Se engancha al borde de la caja.
+  {
+    id: "lib-comp-interface-provided",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Interfaz provista",
+    elements: [
+      makeElement("line", 0, 20, 48, 0, {
+        points: [
+          [0, 0],
+          [48, 0],
+        ],
+      }),
+      makeElement("ellipse", 48, 10, 20, 20, { backgroundColor: FILL_LIGHT }),
+      makeText(0, 36, 68, 16, "Interfaz", 12),
+    ],
+  },
+  // ── Componentes: Interfaz requerida (copa) ──
+  // "Lo que el componente NECESITA". Excalidraw no tiene arco, así que la
+  // media circunferencia se traza como polilínea: siete puntos sobre un
+  // radio de 12, de 90° a 270° pasando por 180°, de modo que la copa abre
+  // hacia la DERECHA y el palito entra por su punto más a la izquierda.
+  // Encajada con la bolita de arriba forma el conector de ensamblaje.
+  {
+    id: "lib-comp-interface-required",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Interfaz requerida",
+    elements: [
+      makeElement("line", 0, 20, 44, 0, {
+        points: [
+          [0, 0],
+          [44, 0],
+        ],
+      }),
+      makeElement("line", 44, 8, 12, 24, {
+        points: [
+          [12, 24],
+          [6, 22.4],
+          [1.6, 18],
+          [0, 12],
+          [1.6, 6],
+          [6, 1.6],
+          [12, 0],
+        ],
+      }),
+      makeText(0, 36, 64, 16, "Interfaz", 12),
+    ],
+  },
+  // ── Componentes: Puerto ──
+  // El cuadradito que se pone SOBRE el borde del componente. Acá va con un
+  // trocito de línea para que en la miniatura se entienda que se conecta.
+  {
+    id: "lib-comp-port",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Puerto",
+    elements: [
+      makeElement("rectangle", 0, 0, 18, 18, {
+        roundness: null,
+        backgroundColor: FILL_WARM,
+      }),
+      makeElement("line", 18, 9, 34, 0, {
+        points: [
+          [0, 0],
+          [34, 0],
+        ],
+      }),
+      makeText(0, 24, 60, 16, "puerto", 12),
+    ],
+  },
+  // ── Componentes: Dependencia <<use>> ──
+  // Punteada y con punta abierta, que es lo que la distingue de la flecha
+  // de herencia (sólida, punta triangular) que ya está en POO.
+  {
+    id: "lib-comp-dependency",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Dependencia (use)",
+    elements: [
+      makeElement("arrow", 0, 0, 180, 0, {
+        points: [
+          [0, 0],
+          [180, 0],
+        ],
+        strokeStyle: "dashed",
+        endArrowhead: "arrow",
+      }),
+      makeText(40, -22, 100, 18, "<<use>>", 13),
+    ],
+  },
+  // ── Componentes: Paquete / Subsistema ──
+  // La caja con pestaña arriba. Sirve de contenedor: el docente arrastra
+  // componentes ADENTRO, así que el cuerpo queda vacío a propósito.
+  {
+    id: "lib-comp-package",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Componentes · Paquete / Subsistema",
+    elements: [
+      makeElement("rectangle", 0, 0, 90, 26, {
+        roundness: null,
+        backgroundColor: FILL_LIGHT,
+      }),
+      makeText(0, 4, 90, 16, "Subsistema", 13),
+      makeElement("rectangle", 0, 26, 230, 120, { roundness: null }),
     ],
   },
   // ──────────────────────────────────────────────────────────────────
@@ -899,6 +1050,13 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     description: "Clase, interfaz, clase abstracta, enum y herencia.",
     icon: "Boxes",
     items: pickByPrefix(["lib-uml-", "lib-poo-"]),
+  },
+  {
+    key: "componentes",
+    label: "Diagrama de componentes (UML)",
+    description: "Componente, interfaz provista y requerida, puerto, dependencia y paquete.",
+    icon: "Blocks",
+    items: pickByPrefix(["lib-comp-"]),
   },
   {
     key: "flujo",

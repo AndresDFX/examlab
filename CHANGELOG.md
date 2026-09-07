@@ -74,6 +74,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Diagramas de componentes en la pizarra.** La paleta de figuras ya traía diagrama de clases, de
+  flujo, entidad–relación, estructuras de datos, arquitectura AWS y redes; le faltaba el de
+  componentes, así que había que dibujarlo con rectángulos a mano y dejaba de leerse como UML.
+
+  Se agregó la sección **«Diagrama de componentes (UML)»** —segunda en el panel, pegada a la de
+  clases— con las seis figuras que hacen falta para armarlo: el **componente** con su ícono de
+  pestañas (lo que lo distingue de una clase a simple vista), la **interfaz provista** (la bolita) y
+  la **requerida** (la copa), que encajadas forman el conector de ensamblaje, el **puerto**, la
+  **dependencia `<<use>>`** punteada y el **paquete/subsistema** como contenedor para arrastrar
+  componentes adentro.
+
 - **Repartir los grupos de un taller al azar, y poder dejar afuera a los que no vinieron.** Los grupos
   ya existían pero se armaban a mano: crear cada uno escribiendo su nombre y arrastrar a cada
   estudiante. Para un curso de 31 en grupos de 4 eran 8 nombres y 31 arrastres, en clase y con la
