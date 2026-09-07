@@ -74,6 +74,43 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El grid de asistencia se actualiza solo.** La pantalla del docente
+  (`/app/teacher/attendance`) cargaba una vez y se quedaba quieta: mientras el salón escaneaba el QR,
+  el docente veía la lista sin moverse y tenía que recargar a mano para saber quién ya se había
+  marcado — sin forma de distinguir «nadie marcó todavía» de «la pantalla se quedó pegada».
+
+  Ahora se refresca por tres caminos, y son tres a propósito: un **canal de realtime** sobre
+  `attendance_records` (inmediato, con 800 ms de amortiguación porque cuando el curso entero escanea
+  llegan decenas de eventos en pocos segundos), un **sondeo de 20 s** que corre solo con la pestaña
+  visible, y un **refresco al volver a la pestaña**, que es el caso más común: el docente proyecta el
+  QR en otra ventana y vuelve al grid. El sondeo es la red de seguridad, no el camino principal: el
+  canal se cae sin avisar y eso no deja ningún rastro en pantalla — el mismo motivo que ya estaba
+  escrito en `AttendanceCheckInProjector`.
+
+  Dos cosas que se hicieron para que el refresco automático no empeore la pantalla que arregla:
+  un refresco de fondo **no activa el skeleton** (reemplaza el grid entero: parpadearía cada ciclo) y
+  **no reemplaza datos buenos por un cartel de error** si falla la red, porque el siguiente lo
+  arregla solo; y **solo la carga más reciente aplica** (`turnoCargaRef`), porque con varias consultas
+  en vuelo una que salió ANTES de que el docente marcara a un alumno puede volver DESPUÉS y reponer el
+  valor viejo, sin error y sin que nada lo diga.
+
+  Verificado en un navegador de verdad contra el código final, no por inspección: insertando la marca
+  POR FUERA (como haría un alumno escaneando), la fila pasa de `— — 0%` a `P — 50%` sin recargar, y al
+  deshacerla vuelve sola —ese es el camino en que el payload del DELETE no trae `session_id` y cae al
+  respaldo—. La prueba lleva una **ventana de control** (5 s sin insertar nada: la fila no se mueve) y
+  se corrió con el cambio revertido para comprobar que entonces FALLA. Medido además: 2 refrescos en
+  45 s quietos, 0 websockets nuevos (no se re-suscribe en bucle) y 0 refrescos con la pestaña oculta.
+
+### 🐛 Arreglos
+
+- **La app no se podía abrir en local: `/app` entero moría con «Cannot access 'lazy' before
+  initialization».** `AppLayout` usa `lazy` en el CUERPO del módulo (`const OnboardingTour =
+  lazy(...)`, línea ~59) pero importaba React ~50 líneas MÁS ABAJO. En el build de producción Rollup
+  ordena los imports y funciona —por eso el sitio publicado nunca se vio afectado—, pero el dev
+  server de Vite los ejecuta en el orden escrito, así que la binding quedaba en zona muerta y el
+  `ErrorBoundary` reemplazaba toda la ruta `/app`. Era preexistente (se reproduce sin ningún cambio
+  encima) y bloqueaba verificar en local CUALQUIER pantalla de la app. El import subió arriba de todo.
+
 - **Diagramas de componentes en la pizarra.** La paleta de figuras ya traía diagrama de clases, de
   flujo, entidad–relación, estructuras de datos, arquitectura AWS y redes; le faltaba el de
   componentes, así que había que dibujarlo con rectángulos a mano y dejaba de leerse como UML.

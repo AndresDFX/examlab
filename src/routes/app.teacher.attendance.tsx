@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
@@ -502,16 +502,48 @@ function TeacherAttendance() {
     };
   }, []);
 
+  // Turno de la carga vigente. Con el refresco automático hay varias en vuelo
+  // a la vez (la manual del docente, la del canal, la del sondeo) y las
+  // respuestas pueden llegar en cualquier orden: una consulta que salió ANTES
+  // de que el docente marcara a un alumno puede volver DESPUÉS y reponer el
+  // valor viejo, sin error y sin que nada lo diga. Solo la más reciente aplica.
+  const turnoCargaRef = useRef(0);
+
   // Load data for selected course.
   // `isActive` permite al effect abortar los setState cuando el docente
   // cambia de curso / desmonta antes de que resuelvan los awaits (patrón
   // `let cancelled = false` del repo). Los handlers que la re-invocan para
   // refrescar la llaman sin argumento → siempre activa.
   const loadCourse = useCallback(
-    async (isActive: () => boolean = () => true) => {
+    /**
+     * `silencioso` = refresco de fondo (realtime / sondeo / volver a la
+     * pestaña). NO toca `loadingCourse` ni `courseError` a propósito:
+     *  - el skeleton reemplaza el grid entero, así que activarlo cada ciclo
+     *    haría parpadear la pantalla mientras el docente la mira;
+     *  - y un fallo pasajero de red no debe tapar datos que están bien: es
+     *    mejor quedarse con lo último bueno que cambiar el grid por un cartel
+     *    de error. El próximo refresco lo arregla, y el manual sí lo muestra.
+     */
+    async (isActive: () => boolean = () => true, silencioso = false) => {
     if (!courseId) return;
-    setLoadingCourse(true);
-    setCourseError(null);
+    const miTurno = ++turnoCargaRef.current;
+    // `isActive` cubre el desmontaje; el turno cubre el adelantamiento.
+    const aplicable = () => isActive() && turnoCargaRef.current === miTurno;
+    // Único camino para los fallos, para que las cuatro ramas de error
+    // (las tres de dentro del `try` y el `catch`) respeten `silencioso`.
+    // Estaban sueltas y tres de ellas lo ignoraban.
+    const fallo = (err: unknown) => {
+      if (!aplicable()) return;
+      if (silencioso) {
+        console.warn("[asistencia] refresco de fondo falló:", err);
+        return;
+      }
+      setCourseError(friendlyError(err, t("teacherAttendance.loadCoursesErrorHint")));
+    };
+    if (!silencioso) {
+      setLoadingCourse(true);
+      setCourseError(null);
+    }
     try {
     const [
       { data: sess, error: sessErr },
@@ -546,13 +578,13 @@ function TeacherAttendance() {
         .is("deleted_at", null)
         .or(`course_id.eq.${courseId},course_id.is.null`),
     ]);
-    if (!isActive()) return;
+    if (!aplicable()) return;
     // sesiones + matriculados son la data crítica del tablero: sin ellas la
     // grilla no tiene sentido. cortes / contenidos son secundarios (solo
     // enriquecen los selectores), así que no bloquean el render.
     const criticalErr = sessErr ?? enrErr;
     if (criticalErr) {
-      setCourseError(friendlyError(criticalErr, t("teacherAttendance.loadCoursesErrorHint")));
+      fallo(criticalErr);
       return;
     }
     setSessions((sess ?? []) as Session[]);
@@ -586,9 +618,9 @@ function TeacherAttendance() {
         .select("id, full_name, institutional_email")
         .in("id", userIds)
         .order("full_name");
-      if (!isActive()) return;
+      if (!aplicable()) return;
       if (profErr) {
-        setCourseError(friendlyError(profErr, t("teacherAttendance.loadCoursesErrorHint")));
+        fallo(profErr);
         return;
       }
       setStudents((profs ?? []) as Student[]);
@@ -603,9 +635,9 @@ function TeacherAttendance() {
         .from("attendance_records")
         .select("*")
         .in("session_id", sessionIds);
-      if (!isActive()) return;
+      if (!aplicable()) return;
       if (recsErr) {
-        setCourseError(friendlyError(recsErr, t("teacherAttendance.loadCoursesErrorHint")));
+        fallo(recsErr);
         return;
       }
       setRecords((recs ?? []) as Record_[]);
@@ -613,9 +645,12 @@ function TeacherAttendance() {
       setRecords([]);
     }
     } catch (e) {
-      if (isActive()) setCourseError(friendlyError(e));
+      fallo(e);
     } finally {
-      if (isActive()) setLoadingCourse(false);
+      // SIN el guard de turno a propósito: si esta carga quedó adelantada por
+      // un refresco SILENCIOSO (que no toca `loadingCourse`), gatearlo acá
+      // dejaría el skeleton puesto para siempre.
+      if (isActive() && !silencioso) setLoadingCourse(false);
     }
     },
     // `t` se usa solo para los mensajes de error y es estable por instancia de
@@ -632,6 +667,117 @@ function TeacherAttendance() {
       cancelled = true;
     };
   }, [loadCourse, courseRetryNonce]);
+
+  // Las sesiones del curso, en un ref. El canal de `attendance_records` filtra
+  // con esto en el handler y NO en la suscripción, así que no hay que
+  // re-suscribirse cada vez que el docente agrega o mueve una sesión.
+  const sessionIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    sessionIdsRef.current = new Set(sessions.map((x) => x.id));
+  }, [sessions]);
+
+  /**
+   * El grid se actualiza SOLO: canal de realtime + sondeo + refresco al volver
+   * a la pestaña.
+   *
+   * Los tres, y no solo el canal, por el mismo motivo que ya está escrito en
+   * `AttendanceCheckInProjector`: el canal se cae sin avisar —la policy de
+   * `attendance_records` pasa por `attendance_session_in_my_tenant` y evaluar
+   * eso en realtime es frágil, el navegador duerme la pestaña, el socket
+   * reconecta— y ninguno de esos casos deja rastro en pantalla. El docente
+   * simplemente ve una lista que no se mueve y no tiene forma de saber si nadie
+   * marcó o si la pantalla se quedó pegada.
+   *
+   * 20 s de sondeo y no 8 como el proyector: acá el docente no está mirando un
+   * número, y el refresco son cuatro consultas (sesiones, matrículas, cortes,
+   * contenidos) en vez de una. Con el canal vivo la actualización es inmediata
+   * igual; el sondeo es la red de seguridad, no el camino principal.
+   *
+   * Reparto de responsabilidades: el CANAL cubre las marcas de asistencia
+   * (`attendance_records`, que es lo que se mueve mientras el salón escanea el
+   * QR); el SONDEO cubre todo lo demás y el canal caído; y el refresco al
+   * volver a la pestaña cubre el ir y venir entre el grid y la proyección.
+   */
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    let debounce: number | undefined;
+
+    const refrescar = () => {
+      if (cancelled) return;
+      window.clearTimeout(debounce);
+      // Cuando el salón entero escanea el QR llegan decenas de eventos en
+      // pocos segundos; sin esto sería una recarga por cada uno. Mismo
+      // criterio que el canal de la cola de IA.
+      debounce = window.setTimeout(() => {
+        if (!cancelled) void loadCourse(() => !cancelled, true);
+      }, 800);
+    };
+
+    const canalRegistros = supabase
+      .channel(`asistencia-registros-${courseId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "attendance_records" },
+        (payload) => {
+          // La suscripción va SIN filtro: `attendance_records` no tiene
+          // `course_id`, y un `session_id=in.(…)` con dieciséis sesiones es
+          // frágil y hay que rearmarlo cada vez que cambia una. Se descarta
+          // acá lo que no sea de este curso.
+          //
+          // Se lee de `new` O de `old`, y NO con `payload.new ?? payload.old`:
+          // en un DELETE supabase-js manda `new` como objeto VACÍO, no como
+          // null, así que el `??` nunca cae al viejo. Medido el 2026-09-07
+          // contra producción.
+          const nueva = payload.new as { session_id?: string } | null;
+          const vieja = payload.old as { session_id?: string } | null;
+          const sid = nueva?.session_id ?? vieja?.session_id;
+          // Medido el mismo día, con el JWT del DOCENTE (la RLS de realtime se
+          // evalúa con el suyo, no con el de un superadmin):
+          //   INSERT → new = fila completa, old = {}
+          //   UPDATE → new = fila completa, old = fila completa
+          //   DELETE → new = {},            old = SOLO {id}
+          // Ojo con la inferencia tentadora: la mig 20261970000000 puso
+          // REPLICA IDENTITY FULL en esta tabla, y eso hace que el UPDATE
+          // traiga el `old` COMPLETO — pero en el DELETE Realtime manda
+          // igual solo la clave. O sea que una BAJA siempre cae en el `!sid`
+          // y refresca sin poder filtrar. Está bien así: el costo de una
+          // consulta de más es menor que el de perderse que alguien deshizo
+          // una marca.
+          if (!sid || sessionIdsRef.current.has(sid)) refrescar();
+        },
+      )
+      .subscribe();
+
+    // NO hay canal para `attendance_sessions`, y es deliberado: esa tabla no
+    // está en la publicación `supabase_realtime` (solo `attendance_records` lo
+    // está, desde la mig 20260507100000, con REPLICA IDENTITY FULL desde la
+    // 20261970000000). Suscribirse igual compilaría y se suscribiría sin error
+    // — y no recibiría NUNCA un evento: una suscripción muerta que parece
+    // funcionar. Publicar la tabla tampoco se justifica: los cambios de sesión
+    // los hace el docente DESDE ESTA MISMA pantalla, que ya recarga al
+    // terminar la acción, y el caso de otro dispositivo lo cubre el sondeo.
+
+    // Solo con la pestaña visible: sondear una pestaña de fondo es gasto puro.
+    const sondeo = window.setInterval(() => {
+      if (typeof document === "undefined" || document.visibilityState === "visible") refrescar();
+    }, 20_000);
+
+    // Al volver a la pestaña, sin esperar el intervalo. Es el caso más común:
+    // el docente proyecta el QR en otra ventana y vuelve al grid.
+    const alVolver = () => {
+      if (document.visibilityState === "visible") refrescar();
+    };
+    document.addEventListener("visibilitychange", alVolver);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(debounce);
+      window.clearInterval(sondeo);
+      document.removeEventListener("visibilitychange", alVolver);
+      supabase.removeChannel(canalRegistros);
+    };
+  }, [courseId, loadCourse]);
 
   // Carga lazy de los videos disponibles para asociar a sesión. Se llama
   // cuando se abre el dialog de nueva sesión o el de editar grabación.

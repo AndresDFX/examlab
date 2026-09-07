@@ -1,3 +1,11 @@
+// El import de React va PRIMERO porque `lazy` se usa en el CUERPO del módulo
+// (`const OnboardingTour = lazy(...)`, más abajo), no dentro de un componente.
+// Estaba declarado ~50 líneas DESPUÉS de ese uso: en el build de producción
+// Rollup ordena los imports y funciona, pero el dev server de Vite los ejecuta
+// en el orden escrito, así que la binding quedaba en zona muerta y `/app`
+// entero moría con «Cannot access 'lazy' before initialization» — la app no se
+// podía abrir en local, solo en producción.
+import { useState, useEffect, lazy, Suspense } from "react";
 import { Link, useLocation, useNavigate, useMatchRoute } from "@tanstack/react-router";
 import { useAuth, type AppRole } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -105,7 +113,6 @@ import {
   Bot,
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
-import { useState, useEffect, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { currentFullscreenElement, onFullscreenChange } from "@/shared/lib/fullscreen";
 
