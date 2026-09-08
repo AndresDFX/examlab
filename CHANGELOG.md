@@ -136,6 +136,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Un taller ya disponible seguía diciendo «Próximo» (y lo mismo en proyectos).** Reportado con
+  «Joins en SQL», que abría a las 19:27 y a las 19:44 seguía mostrándose como próximo, con el
+  contador de «Disponibles» en 0.
+
+  La causa no era la fecha del taller —medida contra producción, estaba 19 minutos en el pasado y el
+  taller estaba publicado— sino el RELOJ de la pantalla: `app.student.workshops.tsx` y
+  `app.student.projects.tsx` calculaban `const now = Date.now()` en el render y **nada lo volvía a
+  evaluar**, así que el estado de cada ítem quedaba congelado en el instante en que se pintó. Con la
+  pantalla abierta, el límite se cruzaba sin que nada se enterara: ni de «Próximo» a «Disponible», ni
+  de «Disponible» a «Vencido». `useReloadOnVisible` tapaba solo el caso de irse a otra pestaña y
+  volver.
+
+  **Exámenes ya lo tenía resuelto** (`setInterval` de 30 s, con el detalle de arrancar el estado en 0
+  y no en `Date.now()` para no romper la hidratación). Se aplicó el mismo patrón —y la misma
+  justificación— a talleres y proyectos, que eran las dos pantallas que faltaban.
+
+  Verificado en un navegador de verdad y sin escribir en ninguna base: se interceptó la consulta real
+  que alimenta la pantalla (`workshop_assignments`, con el taller embebido) y se le movió UN campo, el
+  vencimiento, a 35 s en el futuro. El taller entró como «Disponible», los ticks del reloj se
+  observaron en la consola, y al cruzar la fecha el ítem cambió de estado por su cuenta **sin
+  recargar**. Antes del arreglo, no cambiaba nunca.
+
 - **La app no se podía abrir en local: `/app` entero moría con «Cannot access 'lazy' before
   initialization».** `AppLayout` usa `lazy` en el CUERPO del módulo (`const OnboardingTour =
   lazy(...)`, línea ~59) pero importaba React ~50 líneas MÁS ABAJO. En el build de producción Rollup

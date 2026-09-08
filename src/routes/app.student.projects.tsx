@@ -357,7 +357,32 @@ function StudentProjects() {
     if (user) void reload(user.id);
   });
 
-  const now = Date.now();
+  // Reloj que AVANZA. Antes era `const now = Date.now()` a secas: se evaluaba
+  // en el render y nada lo volvía a evaluar, así que el estado de cada ítem
+  // quedaba congelado en el instante en que se pintó. Un alumno con la pantalla
+  // abierta veía "Próximo" en un taller que YA había abierto —reportado en
+  // producción el 2026-09-07 con «Joins en SQL», que abría 19:27 y seguía
+  // diciendo Próximo pasada esa hora— y lo mismo al revés: un ítem que vencía
+  // seguía figurando como disponible. `useReloadOnVisible` (arriba) tapaba solo
+  // el caso de irse a otra pestaña y volver; con la pantalla a la vista, el
+  // límite se cruzaba sin que nada se enterara.
+  //
+  // Arranca en 0 y NO en Date.now(): el initializer de useState corre también
+  // en el pre-render del servidor, y dos relojes distintos a ambos lados de un
+  // borde de inicio/fin dan árboles distintos → hydration mismatch (React
+  // #418). El 0 es inobservable porque `rows` arranca vacío: nada que dependa
+  // de `now` se pinta hasta que la query resuelve, y el effect ya lo puso en
+  // hora. Mismo patrón —y misma justificación— que `app.student.exams.tsx`,
+  // que es donde esto ya estaba resuelto.
+  const [now, setNow] = useState(0);
+
+  useEffect(() => {
+    // En hora en el primer tick POST-MOUNT, sin esperar los 30 s: con now=0
+    // todo ítem daría `now < start` y se vería como "próximo".
+    setNow(Date.now());
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
 
   // Cursos disponibles para el filtro <Select>. Deduplicado por id.
   const availableCourses = useMemo(() => {
