@@ -4,6 +4,7 @@ import {
   ATTENDANCE_CODE_ROTATION_DEFAULT,
   attendanceCodeIsStatic,
   attendancePeriod,
+  attendanceRotationBecomesFixed,
   attendanceSecondsToNextRotation,
   buildAttendanceCheckInUrl,
   computeAttendanceCode,
@@ -156,5 +157,45 @@ describe("código FIJO (rotationSeconds = 0)", () => {
     const b = await computeAttendanceCode(seed, attendancePeriod(0, 999_999_999_999));
     expect(a).toBe(b);
     expect(a).toMatch(/^\d{6}$/);
+  });
+});
+
+describe("attendanceRotationBecomesFixed", () => {
+  it("una rotacion que CABE en la ventana no se normaliza", () => {
+    // 60s en 10 min: rota normal, doce veces.
+    expect(attendanceRotationBecomesFixed(60, 600)).toBe(false);
+    // Un dia dentro de tres: SI alcanza a rotar dos veces.
+    expect(attendanceRotationBecomesFixed(86400, 3 * 86400)).toBe(false);
+    // Semanal deliberada en una ventana de un mes: cuatro rotaciones reales.
+    expect(attendanceRotationBecomesFixed(604800, 30 * 86400)).toBe(false);
+  });
+
+  it("una rotacion >= la ventana es codigo FIJO: no alcanza a cumplirse", () => {
+    expect(attendanceRotationBecomesFixed(600, 600)).toBe(true);
+    expect(attendanceRotationBecomesFixed(601, 600)).toBe(true);
+    // El caso que el tope viejo de 86400 prohibia de plano.
+    expect(attendanceRotationBecomesFixed(86400, 3600)).toBe(true);
+  });
+
+  it("una rotacion ENORME no se normaliza si la ventana es mayor", () => {
+    // El criterio NO es "el numero es grande" sino "no alcanza a cumplirse".
+    // Con la ventana mas larga que la rotacion el codigo cambia de verdad, y
+    // convertirlo a fijo le quitaria al docente la rotacion que pidio.
+    expect(attendanceRotationBecomesFixed(2_000_000, 30 * 86400)).toBe(false);
+  });
+
+  it("si ya era fijo no hay nada que normalizar", () => {
+    for (const r of [0, -5, -86400]) {
+      expect(attendanceRotationBecomesFixed(r, 600)).toBe(false);
+    }
+  });
+
+  it("sin ventana usable NO se inventa un modo fijo", () => {
+    for (const w of [0, -1, NaN, null, undefined]) {
+      expect(attendanceRotationBecomesFixed(60, w as number)).toBe(false);
+    }
+    for (const r of [NaN, null, undefined]) {
+      expect(attendanceRotationBecomesFixed(r as number, 600)).toBe(false);
+    }
   });
 });

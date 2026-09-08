@@ -17,6 +17,36 @@ export const ATTENDANCE_CODE_ROTATION_DEFAULT = ROTATION_DEFAULT_SECONDS;
 export const ATTENDANCE_CHECK_IN_DEFAULT_MINUTES = 10;
 
 /**
+ * Techo real de la rotación: la columna y el parámetro del RPC son `int` (int4).
+ * Un valor mayor rebota con `22003` de Postgres antes de entrar a la función, con
+ * un mensaje crudo en inglés que no está en `friendlyError`. Por eso el input
+ * clampea acá: "ilimitado" significa, en la práctica, int4 (~68 años).
+ */
+export const ATTENDANCE_CODE_ROTATION_MAX = 2147483647;
+
+/**
+ * ¿Una rotación >= la ventana? Entonces el servidor la normaliza a código FIJO.
+ *
+ * Espeja el guard de `teacher_open_attendance_check_in`
+ * (mig 20262120000000): una rotación que no alcanza a cumplirse dentro de la
+ * ventana no "casi no cambia" — cambia en un múltiplo ABSOLUTO del epoch, en un
+ * instante que el docente no puede prever. El servidor es la autoridad; esto
+ * existe solo para anticipárselo ANTES de abrir.
+ *
+ * Devuelve `false` cuando ya era fijo (`<= 0`): no hay nada que normalizar.
+ */
+export function attendanceRotationBecomesFixed(
+  rotationSeconds: number | null | undefined,
+  windowSeconds: number | null | undefined,
+): boolean {
+  const rot = Number(rotationSeconds);
+  const win = Number(windowSeconds);
+  if (!Number.isFinite(rot) || rot <= 0) return false;
+  if (!Number.isFinite(win) || win <= 0) return false;
+  return rot >= win;
+}
+
+/**
  * `rotationSeconds = 0` ⇒ CÓDIGO FIJO durante toda la ventana.
  *
  * No alcanza con poner una rotación muy grande: el período es

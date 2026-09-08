@@ -17,7 +17,7 @@
 
 export interface PartesCuentaAtras {
   /** Unidad más grande que aplica. */
-  unidad: "hours" | "minutes" | "seconds";
+  unidad: "days" | "hours" | "minutes" | "seconds";
   /** Valor de esa unidad, ya redondeado para mostrar. */
   valor: number;
 }
@@ -37,6 +37,9 @@ export interface PartesCuentaAtras {
  */
 export function partesCuentaAtras(segundos: number | null | undefined): PartesCuentaAtras {
   const s = Math.max(0, Math.floor(Number(segundos) || 0));
+  // Con ventanas de varios días y rotación sin tope, "168 horas" se lee como un
+  // error de configuración — el mismo modo de falla que "84797s", una unidad arriba.
+  if (s >= 86400) return { unidad: "days", valor: Math.ceil(s / 86400) };
   if (s >= 3600) return { unidad: "hours", valor: Math.ceil(s / 3600) };
   if (s >= 60) return { unidad: "minutes", valor: Math.ceil(s / 60) };
   return { unidad: "seconds", valor: s };

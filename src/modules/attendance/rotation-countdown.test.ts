@@ -22,7 +22,17 @@ describe("partesCuentaAtras", () => {
   it("desde una hora, horas", () => {
     expect(partesCuentaAtras(3600)).toEqual({ unidad: "hours", valor: 1 });
     expect(partesCuentaAtras(7200)).toEqual({ unidad: "hours", valor: 2 });
-    expect(partesCuentaAtras(86400)).toEqual({ unidad: "hours", valor: 24 });
+    expect(partesCuentaAtras(86399)).toEqual({ unidad: "hours", valor: 24 });
+  });
+
+  it("desde un dia, dias: 'Cambia en 168 horas' se lee como un error de configuracion", () => {
+    // La rotacion dejo de tener maximo (mig 20262120000000), asi que una ventana de
+    // varios dias puede tener una rotacion de dias.
+    expect(partesCuentaAtras(86399)).toEqual({ unidad: "hours", valor: 24 });
+    expect(partesCuentaAtras(86400)).toEqual({ unidad: "days", valor: 1 });
+    expect(partesCuentaAtras(90000)).toEqual({ unidad: "days", valor: 2 });
+    expect(partesCuentaAtras(604800)).toEqual({ unidad: "days", valor: 7 });
+    expect(partesCuentaAtras(2592000)).toEqual({ unidad: "days", valor: 30 });
   });
 
   it("redondea HACIA ARRIBA: el cartel nunca promete menos tiempo del que hay", () => {
@@ -42,7 +52,7 @@ describe("partesCuentaAtras", () => {
   });
 
   it("nunca devuelve decimales", () => {
-    for (const v of [0.4, 59.9, 90.5, 3600.7]) {
+    for (const v of [0.4, 59.9, 90.5, 3600.7, 86400.7]) {
       const r = partesCuentaAtras(v);
       expect(Number.isInteger(r.valor), `${v} -> ${r.valor}`).toBe(true);
     }

@@ -106,6 +106,8 @@ import {
 import {
   ATTENDANCE_CHECK_IN_DEFAULT_MINUTES,
   ATTENDANCE_CODE_ROTATION_DEFAULT,
+  ATTENDANCE_CODE_ROTATION_MAX,
+  attendanceRotationBecomesFixed,
 } from "@/modules/attendance/attendance-code";
 import { claveDeErrorCheckIn } from "@/modules/attendance/checkin-errors";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
@@ -371,6 +373,20 @@ function TeacherAttendance() {
    */
   const [checkInClosesTouched, setCheckInClosesTouched] = useState(false);
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
+  /**
+   * ¿La rotación pedida se va a normalizar a código FIJO?
+   *
+   * El servidor normaliza toda rotación >= la ventana (mig 20262120000000). Acá se
+   * anticipa ANTES de abrir, espejando el `COALESCE` del servidor: sin fechas, la
+   * ventana es "ahora + 10 min". Derivado, no estado.
+   */
+  const rotacionQuedaraFija = (() => {
+    const abre = checkInOpensAt ? new Date(localToIso(checkInOpensAt)).getTime() : Date.now();
+    const cierra = checkInClosesAt
+      ? new Date(localToIso(checkInClosesAt)).getTime()
+      : abre + ATTENDANCE_CHECK_IN_DEFAULT_MINUTES * 60_000;
+    return attendanceRotationBecomesFixed(checkInRotation, (cierra - abre) / 1000);
+  })();
   /**
    * Requisito para marcar asistencia: un item del curso que el estudiante tiene que
    * haber completado. `""` = sin requisito. El valor viaja como "<tipo>:<id>" para
@@ -1734,9 +1750,13 @@ function TeacherAttendance() {
         error?: string;
         seed?: string;
         rotation_seconds?: number;
+        rotation_fixed_by_window?: boolean;
         closes_at?: string;
       };
-      if (!result?.ok || !result.seed || !result.closes_at || !result.rotation_seconds) {
+      // `== null` y NO `!result.rotation_seconds`: con `0` (código fijo) el falsy
+      // hacía que el docente leyera "No se pudo iniciar el check-in" mientras el
+      // servidor lo había abierto de verdad, y el proyector nunca se montaba.
+      if (!result?.ok || !result.seed || !result.closes_at || result.rotation_seconds == null) {
         // El código NUNCA se muestra tal cual: si no está en el mapa, el mensaje es
         // el genérico. Antes esta línea imprimía `result.error`, así que un
         // `closes_in_past` o un `requirement_unavailable` salía a pantalla en inglés
@@ -1744,6 +1764,10 @@ function TeacherAttendance() {
         const clave = claveDeErrorCheckIn(result?.error);
         toast.error(clave ? t(clave) : t("teacherAttendance.checkInStartFailed"));
         return;
+      }
+      // El servidor es la autoridad: si normalizó la rotación a fijo, se dice.
+      if (result.rotation_fixed_by_window) {
+        toast.info(t("teacherAttendance.rotationFixedByWindowToast"), { duration: 8000 });
       }
       setProjector({
         sessionId: checkInConfigSession.id,
@@ -2893,17 +2917,30 @@ function TeacherAttendance() {
               <Input
                 type="number"
                 min={0}
-                max={86400}
                 value={checkInRotation === 0 ? "0" : checkInRotation || ""}
                 onChange={(e) => {
                   const n = e.target.value === "" ? 0 : Number(e.target.value);
-                  setCheckInRotation(n <= 0 ? 0 : Math.max(15, Math.min(86400, n)));
+                  if (!Number.isFinite(n)) return;
+                  // 0 = fijo (no se sube a 15: escribir 0 ES pedir el modo fijo).
+                  // Sin tope de negocio; el clamp con ATTENDANCE_CODE_ROTATION_MAX
+                  // es solo el techo del tipo `int` de la columna.
+                  setCheckInRotation(
+                    n <= 0
+                      ? 0
+                      : Math.max(15, Math.min(ATTENDANCE_CODE_ROTATION_MAX, Math.round(n))),
+                  );
                 }}
               />
-              {checkInRotation === 0 && (
+              {checkInRotation === 0 ? (
                 <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
                   {t("teacherAttendance.rotationZeroWarning")}
                 </p>
+              ) : (
+                rotacionQuedaraFija && (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                    {t("teacherAttendance.rotationLongerThanWindow")}
+                  </p>
+                )
               )}
             </div>
             {/* ── Requisitos para marcar asistencia ─────────────────────────

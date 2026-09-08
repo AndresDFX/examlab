@@ -107,6 +107,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El código de asistencia ya puede rotar sin tope (o no rotar nunca).** El máximo era de un día
+  (86400 s) y molestaba en ventanas de varios días. La VENTANA ya admitía hasta un año; lo que topaba
+  era la rotación. Ahora el mínimo sigue siendo 15 s y **no hay máximo**.
+
+  El matiz que se resolvió en vez de ignorarlo: una rotación larguísima **no** equivale a un código
+  fijo, porque el período va anclado al epoch ABSOLUTO — con rotación de un día el código cambiaba a
+  la medianoche UTC, o sea a las 19:00 en Bogotá, en mitad de una clase nocturna. Así que una rotación
+  mayor o igual que la ventana **se normaliza a código fijo** (que es lo que el docente está pidiendo
+  de verdad) y **se avisa**: la respuesta trae `rotation_fixed_by_window`, el diálogo lo anticipa y un
+  aviso lo confirma. Normalizar en silencio habría dejado al docente creyendo que su número se ignoró.
+
+  Migración `20262120000000`, validada contra un PostgreSQL real: compila, la firma no cambia y las 10
+  comprobaciones sobre la definición instalada pasan — incluidas las que verifican que **no se perdió
+  ninguna feature previa** de esa función (requisitos, `email_only`, la ventana, el guard de
+  papelera). Ese cuidado no es paranoia: esa función se reescribió diez veces y una de esas
+  reescrituras ya causó una regresión por partir de una copia vieja.
+
 - **El grid de asistencia se actualiza solo.** La pantalla del docente
   (`/app/teacher/attendance`) cargaba una vez y se quedaba quieta: mientras el salón escaneaba el QR,
   el docente veía la lista sin moverse y tenía que recargar a mano para saber quién ya se había
