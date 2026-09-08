@@ -40,6 +40,10 @@ import {
   ChevronDown,
   Library,
   ScanText,
+  AlertTriangle,
+  Copy,
+  Database,
+  Wand2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -59,6 +63,8 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import { appendSqlBlock } from "@/modules/database/sql-help";
+import { enterEnvia } from "@/shared/lib/submit-on-enter";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import {
   LANG_TO_EXT,
@@ -122,6 +128,18 @@ export type WorkshopQuestion = {
    *  individuales filtrados por extensión del lenguaje. */
   zip_single?: boolean;
 };
+
+/**
+ * Se agrega a la instrucción del docente antes de mandarla a `ai-generate-sql`.
+ * Es obligatoria: el system prompt por defecto manda incluir la CONSULTA cuando
+ * se la piden (ver "Sobre el esquema de partida" en el FALLBACK del edge), y acá
+ * el único destino es el esquema de partida — un SELECT resuelto ahí deja al
+ * alumno abriendo el ejercicio ya hecho. No es texto visible: no lleva t().
+ */
+const DIRECTIVA_SOLO_ESQUEMA =
+  "Esto es el esquema de partida de una pregunta de taller: generá SOLO las sentencias CREATE TABLE e INSERT necesarias para el ejercicio. No incluyas la consulta que lo resuelve.";
+/** Tope de la instrucción para que la directiva entre en el `slice(0, 2000)` del edge. */
+const MAX_INSTRUCCION_SQL = 1800;
 
 /* =========================================================================
    TEACHER: Editor of workshop questions (manual + AI)
@@ -208,6 +226,83 @@ export function TeacherWorkshopQuestionsEditor({
   // limpia. Vacío es válido: el alumno trabaja sobre una base vacía.
   const [qSetupSql, setQSetupSql] = useState<string>("");
 
+  // Generador del esquema con IA (solo aplica a bd_sql). Mismo edge y mismo
+  // manejo que la hoja SQL de la pizarra (SqlPageEditor). Prefijo `sqlAi*`
+  // porque `aiLoading`/`aiBusy` ya son de la generación de PREGUNTAS.
+  const [sqlAiPrompt, setSqlAiPrompt] = useState("");
+  const [sqlAiLoading, setSqlAiLoading] = useState(false);
+  const [sqlAiError, setSqlAiError] = useState<string | null>(null);
+  const [sqlAiSql, setSqlAiSql] = useState<string | null>(null);
+  const sqlAiAliveRef = useRef(true);
+  useEffect(() => {
+    sqlAiAliveRef.current = true;
+    return () => {
+      sqlAiAliveRef.current = false;
+    };
+  }, []);
+
+  const generarEsquemaSql = async () => {
+    const instruccion = sqlAiPrompt.trim();
+    if (!instruccion || sqlAiLoading) return;
+    setSqlAiLoading(true);
+    setSqlAiError(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-generate-sql", {
+        body: {
+          prompt: `${instruccion.slice(0, MAX_INSTRUCCION_SQL)}\n\n${DIRECTIVA_SOLO_ESQUEMA}`,
+          setupSql: qSetupSql.trim() || null,
+          courseId: courseId ?? null,
+        },
+      });
+      // `invoke` envuelve los non-2xx en un mensaje genérico; el real (429 con
+      // los segundos que faltan, API key vencida) vive en el body.
+      // `extractEdgeError` consume el stream: se llama UNA sola vez.
+      if (error) {
+        const real = await extractEdgeError(error, data);
+        throw new Error(real || t("sqlAssistant.genericError"));
+      }
+      if (data?.error) throw new Error(String(data.error));
+      const generado = typeof data?.sql === "string" ? data.sql.trim() : "";
+      if (!generado) throw new Error(t("sqlAssistant.emptyResult"));
+      if (!sqlAiAliveRef.current) return;
+      setSqlAiSql(generado);
+    } catch (e) {
+      if (!sqlAiAliveRef.current) return;
+      setSqlAiError(friendlyError(e, t("sqlAssistant.genericError")));
+    } finally {
+      if (sqlAiAliveRef.current) setSqlAiLoading(false);
+    }
+  };
+
+  const aplicarSqlComoSetup = () => {
+    if (!sqlAiSql) return;
+    const habiaContenido = qSetupSql.trim().length > 0;
+    setQSetupSql(appendSqlBlock(qSetupSql, sqlAiSql));
+    toast.success(
+      habiaContenido ? t("sqlAssistant.appendedToSetup") : t("sqlAssistant.setAsSetup"),
+    );
+  };
+
+  const copiarSqlGenerado = async () => {
+    if (!sqlAiSql) return;
+    try {
+      await navigator.clipboard.writeText(sqlAiSql);
+      toast.success(t("sqlAssistant.copied"));
+    } catch {
+      toast.error(t("sqlAssistant.copyFailed"));
+    }
+  };
+
+  // Limpia el generador. Se llama al crear otra pregunta y al abrir una
+  // existente: los estados viven en el componente, no en la pregunta, así que
+  // una preview colgada de la pregunta anterior ofrecería "Usar como esquema"
+  // e inyectaría el esquema equivocado en la pregunta nueva.
+  const limpiarGeneradorSql = () => {
+    setSqlAiPrompt("");
+    setSqlAiError(null);
+    setSqlAiSql(null);
+  };
+
   const resetForm = () => {
     setEditingId(null);
     setQType("abierta");
@@ -224,6 +319,7 @@ export function TeacherWorkshopQuestionsEditor({
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
     setQSetupSql("");
+    limpiarGeneradorSql();
   };
 
   const loadIntoForm = (q: WorkshopQuestion) => {
@@ -251,6 +347,7 @@ export function TeacherWorkshopQuestionsEditor({
     );
     const setup = (q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql;
     setQSetupSql(typeof setup === "string" ? setup : "");
+    limpiarGeneradorSql();
     setActiveTab("manual");
   };
 
@@ -1064,6 +1161,99 @@ export function TeacherWorkshopQuestionsEditor({
                 {t("bdSql.setupSqlLabel")}
                 <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
               </Label>
+              {/* Generador del esquema con IA — mismo edge, mismo flujo y misma
+                  UI que la hoja SQL de la pizarra (SqlPageEditor). Vive DENTRO
+                  del `qType === "bd_sql"` de este componente, que es lo que lo
+                  limita al taller: el campo setupSql está duplicado a mano en
+                  examen y proyecto, y esos archivos no se tocan. */}
+              <div className="rounded-md border">
+                <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
+                  <Wand2 className="h-3.5 w-3.5 text-primary" />
+                  {t("sqlAssistant.title")}
+                  <HelpHint>{t("sqlAssistant.hintQuestion")}</HelpHint>
+                </div>
+                <div className="flex flex-col gap-2 px-2.5 pb-2.5">
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <Textarea
+                      value={sqlAiPrompt}
+                      onChange={(e) => setSqlAiPrompt(e.target.value)}
+                      onKeyDown={(e) => {
+                        // Enter genera; Shift+Enter baja renglón. La regla vive
+                        // en `enterEnvia` porque reimplementarla a mano ya salió
+                        // mal antes (preventDefault en cualquier Enter).
+                        if (!enterEnvia(e)) return;
+                        e.preventDefault();
+                        void generarEsquemaSql();
+                      }}
+                      disabled={sqlAiLoading}
+                      rows={2}
+                      placeholder={t("sqlAssistant.placeholder")}
+                      className="flex-1 min-w-[160px] resize-none text-sm sm:min-w-48"
+                    />
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      // Sin esto el botón se estira al alto de la caja de 2 renglones.
+                      className="sm:self-end"
+                      onClick={() => void generarEsquemaSql()}
+                      disabled={sqlAiLoading || !sqlAiPrompt.trim()}
+                    >
+                      {sqlAiLoading ? (
+                        <Spinner size="xs" className="mr-1" />
+                      ) : (
+                        <Wand2 className="mr-1 h-4 w-4" />
+                      )}
+                      {sqlAiLoading ? t("sqlAssistant.generating") : t("sqlAssistant.generate")}
+                    </Button>
+                  </div>
+
+                  {sqlAiLoading ? (
+                    <p className="text-2xs text-muted-foreground">{t("sqlAssistant.waitHint")}</p>
+                  ) : (
+                    <p className="text-2xs text-muted-foreground">
+                      {t("sqlAssistant.shortcutsHint")}
+                    </p>
+                  )}
+
+                  {/* El error va FIJO en el panel y no como toast: el caso más
+                      probable es el 429 ("reintenta en N segundos") y ese número
+                      hay que poder releerlo. */}
+                  {sqlAiError && (
+                    <div className="flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-2xs text-destructive">
+                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                      <span>
+                        <strong>{t("sqlAssistant.errorTitle")}</strong> {sqlAiError}
+                      </span>
+                    </div>
+                  )}
+
+                  {sqlAiSql && (
+                    <div className="space-y-2">
+                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-2 font-mono text-2xs leading-relaxed">
+                        {sqlAiSql}
+                      </pre>
+                      <div className="flex flex-wrap gap-2">
+                        <Button type="button" size="sm" variant="outline" onClick={aplicarSqlComoSetup}>
+                          <Database className="mr-1 h-4 w-4" />
+                          {t("sqlAssistant.useAsSetup")}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => void copiarSqlGenerado()}
+                        >
+                          <Copy className="mr-1 h-4 w-4" />
+                          {t("sqlAssistant.copy")}
+                        </Button>
+                      </div>
+                      <p className="text-3xs text-muted-foreground">
+                        {t("sqlAssistant.appendNote")}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
               <Textarea
                 value={qSetupSql}
                 onChange={(e) => setQSetupSql(e.target.value)}
@@ -1821,6 +2011,17 @@ export function StudentWorkshopTaker({
             submitted_at: new Date().toISOString(),
             user_id: user.id, // último editor (auditoría)
             attempt_count: nextAttemptCount,
+            // Acá NO se limpia la nota del intento anterior, aunque un intento
+            // nuevo la invalide. El candado de la cabecera
+            // (20261034000000_submissions_guard_grade_columns) se dispara con
+            // CUALQUIER cambio de `ai_grade` / `ai_feedback`, incluido ponerlos
+            // en NULL, y el alumno no es staff: este UPDATE se rebotaba entero
+            // con «No autorizado…», o sea que el segundo intento ni se podía
+            // entregar. La limpieza no hace falta: la consolidación del
+            // servidor corre inmediatamente después y sobreescribe las dos
+            // columnas con la nota del intento nuevo — también cuando el taller
+            // no tiene preguntas de IA, porque las deterministas ahora se
+            // califican del lado del servidor.
           })
           .eq("id", submissionId);
         if (updErr) {
@@ -1885,6 +2086,14 @@ export function StudentWorkshopTaker({
          *  de calificación (ej. transcript de la consola Linux de so_consola). */
         executionOutput?: string | null;
       }> = [];
+      // Ceros DECLARADOS al servidor (sin puntaje y sin texto libre: el edge
+      // redacta el mensaje a partir del código, así que un cliente manipulado
+      // no puede fabricar excusas ni inflar la nota).
+      const zeroed: Array<{ qid: string; reason: string }> = [];
+      // Respuestas CRUDAS de las preguntas deterministas (cerradas, opción
+      // múltiple, red). Las califica el SERVIDOR: el navegador del alumno no
+      // puede escribir `ai_grade`.
+      const plainAnswers: Record<string, unknown> = {};
       // Encolas async pendientes de `codigo_zip` — se procesan después
       // del upsert porque necesitamos el row id del answer.
       const pendingZipEnqueues: Array<{
@@ -1919,24 +2128,14 @@ export function StudentWorkshopTaker({
           // subidos a Storage; los paths se persisten en `zip_path` /
           // `code_paths` más abajo.
           payload.answer_text = "";
+        } else if (q.type === "red_consola" || q.type === "red_gui") {
+          // La respuesta de red es un objeto: `String(raw)` la guardaba como
+          // "[object Object]" y el servidor no podía calificarla.
+          payload.answer_text = typeof raw === "string" ? raw : JSON.stringify(raw);
         } else payload.answer_text = String(raw);
 
         if (q.type === "cerrada") {
-          const correctIdx = q.options?.correct_index;
-          const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
-          payload.ai_grade = got;
-          payload.ai_feedback =
-            got > 0
-              ? t("hc_modulesWorkshopsWorkshopQuestions.feedbackCorrect")
-              : t("hc_modulesWorkshopsWorkshopQuestions.feedbackIncorrect");
-          totalEarned += got;
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: got,
-            feedback: payload.ai_feedback,
-          });
+          plainAnswers[q.id] = raw;
         } else if (q.type === "codigo_zip") {
           // ── codigo_zip: subimos archivos a `workshop-files` y, según
           // modo IA, calificamos inline (sync) o encolamos (async). Mismo
@@ -1947,60 +2146,33 @@ export function StudentWorkshopTaker({
           if (q.zip_single) {
             const zipFile = raw instanceof File ? raw : null;
             if (!zipFile) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noZipSubmitted");
-              breakdown.push({
-                qid: q.id,
-                type: q.type,
-                points: q.points,
-                earned: 0,
-                feedback: payload.ai_feedback,
-              });
+              zeroed.push({ qid: q.id, reason: "zip_faltante" });
             } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.zipExceedsLimit", {
-                size: formatFileSize(zipFile.size),
-              });
-              toast.error(payload.ai_feedback, { duration: 8000 });
-              breakdown.push({
-                qid: q.id,
-                type: q.type,
-                points: q.points,
-                earned: 0,
-                feedback: payload.ai_feedback,
-              });
+              toast.error(
+                t("hc_modulesWorkshopsWorkshopQuestions.zipExceedsLimit", {
+                  size: formatFileSize(zipFile.size),
+                }),
+                { duration: 8000 },
+              );
+              zeroed.push({ qid: q.id, reason: "zip_excede" });
             } else {
               const preCheck = await preValidateZipInBrowser(zipFile, allowedExts);
               if (!preCheck.ok) {
-                payload.ai_grade = 0;
-                payload.ai_feedback = preCheck.error;
                 toast.error(preCheck.error, { duration: 10000 });
-                breakdown.push({
-                  qid: q.id,
-                  type: q.type,
-                  points: q.points,
-                  earned: 0,
-                  feedback: preCheck.error,
-                });
+                zeroed.push({ qid: q.id, reason: "zip_invalido" });
               } else {
                 const zipPath = `${rootFolder}/${submissionId}/${q.id}.zip`;
                 const { error: upErr } = await supabase.storage
                   .from("workshop-files")
                   .upload(zipPath, zipFile, { upsert: true, contentType: "application/zip" });
                 if (upErr) {
-                  payload.ai_grade = 0;
-                  payload.ai_feedback = t(
-                    "hc_modulesWorkshopsWorkshopQuestions.errorUploadingZip",
-                    { message: upErr.message },
+                  toast.error(
+                    t("hc_modulesWorkshopsWorkshopQuestions.errorUploadingZip", {
+                      message: upErr.message,
+                    }),
+                    { duration: 8000 },
                   );
-                  toast.error(payload.ai_feedback, { duration: 8000 });
-                  breakdown.push({
-                    qid: q.id,
-                    type: q.type,
-                    points: q.points,
-                    earned: 0,
-                    feedback: payload.ai_feedback,
-                  });
+                  zeroed.push({ qid: q.id, reason: "zip_error_subida" });
                 } else {
                   payload.zip_path = zipPath;
                   const aiBody: Record<string, unknown> = {
@@ -2011,18 +2183,14 @@ export function StudentWorkshopTaker({
                     expectedRubric: q.expected_rubric,
                     maxPoints: q.points,
                     courseLanguage,
+                    // En sync el edge escribe la nota de ESTA fila; en async el
+                    // worker las ignora (el body se reusa tal cual) porque su
+                    // target ya es la fila del answer.
+                    submissionId,
+                    questionId: q.id,
                   };
                   if (useAsyncAiEarly) {
-                    payload.ai_grade = null;
-                    payload.ai_feedback = PENDING_AI_FEEDBACK;
                     pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                    breakdown.push({
-                      qid: q.id,
-                      type: q.type,
-                      points: q.points,
-                      earned: 0,
-                      feedback: PENDING_AI_FEEDBACK,
-                    });
                   } else {
                     const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                       "ai-grade-submission",
@@ -2030,46 +2198,15 @@ export function StudentWorkshopTaker({
                     );
                     if (aiErr || (aiData as any)?.error) {
                       const detail = await extractEdgeError(aiErr, aiData);
-                      payload.ai_grade = 0;
-                      payload.ai_feedback =
-                        detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingZip");
-                      toast.error(payload.ai_feedback, { duration: 8000 });
-                      breakdown.push({
-                        qid: q.id,
-                        type: q.type,
-                        points: q.points,
-                        earned: 0,
-                        feedback: payload.ai_feedback,
+                      toast.error(detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingZip"), {
+                        duration: 8000,
                       });
+                      zeroed.push({ qid: q.id, reason: "zip_invalido" });
                     } else {
-                      const earned = Math.max(
-                        0,
-                        Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
-                      );
-                      const fb =
-                        (aiData as any)?.feedback ??
-                        t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
-                      payload.ai_grade = earned;
-                      payload.ai_feedback = fb;
-                      payload.ai_likelihood =
-                        typeof (aiData as any)?.ai_likelihood === "number"
-                          ? (aiData as any).ai_likelihood
-                          : null;
-                      payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
-                      if (typeof (aiData as any)?.zip_truncated === "boolean") {
-                        payload.zip_truncated = (aiData as any).zip_truncated;
-                      }
-                      if (typeof (aiData as any)?.zip_chars_used === "number") {
-                        payload.zip_chars_used = (aiData as any).zip_chars_used;
-                      }
-                      totalEarned += earned;
-                      breakdown.push({
-                        qid: q.id,
-                        type: q.type,
-                        points: q.points,
-                        earned,
-                        feedback: fb,
-                      });
+                      // La nota la escribió el EDGE en la fila de la
+                      // respuesta (le pasamos submissionId + questionId). El
+                      // navegador ya no puede escribirla, y la consolidación de
+                      // la cabecera la lee de ahí.
                     }
                   }
                 }
@@ -2083,15 +2220,7 @@ export function StudentWorkshopTaker({
                 ? [raw]
                 : [];
             if (filesArr.length === 0) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noCodeFilesSubmitted");
-              breakdown.push({
-                qid: q.id,
-                type: q.type,
-                points: q.points,
-                earned: 0,
-                feedback: payload.ai_feedback,
-              });
+              zeroed.push({ qid: q.id, reason: "zip_faltante" });
             } else {
               const violations = allowedExts
                 ? filesArr.filter((f) => !isFileAllowed(f.name, allowedExts))
@@ -2109,47 +2238,32 @@ export function StudentWorkshopTaker({
                       })
                     : "";
                 const allowedLabel = (allowedExts ?? []).map((e) => `.${e}`).join(", ");
-                payload.ai_grade = 0;
-                payload.ai_feedback = t(
-                  "hc_modulesWorkshopsWorkshopQuestions.filesNotAllowedFeedback",
-                  { sample, more, allowed: allowedLabel },
+                toast.error(
+                  t("hc_modulesWorkshopsWorkshopQuestions.filesNotAllowedFeedback", {
+                    sample,
+                    more,
+                    allowed: allowedLabel,
+                  }),
+                  { duration: 8000 },
                 );
-                toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({
-                  qid: q.id,
-                  type: q.type,
-                  points: q.points,
-                  earned: 0,
-                  feedback: payload.ai_feedback,
-                });
+                zeroed.push({ qid: q.id, reason: "zip_invalido" });
               } else if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
-                payload.ai_grade = 0;
-                payload.ai_feedback = t(
-                  "hc_modulesWorkshopsWorkshopQuestions.totalExceedsLimit",
-                  { size: formatFileSize(totalBytes) },
+                toast.error(
+                  t("hc_modulesWorkshopsWorkshopQuestions.totalExceedsLimit", {
+                    size: formatFileSize(totalBytes),
+                  }),
+                  { duration: 8000 },
                 );
-                toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({
-                  qid: q.id,
-                  type: q.type,
-                  points: q.points,
-                  earned: 0,
-                  feedback: payload.ai_feedback,
-                });
+                zeroed.push({ qid: q.id, reason: "zip_excede" });
               } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
-                payload.ai_grade = 0;
-                payload.ai_feedback = t(
-                  "hc_modulesWorkshopsWorkshopQuestions.tooManyFilesFeedback",
-                  { count: filesArr.length, max: MAX_CODE_FILES_COUNT },
+                toast.error(
+                  t("hc_modulesWorkshopsWorkshopQuestions.tooManyFilesFeedback", {
+                    count: filesArr.length,
+                    max: MAX_CODE_FILES_COUNT,
+                  }),
+                  { duration: 8000 },
                 );
-                toast.error(payload.ai_feedback, { duration: 8000 });
-                breakdown.push({
-                  qid: q.id,
-                  type: q.type,
-                  points: q.points,
-                  earned: 0,
-                  feedback: payload.ai_feedback,
-                });
+                zeroed.push({ qid: q.id, reason: "zip_excede" });
               } else {
                 const usedNames = new Set<string>();
                 const uploads = await Promise.all(
@@ -2166,19 +2280,14 @@ export function StudentWorkshopTaker({
                 );
                 const upFailed = uploads.filter((u) => u.error);
                 if (upFailed.length > 0) {
-                  payload.ai_grade = 0;
-                  payload.ai_feedback = t(
-                    "hc_modulesWorkshopsWorkshopQuestions.errorUploadingFiles",
-                    { count: upFailed.length, message: upFailed[0].error?.message ?? "" },
+                  toast.error(
+                    t("hc_modulesWorkshopsWorkshopQuestions.errorUploadingFiles", {
+                      count: upFailed.length,
+                      message: upFailed[0].error?.message ?? "",
+                    }),
+                    { duration: 8000 },
                   );
-                  toast.error(payload.ai_feedback, { duration: 8000 });
-                  breakdown.push({
-                    qid: q.id,
-                    type: q.type,
-                    points: q.points,
-                    earned: 0,
-                    feedback: payload.ai_feedback,
-                  });
+                  zeroed.push({ qid: q.id, reason: "zip_error_subida" });
                 } else {
                   const uploadedPaths = uploads.map((u) => u.path);
                   payload.code_paths = uploadedPaths;
@@ -2190,18 +2299,11 @@ export function StudentWorkshopTaker({
                     maxPoints: q.points,
                     courseLanguage,
                     ...(allowedExts ? { allowedExtensions: allowedExts } : {}),
+                    submissionId,
+                    questionId: q.id,
                   };
                   if (useAsyncAiEarly) {
-                    payload.ai_grade = null;
-                    payload.ai_feedback = PENDING_AI_FEEDBACK;
                     pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                    breakdown.push({
-                      qid: q.id,
-                      type: q.type,
-                      points: q.points,
-                      earned: 0,
-                      feedback: PENDING_AI_FEEDBACK,
-                    });
                   } else {
                     const { data: aiData, error: aiErr } = await supabase.functions.invoke(
                       "ai-grade-submission",
@@ -2209,40 +2311,12 @@ export function StudentWorkshopTaker({
                     );
                     if (aiErr || (aiData as any)?.error) {
                       const detail = await extractEdgeError(aiErr, aiData);
-                      payload.ai_grade = 0;
-                      payload.ai_feedback =
-                        detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingFiles");
-                      toast.error(payload.ai_feedback, { duration: 8000 });
-                      breakdown.push({
-                        qid: q.id,
-                        type: q.type,
-                        points: q.points,
-                        earned: 0,
-                        feedback: payload.ai_feedback,
+                      toast.error(detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingFiles"), {
+                        duration: 8000,
                       });
+                      zeroed.push({ qid: q.id, reason: "zip_invalido" });
                     } else {
-                      const earned = Math.max(
-                        0,
-                        Math.min(Number(q.points) || 0, Number((aiData as any)?.grade) || 0),
-                      );
-                      const fb =
-                        (aiData as any)?.feedback ??
-                        t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
-                      payload.ai_grade = earned;
-                      payload.ai_feedback = fb;
-                      payload.ai_likelihood =
-                        typeof (aiData as any)?.ai_likelihood === "number"
-                          ? (aiData as any).ai_likelihood
-                          : null;
-                      payload.ai_reasons = (aiData as any)?.ai_reasons ?? null;
-                      totalEarned += earned;
-                      breakdown.push({
-                        qid: q.id,
-                        type: q.type,
-                        points: q.points,
-                        earned,
-                        feedback: fb,
-                      });
+                      // Nota escrita por el EDGE — ver el caso de ZIP único.
                     }
                   }
                 }
@@ -2250,85 +2324,13 @@ export function StudentWorkshopTaker({
             }
           }
         } else if (q.type === "cerrada_multi") {
-          const selectedArr = Array.isArray(raw) ? (raw as number[]) : [];
-          const result = scoreCerradaMulti({
-            selected: selectedArr,
-            correctIndices: ((q.options as any)?.correct_indices ?? []) as number[],
-            totalPoints: Number(q.points) || 0,
-            minSelections: (q.options as any)?.min_selections,
-            maxSelections: (q.options as any)?.max_selections,
-          });
-          payload.ai_grade = result.earned;
-          payload.ai_feedback = result.exceededMax
-            ? t("hc_modulesWorkshopsWorkshopQuestions.markedTooManyOptions", {
-                max: (q.options as any)?.max_selections,
-              })
-            : result.belowMin
-              ? t("hc_modulesWorkshopsWorkshopQuestions.markedTooFewOptions", {
-                  min: (q.options as any)?.min_selections,
-                })
-              : selectedArr.length === 0
-                ? t("hc_modulesWorkshopsWorkshopQuestions.noAnswer")
-                : t("hc_modulesWorkshopsWorkshopQuestions.earnedOfPoints", {
-                    earned: result.earned,
-                    points: q.points,
-                  });
-          totalEarned += result.earned;
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: result.earned,
-            feedback: payload.ai_feedback,
-          });
+          plainAnswers[q.id] = Array.isArray(raw) ? raw : [];
         } else if (q.type === "red_consola" || q.type === "red_gui") {
-          // Calificación DETERMINISTA (sin IA): parsea la topología final del
-          // alumno + su historial y evalúa las aserciones del escenario del
-          // docente (options.network). No entra al batch de IA. Igual para
-          // consola (comandos) y GUI (topología editada) — ambas producen
-          // el mismo modelo Topology.
-          const scenario = parseScenario(q.options);
-          const answer = parseNetworkAnswer(raw);
-          const maxPoints = Number(q.points) || 0;
-          if (!scenario || !answer) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
-            });
-          } else {
-            // Aislar: una respuesta de red malformada no debe romper la
-            // calificación de toda la entrega.
-            let earned = 0;
-            let fb = i18n.t("toast.modules_workshops_WorkshopQuestions.networkGraded", {
-              defaultValue: "Calificación de red",
-            });
-            try {
-              const result = gradeNetwork(
-                { topology: answer.topology, histories: answer.histories },
-                scenario.assertions,
-              );
-              earned = Math.round(result.ratio * maxPoints * 100) / 100;
-              fb =
-                result.items
-                  .map(
-                    (it) =>
-                      `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`,
-                  )
-                  .join("\n") || fb;
-            } catch (netErr) {
-              earned = 0;
-              fb = `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
-            }
-            payload.ai_grade = earned;
-            payload.ai_feedback = fb;
-            totalEarned += earned;
-            breakdown.push({ qid: q.id, type: q.type, points: q.points, earned, feedback: fb });
-          }
+          // Calificación DETERMINISTA (sin IA) — la hace el SERVIDOR con el
+          // mismo motor de red, porque el navegador del alumno ya no puede
+          // escribir `ai_grade`. Va cruda: el edge parsea el escenario del
+          // docente desde la base, no desde el body.
+          plainAnswers[q.id] = raw;
         } else if (q.type === "so_consola") {
           // Consola Linux REAL (v86): la "respuesta" es el transcript de la
           // sesión (comandos + salida). Un VM real no se auto-califica por
@@ -2337,15 +2339,7 @@ export function StudentWorkshopTaker({
           // salida de la terminal. Sin transcript → 0 (no interactuó).
           const parsed = parseV86Answer(raw);
           if (!parsed || (parsed.commands.length === 0 && !parsed.transcript.trim())) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
-            });
+            zeroed.push({ qid: q.id, reason: "sin_respuesta" });
           } else {
             batchItems.push({
               qid: q.id,
@@ -2376,15 +2370,7 @@ export function StudentWorkshopTaker({
           const parsedSql = parseSqlAnswer(raw);
           const sqlText = parsedSql?.sql?.trim() ?? "";
           if (!sqlText) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
-            });
+            zeroed.push({ qid: q.id, reason: "sql_sin_consulta" });
           } else {
             batchItems.push({
               qid: q.id,
@@ -2408,15 +2394,7 @@ export function StudentWorkshopTaker({
           const isEmpty =
             !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
           if (isEmpty) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesWorkshopsWorkshopQuestions.noAnswer");
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: t("hc_modulesWorkshopsWorkshopQuestions.noAnswer"),
-            });
+            zeroed.push({ qid: q.id, reason: "sin_respuesta" });
           } else {
             // Abierta con respuesta → bucket para batch. NO empujamos a
             // breakdown todavía; se completa después con el resultado IA.
@@ -2450,95 +2428,89 @@ export function StudentWorkshopTaker({
       // tratamos la entrega como async. El worker reintenta (auto-retry
       // transitorio) y al terminar el trigger recalcula la nota.
       let fellBackToQueue = false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: wsCourseRow } = await (supabase as any)
+        .from("workshops")
+        .select("course_id")
+        .eq("id", workshopId)
+        .maybeSingle();
+      const courseIdForGrading =
+        (wsCourseRow as { course_id?: string } | null)?.course_id ?? null;
 
-      // ── Fase 2: UNA llamada batch para todas las abiertas (SOLO sync) ──
-      if (batchItems.length > 0 && !useAsyncAi) {
+      // ── Fase 2: UNA llamada al servidor, que CALIFICA Y ESCRIBE (solo sync) ──
+      // La condición ya no mira `batchItems.length`: una entrega de puras
+      // preguntas cerradas también tiene que calificarse y cerrarse, y su nota
+      // la escribe el servidor igual que las abiertas.
+      let serverGrade: number | null = null;
+      let serverResults: Record<
+        string,
+        { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
+      > = {};
+      if (!useAsyncAi) {
         const { data: bData, error: bErr } = await supabase.functions.invoke(
           "ai-grade-submission",
           {
             body: {
               batchGrading: true,
+              kind: "workshop",
+              submissionId,
               items: batchItems,
+              zeroed,
+              plainAnswers,
               courseLanguage,
+              courseId: courseIdForGrading,
               useCase: "workshop_question",
             },
           },
         );
         const batchFailed = !!(bErr || bData?.error);
         if (batchFailed) {
-          // Fallback a la cola: pre-marcar TODAS las abiertas como pendientes
-          // (sin nota, sin mostrar el error de IA). Abajo `gradeAsync` encola
-          // el job `workshop_full` y deja la entrega en 'entregado'.
+          // Fallback a la cola: el edge ya persistió las deterministas y NO
+          // consolidó la cabecera, así que la entrega queda "por calificar".
+          // Abajo `gradeAsync` encola el job `workshop_full`.
           fellBackToQueue = true;
-          for (const it of batchItems) {
-            const payload = payloadsByQid[it.qid];
-            payload.ai_grade = null;
-            payload.ai_feedback = PENDING_AI_FEEDBACK;
-            breakdown.push({
-              qid: it.qid,
-              type: it.type,
-              points: it.maxPoints,
-              earned: 0,
-              feedback: PENDING_AI_FEEDBACK,
-            });
-          }
         } else {
-          const batchResults =
-            bData?.results && typeof bData.results === "object"
-              ? (bData.results as Record<
-                  string,
-                  { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
-                >)
-              : {};
-          for (const it of batchItems) {
-            const r = batchResults[it.qid];
-            const payload = payloadsByQid[it.qid];
-            if (r) {
-              const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
-              payload.ai_grade = earned;
-              payload.ai_feedback =
-                r.feedback || t("hc_modulesWorkshopsWorkshopQuestions.noFeedback");
-              totalEarned += earned;
-              breakdown.push({
-                qid: it.qid,
-                type: it.type,
-                points: it.maxPoints,
-                earned,
-                feedback: payload.ai_feedback,
-              });
-            } else {
-              // El batch respondió OK pero el modelo OMITIÓ esta pregunta.
-              // No es un fallo de IA — queda en 0 con nota aclaratoria.
-              payload.ai_grade = 0;
-              payload.ai_feedback = t(
-                "hc_modulesWorkshopsWorkshopQuestions.modelOmittedQuestion",
-              );
-              breakdown.push({
-                qid: it.qid,
-                type: it.type,
-                points: it.maxPoints,
-                earned: 0,
-                feedback: payload.ai_feedback,
-              });
-            }
+          serverResults =
+            bData?.results && typeof bData.results === "object" ? bData.results : {};
+          serverGrade = typeof bData?.grade === "number" ? bData.grade : null;
+          if (bData?.aggregate_error) {
+            // Las respuestas y las notas por pregunta SÍ quedaron: el mensaje
+            // no puede decir "vuelve a entregar".
+            toast.error(
+              i18n.t("toast.modules_workshops_WorkshopQuestions.gradeConsolidateFailed", {
+                defaultValue:
+                  "Tus respuestas quedaron guardadas y calificadas, pero la nota final no se pudo cerrar: {{detail}}. Avísale a tu docente; no necesitas volver a entregar.",
+                detail: String(bData.aggregate_error),
+              }),
+              { duration: 12000 },
+            );
+            return;
+          }
+          if (Array.isArray(bData?.partial_errors) && bData.partial_errors.length > 0) {
+            toast.warning(
+              i18n.t("toast.modules_workshops_WorkshopQuestions.gradedPartially", {
+                defaultValue:
+                  "Se registraron {{ok}} de {{total}} calificaciones. Avísale a tu docente para que revise las que faltan.",
+                ok: questions.length - bData.partial_errors.length,
+                total: questions.length,
+              }),
+              { duration: 12000 },
+            );
           }
         }
-      } else if (batchItems.length > 0 && useAsyncAi) {
-        // Modo async: pre-marcar cada abierta como pendiente. La nota
-        // real llegará cuando el worker drene la cola. NO contamos
-        // hacia totalEarned — la nota final también queda pendiente.
-        for (const it of batchItems) {
-          const payload = payloadsByQid[it.qid];
-          payload.ai_grade = null;
-          payload.ai_feedback = PENDING_AI_FEEDBACK;
-          breakdown.push({
-            qid: it.qid,
-            type: it.type,
-            points: it.maxPoints,
-            earned: 0,
-            feedback: PENDING_AI_FEEDBACK,
-          });
-        }
+      }
+
+      // El desglose que ve el alumno se arma con lo que devolvió el SERVIDOR
+      // (única fuente de la nota). En modo pendiente queda sin nota.
+      for (const q of questions) {
+        const r = serverResults[q.id];
+        breakdown.push({
+          qid: q.id,
+          type: q.type,
+          points: q.points,
+          earned: r ? Number(r.score) || 0 : 0,
+          feedback: r?.feedback ?? (useAsyncAi || fellBackToQueue ? PENDING_AI_FEEDBACK : ""),
+        });
       }
 
       // El modo "async efectivo" cubre tanto async configurado como el
@@ -2691,64 +2663,20 @@ export function StudentWorkshopTaker({
       }
 
       if (gradeAsync && (batchItems.length > 0 || pendingZipEnqueues.length > 0)) {
-        // En async dejamos la submission como `entregado` (no
-        // `calificado`) porque la nota real todavía no se calculó.
-        // ai_grade queda null y ai_feedback con el placeholder.
-        // El error de este UPDATE se descartaba: si fallaba, la entrega
-        // quedaba con la nota/estado viejos y el alumno veía "Por calificar"
-        // sin que nada estuviera pendiente de verdad.
-        const { error: pendingErr } = await supabase
-          .from("workshop_submissions")
-          .update({
-            ai_grade: null,
-            final_grade: null,
-            ai_feedback: PENDING_AI_FEEDBACK,
-            status: "entregado",
-          })
-          .eq("id", submissionId);
-        if (pendingErr) {
-          toast.error(
-            i18n.t("toast.modules_workshops_WorkshopQuestions.submissionStateSaveFailed", {
-              defaultValue:
-                "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
-              detail: friendlyError(pendingErr),
-            }),
-            { duration: 12000 },
-          );
-          return;
-        }
+        // La entrega ya quedó en `entregado` con la nota de IA limpia (arriba,
+        // en el UPDATE del intento). El "pendiente" se DERIVA de `ai_grade`
+        // NULL — no hay marcador que escribir, y el navegador del alumno no
+        // podría escribirlo aunque quisiéramos (candado de la cabecera).
         setGraded({ grade: 0, breakdown });
         // Mensaje minimal: solo "Por calificar". Antes incluíamos un
         // body largo con detalle de la cola → ruido en cada submit.
         toast.info(QUEUED_STUDENT_TITLE, { duration: 6000 });
       } else {
-        const finalGrade =
-          totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
-
-        const { error: gradeErr } = await supabase
-          .from("workshop_submissions")
-          .update({
-            ai_grade: finalGrade,
-            final_grade: finalGrade,
-            ai_feedback: t("hc_modulesWorkshopsWorkshopQuestions.immediateAutoGrade", {
-              maxScore,
-            }),
-            status: "calificado",
-          })
-          .eq("id", submissionId);
-        if (gradeErr) {
-          // NO mostramos "Calificación: X" si la nota no quedó persistida.
-          toast.error(
-            i18n.t("toast.modules_workshops_WorkshopQuestions.gradeSaveFailed", {
-              defaultValue:
-                "No se pudo registrar la calificación de tu entrega: {{detail}}. Vuelve a entregar.",
-              detail: friendlyError(gradeErr),
-            }),
-            { duration: 12000 },
-          );
-          return;
-        }
-
+        // La nota la calculó y la escribió el SERVIDOR (`grade` de la
+        // respuesta). Calcularla acá era, además de redundante, lo que el
+        // candado de la cabecera rechazaba: es el navegador del alumno
+        // poniéndose su propia nota.
+        const finalGrade = Number(serverGrade ?? 0);
         setGraded({ grade: finalGrade, breakdown });
         onGraded?.(finalGrade);
         toast.success(

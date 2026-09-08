@@ -9,11 +9,11 @@ import {
   type ActiveModel,
   type AiProvider,
 } from "../_shared/ai-model.ts";
-// Motor de red (copia Deno) — calificación DETERMINISTA de preguntas
-// `red_consola` server-side (exámenes/proyectos). Sincronizar con
-// src/modules/network/* (ver invariante en CLAUDE.md).
-import { gradeNetwork } from "../_shared/network/grading.ts";
-import { parseScenario, parseNetworkAnswer } from "../_shared/network/scenario.ts";
+// Calificación DETERMINISTA server-side (cerradas, opción múltiple, red). El
+// motor de red vive en ../_shared/network/* (copia Deno de src/modules/network/*,
+// ver invariante en CLAUDE.md) y lo consume este módulo.
+import { esDeterminista, scoreDeterministic } from "../_shared/deterministic-scoring.ts";
+import { consolidarNotaTaller, patchCabeceraTaller } from "../_shared/workshop-grading.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -499,6 +499,117 @@ const FEEDBACK_PLAINTEXT_RULE =
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+/** Motivos por los que el CLIENTE puede declarar un 0. El texto lo redacta el
+ *  servidor: aceptar texto libre dejaría fabricar excusas que el docente lee
+ *  como si las hubiera escrito el sistema, y aceptar un puntaje dejaría inflar
+ *  la nota (un 0 solo puede perjudicar a quien lo manda). */
+const MOTIVOS_CERO = {
+  sin_respuesta: { es: "Sin respuesta", en: "No answer" },
+  zip_faltante: {
+    es: "No se entregó ningún archivo.",
+    en: "No file was submitted.",
+  },
+  zip_excede: {
+    es: "Los archivos superan el tamaño máximo permitido.",
+    en: "The files exceed the maximum allowed size.",
+  },
+  zip_invalido: {
+    es: "Los archivos entregados no son válidos para esta pregunta.",
+    en: "The submitted files are not valid for this question.",
+  },
+  zip_error_subida: {
+    es: "Los archivos no se pudieron subir. Avísale a tu docente.",
+    en: "The files could not be uploaded. Let your teacher know.",
+  },
+  red_sin_respuesta: {
+    es: "Sin respuesta: no se registró ninguna configuración de red.",
+    en: "No answer: no network configuration was recorded.",
+  },
+  sql_sin_consulta: {
+    es: "Sin respuesta: no se escribió ninguna consulta SQL.",
+    en: "No answer: no SQL query was written.",
+  },
+} as const;
+
+type CodigoCero = keyof typeof MOTIVOS_CERO;
+
+function textoDeCero(code: unknown, lang: "es" | "en"): string {
+  const key = (typeof code === "string" ? code : "") as CodigoCero;
+  const entry = MOTIVOS_CERO[key] ?? MOTIVOS_CERO.sin_respuesta;
+  return entry[lang];
+}
+
+/**
+ * Autoriza al caller sobre una entrega de taller con la MISMA paridad que la
+ * RLS: dueño (o miembro del grupo, que la RLS de `workshop_submissions` ya
+ * cubre), sistema, o alguien que puede SELECT-earla con su propio JWT.
+ *
+ * Sin este gate el modo `batchGrading` con `submissionId` dejaría de ser
+ * inocuo: con 120 llamadas/hora un alumno podría escribir notas en la entrega
+ * de un compañero. Copiado del gate del modo examen — NO se usa
+ * `callerIsTeacherOrAdmin`, que es global y por eso deja pasar staff de otro
+ * tenant.
+ */
+async function autorizarEntregaTaller(opts: {
+  submissionId: string;
+  callerId: string;
+  isSystemTrigger: boolean;
+  authHeader: string | null;
+}): Promise<
+  | { ok: true; workshopId: string; status: string | null; aiGrade: number | null; finalGrade: number | null }
+  | { ok: false; response: Response }
+> {
+  const { data: sub } = await adminClient
+    .from("workshop_submissions")
+    .select("id, user_id, workshop_id, status, ai_grade, final_grade")
+    .eq("id", opts.submissionId)
+    .maybeSingle();
+  const row = sub as {
+    user_id?: string;
+    workshop_id?: string;
+    status?: string | null;
+    ai_grade?: number | null;
+    final_grade?: number | null;
+  } | null;
+  if (!row?.workshop_id) {
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Entrega no encontrada" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }),
+    };
+  }
+  if (!opts.isSystemTrigger && row.user_id !== opts.callerId) {
+    const rlsClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: opts.authHeader ?? "" } } },
+    );
+    const { data: visible } = await rlsClient
+      .from("workshop_submissions")
+      .select("id")
+      .eq("id", opts.submissionId)
+      .maybeSingle();
+    if (!visible) {
+      return {
+        ok: false,
+        response: new Response(JSON.stringify({ error: "No tienes permiso sobre esta entrega" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }),
+      };
+    }
+  }
+  return {
+    ok: true,
+    workshopId: row.workshop_id,
+    status: row.status ?? null,
+    aiGrade: row.ai_grade ?? null,
+    finalGrade: row.final_grade ?? null,
+  };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Cerramos sobre estas variables para que el catch global tenga
@@ -662,7 +773,18 @@ Deno.serve(async (req) => {
     //          o { error, ... } en falla.
     if (body.batchGrading) {
       const items = Array.isArray(body.items) ? body.items : [];
-      if (items.length === 0) {
+      // `submissionId` es OPCIONAL: sin él el modo se comporta byte a byte
+      // como siempre (no lee ni escribe la base). Con él, el SERVIDOR pasa a
+      // ser quien escribe las notas — el navegador del alumno no puede.
+      const persistSubmissionId: string | null =
+        body.kind === "workshop" &&
+        typeof body.submissionId === "string" &&
+        UUID_RE.test(body.submissionId)
+          ? body.submissionId
+          : null;
+      // Con submissionId NO se cortocircuita: una entrega de puras cerradas
+      // también tiene que calificarse y cerrarse.
+      if (items.length === 0 && !persistSubmissionId) {
         return new Response(JSON.stringify({ ok: true, results: {} }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -701,6 +823,7 @@ Deno.serve(async (req) => {
             type?: string;
             language?: string | null;
             framework?: string | null;
+            executionOutput?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -710,48 +833,72 @@ Deno.serve(async (req) => {
             type: typeof it.type === "string" ? it.type : undefined,
             language: it.language ?? undefined,
             framework: it.framework ?? undefined,
+            // Sin esta línea `so_consola` y `bd_sql` se calificaban a ciegas:
+            // el campo está en el tipo y se inyecta al prompt, pero ningún map
+            // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
+            executionOutput: it.executionOutput ?? undefined,
           }),
         );
 
-      if (batchInput.length === 0) {
+      // ── Contexto de la entrega (SOLO con submissionId) ──────────────────
+      let wsCtx:
+        | {
+            workshopId: string;
+            status: string | null;
+            aiGrade: number | null;
+            finalGrade: number | null;
+          }
+        | null = null;
+      if (persistSubmissionId) {
+        const authz = await autorizarEntregaTaller({
+          submissionId: persistSubmissionId,
+          callerId,
+          isSystemTrigger,
+          authHeader: req.headers.get("Authorization"),
+        });
+        if (!authz.ok) return authz.response;
+        wsCtx = {
+          workshopId: authz.workshopId,
+          status: authz.status,
+          aiGrade: authz.aiGrade,
+          finalGrade: authz.finalGrade,
+        };
+      }
+
+      if (batchInput.length === 0 && !persistSubmissionId) {
         return new Response(
           JSON.stringify({ ok: true, results: {}, note: "Sin items válidos para evaluar" }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
 
-      const out = await gradeOpenAnswersInBatch(batchInput, customSystem, bLangName);
-      if ("batchError" in out) {
-        void auditFromEdge(adminClient, {
-          actorId: auditCallerId,
-          action: "ai.grading_failed",
-          category: "grading",
-          severity: "error",
-          entityType: "submission",
-          entityId: auditEntityId,
-          metadata: {
-            mode: "batch",
-            scope: useCase,
-            batch_size: batchInput.length,
-            kind: out.batchError.kind,
-            http_status: out.batchError.http_status ?? null,
-            response_snippet: out.batchError.response_snippet,
-            finish_reason: out.batchError.finish_reason ?? null,
-            model: auditModel,
-          },
-        });
-        return new Response(
-          JSON.stringify({
-            error: "Fallo al calificar en bloque",
-            kind: out.batchError.kind,
-            http_status: out.batchError.http_status ?? null,
-            response_snippet: out.batchError.response_snippet,
-          }),
-          {
-            status: out.batchError.kind === "http" ? (out.batchError.http_status ?? 502) : 422,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          },
-        );
+      let aiResults: Map<string, BatchScore> | null = null;
+      let batchFail: BatchError["batchError"] | null = null;
+      if (batchInput.length > 0) {
+        const out = await gradeOpenAnswersInBatch(batchInput, customSystem, bLangName);
+        if ("batchError" in out) {
+          void auditFromEdge(adminClient, {
+            actorId: auditCallerId,
+            action: "ai.grading_failed",
+            category: "grading",
+            severity: "error",
+            entityType: "submission",
+            entityId: auditEntityId,
+            metadata: {
+              mode: "batch",
+              scope: useCase,
+              batch_size: batchInput.length,
+              kind: out.batchError.kind,
+              http_status: out.batchError.http_status ?? null,
+              response_snippet: out.batchError.response_snippet,
+              finish_reason: out.batchError.finish_reason ?? null,
+              model: auditModel,
+            },
+          });
+          batchFail = out.batchError;
+        } else {
+          aiResults = out.results;
+        }
       }
 
       // Convertimos Map → objeto { qid: result } para que sea JSON-serializable.
@@ -759,7 +906,7 @@ Deno.serve(async (req) => {
         string,
         { score: number; feedback: string; ai_likelihood: number; ai_reasons: string }
       > = {};
-      for (const [qid, r] of out.results.entries()) {
+      for (const [qid, r] of (aiResults ?? new Map<string, BatchScore>()).entries()) {
         // Cap del score al maxPoints del item correspondiente.
         const it = batchInput.find((x) => x.qid === qid);
         const cap = it ? it.maxPoints : Number.POSITIVE_INFINITY;
@@ -771,8 +918,189 @@ Deno.serve(async (req) => {
         };
       }
 
+      // ── Persistencia + consolidación (SOLO con submissionId) ────────────
+      // El navegador del alumno tiene prohibido escribir las columnas de nota
+      // (candado `tg_guard_workshop_answer_grade`), así que TODA la nota —la
+      // determinista incluida— se escribe acá con service_role.
+      let aggregatedGrade: number | null = null;
+      let aggregateError: string | null = null;
+      const persistErrors: Array<{ qid: string; error: string }> = [];
+      if (persistSubmissionId && wsCtx) {
+        const plainAnswers: Record<string, unknown> =
+          body.plainAnswers && typeof body.plainAnswers === "object" ? body.plainAnswers : {};
+        const zeroedByQid = new Map<string, string>();
+        if (Array.isArray(body.zeroed)) {
+          for (const z of body.zeroed as Array<{ qid?: unknown; reason?: unknown }>) {
+            if (typeof z?.qid === "string") zeroedByQid.set(z.qid, textoDeCero(z.reason, bLang));
+          }
+        }
+
+        // La fuente autoritativa de puntos y de la respuesta correcta es la
+        // BASE, nunca el body del cliente.
+        const [{ data: qRows }, { data: wsRow }, { data: prevRows }] = await Promise.all([
+          adminClient
+            .from("workshop_questions")
+            .select("id, type, points, options, starter_code")
+            .eq("workshop_id", wsCtx.workshopId),
+          adminClient.from("workshops").select("max_score").eq("id", wsCtx.workshopId).maybeSingle(),
+          adminClient
+            .from("workshop_submission_answers")
+            .select("question_id, ai_grade")
+            .eq("submission_id", persistSubmissionId),
+        ]);
+        const questions = (qRows ?? []) as Array<{
+          id: string;
+          type: string;
+          points: number | null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          options: any;
+          starter_code: string | null;
+        }>;
+        const maxScore = (wsRow as { max_score?: number | null } | null)?.max_score ?? null;
+        const prevByQid = new Map<string, number | null>();
+        for (const r of (prevRows ?? []) as Array<{
+          question_id: string;
+          ai_grade: number | null;
+        }>) {
+          prevByQid.set(r.question_id, r.ai_grade ?? null);
+        }
+
+        const notasPorPregunta = new Map<string, number | null>();
+        const filas: Array<Record<string, unknown>> = [];
+        for (const q of questions) {
+          const pts = Math.max(0, Number(q.points) || 0);
+          let nota: number | null = null;
+          let feedback = "";
+          let likelihood: number | null = null;
+          let reasons: string | null = null;
+
+          if (q.type === "codigo_zip") {
+            // No se recalifica acá: la nota la escribió el modo
+            // `workshopCodeZipGrading` en su propia llamada, antes de esta.
+            nota = prevByQid.get(q.id) ?? null;
+            notasPorPregunta.set(q.id, nota);
+            continue;
+          }
+
+          const aiRes = resultsObj[q.id];
+          if (aiRes) {
+            nota = Math.max(0, Math.min(pts, Number(aiRes.score) || 0));
+            feedback = aiRes.feedback || (bLang === "en" ? "No feedback" : "Sin retroalimentación");
+            likelihood = Math.max(0, Math.min(1, Number(aiRes.ai_likelihood) || 0));
+            reasons = aiRes.ai_reasons ?? null;
+          } else if (esDeterminista(q.type)) {
+            const det = scoreDeterministic(
+              { id: q.id, type: q.type, points: q.points, options: q.options },
+              plainAnswers[q.id],
+              bLang,
+            );
+            nota = det.earned;
+            feedback = det.feedback;
+          } else if (zeroedByQid.has(q.id)) {
+            nota = 0;
+            feedback = zeroedByQid.get(q.id)!;
+          } else if (batchInput.some((x) => x.qid === q.id)) {
+            // Iba a la IA y la IA falló en bloque, o el modelo la omitió. En el
+            // primer caso el cliente cae a la cola: dejarla en NULL es lo que
+            // mantiene la entrega "por calificar" en vez de cerrarla en 0.
+            if (batchFail) {
+              notasPorPregunta.set(q.id, prevByQid.get(q.id) ?? null);
+              continue;
+            }
+            nota = 0;
+            feedback =
+              bLang === "en"
+                ? "The model omitted this question. Ask your teacher to review it."
+                : "El modelo omitió esta pregunta. Pídele a tu docente que la revise.";
+          } else {
+            nota = 0;
+            feedback = textoDeCero("sin_respuesta", bLang);
+          }
+
+          notasPorPregunta.set(q.id, nota);
+          filas.push({
+            submission_id: persistSubmissionId,
+            question_id: q.id,
+            ai_grade: nota,
+            ai_feedback: feedback,
+            ...(likelihood !== null ? { ai_likelihood: likelihood } : {}),
+            ...(reasons !== null ? { ai_reasons: reasons } : {}),
+          });
+          resultsObj[q.id] = {
+            score: nota ?? 0,
+            feedback,
+            ai_likelihood: likelihood ?? 0,
+            ai_reasons: reasons ?? "",
+          };
+        }
+
+        // UPSERT y no UPDATE: en el camino del alumno la fila puede no existir
+        // todavía (el cliente las escribe después de esperar a la IA), y un
+        // `.update()` sobre 0 filas no da error — el edge respondería `ok`
+        // habiendo escrito nada.
+        for (const fila of filas) {
+          const { error: upErr } = await adminClient
+            .from("workshop_submission_answers")
+            .upsert(fila, { onConflict: "submission_id,question_id" });
+          if (upErr) persistErrors.push({ qid: String(fila.question_id), error: upErr.message });
+        }
+
+        // Con la IA caída no se consolida: cerrar la cabecera con las notas
+        // parciales mostraría al alumno una nota baja como si fuera la final.
+        if (!batchFail) {
+          try {
+            const cons = consolidarNotaTaller({ questions, notasPorPregunta, maxScore });
+            const patch = patchCabeceraTaller({
+              finalGrade: cons.finalGrade,
+              faltanIA: cons.faltanIA,
+              calificadas: cons.calificadas,
+              total: questions.length,
+              statusActual: wsCtx.status,
+              aiGradeActual: wsCtx.aiGrade,
+              finalGradeActual: wsCtx.finalGrade,
+              lang: bLang,
+            });
+            const { error: aggErr } = await adminClient
+              .from("workshop_submissions")
+              .update(patch)
+              .eq("id", persistSubmissionId);
+            if (aggErr) aggregateError = aggErr.message;
+            else aggregatedGrade = cons.finalGrade;
+          } catch (e) {
+            aggregateError = e instanceof Error ? e.message : String(e);
+          }
+        }
+      }
+
+      if (batchFail) {
+        return new Response(
+          JSON.stringify({
+            error: "Fallo al calificar en bloque",
+            kind: batchFail.kind,
+            http_status: batchFail.http_status ?? null,
+            response_snippet: batchFail.response_snippet,
+          }),
+          {
+            status: batchFail.kind === "http" ? (batchFail.http_status ?? 502) : 422,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
+
       return new Response(
-        JSON.stringify({ ok: true, results: resultsObj, processed: batchInput.length }),
+        JSON.stringify({
+          ok: true,
+          results: resultsObj,
+          processed: batchInput.length,
+          ...(persistSubmissionId
+            ? {
+                persistedInternally: true as const,
+                grade: aggregatedGrade,
+                partial_errors: persistErrors.length > 0 ? persistErrors : undefined,
+                aggregate_error: aggregateError ?? undefined,
+              }
+            : {}),
+        }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
@@ -828,6 +1156,7 @@ Deno.serve(async (req) => {
             type?: string;
             language?: string | null;
             framework?: string | null;
+            executionOutput?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -837,6 +1166,10 @@ Deno.serve(async (req) => {
             type: typeof it.type === "string" ? it.type : undefined,
             language: it.language ?? undefined,
             framework: it.framework ?? undefined,
+            // Sin esta línea `so_consola` y `bd_sql` se calificaban a ciegas:
+            // el campo está en el tipo y se inyecta al prompt, pero ningún map
+            // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
+            executionOutput: it.executionOutput ?? undefined,
           }),
         );
 
@@ -882,16 +1215,22 @@ Deno.serve(async (req) => {
         const cap = it.maxPoints;
         const score = Math.max(0, Math.min(cap, Number(r.score) || 0));
         const aiLikelihood = Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0));
+        // UPSERT y no UPDATE: un `.update()` sobre 0 filas no da error, así que
+        // si la fila de la respuesta no existe todavía el job se marcaba `done`
+        // habiendo escrito nada.
         const { error: upErr } = await adminClient
           .from("workshop_submission_answers")
-          .update({
-            ai_grade: score,
-            ai_feedback: r.feedback || "Sin retroalimentación",
-            ai_likelihood: aiLikelihood,
-            ai_reasons: r.ai_reasons ?? null,
-          })
-          .eq("submission_id", submissionId)
-          .eq("question_id", qid);
+          .upsert(
+            {
+              submission_id: submissionId,
+              question_id: qid,
+              ai_grade: score,
+              ai_feedback: r.feedback || "Sin retroalimentación",
+              ai_likelihood: aiLikelihood,
+              ai_reasons: r.ai_reasons ?? null,
+            },
+            { onConflict: "submission_id,question_id" },
+          );
         if (upErr) {
           persistErrors.push({ qid, error: upErr.message });
         } else {
@@ -930,17 +1269,22 @@ Deno.serve(async (req) => {
       try {
         const { data: subRow } = await adminClient
           .from("workshop_submissions")
-          .select("workshop_id, status")
+          .select("workshop_id, status, ai_grade, final_grade")
           .eq("id", submissionId)
           .maybeSingle();
-        const workshopId = (subRow as { workshop_id?: string } | null)?.workshop_id ?? null;
-        const currentStatus = (subRow as { status?: string } | null)?.status ?? null;
+        const subMeta = subRow as {
+          workshop_id?: string;
+          status?: string | null;
+          ai_grade?: number | null;
+          final_grade?: number | null;
+        } | null;
+        const workshopId = subMeta?.workshop_id ?? null;
 
         if (workshopId) {
           const [{ data: qRows }, { data: wsRow }, { data: aRows }] = await Promise.all([
             adminClient
               .from("workshop_questions")
-              .select("id, points")
+              .select("id, type, points")
               .eq("workshop_id", workshopId),
             adminClient.from("workshops").select("max_score").eq("id", workshopId).maybeSingle(),
             adminClient
@@ -949,49 +1293,38 @@ Deno.serve(async (req) => {
               .eq("submission_id", submissionId),
           ]);
 
-          const earnedByQid = new Map<string, number>();
+          const notasPorPregunta = new Map<string, number | null>();
           for (const a of (aRows ?? []) as Array<{ question_id: string; ai_grade: number | null }>) {
-            if (a.ai_grade !== null && a.ai_grade !== undefined) {
-              earnedByQid.set(a.question_id, Number(a.ai_grade) || 0);
-            }
+            notasPorPregunta.set(a.question_id, a.ai_grade ?? null);
           }
 
-          let totalPoints = 0;
-          let totalEarned = 0;
-          const questions = (qRows ?? []) as Array<{ id: string; points: number | null }>;
-          for (const q of questions) {
-            const pts = Number(q.points) || 0;
-            totalPoints += pts;
-            totalEarned += Math.max(0, Math.min(pts, earnedByQid.get(q.id) ?? 0));
-          }
-
-          // Si el taller no define escala usable, la escala son los propios
-          // puntos — así no escribimos un 0 espurio.
-          const rawMax = Number((wsRow as { max_score?: number } | null)?.max_score) || 0;
-          const scale = rawMax > 0 ? rawMax : totalPoints;
-          const finalGrade =
-            totalPoints > 0 ? Number(((totalEarned / totalPoints) * scale).toFixed(2)) : 0;
-
-          const summary =
-            wfLang === "en"
-              ? `AI graded ${persisted} of ${questions.length} question(s).`
-              : `La IA calificó ${persisted} de ${questions.length} pregunta(s).`;
-
-          // NUNCA degradar una decisión humana: si el docente ya cerró la
-          // entrega (`calificado`) o la IA la marcó para revisión manual
-          // (`requiere_revision`), se actualiza la nota de IA pero se respeta
-          // el estado. `final_grade` no se toca nunca — es del docente.
-          const patch: Record<string, unknown> = { ai_grade: finalGrade, ai_feedback: summary };
-          if (currentStatus !== "calificado" && currentStatus !== "requiere_revision") {
-            patch.status = "ai_revisado";
-          }
+          const questions = (qRows ?? []) as Array<{
+            id: string;
+            type: string;
+            points: number | null;
+          }>;
+          const cons = consolidarNotaTaller({
+            questions,
+            notasPorPregunta,
+            maxScore: (wsRow as { max_score?: number | null } | null)?.max_score ?? null,
+          });
+          const patch = patchCabeceraTaller({
+            finalGrade: cons.finalGrade,
+            faltanIA: cons.faltanIA,
+            calificadas: persisted,
+            total: questions.length,
+            statusActual: subMeta?.status ?? null,
+            aiGradeActual: subMeta?.ai_grade ?? null,
+            finalGradeActual: subMeta?.final_grade ?? null,
+            lang: wfLang,
+          });
 
           const { error: aggErr } = await adminClient
             .from("workshop_submissions")
             .update(patch)
             .eq("id", submissionId);
           if (aggErr) aggregateError = aggErr.message;
-          else aggregatedGrade = finalGrade;
+          else aggregatedGrade = cons.finalGrade;
         }
       } catch (e) {
         // Un fallo acá NO invalida la calificación: las notas por pregunta ya
@@ -1167,6 +1500,7 @@ Deno.serve(async (req) => {
             type?: string;
             language?: string | null;
             framework?: string | null;
+            executionOutput?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -1176,6 +1510,10 @@ Deno.serve(async (req) => {
             type: typeof it.type === "string" ? it.type : undefined,
             language: it.language ?? undefined,
             framework: it.framework ?? undefined,
+            // Sin esta línea `so_consola` y `bd_sql` se calificaban a ciegas:
+            // el campo está en el tipo y se inyecta al prompt, pero ningún map
+            // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
+            executionOutput: it.executionOutput ?? undefined,
           }),
         );
 
@@ -2062,6 +2400,50 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const score = Math.max(0, Math.min(Number(maxPoints) || 0, Number(args.score) || 0));
       const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
 
+      // ── Persistencia opcional de la fila de la respuesta ────────────────
+      // Con `submissionId` + `questionId` (camino del alumno en un taller) la
+      // nota la escribe el SERVIDOR: el navegador tiene prohibido escribir
+      // `ai_grade`. NO consolida la cabecera — eso lo hace la llamada
+      // `batchGrading` final del mismo submit, que ya lee esta fila.
+      let zipPersistedInternally = false;
+      let zipPersistError: string | null = null;
+      const zipSubmissionId =
+        body.workshopCodeZipGrading &&
+        typeof body.submissionId === "string" &&
+        UUID_RE.test(body.submissionId)
+          ? body.submissionId
+          : null;
+      const zipQuestionId =
+        typeof body.questionId === "string" && UUID_RE.test(body.questionId)
+          ? body.questionId
+          : null;
+      if (zipSubmissionId && zipQuestionId) {
+        const authz = await autorizarEntregaTaller({
+          submissionId: zipSubmissionId,
+          callerId,
+          isSystemTrigger,
+          authHeader: req.headers.get("Authorization"),
+        });
+        if (!authz.ok) return authz.response;
+        const { error: zipUpErr } = await adminClient
+          .from("workshop_submission_answers")
+          .upsert(
+            {
+              submission_id: zipSubmissionId,
+              question_id: zipQuestionId,
+              ai_grade: score,
+              ai_feedback: args.feedback || (pfLang === "en" ? "No feedback" : "Sin retroalimentación"),
+              ai_likelihood: aiLikelihood,
+              ai_reasons: args.ai_reasons ?? null,
+              zip_truncated: wasTruncated,
+              zip_chars_used: totalChars,
+            },
+            { onConflict: "submission_id,question_id" },
+          );
+        if (zipUpErr) zipPersistError = zipUpErr.message;
+        else zipPersistedInternally = true;
+      }
+
       return new Response(
         JSON.stringify({
           ok: true,
@@ -2071,6 +2453,8 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           ai_detected: aiLikelihood >= 0.6,
           ai_reasons: args.ai_reasons ?? "",
           files_evaluated: codeFiles.length,
+          ...(zipPersistedInternally ? { persistedInternally: true as const } : {}),
+          ...(zipPersistError ? { persist_error: zipPersistError } : {}),
           // Flags de truncado para que el cliente persista en
           // project_submission_files y muestre badge al docente.
           zip_truncated: wasTruncated,
@@ -2578,98 +2962,23 @@ Idioma de salida: ${langName}.`,
       totalPoints += Number(q.points);
       const userAnswer = answers[q.id];
 
-      if (q.type === "cerrada") {
-        const correctIdx = q.options?.correct_index;
-        // GUARD (fix auditoría): exigir que AMBOS sean number finito. Sin esto,
-        // una `cerrada` con correct_index ausente + sin responder daba
-        // `undefined === undefined` → puntaje completo por una pregunta en
-        // blanco. MIRROR de scoreCerradaSingle en
-        // src/modules/exams/question-scoring.ts.
-        const pts = Math.max(0, Number(q.points) || 0);
-        const got =
-          typeof correctIdx === "number" &&
-          Number.isFinite(correctIdx) &&
-          typeof userAnswer === "number" &&
-          Number.isFinite(userAnswer) &&
-          userAnswer === correctIdx
-            ? pts
-            : 0;
-        earned += got;
-        breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
-      } else if (q.type === "cerrada_multi") {
-        // Opción múltiple: proporcional positivo SIN penalización.
-        // earned = (correctas_marcadas / total_correctas) * puntos.
-        // Sincronizado con src/utils/question-scoring.ts → scoreCerradaMulti.
-        const correctIndices: number[] = Array.isArray(q.options?.correct_indices)
-          ? q.options.correct_indices.filter((n: unknown) => typeof n === "number")
-          : [];
-        const selectedRaw: number[] = Array.isArray(userAnswer)
-          ? userAnswer.filter((n: unknown) => typeof n === "number")
-          : [];
-        const selected = Array.from(new Set(selectedRaw));
-        const correctSet = new Set(correctIndices);
-        const minSel = typeof q.options?.min_selections === "number" ? q.options.min_selections : 0;
-        const maxSel =
-          typeof q.options?.max_selections === "number" ? q.options.max_selections : Infinity;
-
-        let got = 0;
-        const totalCorrect = correctSet.size;
-        const totalPoints = Number(q.points);
-        if (
-          selected.length > 0 &&
-          selected.length >= minSel &&
-          selected.length <= maxSel &&
-          totalCorrect > 0 &&
-          totalPoints > 0
-        ) {
-          let matched = 0;
-          for (const s of selected) {
-            if (correctSet.has(s)) matched++;
-          }
-          got = Number(((matched / totalCorrect) * totalPoints).toFixed(2));
-        }
-        earned += got;
-        breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got });
-      } else if (q.type === "red_consola" || q.type === "red_gui") {
-        // Calificación DETERMINISTA server-side (mismo motor puro que el
-        // cliente): parsea la topología final del alumno + su historial y
-        // evalúa las aserciones del escenario (q.options.network). Sin IA.
-        // Igual para consola (comandos) y GUI (topología editada).
-        const scenario = parseScenario(q.options);
-        const answer = parseNetworkAnswer(userAnswer);
-        const pts = Math.max(0, Number(q.points) || 0);
-        if (!scenario || !answer) {
-          breakdown.push({
-            qid: q.id,
-            type: q.type,
-            points: q.points,
-            earned: 0,
-            feedback: "Sin respuesta",
-          });
-        } else {
-          // Aislar el grading: una respuesta malformada de UNA pregunta de red
-          // no debe abortar la calificación de toda la entrega.
-          try {
-            const result = gradeNetwork(
-              { topology: answer.topology, histories: answer.histories },
-              scenario.assertions,
-            );
-            const got = Math.round(result.ratio * pts * 100) / 100;
-            const fb = result.items
-              .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-              .join("\n");
-            earned += got;
-            breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: got, feedback: fb });
-          } catch (netErr) {
-            breakdown.push({
-              qid: q.id,
-              type: q.type,
-              points: q.points,
-              earned: 0,
-              feedback: `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`,
-            });
-          }
-        }
+      if (esDeterminista(q.type)) {
+        // Calificación DETERMINISTA (cerradas, opción múltiple, red) — el
+        // mismo módulo que usa el camino del taller, para que la nota de una
+        // cerrada no dependa de qué pantalla la calculó.
+        const det = scoreDeterministic(
+          { id: q.id, type: q.type, points: q.points, options: q.options },
+          userAnswer,
+          examLang,
+        );
+        earned += det.earned;
+        breakdown.push({
+          qid: q.id,
+          type: q.type,
+          points: q.points,
+          earned: det.earned,
+          feedback: det.feedback,
+        });
       } else {
         // Sin respuesta — dos casos cuentan como "vacía":
         //   1. null/undefined o string solo con whitespace.

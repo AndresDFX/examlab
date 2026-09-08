@@ -136,6 +136,56 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Ningún estudiante podía cerrar la entrega de un taller, desde hace 70 días.** El alumno entregaba
+  y recibía *«No se pudo registrar el estado de tu entrega: No autorizado: solo el docente del curso
+  o un administrador pueden modificar la calificación… Vuelve a entregar.»*. La entrega quedaba
+  `entregado` sin nota, el mensaje lo invitaba a reintentar, y cada reintento repetía la escena.
+
+  Medido contra producción: **desde el 2026-06-30 hubo 19 entregas de taller y solo 2 con nota** (una
+  la cerró el worker de segundo plano, que sí tiene permiso; la otra una cuenta interna con rol
+  docente). **14 entregas de 14 alumnos distintos** quedaron colgadas. Y no es un caso borde: 5 de las
+  8 instituciones están en modo de calificación inmediata, así que ahí **el 100 %** de las entregas de
+  taller quedaba sin nota.
+
+  **La causa era un desencuentro de modos en el edge de IA.** El envío del alumno invoca
+  `ai-grade-submission` con `batchGrading`, que calificaba y **devolvía** los puntajes sin persistir
+  nada. La consolidación de la nota en la cabecera sí existía… en OTRO modo (`workshopFullGrading`).
+  O sea que en el camino del alumno nadie consolidaba, el navegador intentaba hacerlo él, y el candado
+  de notas (mig `20261034000000`) lo rechazaba — **con razón**: eso era el navegador del alumno
+  escribiendo su propia calificación. Ese candado no se tocó.
+
+  Lo que se hizo: **la nota la escribe el servidor**. `batchGrading` acepta ahora un `submissionId`
+  opcional y, cuando viene, persiste él las notas por pregunta, califica las deterministas
+  (cerradas, opción múltiple, red) y consolida la cabecera, reusando la fórmula que ya existía en vez
+  de duplicarla — extraída a dos módulos puros con pruebas
+  ([`workshop-grading.ts`](supabase/functions/_shared/workshop-grading.ts) y
+  [`deterministic-scoring.ts`](supabase/functions/_shared/deterministic-scoring.ts), 30 casos). Sin
+  `submissionId` el modo se comporta igual que antes, así que los otros dos que lo invocan no cambian.
+  El cliente dejó de escribir columnas de nota: ahora solo escribe lo que es suyo, las respuestas.
+
+  Y se cerró **el agujero de al lado, que era lo que hacía inútil arreglar solo la cabecera**: las
+  notas POR PREGUNTA las escribía también el navegador del alumno, y
+  `workshop_submission_answers` **no tenía ningún candado** — un `PATCH` con su propio JWT le ponía el
+  `ai_grade` que quisiera. Consolidar «del lado del servidor» leyendo esa tabla no habría protegido
+  nada. La mig `20262130000000` le pone el candado calcado del de la cabecera, protegiendo las
+  columnas de IA y dejando libres las del alumno (`answer_text`, `selected_option`, `code_content`,
+  `diagram_code`, `zip_path`, `code_paths`) — bloquear esas habría sido peor que el bug original: lo
+  dejaría sin poder ni contestar.
+
+  Verificado contra un PostgreSQL real (PGlite), 7 de 7: el `service_role` escribe, el alumno guarda
+  **y edita** su respuesta, no puede ponerse nota ni por `INSERT` ni por `UPDATE`, el docente del curso
+  sí puede y un tercero no. Y con el candado quitado los 3 casos de auto-nota pasan, o sea que la
+  prueba **no es tautológica**. Ojo con una trampa que casi rompió todas las entregas:
+  `ai_detected` es `boolean NOT NULL DEFAULT false`, así que en un `INSERT` normal llega en `false` y
+  no en `NULL` — un chequeo `IS NOT NULL` habría bloqueado a **todos** los alumnos al guardar su
+  respuesta; esa columna se compara con `IS TRUE`.
+
+  **Lo que este arreglo NO cubre**, y hay que atender aparte: las **8 entregas que perdieron
+  respuestas** (una falla distinta: no hay autoguardado y las respuestas se escriben al final del
+  envío, después de esperar a la IA), y el cierre de las **6 recuperables**, que tienen todo su
+  trabajo guardado y calificado y solo les falta la nota. Eso último se decide y se ejecuta a mano:
+  escribir en las notas de estudiantes reales no lo hace un agente.
+
 - **Un taller ya disponible seguía diciendo «Próximo» (y lo mismo en proyectos).** Reportado con
   «Joins en SQL», que abría a las 19:27 y a las 19:44 seguía mostrándose como próximo, con el
   contador de «Disponibles» en 0.
