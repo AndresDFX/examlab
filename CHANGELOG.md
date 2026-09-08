@@ -153,6 +153,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **La fecha «Fin» del grid de exámenes del docente mostraba hasta 27 días antes de lo real.** La
+  columna calculaba `min(end_time, start_time + duración)` en vez de mostrar el `end_time` guardado.
+
+  Esa fórmula existe y es correcta… **en el monitor**, donde parte de `submission.started_at` y
+  responde «cuándo se le vence el intento a ESTE alumno». El grid copió la forma pero sustituyó
+  `started_at` por el `start_time` del examen, y así convirtió un dato del intento en una afirmación
+  falsa sobre la ventana: mide cuándo se le vencería a un alumno imaginario que hubiera arrancado en
+  el instante exacto en que abrió la ventana.
+
+  Medido en producción: cuatro «Prueba diagnóstica» de UNIAJ mostraban «24 de ago» y «27 de ago»
+  cuando cierran el 20 de septiembre, el 8 de septiembre y el 30 de agosto — desfases de 4, 15, 24 y
+  **27 días**. Y lo que lo vuelve grave: **la pantalla del estudiante mostraba bien el `end_time`**, así
+  que el docente creía cerrado un examen que su propio alumno veía abierto.
+
+  Se revisó el resto de las superficies: la pantalla de detalle del examen, el export y la vista del
+  estudiante ya usaban `end_time` directo — el defecto estaba aislado en el grid. La duración del
+  intento sigue teniendo su propia columna, que es donde ese dato pertenece.
+
 - **Ningún estudiante podía cerrar la entrega de un taller, desde hace 70 días.** El alumno entregaba
   y recibía *«No se pudo registrar el estado de tu entrega: No autorizado: solo el docente del curso
   o un administrador pueden modificar la calificación… Vuelve a entregar.»*. La entrega quedaba

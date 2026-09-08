@@ -235,9 +235,9 @@ function TeacherExams() {
   }, [exams]);
 
   // Orden por columna (flujo: filtrar → ORDENAR → paginar). Los accessors
-  // replican los lookups derivados del render (nombre de curso/corte por id,
-  // fin = inicio + duración acotado por end_time) para que el orden coincida
-  // con lo que ve el docente. Vacíos van al final automáticamente.
+  // replican los lookups derivados del render (nombre de curso/corte por id)
+  // para que el orden coincida con lo que ve el docente. Vacíos van al final
+  // automáticamente.
   const sort = useTableSort(filteredExams, {
     columns: {
       title: (e) => e.title,
@@ -245,13 +245,8 @@ function TeacherExams() {
       cut: (e) => cuts.find((c) => c.id === e.cut_id)?.name ?? "",
       weight: (e) => (e.cut_id != null && e.weight != null ? Number(e.weight) : null),
       start_time: (e) => e.start_time,
-      end_time: (e) => {
-        const start = new Date(e.start_time).getTime();
-        const limit = Number(e.time_limit_minutes ?? 0) * 60_000;
-        const fromLimit = start + limit;
-        const explicit = (e as any).end_time ? new Date((e as any).end_time).getTime() : null;
-        return new Date(explicit ? Math.min(explicit, fromLimit) : fromLimit);
-      },
+      // Espeja la celda: `end_time` tal cual. Los sin fecha van al final.
+      end_time: (e) => ((e as any).end_time ? new Date((e as any).end_time) : null),
       duration: (e) => Number(e.time_limit_minutes ?? 0),
       kind: (e) => ((e as any).is_external ? "externo" : "en linea"),
       status: (e) => ((e as any).status ?? "published") as string,
@@ -1060,19 +1055,22 @@ function TeacherExams() {
                     <DateCell value={e.start_time} variant="datetime" />
                   </TableCell>
                   <TableCell className="hidden sm:table-cell">
-                    {(() => {
-                      // Fin = inicio + duración. Para sync con end_time
-                      // explícito tomamos el menor (la ventana puede
-                      // cerrar antes que el time_limit del intento).
-                      const start = new Date(e.start_time).getTime();
-                      const limit = Number(e.time_limit_minutes ?? 0) * 60_000;
-                      const fromLimit = start + limit;
-                      const explicit = (e as any).end_time
-                        ? new Date((e as any).end_time).getTime()
-                        : null;
-                      const end = explicit ? Math.min(explicit, fromLimit) : fromLimit;
-                      return <DateCell value={new Date(end)} variant="datetime" />;
-                    })()}
+                    {/* `end_time` TAL CUAL: es la fecha en que se cierra la
+                        ventana del examen, que es lo que esta columna promete.
+
+                        Antes acá se calculaba `min(end_time, start_time +
+                        time_limit_minutes)`, copiando la fórmula del monitor —
+                        pero esa fórmula es del INTENTO y parte de
+                        `submission.started_at`, no del `start_time` del examen.
+                        Con `start_time` deja de significar nada: mide cuándo se
+                        le vencería a un alumno imaginario que arrancó en el
+                        instante en que abrió la ventana. Medido en producción el
+                        2026-09-07, mostraba «24 de ago» en exámenes que cierran
+                        el 20 de septiembre — hasta 27 días antes—, y la pantalla
+                        del ESTUDIANTE mostraba (bien) el 20 de septiembre: el
+                        docente creía cerrado un examen que su propio alumno veía
+                        abierto. La duración del intento ya tiene su columna. */}
+                    <DateCell value={(e as any).end_time} variant="datetime" />
                   </TableCell>
                   <TableCell
                     className="text-sm hidden xl:table-cell tabular-nums whitespace-nowrap"
