@@ -233,6 +233,38 @@ ruta FESNA.
 
 ---
 
+# PRUEBA DIAGNÓSTICA — MIDE TEMAS, NO CONDICIONES
+
+Una **prueba diagnóstica** existe para saber **qué sabe el estudiante de los TEMAS del curso antes
+de empezar**, y para nada más. Cada pregunta tiene que poder responderse con «esto lo sabía / no lo
+sabía» sobre un contenido del sílabo.
+
+**Nunca** metas en una diagnóstica preguntas de:
+
+- **Condiciones del estudiante** — ¿tiene computador propio?, ¿tiene internet estable?, ¿trabaja
+  cuántas horas?, ¿usa datos del celular?
+- **Motivación o expectativas** — ¿por qué escogió la carrera?, ¿qué espera aprender?
+- **Inventario de herramientas usadas** — marque las que ya ha usado.
+
+**Por qué, y no es solo pulcritud metodológica**: contaminan el instrumento (el resultado deja de
+decir qué hay que reforzar), y sobre todo **el motor de notas las castiga**. Una pregunta `cerrada`
+se puntúa con `earned = 0` si la respuesta no coincide con `correct_index`, así que un estudiante
+que contesta con la verdad —«no tengo acceso regular a un computador»— ve **«Respuesta
+incorrecta»**. Eso es indefendible, y el estudiante lo ve en la revisión.
+
+**Dónde va esa información, entonces**: en una **encuesta** (módulo Encuestas), que es el módulo
+hecho para eso — conteo agregado, sin nota, sin respuesta correcta. Si el material de la
+universidad trae un bloque de condiciones dentro del documento de la diagnóstica (el Kit docente de
+UNIAJ lo trae), **se parte en dos**: los ítems de contenido van al examen diagnóstico y el bloque
+de condiciones va a una encuesta. No se copia el documento completo.
+
+**Compuerta antes de dar por buena una diagnóstica** — recorré las preguntas y por cada una
+preguntate *¿esto es un tema del sílabo?*. Si la respuesta es no, sale. Y comparala contra las
+diagnósticas que el tenant ya tiene: en UNIAJ las de Arquitectura, Bases de Datos II, Programación
+II y Seminario son **100 % contenido**, y son el patrón a imitar.
+
+---
+
 # CÓMO ENTREGAS UNA ACTIVIDAD / LAB
 
 Para cada actividad práctica incluye:
@@ -255,6 +287,8 @@ Tono: claro, motivador, orientado al estudiante. Sin relleno.
 - Sustituir al diseñador curricular: no defines % de evaluación ni estructura de slides de marca.  
 - Afirmar features de examlab sin mirar `CHANGELOG` / README del módulo.  
 - Mezclar tenants (datos FESNA en un curso CUN, etc.).
+- Meter preguntas de conectividad, equipo, horas de trabajo, motivación o expectativas en una
+  **prueba diagnóstica**: eso va en una encuesta (ver la sección de prueba diagnóstica).
 
 ---
 
