@@ -29,6 +29,27 @@ bun run dev              # localhost:5173
 - **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
 - **Multi-rol (Admin + Docente + Estudiante) en FESNA**: `test-fesna@examlab.test`. user_id `d0495677-9f20-4f6f-b4f2-7f616b608a04`. Tenant FESNA (`231c9e47-e50d-45a9-8782-af38087656a4`). Tenía los 3 roles → útil para validar flows Admin/Docente/Estudiante con el mismo user. **⚠️ La contraseña `WyEBPdxMCRZVFp` YA NO funciona** (verificado 2026-07-19: "Invalid login credentials"): la cuenta migró a SSO el 2026-06-12, así que NO sirve para login por password/REST. Para testing programático por REST necesitás otra cuenta con password auth.
 
+**Al crear un curso en UNIAJ, matricular también al dueño como estudiante** (regla del usuario,
+2026-09-08). La cuenta `andres_dfx@hotmail.com` (`0a26163e…`, tenant UNIAJ `b35d1bd2…`, roles
+Docente + Admin + Estudiante) tiene que quedar matriculada en **todo curso nuevo de UNIAJ**, para que
+el dueño pueda ver cada curso como lo ven sus estudiantes sin pedirle la cuenta a nadie. **Depende
+del tenant**: aplica a UNIAJ, que es donde vive esa cuenta — no se matricula en FESNA, Univalle ni en
+los tenants demo, donde sería un alumno fantasma en el listado de otra institución.
+
+Dos cosas que no se deducen leyendo el código:
+
+- **La rama Docente de la RLS lo RECHAZA a propósito**, así que hay que hacerlo como Admin o
+  SuperAdmin. El `WITH CHECK` de `enrollments_docente_manage` (mig
+  [20261920000000](supabase/migrations/20261920000000_docente_enrollment_target_guard.sql)) prohíbe
+  que un Docente matricule una cuenta con rol de staff, porque era un escalamiento: matriculado, el
+  perfil entraba en `_is_my_student` y el docente ganaba el UPDATE de su `institutional_email`. La
+  rama de Admin no está restringida, y es por donde pasa el diálogo de `app.admin.users.tsx`.
+- **Tiene un costo que esa misma migración documenta**: una cuenta de staff matriculada aparece en el
+  listado del curso, en el gradebook, en la asistencia y en los correos del curso — la llama «un
+  problema de datos por sí sola». Se acepta a cambio de poder ver la vista del estudiante; si alguna
+  vez estorba en un acta o en una estadística, la matrícula se borra y listo. Y el INSERT dispara el
+  trigger de correo de bienvenida (`trg_course_enrollment_welcome`), o sea un correo por curso.
+
 **Tenant FESNA — estado** (snapshot 2026-06-08):
 - 1 curso activo: `Paradigmas de Programación-2682V` (id `01b397a3-e74f-4f66-becf-c63b643f247f`) — el nombre cambió; verificado por REST el 2026-08-07.
 - 93 estudiantes importados del CSV de "La Nueva América" (`*@lanuevaamerica.edu.co`), todos matriculados al curso de arriba.

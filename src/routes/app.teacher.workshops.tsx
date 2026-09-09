@@ -4,6 +4,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
+import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
+import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
 import { useAuth } from "@/hooks/use-auth";
 import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -250,9 +252,36 @@ type WsSimilarityPair = {
 type WsQuestion = {
   id: string;
   workshop_id: string;
-  type: "abierta" | "cerrada" | "codigo" | "diagrama";
+  // Los DOCE tipos que la plataforma acepta, no cuatro. Esta unión decía
+  // "abierta | cerrada | codigo | diagrama" y por eso el modal de calificación
+  // nunca tuvo ramas para mostrar una respuesta de bd_sql, cerrada_multi o de
+  // red: el tipo afirmaba que no podían llegar acá, y llegan — «Joins en SQL»
+  // (UNIAJ) tiene 2 de 4 preguntas bd_sql. El compilador no ayudaba porque un
+  // tipo más ANGOSTO que la realidad no falla, solo tapa las ramas que faltan.
+  // La misma unión, completa, está en `src/modules/workshops/WorkshopQuestions.tsx`
+  // (~línea 106): si se agrega un tipo, van los dos.
+  type:
+    | "abierta"
+    | "cerrada"
+    | "cerrada_multi"
+    | "codigo"
+    | "diagrama"
+    | "java_gui"
+    | "python_gui"
+    | "codigo_zip"
+    | "red_consola"
+    | "red_gui"
+    | "so_consola"
+    | "bd_sql";
   content: string;
-  options: { choices?: string[]; correct_index?: number } | null;
+  options: {
+    choices?: string[];
+    correct_index?: number;
+    /** `cerrada_multi`: varias correctas. */
+    correct_indices?: number[];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    [k: string]: any;
+  } | null;
   position: number;
   points: number;
   expected_rubric: string | null;
@@ -4772,6 +4801,106 @@ function TeacherWorkshops() {
                                                 </span>
                                               );
                                             })()}
+                                          </div>
+                                        ) : q.type === "cerrada_multi" ? (
+                                          /* Las marcadas, con su letra y su texto. El
+                                             answer_text de una cerrada_multi es un JSON de
+                                             índices: mostrarlo crudo ("[0,2]") obliga al
+                                             docente a contar opciones a mano para saber
+                                             qué eligió el alumno. */
+                                          <div className="text-sm mt-1 space-y-0.5">
+                                            {(() => {
+                                              let idx: number[] = [];
+                                              try {
+                                                const parsed = JSON.parse(
+                                                  String(ans?.answer_text ?? "[]"),
+                                                );
+                                                if (Array.isArray(parsed)) {
+                                                  idx = parsed
+                                                    .map((n: unknown) => Number(n))
+                                                    .filter((n) => Number.isFinite(n));
+                                                }
+                                              } catch {
+                                                idx = [];
+                                              }
+                                              const choices: string[] = Array.isArray(
+                                                q.options?.choices,
+                                              )
+                                                ? q.options.choices
+                                                : [];
+                                              const correctas: number[] = Array.isArray(
+                                                q.options?.correct_indices,
+                                              )
+                                                ? q.options.correct_indices.map((n: unknown) =>
+                                                    Number(n),
+                                                  )
+                                                : [];
+                                              if (idx.length === 0) {
+                                                return (
+                                                  <span className="italic text-muted-foreground">
+                                                    {t("hc_routesAppTeacherWorkshops.noAnswer")}
+                                                  </span>
+                                                );
+                                              }
+                                              return idx.map((i) => (
+                                                <div
+                                                  key={i}
+                                                  className={
+                                                    correctas.includes(i)
+                                                      ? "text-emerald-600 dark:text-emerald-400"
+                                                      : "text-destructive"
+                                                  }
+                                                >
+                                                  {String.fromCharCode(65 + i)}.{" "}
+                                                  {choices[i] ?? String(i)}
+                                                </div>
+                                              ));
+                                            })()}
+                                          </div>
+                                        ) : q.type === "bd_sql" ? (
+                                          /* El SQL y lo que devolvió la base, no el JSON. El
+                                             answer_text de una bd_sql es el objeto que
+                                             serializa sql-answer.ts, así que el docente veía
+                                             literalmente el {"bdSql":1,"sql":"SELECT …"} —
+                                             medido en producción el 2026-09-08 en «Joins en
+                                             SQL», donde 2 de las 4 preguntas son de este
+                                             tipo. Los dos helpers ya existen y son los
+                                             mismos que usa la pantalla del alumno. */
+                                          (() => {
+                                            const sql = sqlSourceForDisplay(raw);
+                                            const salida = sqlResultsForDisplay(raw);
+                                            if (!sql && !salida) {
+                                              return (
+                                                <p className="text-xs italic text-muted-foreground mt-1">
+                                                  {t("hc_routesAppTeacherWorkshops.noAnswer")}
+                                                </p>
+                                              );
+                                            }
+                                            return (
+                                              <div className="mt-1 space-y-1">
+                                                {sql && (
+                                                  <pre className="max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
+                                                    {sql}
+                                                  </pre>
+                                                )}
+                                                {salida && (
+                                                  <pre className="max-h-40 overflow-auto rounded bg-muted/30 border p-2 text-2xs whitespace-pre font-mono">
+                                                    {salida}
+                                                  </pre>
+                                                )}
+                                              </div>
+                                            );
+                                          })()
+                                        ) : q.type === "red_consola" || q.type === "red_gui" ? (
+                                          /* Mismo componente que la revisión del alumno: sin
+                                             esto el docente veía la topología y el historial
+                                             de comandos como JSON. */
+                                          <div className="mt-1">
+                                            <NetworkAnswerReview
+                                              options={q.options}
+                                              value={raw}
+                                              type={q.type}
+                                            />
                                           </div>
                                         ) : raw ? (
                                           <pre className="mt-1 max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">

@@ -142,6 +142,14 @@ NO generes aleatorias.
   asumen `WHERE slug='default'` y por eso **no hacen nada**. En seeds/backfills per-tenant usá
   una fuente *source-agnostic* (la fila global más antigua de cualquier tenant, prefiriendo el
   platform-default `tenant_id IS NULL`).
+- **Al crear un curso en UNIAJ, matriculá también a `andres_dfx@hotmail.com` como estudiante**
+  (regla del usuario, 2026-09-08): es la cuenta del dueño (`0a26163e…`, tenant `uniaj`, roles
+  Docente + Admin + Estudiante) y así puede ver cada curso como lo ven sus alumnos. **Solo en
+  UNIAJ** — en FESNA, Univalle o los tenants demo sería un alumno fantasma de otra institución.
+  Dos trampas: la rama Docente de la RLS lo RECHAZA (el `WITH CHECK` de
+  `enrollments_docente_manage`, mig 20261920000000, prohíbe que un Docente matricule una cuenta con
+  rol de staff porque era un escalamiento), así que hacelo como Admin/SuperAdmin; y el INSERT
+  dispara el correo de bienvenida (`trg_course_enrollment_welcome`), un correo por curso.
 - Hay un trigger `tg_provision_tenant_defaults` que siembra la config por tenant al crearlo. Si
   agregás una tabla de configuración per-tenant, sumala ahí o los tenants nuevos nacen rotos.
 - **Dos tenants de demo**: `examlab-demo` es el que SE ENTREGA (5 docentes, vacío);

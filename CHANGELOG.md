@@ -153,6 +153,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **En el modal de calificación de talleres, la respuesta del estudiante se mostraba como JSON
+  crudo** en las preguntas de SQL, y como un arreglo de índices en las de opción múltiple. El docente
+  veía literalmente `{"bdSql":1,"sql":"SELECT table_name…}` en vez del SQL que escribió el alumno.
+
+  **La causa de fondo era un tipo más angosto que la realidad.** `WsQuestion` declaraba
+  `type: "abierta" | "cerrada" | "codigo" | "diagrama"` — cuatro tipos, cuando la plataforma acepta
+  doce. Así que el modal nunca tuvo ramas para `bd_sql`, `cerrada_multi`, `red_consola` ni `red_gui`:
+  todo eso caía en el `<pre>{raw}</pre>` genérico. Y el compilador no ayudaba, porque un tipo
+  demasiado angosto no falla, solo tapa las ramas que faltan. Se amplió la unión a los doce (la misma
+  lista, completa, ya existía en `WorkshopQuestions.tsx`) y con eso TypeScript señaló los cuatro
+  huecos.
+
+  Ahora cada tipo se muestra con el componente que ya existía y no se usaba acá:
+  `sqlSourceForDisplay` + `sqlResultsForDisplay` para el SQL y su resultado, las opciones marcadas con
+  su letra y su texto (verde si es correcta) para `cerrada_multi`, y `NetworkAnswerReview` —el mismo
+  de la revisión del alumno— para las de red.
+
+  Validado en el taller «Joins en SQL» de UNIAJ, con los datos reales de dos estudiantes: donde el
+  mismo arnés antes detectaba JSON, ahora lee `SELECT Pedidos.fecha_pedido, Clientes.nombre_cliente
+  FROM "Pedidos" RIGHT JOIN…`. Las cerradas seguían bien antes y siguen bien.
+
+  **Lo que NO era un bug de pantalla:** el «Sin respuesta» que se veía en las preguntas cerradas de
+  ese alumno es correcto — su entrega tiene 1 de 4 respuestas en la base. Eso es la pérdida de datos
+  del envío de talleres, que es otra falla y sigue pendiente.
+
 - **La fecha «Fin» del grid de exámenes del docente mostraba hasta 27 días antes de lo real.** La
   columna calculaba `min(end_time, start_time + duración)` en vez de mostrar el `end_time` guardado.
 
