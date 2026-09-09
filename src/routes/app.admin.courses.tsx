@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDeleteCourseCascade } from "@/modules/trash/soft-delete";
 import { DeleteCourseDialog } from "@/modules/courses/DeleteCourseDialog";
 import { useAuth } from "@/hooks/use-auth";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
@@ -198,7 +199,7 @@ type CourseStats = {
 
 export function AdminCourses() {
   const { t } = useTranslation();
-  const { user, roles } = useAuth();
+  const { user, roles, profile } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [courses, setCourses] = useState<Course[]>([]);
@@ -530,6 +531,17 @@ export function AdminCourses() {
   // que filtraba bien sólo el rol pero no la intención del usuario.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const isSuperAdminCaller = activeRole === "SuperAdmin" && (roles as any[]).includes("SuperAdmin");
+  // Estructura académica sin institución elegida: los Selects de programa /
+  // asignatura / periodo quedan vacíos a propósito (cada fila pertenecería a
+  // otra institución) y hay que DECIRLO — una lista vacía muda se lee como
+  // "esta institución no tiene carreras" o como que la app está rota.
+  const academicSinInstitucion =
+    academicScope({
+      roles,
+      institucionElegida: tenantFilter,
+      actuandoComoSuperAdmin: isSuperAdminCaller,
+      tenantPropio: profile?.tenant_id ?? null,
+    }).modo === "sin-institucion";
   // Docente tiene los mismos privilegios que Admin para gestionar
   // cursos, EXCEPTO auto-asignarse en course_teachers (lo bloquea
   // tanto la RLS como el filtro del dialog de docentes más abajo).
@@ -589,50 +601,6 @@ export function AdminCourses() {
       data = res.data ?? [];
     }
     setLoadError(null);
-    // Cargar programas activos (best-effort — si falla, el dropdown
-    // queda vacío pero el form sigue funcionando: program_id es opcional).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: progs } = await (supabase as any)
-      .from("academic_programs")
-      .select("id, name")
-      .eq("active", true)
-      .order("name");
-    setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
-    // Periodos académicos (best-effort).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: pers } = await (supabase as any)
-      .from("academic_periods")
-      .select("id, code, name, status")
-      .order("code", { ascending: false });
-    setPeriods(
-      (pers ?? []) as Array<{ id: string; code: string; name: string | null; status: string }>,
-    );
-    // Asignaturas activas (best-effort). Incluimos sistema_evaluacion
-    // para poder pre-rellenar los pesos del curso cuando viene del
-    // flujo 'Crear curso desde esta asignatura'.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: subs } = await (supabase as any)
-      .from("academic_subjects")
-      .select("id, name, code, program_id, semestre, sistema_evaluacion")
-      .eq("active", true)
-      .order("name");
-    setSubjects(
-      (subs ?? []) as Array<{
-        id: string;
-        name: string;
-        code: string | null;
-        program_id: string | null;
-        semestre: number | null;
-        sistema_evaluacion?: {
-          exam_weight?: number;
-          workshop_weight?: number;
-          project_weight?: number;
-          attendance_weight?: number;
-          grade_scale_min?: number;
-          grade_scale_max?: number;
-        } | null;
-      }>,
-    );
     // Tenants visibles — solo el SuperAdmin ve >1 institución; el Admin
     // normal ve solo el suyo (RLS). Si el array queda en ≤1, el filtro
     // UI no se renderiza más abajo.
@@ -643,21 +611,101 @@ export function AdminCourses() {
       .is("deleted_at", null)
       .order("name");
     setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
-    // Escala por defecto de la institución (para heredarla en cursos nuevos).
-    // limit(1): el Admin ve solo su app_settings (RLS); el SuperAdmin podría
-    // ver varias filas → tomamos la primera (igual la puede sobrescribir).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: appSet } = await (supabase as any)
-      .from("app_settings")
-      .select("default_grade_scale_min, default_grade_scale_max")
-      .limit(1);
-    const scaleRow = (appSet ?? [])[0] as
-      | { default_grade_scale_min?: number; default_grade_scale_max?: number }
-      | undefined;
-    setDefaultScale({
-      min: Number(scaleRow?.default_grade_scale_min ?? 0),
-      max: Number(scaleRow?.default_grade_scale_max ?? 5),
+    // Estructura académica y escala por defecto: SIEMPRE de la institución del
+    // filtro. Sin este scope el form grababa program_id/period_id/subject_id de
+    // otra institución en un curso, y `app_settings.limit(1)` heredaba la escala
+    // de la primera institución que devolviera PostgREST. La RLS no lo puede
+    // dar: sus policies de lectura traen todo con `OR is_super_admin()`.
+    const scope = academicScope({
+      roles,
+      institucionElegida: tenantFilter,
+      actuandoComoSuperAdmin: isSuperAdminCaller,
+      tenantPropio: profile?.tenant_id ?? null,
     });
+    if (debeConsultar(scope)) {
+      // Cargar programas activos (best-effort — si falla, el dropdown
+      // queda vacío pero el form sigue funcionando: program_id es opcional).
+      const { data: progs } = await conTenant(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("academic_programs")
+          .select("id, name")
+          .eq("active", true)
+          .order("name"),
+        scope,
+      );
+      setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
+      // Periodos académicos (best-effort).
+      const { data: pers } = await conTenant(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("academic_periods")
+          .select("id, code, name, status")
+          .order("code", { ascending: false }),
+        scope,
+      );
+      setPeriods(
+        (pers ?? []) as Array<{ id: string; code: string; name: string | null; status: string }>,
+      );
+      // Asignaturas activas (best-effort). Incluimos sistema_evaluacion
+      // para poder pre-rellenar los pesos del curso cuando viene del
+      // flujo 'Crear curso desde esta asignatura'.
+      const { data: subs } = await conTenant(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("academic_subjects")
+          .select("id, name, code, program_id, semestre, sistema_evaluacion")
+          .eq("active", true)
+          .order("name"),
+        scope,
+      );
+      setSubjects(
+        (subs ?? []) as Array<{
+          id: string;
+          name: string;
+          code: string | null;
+          program_id: string | null;
+          semestre: number | null;
+          sistema_evaluacion?: {
+            exam_weight?: number;
+            workshop_weight?: number;
+            project_weight?: number;
+            attendance_weight?: number;
+            grade_scale_min?: number;
+            grade_scale_max?: number;
+          } | null;
+        }>,
+      );
+      // Escala por defecto de la institución (para heredarla en cursos nuevos).
+      // limit(1): el Admin ve solo su app_settings (RLS); el SuperAdmin podría
+      // ver varias filas → tomamos la primera (igual la puede sobrescribir).
+      const { data: appSet } = await conTenant(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("app_settings")
+          .select("default_grade_scale_min, default_grade_scale_max")
+          .limit(1),
+        scope,
+      );
+      const scaleRow = (appSet ?? [])[0] as
+        | { default_grade_scale_min?: number; default_grade_scale_max?: number }
+        | undefined;
+      setDefaultScale({
+        min: Number(scaleRow?.default_grade_scale_min ?? 0),
+        max: Number(scaleRow?.default_grade_scale_max ?? 5),
+      });
+    } else {
+      // SuperAdmin en "Todas las instituciones": no hay UNA estructura académica
+      // que mostrar (cada fila pertenecería a otra institución). Se deja vacía y
+      // se resetean los tres filtros: uno invisible seguiría recortando el grid.
+      setPrograms([]);
+      setPeriods([]);
+      setSubjects([]);
+      setDefaultScale({ min: 0, max: 5 });
+      setProgramFilterUi("all");
+      setSubjectFilterUi("all");
+      setPeriodFilterUi("all");
+    }
     setCourses((data ?? []) as unknown as Course[]);
 
     // Stats por curso (Actividad): cargamos en paralelo 5 queries
@@ -2112,6 +2160,14 @@ export function AdminCourses() {
             </SelectContent>
           </Select>
         )}
+        {/* Los tres filtros de arriba se auto-ocultan cuando no hay estructura
+            académica cargada. Sin este texto, el SuperAdmin en "Todas las
+            instituciones" solo ve que los filtros desaparecieron. */}
+        {academicSinInstitucion && (
+          <p className="text-2xs text-muted-foreground w-full">
+            {t("hc_routesAppAdminCourses.academicHintChooseTenant")}
+          </p>
+        )}
       </div>
 
       <MultiSelectToolbar
@@ -2624,7 +2680,12 @@ export function AdminCourses() {
                     })}
                   </SelectContent>
                 </Select>
-                {subjects.length === 0 && (
+                {academicSinInstitucion && (
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    {t("hc_routesAppAdminCourses.subjectHintChooseTenant")}
+                  </p>
+                )}
+                {subjects.length === 0 && !academicSinInstitucion && (
                   <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
                     {t("courses.noSubjectsHint", {
                       defaultValue:
@@ -3352,4 +3413,4 @@ export function AdminCourses() {
     </div>
   );
 }
-
+

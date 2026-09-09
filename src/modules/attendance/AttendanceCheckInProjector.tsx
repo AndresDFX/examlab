@@ -20,7 +20,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "sonner";
-import { Check, Link2 as LinkIcon, LogOut, Maximize2, Minimize2, X } from "lucide-react";
+import {
+  Check,
+  Link2 as LinkIcon,
+  LogOut,
+  Maximize2,
+  Minimize2,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { partesCuentaAtras } from "./rotation-countdown";
@@ -48,6 +56,16 @@ export type CheckInState = {
   seed: string;
   rotationSeconds: number;
   closesAt: string; // ISO
+  /**
+   * ISO. La apertura REAL guardada. Se muestra al ajustar y NADIE la mueve: es
+   * el ancla del tope de la ventana y del "todavía no empezó" que ve el alumno.
+   *
+   * Requerido y no opcional a propósito: así `tsc` obliga a poblarlo en los dos
+   * lugares que montan el proyector, en vez de dejar uno mostrando `undefined`.
+   */
+  opensAt: string;
+  /** El modo con el que el enlace público identifica a quien marca. */
+  emailOnly: boolean;
   /** Total de matriculados en el curso — usado para el contador X/Y */
   totalEnrolled: number;
   sessionLabel?: string;
@@ -70,6 +88,30 @@ interface Props {
    * una ventana de 24 horas eso es directamente imposible.
    */
   onExit?: () => void;
+  /**
+   * Abre el diálogo de ajuste del check-in ABIERTO (hora de cierre concreta,
+   * cada cuánto cambia el código, quién puede marcar, requisitos). El diálogo
+   * vive en la ruta, que ya es dueña de ese formulario.
+   *
+   * Sale de pantalla completa antes de llamarlo: un `Dialog` se renderiza en
+   * `document.body`, FUERA del elemento en pantalla completa, así que estando
+   * en fullscreen quedaría invisible y el botón parecería colgado — el mismo
+   * motivo por el que "Cerrar check-in" no muestra confirmación acá.
+   */
+  onAjustar?: () => void;
+  /**
+   * True mientras ese diálogo está abierto. El proyector pinta su propio velo
+   * porque el overlay de Radix es `z-50` y esta pantalla es `z-[100]`: sin él,
+   * el fondo del diálogo quedaría por debajo del QR.
+   */
+  ajustando?: boolean;
+  /**
+   * El estado guardado en la base, leído por el sondeo. El padre reconcilia si
+   * difiere del que tiene; `null` = ya no hay check-in abierto.
+   */
+  onEstadoRemoto?: (
+    estado: { seed: string; rotationSeconds: number; closesAt: string; emailOnly: boolean } | null,
+  ) => void;
 }
 
 /**
@@ -94,7 +136,15 @@ function textoRestante(ms: number, t: (k: string, o?: Record<string, unknown>) =
   });
 }
 
-export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit }: Props) {
+export function AttendanceCheckInProjector({
+  state,
+  onClose,
+  onExtended,
+  onExit,
+  onAjustar,
+  ajustando,
+  onEstadoRemoto,
+}: Props) {
   const { t } = useTranslation();
   const containerRef = useRef<HTMLDivElement>(null);
   const [code, setCode] = useState("------");
@@ -117,6 +167,13 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
     Array<{ userId: string; nombre: string; hora: string; status: string }>
   >([]);
   const [extendiendo, setExtendiendo] = useState(false);
+  /**
+   * El callback en un ref, y NO en las deps del effect del realtime: el padre
+   * lo pasa como arrow inline, así que meterlo en las deps re-suscribiría el
+   * canal y re-armaría el sondeo en cada render.
+   */
+  const onEstadoRemotoRef = useRef(onEstadoRemoto);
+  onEstadoRemotoRef.current = onEstadoRemoto;
 
   /**
    * Copia el MISMO enlace que codifica el QR. Hasta ahora esa URL solo existía
@@ -290,7 +347,46 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
       );
     };
 
+    /**
+     * Reconcilia el check-in con lo que la base tiene de verdad.
+     *
+     * Ataja un fallo que ya existía: si el check-in se ajusta (o se reabre)
+     * desde OTRA pantalla —la grilla en otra pestaña, otro docente—, este
+     * proyector se queda mostrando para siempre un código que el servidor
+     * rechaza, sin ninguna señal. Ahora también hace falta porque el ajuste
+     * puede cambiar el código a propósito.
+     */
+    const reconciliarEstado = async () => {
+      const avisar = onEstadoRemotoRef.current;
+      if (!avisar) return;
+      const { data, error } = await db
+        .from("attendance_check_in_state")
+        .select("seed, rotation_seconds, closes_at, email_only")
+        .eq("session_id", state.sessionId)
+        .maybeSingle();
+      // Un error de red NO se interpreta como "se cerró": eso desmontaría el
+      // proyector en mitad de la clase por una desconexión de un segundo.
+      if (error || cancelled) return;
+      const fila = data as {
+        seed: string;
+        rotation_seconds: number;
+        closes_at: string;
+        email_only: boolean;
+      } | null;
+      if (!fila) {
+        avisar(null);
+        return;
+      }
+      avisar({
+        seed: fila.seed,
+        rotationSeconds: fila.rotation_seconds,
+        closesAt: fila.closes_at,
+        emailOnly: fila.email_only,
+      });
+    };
+
     void recargar();
+    void reconciliarEstado();
 
     /**
      * Sondeo cada 8 s ADEMÁS del canal. No es cinturón y tirantes: es que el
@@ -308,7 +404,10 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
      * realtime. Ocho segundos porque acá el usuario está MIRANDO el número, y
      * son decenas de filas de una sola sesión: la consulta es barata.
      */
-    const sondeo = window.setInterval(() => void recargar(), 8000);
+    const sondeo = window.setInterval(() => {
+      void recargar();
+      void reconciliarEstado();
+    }, 8000);
 
     const channel = supabase
       .channel(`checkin-${state.sessionId}`)
@@ -405,6 +504,12 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
       ref={containerRef}
       className="fixed inset-0 z-[100] bg-background text-foreground flex flex-col"
     >
+      {/* El overlay de Radix es `z-50` y esta pantalla `z-[100]`, así que el
+          fondo oscurecido del diálogo de ajuste quedaría DEBAJO del QR. Este
+          velo lo pone el proyector, en su propio contexto de apilamiento, en
+          vez de subirle el z-index al `Dialog` que usan 100+ pantallas. */}
+      {ajustando && <div className="fixed inset-0 z-[110] bg-black/60" aria-hidden />}
+
       {/* Top bar */}
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b">
         <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
@@ -450,6 +555,30 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
                 {extendiendo ? <Spinner size="xs" /> : `+${m}`}
               </Button>
             ))}
+            {/* Los +5/+10/+15 se quedan: son UN toque contra cinco, y este es
+                el peor momento para abrir un formulario (proyectando, con la
+                clase marcando). Este botón es lo que ellos NO pueden — fijar
+                una hora de cierre concreta, adelantarla, cambiar cada cuánto
+                cambia el código, quién puede marcar y los requisitos. */}
+            {onAjustar && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={async () => {
+                  // Fuera de pantalla completa PRIMERO: el diálogo se monta en
+                  // `document.body`, así que en fullscreen sería invisible.
+                  await salirFullscreen();
+                  onAjustar();
+                }}
+                title={t("hc_modulesAttendanceAttendanceCheckInProjector.adjustTitle")}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5 sm:mr-1" />
+                <span className="hidden sm:inline">
+                  {t("hc_modulesAttendanceAttendanceCheckInProjector.adjust")}
+                </span>
+              </Button>
+            )}
           </div>
         </div>
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">

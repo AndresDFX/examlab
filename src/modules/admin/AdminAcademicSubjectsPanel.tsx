@@ -12,6 +12,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTenant } from "@/modules/tenants/use-tenant";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -141,7 +143,12 @@ const EMPTY_DRAFT: Draft = {
 
 export function AdminAcademicSubjectsPanel() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  // Alcance por institución: las policies de lectura de `academic_*` traen TODO
+  // con `OR is_super_admin()`, así que para quien POSEE el rol SuperAdmin la
+  // base no acota y el filtro tiene que vivir acá. Para un Admin es un no-op.
+  const scope = academicScope({ roles, institucionElegida: tenant?.id });
   const confirm = useConfirm();
   const navigate = useNavigate();
   const [rows, setRows] = useState<Subject[]>([]);
@@ -172,21 +179,36 @@ export function AdminAcademicSubjectsPanel() {
   );
 
   const load = async () => {
+    // Sin el tenant resuelto la primera pasada saldría sin acotar.
+    if (tenantLoading) return;
+    if (!debeConsultar(scope)) {
+      setRows([]);
+      setPrograms([]);
+      setLoadError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
       const [subRes, progRes, courseCountRes] = await Promise.all([
-        db
-          .from("academic_subjects")
-          .select(
-            "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
-          )
-          .order("name"),
-        db.from("academic_programs").select("id, name").order("name"),
+        conTenant(
+          db
+            .from("academic_subjects")
+            .select(
+              "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
+            )
+            .order("name"),
+          scope,
+        ),
+        // El Select de Carrera del form: acotado también, o el docente podría
+        // colgar una asignatura de un programa de otra institución.
+        conTenant(db.from("academic_programs").select("id, name").order("name"), scope),
         // Count de cursos por subject_id. Lo agregamos al lado para
         // mostrar 'Cursos: N' en la fila (tracking integral por
-        // programa/asignatura que pidió el admin).
-        db.from("courses").select("subject_id"),
+        // programa/asignatura que pidió el admin). `courses` tiene su
+        // propio `tenant_id`.
+        conTenant(db.from("courses").select("subject_id"), scope),
       ]);
       if (!mountedRef.current) return;
       if (subRes.error) {
@@ -240,7 +262,7 @@ export function AdminAcademicSubjectsPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, tenant?.id, tenantLoading, roles]);
 
   const programNameById = useMemo(() => {
     const m = new Map<string, string>();
@@ -524,8 +546,12 @@ export function AdminAcademicSubjectsPanel() {
                 ) : filtered.length === 0 ? (
                   <TableEmpty
                     colSpan={7}
-                    text={t("academic.subjects.empty")}
-                    hint={t("academic.subjects.emptyHint")}
+                    text={
+                      debeConsultar(scope)
+                        ? t("academic.subjects.empty")
+                        : t("common.chooseInstitutionFirst")
+                    }
+                    hint={debeConsultar(scope) ? t("academic.subjects.emptyHint") : undefined}
                   />
                 ) : (
                   filtered.map((r) => (

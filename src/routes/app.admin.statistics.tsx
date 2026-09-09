@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -76,7 +77,7 @@ type CourseSummary = {
 
 function AdminStatistics() {
   const { t } = useTranslation();
-  const { roles, loading: authLoading } = useAuth();
+  const { roles, profile, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const isAdmin = roles.includes("Admin") || roles.includes("SuperAdmin");
   // Filtro cross-tenant solo cuando actúa como SuperAdmin (no por solo
@@ -147,24 +148,56 @@ function AdminStatistics() {
       if (isSuperAdminCaller && tenantFilter !== "all") {
         coursesQuery = coursesQuery.eq("tenant_id", tenantFilter);
       }
+      // Las dimensiones académicas se acotan a la institución del filtro: sus
+      // policies de lectura traen TODO con `OR is_super_admin()`, así que sin
+      // esto el SuperAdmin en "Todas" filtraba por un programa de otra
+      // institución y la pantalla quedaba en 0 cursos, leyéndose como rota.
+      const scope = academicScope({
+        roles,
+        institucionElegida: tenantFilter,
+        actuandoComoSuperAdmin: isSuperAdminCaller,
+        tenantPropio: profile?.tenant_id ?? null,
+      });
+      const conEstructura = debeConsultar(scope);
       const [coursesRes, progsRes, periodsRes, subjectsRes] = await Promise.all([
         coursesQuery,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any).from("academic_programs").select("id, name").order("name"),
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any)
-          .from("academic_periods")
-          .select("id, code, status")
-          .order("code", { ascending: false }),
-        // Asignaturas para el filtro. RLS las acota al tenant del Admin;
-        // SuperAdmin las ve cross-tenant.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (supabase as any)
-          .from("academic_subjects")
-          .select("id, name, code, program_id")
-          .order("name"),
+        conEstructura
+          ? conTenant(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (supabase as any).from("academic_programs").select("id, name").order("name"),
+              scope,
+            )
+          : Promise.resolve({ data: [], error: null }),
+        conEstructura
+          ? conTenant(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (supabase as any)
+                .from("academic_periods")
+                .select("id, code, status")
+                .order("code", { ascending: false }),
+              scope,
+            )
+          : Promise.resolve({ data: [], error: null }),
+        // Asignaturas para el filtro.
+        conEstructura
+          ? conTenant(
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              (supabase as any)
+                .from("academic_subjects")
+                .select("id, name, code, program_id")
+                .order("name"),
+              scope,
+            )
+          : Promise.resolve({ data: [], error: null }),
       ]);
       if (cancelled) return;
+      if (!conEstructura) {
+        // Sin estructura que ofrecer, un filtro que quedó puesto seguiría
+        // recortando los KPIs contra un id invisible.
+        setProgramFilter("all");
+        setPeriodFilter("all");
+        setSubjectFilter("all");
+      }
       if (coursesRes.error) {
         setLoadError(
           friendlyError(coursesRes.error, t("hc_routesAppAdminStatistics.loadErrorFallback")),
@@ -244,7 +277,7 @@ function AdminStatistics() {
     return () => {
       cancelled = true;
     };
-  }, [isAdmin, retryNonce, isSuperAdminCaller, tenantFilter]);
+  }, [isAdmin, retryNonce, isSuperAdminCaller, tenantFilter, roles]);
 
   // Cascada Programa → Asignatura: las opciones de asignatura se derivan
   // del programa elegido (subject.program_id === programFilter). Con
@@ -469,6 +502,7 @@ function AdminStatistics() {
                   </Select>
                 </div>
               )}
+              {programs.length > 0 && (
               <div className="flex-1 space-y-1">
                 <label className="text-xs text-muted-foreground">
                   {t("hc_routesAppAdminStatistics.programLabel")}
@@ -489,6 +523,8 @@ function AdminStatistics() {
                   </SelectContent>
                 </Select>
               </div>
+              )}
+              {periods.length > 0 && (
               <div className="flex-1 space-y-1">
                 <label className="text-xs text-muted-foreground">
                   {t("hc_routesAppAdminStatistics.periodLabel")}
@@ -509,6 +545,7 @@ function AdminStatistics() {
                   </SelectContent>
                 </Select>
               </div>
+              )}
               {/* Asignatura: acota a un curso o set de cursos atado a una
                   asignatura específica del plan. La lista se deriva del
                   programa elegido (cascada Programa → Asignatura) en
@@ -535,6 +572,17 @@ function AdminStatistics() {
                     </SelectContent>
                   </Select>
                 </div>
+              )}
+              {academicScope({
+        roles,
+        institucionElegida: tenantFilter,
+        actuandoComoSuperAdmin: isSuperAdminCaller,
+        tenantPropio: profile?.tenant_id ?? null,
+      }).modo ===
+                "sin-institucion" && (
+                <p className="text-2xs text-muted-foreground self-center">
+                  {t("hc_routesAppAdminStatistics.academicHintChooseTenant")}
+                </p>
               )}
               {(programFilter !== "all" ||
                 periodFilter !== "all" ||

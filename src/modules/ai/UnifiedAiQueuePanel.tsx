@@ -92,6 +92,13 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { isAdminLike } from "@/shared/lib/roles";
 import { extractEdgeError } from "@/shared/lib/edge-error";
+import {
+  RESUMEN_VACIO,
+  acumularPasada,
+  decidirCorte,
+  mensajeDeDrenaje,
+  type ResumenDeDrenaje,
+} from "@/modules/ai/drain-summary";
 import { logEvent } from "@/shared/lib/audit";
 import { AiOverrideDialog } from "@/modules/ai/AiOverrideDialog";
 import { readOverrideExpiry, getProcessingMode } from "@/modules/ai/ai-grading";
@@ -1013,11 +1020,18 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     }
   };
 
-  // Drain mode (Admin only) — invoca AMBOS workers sin jobId.
+  // Drain mode (Admin only) — invoca AMBOS workers.
+  //
+  // Al de generación se le pasa `includeDeferred: true` A PROPÓSITO: ese worker
+  // se autoexcluye de los trabajos cuya institución está en modo diferido, y esa
+  // salvaguarda existe para el CRON, no para un botón que un Admin acaba de
+  // pulsar. Sin el flag el worker devolvía 200 sin reclamar nada y el panel
+  // anunciaba éxito con la cola intacta (attempts seguía en 0). El cron sigue
+  // invocando con `{}`, así que su comportamiento no cambia.
   //
   // Cada invocación del worker de calificación procesa UNO A UNO dentro de su
   // presupuesto de tiempo y para al primer fallo (los no procesados siguen
-  // 'pending'). Si tras una pasada QUEDAN pendientes, re-invocamos el worker
+  // 'pending'). Si tras una pasada QUEDAN pendientes, re-invocamos
   // automáticamente hasta DRAIN_MAX_RETRIES veces más: cada nueva pasada salta
   // el job que ya falló (ahora 'failed', fuera de 'pending') y sigue con el
   // resto, así que progresa. Solo si tras agotar los reintentos AÚN quedan
@@ -1029,74 +1043,81 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
     if (draining) return;
     setDraining(true);
     try {
-      let procTotal = 0;
-      let failTotal = 0;
-      let remaining = 0;
+      let resumen: ResumenDeDrenaje = RESUMEN_VACIO;
       let prevRemaining = Number.POSITIVE_INFINITY;
       let attempt = 0; // 0 = pasada inicial; 1..3 = reintentos automáticos
-      let noProgress = false;
+      let corte: ReturnType<typeof decidirCorte> = "listo";
       // Bucle: pasada inicial + hasta DRAIN_MAX_RETRIES reintentos.
       // eslint-disable-next-line no-constant-condition
       while (true) {
         const [gradingRes, genRes] = await Promise.all([
           supabase.functions.invoke("ai-grading-worker", { body: {} }),
-          supabase.functions.invoke("ai-generation-worker", { body: {} }),
+          supabase.functions.invoke("ai-generation-worker", {
+            body: { includeDeferred: true },
+          }),
         ]);
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const g = gradingRes.data as any;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const gn = genRes.data as any;
-        procTotal += (g?.processed ?? 0) + (gn?.processed ?? 0);
-        // Cada pasada reporta fallos DISTINTOS (un job 'failed' ya no se
-        // re-reclama), así que acumular no doble-cuenta.
-        failTotal += (g?.failed ?? 0) + (gn?.failed ?? 0);
-        remaining = g?.remainingPending ?? 0;
-
-        if (remaining === 0) break; // todo procesado
-        if (attempt >= DRAIN_MAX_RETRIES) break; // agotó reintentos
-        if (remaining >= prevRemaining) {
-          // La pasada no redujo pendientes → reintentar no ayudará.
-          noProgress = true;
-          break;
+        // `functions.invoke` NO lanza en 4xx/5xx: devuelve { error, data: null }.
+        // Sin este chequeo un 401 o un 500 caía en processed 0 / remaining 0 y
+        // salía por el MISMO toast de éxito.
+        const fallo = gradingRes.error ?? genRes.error;
+        // Se acumula ANTES de cortar por error: los dos workers se invocan en
+        // paralelo, así que uno puede fallar mientras el otro sí procesó. Si se
+        // sale antes de acumular, el toast reporta el total de la pasada
+        // ANTERIOR y el trabajo real de esta se pierde del resumen — que es
+        // exactamente el «dice que no procesó cuando SÍ procesó» que este
+        // cambio vino a arreglar.
+        resumen = acumularPasada(resumen, {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          calificacion: gradingRes.data as any,
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          generacion: genRes.data as any,
+        });
+        if (fallo) {
+          const detalle = await extractEdgeError(
+            fallo,
+            gradingRes.error ? gradingRes.data : genRes.data,
+          );
+          toast.error(
+            i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainInvokeFailed", {
+              defaultValue: "Se procesaron {{n}} y el proceso se cortó: {{detalle}}",
+              n: resumen.procesadas,
+              detalle:
+                detalle || t("hc_modulesAiUnifiedAiQueuePanel.errDrainQueue"),
+            }),
+            { duration: 13000 },
+          );
+          await load();
+          return;
         }
-        prevRemaining = remaining;
+        corte = decidirCorte(resumen, {
+          intento: attempt,
+          maxIntentos: DRAIN_MAX_RETRIES,
+          pendientesPrevios: prevRemaining,
+        });
+        if (corte !== "continuar") break;
+        prevRemaining = resumen.pendientes;
         attempt++;
         // Pausa breve entre reintentos (no martillar el gateway).
         await new Promise((r) => setTimeout(r, 2000));
       }
 
       const failPart =
-        failTotal > 0
+        resumen.fallidas > 0
           ? i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainFailPart", {
               defaultValue: " ({{failed}} con error, quedan listas para reintentar)",
-              failed: failTotal,
+              failed: resumen.fallidas,
             })
           : "";
 
-      if (remaining > 0) {
-        // Agotó los reintentos automáticos (o no hubo progreso) y aún quedan
-        // pendientes → ahora SÍ pedir ejecución manual.
-        toast.warning(
-          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainExhausted", {
-            defaultValue:
-              "Procesadas {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} en espera. Espera unos minutos y vuelve a pulsar «Procesar todas» manualmente.",
-            n: procTotal,
-            remaining,
-            retries: attempt,
-            failPart,
-            noProgress,
-          }),
-          { duration: 13000 },
-        );
-      } else {
-        toast.success(
-          i18n.t("toast.modules_ai_UnifiedAiQueuePanel.drainDone", {
-            defaultValue: "Listo: procesadas {{n}}{{failPart}}. No quedan tareas en espera.",
-            n: procTotal,
-            failPart,
-          }),
-        );
-      }
+      const { clave, tono, valores } = mensajeDeDrenaje(resumen, corte);
+      const texto = i18n.t(`toast.modules_ai_UnifiedAiQueuePanel.${clave}`, {
+        ...valores,
+        retries: attempt,
+        failPart,
+      });
+      if (tono === "success") toast.success(texto);
+      else if (tono === "warning") toast.warning(texto, { duration: 13000 });
+      else toast.info(texto);
       await load();
     } catch (e) {
       toast.error(friendlyError(e, t("hc_modulesAiUnifiedAiQueuePanel.errDrainQueue")));

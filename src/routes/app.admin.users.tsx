@@ -77,6 +77,7 @@ import { DateCell } from "@/components/ui/date-cell";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { startImpersonate } from "@/modules/admin/impersonation";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 import { Spinner } from "@/components/ui/spinner";
 import { toCSV } from "@/shared/lib/csv";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -795,15 +796,10 @@ function AdminUsers() {
         arr.push(r.role);
         grouped.set(r.user_id, arr);
       });
-      // Programas activos (best-effort — si la migración no se aplicó, el
-      // dropdown queda vacío pero el form no se rompe: programa_id es opcional).
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: progs, error: progsErr } = await (supabase as any)
-        .from("academic_programs")
-        .select("id, name")
-        .eq("active", true)
-        .order("name");
-      if (stale()) return;
+      // Los programas académicos NO se cargan acá: dependen de la institución
+      // elegida DENTRO del diálogo, así que viven en su propio effect (ver más
+      // abajo). Cargarlos en `load()` era justo el bug: la lista salía de la RLS,
+      // que al SuperAdmin le devuelve las carreras de TODAS las instituciones.
       // Tenants visibles (RLS-filtrado): Admin ve solo el suyo; SuperAdmin
       // ve todos. Solo expone el filtro cuando hay >1 institución cargada.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -816,7 +812,6 @@ function AdminUsers() {
       // Commit final: todos los setStates juntos al cierre, una sola
       // corrida ganadora.
       setRows((profs ?? []).map((p: any) => ({ ...p, roles: grouped.get(p.id) ?? [] })));
-      setPrograms((progs ?? []) as Array<{ id: string; name: string }>);
       setTenants((tens ?? []) as Array<{ id: string; slug: string; name: string }>);
       // Las 3 queries secundarias fallaban en SILENCIO: sin roles el grid
       // pinta a todos "sin rol" y el filtro por rol no matchea nada; sin
@@ -825,7 +820,6 @@ function AdminUsers() {
       // está incompleto en vez de dejarlo concluir que se borraron datos.
       const partial: string[] = [];
       if (rsErr) partial.push(t("common.roles", { defaultValue: "Roles" }));
-      if (progsErr) partial.push(t("adminUsers.fieldPrograma", { defaultValue: "Programa" }));
       if (tensErr) partial.push(t("adminUsers.colInstitution", { defaultValue: "Institución" }));
       if (partial.length > 0) {
         toast.warning(
@@ -976,11 +970,23 @@ function AdminUsers() {
         .select("id, name, period, tenant_id, program_id")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
-      // Para SuperAdmin: si eligió tenant en el form, acotamos. Para
-      // Admin: RLS ya filtra a su tenant.
-      if (isSuperAdminCaller && editing.tenant_id) {
-        q = q.eq("tenant_id", editing.tenant_id);
-      } else if (!isSuperAdminCaller && myTenantIdRef.current) {
+      // El SuperAdmin SIN institución elegida no caía en ninguna rama y la
+      // query salía sin filtro: la lista traía los cursos de todas las
+      // instituciones mientras el aviso de abajo decía "elegí una institución".
+      // Ahora se corta antes de consultar (un `.in`/sin filtro devuelve todo).
+      const scope = academicScope({
+        roles,
+        institucionElegida: editing.tenant_id,
+        actuandoComoSuperAdmin: isSuperAdminCaller,
+        tenantPropio: myTenantIdRef.current,
+      });
+      if (!debeConsultar(scope)) {
+        setEnrollCourses([]);
+        return;
+      }
+      q = conTenant(q, scope);
+      // Admin: la RLS ya acota; el .eq explícito se mantiene igual que hoy.
+      if (scope.modo === "sin-acotar" && myTenantIdRef.current) {
         q = q.eq("tenant_id", myTenantIdRef.current);
       }
       const { data } = await q;
@@ -1002,7 +1008,64 @@ function AdminUsers() {
     // fetch; incluir `editing` entero re-dispararía el effect cada vez
     // que el admin tipea en el form.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dialogOpen, editing?.id, editing?.roles, editing?.tenant_id, isSuperAdminCaller]);
+  }, [dialogOpen, editing?.id, editing?.roles, editing?.tenant_id, isSuperAdminCaller, roles]);
+
+  /**
+   * Programas académicos de la institución ELEGIDA en el formulario, no "todos
+   * los que la base me deja ver": `academic_programs_read` deja pasar TODO al
+   * SuperAdmin (`OR is_super_admin()`), así que sin este filtro el desplegable
+   * ofrecía las carreras de todas las instituciones —algunas homónimas,
+   * distinguibles solo por la tilde— y elegir la ajena vaciaba la lista de
+   * cursos (la cascada filtra por `program_id`), con lo que el diálogo terminaba
+   * culpando a la institución: "No hay cursos disponibles en esta institución".
+   *
+   * El gate es el rol POSEÍDO y no el activo: `is_super_admin()` mira los roles
+   * poseídos, así que un SuperAdmin actuando como Admin sigue bypasseando la RLS.
+   */
+  useEffect(() => {
+    if (!dialogOpen || !editing) return;
+    const scope = academicScope({
+        roles,
+        institucionElegida: editing.tenant_id,
+        actuandoComoSuperAdmin: isSuperAdminCaller,
+        tenantPropio: myTenantIdRef.current,
+      });
+    if (!debeConsultar(scope)) {
+      setPrograms([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await conTenant(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("academic_programs")
+          .select("id, name")
+          .eq("active", true)
+          .order("name"),
+        scope,
+      );
+      if (cancelled) return;
+      if (error) {
+        setPrograms([]);
+        toast.warning(t("adminUsers.programsLoadFailed"));
+        return;
+      }
+      const list = (data ?? []) as Array<{ id: string; name: string }>;
+      setPrograms(list);
+      // Reset del hijo: un programa elegido que no pertenece a la institución
+      // recién elegida se limpia, o se guardaría cross-tenant en `profiles`.
+      setEditing((prev) =>
+        prev && prev.programa_id && !list.some((p) => p.id === prev.programa_id)
+          ? { ...prev, programa_id: null }
+          : prev,
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialogOpen, editing?.id, editing?.tenant_id, roles]);
 
   // Cascada Programa → Curso de inscripción (FK courses.program_id →
   // academic_programs). Cuando el admin elige un Programa en la identidad
@@ -2531,6 +2594,11 @@ function AdminUsers() {
                           ))}
                         </SelectContent>
                       </Select>
+                      {isSuperAdminCaller && !editing.tenant_id && (
+                        <p className="text-2xs text-muted-foreground mt-1">
+                          {t("adminUsers.programHintChooseTenant")}
+                        </p>
+                      )}
                     </div>
                     {/* Inscripción inmediata a curso — solo en modo CREAR
                         (no en edit: para reasignar cursos existentes ya

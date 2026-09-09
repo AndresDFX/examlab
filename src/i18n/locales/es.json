@@ -180,6 +180,7 @@
   },
   "common": {
     "action": "Acción",
+    "chooseInstitutionFirst": "Eligí una institución para administrar su estructura académica.",
     "actions": "Acciones",
     "actor": "Actor",
     "add": "Añadir",
@@ -2974,6 +2975,11 @@
       "drainPartial": "Procesados {{n}}{{failPart}}. Quedan {{remaining}} pendientes — espera ~1 min y vuelve a pulsar «Procesar todos» (o el sistema los procesa solo dentro de la próxima hora).",
       "drainExhausted": "Procesadas {{n}}{{failPart}}. Tras {{retries}} reintentos aún quedan {{remaining}} en espera. Espera unos minutos y vuelve a pulsar «Procesar todas» manualmente.",
       "drainDone": "Listo: procesadas {{n}}{{failPart}}. No quedan tareas en espera.",
+      "drainDoneWithDeferred": "Listo: procesadas {{n}}{{failPart}}, incluidas {{diferidas}} que esta institución tenía configuradas para procesarse más tarde.",
+      "drainNothingToDo": "No había tareas en espera.",
+      "drainPendingUnknown": "No se procesó ninguna tarea y no pudimos confirmar cuántas quedan en espera. Volvé a intentarlo en unos minutos; si sigue igual, revisá la lista de abajo.",
+      "drainDeferredOnly": "No se procesó ninguna: las {{diferidas}} tareas en espera son de una institución configurada para procesarlas más tarde. Cambiá esa opción en Configuración → Modelo, o activá la IA inmediata.",
+      "drainInvokeFailed": "Se procesaron {{n}} y el proceso se cortó: {{detalle}}",
       "reasonRequired": "La razón es obligatoria (mínimo 5 caracteres).",
       "jobRejected": "Tarea rechazada. El docente recibió la notificación.",
       "rejectionClosed": "Rechazo cerrado. La tarea se movió al historial.",
@@ -2997,7 +3003,9 @@
       "extendFailed": "No se pudo extender el check-in.",
       "extendMaxWindow": "El check-in ya llegó al máximo de 4 horas desde que se abrió.",
       "windowExpired": "La ventana de check-in expiró",
-      "closedOk": "Check-in cerrado"
+      "closedOk": "Check-in cerrado",
+      "reopenedElsewhere": "El check-in se reinició en otra pantalla. El código de acá ya se actualizó.",
+      "closedElsewhere": "El check-in se cerró desde otra pantalla."
     },
     "modules_auth_ChangePasswordDialog": {
       "completeAllFields": "Completa todos los campos",
@@ -3558,7 +3566,9 @@
       "allMarkedPresentPartial": "{{done}} marcados, {{failed}} con error. Primero: {{detail}}",
       "importAttendanceProgress": "Importando asistencia {{done}}/{{total}}…",
       "importAttendanceWithErrors": "{{base}} Primer error: {{detail}}",
-      "markingPendingAbsent": "Marcando pendientes como ausentes…"
+      "markingPendingAbsent": "Marcando pendientes como ausentes…",
+      "checkinAdjusted": "Listo, el check-in quedó actualizado.",
+      "checkinAdjustedCodeChanged": "Listo. El código de la pantalla cambió: pedile a la clase que lo vuelva a leer."
     },
     "routes_app_teacher_calendar": {
       "calendarNotAccessible": "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar."
@@ -4433,6 +4443,8 @@
     "fieldEnrollCoursePlaceholder": "No inscribir todavía",
     "fieldEnrollCourseNone": "No inscribir todavía",
     "enrollHintChooseTenant": "Eligí primero una institución arriba para filtrar los cursos.",
+    "programsLoadFailed": "No pudimos cargar los programas académicos de esta institución. Podés guardar sin programa y asignarlo después.",
+    "programHintChooseTenant": "Eligí primero una institución arriba para ver sus programas académicos.",
     "enrollHintNoCourses": "No hay cursos disponibles en esta institución.",
     "enrollHintAfterSave": "Queda matriculado en los cursos marcados al guardar. Después podés ajustar desde cada curso.",
     "estadoActivo": "Activo",
@@ -5991,7 +6003,21 @@
     "titlePlaceholder": "Ej: Clase 5, Laboratorio 2",
     "uploadVideoHint": "Sube el video desde el módulo \"Videos\" y aparecerá en esta lista.",
     "whiteboard": "Pizarra",
-    "windowDurationLabel": "Duración de la ventana (minutos)"
+    "windowDurationLabel": "Duración de la ventana (minutos)",
+    "adjustCheckInTitle": "Ajustar el check-in",
+    "adjustCheckInAction": "Ajustar el check-in",
+    "adjustCheckInDescription": "Los cambios aplican de inmediato. El código que estás proyectando no cambia, salvo que cambies cada cuánto se renueva.",
+    "adjustOpenedAtLabel": "Abrió a las {{time}}",
+    "adjustSave": "Guardar cambios",
+    "adjustNoChanges": "Todavía no cambiaste nada.",
+    "adjustClosesMustBeFuture": "La hora de cierre tiene que ser futura. Para terminar ahora usá «Cerrar check-in».",
+    "rotationChangeInvalidatesCode": "Si cambiás esto, los seis dígitos que estás proyectando cambian al guardar: quien los anotó tiene que volver a leerlos de la pantalla.",
+    "rotationChangeConfirmTitle": "El código de la pantalla va a cambiar",
+    "rotationChangeConfirmBody": "Los seis dígitos que están proyectados dejan de servir en el momento en que guardes. Quien los anotó y todavía no se marcó tiene que volver a mirar la pantalla. A quien ya marcó no le pasa nada.",
+    "rotationChangeConfirmCta": "Sí, cambiar el código",
+    "adjustEarlierCloseConfirmTitle": "Vas a adelantar el cierre",
+    "adjustEarlierCloseConfirmBody": "El check-in va a cerrar a las {{time}} en vez de a las {{before}}. Quien esté marcándose justo en ese momento queda afuera y tendrás que marcarlo a mano.",
+    "emailOnlyChangeReloadHint": "Si lo cambiás ahora, quien ya tenga el formulario abierto tiene que recargarlo."
   },
   "privacy": {
     "contents": "Contenido",
@@ -6643,7 +6669,9 @@
     "remaining_minutes_one": "{{count}} minuto",
     "remaining_minutes_other": "{{count}} minutos",
     "remaining_seconds_one": "{{count}} segundo",
-    "remaining_seconds_other": "{{count}} segundos"
+    "remaining_seconds_other": "{{count}} segundos",
+    "adjust": "Ajustar",
+    "adjustTitle": "Cambiar la hora de cierre, cada cuánto cambia el código y quién puede marcar"
   },
   "hc_modulesAttendanceAttendanceQRScanner": {
     "cameraAccessError": "No se pudo acceder a la cámara",
@@ -7466,6 +7494,7 @@
     "tabModules": "Módulos"
   },
   "hc_routesAppAdminStatistics": {
+    "academicHintChooseTenant": "Eligí una institución para filtrar por programa, periodo o asignatura.",
     "needAdminRole": "Necesitas rol Admin.",
     "statisticsTitle": "Estadísticas",
     "loadErrorMessage": "No pudimos cargar las estadísticas",
@@ -7850,6 +7879,8 @@
     "submittingOverlaySubtitle": "Estamos subiendo tus archivos y calificando. No cierres esta ventana."
   },
   "hc_routesAppAdminCourses": {
+    "academicHintChooseTenant": "Eligí una institución para filtrar por programa, asignatura o periodo.",
+    "subjectHintChooseTenant": "Eligí una institución en los filtros de arriba para ver sus asignaturas y periodos.",
     "loadErrorMessage": "No pudimos cargar la lista de cursos.",
     "loadErrorTitle": "No pudimos cargar la lista de cursos",
     "cutDefaultName": "Corte {{n}}",

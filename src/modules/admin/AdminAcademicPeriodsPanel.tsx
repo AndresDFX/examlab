@@ -15,6 +15,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useTenant } from "@/modules/tenants/use-tenant";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { usePagination } from "@/hooks/use-pagination";
@@ -113,7 +115,12 @@ const STATUS_RANK: Record<Status, number> = {
 
 export function AdminAcademicPeriodsPanel() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  // Alcance por institución: las policies de lectura de `academic_*` traen TODO
+  // con `OR is_super_admin()`, así que para quien POSEE el rol SuperAdmin la
+  // base no acota y el filtro tiene que vivir acá. Para un Admin es un no-op.
+  const scope = academicScope({ roles, institucionElegida: tenant?.id });
   const confirm = useConfirm();
   const [rows, setRows] = useState<AcademicPeriod[]>([]);
   const [loading, setLoading] = useState(true);
@@ -141,13 +148,24 @@ export function AdminAcademicPeriodsPanel() {
   );
 
   const load = async () => {
+    // Sin el tenant resuelto la primera pasada saldría sin acotar.
+    if (tenantLoading) return;
+    if (!debeConsultar(scope)) {
+      setRows([]);
+      setLoadError(null);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setLoadError(null);
     try {
-      const { data, error } = await db
-        .from("academic_periods")
-        .select("id, code, name, start_date, end_date, status, closed_at")
-        .order("code", { ascending: false });
+      const { data, error } = await conTenant(
+        db
+          .from("academic_periods")
+          .select("id, code, name, start_date, end_date, status, closed_at")
+          .order("code", { ascending: false }),
+        scope,
+      );
       if (!mountedRef.current) return;
       if (error) {
         setLoadError(
@@ -168,7 +186,7 @@ export function AdminAcademicPeriodsPanel() {
   useEffect(() => {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce]);
+  }, [retryNonce, tenant?.id, tenantLoading, roles]);
 
   // Flujo obligatorio del design system: filtrar → ORDENAR → paginar.
   const filtered = useMemo(() => {
@@ -466,11 +484,19 @@ export function AdminAcademicPeriodsPanel() {
                     return (
                       <TableEmpty
                         colSpan={6}
-                        text={noMatch ? t("common.noResults") : t("academic.periods.empty")}
+                        text={
+                          debeConsultar(scope)
+                            ? noMatch
+                              ? t("common.noResults")
+                              : t("academic.periods.empty")
+                            : t("common.chooseInstitutionFirst")
+                        }
                         hint={
-                          noMatch
-                            ? t("common.tryClearFilter")
-                            : t("academic.periods.emptyHint")
+                          !debeConsultar(scope)
+                            ? undefined
+                            : noMatch
+                              ? t("common.tryClearFilter")
+                              : t("academic.periods.emptyHint")
                         }
                       />
                     );

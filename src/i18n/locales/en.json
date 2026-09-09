@@ -180,6 +180,7 @@
   },
   "common": {
     "action": "Action",
+    "chooseInstitutionFirst": "Choose an institution to manage its academic structure.",
     "actions": "Actions",
     "actor": "Actor",
     "add": "Add",
@@ -2974,6 +2975,11 @@
       "drainPartial": "Processed {{n}}{{failPart}}. {{remaining}} still pending — wait ~1 min and press “Process all” again (or the system will process them within the next hour).",
       "drainExhausted": "Processed {{n}}{{failPart}}. After {{retries}} retries, {{remaining}} are still waiting. Wait a few minutes and press “Process all” manually again.",
       "drainDone": "Done: processed {{n}}{{failPart}}. No tasks left waiting.",
+      "drainDoneWithDeferred": "Done: processed {{n}}{{failPart}}, including {{diferidas}} this institution had set to run later.",
+      "drainNothingToDo": "There were no tasks waiting.",
+      "drainPendingUnknown": "No task was processed and we could not confirm how many are still waiting. Try again in a few minutes; if it stays the same, check the list below.",
+      "drainDeferredOnly": "Nothing was processed: the {{diferidas}} waiting tasks belong to an institution set to process them later. Change that option in Settings → Model, or turn on instant AI.",
+      "drainInvokeFailed": "Processed {{n}} and the run stopped: {{detalle}}",
       "reasonRequired": "A reason is required (at least 5 characters).",
       "jobRejected": "Task rejected. The teacher has been notified.",
       "rejectionClosed": "Rejection closed. The task was moved to history.",
@@ -2997,7 +3003,9 @@
       "extendFailed": "Could not extend the check-in.",
       "extendMaxWindow": "The check-in already reached the 4-hour maximum since it opened.",
       "windowExpired": "The check-in window has expired",
-      "closedOk": "Check-in closed"
+      "closedOk": "Check-in closed",
+      "reopenedElsewhere": "The check-in was restarted on another screen. The code here is already updated.",
+      "closedElsewhere": "The check-in was closed from another screen."
     },
     "modules_auth_ChangePasswordDialog": {
       "completeAllFields": "Fill in all fields",
@@ -3558,7 +3566,9 @@
       "allMarkedPresentPartial": "{{done}} marked, {{failed}} with errors. First: {{detail}}",
       "importAttendanceProgress": "Importing attendance {{done}}/{{total}}…",
       "importAttendanceWithErrors": "{{base}} First error: {{detail}}",
-      "markingPendingAbsent": "Marking pending as absent…"
+      "markingPendingAbsent": "Marking pending as absent…",
+      "checkinAdjusted": "Done, the check-in is updated.",
+      "checkinAdjustedCodeChanged": "Done. The code on screen changed: ask the class to read it again."
     },
     "routes_app_teacher_calendar": {
       "calendarNotAccessible": "The selected calendar is no longer accessible in Google. Choose another and sync again."
@@ -4433,6 +4443,8 @@
     "fieldEnrollCoursePlaceholder": "Don't enroll yet",
     "fieldEnrollCourseNone": "Don't enroll yet",
     "enrollHintChooseTenant": "Choose an institution above first to filter courses.",
+    "programsLoadFailed": "We couldn't load this institution's academic programs. You can save without one and assign it later.",
+    "programHintChooseTenant": "Choose an institution above first to see its academic programs.",
     "enrollHintNoCourses": "No courses available in this institution.",
     "enrollHintAfterSave": "They are enrolled in the checked courses on save. You can adjust it later from each course.",
     "estadoActivo": "Active",
@@ -5991,7 +6003,21 @@
     "titlePlaceholder": "E.g.: Class 5, Lab 2",
     "uploadVideoHint": "Upload the video from the \"Videos\" module and it will appear in this list.",
     "whiteboard": "Whiteboard",
-    "windowDurationLabel": "Window duration (minutes)"
+    "windowDurationLabel": "Window duration (minutes)",
+    "adjustCheckInTitle": "Adjust the check-in",
+    "adjustCheckInAction": "Adjust the check-in",
+    "adjustCheckInDescription": "Changes apply right away. The code you are projecting does not change unless you change how often it renews.",
+    "adjustOpenedAtLabel": "Opened at {{time}}",
+    "adjustSave": "Save changes",
+    "adjustNoChanges": "You haven't changed anything yet.",
+    "adjustClosesMustBeFuture": "The closing time has to be in the future. To finish now, use “Close check-in”.",
+    "rotationChangeInvalidatesCode": "If you change this, the six digits you are projecting change when you save: anyone who wrote them down has to read them off the screen again.",
+    "rotationChangeConfirmTitle": "The code on screen is going to change",
+    "rotationChangeConfirmBody": "The six digits on screen stop working the moment you save. Anyone who wrote them down and has not marked yet has to look at the screen again. Anyone who already marked is unaffected.",
+    "rotationChangeConfirmCta": "Yes, change the code",
+    "adjustEarlierCloseConfirmTitle": "You are moving the closing time earlier",
+    "adjustEarlierCloseConfirmBody": "The check-in will close at {{time}} instead of {{before}}. Anyone marking right at that moment is left out and you will have to mark them by hand.",
+    "emailOnlyChangeReloadHint": "If you change it now, anyone with the form already open has to reload it."
   },
   "privacy": {
     "contents": "Contents",
@@ -6643,7 +6669,9 @@
     "remaining_minutes_one": "{{count}} minute",
     "remaining_minutes_other": "{{count}} minutes",
     "remaining_seconds_one": "{{count}} second",
-    "remaining_seconds_other": "{{count}} seconds"
+    "remaining_seconds_other": "{{count}} seconds",
+    "adjust": "Adjust",
+    "adjustTitle": "Change the closing time, how often the code changes, and who can mark"
   },
   "hc_modulesAttendanceAttendanceQRScanner": {
     "cameraAccessError": "Could not access the camera",
@@ -7466,6 +7494,7 @@
     "tabModules": "Modules"
   },
   "hc_routesAppAdminStatistics": {
+    "academicHintChooseTenant": "Choose an institution to filter by program, term or subject.",
     "needAdminRole": "You need the Admin role.",
     "statisticsTitle": "Statistics",
     "loadErrorMessage": "We couldn't load the statistics",
@@ -7850,6 +7879,8 @@
     "submittingOverlaySubtitle": "We're uploading your files and grading them. Don't close this window."
   },
   "hc_routesAppAdminCourses": {
+    "academicHintChooseTenant": "Choose an institution to filter by program, subject or term.",
+    "subjectHintChooseTenant": "Choose an institution in the filters above to see its subjects and terms.",
     "loadErrorMessage": "We couldn't load the course list.",
     "loadErrorTitle": "We couldn't load the course list",
     "cutDefaultName": "Term {{n}}",

@@ -71,6 +71,7 @@ import {
   X,
   Eraser,
   QrCode,
+  SlidersHorizontal,
   Trash2,
   Settings2,
   Presentation as PresentationIcon,
@@ -85,7 +86,7 @@ import {
   Copy,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
-import { formatDateShort, formatSessionLabel, todayLocalISO } from "@/shared/lib/format";
+import { formatDateShort, formatSessionLabel, formatTime, todayLocalISO } from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
@@ -98,6 +99,7 @@ import {
   clampWindowHours,
   defaultCheckinWindow,
   recomputeClosesAt,
+  toLocalDateTimeInput,
 } from "@/modules/attendance/checkin-window";
 import {
   AttendanceCheckInProjector,
@@ -239,6 +241,16 @@ const STATUS_OPTIONS = [
   },
 ];
 
+/**
+ * Huella comparable de un set de requisitos ("<tipo>:<id>").
+ *
+ * Ordenada porque el orden en el que el docente los tilda no es un cambio, y en
+ * cadena porque dos `Set` no se pueden comparar con `!==`.
+ */
+function huellaRequisitos(valores: string[]): string {
+  return [...valores].sort().join("|");
+}
+
 function TeacherAttendance() {
   const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
@@ -326,6 +338,25 @@ function TeacherAttendance() {
 
   // Check-in self-service: configuración + estado del proyector activo
   const [checkInConfigSession, setCheckInConfigSession] = useState<Session | null>(null);
+  /**
+   * Sesión cuyo check-in ABIERTO se está ajustando. `null` = no hay ajuste.
+   *
+   * Es un estado aparte de `checkInConfigSession` y no un booleano de modo: el
+   * MISMO diálogo sirve para los dos casos, pero el que está abierto decide qué
+   * campos se muestran, qué confirmaciones piden y qué se manda al servidor.
+   */
+  const [checkInAjusteSession, setCheckInAjusteSession] = useState<Session | null>(null);
+  /**
+   * Lo que estaba guardado antes de ajustar: pre-llena el formulario y —lo
+   * importante— permite saber QUÉ cambió. Sin esto no se podría avisar que la
+   * rotación nueva invalida el código que la clase está mirando.
+   */
+  const [checkInPrev, setCheckInPrev] = useState<{
+    opensAt: string;
+    closesAt: string;
+    rotationSeconds: number;
+    emailOnly: boolean;
+  } | null>(null);
   // Sesión seleccionada para lanzar una encuesta in-class. Cuando es
   // != null se abre `LaunchPollDialog` con el attendance_session_id
   // pre-rellenado. La encuesta queda en `polls` con el FK seteado y
@@ -385,6 +416,14 @@ function TeacherAttendance() {
     const cierra = checkInClosesAt
       ? new Date(localToIso(checkInClosesAt)).getTime()
       : abre + ATTENDANCE_CHECK_IN_DEFAULT_MINUTES * 60_000;
+    // Al AJUSTAR, el servidor compara contra la ventana que queda POR DELANTE
+    // (`GREATEST(opened_at, now())`) y solo normaliza si la rotación se está
+    // editando. Espejarlo o la vista previa avisa de un cambio que no va a pasar.
+    if (checkInAjusteSession) {
+      if (checkInPrev && checkInRotation === checkInPrev.rotationSeconds) return false;
+      const base = Math.max(abre, Date.now());
+      return attendanceRotationBecomesFixed(checkInRotation, (cierra - base) / 1000);
+    }
     return attendanceRotationBecomesFixed(checkInRotation, (cierra - abre) / 1000);
   })();
   /**
@@ -405,6 +444,8 @@ function TeacherAttendance() {
    * interpreta como "no toques los requisitos".
    */
   const [checkInReqsCargados, setCheckInReqsCargados] = useState(false);
+  /** Huella del set de requisitos tal como estaba guardado (ver `huellaRequisitos`). */
+  const [checkInReqsIniciales, setCheckInReqsIniciales] = useState("");
   const [checkInReqItems, setCheckInReqItems] = useState<RequisitoItem[]>([]);
   const [checkInReqLoading, setCheckInReqLoading] = useState(false);
   /** Cuantos ya lo cumplen, para no abrir un check-in que bloquea a media clase. */
@@ -421,6 +462,39 @@ function TeacherAttendance() {
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
    *  con la asistencia en la nota herede el modo flojo de la clase anterior. */
   const [checkInEmailOnly, setCheckInEmailOnly] = useState(false);
+  /**
+   * ¿El cierre elegido ya pasó? Solo tiene sentido al AJUSTAR: el servidor
+   * rechaza un cierre pasado, y con razón —la ventana vencida se borra sola y
+   * con ella el código—, así que el primario se deshabilita antes de intentarlo.
+   */
+  const cierreCheckInPasado =
+    !!checkInAjusteSession &&
+    !!checkInClosesAt &&
+    new Date(localToIso(checkInClosesAt)).getTime() <= Date.now();
+  /**
+   * ¿Hay algo que guardar? Sin esto, "Guardar cambios" invita a una llamada que
+   * no cambia nada — y al hacerla, el docente se queda sin saber si pasó algo.
+   * Los requisitos entran solo cuando ya se leyeron los que la sesión tenía.
+   */
+  const checkInReqsCambiaron =
+    huellaRequisitos([...checkInReqs]) !== checkInReqsIniciales;
+  const checkInHuboCambios = (() => {
+    if (!checkInAjusteSession || !checkInPrev) return false;
+    if (checkInRotation !== checkInPrev.rotationSeconds) return true;
+    if (checkInEmailOnly !== checkInPrev.emailOnly) return true;
+    if (checkInClosesAt) {
+      const elegido = new Date(localToIso(checkInClosesAt)).getTime();
+      // Al minuto: el picker no tiene segundos, así que comparar el instante
+      // exacto marcaría "cambió" por los segundos que el guardado traía.
+      if (
+        Number.isFinite(elegido) &&
+        Math.floor(elegido / 60_000) !== Math.floor(new Date(checkInPrev.closesAt).getTime() / 60_000)
+      ) {
+        return true;
+      }
+    }
+    return checkInReqsCargados && checkInReqsCambiaron;
+  })();
   const [startingCheckIn, setStartingCheckIn] = useState(false);
   const [projector, setProjector] = useState<CheckInState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -1620,13 +1694,13 @@ function TeacherAttendance() {
     // Si la lectura FALLA no se marca como cargado: enviar una lista vacía por un
     // error de red borraría la configuración de la sesión.
     if (error) return;
-    setCheckInReqs(
-      new Set(
-        ((data ?? []) as Array<{ kind: string; item_id: string }>).map(
-          (x) => `${x.kind}:${x.item_id}`,
-        ),
-      ),
+    const leidos = ((data ?? []) as Array<{ kind: string; item_id: string }>).map(
+      (x) => `${x.kind}:${x.item_id}`,
     );
+    setCheckInReqs(new Set(leidos));
+    // Huella de lo que había, para poder decir si el docente los cambió (el
+    // primario de "Guardar cambios" se apoya en eso).
+    setCheckInReqsIniciales(huellaRequisitos(leidos));
     setCheckInReqsCargados(true);
   };
 
@@ -1652,6 +1726,67 @@ function TeacherAttendance() {
     setCheckInReqItems([]);
     void cargarItemsRequisito(sess.course_id);
     setCheckInConfigSession(sess);
+  };
+
+  /**
+   * Abre el MISMO diálogo, en modo AJUSTE, sobre un check-in que ya está
+   * abierto.
+   *
+   * Hasta ahora lo único editable de un check-in en curso eran los botones
+   * +5/+10/+15: para fijar una hora de cierre concreta, cambiar cada cuánto
+   * cambia el código, el modo de identificación o los requisitos, había que
+   * cerrar y volver a abrir — y eso REGENERA el código de seis dígitos que la
+   * clase está mirando.
+   *
+   * Los valores se leen de la BASE y no del `projector`: ese puede venir de
+   * cuando se abrió, y el check-in se pudo haber ajustado o extendido desde
+   * otra pestaña.
+   */
+  const openCheckInAjuste = async (sess: Session) => {
+    const { data, error } = await supabase
+      .from("attendance_check_in_state" as never)
+      .select("opened_at, closes_at, rotation_seconds, email_only")
+      .eq("session_id", sess.id)
+      .maybeSingle();
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    const row = data as {
+      opened_at: string;
+      closes_at: string;
+      rotation_seconds: number;
+      email_only: boolean;
+    } | null;
+    if (!row) {
+      // Se cerró o expiró mientras el docente miraba la pantalla.
+      toast.error(t("teacherAttendance.errNotOpen"));
+      await loadCourse();
+      return;
+    }
+    setCheckInPrev({
+      opensAt: row.opened_at,
+      closesAt: row.closes_at,
+      rotationSeconds: row.rotation_seconds,
+      emailOnly: row.email_only,
+    });
+    setCheckInOpensAt(toLocalDateTimeInput(new Date(row.opened_at)));
+    setCheckInClosesAt(toLocalDateTimeInput(new Date(row.closes_at)));
+    // Ya está "tocado": mover la apertura no debe recalcular el cierre, y en
+    // ajuste la apertura ni se muestra.
+    setCheckInClosesTouched(true);
+    setCheckInRotation(row.rotation_seconds);
+    setCheckInEmailOnly(row.email_only);
+    // Mismo gate que al abrir: hasta que se lea lo que la sesión YA tiene, no se
+    // manda arreglo de requisitos (mandar uno vacío los borraría).
+    setCheckInReqs(new Set());
+    setCheckInReqsCargados(false);
+    void cargarRequisitosDeSesion(sess.id);
+    setCheckInReqFuturas(false);
+    setCheckInReqCumplen(null);
+    setCheckInReqItems([]);
+    void cargarItemsRequisito(sess.course_id);
+    setCheckInAjusteSession(sess);
   };
 
   /**
@@ -1716,42 +1851,100 @@ function TeacherAttendance() {
     setCheckInReqCumplen({ ok: ids.filter((u) => cumplen.has(u)).length, total: ids.length });
   };
 
+  /**
+   * Abre el check-in, o AJUSTA el que ya está abierto — es la misma llamada.
+   *
+   * El servidor discrimina por la ventana viva: con un check-in en curso
+   * preserva la semilla (o sea el código de seis dígitos que la clase está
+   * mirando) y solo escribe cierre, rotación y modo. Ver la migración
+   * 20262140000000.
+   */
   const startCheckIn = async () => {
-    if (!checkInConfigSession || startingCheckIn) return;
+    const sess = checkInAjusteSession ?? checkInConfigSession;
+    const esAjuste = !!checkInAjusteSession;
+    if (!sess || startingCheckIn) return;
+
+    // ── Lo que hay que avisar ANTES de guardar ────────────────────────────
+    if (esAjuste && checkInPrev) {
+      // Cambiar la rotación SÍ cambia el código proyectado: el período es
+      // `floor(epoch / rotación)`, así que con otra rotación el número de
+      // ahora pertenece a otro espacio de períodos y el servidor lo rechaza.
+      // Se permite (el caso real es "el código se está pasando por WhatsApp,
+      // quiero que rote ya"), pero nunca en silencio.
+      if (checkInRotation !== checkInPrev.rotationSeconds) {
+        const ok = await confirm({
+          tone: "warning",
+          title: t("teacherAttendance.rotationChangeConfirmTitle"),
+          description: t("teacherAttendance.rotationChangeConfirmBody"),
+          confirmLabel: t("teacherAttendance.rotationChangeConfirmCta"),
+        });
+        if (!ok) return;
+      }
+      // Adelantar el cierre deja afuera a quien esté marcando en ese momento.
+      const nuevoCierre = checkInClosesAt ? new Date(localToIso(checkInClosesAt)).getTime() : NaN;
+      const cierreViejo = new Date(checkInPrev.closesAt).getTime();
+      if (Number.isFinite(nuevoCierre) && nuevoCierre < cierreViejo) {
+        const ok = await confirm({
+          tone: "warning",
+          title: t("teacherAttendance.adjustEarlierCloseConfirmTitle"),
+          description: t("teacherAttendance.adjustEarlierCloseConfirmBody", {
+            time: formatTime(localToIso(checkInClosesAt)),
+            before: formatTime(checkInPrev.closesAt),
+          }),
+        });
+        if (!ok) return;
+      }
+    }
+
     setStartingCheckIn(true);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data, error } = await (supabase as any).rpc("teacher_open_attendance_check_in", {
-        p_session_id: checkInConfigSession.id,
+        p_session_id: sess.id,
         // `localToIso` convierte el "yyyy-MM-ddTHH:mm" del picker (hora LOCAL)
         // a ISO con zona. Mandarlo crudo lo interpretaría como UTC y la ventana
         // abriría cinco horas antes de lo que el docente escribió.
-        p_opens_at: checkInOpensAt ? localToIso(checkInOpensAt) : null,
+        //
+        // En AJUSTE va `null`: la apertura no se mueve (es el ancla del tope de
+        // la ventana y del "todavía no empezó" que ve el alumno). El servidor lo
+        // ignora en ese camino; mandarlo explícito deja claro que no se pretende
+        // cambiarlo.
+        p_opens_at: esAjuste ? null : checkInOpensAt ? localToIso(checkInOpensAt) : null,
         p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
         p_rotation_seconds: checkInRotation,
         p_email_only: checkInEmailOnly,
         // `null` = "no toques los requisitos". Solo se manda el arreglo cuando se
         // leyó lo que la sesión ya tenía; si no, abrir el check-in apurado los
         // borraría.
-        p_requirements: checkInReqsCargados
-          ? [...checkInReqs].map((v) => {
-              const [kind, id] = v.split(":");
-              return { kind, id };
-            })
-          : null,
+        // En AJUSTE, si los requisitos NO se tocaron va `null`. Reenviar el mismo
+        // arreglo hace que el servidor los re-valide, y un requisito que dejó de
+        // estar disponible (una encuesta que se cerró, un video despublicado)
+        // devuelve `requirement_unavailable` — o sea que el docente no puede
+        // corregir la hora de cierre por algo que ni editó.
+        p_requirements:
+          checkInReqsCargados && (!esAjuste || checkInReqsCambiaron)
+            ? [...checkInReqs].map((v) => {
+                const [kind, id] = v.split(":");
+                return { kind, id };
+              })
+            : null,
       });
       if (error) {
         toast.error(friendlyError(error));
         return;
       }
-      // RPC retorna { ok, seed, rotation_seconds, opened_at, closes_at } o { ok:false, error }
+      // RPC retorna { ok, adjusted, seed, rotation_seconds, opened_at, closes_at,
+      // email_only, requirements_count } o { ok:false, error }
       const result = data as {
         ok: boolean;
         error?: string;
+        adjusted?: boolean;
         seed?: string;
         rotation_seconds?: number;
         rotation_fixed_by_window?: boolean;
+        opened_at?: string;
         closes_at?: string;
+        email_only?: boolean;
       };
       // `== null` y NO `!result.rotation_seconds`: con `0` (código fijo) el falsy
       // hacía que el docente leyera "No se pudo iniciar el check-in" mientras el
@@ -1769,24 +1962,80 @@ function TeacherAttendance() {
       if (result.rotation_fixed_by_window) {
         toast.info(t("teacherAttendance.rotationFixedByWindowToast"), { duration: 8000 });
       }
+      // ── Camino de AJUSTE: no es una apertura ──────────────────────────
+      // No se monta un proyector nuevo (el que está puesto se actualiza), no se
+      // aplica el requisito a las sesiones futuras (eso es una decisión de
+      // apertura) y la auditoría lo registra como ajuste, para que la métrica de
+      // "cuándo se abrió el check-in" no cuente ediciones.
+      // La autoridad es `result.adjusted`, NO el flag local `esAjuste`: entre que
+      // el diálogo se abrió y el docente guardó, la ventana pudo vencer (el cron
+      // `close-expired-attendance-checkins` corre cada minuto y BORRA la fila de
+      // estado) o alguien pudo cerrar el check-in en otra pantalla. En ese caso el
+      // servidor REABRE: semilla nueva y aviso al curso otra vez. Con el flag
+      // local, el toast decía «quedó actualizado», el proyector no se montaba y
+      // el docente se quedaba sin ver el código que en realidad vale.
+      const fueAjuste = result.adjusted === true;
+      if (fueAjuste) {
+        const rotoCodigo = result.rotation_seconds !== checkInPrev?.rotationSeconds;
+        setProjector((p) =>
+          p && p.sessionId === sess.id
+            ? {
+                ...p,
+                closesAt: result.closes_at!,
+                rotationSeconds: result.rotation_seconds!,
+                emailOnly: result.email_only ?? p.emailOnly,
+                opensAt: result.opened_at ?? p.opensAt,
+                // Normalmente la MISMA. Si el servidor decidió que era una
+                // re-apertura (la ventana había vencido entre medias) viene la
+                // nueva, y la pantalla tiene que mostrar el código que vale.
+                seed: result.seed!,
+              }
+            : p,
+        );
+        toast.success(
+          rotoCodigo
+            ? i18n.t("toast.routes_app_teacher_attendance.checkinAdjustedCodeChanged")
+            : i18n.t("toast.routes_app_teacher_attendance.checkinAdjusted"),
+          rotoCodigo ? { duration: 10000 } : undefined,
+        );
+        void logEvent({
+          action: "attendance.checkin_adjusted",
+          category: "attendance",
+          actorRole: roles[0],
+          entityType: "attendance_session",
+          entityId: sess.id,
+          courseId: sess.course_id,
+          metadata: {
+            closes_at: result.closes_at ?? null,
+            rotation_seconds: result.rotation_seconds ?? null,
+            email_only: result.email_only ?? null,
+            rotation_changed: rotoCodigo,
+            requirements: [...checkInReqs],
+          },
+        });
+        setCheckInAjusteSession(null);
+        setCheckInPrev(null);
+        await loadCourse();
+        return;
+      }
+
       setProjector({
-        sessionId: checkInConfigSession.id,
+        sessionId: sess.id,
         seed: result.seed,
         rotationSeconds: result.rotation_seconds,
         closesAt: result.closes_at,
+        opensAt: result.opened_at ?? new Date().toISOString(),
+        emailOnly: result.email_only ?? checkInEmailOnly,
         totalEnrolled,
-        sessionLabel: formatSessionLabel(
-          checkInConfigSession.session_date,
-          checkInConfigSession.title,
-        ),
+        sessionLabel: formatSessionLabel(sess.session_date, sess.title),
       });
       void logEvent({
         action: "attendance.checkin_opened",
         category: "attendance",
         actorRole: roles[0],
         entityType: "attendance_session",
-        entityId: checkInConfigSession.id,
-        courseId: checkInConfigSession.course_id,
+        entityId: sess.id,
+        courseId: sess.course_id,
         metadata: {
           opens_at: checkInOpensAt || null,
           closes_at: checkInClosesAt || null,
@@ -1804,13 +2053,13 @@ function TeacherAttendance() {
       // todo el curso 15 veces por el trigger de `check_in_open`). Acá solo se
       // guarda el requisito; cada sesion se abre cuando toque.
       if (checkInReqFuturas && checkInReqsCargados) {
-        const desde = checkInConfigSession.session_date;
+        const desde = sess.session_date;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const sb = supabase as any;
         const { data: futuras, error: eLista } = await sb
           .from("attendance_sessions")
           .select("id")
-          .eq("course_id", checkInConfigSession.course_id)
+          .eq("course_id", sess.course_id)
           .gt("session_date", desde)
           .is("deleted_at", null);
         const ids = ((futuras ?? []) as Array<{ id: string }>).map((x) => x.id);
@@ -1877,14 +2126,20 @@ function TeacherAttendance() {
     try {
       const { data, error } = await supabase
         .from("attendance_check_in_state" as never)
-        .select("seed, rotation_seconds, closes_at")
+        .select("seed, rotation_seconds, closes_at, opened_at, email_only")
         .eq("session_id", sess.id)
         .maybeSingle();
       if (error) {
         toast.error(friendlyError(error));
         return;
       }
-      const row = data as { seed: string; rotation_seconds: number; closes_at: string } | null;
+      const row = data as {
+        seed: string;
+        rotation_seconds: number;
+        closes_at: string;
+        opened_at: string;
+        email_only: boolean;
+      } | null;
       // Sesión inconsistente (check_in_open=true sin state) o state ya
       // expirado: limpiar y dejar al docente iniciar uno nuevo, en vez de
       // reabrir un proyector que se cerraría en el primer tick.
@@ -1913,6 +2168,8 @@ function TeacherAttendance() {
         seed: row!.seed,
         rotationSeconds: row!.rotation_seconds,
         closesAt: row!.closes_at,
+        opensAt: row!.opened_at,
+        emailOnly: row!.email_only,
         totalEnrolled,
         sessionLabel: formatSessionLabel(sess.session_date, sess.title),
       });
@@ -2411,6 +2668,19 @@ function TeacherAttendance() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end" className="w-56">
+                              {/* Primero, y solo con el check-in abierto: es lo
+                                  urgente cuando lo está (mover el cierre, hacer
+                                  rotar el código que se filtró). Sin proyector a
+                                  la vista, este menú es la única entrada. */}
+                              {sess.check_in_open && (
+                                <>
+                                  <DropdownMenuItem onSelect={() => void openCheckInAjuste(sess)}>
+                                    <SlidersHorizontal className="h-4 w-4 mr-2 text-primary" />
+                                    {t("teacherAttendance.adjustCheckInAction")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               <DropdownMenuItem
                                 disabled={sessionBusyId !== null}
                                 onSelect={() => void markAllPresent(sess.id)}
@@ -2859,40 +3129,76 @@ function TeacherAttendance() {
         </DialogContent>
       </Dialog>
 
-      {/* Check-in config dialog */}
+      {/* Check-in config dialog — el MISMO en modo abrir y en modo ajustar.
+          En ajuste desaparece el campo "Abre" (la apertura no se mueve: es el
+          ancla del tope de la ventana y del "todavía no empezó" del alumno) y
+          aparecen los avisos de lo que el cambio le hace a la clase. */}
       <Dialog
-        open={!!checkInConfigSession}
-        onOpenChange={(o) => !o && setCheckInConfigSession(null)}
+        open={!!checkInConfigSession || !!checkInAjusteSession}
+        onOpenChange={(o) => {
+          if (o) return;
+          setCheckInConfigSession(null);
+          setCheckInAjusteSession(null);
+          setCheckInPrev(null);
+        }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
+        <DialogContent
+          className={cn(
+            "max-w-[calc(100vw-2rem)] sm:max-w-sm",
+            // El proyector es `z-[100]`: sin esto el diálogo abriría DETRÁS del
+            // QR. El velo del fondo lo pinta el proyector (ver `ajustando`).
+            checkInAjusteSession && "z-[120]",
+          )}
+        >
           <DialogHeader>
-            <DialogTitle>{t("teacherAttendance.startCheckInQr")}</DialogTitle>
+            <DialogTitle>
+              {checkInAjusteSession
+                ? t("teacherAttendance.adjustCheckInTitle")
+                : t("teacherAttendance.startCheckInQr")}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
-              {t("teacherAttendance.checkInConfigDescription")}
+              {checkInAjusteSession
+                ? t("teacherAttendance.adjustCheckInDescription")
+                : t("teacherAttendance.checkInConfigDescription")}
             </p>
             {/* Fechas, no minutos: ver el comentario de `checkInOpensAt`.
                 Vacías = ahora + 10 min, que resuelve el servidor. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              <div>
-                <Label>
-                  {t("teacherAttendance.checkInOpensAtLabel")}{" "}
-                  <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
-                </Label>
-                <DateTimePicker
-                  value={checkInOpensAt}
-                  onChange={(v) => {
-                    setCheckInOpensAt(v);
-                    // El cierre sigue a la apertura solo si el docente no lo
-                    // tocó (ver `checkInClosesTouched`).
-                    if (!checkInClosesTouched) {
-                      const c = recomputeClosesAt(v, checkInHours);
-                      if (c) setCheckInClosesAt(c);
-                    }
-                  }}
-                />
-              </div>
+            <div
+              className={cn(
+                "grid grid-cols-1 gap-2",
+                !checkInAjusteSession && "sm:grid-cols-2",
+              )}
+            >
+              {checkInAjusteSession ? (
+                checkInPrev && (
+                  <p className="text-xs text-muted-foreground">
+                    {t("teacherAttendance.adjustOpenedAtLabel", {
+                      time: formatTime(checkInPrev.opensAt),
+                    })}
+                  </p>
+                )
+              ) : (
+                <div>
+                  <Label>
+                    {t("teacherAttendance.checkInOpensAtLabel")}{" "}
+                    <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
+                  </Label>
+                  <DateTimePicker
+                    value={checkInOpensAt}
+                    onChange={(v) => {
+                      setCheckInOpensAt(v);
+                      // El cierre sigue a la apertura solo si el docente no lo
+                      // tocó (ver `checkInClosesTouched`).
+                      if (!checkInClosesTouched) {
+                        const c = recomputeClosesAt(v, checkInHours);
+                        if (c) setCheckInClosesAt(c);
+                      }
+                    }}
+                  />
+                </div>
+              )}
               <div>
                 <Label>
                   {t("teacherAttendance.checkInClosesAtLabel")}{" "}
@@ -2905,6 +3211,15 @@ function TeacherAttendance() {
                     setCheckInClosesTouched(true);
                   }}
                 />
+                {/* El cierre en el pasado es IRREVERSIBLE: tres mecanismos
+                    distintos borran el estado del check-in cuando la ventana
+                    vence, y con él se va el código. Para terminar ahora está
+                    "Cerrar check-in". */}
+                {checkInAjusteSession && cierreCheckInPasado && (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                    {t("teacherAttendance.adjustClosesMustBeFuture")}
+                  </p>
+                )}
               </div>
             </div>
             <div>
@@ -2942,6 +3257,17 @@ function TeacherAttendance() {
                   </p>
                 )
               )}
+              {/* El ÚNICO campo del ajuste que cambia el código proyectado. Se
+                  avisa acá, se vuelve a confirmar al guardar, y el toast final
+                  pide que la clase lo vuelva a leer. Los otros tres campos no
+                  lo tocan, así que no llevan aviso. */}
+              {checkInAjusteSession &&
+                checkInPrev &&
+                checkInRotation !== checkInPrev.rotationSeconds && (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                    {t("teacherAttendance.rotationChangeInvalidatesCode")}
+                  </p>
+                )}
             </div>
             {/* ── Requisitos para marcar asistencia ─────────────────────────
                 Se pueden exigir VARIOS: el caso real es la encuesta de bienestar Y
@@ -2992,9 +3318,11 @@ function TeacherAttendance() {
                                       else next.delete(valor);
                                       return next;
                                     });
-                                    if (checkInConfigSession) {
+                                    const sessDialogo =
+                                      checkInAjusteSession ?? checkInConfigSession;
+                                    if (sessDialogo) {
                                       void contarCumplimiento(
-                                        checkInConfigSession.course_id,
+                                        sessDialogo.course_id,
                                         v ? valor : "",
                                       );
                                     }
@@ -3032,7 +3360,7 @@ function TeacherAttendance() {
                   })}
                 </p>
               )}
-              {checkInReqs.size > 0 && (
+              {checkInReqs.size > 0 && !checkInAjusteSession && (
                 <label className="flex items-start gap-2 text-xs cursor-pointer">
                   <Checkbox
                     checked={checkInReqFuturas}
@@ -3059,6 +3387,13 @@ function TeacherAttendance() {
                 <p className="text-xs text-muted-foreground mt-1">
                   {t("teacherAttendance.emailOnlyHint")}
                 </p>
+                {checkInAjusteSession &&
+                  checkInPrev &&
+                  checkInEmailOnly !== checkInPrev.emailOnly && (
+                    <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                      {t("teacherAttendance.emailOnlyChangeReloadHint")}
+                    </p>
+                  )}
               </div>
               <Switch
                 id="checkin-email-only"
@@ -3070,18 +3405,40 @@ function TeacherAttendance() {
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setCheckInConfigSession(null)}
+              onClick={() => {
+                setCheckInConfigSession(null);
+                setCheckInAjusteSession(null);
+                setCheckInPrev(null);
+              }}
               disabled={startingCheckIn}
             >
               {t("common.cancel")}
             </Button>
-            <Button onClick={() => void startCheckIn()} disabled={startingCheckIn}>
+            <Button
+              onClick={() => void startCheckIn()}
+              disabled={
+                startingCheckIn ||
+                // En ajuste: nada que guardar, o un cierre que el servidor va a
+                // rechazar. Al abrir se mantiene tal cual estaba.
+                (!!checkInAjusteSession &&
+                  (!checkInReqsCargados || !checkInHuboCambios || cierreCheckInPasado))
+              }
+              title={
+                checkInAjusteSession && !checkInHuboCambios && !cierreCheckInPasado
+                  ? t("teacherAttendance.adjustNoChanges")
+                  : undefined
+              }
+            >
               {startingCheckIn ? (
                 <Spinner size="sm" className="mr-1" />
+              ) : checkInAjusteSession ? (
+                <SlidersHorizontal className="h-4 w-4 mr-1" />
               ) : (
                 <QrCode className="h-4 w-4 mr-1" />
               )}
-              {t("teacherAttendance.start")}
+              {checkInAjusteSession
+                ? t("teacherAttendance.adjustSave")
+                : t("teacherAttendance.start")}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -3124,6 +3481,50 @@ function TeacherAttendance() {
                   "Saliste de la proyección. El check-in sigue abierto y los estudiantes pueden marcar.",
               }),
             );
+          }}
+          // Ajustar el check-in en curso sin cerrarlo: abre el MISMO diálogo de
+          // configuración en modo ajuste. La sesión se resuelve del listado
+          // porque el proyector solo guarda el id.
+          ajustando={!!checkInAjusteSession}
+          onAjustar={() => {
+            const sess = sessions.find((x) => x.id === projector.sessionId);
+            if (!sess) {
+              // El listado no la tiene (se filtró, o se borró en otra pestaña).
+              toast.error(t("teacherAttendance.errSessionNotFound"));
+              return;
+            }
+            void openCheckInAjuste(sess);
+          }}
+          // El sondeo del proyector reconcilia contra la base: si el check-in se
+          // ajustó o se reabrió en otra pantalla, el código de acá se actualiza
+          // en vez de quedarse mostrando uno que el servidor ya rechaza.
+          onEstadoRemoto={(remoto) => {
+            if (!remoto) {
+              // Cerrado en otra pantalla: se desmonta sin el diálogo de
+              // "marcar ausentes", que es una decisión de quien lo cerró.
+              setProjector(null);
+              void loadCourse();
+              toast.info(
+                i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedElsewhere"),
+              );
+              return;
+            }
+            setProjector((p) => {
+              if (!p) return p;
+              const igual =
+                p.seed === remoto.seed &&
+                p.rotationSeconds === remoto.rotationSeconds &&
+                p.closesAt === remoto.closesAt &&
+                p.emailOnly === remoto.emailOnly;
+              if (igual) return p;
+              if (p.seed !== remoto.seed) {
+                toast.info(
+                  i18n.t("toast.modules_attendance_AttendanceCheckInProjector.reopenedElsewhere"),
+                  { duration: 10000 },
+                );
+              }
+              return { ...p, ...remoto };
+            });
           }}
         />
       )}

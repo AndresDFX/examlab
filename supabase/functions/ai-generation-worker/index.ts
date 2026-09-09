@@ -28,9 +28,21 @@
  * failed → "Reintentar") simplemente revierten status a pending.
  *
  * Body request:
- *   { jobId?: string }   — opcional. Sin id → drain mode.
+ *   { jobId?: string }            — opcional. Sin id → drain mode.
+ *   { includeDeferred?: boolean } — solo en drain mode y solo para el botón
+ *     "Procesar todas" (service_role, Admin o SuperAdmin): procesa TAMBIÉN los
+ *     trabajos de instituciones configuradas para más tarde. El cron invoca con
+ *     `{}` y NO lo manda, así que su autoexclusión por modo queda intacta. Si
+ *     llega de alguien sin ese permiso se ignora y la respuesta lo dice.
  * Response:
- *   { processed: number, succeeded: number, failed: number }
+ *   { processed, succeeded, failed,
+ *     remainingPending,          — pendientes en la cola al terminar
+ *     deferred,                  — pendientes excluidos por modo en esta pasada
+ *     deferredIncluded,          — procesados que se habrían excluido
+ *     includeDeferredIgnored? }  — el flag llegó sin permiso
+ *
+ *   `remainingPending` es lo que el panel usa para saber si quedan tareas: sin
+ *   él leía `undefined` → 0 y anunciaba "no quedan" con la cola llena.
  */
 import { createClient } from "npm:@supabase/supabase-js@2.45.0";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
@@ -76,6 +88,37 @@ async function loadModeResolver(): Promise<{
     else defaultMode = m;
   }
   return { byTenant, defaultMode };
+}
+
+/** Cuántos trabajos quedan en espera. Espejo de lo que hace el worker de
+ *  calificación: sin este número el panel no sabe si el drenaje terminó y
+ *  anunciaba "no quedan tareas en espera" con la cola llena. */
+async function pendientesEnCola(soloDelTenant?: string | null): Promise<number> {
+  // deno-lint-ignore no-explicit-any
+  const base = () =>
+    // deno-lint-ignore no-explicit-any
+    (adminClient as any)
+      .from("ai_generation_queue")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+  if (soloDelTenant === undefined) {
+    const { count } = await base();
+    return count ?? 0;
+  }
+  // Acotado a UNA institución. La cola no tiene `tenant_id`: el dueño se deriva
+  // de created_by → profiles.tenant_id, igual que el filtro del drenaje. Sin
+  // acotar, el panel de un Admin anunciaba «quedan N pendientes, volvé a
+  // pulsar» contando trabajos de otras instituciones que ese Admin no va a
+  // procesar nunca — y el bucle reintentaba hasta agotar los intentos.
+  // deno-lint-ignore no-explicit-any
+  let qp = (adminClient as any).from("profiles").select("id");
+  qp = soloDelTenant === null ? qp.is("tenant_id", null) : qp.eq("tenant_id", soloDelTenant);
+  const { data: mios } = await qp;
+  const ids = ((mios ?? []) as { id: string }[]).map((p) => p.id);
+  // `.in(col, [])` en PostgREST devuelve TODAS las filas, no ninguna.
+  if (ids.length === 0) return 0;
+  const { count } = await base().in("created_by", ids);
+  return count ?? 0;
 }
 
 /** Procesa un job de tipo `content_generation`.
@@ -334,10 +377,28 @@ Deno.serve(async (req) => {
   //     ahora"/"Procesar este job" del módulo Cola IA.
   // Sin ninguno → 401. Sin esto, con verify_jwt off, CUALQUIERA podía drenar la
   // cola de generación y disparar IA (consumo de cuota/créditos del tenant).
+  // ¿El caller puede pedir que se procesen los trabajos diferidos? Es el mismo
+  // permiso del botón "Procesar todas" (Admin-only en la UI); un Docente que
+  // mande el flag lo ve ignorado, no rechazado — por `jobId` ya podía procesar.
+  let esGestion = false;
+  // Institución de quien llama. `esGestion` sale de `user_roles`, que es un rol
+  // GLOBAL: sin esto, un Admin de CUALQUIER institución podía forzar con
+  // `includeDeferred` los trabajos que OTRA institución dejó diferidos a
+  // propósito para controlar su gasto — el mismo cruce que la mig
+  // 20261039000000 cerró para esta tabla en el SELECT. `null` = cron
+  // (service_role) o SuperAdmin: los dos operan cross-tenant a propósito.
+  let tenantDelCaller: string | null = null;
+  let callerEsSuperAdmin = false;
+  // ¿Es el cron / una edge server-side (service_role)? Es lo ÚNICO que drena
+  // cross-tenant sin ser SuperAdmin. Se distingue de «una persona cuyo perfil no
+  // tiene institución», que no es dueña de nada y no debe drenar nada.
+  let esCron = false;
   {
     const bearer = (req.headers.get("Authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     let authorized = bearer.length > 0 && bearer === serviceRoleKey;
+    esGestion = authorized;
+    esCron = authorized;
     if (!authorized && bearer.length > 0) {
       const userClient = createClient(
         Deno.env.get("SUPABASE_URL")!,
@@ -350,9 +411,20 @@ Deno.serve(async (req) => {
           .from("user_roles")
           .select("role")
           .eq("user_id", u.user.id);
-        authorized = ((roles ?? []) as { role: string }[]).some(
+        const lista = (roles ?? []) as { role: string }[];
+        authorized = lista.some(
           (r) => r.role === "Admin" || r.role === "Docente" || r.role === "SuperAdmin",
         );
+        esGestion = lista.some((r) => r.role === "Admin" || r.role === "SuperAdmin");
+        callerEsSuperAdmin = lista.some((r) => r.role === "SuperAdmin");
+        if (!callerEsSuperAdmin) {
+          const { data: perfil } = await (adminClient as any)
+            .from("profiles")
+            .select("tenant_id")
+            .eq("id", u.user.id)
+            .maybeSingle();
+          tenantDelCaller = (perfil?.tenant_id as string | null) ?? null;
+        }
       }
     }
     if (!authorized) {
@@ -363,7 +435,7 @@ Deno.serve(async (req) => {
     }
   }
 
-  let body: { jobId?: string };
+  let body: { jobId?: string; includeDeferred?: boolean };
   try {
     body = await req.json();
   } catch {
@@ -391,12 +463,29 @@ Deno.serve(async (req) => {
 
   let jobs = (rows ?? []) as QueueRow[];
 
-  // Filtro de modo POR TENANT (drain mode). Solo auto-drenamos jobs de
+  // Filtro de modo POR TENANT (drain mode). El cron solo auto-drena jobs de
   // tenants en 'sync'; los de tenants 'async' se quedan pending — su dueño
   // los procesa con código de "IA inmediata" o "Procesar ahora" (que pasan
   // jobId y saltan este filtro). El modo de cada job se resuelve por el
   // tenant de su creador (created_by → profiles.tenant_id). created_by
   // apunta a auth.users, así que no se puede embeber profiles: 2ª query.
+  //
+  // `includeDeferred` (solo el botón "Procesar todas", con permiso de gestión)
+  // los procesa igual: es una petición explícita del dueño del gasto, y la
+  // capacidad ya existía de una en una por `jobId`. El cron NO manda el flag.
+  //
+  // El modo se resuelve SIEMPRE en drenaje, aun con el flag activo: es lo que
+  // permite CONTAR los diferidos y decirle al Admin qué acaba de procesar. Un
+  // "procesadas 0" sin explicación es peor que un error.
+  // Alcance del conteo de pendientes: `undefined` = todas las instituciones
+  // (cron y SuperAdmin operan cross-tenant a propósito); si no, la institución
+  // de quien pidió el drenaje, que es lo único que ese drenaje va a procesar.
+  const alcanceDeConteo: string | null | undefined =
+    esCron || callerEsSuperAdmin ? undefined : tenantDelCaller;
+  let deferred = 0;
+  let deferredIncluded = 0;
+  const incluirDiferidos = body.includeDeferred === true && esGestion;
+  const flagIgnorado = body.includeDeferred === true && !esGestion;
   if (!body.jobId && jobs.length > 0) {
     const resolver = await loadModeResolver();
     const creatorIds = [...new Set(jobs.map((j) => j.created_by).filter(Boolean))];
@@ -412,14 +501,42 @@ Deno.serve(async (req) => {
       if (t && resolver.byTenant.has(t)) return resolver.byTenant.get(t)!;
       return resolver.defaultMode;
     };
-    jobs = jobs.filter((j) => modeOf(j) === "sync").slice(0, 10);
-    if (jobs.length === 0) {
-      return jsonResponse({ processed: 0, succeeded: 0, failed: 0, skipped: "no_sync_tenant_jobs" });
+    // Un drenaje pedido por una PERSONA se acota a SU institución. `esGestion`
+    // sale de `user_roles`, que es un rol GLOBAL y la consulta de arriba no
+    // filtra por institución: sin este recorte un Admin ejecutaba trabajos de
+    // otras instituciones — incluidos los que ellas difirieron a propósito para
+    // controlar su gasto, y que no puede ni ver en su propio panel (mig
+    // 20261039000000). Es el anti-patrón «`has_role()` sin scope de tenant».
+    // Cron (service_role) y SuperAdmin siguen cross-tenant a propósito.
+    if (!esCron && !callerEsSuperAdmin) {
+      // Ojo con el caso `tenantDelCaller === null`: una persona sin institución
+      // en su perfil no es dueña de ningún trabajo, así que la comparación
+      // vacía nada — eso es correcto, y es distinto de no filtrar.
+      jobs = jobs.filter((j) => (tenantByUser.get(j.created_by) ?? null) === tenantDelCaller);
+    }
+    if (incluirDiferidos) {
+      jobs = jobs.slice(0, 10);
+      // Se cuenta DESPUÉS del tope: «diferidos» y «procesados» son conjuntos
+      // distintos, así que un `Math.min` sobre el total de la ventana promete
+      // diferidos que nunca corrieron (10 sync + 2 async reportó «2 incluidas»).
+      deferredIncluded = jobs.filter((j) => modeOf(j) !== "sync").length;
+    } else {
+      const sync = jobs.filter((j) => modeOf(j) === "sync");
+      deferred = jobs.length - sync.length;
+      jobs = sync.slice(0, 10);
     }
   }
 
   if (jobs.length === 0) {
-    return jsonResponse({ processed: 0, succeeded: 0, failed: 0 });
+    return jsonResponse({
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      remainingPending: await pendientesEnCola(alcanceDeConteo),
+      deferred,
+      deferredIncluded,
+      ...(flagIgnorado ? { includeDeferredIgnored: true } : {}),
+    });
   }
 
   let succeeded = 0;
@@ -520,5 +637,9 @@ Deno.serve(async (req) => {
     processed: jobs.length,
     succeeded,
     failed,
+    remainingPending: await pendientesEnCola(alcanceDeConteo),
+    deferred,
+    deferredIncluded,
+    ...(flagIgnorado ? { includeDeferredIgnored: true } : {}),
   });
 });

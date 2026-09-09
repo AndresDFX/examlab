@@ -41,6 +41,9 @@ import {
 import { BarChart3 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { StatTile } from "@/components/ui/stat-tile";
+import { useAuth } from "@/hooks/use-auth";
+import { useTenant } from "@/modules/tenants/use-tenant";
+import { academicScope, conTenant, debeConsultar } from "@/modules/admin/academic-scope";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -172,6 +175,12 @@ function computeStats({
 
 export function AdminProgramOverviewPanel() {
   const { t } = useTranslation();
+  const { roles } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+  // Alcance por institución: las policies de lectura de `academic_*` traen TODO
+  // con `OR is_super_admin()`, así que para quien POSEE el rol SuperAdmin la
+  // base no acota y el filtro tiene que vivir acá. Para un Admin es un no-op.
+  const scope = academicScope({ roles, institucionElegida: tenant?.id });
   const [programs, setPrograms] = useState<Program[]>([]);
   const [periods, setPeriods] = useState<Period[]>([]);
   const [stats, setStats] = useState<ProgramStats[]>([]);
@@ -183,29 +192,64 @@ export function AdminProgramOverviewPanel() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
 
+  /** El embed anidado (`course:courses(...)`) no lo filtra PostgREST: se salta
+   *  en JS, igual que se hace con los cursos en papelera. */
+  const delOtraInstitucion = <T extends { course: { tenant_id?: string | null } | null }>(
+    filas: T[],
+  ): T[] =>
+    scope.modo === "institucion"
+      ? filas.filter((f) => !f.course || f.course.tenant_id === scope.tenantId)
+      : filas;
+
   useEffect(() => {
     let cancelled = false;
+    // Sin el tenant resuelto la primera pasada saldría sin acotar.
+    if (tenantLoading) return;
+    if (!debeConsultar(scope)) {
+      setPrograms([]);
+      setPeriods([]);
+      setStats([]);
+      setGlobalCounts({ uniqueStudents: 0, uniqueTeachers: 0 });
+      setLoadError(null);
+      setLoading(false);
+      return;
+    }
     void (async () => {
       setLoading(true);
       setLoadError(null);
       const [progRes, periodRes, subjRes, coursesRes, enrRes, teachRes] = await Promise.all([
-        db
-          .from("academic_programs")
-          .select("id, name, code, faculty, active")
-          .order("name"),
-        db
-          .from("academic_periods")
-          .select("id, code, status")
-          .order("code", { ascending: false }),
-        db.from("academic_subjects").select("program_id, active"),
+        conTenant(
+          db
+            .from("academic_programs")
+            .select("id, name, code, faculty, active")
+            .order("name"),
+          scope,
+        ),
+        conTenant(
+          db
+            .from("academic_periods")
+            .select("id, code, status")
+            .order("code", { ascending: false }),
+          scope,
+        ),
+        conTenant(db.from("academic_subjects").select("program_id, active"), scope),
         // Papelera: los cursos soft-deleted no cuentan en el resumen institucional.
-        db.from("courses").select("id, program_id, period_id").is("deleted_at", null),
+        conTenant(
+          db.from("courses").select("id, program_id, period_id").is("deleted_at", null),
+          scope,
+        ),
         // Enrollment → course (program_id via embed). El embed sigue
         // funcionando aunque el curso no tenga program_id (queda null).
         // Traemos deleted_at para saltar cursos en papelera en computeStats
-        // (PostgREST no filtra fácil el embed anidado).
-        db.from("course_enrollments").select("user_id, course:courses(program_id, period_id, deleted_at)"),
-        db.from("course_teachers").select("user_id, course:courses(program_id, period_id, deleted_at)"),
+        // y tenant_id para saltar los de OTRA institución (PostgREST no
+        // filtra el embed anidado: sin esto los KPIs del resumen seguían
+        // sumando todas las instituciones).
+        db
+          .from("course_enrollments")
+          .select("user_id, course:courses(program_id, period_id, deleted_at, tenant_id)"),
+        db
+          .from("course_teachers")
+          .select("user_id, course:courses(program_id, period_id, deleted_at, tenant_id)"),
       ]);
       if (cancelled) return;
       const firstErr =
@@ -230,14 +274,28 @@ export function AdminProgramOverviewPanel() {
           program_id: string | null;
           period_id: string | null;
         }>,
-        enrollments: (enrRes.data ?? []) as Array<{
-          user_id: string;
-          course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
-        }>,
-        teachers: (teachRes.data ?? []) as Array<{
-          user_id: string;
-          course: { program_id: string | null; period_id: string | null; deleted_at?: string | null } | null;
-        }>,
+        enrollments: delOtraInstitucion(
+          (enrRes.data ?? []) as Array<{
+            user_id: string;
+            course: {
+              program_id: string | null;
+              period_id: string | null;
+              deleted_at?: string | null;
+              tenant_id?: string | null;
+            } | null;
+          }>,
+        ),
+        teachers: delOtraInstitucion(
+          (teachRes.data ?? []) as Array<{
+            user_id: string;
+            course: {
+              program_id: string | null;
+              period_id: string | null;
+              deleted_at?: string | null;
+              tenant_id?: string | null;
+            } | null;
+          }>,
+        ),
         filterPeriodId: periodFilter === "all" ? null : periodFilter,
       });
       setStats(computed.perProgram);
@@ -251,7 +309,7 @@ export function AdminProgramOverviewPanel() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [retryNonce, periodFilter]);
+  }, [retryNonce, periodFilter, tenant?.id, tenantLoading, roles]);
 
   const totals = useMemo(() => {
     // Agregado total del cuadro de arriba.
@@ -363,8 +421,16 @@ export function AdminProgramOverviewPanel() {
                   {programs.length === 0 ? (
                     <TableEmpty
                       colSpan={6}
-                      text={t("hc_modulesAdminAdminProgramOverviewPanel.emptyPrograms")}
-                      hint={t("hc_modulesAdminAdminProgramOverviewPanel.emptyProgramsHint")}
+                      text={
+                        debeConsultar(scope)
+                          ? t("hc_modulesAdminAdminProgramOverviewPanel.emptyPrograms")
+                          : t("common.chooseInstitutionFirst")
+                      }
+                      hint={
+                        debeConsultar(scope)
+                          ? t("hc_modulesAdminAdminProgramOverviewPanel.emptyProgramsHint")
+                          : undefined
+                      }
                     />
                   ) : (
                     programs.map((p) => {

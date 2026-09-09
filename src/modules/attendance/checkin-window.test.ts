@@ -108,3 +108,28 @@ describe("recomputeClosesAt", () => {
     expect(recomputeClosesAt("no-es-fecha", 6)).toBeNull();
   });
 });
+
+/**
+ * El diálogo de AJUSTE pre-llena los pickers con lo que la base tiene guardado
+ * (un timestamptz ISO), y al guardar los vuelve a mandar. Si esa ida y vuelta
+ * corre la hora, el docente abre "Ajustar", no toca nada y al guardar mueve el
+ * cierre — el defecto de zonas horarias que este módulo existe para evitar, esta
+ * vez disparado por el pre-llenado y no por el default.
+ */
+describe("ida y vuelta ISO → picker → ISO (pre-llenado del ajuste)", () => {
+  const alMinuto = (iso: string) => Math.floor(new Date(iso).getTime() / 60000);
+
+  it("el picker muestra la MISMA hora local que el instante guardado", () => {
+    const guardado = new Date(2026, 8, 8, 19, 45, 31, 250);
+    expect(toLocalDateTimeInput(guardado)).toBe("2026-09-08T19:45");
+  });
+
+  it("volver a mandar lo pre-llenado no mueve el instante (al minuto)", () => {
+    // `localToIso` no se importa acá para no arrastrar el módulo de mensajería:
+    // interpretar la cadena del picker como hora local es exactamente lo que
+    // hace `new Date("yyyy-MM-ddTHH:mm")` en el navegador.
+    const guardado = new Date(2026, 8, 8, 19, 45, 31, 250).toISOString();
+    const enElPicker = toLocalDateTimeInput(new Date(guardado));
+    expect(alMinuto(new Date(enElPicker).toISOString())).toBe(alMinuto(guardado));
+  });
+});
