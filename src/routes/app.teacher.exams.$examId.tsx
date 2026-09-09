@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
@@ -66,6 +66,10 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import i18n from "@/i18n";
 import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
+import {
+  SqlSchemaAiBox,
+  type SqlSchemaAiBoxHandle,
+} from "@/modules/database/SqlSchemaAiBox";
 
 export const Route = createFileRoute("/app/teacher/exams/$examId")({ component: ExamEditor });
 
@@ -168,6 +172,12 @@ function ExamEditor() {
     JSON.stringify(defaultScenario(), null, 2),
   );
 
+  // Ref del generador de esquema con IA. Se limpia al cambiar de pregunta: los
+  // estados viven en el componente, no en la pregunta, así que una preview
+  // colgada de la anterior ofrecería «Usar como esquema» e inyectaría el
+  // esquema equivocado en la nueva.
+  const sqlAiRef = useRef<SqlSchemaAiBoxHandle | null>(null);
+
   const resetQForm = () => {
     setEditingId(null);
     setQType("abierta");
@@ -183,9 +193,11 @@ function ExamEditor() {
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
     setQSetupSql("");
+    sqlAiRef.current?.reset();
   };
 
   const loadQIntoForm = (q: Question) => {
+    sqlAiRef.current?.reset();
     setEditingId(q.id);
     setQType(q.type);
     setQContent(q.content);
@@ -1924,6 +1936,15 @@ function ExamEditor() {
                     {t("bdSql.setupSqlLabel")}
                     <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
                   </Label>
+                  {/* Mismo generador que el taller y la hoja SQL de la pizarra,
+                      pero con el prompt global de una pregunta CALIFICADA: tiene
+                      prohibido devolver la consulta que resuelve el ejercicio. */}
+                  <SqlSchemaAiBox
+                    ref={sqlAiRef}
+                    setupSql={qSetupSql}
+                    onChange={setQSetupSql}
+                    courseId={originalCourseId}
+                  />
                   <Textarea
                     value={qSetupSql}
                     onChange={(e) => setQSetupSql(e.target.value)}

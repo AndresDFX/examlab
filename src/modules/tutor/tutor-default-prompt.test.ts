@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { TUTOR_CHAT_FALLBACK } from "./tutor-default-prompt";
 import { SQL_GENERATION_FALLBACK } from "@/modules/database/sql-generation-prompt";
+import { SQL_QUESTION_SCHEMA_FALLBACK } from "@/modules/database/sql-question-schema-prompt";
 import { GRUPOS_DESDE_IMAGEN_FALLBACK } from "@/modules/workshops/grupos-imagen-prompt";
 
 /**
@@ -106,6 +107,48 @@ describe("prompt de generación SQL — invariante de 3 lados", () => {
   it("la constante de src coincide con el seed y con el edge", () => {
     expect(SQL_GENERATION_FALLBACK.trim()).toBe(seed);
     expect(SQL_GENERATION_FALLBACK.trim()).toBe(edge);
+  });
+});
+
+describe("prompt del esquema de una pregunta SQL — invariante de 3 lados", () => {
+  const seed = readDollarQuoted(
+    "supabase/migrations/20262160000000_ai_prompt_sql_question_schema.sql",
+    "esquema",
+  );
+  const edge = readTsTemplate(
+    "supabase/functions/ai-generate-sql/index.ts",
+    "FALLBACK_SQL_QUESTION_SCHEMA_PROMPT",
+  );
+
+  it("la constante de src coincide con el seed y con el edge", () => {
+    expect(SQL_QUESTION_SCHEMA_FALLBACK.trim()).toBe(seed);
+    expect(SQL_QUESTION_SCHEMA_FALLBACK.trim()).toBe(edge);
+  });
+
+  it("prohíbe explícitamente entregar la solución", () => {
+    // Es la razón de ser de este prompt aparte del de la pizarra. Si alguien lo
+    // reescribe y se le cae esta regla, el generador vuelve a dejarle el
+    // ejercicio resuelto al estudiante — y eso no se nota hasta el examen.
+    const t = SQL_QUESTION_SCHEMA_FALLBACK;
+    expect(t).toContain("No entregues la solución");
+    expect(t).toContain("CALIFICADA");
+    // Y lo que sí debe producir: solo el esquema.
+    expect(t).toContain("CREATE TABLE");
+    expect(t).toContain("INSERT");
+  });
+
+  it("es DISTINTO del prompt de la pizarra", () => {
+    // Si alguien los unificara, el de la pizarra —que pide comentarios
+    // didácticos y entrega la consulta cuando se la piden— volvería a gobernar
+    // las preguntas calificadas.
+    expect(SQL_QUESTION_SCHEMA_FALLBACK).not.toBe(SQL_GENERATION_FALLBACK);
+  });
+
+  it("no lleva caracteres que se escaparían distinto en cada lado", () => {
+    // Los tres lados lo embeben literal: dos plantillas de TypeScript y un
+    // dollar-quoting de SQL.
+    expect(SQL_QUESTION_SCHEMA_FALLBACK).not.toMatch(/[`\\]/);
+    expect(SQL_QUESTION_SCHEMA_FALLBACK).not.toContain("${");
   });
 });
 

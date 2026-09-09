@@ -23,7 +23,13 @@
  * prompts arbitrarios — es la misma razón por la que `ai-generate-report` lo
  * tiene. No hay caller service_role, así que NO se apaga verify_jwt.
  *
- * Body:  { prompt: string, setupSql?: string | null, courseId?: string | null }
+ * Body:  { prompt: string, setupSql?: string | null, courseId?: string | null,
+ *           useCase?: "sql_generation" | "sql_question_schema" }
+ *
+ *         `useCase` elige el prompt global. Default `sql_generation` (la hoja
+ *         SQL de la pizarra, que explica y entrega la consulta). Las preguntas
+ *         CALIFICADAS mandan `sql_question_schema`, cuyo prompt genera solo el
+ *         esquema de partida y tiene prohibido revelar la respuesta.
  * Resp:  { ok: true, sql: string }
  */
 import {
@@ -72,6 +78,53 @@ const FALLBACK_SQL_GENERATION_PROMPT = `Eres un asistente experto en SQL sobre P
 - Si lo que se pide necesita una tabla que no aparece en ese esquema, créala e insértale datos en el mismo bloque, antes de usarla.
 - Si NO hay esquema de partida y te piden una consulta, incluye primero el CREATE TABLE y los INSERT mínimos para que la consulta corra: una consulta contra tablas inexistentes falla y arruina la demostración en clase.`;
 
+/**
+ * System prompt por defecto del ESQUEMA DE PARTIDA de una pregunta calificada
+ * (`use_case = 'sql_question_schema'`).
+ *
+ * Copia Deno del canónico. INVARIANTE de 3 lados: byte-idéntico con el seed
+ * `supabase/migrations/20262160000000_ai_prompt_sql_question_schema.sql` y con
+ * `SQL_QUESTION_SCHEMA_FALLBACK` de `src/modules/database/sql-question-schema-prompt.ts`.
+ * Lo fija `src/modules/tutor/tutor-default-prompt.test.ts`.
+ *
+ * Existe aparte del de la pizarra porque ese está escrito para una clase EN
+ * VIVO y entrega la consulta cuando se la piden — que en una pregunta
+ * calificada es dejarle el ejercicio resuelto al estudiante.
+ */
+const FALLBACK_SQL_QUESTION_SCHEMA_PROMPT = `Eres un asistente experto en SQL sobre PostgreSQL. Tu único trabajo es preparar el ESQUEMA DE PARTIDA de una pregunta que va a ser CALIFICADA: las tablas y los datos con los que el estudiante se encuentra al abrir el ejercicio.
+
+## La regla que manda sobre todas las demás
+No entregues la solución del ejercicio, ni completa, ni parcial, ni insinuada. El docente te describe de qué es la pregunta: eso es CONTEXTO para que el esquema sirva, NO un pedido de que la resuelvas. Si lo que te piden es la consulta, no la escribas.
+
+Concretamente, NO incluyas:
+- La consulta que responde la pregunta, ni una equivalente, ni un fragmento. Ni comentada, ni como ejemplo, ni "por si sirve de referencia".
+- Comentarios que expliquen el camino: nada de "acá conviene un JOIN", "hay que agrupar por cliente", "usá HAVING".
+- Nombres de tabla, columna, vista o restricción que nombren la técnica evaluada: nada de ventas_por_cliente, total_agrupado, promedio_final, vista_solucion.
+- Vistas, columnas calculadas, funciones ni procedimientos que dejen el resultado servido.
+- Datos sembrados de forma que la respuesta se lea a simple vista. Si la pregunta pide el cliente con más pedidos, no dejes un solo cliente con pedidos; si pide un promedio, que no salga de dos filas.
+
+## Qué sí devuelves
+- SOLO sentencias CREATE TABLE e INSERT ejecutables en PostgreSQL. Sin texto fuera del código y sin cercas de Markdown: la respuesta se inserta tal cual en el campo del esquema de partida.
+- Llaves primarias y foráneas explícitas, tipos apropiados (INTEGER, TEXT, NUMERIC, DATE, TIMESTAMPTZ, BOOLEAN) y las restricciones que el ejercicio necesite (NOT NULL, UNIQUE, CHECK).
+- Datos de ejemplo realistas, en español (es-CO) y coherentes entre tablas relacionadas. Suficientes para que el ejercicio se pueda resolver Y se pueda equivocar: que haya más de un caso, que existan filas que NO cumplen la condición, y valores nulos donde el tema lo pida.
+- Un INSERT con varias filas es preferible a muchos INSERT sueltos. Cada sentencia termina en punto y coma.
+- El esquema más pequeño que permita evaluar bien. Dos o tres tablas suelen alcanzar: un esquema enorme hace que el estudiante gaste el tiempo del examen leyendo en vez de resolviendo.
+
+## Comentarios: solo los descriptivos
+Se permite un comentario corto por tabla que diga QUÉ representa, con dos guiones al inicio de la línea. Por ejemplo: los clientes registrados en la tienda. Está prohibido cualquier comentario que hable de la consulta, del resultado esperado o de cómo resolver.
+
+## Dónde se ejecuta
+- El SQL corre en un PostgreSQL REAL dentro del navegador. La sintaxis válida es la de PostgreSQL: nada de MySQL, SQL Server ni Oracle.
+- La base es temporal y arranca LIMPIA en cada ejecución: este bloque es todo lo que va a existir cuando el estudiante empiece.
+- No hay usuarios reales del motor ni permisos que sobrevivan entre ejecuciones.
+- No uses extensiones, tablespaces, replicación, acceso a archivos del sistema ni metacomandos del cliente psql (los que empiezan con barra invertida): en este entorno no existen.
+
+## Sobre el esquema de partida que ya exista
+Si el mensaje del docente incluye un esquema de partida, ese es el estado REAL del campo: usa EXACTAMENTE esos nombres de tabla y de columna, no los renombres, y devuelve solo lo que haga falta agregar.
+
+## Si el pedido no es un esquema
+Si el docente pide directamente la consulta que resuelve el ejercicio, no la entregues. Devuelve el esquema de partida que ese ejercicio necesita y un único comentario de una línea que diga que la solución no se genera acá porque el estudiante la vería al abrir la pregunta.`;
+
 /** Tope de la instrucción del docente. Es una frase, no un documento. */
 const MAX_PROMPT_CHARS = 2000;
 /** Tope del esquema de partida que se manda como contexto. */
@@ -86,29 +139,45 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
  * jerarquía estándar (course override > tenant global > platform default) y
  * cae al FALLBACK hardcodeado. Mismo patrón que `resolveReportSystemPrompt`.
  */
-async function resolveSystemPrompt(courseId: string | null): Promise<string> {
+/**
+ * Los dos destinos del generador. Lista BLANCA: un valor desconocido cae a
+ * `sql_generation`, nunca a "lo que mande el cliente" — el use_case entra al
+ * `.eq()` de una consulta a `ai_prompts`.
+ */
+type UseCaseSql = "sql_generation" | "sql_question_schema";
+
+const USE_CASES_SQL: readonly UseCaseSql[] = ["sql_generation", "sql_question_schema"];
+
+async function resolveSystemPrompt(
+  courseId: string | null,
+  useCase: UseCaseSql = "sql_generation",
+): Promise<string> {
+  const fallback =
+    useCase === "sql_question_schema"
+      ? FALLBACK_SQL_QUESTION_SCHEMA_PROMPT
+      : FALLBACK_SQL_GENERATION_PROMPT;
   try {
     let q = admin
       .from("ai_prompts")
       .select("system_prompt, course_id, tenant_id")
-      .eq("use_case", "sql_generation");
+      .eq("use_case", useCase);
     if (courseId && UUID_RE.test(courseId)) {
       q = q.or(`course_id.eq.${courseId},course_id.is.null`);
     } else {
       q = q.is("course_id", null);
     }
     const { data, error } = await q;
-    if (error || !data || data.length === 0) return FALLBACK_SQL_GENERATION_PROMPT;
+    if (error || !data || data.length === 0) return fallback;
     const rank = (row: { course_id: string | null; tenant_id: string | null }): number => {
       if (row.course_id) return 3;
       if (row.tenant_id) return 2;
       return 1;
     };
     const sorted = [...data].sort((a, b) => rank(b) - rank(a));
-    return sorted[0]?.system_prompt || FALLBACK_SQL_GENERATION_PROMPT;
+    return sorted[0]?.system_prompt || fallback;
   } catch (e) {
     console.warn("[ai-generate-sql] resolve prompt failed, using fallback:", e);
-    return FALLBACK_SQL_GENERATION_PROMPT;
+    return fallback;
   }
 }
 
@@ -216,7 +285,12 @@ Deno.serve(async (req: Request) => {
   });
   if (!rl.ok) return rl.response;
 
-  let body: { prompt?: string; setupSql?: string | null; courseId?: string | null };
+  let body: {
+    prompt?: string;
+    setupSql?: string | null;
+    courseId?: string | null;
+    useCase?: string | null;
+  };
   try {
     body = await req.json();
   } catch {
@@ -228,7 +302,14 @@ Deno.serve(async (req: Request) => {
   const setupSql = (body.setupSql ?? "").trim().slice(0, MAX_SETUP_CHARS);
   const courseId = body.courseId && UUID_RE.test(body.courseId) ? body.courseId : null;
 
-  const systemPrompt = await resolveSystemPrompt(courseId);
+  // `useCase`: qué prompt global usar. `sql_question_schema` es el de una
+  // pregunta CALIFICADA (no revela la respuesta); sin él, el default sigue
+  // siendo el de la pizarra. Lista blanca: lo que llegue y no esté en ella cae
+  // al default en vez de entrar crudo al `.eq()` de la consulta.
+  const useCase: UseCaseSql = USE_CASES_SQL.includes(body.useCase as UseCaseSql)
+    ? (body.useCase as UseCaseSql)
+    : "sql_generation";
+  const systemPrompt = await resolveSystemPrompt(courseId, useCase);
 
   // Los datos dinámicos van en el mensaje del USUARIO, no en placeholders del
   // system prompt (convención del repo: el Admin no puede romper el contrato

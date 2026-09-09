@@ -40,10 +40,6 @@ import {
   ChevronDown,
   Library,
   ScanText,
-  AlertTriangle,
-  Copy,
-  Database,
-  Wand2,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -63,8 +59,6 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
-import { appendSqlBlock } from "@/modules/database/sql-help";
-import { enterEnvia } from "@/shared/lib/submit-on-enter";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import {
   LANG_TO_EXT,
@@ -99,6 +93,10 @@ import {
   sqlResultsForDisplay,
 } from "@/modules/database/sql-answer";
 import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
+import {
+  SqlSchemaAiBox,
+  type SqlSchemaAiBoxHandle,
+} from "@/modules/database/SqlSchemaAiBox";
 
 export type WorkshopQuestion = {
   id: string;
@@ -129,17 +127,6 @@ export type WorkshopQuestion = {
   zip_single?: boolean;
 };
 
-/**
- * Se agrega a la instrucción del docente antes de mandarla a `ai-generate-sql`.
- * Es obligatoria: el system prompt por defecto manda incluir la CONSULTA cuando
- * se la piden (ver "Sobre el esquema de partida" en el FALLBACK del edge), y acá
- * el único destino es el esquema de partida — un SELECT resuelto ahí deja al
- * alumno abriendo el ejercicio ya hecho. No es texto visible: no lleva t().
- */
-const DIRECTIVA_SOLO_ESQUEMA =
-  "Esto es el esquema de partida de una pregunta de taller: generá SOLO las sentencias CREATE TABLE e INSERT necesarias para el ejercicio. No incluyas la consulta que lo resuelve.";
-/** Tope de la instrucción para que la directiva entre en el `slice(0, 2000)` del edge. */
-const MAX_INSTRUCCION_SQL = 1800;
 
 /* =========================================================================
    TEACHER: Editor of workshop questions (manual + AI)
@@ -226,81 +213,20 @@ export function TeacherWorkshopQuestionsEditor({
   // limpia. Vacío es válido: el alumno trabaja sobre una base vacía.
   const [qSetupSql, setQSetupSql] = useState<string>("");
 
-  // Generador del esquema con IA (solo aplica a bd_sql). Mismo edge y mismo
-  // manejo que la hoja SQL de la pizarra (SqlPageEditor). Prefijo `sqlAi*`
-  // porque `aiLoading`/`aiBusy` ya son de la generación de PREGUNTAS.
-  const [sqlAiPrompt, setSqlAiPrompt] = useState("");
-  const [sqlAiLoading, setSqlAiLoading] = useState(false);
-  const [sqlAiError, setSqlAiError] = useState<string | null>(null);
-  const [sqlAiSql, setSqlAiSql] = useState<string | null>(null);
-  const sqlAiAliveRef = useRef(true);
-  useEffect(() => {
-    sqlAiAliveRef.current = true;
-    return () => {
-      sqlAiAliveRef.current = false;
-    };
-  }, []);
+  // Generador del esquema con IA. La caja vive en `SqlSchemaAiBox`, compartida
+  // con el editor de preguntas de examen: antes estaba inline acá y llevarla al
+  // examen por copia habría dejado dos generadores que se desincronizan.
+  //
+  // El componente manda `useCase: "sql_question_schema"`, o sea el prompt global
+  // de una pregunta CALIFICADA. Eso reemplaza a la vieja `DIRECTIVA_SOLO_ESQUEMA`
+  // que se pegaba a la instrucción del docente desde acá: la regla de «no
+  // reveles la respuesta» ahora es un prompt que el Admin ve y puede ajustar en
+  // la plataforma, en vez de un texto escondido en el cliente que además
+  // discutía con el system prompt de la pizarra.
+  const sqlAiRef = useRef<SqlSchemaAiBoxHandle | null>(null);
 
-  const generarEsquemaSql = async () => {
-    const instruccion = sqlAiPrompt.trim();
-    if (!instruccion || sqlAiLoading) return;
-    setSqlAiLoading(true);
-    setSqlAiError(null);
-    try {
-      const { data, error } = await supabase.functions.invoke("ai-generate-sql", {
-        body: {
-          prompt: `${instruccion.slice(0, MAX_INSTRUCCION_SQL)}\n\n${DIRECTIVA_SOLO_ESQUEMA}`,
-          setupSql: qSetupSql.trim() || null,
-          courseId: courseId ?? null,
-        },
-      });
-      // `invoke` envuelve los non-2xx en un mensaje genérico; el real (429 con
-      // los segundos que faltan, API key vencida) vive en el body.
-      // `extractEdgeError` consume el stream: se llama UNA sola vez.
-      if (error) {
-        const real = await extractEdgeError(error, data);
-        throw new Error(real || t("sqlAssistant.genericError"));
-      }
-      if (data?.error) throw new Error(String(data.error));
-      const generado = typeof data?.sql === "string" ? data.sql.trim() : "";
-      if (!generado) throw new Error(t("sqlAssistant.emptyResult"));
-      if (!sqlAiAliveRef.current) return;
-      setSqlAiSql(generado);
-    } catch (e) {
-      if (!sqlAiAliveRef.current) return;
-      setSqlAiError(friendlyError(e, t("sqlAssistant.genericError")));
-    } finally {
-      if (sqlAiAliveRef.current) setSqlAiLoading(false);
-    }
-  };
-
-  const aplicarSqlComoSetup = () => {
-    if (!sqlAiSql) return;
-    const habiaContenido = qSetupSql.trim().length > 0;
-    setQSetupSql(appendSqlBlock(qSetupSql, sqlAiSql));
-    toast.success(
-      habiaContenido ? t("sqlAssistant.appendedToSetup") : t("sqlAssistant.setAsSetup"),
-    );
-  };
-
-  const copiarSqlGenerado = async () => {
-    if (!sqlAiSql) return;
-    try {
-      await navigator.clipboard.writeText(sqlAiSql);
-      toast.success(t("sqlAssistant.copied"));
-    } catch {
-      toast.error(t("sqlAssistant.copyFailed"));
-    }
-  };
-
-  // Limpia el generador. Se llama al crear otra pregunta y al abrir una
-  // existente: los estados viven en el componente, no en la pregunta, así que
-  // una preview colgada de la pregunta anterior ofrecería "Usar como esquema"
-  // e inyectaría el esquema equivocado en la pregunta nueva.
   const limpiarGeneradorSql = () => {
-    setSqlAiPrompt("");
-    setSqlAiError(null);
-    setSqlAiSql(null);
+    sqlAiRef.current?.reset();
   };
 
   const resetForm = () => {
@@ -1161,99 +1087,15 @@ export function TeacherWorkshopQuestionsEditor({
                 {t("bdSql.setupSqlLabel")}
                 <HelpHint>{t("bdSql.setupSqlHint")}</HelpHint>
               </Label>
-              {/* Generador del esquema con IA — mismo edge, mismo flujo y misma
-                  UI que la hoja SQL de la pizarra (SqlPageEditor). Vive DENTRO
-                  del `qType === "bd_sql"` de este componente, que es lo que lo
-                  limita al taller: el campo setupSql está duplicado a mano en
-                  examen y proyecto, y esos archivos no se tocan. */}
-              <div className="rounded-md border">
-                <div className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground">
-                  <Wand2 className="h-3.5 w-3.5 text-primary" />
-                  {t("sqlAssistant.title")}
-                  <HelpHint>{t("sqlAssistant.hintQuestion")}</HelpHint>
-                </div>
-                <div className="flex flex-col gap-2 px-2.5 pb-2.5">
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Textarea
-                      value={sqlAiPrompt}
-                      onChange={(e) => setSqlAiPrompt(e.target.value)}
-                      onKeyDown={(e) => {
-                        // Enter genera; Shift+Enter baja renglón. La regla vive
-                        // en `enterEnvia` porque reimplementarla a mano ya salió
-                        // mal antes (preventDefault en cualquier Enter).
-                        if (!enterEnvia(e)) return;
-                        e.preventDefault();
-                        void generarEsquemaSql();
-                      }}
-                      disabled={sqlAiLoading}
-                      rows={2}
-                      placeholder={t("sqlAssistant.placeholder")}
-                      className="flex-1 min-w-[160px] resize-none text-sm sm:min-w-48"
-                    />
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      // Sin esto el botón se estira al alto de la caja de 2 renglones.
-                      className="sm:self-end"
-                      onClick={() => void generarEsquemaSql()}
-                      disabled={sqlAiLoading || !sqlAiPrompt.trim()}
-                    >
-                      {sqlAiLoading ? (
-                        <Spinner size="xs" className="mr-1" />
-                      ) : (
-                        <Wand2 className="mr-1 h-4 w-4" />
-                      )}
-                      {sqlAiLoading ? t("sqlAssistant.generating") : t("sqlAssistant.generate")}
-                    </Button>
-                  </div>
-
-                  {sqlAiLoading ? (
-                    <p className="text-2xs text-muted-foreground">{t("sqlAssistant.waitHint")}</p>
-                  ) : (
-                    <p className="text-2xs text-muted-foreground">
-                      {t("sqlAssistant.shortcutsHint")}
-                    </p>
-                  )}
-
-                  {/* El error va FIJO en el panel y no como toast: el caso más
-                      probable es el 429 ("reintenta en N segundos") y ese número
-                      hay que poder releerlo. */}
-                  {sqlAiError && (
-                    <div className="flex items-start gap-1.5 rounded-md border border-destructive/40 bg-destructive/5 p-2 text-2xs text-destructive">
-                      <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-                      <span>
-                        <strong>{t("sqlAssistant.errorTitle")}</strong> {sqlAiError}
-                      </span>
-                    </div>
-                  )}
-
-                  {sqlAiSql && (
-                    <div className="space-y-2">
-                      <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/30 p-2 font-mono text-2xs leading-relaxed">
-                        {sqlAiSql}
-                      </pre>
-                      <div className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" variant="outline" onClick={aplicarSqlComoSetup}>
-                          <Database className="mr-1 h-4 w-4" />
-                          {t("sqlAssistant.useAsSetup")}
-                        </Button>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => void copiarSqlGenerado()}
-                        >
-                          <Copy className="mr-1 h-4 w-4" />
-                          {t("sqlAssistant.copy")}
-                        </Button>
-                      </div>
-                      <p className="text-3xs text-muted-foreground">
-                        {t("sqlAssistant.appendNote")}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
+              {/* Misma caja que el editor de preguntas de examen y la hoja SQL de la
+                  pizarra, con el prompt global de una pregunta CALIFICADA: tiene
+                  prohibido devolver la consulta que resuelve el ejercicio. */}
+              <SqlSchemaAiBox
+                ref={sqlAiRef}
+                setupSql={qSetupSql}
+                onChange={setQSetupSql}
+                courseId={courseId}
+              />
               <Textarea
                 value={qSetupSql}
                 onChange={(e) => setQSetupSql(e.target.value)}

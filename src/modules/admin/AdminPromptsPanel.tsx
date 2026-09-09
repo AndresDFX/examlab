@@ -45,6 +45,7 @@ import {
 // Byte-idéntico con el seed SQL (20261620000000) y el FALLBACK del edge
 // `ai-generate-sql` — ver invariante en CLAUDE.md.
 import { SQL_GENERATION_FALLBACK } from "@/modules/database/sql-generation-prompt";
+import { SQL_QUESTION_SCHEMA_FALLBACK } from "@/modules/database/sql-question-schema-prompt";
 // Invariante de 3 lados con el seed de la mig 20262090000000 y el fallback del edge
 // ai-read-groups-image. Lo fija tutor-default-prompt.test.ts.
 import { GRUPOS_DESDE_IMAGEN_FALLBACK } from "@/modules/workshops/grupos-imagen-prompt";
@@ -76,6 +77,7 @@ type UseCase =
   | "platform_support_docente"
   | "platform_support_estudiante"
   | "sql_generation"
+  | "sql_question_schema"
   | "group_assignment_from_image";
 
 /** Categorización por módulo para el filtro de la UI. NO se persiste —
@@ -319,6 +321,14 @@ const USE_CASES: UseCaseDef[] = [
     description:
       "System prompt de la caja 'Generar SQL con IA' de la hoja SQL de la pizarra. El docente escribe en lenguaje natural lo que quiere mostrar en clase (crear tablas con datos de ejemplo, una consulta, un permiso) y recibe SQL comentado para insertar como esquema de partida o en el editor. Los datos dinámicos (la petición y el esquema de partida actual) los inyecta el código en el mensaje del usuario — este prompt define el ROL, el entorno (PostgreSQL real en el navegador, base temporal que arranca limpia) y el formato de salida. Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
     defaultPrompt: SQL_GENERATION_FALLBACK,
+  },
+  {
+    key: "sql_question_schema",
+    module: "exams",
+    label: "Esquema de una pregunta SQL",
+    description:
+      "System prompt del generador del esquema de partida de una pregunta SQL que va a ser CALIFICADA (exámenes y talleres). Es distinto del de la pizarra a propósito: ese está escrito para una clase EN VIVO y entrega la consulta cuando se la piden, que en una pregunta calificada es dejarle el ejercicio resuelto al estudiante. Este tiene prohibido revelar la respuesta: solo CREATE TABLE e INSERT, sin la consulta que resuelve, sin comentarios que expliquen el camino, sin nombres de tabla o columna que nombren la técnica evaluada, y sin datos sembrados de forma que la respuesta se lea a simple vista. Debe mantenerse byte-idéntico con el seed y el fallback del edge.",
+    defaultPrompt: SQL_QUESTION_SCHEMA_FALLBACK,
   },
   {
     key: "group_assignment_from_image",
