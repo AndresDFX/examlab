@@ -127,6 +127,11 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         const { data } = await supabase
           .from("profiles")
           .select("id, full_name, institutional_email")
+          // Este array tambien alimenta «Repartir al azar» y la lectura de grupos
+          // desde una imagen: una cuenta eliminada aca se volveria candidata de
+          // emparejamiento sin que nadie lo note.
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", userIds);
         profs = ((data ?? []) as Student[]).sort((a, b) =>
           a.full_name.localeCompare(b.full_name),

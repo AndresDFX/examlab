@@ -91,6 +91,10 @@ export function AssignUsersToTenantDialog({
       const { data, error } = await db
         .from("profiles")
         .select("id, full_name, institutional_email, tenant_id")
+        // Una cuenta eliminada o desactivada no se ofrece para mover de
+        // institución: quedaría asignada a un tenant sin poder entrar.
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
         .order("full_name");
       if (cancelled) return;
       if (error) {

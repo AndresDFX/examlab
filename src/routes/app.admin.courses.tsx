@@ -99,6 +99,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
+import { conPerfilOfrecible } from "@/modules/admin/profile-scope";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1391,7 +1392,17 @@ export function AdminCourses() {
     setRowBusyId(c.id);
     try {
       const [profsRes, enrRes] = await Promise.all([
-        supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
+        // `conPerfilOfrecible`: una cuenta ELIMINADA o DESACTIVADA no se puede
+        // ofrecer para matricular. Antes esta consulta no tenía filtro alguno y
+        // el diálogo listaba hasta las cuentas borradas desde el panel.
+        // El filtro va en la CONSULTA y no sobre el resultado: los tipos
+        // generados de Supabase no conocen `deleted_at` ni `is_active` (tienen
+        // 15 de las 23 columnas reales de `profiles`), así que pedirlas en el
+        // `select` no compila — y CLAUDE.md prohíbe editar `types.ts` a mano.
+        // Filtrando en PostgREST no hace falta traerlas.
+        conPerfilOfrecible(
+          supabase.from("profiles").select("id, full_name, institutional_email").order("full_name"),
+        ),
         supabase.from("course_enrollments").select("user_id").eq("course_id", c.id),
       ]);
       // Antes ambos `error` se descartaban: el diálogo abría con la lista de
@@ -1591,6 +1602,9 @@ export function AdminCourses() {
         const profsRes = await supabase
           .from("profiles")
           .select("id, full_name, institutional_email")
+          // Una cuenta eliminada o desactivada no se ofrece como docente.
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", teacherIds)
           .order("full_name");
         if (profsRes.error) throw profsRes.error;

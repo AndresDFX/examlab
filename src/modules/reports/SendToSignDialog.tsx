@@ -146,6 +146,9 @@ export function SendToSignDialog({
         const { data: profs } = await db
           .from("profiles")
           .select("id, full_name, institutional_email")
+          // No se le puede PEDIR una firma a una cuenta que no puede entrar.
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", ids);
         perfiles = (
           (profs ?? []) as Array<{

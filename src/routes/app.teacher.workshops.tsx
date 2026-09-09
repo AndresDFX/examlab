@@ -1513,6 +1513,8 @@ function TeacherWorkshops() {
         const { data: profs, error: profErr } = await supabase
           .from("profiles")
           .select("id, full_name, institutional_email")
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", userIds);
         if (profErr) {
           toast.error(friendlyError(profErr));

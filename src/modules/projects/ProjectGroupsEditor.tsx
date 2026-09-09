@@ -70,6 +70,8 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         const { data } = await supabase
           .from("profiles")
           .select("id, full_name, institutional_email")
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", userIds);
         profs = ((data ?? []) as Student[]).sort((a, b) => a.full_name.localeCompare(b.full_name));
       }

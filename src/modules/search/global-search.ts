@@ -612,6 +612,10 @@ async function searchUsers(q: string, s: SearchScope): Promise<PaletteHit[]> {
   const { data } = await db
     .from("profiles")
     .select("id, full_name, institutional_email")
+    // El buscador OFRECE personas: una cuenta eliminada o desactivada no
+    // debe aparecer como resultado.
+    .is("deleted_at", null)
+    .not("is_active", "is", false)
     // El patrón viene saneado (sin comas ni paréntesis), así que es seguro
     // dentro de un `.or(...)`.
     .or(`full_name.ilike.${pattern},institutional_email.ilike.${pattern}`)

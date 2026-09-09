@@ -317,6 +317,8 @@ function ExamEditor() {
       const { data: profs } = await supabase
         .from("profiles")
         .select("id, full_name, institutional_email")
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
         .in("id", userIds);
       studs = (profs ?? []) as Student[];
     }

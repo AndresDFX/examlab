@@ -946,6 +946,10 @@ function SuperAdminTenantsPage() {
       const { data: candidates, error: candErr } = await (supabase as any)
         .from("profiles")
         .select("id, full_name, institutional_email, created_at")
+        // Sin esto, el Admin elegido para impersonar podía ser una cuenta
+        // eliminada o desactivada: la sesión abriría contra una cuenta baneada.
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
         .eq("tenant_id", t.id)
         .in("id", adminUserIds)
         .order("created_at", { ascending: true })

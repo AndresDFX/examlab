@@ -216,6 +216,8 @@ function TeacherStudentsInner() {
     const { data: profiles, error: profErr } = await (supabase as any)
       .from("profiles")
       .select("id, full_name, institutional_email, codigo, documento, cohorte")
+      .is("deleted_at", null)
+      .not("is_active", "is", false)
       .in("id", userIds)
       .order("full_name");
     if (!isActive()) return;

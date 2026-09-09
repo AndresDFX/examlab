@@ -1367,6 +1367,8 @@ function Inner() {
       const { data: profs, error: profsErr } = await db
         .from("profiles")
         .select("id, full_name, institutional_email")
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
         .in("id", ids)
         .order("full_name");
       if (cancelled) return;

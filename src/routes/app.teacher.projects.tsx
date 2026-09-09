@@ -1498,6 +1498,8 @@ function TeacherProjects() {
         const { data: profs, error: profError } = await db
           .from("profiles")
           .select("id, full_name, institutional_email")
+          .is("deleted_at", null)
+          .not("is_active", "is", false)
           .in("id", userIds)
           .order("full_name");
         if (profError) throw profError;

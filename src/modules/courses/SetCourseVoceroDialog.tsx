@@ -103,6 +103,8 @@ export function SetCourseVoceroDialog({
       const perfiles = await db
         .from("profiles")
         .select("id, full_name, institutional_email, codigo")
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
         .in(
           "id",
           filas.map((f) => f.user_id),
