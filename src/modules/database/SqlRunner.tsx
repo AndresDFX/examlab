@@ -49,11 +49,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Database, AlertTriangle } from "lucide-react";
+import { Play, Database, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
+import { RowAction } from "@/components/ui/row-action";
+import { useSqlZoom } from "@/hooks/use-sql-zoom";
 import {
   createEphemeralDb,
   type PgliteDb,
@@ -145,6 +147,15 @@ export function SqlRunner({
    * `setupSql` viejo). La ref lo mantiene apuntando a la versión actual.
    */
   const runRef = useRef<() => void>(() => {});
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useSqlZoom();
+
+  /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
+     de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),
+     no de un px inventado: `text-[Npx]` sigue prohibido y el grep del principio
+     sigue dando 0. A zoom === 1 no se emite estilo: la vista por defecto queda
+     byte-idéntica a la de antes de este cambio. */
+  const zoomStyle = (token: "--text-2xs" | "--text-3xs") =>
+    zoom === 1 ? undefined : { fontSize: `calc(var(${token}) * ${zoom})` };
 
   useEffect(() => {
     cancelledRef.current = false;
@@ -376,7 +387,7 @@ export function SqlRunner({
   return (
     <div className={className}>
       <div className="space-y-2">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
           {/* El encabezado nombra la TAREA ("Consulta"), no la tecnología. Antes
               la única etiqueta era el motor ("PostgreSQL real en tu navegador"),
               así que en la hoja de la pizarra —donde arriba hay OTRO editor de
@@ -387,21 +398,57 @@ export function SqlRunner({
             {queryLabel ?? t("bdSql.queryLabel")}
             <HelpHint>{t("bdSql.queryHint")}</HelpHint>
           </span>
-          {(!readOnly || readOnlyAllowRun) && (
-            <Button
-              size="sm"
-              onClick={() => void run()}
-              disabled={running || !sql.trim()}
-              title={t("bdSql.runShortcut")}
-            >
-              {running ? <Spinner size="xs" className="mr-1" /> : <Play className="mr-1 h-4 w-4" />}
-              {running
-                ? t("bdSql.running")
-                : hasSelection
-                  ? t("bdSql.runSelection")
-                  : t("bdSql.run")}
-            </Button>
-          )}
+          <div className="ml-auto flex items-center gap-1">
+            {/* Solo clics: ni atajos ni Ctrl+rueda. La toma de examen intercepta
+                Ctrl+± y Ctrl+rueda a propósito (para que el zoom del navegador no
+                saque de fullscreen y dispare un strike), así que un atajo andaría
+                en la pizarra y no haría nada —o haría otra cosa— en el examen.
+                Va también en readOnly: quien mira la hoja compartida es quien más
+                necesita agrandar la letra. */}
+            <RowAction
+              label={t("bdSql.zoomOut")}
+              icon={ZoomOut}
+              variant="outline"
+              onClick={zoomOut}
+              disabled={atMin}
+            />
+            <span className="hidden w-10 text-center text-2xs tabular-nums text-muted-foreground sm:inline">
+              {pct}%
+            </span>
+            <RowAction
+              label={t("bdSql.zoomIn")}
+              icon={ZoomIn}
+              variant="outline"
+              onClick={zoomIn}
+              disabled={atMax}
+            />
+            <RowAction
+              label={t("bdSql.zoomReset")}
+              icon={RotateCcw}
+              variant="outline"
+              onClick={resetZoom}
+              disabled={atMin}
+            />
+            {(!readOnly || readOnlyAllowRun) && (
+              <Button
+                size="sm"
+                onClick={() => void run()}
+                disabled={running || !sql.trim()}
+                title={t("bdSql.runShortcut")}
+              >
+                {running ? (
+                  <Spinner size="xs" className="mr-1" />
+                ) : (
+                  <Play className="mr-1 h-4 w-4" />
+                )}
+                {running
+                  ? t("bdSql.running")
+                  : hasSelection
+                    ? t("bdSql.runSelection")
+                    : t("bdSql.run")}
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* El motor y —lo que más confunde— que la base se recrea en CADA
@@ -449,7 +496,9 @@ export function SqlRunner({
 
         <div className="overflow-hidden rounded-md border">
           <Editor
-            height="14rem"
+            // El alto escala con la fuente: sin eso, subir el zoom no agranda,
+            // RECORTA (de ~11 líneas visibles a ~4).
+            height={`${14 * zoom}rem`}
             language="sql"
             value={sql}
             onChange={(v) => onSqlChange(v ?? "")}
@@ -457,9 +506,10 @@ export function SqlRunner({
             options={{
               readOnly: !!readOnly,
               minimap: { enabled: false },
-              fontSize: 13,
+              fontSize: Math.round(13 * zoom),
               scrollBeyondLastLine: false,
               wordWrap: "on",
+              automaticLayout: true,
             }}
           />
         </div>
@@ -489,24 +539,36 @@ export function SqlRunner({
           <div className="space-y-2">
             {results.map((r, i) => (
               <div key={i} className="rounded-md border bg-muted/30 p-2">
-                <p className="mb-1 text-3xs text-muted-foreground">
+                <p className="mb-1 text-3xs text-muted-foreground" style={zoomStyle("--text-3xs")}>
                   {t("bdSql.statementN", { n: i + 1 })}
                 </p>
                 {r.error ? (
-                  <p className="whitespace-pre-wrap break-words font-mono text-2xs text-destructive">
+                  <p
+                    className="whitespace-pre-wrap break-words font-mono text-2xs text-destructive"
+                    style={zoomStyle("--text-2xs")}
+                  >
                     {r.error}
                   </p>
                 ) : r.columns.length === 0 ? (
-                  <p className="font-mono text-2xs text-muted-foreground">
+                  <p
+                    className="font-mono text-2xs text-muted-foreground"
+                    style={zoomStyle("--text-2xs")}
+                  >
                     {t("bdSql.affectedRows", { count: r.affectedRows ?? 0 })}
                   </p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <pre className="font-mono text-2xs leading-relaxed">
+                    <pre
+                      className="font-mono text-2xs leading-relaxed"
+                      style={zoomStyle("--text-2xs")}
+                    >
                       {renderTable(r.columns, r.rows)}
                     </pre>
                     {r.rows.length >= MAX_PERSISTED_ROWS && (
-                      <p className="mt-1 text-3xs text-muted-foreground">
+                      <p
+                        className="mt-1 text-3xs text-muted-foreground"
+                        style={zoomStyle("--text-3xs")}
+                      >
                         {t("bdSql.truncated", { max: MAX_PERSISTED_ROWS })}
                       </p>
                     )}

@@ -131,6 +131,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Zoom de texto en las hojas y preguntas de SQL.** Control `[−] NN% [+] [↺]` en la barra del
+  `SqlRunner`: de 100 % a 200 % en pasos de 25 %, persistido por persona en `examlab_sql_zoom`. El
+  docente proyecta la hoja SQL en clase y el texto del editor y de la tabla de resultados se leía
+  desde el fondo del salón solo con el zoom del navegador.
+
+  Escala por `fontSize` (Monaco) y por el token de P2 (`calc(var(--text-2xs) * z)`), **nunca con
+  `transform: scale()`**: eso desincroniza el hit-testing de Monaco —del que depende «Ejecutar
+  selección»— y no hace crecer el `scrollWidth`, así que dejaría la tabla ancha inalcanzable dentro
+  de su contenedor con scroll.
+
+  **Aparece en TODAS las superficies de SQL, incluidas las preguntas de examen y taller, y es
+  deliberado:** en un examen agrandar hoy es *imposible* porque el proctoring intercepta `Ctrl+±` y
+  `Ctrl+rueda` a propósito, así que el examen era el flujo peor parado. El mecanismo es **inerte**:
+  solo clics — ni atajos, ni `Ctrl+rueda`, ni `Escape`, ni Fullscreen API—, así que no puede disparar
+  un strike de `fullscreen_exit` ni encerrar al alumno. A zoom 1 no se emite ningún estilo en línea:
+  la pantalla por defecto queda idéntica a la de antes.
+
 - **El docente ya puede ver el estado de firmas de un informe: quién firmó y quién falta.** Antes el
   menú de fila del historial solo ofrecía descargar, enviar a firmar, copiar/cortar el enlace público
   y eliminar: no había forma de mirar el estado sin abrir el diálogo de escritura, ni de
