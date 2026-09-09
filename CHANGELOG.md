@@ -177,6 +177,41 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **En modo oscuro, el Acuerdo Pedagógico y cualquier informe se veían negro sobre negro.** Las
+  celdas parecían vacías; solo se adivinaba un título. Reportado en la ruta pública
+  `/documento/<token>`.
+
+  **El mecanismo NO era el que parecía.** La primera lectura —que el `<iframe>` heredaba el
+  `color-scheme` oscuro— es falsa: medido dentro del iframe en los dos temas, el documento **nunca**
+  estuvo en esquema oscuro (`color-scheme` usado = `normal`, texto = `rgb(17,17,17)`). Lo que faltaba
+  era el **fondo**: `composeTemplateHtml` declaraba `color:#111` y ningún `background`, así que `html`
+  y `body` quedaban en `rgba(0,0,0,0)` — **transparentes** — y se veía lo que pintaba el PADRE:
+  `rgb(28,32,48)` dentro de una Card, `rgb(3,9,21)` sobre el body. Y `color-scheme: light` por sí
+  solo **no lo arregla** (medido: deja el lienzo en `rgb(28,32,48)`); lo que arregla es
+  `background-color`.
+
+  Y la pieza que explica por qué pasaba en una ruta PÚBLICA: el script pre-pintado del tema en
+  `__root.tsx` **no está acotado a `/app/*`** —el de branding, dos líneas más abajo, sí lo está—, así
+  que `/documento/<token>` recibe la clase `.dark` con solo tener el tema oscuro guardado en ese
+  navegador.
+
+  El arreglo es un export nuevo, `cssLienzoBlanco()`, que entra por el MISMO camino de inyección que
+  ya existía. Con eso quedan cubiertos el documento público, el acuerdo por firmante, las firmas del
+  estudiante, la re-descarga del historial, la vista previa del generador y todo documento nuevo — y
+  los 7 documentos ya firmados **sin reescribir su HTML**, que es un snapshot inmutable del que sale
+  el hash.
+
+  Tres decisiones deliberadas: **no fuerza el color del texto** (los 7 documentos reales traen
+  colores del formato —`#111`, `#222`, `#444`, `#555`, `#92400e`, el azul institucional del `.docx`—
+  y un `color:#000` los aplanaría para arreglar algo que ya no estaba roto); **sin `!important`**, así
+  la regla es un piso que el diseño del formato puede sobreescribir; y **sin `@media print`**, porque
+  se midió la geometría de impresión antes y después y es idéntica —encabezado 76,9 px fijo, logo
+  68 px, `padding-top` 98,27 px, 21,4 px de holgura—: un `background-color` no crea ni mueve cajas.
+
+  Tres superficies quedan afuera **con motivo escrito**, y la primera importa: la vista previa
+  paginada del editor declara fondo gris a propósito (escritorio gris con hojas blancas) e inyectarle
+  el lienzo lo borraría.
+
 - **En el modal de calificación de talleres, la respuesta del estudiante se mostraba como JSON
   crudo** en las preguntas de SQL, y como un arreglo de índices en las de opción múltiple. El docente
   veía literalmente `{"bdSql":1,"sql":"SELECT table_name…}` en vez del SQL que escribió el alumno.

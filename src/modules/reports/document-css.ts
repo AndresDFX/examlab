@@ -34,7 +34,9 @@
  * de la firma se calcula sobre él. Reescribir esos snapshots invalidaría las firmas
  * existentes. Así que los informes ya generados NO se tocan: se les inyecta la
  * regla al MOSTRARLOS, igual que `signature-slots.ts` dibuja las firmas sobre el
- * snapshot sin modificarlo.
+ * snapshot sin modificarlo. Por el mismo camino entra el lienzo blanco
+ * (`cssLienzoBlanco`): los 7 snapshots ya firmados no declaran fondo, y arreglarlo
+ * del lado del dato exigiría reescribirlos.
  */
 
 /** La regla, con el prefijo de selector que necesite cada superficie. */
@@ -79,6 +81,57 @@ export function cssTopeLogo(prefijo = ""): string {
   return `${p}header img { max-height: ${TOPE_ALTO_LOGO} !important; width: auto !important; }`;
 }
 
+/**
+ * El lienzo del documento es BLANCO siempre, en los dos temas de la aplicación.
+ *
+ * ── El bug que lo origina ─────────────────────────────────────────────────
+ * Con la aplicación en modo oscuro, el Acuerdo Pedagógico se veía negro sobre
+ * negro: las celdas parecían vacías y solo se adivinaba un título. No era el
+ * tema del documento: el documento NUNCA estuvo en esquema oscuro. Medido en el
+ * iframe, en los dos temas: `color-scheme` usado = `normal`, `Canvas` = blanco,
+ * texto = `rgb(17,17,17)`. Lo que faltaba era el FONDO — `composeTemplateHtml`
+ * declara `color:#111` y ningún `background`, así que `html` y `body` quedan en
+ * `rgba(0,0,0,0)`, el lienzo se transparenta y detrás se ve lo que pinta el
+ * PADRE: `--card` oscuro (`rgb(28,32,48)`) dentro de una Card, `--background`
+ * (`rgb(3,9,21)`) sobre el body.
+ *
+ * ── Por qué es una excepción deliberada a la regla de tema del repo ───────
+ * La aplicación respeta claro/oscuro. Un informe NO es una pantalla de la
+ * aplicación: es una pieza con el diseño institucional del formato oficial
+ * —sus colores y su tipografía— que se firma y se imprime en papel blanco. No
+ * puede heredar el tema de quien lo mira. Además la ruta pública
+ * `/documento/<token>` SÍ recibe la clase `.dark`: el script pre-paint de
+ * `__root.tsx` no está acotado a `/app/*` (solo el de branding lo está), así que
+ * basta con que el visitante tenga `examlab-theme=dark` en ese navegador.
+ *
+ * ── Qué es load-bearing y qué es cerrojo ──────────────────────────────────
+ * `background-color` es lo que arregla. Medido: con `html` solo o con `body`
+ * solo ya sale `rgb(255,255,255)` (Chromium y WebKit, con el SO en oscuro
+ * también); van los dos por si un .docx trae fondo en línea en uno de ellos.
+ * `color-scheme: light` NO arregla nada por sí solo (medido: deja el lienzo en
+ * `rgb(28,32,48)`) y va igual como cerrojo, para los colores de sistema y
+ * scrollbars de adentro y para el día que la aplicación declare
+ * `color-scheme: dark` en `:root`.
+ *
+ * ── Lo que a propósito NO hace ────────────────────────────────────────────
+ * NO fuerza `color`. El texto ya viene del snapshot con los colores del formato
+ * (`#111`, `#222`, `#444`, `#92400e`, el azul institucional heredado del .docx);
+ * un `color:#000` los aplanaría todos para arreglar algo que no estaba roto.
+ * Y NO lleva `!important`: se inyecta ANTES del `<style>` propio del documento
+ * (y en `composeTemplateHtml` el css de la plantilla va último), así que es un
+ * PISO que el diseño del formato puede sobreescribir. Tampoco toca los fondos
+ * propios que sí existen —`#d9d9d9` en línea en las celdas del membrete,
+ * `#f0f0f0` en `th`, `#fafafa` en el recuadro de respuesta—: son más
+ * específicos.
+ *
+ * No es prefijable a propósito: es del documento entero, no de una hoja. La
+ * vista previa paginada (`composePreviewHtml`) NO la usa — ahí el escritorio
+ * gris con hojas blancas es deliberado.
+ */
+export function cssLienzoBlanco(): string {
+  return "html { color-scheme: light; background-color: #fff; } body { background-color: #fff; }";
+}
+
 /** Marca de idempotencia: si ya está inyectado, no se vuelve a poner. */
 const MARCA = "data-examlab-doc-css";
 
@@ -95,7 +148,7 @@ const MARCA = "data-examlab-doc-css";
 export function conEstilosDeDocumento(html: string): string {
   if (!html) return html;
   if (html.includes(MARCA)) return html; // ya inyectado
-  const bloque = `<style ${MARCA}="1">${cssCorteEnCeldas()}</style>`;
+  const bloque = `<style ${MARCA}="1">${cssLienzoBlanco()}${cssCorteEnCeldas()}</style>`;
 
   const head = /<head\b[^>]*>/i.exec(html);
   if (head) {

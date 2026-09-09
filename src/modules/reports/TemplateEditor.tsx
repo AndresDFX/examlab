@@ -64,7 +64,7 @@ import {
 } from "./template-engine";
 import { RichTextEditor, type RichTextEditorHandle } from "./RichTextEditor";
 import { PAGE_BREAK_HTML } from "./docx-import";
-import { cssCorteEnCeldas, cssTopeLogo, RESERVA_ENCABEZADO } from "./document-css";
+import { cssCorteEnCeldas, cssLienzoBlanco, cssTopeLogo, RESERVA_ENCABEZADO } from "./document-css";
 import { CourseSelect, type CourseSelectCourse } from "@/modules/courses/CourseSelect";
 import { sortCoursesByPriority } from "@/modules/courses/course-status";
 import { revisarPlantilla, type AvisoPlantilla } from "./plantilla-lint";
@@ -1017,6 +1017,9 @@ export function composeTemplateHtml(
 <html><head><meta charset="utf-8">
 <style>
 @page { size: ${draft.page_size} ${draft.page_orientation}; margin: 18mm; }
+/* Lienzo blanco: este HTML se guarda como snapshot y se muestra en un iframe
+   dentro de la aplicación, que puede estar en modo oscuro. Ver cssLienzoBlanco. */
+${cssLienzoBlanco()}
 body { font-family: -apple-system, "Segoe UI", Roboto, sans-serif; color: #111; line-height: 1.4; }
 /* Imágenes (logo de cabecera importada del .docx) nunca rebasan el ancho. */
 img { max-width: 100%; height: auto; }

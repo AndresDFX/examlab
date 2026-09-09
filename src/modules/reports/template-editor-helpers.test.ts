@@ -134,6 +134,14 @@ describe("composeTemplateHtml", () => {
     });
     expect(out).toContain("<style>");
   });
+
+  it("declara el lienzo blanco (el snapshot se mira en un iframe dentro de la app)", () => {
+    // Este HTML es el que se guarda como snapshot inmutable: si nace sin fondo,
+    // en modo oscuro se ve negro sobre negro.
+    const out = composeTemplateHtml(baseDraft);
+    expect(out).toContain("background-color: #fff");
+    expect(out).toContain("color-scheme: light");
+  });
 });
 
 describe("el CURSO no es parte del borrador — la invariante del guard", () => {

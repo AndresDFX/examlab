@@ -23,7 +23,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { cssCorteEnCeldas } from "./document-css";
+import { cssCorteEnCeldas, cssLienzoBlanco } from "./document-css";
 import { institutionalHeaderHtml } from "./header-block";
 import { buildSampleReportContext, renderTemplate, type TemplateContext } from "./template-engine";
 
@@ -71,6 +71,7 @@ export function HeaderBlockDialog({
       '<!doctype html><html><head><meta charset="utf-8"><style>' +
       'body{font-family:-apple-system,"Segoe UI",Roboto,sans-serif;color:#111;margin:12px;font-size:12px}' +
       "table{border-collapse:collapse;width:100%}p{margin:2px 0}img{max-width:100%;height:auto}" +
+      cssLienzoBlanco() +
       cssCorteEnCeldas() +
       "</style></head><body>" +
       renderTemplate(html, ctx) +
