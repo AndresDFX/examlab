@@ -131,6 +131,36 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **El docente ya puede ver el estado de firmas de un informe: quién firmó y quién falta.** Antes el
+  menú de fila del historial solo ofrecía descargar, enviar a firmar, copiar/cortar el enlace público
+  y eliminar: no había forma de mirar el estado sin abrir el diálogo de escritura, ni de
+  previsualizar el documento sin descargarlo.
+
+  Va en **dos alturas, alimentadas por UN módulo puro** (`estado-firmas.ts`, 26 casos de prueba): una
+  columna «Firmas» en el historial que responde *cuántos* de un vistazo —hoy eso costaba abrir los 7
+  informes uno por uno— y un diálogo «Estado del documento» que responde *quiénes*, con el documento
+  a la vista. Los dos números salen del mismo lugar, así que **no pueden discrepar**.
+
+  **El diálogo es de SOLO LECTURA, y es deliberado:** en «Enviar a firmar» las casillas modelan el
+  estado deseado, así que desmarcar a alguien **retira su solicitud** — con el enlace que ya se le
+  repartió. Mirar no debe pasar por una pantalla donde el clic equivocado destruye. Su único botón
+  primario salta al diálogo de escritura que ya existía.
+
+  **El denominador lo dice el DOCUMENTO, no la matrícula.** Es la única fuente que resuelve los dos
+  casos que la matrícula responde mal, y los dos existen en producción: los estudiantes que el docente
+  excluyó del informe (23 de 24 en uno real) y el docente que firma sin estar matriculado. De ahí sale
+  además un **tercer estado que no se veía en ninguna pantalla: «sin solicitar»** — ranuras que el
+  documento ancla pero a las que nunca se les pidió la firma. Hay un caso real: un informe con 33
+  solicitudes para 34 anclas, y la que falta es la del propio docente.
+
+  Dos trampas esquivadas, las dos ya conocidas del repo: `report_signatures.user_id` apunta a
+  `auth.users` y **no** a `profiles`, así que un embed devolvería la lista sin nombres y sin error —
+  se usa el patrón 2-query, con el guard de longitud porque un `.in("id", [])` en PostgREST devuelve
+  TODAS las filas. Y la regla **«nunca mostrar 0 de 0»**, para que una lista vacía por permisos no se
+  pinte como «nadie firmó»: el RPC `report_signatures_of` devuelve `'[]'` en silencio cuando no
+  autoriza, y su chequeo hace `LEFT JOIN` a `courses` mientras la policy de la tabla hace
+  `INNER JOIN`.
+
 - **El código de asistencia ya puede rotar sin tope (o no rotar nunca).** El máximo era de un día
   (86400 s) y molestaba en ventanas de varios días. La VENTANA ya admitía hasta un año; lo que topaba
   era la rotación. Ahora el mínimo sigue siendo 15 s y **no hay máximo**.

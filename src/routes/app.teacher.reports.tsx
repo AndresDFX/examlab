@@ -68,8 +68,14 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { SendToSignDialog } from "@/modules/reports/SendToSignDialog";
+import { ReportStatusDialog } from "@/modules/reports/ReportStatusDialog";
+import { resumirFirmas, type ResumenFirmas } from "@/modules/reports/estado-firmas";
 import { conEstilosDeDocumento } from "@/modules/reports/document-css";
-import { renderizarRanuras, type FirmaDeInforme } from "@/modules/reports/signature-slots";
+import {
+  renderizarRanuras,
+  tieneRanuras,
+  type FirmaDeInforme,
+} from "@/modules/reports/signature-slots";
 import { toast } from "sonner";
 import {
   FileBarChart,
@@ -93,6 +99,7 @@ import {
   Link2,
   Link2Off,
   Search,
+  FileSearch,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -279,6 +286,13 @@ type GeneratedReport = {
   /** Token del enlace publico del DOCUMENTO. Distinto del token por firmante. */
   public_token: string | null;
   public_enabled: boolean | null;
+  /**
+   * Firmas del informe, por embed. Solo `signed_at`: alcanza para contar y es lo
+   * único que la celda «Firmas» necesita. Opcional porque el embed puede volver
+   * vacío SIN error cuando la policy no deja ver las filas — `resumirFirmas` se
+   * apoya en el HTML para no pintar «0 de 0» en ese caso.
+   */
+  report_signatures?: Array<{ signed_at: string | null }> | null;
 };
 
 /** Una evaluación del curso, para elegir el foco del informe. */
@@ -374,6 +388,12 @@ function Inner() {
   // informes generados + actas). Separación de conceptos Plantilla ≠ Informe.
   const [tab, setTab] = useState<"plantillas" | "informes">("plantillas");
 
+  /**
+   * Informe abierto en la vista de SOLO LECTURA (documento + estado de firmas).
+   * `null` = diálogo cerrado. Es la única forma de ver el documento sin bajarlo
+   * ni publicar su enlace público.
+   */
+  const [verInforme, setVerInforme] = useState<GeneratedReport | null>(null);
   /** Informe elegido para enviar a firmar. `null` = diálogo cerrado. */
   const [firmarInforme, setFirmarInforme] = useState<{
     id: string;
@@ -558,7 +578,9 @@ function Inner() {
     setGenReportsError(null);
     const { data, error } = await db
       .from("generated_reports")
-      .select("id, template_name, scope, course_id, course_name, student_id, student_name, periodo, html, created_at, public_token, public_enabled")
+      // El embed de `report_signatures` NO agrega una consulta: son dos campos
+      // por firma, despreciable al lado del `html` que este select ya arrastra.
+      .select("id, template_name, scope, course_id, course_name, student_id, student_name, periodo, html, created_at, public_token, public_enabled, report_signatures(signed_at)")
       .order("created_at", { ascending: false })
       .limit(200);
     if (isCancelled?.()) return;
@@ -594,6 +616,17 @@ function Inner() {
     for (const c of courses) m.set(c.id, c.name);
     return m;
   }, [courses]);
+
+  /**
+   * Cuántas firmas tiene cada informe. Se calcula UNA vez por carga y no por
+   * render: `resumirFirmas` pasa un regex sobre el HTML del snapshot, y hacerlo
+   * en cada celda de 200 filas en cada render es caro sin motivo.
+   */
+  const resumenPorInforme = useMemo(() => {
+    const m = new Map<string, ResumenFirmas>();
+    for (const r of genReports) m.set(r.id, resumirFirmas(r.report_signatures, r.html));
+    return m;
+  }, [genReports]);
 
   const filtered = useMemo(() => {
     let result = templates;
@@ -2201,7 +2234,7 @@ function Inner() {
                   /* TableSkeleton son <tr>: necesita ir dentro de una tabla. */
                   <Table fixed>
                     <TableBody>
-                      <TableSkeleton cols={5} rows={4} />
+                      <TableSkeleton cols={6} rows={4} />
                     </TableBody>
                   </Table>
                 ) : genReportsError ? (
@@ -2220,13 +2253,16 @@ function Inner() {
                         <TableHead className="hidden sm:table-cell">{t("hc_routesAppTeacherReports.genColCourse", { defaultValue: "Curso" })}</TableHead>
                         <TableHead className="hidden md:table-cell">{t("hc_routesAppTeacherReports.genColTarget", { defaultValue: "Estudiante / Periodo" })}</TableHead>
                         <TableHead className="hidden lg:table-cell w-40">{t("hc_routesAppTeacherReports.genColDate", { defaultValue: "Generado" })}</TableHead>
+                        {/* NO va `hidden sm:table-cell`: esconder el estado de
+                            las firmas en móvil anula el motivo de la columna. */}
+                        <TableHead className="w-20">{t("hc_routesAppTeacherReports.genColSignatures", { defaultValue: "Firmas" })}</TableHead>
                         <TableHead className="w-10" />
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {genReports.length === 0 ? (
                         <TableEmpty
-                          colSpan={5}
+                          colSpan={6}
                           text={t("hc_routesAppTeacherReports.genEmptyTitle", { defaultValue: "Aún no generaste informes" })}
                           hint={t("hc_routesAppTeacherReports.genEmptyHint", {
                             defaultValue: "Generá uno desde una plantilla (tab “Plantillas” → Generar).",
@@ -2260,9 +2296,54 @@ function Inner() {
                             <TableCell className="hidden lg:table-cell">
                               <DateCell value={r.created_at} variant="datetime" />
                             </TableCell>
+                            <TableCell className="w-20">
+                              {(() => {
+                                const res = resumenPorInforme.get(r.id);
+                                // Un documento que se firma a mano no tiene nada
+                                // que contar, y tampoco hay estado que abrir.
+                                if (!res || res.clase === "sin-ranuras")
+                                  return <span className="text-2xs text-muted-foreground">—</span>;
+                                return (
+                                  <button
+                                    type="button"
+                                    className="w-full rounded p-1 text-left text-xs tabular-nums hover:bg-accent"
+                                    aria-label={t("reportStatus.cellAria")}
+                                    title={`${t("reportSign.signedCount", { count: res.firmadas })} · ${t("reportSign.pendingCount", { count: res.total - res.firmadas })}`}
+                                    onClick={() => setVerInforme(r)}
+                                  >
+                                    {res.clase === "sin-pedir" ? (
+                                      <span className="text-2xs text-muted-foreground">
+                                        {t("reportStatus.cellNotRequested")}
+                                      </span>
+                                    ) : (
+                                      <span
+                                        className={
+                                          res.clase === "completo"
+                                            ? "text-emerald-600 dark:text-emerald-400"
+                                            : undefined
+                                        }
+                                      >
+                                        {res.firmadas}/{res.total}
+                                      </span>
+                                    )}
+                                  </button>
+                                );
+                              })()}
+                            </TableCell>
                             <TableCell className="text-right">
                               <RowActionsMenu
                                 actions={[
+                                  // Mirar va primero: es con lo que el docente
+                                  // entra a esta pantalla, y es la única acción
+                                  // que no escribe ni descarga nada.
+                                  {
+                                    label: tieneRanuras(r.html)
+                                      ? t("reportStatus.rowActionSignatures")
+                                      : t("reportStatus.rowAction"),
+                                    icon: FileSearch,
+                                    disabled: !!histBusyId,
+                                    onClick: () => setVerInforme(r),
+                                  },
                                   {
                                     label: t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" }),
                                     icon: FileType,
@@ -2761,6 +2842,30 @@ function Inner() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Ver el documento y el estado de sus firmas. Es de SOLO LECTURA: su
+          único primario salta al diálogo de abajo, que es el que escribe. */}
+      <ReportStatusDialog
+        informe={verInforme}
+        onOpenChange={(abierto) => {
+          if (!abierto) setVerInforme(null);
+        }}
+        onEnviarAFirmar={(r) => {
+          if (!r.course_id) return;
+          // `student_id` sale de la fila completa del historial: el diálogo de
+          // lectura no lo necesita y por eso no está en sus props. Se lee ANTES
+          // de cerrar, aunque el valor del render actual seguiría disponible.
+          const studentId = verInforme?.student_id ?? null;
+          setVerInforme(null);
+          setFirmarInforme({
+            id: r.id,
+            courseId: r.course_id,
+            nombre: r.template_name,
+            studentId,
+            html: r.html,
+          });
+        }}
+      />
 
       <SendToSignDialog
         reportId={firmarInforme?.id ?? null}
