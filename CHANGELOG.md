@@ -76,6 +76,30 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🔒 Seguridad
 
+- **El enlace de asistencia ya no lleva el código en la URL.** Era
+  `/asistencia?session=…&code=292731`, y eso anulaba justo lo que el código rotativo existe para
+  probar: que la persona estaba en el salón. Con el código adentro el enlace es una **credencial
+  completa y transferible** — se reenvía por WhatsApp y quien no vino queda presente. Y no hace falta
+  mala fe para filtrarlo: una URL con el código queda en el historial del navegador, en la vista
+  previa que genera el chat, en el `Referer` de cualquier salto posterior y en los logs de acceso.
+
+  Ahora el QR codifica solo `/asistencia?session=…`. Los seis dígitos hay que leerlos de la pantalla
+  proyectada, que es la prueba de presencia. No hizo falta pantalla nueva: el campo «Código de la
+  clase» ya existía en `/asistencia` y el diálogo «Tengo el código» ya existía en la vista del alumno.
+
+  Efecto secundario deseable: el QR queda **estable** aunque el código rote, así que quien lo escaneó
+  no se topa con un QR muerto a mitad de la clase.
+
+  **Compatibilidad hacia atrás, a propósito:** un QR ya proyectado o fotografiado sigue funcionando.
+  El escáner acepta el `code` cuando viene (antes exigía los dos y habría rechazado el QR nuevo como
+  «no reconocido»), y el deep-link con código sigue marcando solo. Cuando el QR trae únicamente la
+  sesión, el escáner deriva al ingreso manual de esa clase — y si la sesión no está en la lista del
+  alumno lo dice, en vez de abrir un diálogo vacío.
+
+  Con guardarraíl: una prueba falla si alguien vuelve a meter el código en la URL. Verificada
+  reintroduciéndolo a propósito (2 pruebas en rojo) y volviendo a quitarlo. Y comprobado contra
+  producción que la URL sin código cae en una página usable, con el curso, la sesión y el campo vacío.
+
 - **Se quitó la API key de Bedrock (`AWS_BEARER_TOKEN_BEDROCK`).** El token quedó expuesto en un
   chat, así que se retiró de la plataforma. Verificado antes de tocar nada: **no estaba en ningún
   archivo del repo y nunca se commiteó** (`git log --all -S`), así que la exposición se limitó a esa

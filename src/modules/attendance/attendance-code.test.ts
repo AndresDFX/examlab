@@ -109,16 +109,26 @@ describe("computeAttendanceCode", () => {
 });
 
 describe("buildAttendanceCheckInUrl", () => {
-  it("arma el deep link con session + code en query", () => {
-    const url = buildAttendanceCheckInUrl("https://app.example.com", "abc-123", "654321");
-    expect(url).toBe("https://app.example.com/asistencia?session=abc-123&code=654321");
+  it("arma el deep link con la sesión en query", () => {
+    const url = buildAttendanceCheckInUrl("https://app.example.com", "abc-123");
+    expect(url).toBe("https://app.example.com/asistencia?session=abc-123");
   });
 
   it("encodea valores especiales en query", () => {
-    const url = buildAttendanceCheckInUrl("https://app.example.com", "id with space", "000111");
-    // URL ya hace encodeURIComponent en searchParams; espacio → "+" no, "%20" si.
+    const url = buildAttendanceCheckInUrl("https://app.example.com", "id with space");
+    // `URL` ya encodea en searchParams; el espacio sale como "+".
     expect(url).toContain("session=id+with+space");
-    expect(url).toContain("code=000111");
+  });
+
+  it("NUNCA incluye el código en la URL", () => {
+    // Guardarraíl del motivo por el que se quitó: con el código adentro, el
+    // enlace es una credencial transferible y quien no vino queda presente.
+    // Además la URL termina en el historial, en la vista previa del chat, en el
+    // `Referer` y en los logs. Si alguien lo reintroduce, esto falla.
+    const url = buildAttendanceCheckInUrl("https://app.example.com", "abc-123");
+    expect(url).not.toContain("code");
+    expect(new URL(url).searchParams.get("code")).toBeNull();
+    expect([...new URL(url).searchParams.keys()]).toEqual(["session"]);
   });
 });
 

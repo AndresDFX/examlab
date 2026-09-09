@@ -105,9 +105,24 @@ export async function computeAttendanceCode(seed: string, period: number): Promi
  * scanner in-app (`AttendanceQRScanner.parsePayload`) siga extrayéndolos igual.
  * El `session` fija la sesión/curso/tenant exacto; el check-in valida matrícula.
  */
-export function buildAttendanceCheckInUrl(origin: string, sessionId: string, code: string): string {
+/**
+ * URL del check-in. Lleva la SESIÓN y NUNCA el código.
+ *
+ * El código iba en la query (`/asistencia?session=…&code=292731`) y eso anulaba
+ * justo lo que el código rotativo existe para probar: que la persona estaba en
+ * el salón. Con el código adentro, el enlace es una credencial completa y
+ * transferible — se reenvía por WhatsApp y quien no vino queda presente. Y no
+ * hace falta mala fe para filtrarlo: una URL con el código queda en el
+ * historial del navegador, en la vista previa del enlace que genera el chat, en
+ * el `Referer` de cualquier salto posterior y en los logs de acceso.
+ *
+ * Sin el código, el QR solo ahorra teclear la dirección: los seis dígitos hay
+ * que leerlos de la pantalla proyectada, que es la prueba de presencia. El
+ * campo para escribirlos ya existía en `/asistencia` y en el diálogo «Tengo el
+ * código» del alumno, así que no hay pantalla nueva.
+ */
+export function buildAttendanceCheckInUrl(origin: string, sessionId: string): string {
   const url = new URL("/asistencia", origin);
   url.searchParams.set("session", sessionId);
-  url.searchParams.set("code", code);
   return url.toString();
 }

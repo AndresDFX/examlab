@@ -1,7 +1,11 @@
 /**
  * Check-in de asistencia PÚBLICO — marcar asistencia SIN loguearse.
  *
- * Ruta: /asistencia?session=<uuid>&code=<6díg>   (pública, fuera de /app →
+ * Ruta: /asistencia?session=<uuid>   (pública, fuera de /app →
+ * El código NO viaja en la URL (ver `buildAttendanceCheckInUrl`): el QR solo
+ * trae la sesión y los seis dígitos se teclean leyéndolos de la pantalla, que
+ * es la prueba de presencia. Se sigue aceptando `?code=` de un enlace viejo,
+ * porque el campo se inicializa con lo que venga en la query.
  * sin AppLayout ni auth guard). El QR del proyector y el link que el docente
  * comparte apuntan acá (ver buildAttendanceCheckInUrl).
  *

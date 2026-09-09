@@ -3442,6 +3442,7 @@
       "alreadyMarked": "Your attendance was already recorded for this session.",
       "alreadyMarkedAs": "Your attendance was already recorded as: {{status}}.",
       "codeMustBe6Digits": "The code must be 6 digits",
+      "sessionNotAvailable": "That class is not available to you right now. Check with your teacher.",
       "markedAsPresent": "Marked as present!"
     },
     "routes_app_student_certificates": {

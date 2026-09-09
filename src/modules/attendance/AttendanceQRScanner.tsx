@@ -5,8 +5,9 @@
  * automáticamente. El callback `onDetected` recibe el payload escaneado.
  *
  * El payload esperado es una URL deep-link:
- *   https://<host>/app/student/attendance?session=<uuid>&code=<6 dígitos>
- * pero también aceptamos un payload "raw" del estilo "session=...&code=..."
+ *   https://<host>/asistencia?session=<uuid>   (el código NO viaja en la URL)
+ * pero también aceptamos un payload "raw" del estilo "session=..." y, por
+ * compatibilidad, uno viejo que además traiga &code=
  * para tolerar QR antiguos o de pruebas.
  *
  * Ciclo de vida:
@@ -22,28 +23,36 @@ import { X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Props {
-  onDetected: (payload: { sessionId: string; code: string }) => void;
+  /** `code` viene en null cuando el QR solo trae la sesión, que es el caso
+   *  normal desde que la URL dejó de llevar el código. */
+  onDetected: (payload: { sessionId: string; code: string | null }) => void;
   onClose: () => void;
 }
 
 const SCANNER_ELEMENT_ID = "examlab-attendance-qr-scanner";
 
-/** Parsea un payload escaneado. Devuelve null si no se reconoce. */
-function parsePayload(text: string): { sessionId: string; code: string } | null {
+/**
+ * Parsea un payload escaneado. Devuelve null si no se reconoce.
+ *
+ * El código es OPCIONAL: los QR nuevos solo llevan la sesión (ver
+ * `buildAttendanceCheckInUrl`) y los seis dígitos los teclea el alumno leyendo
+ * la pantalla. Se sigue aceptando un `code` presente para no romper un QR ya
+ * proyectado o fotografiado antes de este cambio: exigir los dos, como antes,
+ * haría que el QR nuevo se rechazara como "no reconocido".
+ */
+function parsePayload(text: string): { sessionId: string; code: string | null } | null {
   try {
     // Si parece URL, intentamos parsearla
     if (/^https?:\/\//i.test(text)) {
       const u = new URL(text);
       const session = u.searchParams.get("session");
-      const code = u.searchParams.get("code");
-      if (session && code) return { sessionId: session, code };
-      return null;
+      if (!session) return null;
+      return { sessionId: session, code: u.searchParams.get("code") };
     }
-    // payload "raw" tipo "session=X&code=Y"
+    // payload "raw" tipo "session=X" (o el viejo "session=X&code=Y")
     const params = new URLSearchParams(text);
     const session = params.get("session");
-    const code = params.get("code");
-    if (session && code) return { sessionId: session, code };
+    if (session) return { sessionId: session, code: params.get("code") };
   } catch {
     /* fallthrough */
   }

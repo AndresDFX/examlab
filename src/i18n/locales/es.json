@@ -3442,6 +3442,7 @@
       "alreadyMarked": "Tu asistencia ya estaba registrada para esta sesión.",
       "alreadyMarkedAs": "Tu asistencia ya estaba registrada como: {{status}}.",
       "codeMustBe6Digits": "El código debe tener 6 dígitos",
+      "sessionNotAvailable": "Esa clase no esta disponible para ti ahora. Revisa con tu docente.",
       "markedAsPresent": "¡Marcado como presente!"
     },
     "routes_app_student_certificates": {

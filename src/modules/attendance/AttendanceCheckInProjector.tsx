@@ -3,7 +3,8 @@
  *
  * El docente abre este componente al iniciar el check-in. Renderiza un
  * overlay fullscreen (vía Fullscreen API) con:
- *   - QR enorme (deep-link a /app/student/attendance?session=...&code=...)
+ *   - QR enorme (deep-link a /asistencia?session=... — SIN el código: ver
+ *     `buildAttendanceCheckInUrl`, el código se lee de la pantalla)
  *   - Código de 6 dígitos como fallback manual
  *   - Countdown a la próxima rotación + a cierre de la ventana
  *   - Contador live "presentes/total" con realtime de attendance_records
@@ -384,9 +385,12 @@ export function AttendanceCheckInProjector({ state, onClose, onExtended, onExit 
     }
   };
 
+  // No depende de `code`: la URL ya no lo lleva (ver buildAttendanceCheckInUrl).
+  // Efecto secundario deseable: el QR queda ESTABLE aunque el código rote, así
+  // que quien lo escaneó no se queda con un QR muerto a mitad de la clase.
   const qrUrl = useMemo(
-    () => buildAttendanceCheckInUrl(window.location.origin, state.sessionId, code),
-    [state.sessionId, code],
+    () => buildAttendanceCheckInUrl(window.location.origin, state.sessionId),
+    [state.sessionId],
   );
 
   // Formato bonito del código: "123 456"

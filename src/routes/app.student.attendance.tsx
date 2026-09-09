@@ -598,7 +598,11 @@ function StudentAttendance() {
     [selectedCourseId, user],
   );
 
-  // Deep-link: si llegamos con ?session=...&code=... auto check-in.
+  // Deep-link LEGADO: auto check-in cuando llegan `?session=` Y `?code=`.
+  // Los enlaces nuevos ya no traen el código (ver `buildAttendanceCheckInUrl`),
+  // así que este camino solo lo alcanzan enlaces o QR de antes del cambio. Se
+  // deja porque un QR ya fotografiado tiene que seguir funcionando; sin `code`
+  // no hace nada y el alumno usa el campo manual.
   useEffect(() => {
     if (!user) return;
     const params = new URLSearchParams(window.location.search);
@@ -1044,6 +1048,29 @@ function StudentAttendance() {
             <AttendanceQRScanner
               onClose={() => setScannerOpen(false)}
               onDetected={async ({ sessionId, code }) => {
+                // Sin codigo en el QR (el caso normal ahora): no se puede
+                // marcar solo, asi que se pasa al ingreso manual de esa sesion
+                // — los seis digitos se leen de la pantalla proyectada, que es
+                // justo la prueba de que la persona esta en el salon.
+                if (!code) {
+                  const sesion = openSessions.find((x) => x.id === sessionId);
+                  setScannerOpen(false);
+                  if (!sesion) {
+                    // Escaneo el QR de una sesion que no esta en su lista: no
+                    // matriculado, ya cerrada, o de otro curso. Decirlo, en vez
+                    // de abrir un dialogo vacio.
+                    toast.error(
+                      i18n.t("toast.routes_app_student_attendance.sessionNotAvailable", {
+                        defaultValue:
+                          "Esa clase no esta disponible para ti ahora. Revisa con tu docente.",
+                      }),
+                    );
+                    return;
+                  }
+                  setManualCode("");
+                  setManualOpen(sesion);
+                  return;
+                }
                 const ok = await submitCheckIn(sessionId, code);
                 if (ok) {
                   setScannerOpen(false);
