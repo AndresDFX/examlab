@@ -610,6 +610,60 @@ async function autorizarEntregaTaller(opts: {
   };
 }
 
+// Mismo patrón que `autorizarEntregaTaller`, sobre `project_submissions`. La
+// entrega puede ser de GRUPO (`group_id`), así que "es mía" no es solo
+// `user_id === caller` — un compañero de grupo también puede entregar/disparar
+// la calificación de la misma fila. El chequeo RLS de respaldo (para cuando el
+// dueño registrado no es el caller) ya cubre eso: la policy de
+// `project_submissions` deja ver la fila a cualquier miembro del grupo.
+async function autorizarEntregaProyecto(opts: {
+  submissionId: string;
+  callerId: string;
+  isSystemTrigger: boolean;
+  authHeader: string | null;
+}): Promise<
+  | { ok: true; projectId: string; status: string | null }
+  | { ok: false; response: Response }
+> {
+  const { data: sub } = await adminClient
+    .from("project_submissions")
+    .select("id, user_id, project_id, status")
+    .eq("id", opts.submissionId)
+    .maybeSingle();
+  const row = sub as { user_id?: string; project_id?: string; status?: string | null } | null;
+  if (!row?.project_id) {
+    return {
+      ok: false,
+      response: new Response(JSON.stringify({ error: "Entrega no encontrada" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }),
+    };
+  }
+  if (!opts.isSystemTrigger && row.user_id !== opts.callerId) {
+    const rlsClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("SUPABASE_PUBLISHABLE_KEY")!,
+      { global: { headers: { Authorization: opts.authHeader ?? "" } } },
+    );
+    const { data: visible } = await rlsClient
+      .from("project_submissions")
+      .select("id")
+      .eq("id", opts.submissionId)
+      .maybeSingle();
+    if (!visible) {
+      return {
+        ok: false,
+        response: new Response(JSON.stringify({ error: "No tienes permiso sobre esta entrega" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }),
+      };
+    }
+  }
+  return { ok: true, projectId: row.project_id, status: row.status ?? null };
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Cerramos sobre estas variables para que el catch global tenga
@@ -716,23 +770,25 @@ Deno.serve(async (req) => {
     // calificación de TALLER aparecía como si fuera de examen. Costó una
     // investigación entera creer que el edge moría cuando en realidad estaba
     // trabajando bien. Si agregás una bandera nueva al handler, agregala acá.
-    auditMode = body.batchGrading
-      ? "batch"
-      : body.workshopGrading || body.workshopFullGrading
-        ? "workshop_full"
-        : body.workshopQuestionGrading
-          ? "workshop_question"
-          : body.workshopCodeZipGrading
-            ? "workshop_code_zip"
-            : body.projectGrading || body.projectFullGrading
-              ? "project_full"
-              : body.projectFileGrading
-                ? "project_file"
-                : body.projectCodeZipGrading
-                  ? "project_code_zip"
-                  : body.examQuestion
-                    ? "exam_question"
-                    : "exam_full";
+    auditMode = body.projectResetForResubmit
+      ? "project_reset"
+      : body.batchGrading
+        ? "batch"
+        : body.workshopGrading || body.workshopFullGrading
+          ? "workshop_full"
+          : body.workshopQuestionGrading
+            ? "workshop_question"
+            : body.workshopCodeZipGrading
+              ? "workshop_code_zip"
+              : body.projectGrading || body.projectFullGrading
+                ? "project_full"
+                : body.projectFileGrading
+                  ? "project_file"
+                  : body.projectCodeZipGrading
+                    ? "project_code_zip"
+                    : body.examQuestion
+                      ? "exam_question"
+                      : "exam_full";
     auditEntityId =
       body.submissionId ??
       body.workshopSubmissionId ??
@@ -1471,12 +1527,55 @@ Deno.serve(async (req) => {
     //   projectDescription?: string  // contexto global; mejora coherencia de notas
     // }
     // returns: { ok, persistedInternally: true, processed: N }
+    //
+    // ── Por qué este modo pasó de "solo las abiertas" a "TODO el proyecto" ──
+    // El navegador del alumno escribía `project_submission_files.ai_grade`
+    // directo (isEmpty→0, cerrada/red_consola→resultado calculado en cliente,
+    // ZIP→resultado del edge) — sin ningún candado, exactamente el vector de
+    // auto-asignación de nota que la mig 20262130000000 ya había cerrado para
+    // talleres. Y hay algo peor debajo: `project_submission_files` tiene un
+    // trigger `AFTER UPDATE` (`_trg_project_submission_file_recompute`, mig
+    // 20260955000000) que en CASCADA actualiza `project_submissions.
+    // submission_grade`, y ESA tabla sí tiene candado desde el 30 de junio
+    // (`tg_guard_project_submission_grade`, mig 20261034000000). Con el
+    // alumno escribiendo `ai_grade` directo, esa cascada corre con su
+    // `auth.uid()` — no es `NULL`, así que el candado de la CABECERA
+    // rechazaba la cascada, y el rechazo abortaba la transacción ENTERA,
+    // incluido el UPDATE original a project_submission_files. O sea que
+    // llevaba desde el 30 de junio rota CUALQUIER entrega de proyecto con al
+    // menos un archivo no-ZIP: no hay ninguna entrega real posterior a esa
+    // fecha en producción. `auth.uid()` es NULL en una llamada de
+    // service_role (como esta), así que la cascada entera pasa limpia
+    // únicamente cuando el SERVIDOR es quien escribe — por eso este modo
+    // tiene que cubrir TODO tipo de pregunta del proyecto, no solo las que
+    // necesitan IA.
     if (body.projectFullGrading) {
       const { submissionId, courseLanguage, courseId, projectDescription } = body;
       const itemsInput = Array.isArray(body.items) ? body.items : [];
+      // Vacías (isEmpty en el cliente) — mismo contrato que `zeroed` del taller.
+      const zeroedInput: Array<{ qid?: unknown; reason?: unknown }> = Array.isArray(body.zeroed)
+        ? body.zeroed
+        : [];
+      // cerrada / cerrada_multi / red_consola / red_gui: el cliente manda la
+      // respuesta CRUDA (no un puntaje) — la nota la calcula el SERVIDOR con
+      // `scoreDeterministic`, igual que examen y taller. Ningún tipo de
+      // pregunta de proyecto en producción usa esto hoy (0 de 96 en el
+      // último censo), pero la tabla `project_files` sí lo permite por CHECK,
+      // así que dejarlo sin cubrir sería un candado que se rompe el día que
+      // alguien lo use.
+      const plainAnswers: Record<string, unknown> =
+        body.plainAnswers && typeof body.plainAnswers === "object" ? body.plainAnswers : {};
       if (!submissionId || typeof submissionId !== "string") {
         throw new Error("submissionId requerido");
       }
+
+      const authzPf = await autorizarEntregaProyecto({
+        submissionId,
+        callerId,
+        isSystemTrigger,
+        authHeader: req.headers.get("Authorization"),
+      });
+      if (!authzPf.ok) return authzPf.response;
 
       const pfLang: "es" | "en" = courseLanguage === "en" ? "en" : "es";
       const pfLangName = pfLang === "en" ? "inglés (English)" : "español";
@@ -1517,69 +1616,139 @@ Deno.serve(async (req) => {
           }),
         );
 
-      if (batchInput.length === 0) {
-        return new Response(JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      const zeroedByQid = new Map<string, string>();
+      for (const z of zeroedInput) {
+        if (typeof z?.qid === "string") zeroedByQid.set(z.qid, textoDeCero(z.reason, pfLang));
       }
 
-      // Usamos el mismo use_case `project_file` que el modo per-file
-      // legacy: la rúbrica/persona del admin para "evaluar archivos del
-      // proyecto" sigue aplicando. El batch solo cambia el transporte.
-      const customSystemPf = await buildGradingSystemPrompt(
-        "project_file",
-        courseId,
-        "Eres un evaluador académico imparcial. Calificas el contenido textual de archivos del proyecto de un estudiante. Para cada archivo das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
-      );
-      // Inyectamos projectDescription como contexto global ANTES de la
-      // tabla de items. El helper gradeOpenAnswersInBatch no sabe de
-      // projectDescription, así que lo prependemos al system prompt.
-      const projectCtx =
-        projectDescription && String(projectDescription).trim()
-          ? `\n\nContexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}`
-          : "";
-      const systemWithCtx = `${customSystemPf}${projectCtx}`;
-
-      const outPf = await gradeOpenAnswersInBatch(batchInput, systemWithCtx, pfLangName);
-      if ("batchError" in outPf) {
-        const httpStatus = outPf.batchError.kind === "http" ? (outPf.batchError.http_status ?? 502) : 422;
-        const snippet = outPf.batchError.response_snippet ?? "sin detalle";
-        throw new Error(
-          `project_full batch failed: ${outPf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
-        );
-      }
-
-      // ─── Persistencia interna ────────────────────────────────────────
-      // UPDATE por (submission_id, file_id). qid acá ES el file_id (en
-      // projects el "id de pregunta" se llama file_id en la tabla
-      // submission_files). Mismo patrón que workshopFullGrading.
       let persisted = 0;
       const persistErrors: Array<{ qid: string; error: string }> = [];
-      for (const [qid, r] of outPf.results.entries()) {
-        const it = batchInput.find((x) => x.qid === qid);
-        if (!it) continue;
-        const cap = it.maxPoints;
-        const score = Math.max(0, Math.min(cap, Number(r.score) || 0));
-        const aiLikelihood = Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0));
+
+      // ── Deterministas: solo se consulta `project_files` si hay algo que
+      // resolver acá — el caso común (proyecto sin cerrada/red_*) no paga
+      // esta query. ──
+      const plainQids = Object.keys(plainAnswers);
+      if (plainQids.length > 0) {
+        const { data: pfRows } = await adminClient
+          .from("project_files")
+          .select("id, type, points, options, starter_code")
+          .in("id", plainQids);
+        for (const pf of (pfRows ?? []) as Array<{
+          id: string;
+          type: string;
+          points: number | null;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          options: any;
+          starter_code: string | null;
+        }>) {
+          if (!esDeterminista(pf.type)) continue; // tipo inesperado en plainAnswers — se ignora
+          const det = scoreDeterministic(pf, plainAnswers[pf.id], pfLang);
+          const { error: upErr } = await adminClient
+            .from("project_submission_files")
+            .update({ ai_grade: det.earned, ai_feedback: det.feedback })
+            .eq("submission_id", submissionId)
+            .eq("file_id", pf.id);
+          if (upErr) persistErrors.push({ qid: pf.id, error: upErr.message });
+          else persisted++;
+        }
+      }
+
+      // ── Vacías: 0 + motivo, sin gastar IA. ──
+      for (const [qid, motivo] of zeroedByQid) {
         const { error: upErr } = await adminClient
           .from("project_submission_files")
-          .update({
-            ai_grade: score,
-            ai_feedback: r.feedback || "Sin retroalimentación",
-            ai_likelihood: aiLikelihood,
-            ai_reasons: r.ai_reasons ?? null,
-          })
+          .update({ ai_grade: 0, ai_feedback: motivo })
           .eq("submission_id", submissionId)
           .eq("file_id", qid);
-        if (upErr) {
-          persistErrors.push({ qid, error: upErr.message });
-        } else {
-          persisted++;
+        if (upErr) persistErrors.push({ qid, error: upErr.message });
+        else persisted++;
+      }
+
+      // ── Abiertas con contenido: UNA llamada de IA para todo el lote. ──
+      if (batchInput.length > 0) {
+        // Usamos el mismo use_case `project_file` que el modo per-file
+        // legacy: la rúbrica/persona del admin para "evaluar archivos del
+        // proyecto" sigue aplicando. El batch solo cambia el transporte.
+        const customSystemPf = await buildGradingSystemPrompt(
+          "project_file",
+          courseId,
+          "Eres un evaluador académico imparcial. Calificas el contenido textual de archivos del proyecto de un estudiante. Para cada archivo das un puntaje, retroalimentación útil y una estimación de probabilidad (0..1) de que el contenido haya sido generado por IA.",
+        );
+        // Inyectamos projectDescription como contexto global ANTES de la
+        // tabla de items. El helper gradeOpenAnswersInBatch no sabe de
+        // projectDescription, así que lo prependemos al system prompt.
+        const projectCtx =
+          projectDescription && String(projectDescription).trim()
+            ? `\n\nContexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}`
+            : "";
+        const systemWithCtx = `${customSystemPf}${projectCtx}`;
+
+        const outPf = await gradeOpenAnswersInBatch(batchInput, systemWithCtx, pfLangName);
+        if ("batchError" in outPf) {
+          const httpStatus =
+            outPf.batchError.kind === "http" ? (outPf.batchError.http_status ?? 502) : 422;
+          const snippet = outPf.batchError.response_snippet ?? "sin detalle";
+          // Las deterministas/vacías YA quedaron persistidas arriba (si las
+          // había) — solo lo que necesitaba IA se pierde acá, y el caller
+          // (cliente o worker) decide si reintenta. No se aborta lo demás.
+          throw new Error(
+            `project_full batch failed: ${outPf.batchError.kind} (HTTP ${httpStatus}). ${snippet.slice(0, 200)}`,
+          );
+        }
+
+        // UPDATE por (submission_id, file_id). qid acá ES el file_id (en
+        // projects el "id de pregunta" se llama file_id en la tabla
+        // submission_files). Mismo patrón que workshopFullGrading.
+        for (const [qid, r] of outPf.results.entries()) {
+          const it = batchInput.find((x) => x.qid === qid);
+          if (!it) continue;
+          const cap = it.maxPoints;
+          const score = Math.max(0, Math.min(cap, Number(r.score) || 0));
+          const aiLikelihood = Math.max(0, Math.min(1, Number(r.ai_likelihood) || 0));
+          const { error: upErr } = await adminClient
+            .from("project_submission_files")
+            .update({
+              ai_grade: score,
+              ai_feedback: r.feedback || "Sin retroalimentación",
+              ai_likelihood: aiLikelihood,
+              ai_reasons: r.ai_reasons ?? null,
+            })
+            .eq("submission_id", submissionId)
+            .eq("file_id", qid);
+          if (upErr) persistErrors.push({ qid, error: upErr.message });
+          else persisted++;
         }
       }
 
       if (persisted === 0 && persistErrors.length > 0) {
         throw new Error(`No se pudo persistir ningún resultado: ${persistErrors[0].error}`);
+      }
+
+      // ── Reset de la cabecera ────────────────────────────────────────
+      // `submission_grade`/`final_grade` los recalcula SOLO el trigger de
+      // recompute (mig 20260955000000) a partir de lo que se acaba de
+      // escribir arriba — no se tocan acá para no competir con él. Lo que
+      // SÍ hace falta escribir es lo que ese trigger NO toca: limpiar una
+      // sustentación VIEJA en el re-submit (si no, `_recompute_project_
+      // submission_grade` reaplicaría el `defense_factor` de un intento
+      // anterior a la nota nueva) y el mensaje que el alumno lee en la
+      // cabecera de su entrega.
+      if (persisted > 0) {
+        const { error: headerErr } = await adminClient
+          .from("project_submissions")
+          .update({
+            defense_factor: null,
+            defense_at: null,
+            defense_notes: null,
+            ai_feedback:
+              pfLang === "en"
+                ? "Automatically graded. The final grade is calculated after the defense."
+                : "Calificado automáticamente. La nota final se calcula tras la sustentación.",
+          })
+          .eq("id", submissionId);
+        if (headerErr) {
+          persistErrors.push({ qid: "__header__", error: headerErr.message });
+        }
       }
 
       return new Response(
@@ -1591,6 +1760,46 @@ Deno.serve(async (req) => {
         }),
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
+    }
+
+    // ── Project: reset inmediato de la cabecera al RE-entregar ─────────
+    // Se llama SINCRÓNICO, aparte de `projectFullGrading`, porque la
+    // calificación puede quedar diferida (modo async → el cron la procesa
+    // hasta una hora después). Sin este reset inmediato, una entrega nueva
+    // se vería con la nota y la sustentación del intento ANTERIOR durante
+    // toda esa espera — la sustentación vieja no puede sobrevivir ni un
+    // minuto a un re-submit, mucho menos una hora.
+    // body: { projectResetForResubmit: true, submissionId }
+    if (body.projectResetForResubmit) {
+      const { submissionId } = body as { submissionId?: string };
+      if (!submissionId || typeof submissionId !== "string") {
+        throw new Error("submissionId requerido");
+      }
+      const authzReset = await autorizarEntregaProyecto({
+        submissionId,
+        callerId,
+        isSystemTrigger,
+        authHeader: req.headers.get("Authorization"),
+      });
+      if (!authzReset.ok) return authzReset.response;
+
+      const { error: resetErr } = await adminClient
+        .from("project_submissions")
+        .update({
+          ai_grade: null,
+          submission_grade: null,
+          final_grade: null,
+          defense_factor: null,
+          defense_at: null,
+          defense_notes: null,
+          ai_feedback: null,
+        })
+        .eq("id", submissionId);
+      if (resetErr) throw new Error(`No se pudo reiniciar el estado de la entrega: ${resetErr.message}`);
+
+      return new Response(JSON.stringify({ ok: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     // ── Project FILE grading (per-file, contenido textual) ──
@@ -2401,14 +2610,16 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const aiLikelihood = Math.max(0, Math.min(1, Number(args.ai_likelihood) || 0));
 
       // ── Persistencia opcional de la fila de la respuesta ────────────────
-      // Con `submissionId` + `questionId` (camino del alumno en un taller) la
-      // nota la escribe el SERVIDOR: el navegador tiene prohibido escribir
-      // `ai_grade`. NO consolida la cabecera — eso lo hace la llamada
-      // `batchGrading` final del mismo submit, que ya lee esta fila.
+      // Con `submissionId` + `questionId` (camino del alumno, taller O
+      // proyecto) la nota la escribe el SERVIDOR: el navegador tiene
+      // prohibido escribir `ai_grade`. En PROYECTO además consolida la
+      // cabecera acá mismo (a diferencia del taller, cuyo `batchGrading`
+      // final ya la consolida) — el ZIP en proyecto es su PROPIO submit
+      // independiente, no hay una segunda llamada que lo haga después.
       let zipPersistedInternally = false;
       let zipPersistError: string | null = null;
       const zipSubmissionId =
-        body.workshopCodeZipGrading &&
+        (body.workshopCodeZipGrading || body.projectCodeZipGrading) &&
         typeof body.submissionId === "string" &&
         UUID_RE.test(body.submissionId)
           ? body.submissionId
@@ -2417,7 +2628,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         typeof body.questionId === "string" && UUID_RE.test(body.questionId)
           ? body.questionId
           : null;
-      if (zipSubmissionId && zipQuestionId) {
+      if (zipSubmissionId && zipQuestionId && body.workshopCodeZipGrading) {
         const authz = await autorizarEntregaTaller({
           submissionId: zipSubmissionId,
           callerId,
@@ -2442,6 +2653,53 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           );
         if (zipUpErr) zipPersistError = zipUpErr.message;
         else zipPersistedInternally = true;
+      } else if (zipSubmissionId && zipQuestionId && body.projectCodeZipGrading) {
+        const authzP = await autorizarEntregaProyecto({
+          submissionId: zipSubmissionId,
+          callerId,
+          isSystemTrigger,
+          authHeader: req.headers.get("Authorization"),
+        });
+        if (!authzP.ok) return authzP.response;
+        const { error: zipUpErr } = await adminClient
+          .from("project_submission_files")
+          .upsert(
+            {
+              submission_id: zipSubmissionId,
+              file_id: zipQuestionId,
+              ai_grade: score,
+              ai_feedback: args.feedback || (pfLang === "en" ? "No feedback" : "Sin retroalimentación"),
+              ai_likelihood: aiLikelihood,
+              ai_reasons: args.ai_reasons ?? null,
+              zip_truncated: wasTruncated,
+              zip_chars_used: totalChars,
+            },
+            { onConflict: "submission_id,file_id" },
+          );
+        if (zipUpErr) {
+          zipPersistError = zipUpErr.message;
+        } else {
+          zipPersistedInternally = true;
+          // El ZIP de proyecto es su propio submit sin una segunda llamada
+          // que consolide después (a diferencia del taller) — así que la
+          // cabecera se resetea acá mismo. `submission_grade`/`final_grade`
+          // los recalcula el trigger de recompute solo; lo que ese trigger
+          // NO toca es la sustentación vieja, que hay que limpiar en cada
+          // re-entrega (ver el comentario largo en `projectFullGrading`).
+          const { error: headerErr } = await adminClient
+            .from("project_submissions")
+            .update({
+              defense_factor: null,
+              defense_at: null,
+              defense_notes: null,
+              ai_feedback:
+                pfLang === "en"
+                  ? "Automatically graded. The final grade is calculated after the defense."
+                  : "Calificado automáticamente. La nota final se calcula tras la sustentación.",
+            })
+            .eq("id", zipSubmissionId);
+          if (headerErr) zipPersistError = headerErr.message;
+        }
       }
 
       return new Response(

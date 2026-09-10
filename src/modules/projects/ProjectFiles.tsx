@@ -13,17 +13,14 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
 import { useAuth } from "@/hooks/use-auth";
-import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import {
   type NetworkScenario,
   defaultScenario,
   generateNetworkQuestions,
-  parseNetworkAnswer,
   parseScenario,
 } from "@/modules/network/scenario";
-import { gradeNetwork } from "@/modules/network/grading";
 import { Button } from "@/components/ui/button";
 import { RowAction } from "@/components/ui/row-action";
 import { Input } from "@/components/ui/input";
@@ -78,7 +75,6 @@ import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import {
   getProcessingMode,
   readOverrideExpiry,
-  PENDING_AI_FEEDBACK,
 } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -1447,7 +1443,11 @@ export function StudentProjectTaker({
   // Guard sincrónico anti doble-entrega (el `await confirm(...)` previo corre
   // con `submitting` todavía en false).
   const submitBusyRef = useRef(false);
-  const [graded, setGraded] = useState<{ grade: number } | null>(null);
+  // `grade: null` = entregado y SIN nota todavía. La calificación va
+  // desacoplada de la entrega, así que la nota nunca está lista al cerrar
+  // esta pantalla — pintar un 0 mientras se procesa le diría al alumno que
+  // perdió el proyecto.
+  const [graded, setGraded] = useState<{ grade: number | null } | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState<string>("");
   // projects.description — contexto global que viaja a la edge function
   // de calificación junto con cada pregunta (workshopQuestionGrading +
@@ -2200,6 +2200,30 @@ export function StudentProjectTaker({
       // re-entregar (aunque la mayoría usa max_attempts=1).
       setAttemptCount(nextAttemptCount);
 
+      // ── Reset inmediato de la cabecera, ANTES de calificar nada ────────
+      // Una entrega previa YA CALIFICADA (con defensa registrada) deja
+      // `defense_factor`/`final_grade` puestos. Sin este reset, mientras la
+      // calificación de la entrega NUEVA esté pendiente —minutos en modo
+      // sync, hasta una hora en modo async, porque el cron corre cada
+      // hora— la pantalla seguiría mostrando la nota y la sustentación del
+      // intento ANTERIOR, como si la re-entrega ya tuviera nota. El
+      // navegador no puede tocar estas columnas directo (candado de la
+      // cabecera desde el 30 de junio); por eso este reset va por el edge,
+      // con `service_role`, igual que la calificación misma.
+      //
+      // Falla no-crítica: si esta llamada no responde, la entrega YA quedó
+      // registrada arriba (status='entregado') y la calificación de abajo
+      // la va a sobreescribir de todas formas apenas corra — el peor caso
+      // es un instante de UI mostrando el estado viejo, no una entrega
+      // perdida.
+      try {
+        await supabase.functions.invoke("ai-grade-submission", {
+          body: { projectResetForResubmit: true, submissionId },
+        });
+      } catch (e) {
+        console.error("[project-submit] reset de cabecera fallo (no bloqueante)", e);
+      }
+
       // ── Resolución del modo IA ──
       // `processing_mode = async` (default) + sin override = encolar las
       // llamadas IA en `ai_grading_queue`. La fila destino se inserta con
@@ -2211,22 +2235,26 @@ export function StudentProjectTaker({
       const aiOverrideActive = !!readOverrideExpiry();
       const useAsyncAi = aiMode === "async" && !aiOverrideActive;
 
-      // ── Calificación en dos fases (igual que WorkshopQuestions) ──
-      // 1) Loop: locales (cerrada/multi/empty) + codigo_zip (upload + IA
-      //    individual con su zipPath) + bucketea abiertas para batch.
-      // 2) UNA llamada batch para todas las abiertas.
-      // 3) Upsert por qid.
-      let totalEarned = 0;
-      // Se pone en true cuando el intento SINCRONICO de calificar no pudo
-      // (tipicamente 429 por cuota). A partir de ahi la entrega se trata
-      // como si fuera del modo diferido: nota pendiente + job encolado.
-      let cayoALaCola = false;
-
-      let totalPoints = 0;
+      // ── Calificación (igual que WorkshopQuestions) ──
+      // 1) Loop: arma las respuestas LIBRES (content/selected_option/
+      //    code_paths/zip_path) + junta lo que hay que calificar (abiertas
+      //    para IA, cerradas/red para determinista, vacías, ZIP).
+      // 2) Encolar SIEMPRE + soltar al alumno.
+      // 3) Disparar la calificación sin esperarla.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payloadsByQid: Record<string, any> = {};
-      // En modo async, después del upsert principal vamos a encolar los
-      // jobs IA — guardamos {qid, kind, body} acá y enrolamos al final.
+      // cerrada / cerrada_multi / red_consola / red_gui: la respuesta CRUDA
+      // (no un puntaje) — la nota la calcula el SERVIDOR con
+      // `scoreDeterministic`, igual que examen y taller. El navegador tiene
+      // prohibido escribir `ai_grade` (mig 20262180000000); mandar el
+      // resultado ya calculado sería justo lo que ese candado existe para
+      // bloquear.
+      const plainAnswers: Record<string, unknown> = {};
+      // Preguntas sin responder: el servidor pone 0 + el motivo, sin gastar IA.
+      const zeroed: Array<{ qid: string; reason: string }> = [];
+      // Después del upsert principal vamos a encolar el job de cada ZIP —
+      // guardamos {qid, kind, body} acá y enrolamos al final. Se encola
+      // SIEMPRE (sync y async), no solo en modo diferido.
       const pendingEnqueues: Array<{
         qid: string;
         kind: string;
@@ -2248,7 +2276,6 @@ export function StudentProjectTaker({
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
-        totalPoints += Number(q.points) || 0;
 
         const payload: any = {
           submission_id: submissionId,
@@ -2257,104 +2284,56 @@ export function StudentProjectTaker({
           selected_option: null,
         };
 
-        let earned = 0;
-        let feedback = t("hc_modulesProjectsProjectFiles.feedbackNone");
-
         if (q.type === "cerrada") {
-          const correctIdx = q.options?.correct_index;
-          const got = String(raw) === String(correctIdx) ? Number(q.points) : 0;
-          earned = got;
-          feedback = got > 0
-            ? t("hc_modulesProjectsProjectFiles.feedbackCorrect")
-            : t("hc_modulesProjectsProjectFiles.feedbackIncorrect");
+          // La nota la calcula el SERVIDOR (`plainAnswers` abajo). Acá solo
+          // se arma lo que SÍ es libre: la opción elegida + su texto, para
+          // que el docente vea qué respondió sin tener que decodificar el
+          // índice.
           payload.selected_option = String(raw);
-          // Guardar también el texto elegido en `content` para revisión
           const choices = q.options?.choices ?? [];
           payload.content = choices[Number(raw)] ?? String(raw);
-          payload.ai_grade = earned;
-          payload.ai_feedback = feedback;
+          plainAnswers[q.id] = raw;
         } else if (q.type === "cerrada_multi") {
-          // Grading local: proporcional positivo (helper compartido).
           const selectedArr = Array.isArray(raw) ? (raw as number[]) : [];
-          const result = scoreCerradaMulti({
-            selected: selectedArr,
-            correctIndices: ((q.options as any)?.correct_indices ?? []) as number[],
-            totalPoints: Number(q.points) || 0,
-            minSelections: (q.options as any)?.min_selections,
-            maxSelections: (q.options as any)?.max_selections,
-          });
-          earned = result.earned;
-          feedback = result.exceededMax
-            ? t("hc_modulesProjectsProjectFiles.feedbackTooManyOptions", {
-                max: (q.options as any)?.max_selections,
-              })
-            : result.belowMin
-              ? t("hc_modulesProjectsProjectFiles.feedbackBelowMinOptions", {
-                  min: (q.options as any)?.min_selections,
-                })
-              : selectedArr.length === 0
-                ? t("hc_modulesProjectsProjectFiles.feedbackNoAnswer")
-                : t("hc_modulesProjectsProjectFiles.feedbackEarnedOfPoints", {
-                    earned,
-                    points: q.points,
-                  });
           // Guardamos array como JSON en content (selected_option es text de 1 valor)
           payload.content = JSON.stringify(selectedArr);
-          payload.ai_grade = earned;
-          payload.ai_feedback = feedback;
+          plainAnswers[q.id] = selectedArr;
         } else if (q.type === "red_consola" || q.type === "red_gui") {
-          // Calificación DETERMINISTA en cliente (sin IA): evalúa las
-          // aserciones del escenario contra la topología final del alumno.
-          const scenario = parseScenario(q.options);
-          const answer = parseNetworkAnswer(raw);
-          const maxPoints = Number(q.points) || 0;
-          if (!scenario || !answer) {
-            earned = 0;
-            feedback = t("hc_modulesProjectsProjectFiles.feedbackNoAnswer");
-          } else {
-            // Aislar: una respuesta de red malformada no debe romper la
-            // calificación de toda la entrega.
-            try {
-              const result = gradeNetwork(
-                { topology: answer.topology, histories: answer.histories },
-                scenario.assertions,
-              );
-              earned = Math.round(result.ratio * maxPoints * 100) / 100;
-              feedback = result.items
-                .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-                .join("\n");
-            } catch (netErr) {
-              earned = 0;
-              feedback = `Error al evaluar la respuesta de red: ${netErr instanceof Error ? netErr.message : String(netErr)}`;
-            }
-          }
+          // Calificación DETERMINISTA — el SERVIDOR evalúa las aserciones del
+          // escenario contra la topología final del alumno (mismo motor que
+          // usaba el cliente, ahora corrido donde sí puede escribir la nota:
+          // `parseScenario`/`gradeNetwork` viven también server-side, vía
+          // `scoreDeterministic` en `_shared/deterministic-scoring.ts`).
           payload.content = typeof raw === "string" ? raw : JSON.stringify(raw);
-          payload.ai_grade = earned;
-          payload.ai_feedback = feedback;
+          plainAnswers[q.id] = raw;
         } else if (q.type === "codigo_zip" && q.zip_single) {
           // ── Modo ZIP único (scaffolding) ──
           // El estudiante sube UN .zip. Subimos a Storage como path único
           // (`zip_path`, mismo campo legacy), invocamos el edge con
           // `zipPath` + `noMinify: true` — la IA recibe archivos crudos
           // (sin minificar, sin truncar per-file), solo respeta cap global.
+          // La nota de un ZIP la escribe el SERVIDOR (mismo candado que el
+          // resto). Acá solo se arma el archivo y se ENCOLA su calificación
+          // — nunca se espera la llamada de IA dentro del loop: eso era la
+          // segunda fuente de demora que el taller ya midió (además del
+          // lote), una llamada por CADA zip, en serie. El disparo real
+          // (sync o async) pasa a la fase desacoplada, después de soltar al
+          // alumno.
           const zipFile = raw instanceof File ? raw : null;
           if (!zipFile) {
             payload.content = "";
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoZip");
+            zeroed.push({ qid: q.id, reason: "zip_faltante" });
           } else if (!user?.id) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNotAuthenticated");
+            zeroed.push({ qid: q.id, reason: "zip_faltante" });
           } else if (zipFile.size > MAX_CODE_FILES_TOTAL_BYTES) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackZipTooBig", {
+            const msg = t("hc_modulesProjectsProjectFiles.feedbackZipTooBig", {
               size: formatFileSize(zipFile.size),
             });
-            toast.error(payload.ai_feedback, { duration: 8000 });
+            toast.error(msg, { duration: 8000 });
+            zeroed.push({ qid: q.id, reason: "zip_excede" });
           } else if (!zipFile.name.toLowerCase().endsWith(".zip")) {
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackFileNotZip");
-            toast.error(payload.ai_feedback, { duration: 8000 });
+            toast.error(t("hc_modulesProjectsProjectFiles.feedbackFileNotZip"), { duration: 8000 });
+            zeroed.push({ qid: q.id, reason: "zip_invalido" });
           } else {
             // Pre-validación cliente-side: descomprimir el ZIP en el
             // navegador y verificar que TODOS los archivos adentro sean
@@ -2365,9 +2344,8 @@ export function StudentProjectTaker({
             const zipAllowed = LANG_TO_EXT[zipLangKey] ?? null;
             const preCheck = await preValidateZipInBrowser(zipFile, zipAllowed);
             if (!preCheck.ok) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = preCheck.error;
               toast.error(preCheck.error, { duration: 10000 });
+              zeroed.push({ qid: q.id, reason: "zip_invalido" });
               payloadsByQid[q.id] = payload;
               continue;
             }
@@ -2381,62 +2359,32 @@ export function StudentProjectTaker({
                 contentType: "application/zip",
               });
             if (upErr) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackZipUploadError", {
-                detail: upErr.message,
-              });
-              toast.error(payload.ai_feedback, { duration: 8000 });
+              toast.error(
+                t("hc_modulesProjectsProjectFiles.feedbackZipUploadError", { detail: upErr.message }),
+                { duration: 8000 },
+              );
+              zeroed.push({ qid: q.id, reason: "zip_error_subida" });
             } else {
               payload.zip_path = zipPath;
-              const aiBody = {
-                projectCodeZipGrading: true,
-                zipPath,
-                // Flag scaffolding: backend salta minify + truncado per-file.
-                noMinify: true,
-                fileTitle: q.title,
-                fileDescription: q.description,
-                expectedRubric: q.expected_rubric,
-                maxPoints: q.points,
-                courseLanguage,
-                courseId: undefined,
-                projectDescription,
-              };
-              if (useAsyncAi) {
-                payload.ai_grade = null;
-                payload.ai_feedback = PENDING_AI_FEEDBACK;
-                pendingEnqueues.push({
-                  qid: q.id,
-                  kind: "project_codigo_zip",
-                  body: aiBody,
-                });
-                payloadsByQid[q.id] = payload;
-                continue;
-              }
-              const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-                "ai-grade-submission",
-                { body: aiBody },
-              );
-              if (aiErr || aiData?.error) {
-                const detail = await extractEdgeError(aiErr, aiData);
-                payload.ai_grade = 0;
-                payload.ai_feedback =
-                  detail || t("hc_modulesProjectsProjectFiles.feedbackAiZipError");
-                toast.error(payload.ai_feedback, { duration: 8000 });
-              } else {
-                earned = Number(aiData?.grade) || 0;
-                feedback = aiData?.feedback ?? feedback;
-                payload.ai_grade = earned;
-                payload.ai_feedback = feedback;
-                payload.ai_likelihood =
-                  typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
-                payload.ai_reasons = aiData?.ai_reasons ?? null;
-                if (typeof aiData?.zip_truncated === "boolean") {
-                  payload.zip_truncated = aiData.zip_truncated;
-                }
-                if (typeof aiData?.zip_chars_used === "number") {
-                  payload.zip_chars_used = aiData.zip_chars_used;
-                }
-              }
+              pendingEnqueues.push({
+                qid: q.id,
+                kind: "project_codigo_zip",
+                body: {
+                  projectCodeZipGrading: true,
+                  submissionId,
+                  questionId: q.id,
+                  zipPath,
+                  // Flag scaffolding: backend salta minify + truncado per-file.
+                  noMinify: true,
+                  fileTitle: q.title,
+                  fileDescription: q.description,
+                  expectedRubric: q.expected_rubric,
+                  maxPoints: q.points,
+                  courseLanguage,
+                  courseId: undefined,
+                  projectDescription,
+                },
+              });
             }
           }
         } else if (q.type === "codigo_zip") {
@@ -2449,16 +2397,19 @@ export function StudentProjectTaker({
               : [];
           const langKey = (q.language ?? "").toLowerCase().trim();
           const allowedExtensions = LANG_TO_EXT[langKey] ?? null;
+          // Sentinel LOCAL (ya no `payload.ai_feedback`: esa columna la
+          // escribe el servidor). Cuando queda seteado, la pregunta se manda
+          // al servidor como "vacía" con el motivo — nunca escribimos
+          // `ai_grade` desde acá.
+          let rejectReason: "zip_faltante" | "zip_invalido" | "zip_excede" | null = null;
           if (filesArr.length === 0) {
             payload.content = "";
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoCodeFiles");
+            rejectReason = "zip_faltante";
           } else if (!user?.id) {
             // Sin sesión auth válida el path sería "undefined/...", que
             // viola la RLS de storage. Mejor un error claro que un
             // "new row violates row-level security policy" críptico.
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNotAuthenticated");
+            rejectReason = "zip_faltante";
           } else {
             // Validación cliente-side defense-in-depth (el picker ya
             // filtra al elegir, pero un estado React stale podría colar
@@ -2477,37 +2428,45 @@ export function StudentProjectTaker({
                     })
                   : "";
                 const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
-                payload.ai_grade = 0;
-                payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackDisallowedFiles", {
-                  sample,
-                  more,
-                  allowed: allowedLabel,
-                });
-                toast.error(payload.ai_feedback, { duration: 8000 });
+                toast.error(
+                  t("hc_modulesProjectsProjectFiles.feedbackDisallowedFiles", {
+                    sample,
+                    more,
+                    allowed: allowedLabel,
+                  }),
+                  { duration: 8000 },
+                );
+                rejectReason = "zip_invalido";
               }
             }
           }
           // Validación de tamaño total (defense in depth — el input ya
           // chequea per-archivo pero el usuario puede modificar atributos
           // del input).
-          if (!payload.ai_feedback) {
+          if (!rejectReason) {
             const totalBytes = filesArr.reduce((acc, f) => acc + f.size, 0);
             if (totalBytes > MAX_CODE_FILES_TOTAL_BYTES) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackFilesTotalTooBig", {
-                size: formatFileSize(totalBytes),
-              });
-              toast.error(payload.ai_feedback, { duration: 8000 });
+              toast.error(
+                t("hc_modulesProjectsProjectFiles.feedbackFilesTotalTooBig", {
+                  size: formatFileSize(totalBytes),
+                }),
+                { duration: 8000 },
+              );
+              rejectReason = "zip_excede";
             } else if (filesArr.length > MAX_CODE_FILES_COUNT) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackTooManyFiles", {
-                count: filesArr.length,
-                max: MAX_CODE_FILES_COUNT,
-              });
-              toast.error(payload.ai_feedback, { duration: 8000 });
+              toast.error(
+                t("hc_modulesProjectsProjectFiles.feedbackTooManyFiles", {
+                  count: filesArr.length,
+                  max: MAX_CODE_FILES_COUNT,
+                }),
+                { duration: 8000 },
+              );
+              rejectReason = "zip_excede";
             }
           }
-          if (filesArr.length > 0 && user?.id && !payload.ai_feedback) {
+          if (rejectReason) {
+            zeroed.push({ qid: q.id, reason: rejectReason });
+          } else if (filesArr.length > 0 && user?.id) {
             // Carpeta raíz del path:
             //  - groupId si el proyecto es grupal (todos los miembros
             //    suben a la misma carpeta del grupo; la RLS lo permite
@@ -2533,75 +2492,40 @@ export function StudentProjectTaker({
             );
             const upFailed = uploads.filter((u) => u.error);
             if (upFailed.length > 0) {
-              payload.ai_grade = 0;
-              payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackUploadFailed", {
-                count: upFailed.length,
-                detail: upFailed[0].error?.message ?? "",
-              });
-              toast.error(payload.ai_feedback, { duration: 8000 });
+              toast.error(
+                t("hc_modulesProjectsProjectFiles.feedbackUploadFailed", {
+                  count: upFailed.length,
+                  detail: upFailed[0].error?.message ?? "",
+                }),
+                { duration: 8000 },
+              );
+              zeroed.push({ qid: q.id, reason: "zip_error_subida" });
             } else {
               const uploadedPaths = uploads.map((u) => u.path);
               payload.code_paths = uploadedPaths;
-              const aiBody = {
-                projectCodeZipGrading: true,
-                codePaths: uploadedPaths,
-                fileTitle: q.title,
-                fileDescription: q.description,
-                expectedRubric: q.expected_rubric,
-                maxPoints: q.points,
-                courseLanguage,
-                courseId: undefined,
-                projectDescription,
-                // Si el docente NO fijó language (langKey vacío), omitimos
-                // el filtro — comportamiento histórico.
-                ...(allowedExtensions ? { allowedExtensions } : {}),
-              };
-              if (useAsyncAi) {
-                // Modo async: marcamos placeholder, encolamos al final
-                // del submit (necesitamos el row id de la upsert).
-                payload.ai_grade = null;
-                payload.ai_feedback = PENDING_AI_FEEDBACK;
-                pendingEnqueues.push({
-                  qid: q.id,
-                  kind: "project_codigo_zip",
-                  body: aiBody,
-                });
-                // Saltamos el resto del bloque (que era el inline AI call).
-                payloadsByQid[q.id] = payload;
-                continue;
-              }
-              const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-                "ai-grade-submission",
-                { body: aiBody },
-              );
-              if (aiErr || aiData?.error) {
-                // El edge function devuelve el detalle real en
-                // `data.error` cuando es rechazo de validación
-                // (extension_mismatch, etc.). Sin extractEdgeError caía
-                // al wrapper genérico "Edge Function returned non-2xx"
-                // y el estudiante no entendía por qué su entrega tuvo 0.
-                const detail = await extractEdgeError(aiErr, aiData);
-                payload.ai_grade = 0;
-                payload.ai_feedback =
-                  detail || t("hc_modulesProjectsProjectFiles.feedbackAiFilesError");
-                toast.error(payload.ai_feedback, { duration: 8000 });
-              } else {
-                earned = Number(aiData?.grade) || 0;
-                feedback = aiData?.feedback ?? feedback;
-                payload.ai_grade = earned;
-                payload.ai_feedback = feedback;
-                payload.ai_likelihood =
-                  typeof aiData?.ai_likelihood === "number" ? aiData.ai_likelihood : null;
-                payload.ai_reasons = aiData?.ai_reasons ?? null;
-                // Persistir flags de truncado del ZIP — el monitor del docente
-                // los lee para mostrar badge "ZIP truncado" en la calificación.
-                if (typeof aiData?.zip_truncated === "boolean") {
-                  payload.zip_truncated = aiData.zip_truncated;
-                }
-                if (typeof aiData?.zip_chars_used === "number") {
-                  payload.zip_chars_used = aiData.zip_chars_used;
-                }
-              }
+              // Igual que el ZIP único: se ENCOLA siempre, la nota la
+              // escribe el servidor, y el disparo real (esperar o no) se
+              // decide en la fase desacoplada de más abajo.
+              pendingEnqueues.push({
+                qid: q.id,
+                kind: "project_codigo_zip",
+                body: {
+                  projectCodeZipGrading: true,
+                  submissionId,
+                  questionId: q.id,
+                  codePaths: uploadedPaths,
+                  fileTitle: q.title,
+                  fileDescription: q.description,
+                  expectedRubric: q.expected_rubric,
+                  maxPoints: q.points,
+                  courseLanguage,
+                  courseId: undefined,
+                  projectDescription,
+                  // Si el docente NO fijó language (langKey vacío), omitimos
+                  // el filtro — comportamiento histórico.
+                  ...(allowedExtensions ? { allowedExtensions } : {}),
+                },
+              });
             }
           }
         } else {
@@ -2617,8 +2541,7 @@ export function StudentProjectTaker({
             !trimmedAnswer || (trimmedStarter !== "" && trimmedAnswer === trimmedStarter);
           if (isEmpty) {
             payload.content = "";
-            payload.ai_grade = 0;
-            payload.ai_feedback = t("hc_modulesProjectsProjectFiles.feedbackNoAnswer");
+            zeroed.push({ qid: q.id, reason: "sin_respuesta" });
           } else {
             // Pregunta abierta con respuesta — bucketea para el batch.
             // type real (no remapeado a "codigo") + framework para que
@@ -2639,105 +2562,26 @@ export function StudentProjectTaker({
             });
           }
         }
-        totalEarned += earned;
         payloadsByQid[q.id] = payload;
       }
 
-      // ── Fase 2: calificación de preguntas no-código (abierta, codigo,
-      // diagrama, java_gui) ──
-      //
-      // BUG FIX: este bloque antes corría SIEMPRE — incluso con el modo IA
-      // en `async`/cola, las preguntas de texto/diagrama/código se mandaban
-      // al instante en una llamada batch. Solo las `codigo_zip` respetaban
-      // el modo async (ver branch arriba con `if (useAsyncAi)`).
-      //
-      // Comportamiento correcto (mismo que talleres, ver
-      // [WorkshopQuestions.tsx](src/modules/workshops/WorkshopQuestions.tsx)):
-      //   - sync  → UNA llamada batch a `ai-grade-submission` con todas las
-      //             abiertas, esperamos el resultado y lo persistimos.
-      //   - async → marcamos cada item como `PENDING_AI_FEEDBACK` y
-      //             encolamos UN job por pregunta. El worker hourly los
-      //             drena y actualiza los rows. El estudiante ve la nota
-      //             "Por calificar" inmediatamente y la real cuando vuelva.
-      if (batchItems.length > 0 && !useAsyncAi) {
-        const { data: bData, error: bErr } = await supabase.functions.invoke(
-          "ai-grade-submission",
-          {
-            body: {
-              batchGrading: true,
-              items: batchItems,
-              courseLanguage,
-              useCase: "workshop_question",
-            },
-          },
-        );
-        const batchFailed = !!(bErr || bData?.error);
-        const batchResults =
-          !batchFailed && bData?.results && typeof bData.results === "object"
-            ? (bData.results as Record<
-                string,
-                {
-                  score: number;
-                  feedback: string;
-                  ai_likelihood?: number;
-                  ai_reasons?: string;
-                }
-              >)
-            : {};
-        const errMsg = batchFailed
-          ? t("hc_modulesProjectsProjectFiles.aiBatchError", {
-              detail: bErr?.message ?? bData?.error ?? t("hc_modulesProjectsProjectFiles.unknown"),
-            })
-          : null;
-
-        for (const it of batchItems) {
-          const r = batchResults[it.qid];
-          const payload = payloadsByQid[it.qid];
-          if (r) {
-            const earned = Math.max(0, Math.min(it.maxPoints, Number(r.score) || 0));
-            payload.ai_grade = earned;
-            payload.ai_feedback = r.feedback || t("hc_modulesProjectsProjectFiles.feedbackNone");
-            payload.ai_likelihood = typeof r.ai_likelihood === "number" ? r.ai_likelihood : null;
-            payload.ai_reasons = r.ai_reasons ?? null;
-            totalEarned += earned;
-          } else if (batchFailed) {
-            // ── Se acabó la cuota: PENDIENTE, nunca un 0 ────────────────────
-            // Acá había `payload.ai_grade = 0` para los dos casos que este
-            // `else` mezclaba, y con el lote caído eso escribía un CERO REAL en
-            // cada pregunta abierta y no encolaba nada. O sea que un 429 del
-            // nivel gratuito de Gemini —20 solicitudes por día y por modelo—
-            // le dejaba a un estudiante un 0 definitivo en todo su proyecto por
-            // un límite de infraestructura, y el trigger de recálculo lo subía
-            // a la cabecera. El taller, en el mismo caso, dejaba la nota en
-            // nulo y caía a la cola; el proyecto hacía lo contrario.
-            //
-            // `null` es lo que mantiene la entrega "por calificar", y
-            // `cayoALaCola` hace que abajo se encole el job y que la nota de la
-            // cabecera se persista como pendiente en vez de como 0.
-            payload.ai_grade = null;
-            payload.ai_feedback = PENDING_AI_FEEDBACK;
-            cayoALaCola = true;
-          } else {
-            // El lote SÍ funcionó y el modelo se salteó esta pregunta. Acá el
-            // 0 sí corresponde (y es lo que hace el taller): no es que no se
-            // pudo calificar, es que se calificó y no hubo respuesta válida.
-            payload.ai_grade = 0;
-            payload.ai_feedback = errMsg ?? t("hc_modulesProjectsProjectFiles.feedbackModelOmitted");
-          }
-        }
-      } else if (batchItems.length > 0 && useAsyncAi) {
-        // Modo async: pre-marcamos cada respuesta como pendiente. La
-        // encolada va DESPUÉS del upsert como UN solo job batch
-        // (kind=project_full) que cubre TODAS las preguntas no-ZIP.
-        // Antes encolábamos N jobs (uno por pregunta con
-        // `projectFileGrading: true`) → N llamadas a Gemini. Ahora 1
-        // call sirve para todo el lote por estudiante. ~Nx menos costo.
-        for (const it of batchItems) {
-          const payload = payloadsByQid[it.qid];
-          payload.ai_grade = null;
-          payload.ai_feedback = PENDING_AI_FEEDBACK;
-        }
-      }
+      // ── El cuerpo de la calificación completa del proyecto ─────────────
+      // Se arma acá pero NO se espera todavía: se dispara al final, después
+      // de soltar al alumno. Es el mismo cambio que ya se hizo en talleres,
+      // por la misma razón medida ahí — la espera de la IA (29 a 74 s en
+      // talleres reales) no puede seguir bloqueando la pantalla de entrega.
+      const cuerpoLoteProyecto = {
+        projectFullGrading: true,
+        submissionId,
+        items: batchItems,
+        zeroed,
+        plainAnswers,
+        courseLanguage,
+        courseId: projectCourseId ?? undefined,
+        projectDescription,
+      };
+      const hayAlgoQueCalificar =
+        batchItems.length > 0 || zeroed.length > 0 || Object.keys(plainAnswers).length > 0;
 
       // ── Persistencia: upsert por qid ──
       // Antes hacíamos await sin chequear el error — si la migración de
@@ -2745,12 +2589,14 @@ export function StudentProjectTaker({
       // does not exist") la fila no se insertaba y la pregunta quedaba
       // sin ai_feedback ni código para descargar. Ahora:
       //   1. Si el primer upsert falla con PGRST204 (columna no existe),
-      //      reintentamos sin los campos opcionales nuevos (`code_paths`,
-      //      `zip_truncated`, `zip_chars_used`) para garantizar al menos
-      //      la nota y el feedback.
+      //      reintentamos sin los campos opcionales nuevos (`code_paths`)
+      //      para garantizar al menos la respuesta.
       //   2. Cualquier error final se reporta por toast — el docente
       //      verá un mensaje útil en lugar de silencio.
-      const OPTIONAL_COLS = ["code_paths", "zip_truncated", "zip_chars_used"];
+      // `zip_truncated`/`zip_chars_used` salieron de esta lista: desde la
+      // mig 20262180000000 el navegador ya no las escribe (las protege el
+      // candado), así que ya no forman parte de lo que este upsert manda.
+      const OPTIONAL_COLS = ["code_paths"];
       for (const qid of Object.keys(payloadsByQid)) {
         const payload = payloadsByQid[qid];
 
@@ -2801,15 +2647,20 @@ export function StudentProjectTaker({
         }
       }
 
-      // ── Encolado IA async (post-upsert para tener los row ids) ──
-      // En modo `processing_mode = async`, las IA calls quedaron diferidas.
+      // ── Encolado: SIEMPRE, en los dos modos, ANTES de disparar la IA ───
+      // Mismo motivo que en talleres: sin cuota (429 del nivel gratuito de
+      // Gemini) la entrega quedaba sin nota para siempre si nada estaba
+      // encolado, y si el alumno cerraba la pestaña durante la espera un
+      // encolado que viniera DESPUÉS del disparo nunca llegaba a correr.
+      // Encolar primero cuesta, como máximo, un trabajo redundante: se
+      // cancela abajo si el disparo directo funciona.
       //
       // Dos caminos según el tipo de job:
       //   - codigo_zip: 1 job POR archivo ZIP. Cada uno descomprime y lee
       //     archivos en el worker — son trabajos pesados que NO se baten.
-      //   - resto (abierta/codigo/diagrama no-ZIP): UN solo job batch
-      //     `project_full` que cubre todas las preguntas en una llamada
-      //     a Gemini. Reduce N a 1 por entrega.
+      //   - resto (abierta/codigo/diagrama/cerrada/vacías): UN solo job
+      //     batch (`project_full`) que cubre TODO lo no-ZIP de la entrega.
+      const trabajoPorZip = new Map<string, string>();
       if (pendingEnqueues.length > 0) {
         for (const job of pendingEnqueues) {
           const { data: row } = await db
@@ -2819,7 +2670,7 @@ export function StudentProjectTaker({
             .eq("file_id", job.qid)
             .maybeSingle();
           if (!row?.id) continue;
-          const { error: enqErr } = await db.rpc("enqueue_ai_grading", {
+          const { data: jobId, error: enqErr } = await db.rpc("enqueue_ai_grading", {
             _kind: job.kind,
             _invoke_target: "ai-grade-submission",
             _body: job.body,
@@ -2843,33 +2694,21 @@ export function StudentProjectTaker({
               }),
               { duration: 12000 },
             );
+          } else if (typeof jobId === "string") {
+            trabajoPorZip.set(job.qid, jobId);
           }
         }
       }
 
-      // Batch enqueue: UN job para todas las preguntas no-ZIP. El edge
-      // function `ai-grade-submission` (rama projectFullGrading) reusa
-      // gradeOpenAnswersInBatch y persiste cada resultado en
-      // project_submission_files con `persistedInternally: true`, así el
-      // worker NO escribe nada (la UI ya tiene placeholder "Pendiente IA").
-      if ((useAsyncAi || cayoALaCola) && batchItems.length > 0) {
-        const { error: batchEnqErr } = await db.rpc("enqueue_ai_grading", {
+      // Batch: UN job para todo lo no-ZIP. El edge (rama `projectFullGrading`)
+      // persiste cada resultado con `persistedInternally: true`, así que el
+      // worker NO escribe nada — solo marca el job `done`.
+      let trabajoDelLote: string | null = null;
+      if (hayAlgoQueCalificar) {
+        const { data: jobId, error: batchEnqErr } = await db.rpc("enqueue_ai_grading", {
           _kind: "project_full",
           _invoke_target: "ai-grade-submission",
-          _body: {
-            projectFullGrading: true,
-            submissionId,
-            items: batchItems.map((it) => ({
-              qid: it.qid,
-              content: it.content,
-              rubric: it.rubric,
-              userAnswer: it.userAnswer,
-              maxPoints: it.maxPoints,
-            })),
-            courseLanguage,
-            courseId: projectCourseId ?? undefined,
-            projectDescription,
-          },
+          _body: cuerpoLoteProyecto,
           _target_table: "project_submissions",
           _target_row_id: submissionId,
           // field_grade / field_feedback no se usan (persistedInternally
@@ -2886,89 +2725,56 @@ export function StudentProjectTaker({
             }),
             { duration: 12000 },
           );
+        } else if (typeof jobId === "string") {
+          trabajoDelLote = jobId;
         }
       }
 
-      // Notif "Por calificar" cuando hay AL MENOS un enqueue (ZIP o batch).
-      const totalQueued =
-        pendingEnqueues.length +
-        ((useAsyncAi || cayoALaCola) && batchItems.length > 0 ? batchItems.length : 0);
-      if (totalQueued > 0) {
-        // Antes: título "Por calificar" y como descripción un conteo suelto
-        // ("3 respuestas"). Los dos juntos no dicen lo único que el alumno
-        // necesita saber en ese momento — si su entrega quedó registrada—, y
-        // "Por calificar" a secas se lee como si algo hubiera fallado. Ahora lo
-        // dice, y con `success` y no `info`: la entrega SÍ salió bien; que la
-        // nota llegue después no es una advertencia.
-        toast.success(t("hc_modulesProjectsProjectFiles.submittedGradeLater"), {
-          duration: 9000,
-        });
-      }
+      // ── El alumno queda libre ACÁ ───────────────────────────────────────
+      // `status='entregado'` ya quedó escrito al inicio del submit; la nota
+      // la va a escribir el servidor cuando termine (ya sea el disparo de
+      // abajo o, si eso falla/tarda, el cron horario). `graded.grade = null`
+      // es "entregado y sin nota todavía" — NO "sacó cero".
+      setGraded({ grade: null });
+      // El padre usa esto solo para disparar reload (ignora el valor).
+      onGraded?.(0);
+      toast.success(t("hc_modulesProjectsProjectFiles.submittedGradeLater"), { duration: 9000 });
 
-      const submissionScore =
-        totalPoints > 0 ? Number(((totalEarned / totalPoints) * Number(maxScore)).toFixed(2)) : 0;
-      // P3: si hay items encolados a IA (async), la nota TODAVÍA no está
-      // calculada → persistir null (pendiente) en vez de un 0 prematuro y
-      // engañoso. El worker/trigger de recompute la completará al calificar.
-      const submissionGradeToPersist: number | null = totalQueued > 0 ? null : submissionScore;
-
-      // submission_grade = nota de la entrega. final_grade queda null
-      // hasta que el docente registre la sustentación (defense_factor).
-      // Status pasa a 'entregado' (no 'calificado') porque falta sustentar.
-      //
-      // CRÍTICO: limpiar defense_factor/at/notes en el RE-SUBMIT. Una entrega
-      // previa ya sustentada deja defense_factor seteado; el trigger de recompute
-      // (`_recompute_project_submission_grade`, mig 20260955000000) re-aplica ese
-      // factor VIEJO a la nota NUEVA cuando se guardan los archivos de la
-      // re-entrega → final_grade = nota_nueva × factor_viejo. Al limpiarlos, la
-      // nueva entrega exige una sustentación fresca (final_grade queda null).
-      // Este UPDATE es el que deja la nota de la entrega: su error NO puede
-      // seguir descartado (el alumno veía "Entrega calificada: X" con la nota
-      // sin persistir).
-      const { error: finalErr } = await db
-        .from("project_submissions")
-        .update({
-          ai_grade: submissionGradeToPersist,
-          submission_grade: submissionGradeToPersist,
-          final_grade: null,
-          defense_factor: null,
-          defense_at: null,
-          defense_notes: null,
-          ai_feedback: t("hc_modulesProjectsProjectFiles.submissionAutoFeedback", {
-            max: maxScore,
-          }),
-          status: "entregado",
-        })
-        .eq("id", submissionId);
-      if (finalErr) {
-        toast.error(
-          i18n.t("toast.modules_projects_ProjectFiles.submissionStateSaveFailed", {
-            defaultValue:
-              "No se pudo registrar el estado de tu entrega: {{detail}}. Vuelve a entregar.",
-            detail: friendlyError(finalErr),
-          }),
-          { duration: 12000 },
-        );
-        return;
-      }
-
-      if (totalQueued > 0) {
-        // Nota pendiente de IA (async): NO mostrar un 0 engañoso ni el toast
-        // "calificada". El aviso de entrega registrada (arriba) ya dijo que
-        // quedó encolada; en DB submission_grade = null y en reload el card no se
-        // muestra (status='entregado', grade null).
-        onGraded?.(0); // el padre solo usa esto para disparar reload; ignora el valor
-      } else {
-        setGraded({ grade: submissionScore });
-        onGraded?.(submissionScore);
-        toast.success(
-          i18n.t("toast.modules_projects_ProjectFiles.submissionGraded", {
-            defaultValue:
-              "Entrega calificada: {{score}} / {{max}}. La nota final se calcula tras la sustentación.",
-            score: submissionScore,
-            max: maxScore,
-          }),
-        );
+      // ── Y sólo entonces se dispara la IA, sin esperarla ─────────────────
+      // `void` a propósito: el navegador sigue la petición aunque el alumno
+      // navegue a otra ruta, y si la cierra antes, el trabajo ya está
+      // encolado. Modo async: no se dispara nada acá — el cron lo procesa.
+      if (!useAsyncAi) {
+        void (async () => {
+          try {
+            if (hayAlgoQueCalificar) {
+              const { data: bData, error: bErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                { body: cuerpoLoteProyecto },
+              );
+              if (!bErr && !(bData as { error?: unknown } | null)?.error && trabajoDelLote) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc("cancel_ai_grading_job", { _job_id: trabajoDelLote });
+              }
+            }
+            for (const job of pendingEnqueues) {
+              const { data: zData, error: zErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                { body: job.body },
+              );
+              const idZip = trabajoPorZip.get(job.qid);
+              if (!zErr && !(zData as { error?: unknown } | null)?.error && idZip) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc("cancel_ai_grading_job", { _job_id: idZip });
+              }
+            }
+          } catch (e) {
+            // Un fallo acá NO es un fallo de la entrega, y el alumno ya se
+            // fue de la pantalla. Queda en la consola; la nota la resuelve
+            // la cola.
+            console.error("[project-submit] calificacion desacoplada fallo", e);
+          }
+        })();
       }
     } catch (e) {
       // ESTE catch faltaba: cualquier throw (upload a Storage, invoke de IA,
@@ -3026,16 +2832,24 @@ export function StudentProjectTaker({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-semibold tabular-nums">
-            {graded.grade} / {maxScore}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            {t("hc_modulesProjectsProjectFiles.gradedNotePart1")}{" "}
-            <strong>{t("hc_modulesProjectsProjectFiles.gradedNoteFinalGrade")}</strong>{" "}
-            {t("hc_modulesProjectsProjectFiles.gradedNotePart2")}{" "}
-            <code>{t("hc_modulesProjectsProjectFiles.gradedNoteFormula")}</code>{" "}
-            {t("hc_modulesProjectsProjectFiles.gradedNotePart3")}
-          </p>
+          {graded.grade === null ? (
+            <p className="text-sm text-muted-foreground">
+              {t("hc_modulesProjectsProjectFiles.submittedGradeLater")}
+            </p>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold tabular-nums">
+                {graded.grade} / {maxScore}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">
+                {t("hc_modulesProjectsProjectFiles.gradedNotePart1")}{" "}
+                <strong>{t("hc_modulesProjectsProjectFiles.gradedNoteFinalGrade")}</strong>{" "}
+                {t("hc_modulesProjectsProjectFiles.gradedNotePart2")}{" "}
+                <code>{t("hc_modulesProjectsProjectFiles.gradedNoteFormula")}</code>{" "}
+                {t("hc_modulesProjectsProjectFiles.gradedNotePart3")}
+              </p>
+            </>
+          )}
         </CardContent>
       </Card>
     );
