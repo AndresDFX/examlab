@@ -28,6 +28,19 @@ const adminClient = createClient(
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
 );
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const edgeRuntime = (globalThis as any).EdgeRuntime;
+/**
+ * Dispara `p` sin esperarla, pero sin arriesgar que el runtime mate el
+ * isolate antes de que termine (mismo patrón que `generate-contents`, ver
+ * su comentario). Sin `waitUntil`, un `void` a secas es una carrera: si la
+ * `Response` sale antes de que la promesa resuelva, se pierde en silencio.
+ */
+function fireAndForget(p: Promise<unknown>): void {
+  if (edgeRuntime?.waitUntil) edgeRuntime.waitUntil(p);
+  else void p;
+}
+
 /**
  * Resuelve el system prompt para un use_case dado, considerando el
  * override por curso si existe. Estrategia:
@@ -550,6 +563,95 @@ function textoDeCero(code: unknown, lang: "es" | "en"): string {
  * `callerIsTeacherOrAdmin`, que es global y por eso deja pasar staff de otro
  * tenant.
  */
+/**
+ * Notifica al alumno (o a todo su grupo) que la entrega de TALLER ya tiene
+ * nota. Fire-and-forget deliberado: si esto falla, la nota YA quedó escrita
+ * — perder el aviso es peor UX, pero perder la nota sería peor función.
+ *
+ * ── Cuándo llamar esto — el gate importa más que el cuerpo ─────────────
+ * Se llama SOLO cuando `patchCabeceraTaller` puso `status: "calificado"` en
+ * el patch que se acaba de escribir. Esa función ya resuelve "¿es la primera
+ * vez que esta entrega queda calificada?" (`statusActual` venía en null /
+ * `entregado` / `ai_revisado`) — reusar esa misma condición acá, en vez de
+ * inventar un chequeo aparte, es lo que evita el spam: una entrega que se
+ * re-consolida (ej. porque llega el resultado de otra pregunta) sin cruzar
+ * a `calificado` de nuevo simplemente no dispara `patch.status`, y esta
+ * función ni se llama. Puede notificar DOS VECES en una carrera genuina
+ * (el disparo sync desacoplado y un reintento del worker terminando casi al
+ * mismo tiempo) — se acepta: un aviso de más es molesto, no corrompe nada
+ * a diferencia de una nota que se calcula dos veces con valores distintos.
+ *
+ * ── Por qué el texto está en ESTE archivo y no en es.json/en.json ──────
+ * Deno no importa de `src/`, así que no puede leer los locales del cliente.
+ * Mismo patrón que `MOTIVOS_CERO`/`textoDeCero` más arriba: un par ES/EN
+ * hardcodeado acá, no un tercer lugar nuevo que sincronizar.
+ *
+ * INVARIANTE: el título/cuerpo deben coincidir con
+ * `hc_routesAppTeacherWorkshops.notifyGradedTitle`/`notifyGradedBody` en
+ * es.json/en.json — es el MISMO aviso ("tu taller quedó calificado") que ya
+ * dispara `app.teacher.workshops.tsx` cuando el docente califica a mano
+ * (`saveGrade`/`approveAIGrade`/`saveAnswerGrade`). Un alumno no debería ver
+ * dos redacciones distintas para el mismo evento según si calificó la IA
+ * directo o el docente a mano. Si cambia uno, cambiar el otro.
+ */
+async function notificarTallerCalificado(
+  submissionId: string,
+  grade: number,
+  lang: "es" | "en",
+): Promise<void> {
+  try {
+    const { data: sub } = await adminClient
+      .from("workshop_submissions")
+      .select("user_id, group_id, workshop_id")
+      .eq("id", submissionId)
+      .maybeSingle();
+    const row = sub as { user_id?: string; group_id?: string | null; workshop_id?: string } | null;
+    if (!row?.workshop_id) return;
+
+    let recipients: string[] = [];
+    if (row.group_id) {
+      const { data: members } = await adminClient
+        .from("workshop_group_members")
+        .select("user_id")
+        .eq("group_id", row.group_id);
+      recipients = ((members ?? []) as Array<{ user_id: string }>).map((m) => m.user_id);
+    } else if (row.user_id) {
+      recipients = [row.user_id];
+    }
+    recipients = Array.from(new Set(recipients)).filter(Boolean);
+    if (recipients.length === 0) return;
+
+    const { data: ws } = await adminClient
+      .from("workshops")
+      .select("title")
+      .eq("id", row.workshop_id)
+      .maybeSingle();
+    const wsTitle = (ws as { title?: string } | null)?.title ?? (lang === "en" ? "the workshop" : "el taller");
+
+    // Texto IDÉNTICO al que ya usa `app.teacher.workshops.tsx` para el MISMO
+    // aviso (ver el INVARIANTE en el docstring de esta función) — copiado
+    // byte a byte de `hc_routesAppTeacherWorkshops.notifyGradedTitle`/
+    // `notifyGradedBody` en es.json/en.json.
+    const title = lang === "en" ? "Workshop graded" : "Taller calificado";
+    const body =
+      lang === "en"
+        ? `Your workshop "${wsTitle}" now has a grade: ${grade}`
+        : `Tu taller "${wsTitle}" ya tiene calificación: ${grade}`;
+
+    await adminClient.from("notifications").insert(
+      recipients.map((uid) => ({
+        user_id: uid,
+        title,
+        body,
+        kind: "grade",
+        link: "/app/student/workshops",
+      })),
+    );
+  } catch (e) {
+    console.error("[ai-grade-submission] notificarTallerCalificado falló (no bloqueante)", e);
+  }
+}
+
 async function autorizarEntregaTaller(opts: {
   submissionId: string;
   callerId: string;
@@ -1121,7 +1223,14 @@ Deno.serve(async (req) => {
               .update(patch)
               .eq("id", persistSubmissionId);
             if (aggErr) aggregateError = aggErr.message;
-            else aggregatedGrade = cons.finalGrade;
+            else {
+              aggregatedGrade = cons.finalGrade;
+              // No await: notificar no puede demorar la respuesta al caller
+              // (alumno o worker esperando el resultado de la calificación).
+              if (patch.status === "calificado") {
+                fireAndForget(notificarTallerCalificado(persistSubmissionId, cons.finalGrade, bLang));
+              }
+            }
           } catch (e) {
             aggregateError = e instanceof Error ? e.message : String(e);
           }
@@ -1380,7 +1489,12 @@ Deno.serve(async (req) => {
             .update(patch)
             .eq("id", submissionId);
           if (aggErr) aggregateError = aggErr.message;
-          else aggregatedGrade = cons.finalGrade;
+          else {
+            aggregatedGrade = cons.finalGrade;
+            if (patch.status === "calificado") {
+              fireAndForget(notificarTallerCalificado(submissionId, cons.finalGrade, wfLang));
+            }
+          }
         }
       } catch (e) {
         // Un fallo acá NO invalida la calificación: las notas por pregunta ya
