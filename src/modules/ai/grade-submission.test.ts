@@ -131,7 +131,7 @@ function pf(p: Partial<ProjectFileRow> & { id: string }): ProjectFileRow {
   return { title: "Archivo", description: null, type: "abierta", expected_rubric: "r", points: 20, ...p };
 }
 function psf(p: Partial<ProjectSubFileRow> & { file_id: string }): ProjectSubFileRow {
-  return { content: null, code_paths: null, zip_path: null, ...p };
+  return { content: null, code_paths: null, zip_path: null, ai_grade: null, ...p };
 }
 
 describe("buildProjectJobs", () => {
@@ -163,6 +163,24 @@ describe("buildProjectJobs", () => {
     expect(zipJobs).toHaveLength(1);
     expect(zipJobs[0].body.zipPath).toBe("u/sub/f1.zip");
     expect(zipJobs[0].body.courseLanguage).toBe("en");
+  });
+
+  it("codigo_zip YA calificado → se salta (no re-gasta IA en 'Calificar todos')", () => {
+    // Es el caso real que originó este chequeo: una entrega mixta donde el
+    // ZIP ya tiene nota (de un intento anterior parcial) pero la cabecera
+    // sigue en `entregado_sin_calificar` porque OTRA pregunta falló. Antes
+    // "Calificar todos" volvía a encolar este ZIP igual, y con el guard
+    // nuevo del worker (`ai_grade IS NOT NULL` → job obsoleto) ese
+    // re-encolado se habría descartado en silencio — comportamiento
+    // confuso. Ahora ni siquiera se arma el job.
+    const { zipJobs } = buildProjectJobs(
+      [pf({ id: "f1", type: "codigo_zip" })],
+      [psf({ file_id: "f1", code_paths: ["a.java"], ai_grade: 8 })],
+      null,
+      "es",
+      null,
+    );
+    expect(zipJobs).toHaveLength(0);
   });
 
   it("codigo_zip SIN entrega de código → se salta", () => {

@@ -150,19 +150,42 @@ Deno.serve(async (req) => {
   type ResultadoJob = "ok" | "failed" | "failed_proveedor" | "skipped";
   const runJob = async (job: QueueJob): Promise<ResultadoJob> => {
     try {
-      // Guard: si el target de TALLER/PROYECTO ya está CALIFICADO, el job
-      // quedó obsoleto — lo cancelamos SIN gastar IA. (Exámenes NO entran:
-      // su re-calificación puede encolarse async y debe correr.)
-      if (
-        job.target_table === "workshop_submissions" ||
-        job.target_table === "project_submissions"
-      ) {
+      // Guard: si el target ya está calificado, el job quedó obsoleto — lo
+      // cancelamos SIN gastar IA. (Exámenes NO entran: su re-calificación
+      // puede encolarse async y debe correr.)
+      //
+      // Dos formas de "ya calificado" según la tabla, porque las CABECERAS
+      // tienen `status` y las HIJAS no:
+      //   - `workshop_submissions` / `project_submissions` → status='calificado'.
+      //   - `workshop_submission_answers` / `project_submission_files` →
+      //     `ai_grade IS NOT NULL`. Antes esto NO estaba cubierto: si la
+      //     cancelación del trabajo redundante (ver WorkshopQuestions.tsx /
+      //     ProjectFiles.tsx, el disparo desacoplado que encola-primero-y-
+      //     cancela-si-el-directo-funciona) fallaba, el worker recalificaba
+      //     el MISMO archivo en el próximo tick — gasta una llamada de IA de
+      //     más y, como el modelo no es determinista, puede dejar otra nota.
+      //     Agregarlo acá era seguro solo DESPUÉS de cerrar el único camino
+      //     que re-encolaba un archivo YA calificado a propósito:
+      //     `buildProjectJobs` ("Calificar todos" del docente) volvía a
+      //     encolar TODO archivo `codigo_zip` con código subido, tuviera nota
+      //     o no — se corrigió en el mismo cambio (`grade-submission.ts`) a
+      //     que se salte los que ya tienen `ai_grade`. El re-grade de UN
+      //     archivo puntual que el docente pide a propósito
+      //     (`aiRegradeSubFile` / `aiRegradeAnswer`) no pasa por acá: invoca
+      //     el edge directo con el JWT del docente, nunca toca esta cola.
+      const CABECERAS = new Set(["workshop_submissions", "project_submissions"]);
+      const HIJAS = new Set(["workshop_submission_answers", "project_submission_files"]);
+      if (CABECERAS.has(job.target_table) || HIJAS.has(job.target_table)) {
+        const columna = CABECERAS.has(job.target_table) ? "status" : "ai_grade";
         const { data: tgt } = await adminClient
           .from(job.target_table)
-          .select("status")
+          .select(columna)
           .eq("id", job.target_row_id)
           .maybeSingle();
-        if ((tgt as { status?: string } | null)?.status === "calificado") {
+        const yaCalificado = CABECERAS.has(job.target_table)
+          ? (tgt as { status?: string } | null)?.status === "calificado"
+          : (tgt as { ai_grade?: number | null } | null)?.ai_grade != null;
+        if (yaCalificado) {
           await adminClient
             .from("ai_grading_queue")
             .update({

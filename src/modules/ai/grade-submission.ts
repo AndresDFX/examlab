@@ -148,6 +148,9 @@ export interface ProjectSubFileRow {
   content: string | null;
   code_paths: string[] | null;
   zip_path: string | null;
+  /** Si ya tiene nota, "Calificar todos" no debe volver a encolarlo — ver
+   *  el `continue` de más abajo. */
+  ai_grade: number | null;
 }
 export interface ProjectZipJob {
   fileId: string;
@@ -180,6 +183,15 @@ export function buildProjectJobs(
   for (const f of files) {
     const ans = byFileId.get(f.id);
     if (f.type === "codigo_zip") {
+      // Ya calificado → no re-encolar. Antes esto le faltaba: "Calificar
+      // todos" reencolaba TODO archivo con código subido, tuviera nota o no
+      // (una entrega mixta con un ZIP ya calificado y una abierta pendiente
+      // por un fallo parcial anterior volvía a gastar IA en el ZIP que ya
+      // estaba bien). Recalificar un archivo puntual ya calificado sigue
+      // siendo posible — es una acción EXPLÍCITA aparte
+      // (`aiRegradeSubFile` en app.teacher.projects.tsx), que no pasa por
+      // acá ni por la cola.
+      if (ans?.ai_grade != null) continue;
       const codePaths =
         ans && Array.isArray(ans.code_paths) && ans.code_paths.length > 0
           ? ans.code_paths
@@ -327,7 +339,7 @@ export async function enqueueAiGradeForSubmission(opts: {
         .order("position"),
       db
         .from("project_submission_files")
-        .select("file_id, content, code_paths, zip_path")
+        .select("file_id, content, code_paths, zip_path, ai_grade")
         .eq("submission_id", submissionId),
       db.from("projects").select("description").eq("id", itemId).maybeSingle(),
     ]);
