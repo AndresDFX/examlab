@@ -72,7 +72,6 @@ import {
   getProcessingMode,
   readOverrideExpiry,
   PENDING_AI_FEEDBACK,
-  QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
@@ -1353,7 +1352,13 @@ export function StudentWorkshopTaker({
   // Guard sincrónico anti doble-entrega: `submitting` es state y no está
   // aplicado durante el `await confirm(...)` previo.
   const submitBusyRef = useRef(false);
-  const [graded, setGraded] = useState<{ grade: number; breakdown: any[] } | null>(null);
+  // `grade: null` = entregado y SIN nota todavia. Es un estado distinto de
+  // "saco cero", y hace falta distinguirlos: desde que la calificacion va
+  // desacoplada, la nota nunca esta lista al cerrar esta pantalla, y pintar
+  // un 0 mientras se procesa le dice al alumno que perdio el taller.
+  const [graded, setGraded] = useState<{ grade: number | null; breakdown: any[] } | null>(
+    null,
+  );
   // Gate de videos introductorios obligatorios del taller (lista N en
   // orden estricto). A diferencia de proyectos —donde el gate solo
   // aplica si hay pregunta tipo `codigo_zip`—, en talleres aplica a
@@ -2041,26 +2046,14 @@ export function StudentWorkshopTaker({
                     submissionId,
                     questionId: q.id,
                   };
-                  if (useAsyncAiEarly) {
-                    pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                  } else {
-                    const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-                      "ai-grade-submission",
-                      { body: aiBody },
-                    );
-                    if (aiErr || (aiData as any)?.error) {
-                      const detail = await extractEdgeError(aiErr, aiData);
-                      toast.error(detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingZip"), {
-                        duration: 8000,
-                      });
-                      zeroed.push({ qid: q.id, reason: "zip_invalido" });
-                    } else {
-                      // La nota la escribió el EDGE en la fila de la
-                      // respuesta (le pasamos submissionId + questionId). El
-                      // navegador ya no puede escribirla, y la consolidación de
-                      // la cabecera la lee de ahí.
-                    }
-                  }
+                  // Se encola SIEMPRE, también en modo sincrónico. Antes el
+                  // modo sincrónico esperaba acá UNA llamada a la IA POR
+                  // pregunta con ZIP, dentro del bucle y en serie, y esa
+                  // espera se sumaba a la del lote: un taller con dos ZIP
+                  // podía tener al alumno mirando el spinner más de un
+                  // minuto y medio. Ahora la entrega no espera a nada; el
+                  // disparo de la IA va al final, desacoplado.
+                  pendingZipEnqueues.push({ qid: q.id, body: aiBody });
                 }
               }
             }
@@ -2154,23 +2147,10 @@ export function StudentWorkshopTaker({
                     submissionId,
                     questionId: q.id,
                   };
-                  if (useAsyncAiEarly) {
-                    pendingZipEnqueues.push({ qid: q.id, body: aiBody });
-                  } else {
-                    const { data: aiData, error: aiErr } = await supabase.functions.invoke(
-                      "ai-grade-submission",
-                      { body: aiBody },
-                    );
-                    if (aiErr || (aiData as any)?.error) {
-                      const detail = await extractEdgeError(aiErr, aiData);
-                      toast.error(detail || t("hc_modulesWorkshopsWorkshopQuestions.aiErrorGradingFiles"), {
-                        duration: 8000,
-                      });
-                      zeroed.push({ qid: q.id, reason: "zip_invalido" });
-                    } else {
-                      // Nota escrita por el EDGE — ver el caso de ZIP único.
-                    }
-                  }
+                  // Se encola SIEMPRE — ver el caso de ZIP único: en modo
+                  // sincrónico esta llamada se esperaba acá, en serie, una por
+                  // pregunta.
+                  pendingZipEnqueues.push({ qid: q.id, body: aiBody });
                 }
               }
             }
@@ -2318,12 +2298,12 @@ export function StudentWorkshopTaker({
 
       // Reutilizamos la detección hecha arriba para que el comportamiento
       // sea consistente entre `codigo_zip` (loop) y `batchItems` (Fase 2).
+      //
+      // Lo que este modo decide YA NO es "esperar o no esperar" — la entrega
+      // nunca espera. Decide CUÁNDO se intenta calificar: en `sync` se dispara
+      // la IA de una, sin bloquear; en `async` se deja el trabajo en la cola y
+      // lo levanta el cron de cada hora.
       const useAsyncAi = useAsyncAiEarly;
-      // Si la IA SÍNCRONA falla (ej. 503 "modelo saturado"), NO le mostramos
-      // el error al alumno por pregunta: caemos a la cola (pendiente + job) y
-      // tratamos la entrega como async. El worker reintenta (auto-retry
-      // transitorio) y al terminar el trigger recalcula la nota.
-      let fellBackToQueue = false;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const { data: wsCourseRow } = await (supabase as any)
         .from("workshops")
@@ -2333,88 +2313,82 @@ export function StudentWorkshopTaker({
       const courseIdForGrading =
         (wsCourseRow as { course_id?: string } | null)?.course_id ?? null;
 
-      // ── Fase 2: UNA llamada al servidor, que CALIFICA Y ESCRIBE (solo sync) ──
-      // La condición ya no mira `batchItems.length`: una entrega de puras
-      // preguntas cerradas también tiene que calificarse y cerrarse, y su nota
-      // la escribe el servidor igual que las abiertas.
-      let serverGrade: number | null = null;
-      let serverResults: Record<
-        string,
-        { score: number; feedback: string; ai_likelihood?: number; ai_reasons?: string }
-      > = {};
-      if (!useAsyncAi) {
-        const { data: bData, error: bErr } = await supabase.functions.invoke(
-          "ai-grade-submission",
-          {
-            body: {
-              batchGrading: true,
-              kind: "workshop",
-              submissionId,
-              items: batchItems,
-              zeroed,
-              plainAnswers,
-              courseLanguage,
-              courseId: courseIdForGrading,
-              useCase: "workshop_question",
-            },
-          },
-        );
-        const batchFailed = !!(bErr || bData?.error);
-        if (batchFailed) {
-          // Fallback a la cola: el edge ya persistió las deterministas y NO
-          // consolidó la cabecera, así que la entrega queda "por calificar".
-          // Abajo `gradeAsync` encola el job `workshop_full`.
-          fellBackToQueue = true;
-        } else {
-          serverResults =
-            bData?.results && typeof bData.results === "object" ? bData.results : {};
-          serverGrade = typeof bData?.grade === "number" ? bData.grade : null;
-          if (bData?.aggregate_error) {
-            // Las respuestas y las notas por pregunta SÍ quedaron: el mensaje
-            // no puede decir "vuelve a entregar".
-            toast.error(
-              i18n.t("toast.modules_workshops_WorkshopQuestions.gradeConsolidateFailed", {
-                defaultValue:
-                  "Tus respuestas quedaron guardadas y calificadas, pero la nota final no se pudo cerrar: {{detail}}. Avísale a tu docente; no necesitas volver a entregar.",
-                detail: String(bData.aggregate_error),
-              }),
-              { duration: 12000 },
-            );
-            return;
-          }
-          if (Array.isArray(bData?.partial_errors) && bData.partial_errors.length > 0) {
-            toast.warning(
-              i18n.t("toast.modules_workshops_WorkshopQuestions.gradedPartially", {
-                defaultValue:
-                  "Se registraron {{ok}} de {{total}} calificaciones. Avísale a tu docente para que revise las que faltan.",
-                ok: questions.length - bData.partial_errors.length,
-                total: questions.length,
-              }),
-              { duration: 12000 },
-            );
-          }
-        }
-      }
+      // El cuerpo de la llamada de calificación del lote. Se arma acá pero NO
+      // se espera: se dispara al final, después de que el alumno ya quedó
+      // libre. Antes esto era un `await` en el medio del submit y era la causa
+      // directa del reporte "se demora en entregar los talleres" — medido
+      // sobre entregas reales: 29, 29, 29, 30, 34 y 74 segundos.
+      const cuerpoLote = {
+        batchGrading: true,
+        kind: "workshop",
+        submissionId,
+        items: batchItems,
+        zeroed,
+        plainAnswers,
+        courseLanguage,
+        courseId: courseIdForGrading,
+        useCase: "workshop_question",
+      };
 
-      // El desglose que ve el alumno se arma con lo que devolvió el SERVIDOR
-      // (única fuente de la nota). En modo pendiente queda sin nota.
+      // El desglose SIEMPRE nace pendiente, porque la nota ya no llega antes
+      // de cerrar esta pantalla: la escribe el servidor cuando termine, y el
+      // alumno la ve en sus notas. Es el mismo comportamiento que el examen ya
+      // tenía, y que el modo `async` del taller ya tenía.
       for (const q of questions) {
-        const r = serverResults[q.id];
         breakdown.push({
           qid: q.id,
           type: q.type,
           points: q.points,
-          earned: r ? Number(r.score) || 0 : 0,
-          feedback: r?.feedback ?? (useAsyncAi || fellBackToQueue ? PENDING_AI_FEEDBACK : ""),
+          earned: 0,
+          feedback: PENDING_AI_FEEDBACK,
         });
       }
 
-      // El modo "async efectivo" cubre tanto async configurado como el
-      // fallback cuando el batch sync falló: en ambos encolamos + dejamos la
-      // entrega pendiente.
-      const gradeAsync = useAsyncAi || fellBackToQueue;
-
-      // ── Encolado IA (solo modo async, después del upsert) ──
+      // ── Encolado IA: SIEMPRE, en los dos modos ─────────────────────────
+      // Antes solo se encolaba en modo async (o cuando el intento sincrónico
+      // ya había fallado). Ahora se encola siempre y ANTES de disparar la IA,
+      // y eso es lo que vuelve la entrega a prueba de dos cosas que pasaban
+      // de verdad en UNIAJ:
+      //   · sin cuota: el 429 del nivel gratuito de Gemini (20 solicitudes por
+      //     día y por modelo) dejaba la entrega en `entregado` con la nota en
+      //     nulo y sin nada encolado — o sea, sin nota para siempre;
+      //   · pestaña cerrada: si el alumno se iba durante la espera, el
+      //     encolado que venía DESPUÉS no llegaba a correr nunca.
+      // Encolar primero cuesta, como máximo, un trabajo redundante: si la
+      // llamada directa sí funciona, se cancela abajo. La RPC además es
+      // idempotente (mig 20260952000000): reusa el trabajo activo del mismo
+      // destino en vez de duplicarlo.
+      //
+      // Qué pasa si esa cancelación NO llega a correr — y ojo, que NO es lo
+      // mismo para los dos trabajos:
+      //   · el del LOTE apunta a `workshop_submissions`, y ahí el worker tiene
+      //     un guard que descarta el trabajo cuando la entrega ya figura
+      //     `calificado`, sin gastar una llamada de IA;
+      //   · el de cada ZIP apunta a `workshop_submission_answers`, y ese guard
+      //     **no lo cubre** (solo mira `workshop_submissions` y
+      //     `project_submissions`, que son las únicas con columna `status`).
+      //     O sea que un ZIP ya calificado cuya cancelación falló se vuelve a
+      //     calificar en el próximo tick: gasta una segunda llamada y, como el
+      //     modelo no es determinista, puede dejar otra nota.
+      // Es una ventana angosta (pide que la calificación funcione y que la
+      // cancelación falle) y el resultado sigue siendo una nota legítima, así
+      // que no se bloquea el arreglo por eso — pero cerrarla pide extender el
+      // guard del worker a las tablas hijas comparando `ai_grade IS NOT NULL`,
+      // y eso es un cambio del edge que va aparte.
+      // Se guardan SEPARADOS a propósito: el trabajo del lote y el de cada ZIP
+      // cubren llamadas distintas, así que cancelar todo junto cuando el lote
+      // sale bien dejaría a los ZIP sin red de contención justo antes de
+      // intentarlos. Cada uno se cancela cuando SU propia llamada funcionó.
+      // Hay algo que calificar tambien cuando NO hay preguntas abiertas: una
+      // entrega de puras cerradas necesita que el servidor le ponga la nota
+      // determinista y cierre la cabecera. El encolado se condicionaba solo a
+      // `batchItems`, asi que ese taller se quedaba sin red de contencion — y
+      // el disparo desacoplado si lo cubria, o sea que las dos condiciones
+      // discrepaban. Es UNA sola, y por eso vive en una variable.
+      const hayAlgoQueCalificar =
+        batchItems.length > 0 || Object.keys(plainAnswers).length > 0 || zeroed.length > 0;
+      let trabajoDelLote: string | null = null;
+      const trabajoPorZip = new Map<string, string>();
       // UN solo job batch que cubre TODAS las preguntas abiertas de esta
       // entrega. El edge function `ai-grade-submission` con
       // `workshopFullGrading: true` reusa `gradeOpenAnswersInBatch` (la
@@ -2431,39 +2405,33 @@ export function StudentWorkshopTaker({
       // pregunta. El worker no escribe nada (persistedInternally=true);
       // el target sirve para que el panel Cola resuelva el taller y el
       // estudiante en su enrichment.
-      if (gradeAsync && batchItems.length > 0) {
-        // Fetch el course_id del workshop para el RLS del docente
-        // (mismo motivo que en examen + proyecto).
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dbForCourse = supabase as any;
-        const { data: wsRow } = await dbForCourse
-          .from("workshops")
-          .select("course_id")
-          .eq("id", workshopId)
-          .maybeSingle();
-        const courseIdForJob = (wsRow as { course_id?: string } | null)?.course_id ?? null;
+      if (hayAlgoQueCalificar) {
+        // Se reusa el `course_id` que ya se resolvio arriba. Antes se volvia a
+        // consultar aca (y otra vez para los ZIP): tres viajes de red por el
+        // mismo dato, y los tres ANTES de soltar al alumno.
+        const courseIdForJob = courseIdForGrading;
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: enqueueErr } = await (supabase as any).rpc("enqueue_ai_grading", {
+        const { data: jobId, error: enqueueErr } = await (supabase as any).rpc("enqueue_ai_grading", {
           _kind: "workshop_full",
           _invoke_target: "ai-grade-submission",
-          _body: {
-            workshopFullGrading: true,
-            submissionId,
-            items: batchItems.map((it) => ({
-              qid: it.qid,
-              type: it.type,
-              content: it.content,
-              rubric: it.rubric,
-              userAnswer: it.userAnswer,
-              maxPoints: it.maxPoints,
-              language: it.language,
-              framework: it.framework,
-              executionOutput: it.executionOutput,
-            })),
-            courseLanguage,
-            courseId: courseIdForJob,
-          },
+          // ── El MISMO cuerpo que la llamada directa ────────────────────
+          // Antes acá iba `workshopFullGrading: true` con solo `items`, y esa
+          // diferencia era un bug: ese modo del edge NO recibe `plainAnswers`
+          // ni `zeroed`, así que por el camino de la cola las preguntas
+          // CERRADAS y las deterministas (red_consola / red_gui) no se
+          // calificaban — y el consolidado, que las lee de la tabla, las
+          // sumaba como 0. O sea que la misma entrega daba una nota distinta
+          // según si la calificaba la llamada directa o la cola.
+          //
+          // Pasaba desapercibido porque la cola era el camino EXCEPCIONAL. Al
+          // volverse la red de contención de toda entrega, un 429 empezaría a
+          // rebajar notas en silencio. Con `batchGrading` hay UN solo camino y
+          // los dos dan el mismo resultado. El edge devuelve
+          // `persistedInternally: true` cuando el cuerpo trae `submissionId`,
+          // así que el worker sigue sin escribir nada — que es de lo que
+          // depende este encolado.
+          _body: { ...cuerpoLote, courseId: courseIdForJob },
           _target_table: "workshop_submissions",
           _target_row_id: submissionId,
           // field_grade / field_feedback no se usan (persistedInternally
@@ -2483,19 +2451,14 @@ export function StudentWorkshopTaker({
             }),
             { duration: 12000 },
           );
+        } else if (typeof jobId === "string") {
+          trabajoDelLote = jobId;
         }
       }
 
-      // ── Encolado IA de `codigo_zip` (async) ──
-      if (gradeAsync && pendingZipEnqueues.length > 0) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const dbForCourse2 = supabase as any;
-        const { data: wsRow2 } = await dbForCourse2
-          .from("workshops")
-          .select("course_id")
-          .eq("id", workshopId)
-          .maybeSingle();
-        const courseIdForZip = (wsRow2 as { course_id?: string } | null)?.course_id ?? null;
+      // ── Encolado IA de `codigo_zip` ── (también en los dos modos)
+      if (pendingZipEnqueues.length > 0) {
+        const courseIdForZip = courseIdForGrading;
         for (const it of pendingZipEnqueues) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           const { data: row } = await (supabase as any)
@@ -2506,7 +2469,7 @@ export function StudentWorkshopTaker({
             .maybeSingle();
           if (!row?.id) continue;
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: zipEnqErr } = await (supabase as any).rpc("enqueue_ai_grading", {
+          const { data: zipJobId, error: zipEnqErr } = await (supabase as any).rpc("enqueue_ai_grading", {
             _kind: "workshop_codigo_zip",
             _invoke_target: "ai-grade-submission",
             _body: it.body,
@@ -2518,6 +2481,7 @@ export function StudentWorkshopTaker({
             _field_reasons: "ai_reasons",
             _course_id: courseIdForZip,
           });
+          if (!zipEnqErr && typeof zipJobId === "string") trabajoPorZip.set(it.qid, zipJobId);
           if (zipEnqErr) {
             console.error("[workshop-submit] enqueue zip grading failed", it.qid, zipEnqErr);
             toast.error(
@@ -2532,30 +2496,68 @@ export function StudentWorkshopTaker({
         }
       }
 
-      if (gradeAsync && (batchItems.length > 0 || pendingZipEnqueues.length > 0)) {
-        // La entrega ya quedó en `entregado` con la nota de IA limpia (arriba,
-        // en el UPDATE del intento). El "pendiente" se DERIVA de `ai_grade`
-        // NULL — no hay marcador que escribir, y el navegador del alumno no
-        // podría escribirlo aunque quisiéramos (candado de la cabecera).
-        setGraded({ grade: 0, breakdown });
-        // Mensaje minimal: solo "Por calificar". Antes incluíamos un
-        // body largo con detalle de la cola → ruido en cada submit.
-        toast.info(QUEUED_STUDENT_TITLE, { duration: 6000 });
-      } else {
-        // La nota la calculó y la escribió el SERVIDOR (`grade` de la
-        // respuesta). Calcularla acá era, además de redundante, lo que el
-        // candado de la cabecera rechazaba: es el navegador del alumno
-        // poniéndose su propia nota.
-        const finalGrade = Number(serverGrade ?? 0);
-        setGraded({ grade: finalGrade, breakdown });
-        onGraded?.(finalGrade);
-        toast.success(
-          i18n.t("toast.modules_workshops_WorkshopQuestions.gradeResult", {
-            defaultValue: "Calificación: {{grade}} / {{maxScore}}",
-            grade: finalGrade,
-            maxScore,
-          }),
-        );
+      // ── El alumno queda libre ACÁ ──────────────────────────────────────
+      // La entrega ya quedó en `entregado` con la nota de IA limpia (arriba,
+      // en el UPDATE del intento). El "pendiente" se DERIVA de `ai_grade`
+      // NULL — no hay marcador que escribir, y el navegador del alumno no
+      // podría escribirlo aunque quisiéramos (candado de la cabecera).
+      setGraded({ grade: null, breakdown });
+      // El aviso NO puede ser solo "Por calificar": ahora la nota nunca
+      // aparece en esta pantalla, y ese rótulo suelto se lee como si algo
+      // hubiera fallado. Tiene que decir las dos cosas que el alumno necesita
+      // saber — que la entrega SÍ quedó registrada, y dónde va a ver la nota.
+      // Es la promesa explícita que pide P9 para una operación de más de 3 s.
+      // Y no promete un aviso: hoy nada le notifica al alumno cuando la IA
+      // termina, así que decir "te avisamos" sería mentirle.
+      toast.success(t("hc_modulesWorkshopsWorkshopQuestions.submittedGradeLater"), {
+        duration: 9000,
+      });
+      // El padre usa esto SOLO para recargar su lista (ignora el valor, igual
+      // que en proyectos). Antes se llamaba únicamente en el camino sincrónico
+      // que ya tenía nota; ahora TODAS las entregas quedan pendientes, así que
+      // sin esta llamada la lista del alumno no se refrescaría nunca y su
+      // taller seguiría figurando como sin entregar.
+      onGraded?.(0);
+
+      // ── Y sólo entonces se dispara la IA, sin esperarla ────────────────
+      // `void` a propósito, igual que `performSubmit` del examen: el navegador
+      // sigue la petición aunque el alumno navegue a otra ruta, y si la cierra
+      // antes, el trabajo ya está encolado y lo levanta el cron de cada hora.
+      // NADA de setState ni de toasts adentro: para cuando esto resuelva, este
+      // componente puede estar desmontado.
+      if (!useAsyncAi) {
+        void (async () => {
+          try {
+            if (hayAlgoQueCalificar) {
+              const { data: bData, error: bErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                { body: cuerpoLote },
+              );
+              // Si salió bien, el trabajo encolado quedó de más. Se cancela
+              // para que la cola no muestre pendientes que ya no existen — el
+              // alumno puede cancelar el suyo porque es su `created_by`.
+              if (!bErr && !(bData as { error?: unknown } | null)?.error && trabajoDelLote) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc("cancel_ai_grading_job", { _job_id: trabajoDelLote });
+              }
+            }
+            for (const it of pendingZipEnqueues) {
+              const { data: zData, error: zErr } = await supabase.functions.invoke(
+                "ai-grade-submission",
+                { body: it.body },
+              );
+              const idZip = trabajoPorZip.get(it.qid);
+              if (!zErr && !(zData as { error?: unknown } | null)?.error && idZip) {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                await (supabase as any).rpc("cancel_ai_grading_job", { _job_id: idZip });
+              }
+            }
+          } catch (e) {
+            // Un fallo acá NO es un fallo de la entrega, y el alumno ya se fue
+            // de la pantalla. Queda en la consola; la nota la resuelve la cola.
+            console.error("[workshop-submit] calificacion desacoplada fallo", e);
+          }
+        })();
       }
     } catch (e) {
       // ESTE catch faltaba por completo: cualquier throw (subida a Storage,
@@ -2611,10 +2613,18 @@ export function StudentWorkshopTaker({
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-semibold tabular-nums">
-            {graded.grade} / {maxScore}
-          </p>
-          <p className="text-xs text-muted-foreground mt-1">{t("workshop.aiGradedNotice")}</p>
+          {graded.grade === null ? (
+            <p className="text-sm text-muted-foreground">
+              {t("hc_modulesWorkshopsWorkshopQuestions.submittedGradeLater")}
+            </p>
+          ) : (
+            <>
+              <p className="text-2xl font-semibold tabular-nums">
+                {graded.grade} / {maxScore}
+              </p>
+              <p className="text-xs text-muted-foreground mt-1">{t("workshop.aiGradedNotice")}</p>
+            </>
+          )}
         </CardContent>
       </Card>
     );

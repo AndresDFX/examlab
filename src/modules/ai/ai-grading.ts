@@ -249,6 +249,38 @@ async function enqueueGradingJob(
  * decidir si avisarle al alumno "quedó en cola". El trabajo SÍ se procesó de
  * inmediato; la cola es solo la red de seguridad.
  */
+/**
+ * ¿El worker de la cola rechazó la llamada por PERMISOS (y no por un fallo al
+ * calificar)?
+ *
+ * Existe para distinguir dos cosas que se ven parecidas y piden reacciones
+ * opuestas: si el rechazo es de permisos, la misma calificación puede
+ * despacharse por el edge directo (que el alumno sí puede invocar); si el
+ * worker falló calificando, reintentar por otra puerta gastaría una llamada de
+ * IA para chocar con el mismo error.
+ *
+ * Mira las TRES formas en que ese rechazo puede llegar, porque
+ * `functions.invoke` no las normaliza: el status del `FunctionsHttpError`, el
+ * `error` del cuerpo cuando alcanzó a parsearse, y el texto ya extraído.
+ */
+export function esRechazoDePermisos(
+  error: unknown,
+  data: unknown,
+  detalle?: string | null,
+): boolean {
+  const status = (error as { context?: { status?: unknown } } | null)?.context?.status;
+  if (status === 401 || status === 403) return true;
+  const delCuerpo = (data as { error?: unknown } | null)?.error;
+  const textos = [
+    typeof delCuerpo === "string" ? delCuerpo : "",
+    detalle ?? "",
+    (error as { message?: unknown } | null)?.message as string | undefined,
+  ];
+  return textos.some(
+    (t) => typeof t === "string" && /no autorizado|unauthorized|\b401\b|\b403\b/i.test(t),
+  );
+}
+
 async function runImmediateWithDurableJob(
   req: AiGradeRequest,
   invokeTarget: string,
@@ -272,8 +304,41 @@ async function runImmediateWithDurableJob(
     body: { jobId },
   });
   if (error || data?.ok === false) {
-    // El worker no llegó a procesar: el job sigue vivo en la cola.
     const detail = await extractEdgeError(error, data);
+
+    // ── El caso del ESTUDIANTE, que hacía que "inmediato" no fuera inmediato ──
+    // `ai-grading-worker` exige `service_role` o un JWT con rol Admin/Docente/
+    // SuperAdmin, así que desde el navegador de un ALUMNO responde 401 SIEMPRE.
+    // Es decir: en `processing_mode='sync'` la entrega de un alumno nunca se
+    // calificaba de inmediato — quedaba esperando a que alguien drenara la
+    // cola. Y el cron horario de calificación no existía hasta la mig
+    // 20262170000000, así que esa espera era indefinida.
+    //
+    // El alumno SÍ puede invocar `ai-grade-submission` (es el camino que su
+    // propia entrega usa), así que cuando el worker lo rechaza por permisos se
+    // despacha el edge directo. El job encolado ya está: si esto también falla
+    // —sin cuota, 429— la cola sigue siendo la red de contención.
+    if (esRechazoDePermisos(error, data, detail)) {
+      const { data: dDirecto, error: eDirecto } = await supabase.functions.invoke(invokeTarget, {
+        body: req.body,
+      });
+      if (eDirecto || dDirecto?.error) {
+        const detalleDirecto = await extractEdgeError(eDirecto, dDirecto);
+        return { ranSync: true, jobId, error: detalleDirecto || detail || "Error IA" };
+      }
+      // Salió bien: el job quedó de más. Se cancela para no dejar la cola con
+      // pendientes que ya no existen (quien encoló puede cancelar lo suyo).
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any).rpc("cancel_ai_grading_job", { _job_id: jobId });
+      } catch {
+        // Si no se pudo cancelar, el worker lo descarta solo cuando la entrega
+        // ya figura calificada — sin gastar una llamada de IA.
+      }
+      return { ranSync: true, jobId, aiData: dDirecto };
+    }
+
+    // El worker no llegó a procesar: el job sigue vivo en la cola.
     return { ranSync: true, jobId, error: detail || "Error IA" };
   }
 
@@ -401,8 +466,29 @@ export async function cancelPendingAiJobsForTarget(
   }
 }
 
-/** Mensaje placeholder visible al estudiante mientras la IA está encolada. */
-export const PENDING_AI_FEEDBACK = "Pendiente IA — la calificación llegará al procesar la cola.";
+/**
+ * Mensaje que el estudiante ve como retroalimentación mientras la IA todavía no
+ * calificó su respuesta.
+ *
+ * Se escribe en `ai_feedback` y se RENDERIZA LITERAL en la vista de la entrega
+ * del alumno, así que es texto de producto, no una nota interna. El texto
+ * anterior —"Pendiente IA — la calificación llegará al procesar la cola."—
+ * hablaba de "procesar la cola", que es justo lo que prohíbe P6: nombra el
+ * mecanismo en vez de la tarea del usuario. Se toleraba porque era un caso
+ * excepcional; desde que la calificación va desacoplada de la entrega es lo que
+ * ve CUALQUIER alumno en CUALQUIER entrega, así que pasó a ser la experiencia
+ * normal y tiene que estar redactado como tal.
+ */
+export const PENDING_AI_FEEDBACK =
+  "Estamos calificando tu entrega. La nota va a aparecer en tus notas en unos minutos.";
+
+/**
+ * El texto anterior, que NO se puede borrar y por eso no se borra: hay filas en
+ * producción con ese valor ya escrito en `ai_feedback`, y `isAiGradePending` lo
+ * usa como una de sus dos señales. Sin reconocerlo, una entrega vieja que
+ * quedó pendiente dejaría de mostrarse como pendiente.
+ */
+const PENDING_AI_FEEDBACK_LEGADO = "Pendiente IA — la calificación llegará al procesar la cola.";
 
 /**
  * ¿La calificación del estudiante quedó pendiente de IA?
@@ -416,7 +502,9 @@ export function isAiGradePending(opts: {
   ai_grade?: number | null;
   ai_feedback?: string | null;
 }): boolean {
-  const hasFeedbackPlaceholder = (opts.ai_feedback ?? "").trim() === PENDING_AI_FEEDBACK;
+  const textoPendiente = (opts.ai_feedback ?? "").trim();
+  const hasFeedbackPlaceholder =
+    textoPendiente === PENDING_AI_FEEDBACK || textoPendiente === PENDING_AI_FEEDBACK_LEGADO;
   const noGrade = opts.ai_grade == null;
   return hasFeedbackPlaceholder || noGrade;
 }

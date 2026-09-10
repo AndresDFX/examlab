@@ -47,7 +47,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/CodeEditor";
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
-import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
+import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import { SqlRunner } from "@/modules/database/SqlRunner";
 import { type NetworkScenario, parseScenario } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
@@ -80,7 +80,7 @@ import {
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
-import { aiGradeOrEnqueue, QUEUED_STUDENT_TITLE } from "@/modules/ai/ai-grading";
+import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -1208,13 +1208,22 @@ function TakeExam() {
         },
       })
         .then((result) => {
-          // Si quedó encolado (modo async sin override del docente),
-          // avisar al estudiante. Sin esto, ve la pantalla "examen
-          // entregado" sin saber por qué su nota tardará. El toast
-          // es global (sonner) — sobrevive a la navegación a otra ruta.
-          if (!result.ranSync && !result.error) {
-            // Mensaje minimal: solo "Por calificar".
-            toast.info(QUEUED_STUDENT_TITLE, { duration: 6000 });
+          // Avisar al estudiante cuando la nota NO va a estar ya. Sin esto ve
+          // la pantalla "examen entregado" sin saber por qué su nota tarda. El
+          // toast es global (sonner), así que sobrevive a la navegación.
+          //
+          // La condición cubre DOS casos, y antes solo cubría el primero:
+          //   · encolado por el modo (async, sin código del docente);
+          //   · **modo sincrónico que no pudo calificar** — el caso de quedarse
+          //     sin cuota (429 del nivel gratuito de Gemini). Ahí
+          //     `aiGradeOrEnqueue` devuelve `ranSync: true` CON error, así que
+          //     la condición vieja lo dejaba pasar en silencio: el alumno leía
+          //     "Examen entregado correctamente" y nunca se enteraba de que la
+          //     nota había quedado en espera. El trabajo durable ya estaba
+          //     encolado; lo único que faltaba era decírselo.
+          const quedoPendiente = result.jobId && (!result.ranSync || !!result.error);
+          if (quedoPendiente) {
+            toast.info(t("hc_routesAppStudentTakeExamId.gradePendingLater"), { duration: 9000 });
           }
         })
         .catch((e) => console.error("aiGradeOrEnqueue failed:", e));

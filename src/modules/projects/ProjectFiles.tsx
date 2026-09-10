@@ -79,7 +79,6 @@ import {
   getProcessingMode,
   readOverrideExpiry,
   PENDING_AI_FEEDBACK,
-  QUEUED_STUDENT_TITLE,
 } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -2218,6 +2217,11 @@ export function StudentProjectTaker({
       // 2) UNA llamada batch para todas las abiertas.
       // 3) Upsert por qid.
       let totalEarned = 0;
+      // Se pone en true cuando el intento SINCRONICO de calificar no pudo
+      // (tipicamente 429 por cuota). A partir de ahi la entrega se trata
+      // como si fuera del modo diferido: nota pendiente + job encolado.
+      let cayoALaCola = false;
+
       let totalPoints = 0;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const payloadsByQid: Record<string, any> = {};
@@ -2696,7 +2700,27 @@ export function StudentProjectTaker({
             payload.ai_likelihood = typeof r.ai_likelihood === "number" ? r.ai_likelihood : null;
             payload.ai_reasons = r.ai_reasons ?? null;
             totalEarned += earned;
+          } else if (batchFailed) {
+            // ── Se acabó la cuota: PENDIENTE, nunca un 0 ────────────────────
+            // Acá había `payload.ai_grade = 0` para los dos casos que este
+            // `else` mezclaba, y con el lote caído eso escribía un CERO REAL en
+            // cada pregunta abierta y no encolaba nada. O sea que un 429 del
+            // nivel gratuito de Gemini —20 solicitudes por día y por modelo—
+            // le dejaba a un estudiante un 0 definitivo en todo su proyecto por
+            // un límite de infraestructura, y el trigger de recálculo lo subía
+            // a la cabecera. El taller, en el mismo caso, dejaba la nota en
+            // nulo y caía a la cola; el proyecto hacía lo contrario.
+            //
+            // `null` es lo que mantiene la entrega "por calificar", y
+            // `cayoALaCola` hace que abajo se encole el job y que la nota de la
+            // cabecera se persista como pendiente en vez de como 0.
+            payload.ai_grade = null;
+            payload.ai_feedback = PENDING_AI_FEEDBACK;
+            cayoALaCola = true;
           } else {
+            // El lote SÍ funcionó y el modelo se salteó esta pregunta. Acá el
+            // 0 sí corresponde (y es lo que hace el taller): no es que no se
+            // pudo calificar, es que se calificó y no hubo respuesta válida.
             payload.ai_grade = 0;
             payload.ai_feedback = errMsg ?? t("hc_modulesProjectsProjectFiles.feedbackModelOmitted");
           }
@@ -2828,7 +2852,7 @@ export function StudentProjectTaker({
       // gradeOpenAnswersInBatch y persiste cada resultado en
       // project_submission_files con `persistedInternally: true`, así el
       // worker NO escribe nada (la UI ya tiene placeholder "Pendiente IA").
-      if (useAsyncAi && batchItems.length > 0) {
+      if ((useAsyncAi || cayoALaCola) && batchItems.length > 0) {
         const { error: batchEnqErr } = await db.rpc("enqueue_ai_grading", {
           _kind: "project_full",
           _invoke_target: "ai-grade-submission",
@@ -2867,13 +2891,17 @@ export function StudentProjectTaker({
 
       // Notif "Por calificar" cuando hay AL MENOS un enqueue (ZIP o batch).
       const totalQueued =
-        pendingEnqueues.length + (useAsyncAi && batchItems.length > 0 ? batchItems.length : 0);
+        pendingEnqueues.length +
+        ((useAsyncAi || cayoALaCola) && batchItems.length > 0 ? batchItems.length : 0);
       if (totalQueued > 0) {
-        toast.info(QUEUED_STUDENT_TITLE, {
-          description: t("hc_modulesProjectsProjectFiles.queuedResponsesCount", {
-            count: totalQueued,
-          }),
-          duration: 6000,
+        // Antes: título "Por calificar" y como descripción un conteo suelto
+        // ("3 respuestas"). Los dos juntos no dicen lo único que el alumno
+        // necesita saber en ese momento — si su entrega quedó registrada—, y
+        // "Por calificar" a secas se lee como si algo hubiera fallado. Ahora lo
+        // dice, y con `success` y no `info`: la entrega SÍ salió bien; que la
+        // nota llegue después no es una advertencia.
+        toast.success(t("hc_modulesProjectsProjectFiles.submittedGradeLater"), {
+          duration: 9000,
         });
       }
 
@@ -2926,7 +2954,7 @@ export function StudentProjectTaker({
 
       if (totalQueued > 0) {
         // Nota pendiente de IA (async): NO mostrar un 0 engañoso ni el toast
-        // "calificada". El toast.info QUEUED_STUDENT_TITLE (arriba) ya avisó que
+        // "calificada". El aviso de entrega registrada (arriba) ya dijo que
         // quedó encolada; en DB submission_grade = null y en reload el card no se
         // muestra (status='entregado', grade null).
         onGraded?.(0); // el padre solo usa esto para disparar reload; ignora el valor
