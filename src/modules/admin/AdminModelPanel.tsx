@@ -35,7 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Cpu, AlertTriangle, Plus, Trash2 } from "lucide-react";
+import { Save, Info, Cpu, AlertTriangle, Plus, Trash2, PlugZap, CheckCircle2, XCircle } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -74,13 +74,35 @@ const PROVIDER_LABELS: Record<Provider, string> = {
   bedrock: "Amazon Bedrock",
 };
 
+/**
+ * Opciones del dropdown de Bedrock. Deliberadamente NO es "todo lo que AWS
+ * vende hoy en Bedrock" — AWS sumó familias nuevas (GPT-5.6, GPT-6 Astra)
+ * después de que se verificó esta integración, pero esas viven sobre todo en
+ * la Responses API de `bedrock-mantle`, no necesariamente en el endpoint
+ * chat-completions que este proyecto usa (`bedrockChatUrl` en
+ * `_shared/ai-model.ts`). Ofrecerlas acá sin haberlo probado contra una
+ * cuenta real sería repetir el mismo error que ya costó una migración
+ * entera: un modelo que "debería" andar y en producción tira 404. Los dos
+ * de acá SÍ están comprobados. Para cualquier otro, "Otro" + el botón
+ * "Probar conexión" de abajo — que es justo la herramienta para confirmar
+ * un modelo nuevo antes de apostarle la calificación de un curso real.
+ *
+ * FUENTE ÚNICA de los IDs de Bedrock: `MODEL_SUGGESTIONS.bedrock` (abajo) se
+ * DERIVA de esta lista, no la repite. Antes eran dos arrays por separado —si
+ * algún día se agrega un modelo verificado a uno y no al otro,
+ * `handleProviderChange` (usa `MODEL_SUGGESTIONS`) y este `<Select>` (usa
+ * `BEDROCK_MODEL_OPTIONS`) habrían quedado desincronizados en silencio.
+ */
+const BEDROCK_MODEL_OPTIONS: Array<{ value: string; hint: string }> = [
+  { value: "openai.gpt-oss-120b-1:0", hint: "120B, uso general" },
+  { value: "openai.gpt-oss-20b-1:0", hint: "20B, menor latencia" },
+];
+const BEDROCK_CUSTOM_MODEL = "__custom__";
+
 const MODEL_SUGGESTIONS: Record<Provider, string[]> = {
   openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4.1", "gpt-4.1-mini"],
   gemini: ["gemini-2.5-flash", "gemini-2.5-pro", "gemini-2.0-flash"],
-  // Solo la familia `gpt-oss`: se comprobó contra la cuenta real que el endpoint
-  // compatible con OpenAI de Bedrock responde 404 para los modelos de Anthropic
-  // ("doesn't support this API"), que viven en la API nativa /converse.
-  bedrock: ["openai.gpt-oss-120b-1:0", "openai.gpt-oss-20b-1:0"],
+  bedrock: BEDROCK_MODEL_OPTIONS.map((o) => o.value),
 };
 
 const SECRET_NAME: Record<Provider, string> = {
@@ -271,6 +293,13 @@ export function AdminModelPanel() {
         : activeRow?.gemini_api_key;
   const resolvedKeyAfterSave =
     activeProviderKeyDraft === "__keep" ? activeProviderKeyStored : activeProviderKeyDraft || null;
+  // Misma normalización que `handleSave` (trim + minúsculas): la región va
+  // DENTRO de la URL del endpoint, así que un " US-East-1 " a medio escribir
+  // produce un host inexistente. Se calcula UNA vez acá para que "Probar
+  // conexión" pruebe la MISMA región que "Guardar" terminaría guardando —
+  // antes el botón mandaba `draftBedrockRegion` crudo y podía fallar para
+  // una config que, ya guardada, funcionaría.
+  const normalizedBedrockRegion = draftBedrockRegion.trim().toLowerCase() || BEDROCK_DEFAULT_REGION;
   // La key SOLO es obligatoria cuando el tenant usa su PROPIA IA ('own'). En
   // 'shared'/'managed' usa la IA de la plataforma → la key es opcional.
   const tenantNeedsKey = !isGlobalScope && aiMode === "own" && !resolvedKeyAfterSave;
@@ -333,11 +362,10 @@ export function AdminModelPanel() {
       const nextGeminiFallback = cleanedGeminiFallback.length ? cleanedGeminiFallback : null;
       const nextOpenaiFallback = cleanedOpenaiFallback.length ? cleanedOpenaiFallback : null;
       const nextBedrockFallback = cleanedBedrockFallback.length ? cleanedBedrockFallback : null;
-      // La región se normaliza a minúsculas sin espacios: va DENTRO de la URL del
-      // endpoint, así que un " US-East-1 " pegado a mano produciría un host
-      // inexistente y un error de red imposible de diagnosticar desde el panel.
-      const nextBedrockRegion =
-        draftBedrockRegion.trim().toLowerCase() || BEDROCK_DEFAULT_REGION;
+      // Normalizada más arriba (`normalizedBedrockRegion`) — la misma que ya
+      // usa el botón "Probar conexión", para que los dos prueben/guarden
+      // exactamente la misma región.
+      const nextBedrockRegion = normalizedBedrockRegion;
 
       // UPSERT correcto: si la fila del scope ya existe, hacemos UPDATE.
       // Si no, INSERT. Antes hacíamos UPDATE-to-false + INSERT, que con
@@ -629,18 +657,70 @@ export function AdminModelPanel() {
               </div>
             </HelpHint>
           </Label>
-          <Input
-            list={datalistId}
-            value={draftModel}
-            onChange={(e) => setDraftModel(e.target.value)}
-            placeholder={suggestions[0]}
-            className="font-mono text-sm"
-          />
-          <datalist id={datalistId}>
-            {suggestions.map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
+          {draftProvider === "bedrock" ? (
+            // Dropdown de verdad (no el datalist de abajo, que en varios
+            // navegadores no se distingue de un input común — el pedido
+            // explícito para Bedrock era "que APAREZCA una lista
+            // desplegable"). Se queda acotado a los IDs que ESTE endpoint
+            // (compatible con OpenAI de Bedrock) tiene verificado que
+            // responden — ver el comentario de `BEDROCK_MODEL_OPTIONS` más
+            // arriba. "Otro" deja escribir cualquier ID a mano para cuando
+            // AWS agregue un modelo nuevo a esa familia; el botón "Probar
+            // conexión" de abajo es lo que confirma si de verdad funciona
+            // antes de guardar, en vez de descubrirlo con una entrega real.
+            <>
+              <Select
+                value={
+                  BEDROCK_MODEL_OPTIONS.some((o) => o.value === draftModel)
+                    ? draftModel
+                    : BEDROCK_CUSTOM_MODEL
+                }
+                onValueChange={(v) => {
+                  if (v !== BEDROCK_CUSTOM_MODEL) setDraftModel(v);
+                  // Si elige "Otro", no tocamos draftModel — el input de abajo
+                  // aparece con lo que ya estaba escrito (o vacío) para editar.
+                }}
+              >
+                <SelectTrigger className="font-mono text-sm">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {BEDROCK_MODEL_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value} className="font-mono text-sm">
+                      {o.value}
+                      <span className="ml-2 font-sans text-muted-foreground">— {o.hint}</span>
+                    </SelectItem>
+                  ))}
+                  <SelectItem value={BEDROCK_CUSTOM_MODEL}>
+                    {t("aiModel.bedrockModelCustom", { defaultValue: "Otro (escribir el ID)" })}
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+              {!BEDROCK_MODEL_OPTIONS.some((o) => o.value === draftModel) && (
+                <Input
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                  placeholder="openai.gpt-oss-120b-1:0"
+                  className="font-mono text-sm mt-1.5"
+                />
+              )}
+            </>
+          ) : (
+            <>
+              <Input
+                list={datalistId}
+                value={draftModel}
+                onChange={(e) => setDraftModel(e.target.value)}
+                placeholder={suggestions[0]}
+                className="font-mono text-sm"
+              />
+              <datalist id={datalistId}>
+                {suggestions.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+            </>
+          )}
           {/* Cierra el hueco de cambiar de modelo sin saber que la LECTURA DE IMÁGENES
               (armar grupos desde una captura) puede estar usando otro. Sin esta línea,
               el Admin ve consumo de Gemini con Bedrock configurado y no entiende por
@@ -652,6 +732,12 @@ export function AdminModelPanel() {
               })}
             </p>
           )}
+          <HealthCheckButton
+            provider={draftProvider}
+            model={draftModel}
+            apiKey={resolvedKeyAfterSave}
+            region={draftProvider === "bedrock" ? normalizedBedrockRegion : undefined}
+          />
         </div>
 
         {/* API key del provider ACTIVO solamente. Mostrar las 2 era ruido —
@@ -1060,6 +1146,110 @@ function FallbackKeysEditor({
         <Plus className="h-4 w-4 mr-1" />
         {t("aiModel.fallbackKeysAdd", { defaultValue: "Agregar clave de respaldo" })}
       </Button>
+    </div>
+  );
+}
+
+/**
+ * Botón "Probar conexión" — dispara `ai-model-healthcheck` con la config
+ * que está en pantalla (aunque todavía no se haya guardado) y muestra si
+ * el proveedor responde de verdad. Existe para las dos preguntas que hoy
+ * solo se contestaban entregando un taller real: ¿la key es válida?, ¿el
+ * modelo existe con ese ID exacto para este proveedor?
+ *
+ * Sin key/modelo el botón queda deshabilitado — no tiene sentido gastar el
+ * viaje de red para que el edge devuelva el mismo error que ya se puede ver
+ * en pantalla.
+ */
+function HealthCheckButton({
+  provider,
+  model,
+  apiKey,
+  region,
+}: {
+  provider: Provider;
+  model: string;
+  apiKey: string | null | undefined;
+  region?: string;
+}) {
+  const { t } = useTranslation();
+  const [checking, setChecking] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  // Cualquier cambio en la config invalida el resultado anterior — un "✓
+  // funciona" de hace un rato no debería seguir mostrándose sobre una key
+  // que el admin ya cambió.
+  useEffect(() => {
+    setResult(null);
+  }, [provider, model, apiKey, region]);
+
+  const disabled = checking || !model.trim() || !apiKey;
+
+  const run = async () => {
+    if (disabled) return;
+    setChecking(true);
+    setResult(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-model-healthcheck", {
+        body: { provider, model: model.trim(), apiKey, region },
+      });
+      if (error || !data?.ok) {
+        const detail =
+          (data as { error?: string } | null)?.error ??
+          error?.message ??
+          t("aiModel.healthCheckUnknownError", { defaultValue: "Error desconocido" });
+        setResult({ ok: false, message: detail });
+        return;
+      }
+      const ms = typeof data.ms === "number" ? data.ms : null;
+      setResult({
+        ok: true,
+        message: t("aiModel.healthCheckOk", {
+          defaultValue: ms != null ? "Funciona ({{ms}} ms)" : "Funciona",
+          ms,
+        }),
+      });
+    } catch (e) {
+      setResult({
+        ok: false,
+        message: e instanceof Error ? e.message : String(e),
+      });
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 flex items-center gap-2">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={disabled}
+        onClick={() => void run()}
+      >
+        {checking ? (
+          <Spinner size="sm" className="mr-1.5" />
+        ) : (
+          <PlugZap className="h-4 w-4 mr-1.5" />
+        )}
+        {t("aiModel.healthCheckButton", { defaultValue: "Probar conexión" })}
+      </Button>
+      {result && (
+        <span
+          className={
+            "flex items-center gap-1 text-xs " +
+            (result.ok ? "text-success" : "text-destructive")
+          }
+        >
+          {result.ok ? (
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          ) : (
+            <XCircle className="h-3.5 w-3.5 shrink-0" />
+          )}
+          {result.message}
+        </span>
+      )}
     </div>
   );
 }

@@ -329,6 +329,25 @@ function bedrockChatUrl(region: string | null | undefined): string {
 }
 
 /**
+ * Resuelve la URL de chat-completions de un provider, SIN construir un
+ * `ActiveModel` ni pasar por `candidateKeysFor`/`aiChatCompletionFailover`.
+ * Existe para `ai-model-healthcheck`: ese edge necesita pegarle a la URL
+ * correcta con UNA key exacta —la que el admin acaba de escribir, ni una
+ * de respaldo ni la del secret de la plataforma—, y `aiChatCompletionFailover`
+ * no puede dar esa garantía: `candidateKeysFor` SIEMPRE agrega la env key
+ * como último candidato, así que una key inválida podría "funcionar" por el
+ * secret compartido en vez de por la que se está probando — justo lo
+ * opuesto de lo que un botón "Probar conexión" tiene que confirmar.
+ */
+export function chatCompletionUrlFor(provider: AiProvider, bedrockRegion?: string | null): string {
+  return provider === "openai"
+    ? OPENAI_CHAT_URL
+    : provider === "bedrock"
+      ? bedrockChatUrl(bedrockRegion)
+      : GEMINI_CHAT_URL;
+}
+
+/**
  * Lista de candidatos de key para el provider del modelo: principal +
  * respaldo (de DB) + env legacy, deduplicada y sin vacíos.
  */
