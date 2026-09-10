@@ -20,6 +20,7 @@
 import { adminClient } from "./admin.ts";
 import { type AiProvider, normalizeProvider, normalizeModel } from "./ai-model-normalize.ts";
 import { dedupeNonEmpty, runKeyFailover } from "./ai-failover.ts";
+import { bedrockConverseFetch, esModeloAnthropicEnBedrock } from "./bedrock-converse.ts";
 
 // "lovable" se DEPRECÓ (mig 20260824000000) — el Lovable AI Gateway
 // usaba una key compartida que ya no se mantiene. Los providers
@@ -384,6 +385,15 @@ export async function aiChatCompletionFailover(
   // deno-lint-ignore no-explicit-any
   payload: Record<string, any>,
 ): Promise<Response> {
+  // Anthropic en Bedrock NO habla el endpoint compatible con OpenAI (404,
+  // ver el docstring de `bedrockChatUrl`) — va por la API nativa Converse,
+  // con su propio traductor de request/response. `payload.model` es el ID
+  // real que se está por llamar (puede diferir de `model.model` en un
+  // healthcheck que prueba un modelo distinto al guardado), así que la
+  // detección mira ESE campo, no el de la fila activa.
+  const modeloAConsultar = String(payload.model ?? model.model);
+  const esAnthropicEnBedrock =
+    model.provider === "bedrock" && esModeloAnthropicEnBedrock(modeloAConsultar);
   const url =
     model.provider === "openai"
       ? OPENAI_CHAT_URL
@@ -403,11 +413,13 @@ export async function aiChatCompletionFailover(
   const body = JSON.stringify(payload);
   return runKeyFailover<Response>(keys, {
     fetchWithKey: (key) =>
-      fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-        body,
-      }),
+      esAnthropicEnBedrock
+        ? bedrockConverseFetch(key, model.bedrock_region, payload)
+        : fetch(url, {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            body,
+          }),
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     onEvent: (ev) => {
       if (ev.kind === "rotate")

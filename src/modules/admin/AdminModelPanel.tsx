@@ -35,7 +35,18 @@ import {
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
-import { Save, Info, Cpu, AlertTriangle, Plus, Trash2, PlugZap, CheckCircle2, XCircle } from "lucide-react";
+import {
+  Save,
+  Info,
+  Cpu,
+  AlertTriangle,
+  Plus,
+  Trash2,
+  PlugZap,
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+} from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { ErrorState } from "@/components/ui/empty-state";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -658,53 +669,12 @@ export function AdminModelPanel() {
             </HelpHint>
           </Label>
           {draftProvider === "bedrock" ? (
-            // Dropdown de verdad (no el datalist de abajo, que en varios
-            // navegadores no se distingue de un input común — el pedido
-            // explícito para Bedrock era "que APAREZCA una lista
-            // desplegable"). Se queda acotado a los IDs que ESTE endpoint
-            // (compatible con OpenAI de Bedrock) tiene verificado que
-            // responden — ver el comentario de `BEDROCK_MODEL_OPTIONS` más
-            // arriba. "Otro" deja escribir cualquier ID a mano para cuando
-            // AWS agregue un modelo nuevo a esa familia; el botón "Probar
-            // conexión" de abajo es lo que confirma si de verdad funciona
-            // antes de guardar, en vez de descubrirlo con una entrega real.
-            <>
-              <Select
-                value={
-                  BEDROCK_MODEL_OPTIONS.some((o) => o.value === draftModel)
-                    ? draftModel
-                    : BEDROCK_CUSTOM_MODEL
-                }
-                onValueChange={(v) => {
-                  if (v !== BEDROCK_CUSTOM_MODEL) setDraftModel(v);
-                  // Si elige "Otro", no tocamos draftModel — el input de abajo
-                  // aparece con lo que ya estaba escrito (o vacío) para editar.
-                }}
-              >
-                <SelectTrigger className="font-mono text-sm">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {BEDROCK_MODEL_OPTIONS.map((o) => (
-                    <SelectItem key={o.value} value={o.value} className="font-mono text-sm">
-                      {o.value}
-                      <span className="ml-2 font-sans text-muted-foreground">— {o.hint}</span>
-                    </SelectItem>
-                  ))}
-                  <SelectItem value={BEDROCK_CUSTOM_MODEL}>
-                    {t("aiModel.bedrockModelCustom", { defaultValue: "Otro (escribir el ID)" })}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-              {!BEDROCK_MODEL_OPTIONS.some((o) => o.value === draftModel) && (
-                <Input
-                  value={draftModel}
-                  onChange={(e) => setDraftModel(e.target.value)}
-                  placeholder="openai.gpt-oss-120b-1:0"
-                  className="font-mono text-sm mt-1.5"
-                />
-              )}
-            </>
+            <BedrockModelSelect
+              value={draftModel}
+              onChange={setDraftModel}
+              apiKey={resolvedKeyAfterSave}
+              region={normalizedBedrockRegion}
+            />
           ) : (
             <>
               <Input
@@ -1161,6 +1131,195 @@ function FallbackKeysEditor({
  * viaje de red para que el edge devuelva el mismo error que ya se puede ver
  * en pantalla.
  */
+/**
+ * Selector de modelo de Bedrock. Combina dos fuentes:
+ *   - `BEDROCK_MODEL_OPTIONS`: los 2 IDs verificados contra el endpoint
+ *     compatible con OpenAI que este proyecto usa por defecto.
+ *   - "Cargar modelos de Bedrock": trae la lista REAL de la cuenta (AWS
+ *     `ListFoundationModels`) en vez de que el admin tenga que adivinar un
+ *     ID desde documentación — los IDs de Claude llevan fecha
+ *     (`anthropic.claude-sonnet-5-20260115-v1:0` tipo), no son intuibles, y
+ *     AWS agrega/retira modelos todo el tiempo.
+ *
+ * Filtrada a `OpenAI` (gpt-oss, vía el endpoint chat-completions) y
+ * `Anthropic` (Claude, vía el traductor a la API Converse nativa,
+ * `_shared/bedrock-converse.ts`) — son los DOS únicos caminos que este
+ * proyecto sabe hablar hoy. El catálogo de Bedrock tiene más proveedores
+ * (Titan, Llama, Mistral, Cohere…), y mostrarlos sería el mismo tipo de
+ * trampa que esta pantalla existe para evitar: un modelo seleccionable que
+ * en los hechos no funciona porque ningún camino de este código sabe
+ * llamarlo.
+ *
+ * `customMode` es un booleano EXPLÍCITO, no derivado de si `value` matchea
+ * una opción — ese fue el bug real reportado ("elegir Otro no hace nada"):
+ * derivarlo de `value` hacía que el Select, al no tocar `value`, volviera a
+ * mostrar la opción de antes. Con estado propio no hace falta ese malabar.
+ */
+function BedrockModelSelect({
+  value,
+  onChange,
+  apiKey,
+  region,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  apiKey: string | null | undefined;
+  region: string;
+}) {
+  const { t } = useTranslation();
+  const [customMode, setCustomMode] = useState(
+    () => !BEDROCK_MODEL_OPTIONS.some((o) => o.value === value),
+  );
+  const [cargando, setCargando] = useState(false);
+  const [modelosVivos, setModelosVivos] = useState<
+    Array<{ modelId: string; modelName: string; providerName: string; onDemand: boolean }>
+  >([]);
+  const [errorCarga, setErrorCarga] = useState<string | null>(null);
+
+  // Si `value` cambia desde AFUERA (ej. se cargó una fila guardada con un ID
+  // custom, o el admin cambió de provider y volvió), resincronizar el modo.
+  // Sin este efecto, cargar una fila con un ID no-curado dejaría el Select
+  // en modo "curado" mostrando el primer ítem, sin reflejar el valor real.
+  useEffect(() => {
+    setCustomMode(
+      !BEDROCK_MODEL_OPTIONS.some((o) => o.value === value) &&
+        !modelosVivos.some((m) => m.modelId === value),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  const opcionesVivasUsables = modelosVivos.filter(
+    (m) => m.providerName === "OpenAI" || m.providerName === "Anthropic",
+  );
+  // Unión sin duplicar: si la cuenta trae los mismos gpt-oss ya curados, no
+  // se repiten.
+  const idsCurados = new Set(BEDROCK_MODEL_OPTIONS.map((o) => o.value));
+  const opcionesExtra = opcionesVivasUsables.filter((m) => !idsCurados.has(m.modelId));
+
+  const cargarModelos = async () => {
+    if (!apiKey) {
+      setErrorCarga(
+        t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." }),
+      );
+      return;
+    }
+    setCargando(true);
+    setErrorCarga(null);
+    try {
+      const { data, error } = await supabase.functions.invoke("ai-model-healthcheck", {
+        body: { listBedrockModels: true, apiKey, region },
+      });
+      if (error || !data?.ok) {
+        setErrorCarga(
+          (data as { error?: string } | null)?.error ??
+            error?.message ??
+            t("aiModel.healthCheckUnknownError", { defaultValue: "Error desconocido" }),
+        );
+        return;
+      }
+      setModelosVivos(Array.isArray(data.models) ? data.models : []);
+    } catch (e) {
+      setErrorCarga(e instanceof Error ? e.message : String(e));
+    } finally {
+      setCargando(false);
+    }
+  };
+
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2">
+        <Select
+          value={customMode ? BEDROCK_CUSTOM_MODEL : value}
+          onValueChange={(v) => {
+            if (v === BEDROCK_CUSTOM_MODEL) {
+              setCustomMode(true);
+              return;
+            }
+            setCustomMode(false);
+            onChange(v);
+          }}
+        >
+          <SelectTrigger className="font-mono text-sm flex-1">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {BEDROCK_MODEL_OPTIONS.map((o) => (
+              <SelectItem key={o.value} value={o.value} className="font-mono text-sm">
+                {o.value}
+                <span className="ml-2 font-sans text-muted-foreground">— {o.hint}</span>
+              </SelectItem>
+            ))}
+            {opcionesExtra.length > 0 && (
+              <>
+                <div className="px-2 py-1 text-2xs text-muted-foreground">
+                  {t("aiModel.bedrockLoadModelsGroupLive", { defaultValue: "De tu cuenta de AWS" })}
+                </div>
+                {opcionesExtra.map((m) => (
+                  <SelectItem key={m.modelId} value={m.modelId} className="font-mono text-sm">
+                    {m.modelId}
+                    <span className="ml-2 font-sans text-muted-foreground">
+                      — {m.providerName}
+                      {!m.onDemand
+                        ? t("aiModel.bedrockModelNeedsProfile", {
+                            defaultValue: " (necesita perfil de inferencia, ej. us.<id>)",
+                          })
+                        : ""}
+                    </span>
+                  </SelectItem>
+                ))}
+              </>
+            )}
+            <SelectItem value={BEDROCK_CUSTOM_MODEL}>
+              {t("aiModel.bedrockModelCustom", { defaultValue: "Otro (escribir el ID)" })}
+            </SelectItem>
+          </SelectContent>
+        </Select>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={cargando || !apiKey}
+          onClick={() => void cargarModelos()}
+          title={
+            !apiKey
+              ? t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." })
+              : undefined
+          }
+        >
+          {cargando ? (
+            <Spinner size="sm" className="mr-1.5" />
+          ) : (
+            <RefreshCw className="h-4 w-4 mr-1.5" />
+          )}
+          {t("aiModel.bedrockLoadModelsButton", { defaultValue: "Cargar modelos" })}
+        </Button>
+      </div>
+      {customMode && (
+        <Input
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="anthropic.claude-haiku-4-5-20251001-v1:0"
+          className="font-mono text-sm"
+        />
+      )}
+      {errorCarga && (
+        <p className="flex items-center gap-1 text-xs text-destructive">
+          <XCircle className="h-3.5 w-3.5 shrink-0" />
+          {errorCarga}
+        </p>
+      )}
+      {modelosVivos.length > 0 && opcionesExtra.length === 0 && (
+        <p className="text-2xs text-muted-foreground">
+          {t("aiModel.bedrockLoadModelsNoneUsable", {
+            defaultValue:
+              "Tu cuenta no tiene modelos OpenAI/Anthropic nuevos — solo Titan/Llama/Mistral u otros que esta integración todavía no soporta.",
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
 function HealthCheckButton({
   provider,
   model,

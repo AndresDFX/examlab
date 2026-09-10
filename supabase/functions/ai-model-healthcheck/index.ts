@@ -26,8 +26,25 @@
  * Ningún dato se persiste: la key viaja en memoria durante este request y
  * no se loguea ni se audita.
  *
- * Body: { provider: 'openai'|'gemini'|'bedrock', model: string, apiKey: string, region?: string }
+ * Body de prueba: { provider: 'openai'|'gemini'|'bedrock', model: string, apiKey: string, region?: string }
  * Response: { ok: true, ms, sample } | { ok: false, error, status? }
+ *
+ * ── Segunda acción: listar modelos REALES de Bedrock ───────────────────────
+ * Body: { listBedrockModels: true, apiKey: string, region?: string }
+ * Response: { ok: true, models: [{modelId, modelName, providerName, onDemand}] }
+ *           | { ok: false, error }
+ *
+ * Existe para no tener que ADIVINAR IDs de modelo desde documentación que
+ * cambia (AWS agrega/retira modelos de Bedrock constantemente, y los IDs no
+ * son intuibles — "Claude Sonnet 5" en el catálogo puede ser
+ * `anthropic.claude-sonnet-5-XXXXXXXX-v1:0` con una fecha que no se puede
+ * adivinar). `ListFoundationModels` (`GET /foundation-models` en el host de
+ * CONTROL PLANE `bedrock.<región>`, NO `bedrock-runtime`) devuelve la lista
+ * exacta que la cuenta del admin puede usar. Mismo Bearer token que ya usa
+ * el resto de esta integración — no verificado de antemano si el API key de
+ * Bedrock alcanza para esta acción de control plane (la documentación de AWS
+ * es ambigua al respecto); si no alcanza, el 403 de AWS llega tal cual al
+ * admin y "Otro" + "Probar conexión" siguen sirviendo sin esto.
  */
 import {
   adminClient as admin,
@@ -39,6 +56,7 @@ import {
 import { enforceRateLimit } from "../_shared/rate-limit.ts";
 import { chatCompletionUrlFor, type AiProvider } from "../_shared/ai-model.ts";
 import { describeAiError } from "../_shared/ai-error.ts";
+import { bedrockConverseFetch, esModeloAnthropicEnBedrock } from "../_shared/bedrock-converse.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -70,11 +88,69 @@ Deno.serve(async (req) => {
     });
     if (!rl.ok) return rl.response;
 
-    let body: { provider?: string; model?: string; apiKey?: string; region?: string };
+    let body: {
+      provider?: string;
+      model?: string;
+      apiKey?: string;
+      region?: string;
+      listBedrockModels?: boolean;
+    };
     try {
       body = await req.json();
     } catch {
       return jsonError("Body inválido", 400);
+    }
+
+    // ── Rama: listar modelos reales de Bedrock (control plane) ───────────
+    if (body.listBedrockModels) {
+      const apiKeyBedrock = (body.apiKey ?? "").trim();
+      if (!apiKeyBedrock) return jsonError("Pegá la API key de Bedrock antes de cargar modelos.", 400);
+      const regionBedrock = (body.region ?? "").trim().toLowerCase() || "us-east-1";
+      const urlModelos = `https://bedrock.${regionBedrock}.amazonaws.com/foundation-models?byOutputModality=TEXT`;
+      let resModelos: Response;
+      try {
+        resModelos = await fetch(urlModelos, {
+          headers: { Authorization: `Bearer ${apiKeyBedrock}` },
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return jsonResponse({ ok: false, error: `Error de red: ${msg}` });
+      }
+      if (!resModelos.ok) {
+        const detalle = await describeAiError(resModelos, "bedrock");
+        return jsonResponse({ ok: false, status: resModelos.status, error: detalle });
+      }
+      let json: {
+        modelSummaries?: Array<{
+          modelId?: string;
+          modelName?: string;
+          providerName?: string;
+          inferenceTypesSupported?: string[];
+          outputModalities?: string[];
+        }>;
+      };
+      try {
+        json = await resModelos.json();
+      } catch {
+        return jsonResponse({ ok: false, error: "Respuesta de AWS no se pudo leer (no era JSON)." });
+      }
+      const modelos = (json.modelSummaries ?? [])
+        // TEXT únicamente: es lo único que este panel puede usar hoy (nada
+        // de imagen/embeddings — el traductor solo habla texto+tools).
+        .filter((m) => (m.outputModalities ?? []).includes("TEXT"))
+        .map((m) => ({
+          modelId: m.modelId ?? "",
+          modelName: m.modelName ?? m.modelId ?? "",
+          providerName: m.providerName ?? "",
+          // ON_DEMAND ausente = ese ID puntual no se puede invocar directo;
+          // hace falta el ID con prefijo de inference profile
+          // (us.<modelId>, etc). Se marca para que el admin no elija a
+          // ciegas un ID que va a dar 404/ValidationException.
+          onDemand: (m.inferenceTypesSupported ?? []).includes("ON_DEMAND"),
+        }))
+        .filter((m) => m.modelId)
+        .sort((a, b) => (a.providerName + a.modelName).localeCompare(b.providerName + b.modelName));
+      return jsonResponse({ ok: true, models: modelos });
     }
 
     const provider = body.provider;
@@ -91,7 +167,6 @@ Deno.serve(async (req) => {
     // sin esto, una región con espacios/mayúsculas construye una URL de host
     // inválida y el check falla para una config que, ya guardada, funcionaría.
     const region = (body.region ?? "").trim().toLowerCase() || undefined;
-    const url = chatCompletionUrlFor(prov, region);
 
     // fetch DIRECTO con LA key que llegó — nada de `aiChatCompletionFailover`
     // / `candidateKeysFor`. Esas dos SIEMPRE agregan la env key de la
@@ -100,23 +175,27 @@ Deno.serve(async (req) => {
     // confirmar: una key inválida podría "funcionar" respondiendo con el
     // secret compartido, y el admin vería "Funciona" para una key que en
     // realidad nunca se usó. Ver el comentario en `chatCompletionUrlFor`.
+    const cuerpoPrueba = {
+      model,
+      messages: [
+        {
+          role: "user",
+          content: "Responde solo con la palabra OK, sin nada más.",
+        },
+      ],
+      max_tokens: 5,
+    };
     const started = Date.now();
     let res: Response;
     try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify({
-          model,
-          messages: [
-            {
-              role: "user",
-              content: "Responde solo con la palabra OK, sin nada más.",
-            },
-          ],
-          max_tokens: 5,
-        }),
-      });
+      res =
+        prov === "bedrock" && esModeloAnthropicEnBedrock(model)
+          ? await bedrockConverseFetch(apiKey, region, cuerpoPrueba)
+          : await fetch(chatCompletionUrlFor(prov, region), {
+              method: "POST",
+              headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+              body: JSON.stringify(cuerpoPrueba),
+            });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       return jsonResponse({ ok: false, error: `Error de red: ${msg}` });
