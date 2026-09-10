@@ -2272,6 +2272,50 @@ export function StudentWorkshopTaker({
         payloadsByQid[q.id] = payload;
       }
 
+      // ── Persistencia: upsert por qid — ANTES de llamar a la IA ─────────
+      // El error de cada upsert se descartaba: una respuesta podía NO
+      // guardarse y el alumno veía "Calificación: X" igual. Recolectamos los
+      // fallos y los mostramos (sin abortar: lo ya guardado debe quedar).
+      //
+      // ── Por qué va ANTES y no después, que es donde estaba ────────────
+      // La llamada de calificación de abajo tarda entre 29 y 74 segundos
+      // (medido sobre entregas reales de UNIAJ: los saltos de `submitted_at` a
+      // `updated_at`). Con el upsert DESPUÉS, si el alumno cerraba la pestaña
+      // durante esa espera, sus RESPUESTAS no se guardaban nunca: el edge ya
+      // había creado la fila —con la nota y sin la respuesta, porque su upsert
+      // solo trae las columnas de nota— y el del navegador, que era el único
+      // que escribía el texto del alumno, nunca corría. Eso es lo que dejó
+      // entregas calificadas cuyo contenido no se puede leer.
+      //
+      // Y es seguro en este orden porque los dos upserts escriben columnas
+      // DISJUNTAS: el del navegador solo `answer_text` / `selected_option` /
+      // `code_content` / `diagram_code` (las que la mig 20262130000000 declara
+      // LIBRES, y son las únicas que este payload arma), y el del edge solo
+      // `ai_grade` / `ai_feedback` / `ai_likelihood` / `ai_reasons` con
+      // `service_role`. Un upsert de PostgREST con `onConflict` actualiza solo
+      // las columnas que le pasás, así que ninguno pisa al otro.
+      const upsertErrors: Array<{ qid: string; error: unknown }> = [];
+      for (const qid of Object.keys(payloadsByQid)) {
+        const { error: upsertErr } = await supabase
+          .from("workshop_submission_answers")
+          .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
+        if (upsertErr) {
+          console.error("[workshop-submit] upsert failed", qid, upsertErr);
+          upsertErrors.push({ qid, error: upsertErr });
+        }
+      }
+      if (upsertErrors.length > 0) {
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.answersSaveFailed", {
+            defaultValue:
+              "No se pudieron guardar {{count}} respuesta(s). Primero: {{detail}}. Revisa tu conexión y vuelve a entregar.",
+            count: upsertErrors.length,
+            detail: friendlyError(upsertErrors[0].error),
+          }),
+          { duration: 12000 },
+        );
+      }
+
       // Reutilizamos la detección hecha arriba para que el comportamiento
       // sea consistente entre `codigo_zip` (loop) y `batchItems` (Fase 2).
       const useAsyncAi = useAsyncAiEarly;
@@ -2369,32 +2413,6 @@ export function StudentWorkshopTaker({
       // fallback cuando el batch sync falló: en ambos encolamos + dejamos la
       // entrega pendiente.
       const gradeAsync = useAsyncAi || fellBackToQueue;
-
-      // ── Persistencia: upsert por qid ──
-      // El error de cada upsert se descartaba: una respuesta podía NO
-      // guardarse y el alumno veía "Calificación: X" igual. Recolectamos los
-      // fallos y los mostramos (sin abortar: lo ya guardado debe quedar).
-      const upsertErrors: Array<{ qid: string; error: unknown }> = [];
-      for (const qid of Object.keys(payloadsByQid)) {
-        const { error: upsertErr } = await supabase
-          .from("workshop_submission_answers")
-          .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
-        if (upsertErr) {
-          console.error("[workshop-submit] upsert failed", qid, upsertErr);
-          upsertErrors.push({ qid, error: upsertErr });
-        }
-      }
-      if (upsertErrors.length > 0) {
-        toast.error(
-          i18n.t("toast.modules_workshops_WorkshopQuestions.answersSaveFailed", {
-            defaultValue:
-              "No se pudieron guardar {{count}} respuesta(s). Primero: {{detail}}. Revisa tu conexión y vuelve a entregar.",
-            count: upsertErrors.length,
-            detail: friendlyError(upsertErrors[0].error),
-          }),
-          { duration: 12000 },
-        );
-      }
 
       // ── Encolado IA (solo modo async, después del upsert) ──
       // UN solo job batch que cubre TODAS las preguntas abiertas de esta
