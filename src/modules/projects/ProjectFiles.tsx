@@ -2061,33 +2061,44 @@ export function StudentProjectTaker({
       );
       return;
     }
-    // Confirmación del design system antes de entregar con respuestas
-    // vacías. Las preguntas en blanco reciben 0 puntos por la lógica
-    // de calificación; el modal evita entregas accidentales.
+    // Se confirma SIEMPRE, no solo con respuestas vacías: la entrega es la
+    // acción que el alumno no puede deshacer solo, y el caso "entregué todo
+    // completo" era el único que pasaba derecho. Cambia el CONTENIDO, no la
+    // existencia del paso: con vacías avisa que reciben 0 puntos, en tono de
+    // advertencia; sin vacías es una confirmación normal.
     const unanswered = getUnansweredNumbers();
-    if (unanswered.length > 0) {
-      const ok = await confirm({
-        title: t("hc_modulesProjectsProjectFiles.unansweredTitle", { count: unanswered.length }),
-        description: (
-          <div className="space-y-1">
-            <p>
-              {t("hc_modulesProjectsProjectFiles.unansweredLabel")}{" "}
-              <span className="font-medium text-foreground">
-                {unanswered.map((n) => `#${n}`).join(", ")}
-              </span>
-              .
-            </p>
-            <p>{t("hc_modulesProjectsProjectFiles.unansweredWarning")}</p>
-          </div>
-        ),
-        confirmLabel: t("hc_modulesProjectsProjectFiles.submitAnyway"),
-        cancelLabel: t("hc_modulesProjectsProjectFiles.keepAnswering"),
-        tone: "warning",
-      });
-      if (!ok) {
-        submitBusyRef.current = false;
-        return;
-      }
+    const hayVacias = unanswered.length > 0;
+    const ok = await confirm({
+      title: hayVacias
+        ? t("hc_modulesProjectsProjectFiles.unansweredTitle", { count: unanswered.length })
+        : t("hc_modulesProjectsProjectFiles.confirmSubmitTitle"),
+      description: hayVacias ? (
+        <div className="space-y-1">
+          <p>
+            {t("hc_modulesProjectsProjectFiles.unansweredLabel")}{" "}
+            <span className="font-medium text-foreground">
+              {unanswered.map((n) => `#${n}`).join(", ")}
+            </span>
+            .
+          </p>
+          <p>{t("hc_modulesProjectsProjectFiles.unansweredWarning")}</p>
+        </div>
+      ) : (
+        t("hc_modulesProjectsProjectFiles.confirmSubmitDesc")
+      ),
+      confirmLabel: hayVacias
+        ? t("hc_modulesProjectsProjectFiles.submitAnyway")
+        : t("hc_modulesProjectsProjectFiles.confirmSubmitConfirm"),
+      cancelLabel: hayVacias
+        ? t("hc_modulesProjectsProjectFiles.keepAnswering")
+        : t("hc_modulesProjectsProjectFiles.keepReviewing"),
+      tone: hayVacias ? "warning" : "default",
+    });
+    if (!ok) {
+      // Liberar el guard anti doble-entrega: sin esto, cancelar deja el botón
+      // muerto hasta recargar la pantalla.
+      submitBusyRef.current = false;
+      return;
     }
     setSubmitting(true);
     try {

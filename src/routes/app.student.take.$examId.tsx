@@ -1258,10 +1258,16 @@ function TakeExam() {
       answersRef.current = merged;
       setAnswers(merged);
       const unanswered = getUnansweredIndices(questions, merged);
-      if (unanswered.length === 0) {
-        await performSubmit(false);
-        return;
-      }
+      // El modal se abre SIEMPRE, también con todo respondido. Antes, un examen
+      // completo se entregaba en el mismo clic: la acción menos reversible del
+      // producto no tenía ningún paso intermedio, y un clic accidental en
+      // "Finalizar" cerraba el examen sin vuelta. La lista de vacías sigue
+      // apareciendo solo cuando hay alguna; lo que cambia es que ahora hay
+      // confirmación aunque no haya ninguna.
+      //
+      // Ojo: esto es SOLO el camino manual. `handleTimeUp` y el corte por
+      // proctoring llaman a `performSubmit` derecho y NO deben pasar por acá —
+      // no hay nadie a quien preguntarle y un modal abierto perdería la entrega.
       setSubmitModal({
         open: true,
         unansweredIndices: unanswered,
@@ -2771,12 +2777,25 @@ function TakeExam() {
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
-              {t("hc_routesAppStudentTakeExamId.unansweredQuestionsRemain")}
+              {/* El ícono ámbar de advertencia es para las vacías. Con todo
+                  respondido esto NO es una advertencia —es una confirmación—, y
+                  pintarlo igual entrenaría a ignorar el amarillo. */}
+              {submitModal.unansweredIndices.length > 0 ? (
+                <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+              ) : (
+                <Send className="h-5 w-5 shrink-0 text-primary" />
+              )}
+              {submitModal.unansweredIndices.length > 0
+                ? t("hc_routesAppStudentTakeExamId.unansweredQuestionsRemain")
+                : t("hc_routesAppStudentTakeExamId.confirmSubmitTitle")}
             </DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-3 text-left text-sm text-muted-foreground">
-                <p>{t("hc_routesAppStudentTakeExamId.unansweredQuestionsDesc")}</p>
+                <p>
+                  {submitModal.unansweredIndices.length > 0
+                    ? t("hc_routesAppStudentTakeExamId.unansweredQuestionsDesc")
+                    : t("hc_routesAppStudentTakeExamId.confirmSubmitDesc")}
+                </p>
                 {submitModal.unansweredIndices.length > 0 && (
                   <div className="rounded-md border border-border bg-muted/40 px-3 py-2">
                     <p className="text-xs font-medium text-foreground mb-1.5">
@@ -2823,7 +2842,9 @@ function TakeExam() {
               ) : (
                 <Send className="h-4 w-4 mr-1" />
               )}
-              {t("hc_routesAppStudentTakeExamId.submitAnyway")}
+              {submitModal.unansweredIndices.length > 0
+                ? t("hc_routesAppStudentTakeExamId.submitAnyway")
+                : t("hc_routesAppStudentTakeExamId.confirmSubmitConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

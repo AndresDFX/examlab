@@ -1768,35 +1768,45 @@ export function StudentWorkshopTaker({
       );
       return;
     }
-    // Si el alumno deja preguntas sin responder, pedimos confirmación
-    // explícita usando el ConfirmDialog del design system. Las preguntas
-    // vacías reciben 0 puntos (ya lo manejaba el bucle de abajo); el
-    // modal evita que el alumno entregue sin darse cuenta.
+    // Se confirma SIEMPRE, no solo cuando quedan preguntas vacías. La entrega
+    // es la acción que el alumno no puede deshacer solo, y antes el caso
+    // "respondí todo" era el único que entregaba en el mismo clic — justo el
+    // más frecuente. Lo que cambia según el caso es QUÉ dice el diálogo: con
+    // vacías avisa que reciben 0 puntos y va en tono de advertencia; sin
+    // vacías es una confirmación normal, y pintarla de amarillo entrenaría a
+    // ignorar el amarillo cuando sí importa.
     const unanswered = getUnansweredNumbers();
-    if (unanswered.length > 0) {
-      const ok = await confirm({
-        title: t("hc_modulesWorkshopsWorkshopQuestions.unansweredTitle", {
-          count: unanswered.length,
-          plural: unanswered.length === 1 ? "" : "s",
-        }),
-        description: (
-          <div className="space-y-1">
-            <p>
-              {t("hc_modulesWorkshopsWorkshopQuestions.unansweredListLabel")}{" "}
-              <span className="font-medium text-foreground">
-                {unanswered.map((n) => `#${n}`).join(", ")}
-              </span>
-              .
-            </p>
-            <p>{t("hc_modulesWorkshopsWorkshopQuestions.unansweredZeroPoints")}</p>
-          </div>
-        ),
-        confirmLabel: t("hc_modulesWorkshopsWorkshopQuestions.submitAnyway"),
-        cancelLabel: t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering"),
-        tone: "warning",
-      });
-      if (!ok) return;
-    }
+    const hayVacias = unanswered.length > 0;
+    const ok = await confirm({
+      title: hayVacias
+        ? t("hc_modulesWorkshopsWorkshopQuestions.unansweredTitle", {
+            count: unanswered.length,
+            plural: unanswered.length === 1 ? "" : "s",
+          })
+        : t("hc_modulesWorkshopsWorkshopQuestions.confirmSubmitTitle"),
+      description: hayVacias ? (
+        <div className="space-y-1">
+          <p>
+            {t("hc_modulesWorkshopsWorkshopQuestions.unansweredListLabel")}{" "}
+            <span className="font-medium text-foreground">
+              {unanswered.map((n) => `#${n}`).join(", ")}
+            </span>
+            .
+          </p>
+          <p>{t("hc_modulesWorkshopsWorkshopQuestions.unansweredZeroPoints")}</p>
+        </div>
+      ) : (
+        t("hc_modulesWorkshopsWorkshopQuestions.confirmSubmitDesc")
+      ),
+      confirmLabel: hayVacias
+        ? t("hc_modulesWorkshopsWorkshopQuestions.submitAnyway")
+        : t("hc_modulesWorkshopsWorkshopQuestions.confirmSubmitConfirm"),
+      cancelLabel: hayVacias
+        ? t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering")
+        : t("hc_modulesWorkshopsWorkshopQuestions.keepReviewing"),
+      tone: hayVacias ? "warning" : "default",
+    });
+    if (!ok) return;
     submitBusyRef.current = true;
     setSubmitting(true);
     try {
