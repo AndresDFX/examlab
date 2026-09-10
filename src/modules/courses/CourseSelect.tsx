@@ -37,6 +37,8 @@ export function CourseSelect({
   onChange,
   includeAll = false,
   allLabel,
+  noneValue,
+  noneLabel,
   placeholder,
   showPeriod = false,
   disabled = false,
@@ -49,6 +51,14 @@ export function CourseSelect({
   onChange: (id: string | null) => void;
   includeAll?: boolean;
   allLabel?: string;
+  /**
+   * Opción "sin curso" arriba de los grupos, para los formularios donde no
+   * elegir curso es una decisión válida (una pizarra privada, por ejemplo).
+   * `onChange` devuelve este mismo valor cuando se elige — NO `null`, que en
+   * este componente significa "todos" (`includeAll`).
+   */
+  noneValue?: string;
+  noneLabel?: string;
   placeholder?: string;
   showPeriod?: boolean;
   disabled?: boolean;
@@ -76,6 +86,9 @@ export function CourseSelect({
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent>
+        {noneValue !== undefined && (
+          <SelectItem value={noneValue}>{noneLabel ?? noneValue}</SelectItem>
+        )}
         {includeAll && (
           <SelectItem value={ALL}>
             {allLabel ?? t("hc_componentsUiListFilters.allCourses", { defaultValue: "Todos los cursos" })}

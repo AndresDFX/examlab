@@ -49,13 +49,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Play, Database, AlertTriangle, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { Play, Database, AlertTriangle } from "lucide-react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
-import { RowAction } from "@/components/ui/row-action";
-import { useSqlZoom } from "@/hooks/use-sql-zoom";
+import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { EditorZoomControls } from "@/modules/code/EditorZoomControls";
 import {
   createEphemeralDb,
   type PgliteDb,
@@ -147,7 +147,7 @@ export function SqlRunner({
    * `setupSql` viejo). La ref lo mantiene apuntando a la versión actual.
    */
   const runRef = useRef<() => void>(() => {});
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useSqlZoom();
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
 
   /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
      de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),
@@ -399,35 +399,17 @@ export function SqlRunner({
             <HelpHint>{t("bdSql.queryHint")}</HelpHint>
           </span>
           <div className="ml-auto flex items-center gap-1">
-            {/* Solo clics: ni atajos ni Ctrl+rueda. La toma de examen intercepta
-                Ctrl+± y Ctrl+rueda a propósito (para que el zoom del navegador no
-                saque de fullscreen y dispare un strike), así que un atajo andaría
-                en la pizarra y no haría nada —o haría otra cosa— en el examen.
-                Va también en readOnly: quien mira la hoja compartida es quien más
-                necesita agrandar la letra. */}
-            <RowAction
-              label={t("bdSql.zoomOut")}
-              icon={ZoomOut}
-              variant="outline"
-              onClick={zoomOut}
-              disabled={atMin}
-            />
-            <span className="hidden w-10 text-center text-2xs tabular-nums text-muted-foreground sm:inline">
-              {pct}%
-            </span>
-            <RowAction
-              label={t("bdSql.zoomIn")}
-              icon={ZoomIn}
-              variant="outline"
-              onClick={zoomIn}
-              disabled={atMax}
-            />
-            <RowAction
-              label={t("bdSql.zoomReset")}
-              icon={RotateCcw}
-              variant="outline"
-              onClick={resetZoom}
-              disabled={atMin}
+            {/* El control (y el motivo de que sea solo-clic) vive en
+                `EditorZoomControls`, compartido con los tres editores de
+                código. Va también en readOnly: quien mira la hoja
+                compartida es quien más necesita agrandar la letra. */}
+            <EditorZoomControls
+              zoomIn={zoomIn}
+              zoomOut={zoomOut}
+              reset={resetZoom}
+              atMin={atMin}
+              atMax={atMax}
+              pct={pct}
             />
             {(!readOnly || readOnlyAllowRun) && (
               <Button

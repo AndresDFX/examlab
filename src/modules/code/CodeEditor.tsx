@@ -13,6 +13,9 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Play, Terminal, Info, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { EditorZoomControls } from "./EditorZoomControls";
+import { escalarAltoEditor } from "./editor-zoom";
 import {
   LANGUAGE_LABEL,
   MONACO_LANGUAGE,
@@ -161,6 +164,10 @@ export function CodeEditor({
     return () => observer.disconnect();
   }, []);
 
+  // Zoom del editor. Compartido con la hoja de SQL y con los editores de
+  // Java/Python con interfaz gráfica: una sola preferencia por persona.
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
@@ -183,6 +190,19 @@ export function CodeEditor({
             {config.label}
           </Badge>
         )}
+        <div className="ml-auto flex items-center gap-1.5">
+          {/* El zoom va SIEMPRE, aunque el editor sea de solo lectura o no
+              tenga botón de Ejecutar: en la revisión de una entrega es cuando
+              más falta hace poder agrandar la letra. */}
+          <EditorZoomControls
+            zoomIn={zoomIn}
+            zoomOut={zoomOut}
+            reset={resetZoom}
+            atMin={atMin}
+            atMax={atMax}
+            pct={pct}
+          />
+        </div>
         {showRunButton && onRun && (
           <div className="flex items-center gap-1.5">
             <Button
@@ -229,7 +249,9 @@ export function CodeEditor({
 
       <div className="rounded-md border overflow-hidden">
         <Editor
-          height={height}
+          // El alto escala con la fuente: sin eso, subir el zoom no agranda,
+          // solo deja menos líneas a la vista.
+          height={escalarAltoEditor(height, zoom)}
           language={config.monacoLang}
           value={value}
           onChange={(v) => onChange(v ?? "")}
@@ -237,7 +259,7 @@ export function CodeEditor({
           theme={isDark ? "vs-dark" : "vs"}
           options={{
             minimap: { enabled: false },
-            fontSize: 13,
+            fontSize: Math.round(13 * zoom),
             lineNumbers: "on",
             scrollBeyondLastLine: false,
             automaticLayout: true,

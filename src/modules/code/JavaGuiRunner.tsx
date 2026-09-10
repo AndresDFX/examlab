@@ -56,6 +56,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize } from "@/shared/lib/format";
+import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { EditorZoomControls } from "./EditorZoomControls";
+import { escalarAltoEditor } from "./editor-zoom";
 
 type JavaGuiMode = "cheerp" | "aws_screenshot";
 /** Framework GUI Java. Solo aplica al runner `aws_screenshot` —
@@ -506,6 +509,10 @@ export function JavaGuiRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
 
+  // Zoom del editor, compartido con el compilador de examen/taller y con la
+  // hoja de SQL: una sola preferencia por persona.
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -585,6 +592,14 @@ export function JavaGuiRunner({
             </>
           )}
         </Button>
+        <EditorZoomControls
+          zoomIn={zoomIn}
+          zoomOut={zoomOut}
+          reset={resetZoom}
+          atMin={atMin}
+          atMax={atMax}
+          pct={pct}
+        />
       </div>
 
       {(error || hasRun) && !dialogOpen && (
@@ -610,7 +625,9 @@ export function JavaGuiRunner({
 
       <div className="rounded-md border overflow-hidden">
         <Editor
-          height={height}
+          // El alto escala con la fuente: sin eso, subir el zoom no
+          // agranda, solo deja menos líneas a la vista.
+          height={escalarAltoEditor(height, zoom)}
           language="java"
           value={value}
           onChange={(v) => onChange(v ?? "")}
@@ -618,7 +635,7 @@ export function JavaGuiRunner({
           theme={isDark ? "vs-dark" : "vs"}
           options={{
             minimap: { enabled: false },
-            fontSize: 13,
+            fontSize: Math.round(13 * zoom),
             lineNumbers: "on",
             scrollBeyondLastLine: false,
             automaticLayout: true,

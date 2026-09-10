@@ -32,6 +32,7 @@ import { type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
 import { MultiPageWhiteboard } from "@/modules/whiteboard/MultiPageWhiteboard";
 import { Palette, Share2, Check, ChevronDown } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 
 export const Route = createFileRoute("/app/teacher/whiteboards/$id")({
   component: WhiteboardEditorPage,
@@ -64,7 +65,7 @@ function WhiteboardEditorPage() {
   const [metaStatus, setMetaStatus] = useState<"idle" | "saving" | "saved">("idle");
   const metaSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Cursos del docente para el selector de "compartir con curso".
-  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [courses, setCourses] = useState<Array<{ id: string; name: string; status?: string | null }>>([]);
   // Form local de meta — controlled inputs para nombre, curso, share.
   const [metaName, setMetaName] = useState("");
   // Colapso de la barra de ajustes en MÓVIL (en md+ siempre visible).
@@ -95,7 +96,8 @@ function WhiteboardEditorPage() {
             .maybeSingle(),
           db
             .from("course_teachers")
-            .select("course_id, courses(id, name, deleted_at)")
+            // `status` para que el selector agrupe abiertos vs cerrados.
+            .select("course_id, courses(id, name, status, deleted_at)")
             .eq("user_id", user.id),
         ]);
         if (cancelled) return;
@@ -109,21 +111,19 @@ function WhiteboardEditorPage() {
         setMetaName(row.name);
         setMetaCourse(row.course_id ?? "none");
         setMetaShared(row.is_shared_with_course);
-        const myCourses: Array<{ id: string; name: string }> = (courseRows ?? [])
-          .map(
-            (r: { courses: { id: string; name: string; deleted_at: string | null } | null }) =>
-              r.courses,
-          )
+        type FilaCurso = {
+          id: string;
+          name: string;
+          status: string | null;
+          deleted_at: string | null;
+        };
+        const myCourses: Array<{ id: string; name: string; status?: string | null }> = (courseRows ?? [])
+          .map((r: { courses: FilaCurso | null }) => r.courses)
           // El Select para re-vincular la pizarra a un curso no debe ofrecer
           // cursos en papelera: saltar los que tengan deleted_at (PostgREST no
           // filtra fácil en el embed anidado).
-          .filter(
-            (
-              c: { id: string; name: string; deleted_at: string | null } | null,
-            ): c is { id: string; name: string; deleted_at: string | null } =>
-              Boolean(c) && !c!.deleted_at,
-          )
-          .map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
+          .filter((c: FilaCurso | null): c is FilaCurso => Boolean(c) && !c!.deleted_at)
+          .map((c: FilaCurso) => ({ id: c.id, name: c.name, status: c.status }));
         setCourses(myCourses);
         setLoading(false);
       } catch (e) {
@@ -290,19 +290,14 @@ function WhiteboardEditorPage() {
                 {t("hc_routesAppTeacherWhiteboardsId.shareWithCourse")}{" "}
                 <HelpHint>{t("help.shareWithCourseHint")}</HelpHint>
               </Label>
-              <Select value={metaCourse} onValueChange={setMetaCourse}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">{t("hc_routesAppTeacherWhiteboardsId.onlyMePrivate")}</SelectItem>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* Abiertos primero; los finalizados en su propio grupo. */}
+              <CourseSelect
+                courses={courses}
+                value={metaCourse}
+                onChange={(v) => setMetaCourse(v ?? "none")}
+                noneValue="none"
+                noneLabel={t("hc_routesAppTeacherWhiteboardsId.onlyMePrivate")}
+              />
             </div>
             <div className="flex items-center gap-3 justify-between md:justify-start flex-wrap">
               <div className="flex items-center gap-2 text-sm">

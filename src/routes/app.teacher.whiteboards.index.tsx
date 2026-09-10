@@ -76,6 +76,7 @@ import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDial
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
 import { formatDate, formatDateOnly } from "@/shared/lib/format";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 import {
   useMultiSelect,
   MultiSelectHeaderCheckbox,
@@ -190,7 +191,9 @@ function TeacherWhiteboards() {
   const createDirty = useDirtyDialog(createOpen, createFormMemo);
   // Cursos del docente (cargados al abrir el dialog). Mismo patrón que
   // /app/teacher/whiteboards/$id (selector de "compartir con curso").
-  const [draftCourses, setDraftCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [draftCourses, setDraftCourses] = useState<
+    Array<{ id: string; name: string; status?: string | null }>
+  >([]);
   // Sesiones del curso seleccionado (cargadas cuando draftCourseId
   // cambia). Si el curso no tiene sesiones, el array queda vacío y
   // el selector de sesión no se muestra.
@@ -209,20 +212,33 @@ function TeacherWhiteboards() {
           .from("course_teachers")
           // deleted_at en el embed para saltar cursos en papelera en JS
           // (PostgREST no filtra fácil en embeds anidados).
-          .select("course_id, courses(id, name, deleted_at)")
+          // `status` para que el selector agrupe abiertos vs cerrados
+          // (`CourseSelect`): sin él degrada a lista plana.
+          .select("course_id, courses(id, name, status, deleted_at)")
           .eq("user_id", user.id);
         if (cancelled) return;
         const list = (
           (data ?? []) as Array<{
-            courses: { id: string; name: string; deleted_at: string | null } | null;
+            courses: {
+              id: string;
+              name: string;
+              status: string | null;
+              deleted_at: string | null;
+            } | null;
           }>
         )
           .map((r) => r.courses)
           .filter(
-            (c): c is { id: string; name: string; deleted_at: string | null } =>
-              Boolean(c) && !c!.deleted_at,
+            (
+              c,
+            ): c is {
+              id: string;
+              name: string;
+              status: string | null;
+              deleted_at: string | null;
+            } => Boolean(c) && !c!.deleted_at,
           )
-          .map((c) => ({ id: c.id, name: c.name }));
+          .map((c) => ({ id: c.id, name: c.name, status: c.status }));
         setDraftCourses(list);
       } catch {
         /* silent — el draft sigue funcionando sin curso */
@@ -1058,23 +1074,19 @@ function TeacherWhiteboards() {
                 {t("hc_routesAppTeacherWhiteboardsIndex.fieldCourse")}{" "}
                 <HelpHint>{t("help.whiteboardCourseSharingHelp")}</HelpHint>
               </Label>
-              <Select value={draftCourseId} onValueChange={setDraftCourseId}>
-                <SelectTrigger>
-                  <SelectValue
-                    placeholder={t("hc_routesAppTeacherWhiteboardsIndex.coursePlaceholder")}
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">
-                    {t("hc_routesAppTeacherWhiteboardsIndex.courseNone")}
-                  </SelectItem>
-                  {draftCourses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* `CourseSelect` y no un Select plano: pone los cursos ABIERTOS
+                  primero y manda los finalizados a su propio grupo debajo de un
+                  separador. La lista plana mezclaba los de semestres pasados
+                  entre los de este, y el docente tenía que reconocerlos por el
+                  nombre. */}
+              <CourseSelect
+                courses={draftCourses}
+                value={draftCourseId}
+                onChange={(v) => setDraftCourseId(v ?? "none")}
+                noneValue="none"
+                noneLabel={t("hc_routesAppTeacherWhiteboardsIndex.courseNone")}
+                placeholder={t("hc_routesAppTeacherWhiteboardsIndex.coursePlaceholder")}
+              />
               {draftCourseId !== "none" && (
                 <p className="text-2xs text-muted-foreground mt-1">
                   {t("hc_routesAppTeacherWhiteboardsIndex.courseShareNote")}
