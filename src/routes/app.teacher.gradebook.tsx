@@ -64,6 +64,14 @@ import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade, countsAsPresent, type GradedItem } from "@/modules/grading/grade";
 import { CourseSelect } from "@/modules/courses/CourseSelect";
+import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import {
   downloadCertificate,
@@ -112,6 +120,10 @@ type Course = {
   exam_weight: number;
   workshop_weight: number;
   status?: string | null;
+  period?: string | null;
+  /** Embed `academic_subjects:subject_id(name)` — solo alimenta el filtro de
+   *  nivel superior (periodo/asignatura) del selector de curso. */
+  academic_subjects?: { name: string | null } | null;
 };
 type Exam = {
   id: string;
@@ -219,6 +231,67 @@ function Gradebook() {
   const activeRole = useActiveRole();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
+  // Filtros de nivel superior periodo/asignatura sobre el Select de curso —
+  // mismo patrón que Asistencia/Estadísticas (course-filter-scope.ts).
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const gbCoursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  const gbFilterScope = useMemo(
+    () => courseIdsInScope(gbCoursesForFilter, periodFilter, subjectFilter),
+    [gbCoursesForFilter, periodFilter, subjectFilter],
+  );
+  const gbCoursesInScope = useMemo(
+    () => (gbFilterScope === null ? courses : courses.filter((c) => gbFilterScope.has(c.id))),
+    [courses, gbFilterScope],
+  );
+  const gbFilterPeriods = useMemo(
+    () =>
+      Array.from(
+        new Set(gbCoursesForFilter.map((c) => c.period).filter((p): p is string => !!p)),
+      ).sort((a, b) => b.localeCompare(a, "es-CO", { numeric: true })),
+    [gbCoursesForFilter],
+  );
+  const gbFilterSubjects = useMemo(
+    () =>
+      Array.from(
+        new Set(gbCoursesForFilter.map((c) => c.subject).filter((s): s is string => !!s)),
+      ).sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" })),
+    [gbCoursesForFilter],
+  );
+  const gbShowPeriodFilter = gbFilterPeriods.length > 1;
+  const gbShowSubjectFilter = gbFilterSubjects.length > 1;
+  /** Al cambiar periodo/asignatura, si el curso elegido queda fuera del
+   *  alcance se salta al primero del nuevo alcance (el gradebook siempre tiene
+   *  un curso activo). */
+  const gbCambiarAlcance = (nuevo: { period?: string | null; subject?: string | null }) => {
+    const p = nuevo.period !== undefined ? nuevo.period : periodFilter;
+    const sj = nuevo.subject !== undefined ? nuevo.subject : subjectFilter;
+    if (nuevo.period !== undefined) setPeriodFilter(nuevo.period);
+    if (nuevo.subject !== undefined) setSubjectFilter(nuevo.subject);
+    if (courseId) {
+      const sigue = courses.some(
+        (c) =>
+          c.id === courseId &&
+          (!p || c.period === p) &&
+          (!sj || (c.academic_subjects?.name ?? null) === sj),
+      );
+      if (!sigue) {
+        const next = courses.find(
+          (c) =>
+            (!p || c.period === p) && (!sj || (c.academic_subjects?.name ?? null) === sj),
+        );
+        setCourseId(next?.id ?? "");
+      }
+    }
+  };
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [columns, setColumns] = useState<GradeColumn[]>([]);
@@ -330,7 +403,7 @@ function Gradebook() {
         let q = supabase
           .from("courses")
           .select(
-            "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status",
+            "id, name, grade_scale_min, grade_scale_max, passing_grade, exam_weight, workshop_weight, status, period, academic_subjects:subject_id(name)",
           )
           .is("deleted_at", null)
           .order("name");
@@ -1956,8 +2029,48 @@ function Gradebook() {
         subtitle={t("hc_routesAppTeacherGradebook.pageSubtitle")}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          {gbShowSubjectFilter && (
+            <Select
+              value={subjectFilter ?? "__all_subjects__"}
+              onValueChange={(v) =>
+                gbCambiarAlcance({ subject: v === "__all_subjects__" ? null : v })
+              }
+            >
+              <SelectTrigger className="w-full sm:w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all_subjects__">{t("listFilters.allSubjects")}</SelectItem>
+                {gbFilterSubjects.map((sj) => (
+                  <SelectItem key={sj} value={sj}>
+                    {sj}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {gbShowPeriodFilter && (
+            <Select
+              value={periodFilter ?? "__all_periods__"}
+              onValueChange={(v) =>
+                gbCambiarAlcance({ period: v === "__all_periods__" ? null : v })
+              }
+            >
+              <SelectTrigger className="w-full sm:w-32">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__all_periods__">{t("listFilters.allPeriods")}</SelectItem>
+                {gbFilterPeriods.map((p) => (
+                  <SelectItem key={p} value={p}>
+                    {p}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <CourseSelect
-            courses={courses}
+            courses={gbCoursesInScope}
             value={courseId}
             onChange={(v) => v && setCourseId(v)}
             placeholder={t("hc_routesAppTeacherGradebook.coursePlaceholder")}

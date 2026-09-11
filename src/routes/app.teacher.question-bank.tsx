@@ -15,6 +15,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
+import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { needsTeacherScope } from "@/modules/courses/course-scope";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -142,6 +143,10 @@ interface Course {
   /** Idioma del curso: decide en qué idioma redacta la IA los motivos y
    *  descartes que el diálogo de identificación pinta sin traducir. */
   language?: string | null;
+  period?: string | null;
+  /** Embed `academic_subjects:subject_id(name)` — alimenta el filtro de
+   *  nivel superior periodo/asignatura del selector de curso. */
+  academic_subjects?: { name: string | null } | null;
 }
 
 // Mapa de tipo → clave i18n. Resolvemos el label vía i18n.t() en cada uso
@@ -172,6 +177,62 @@ function QuestionBankPage() {
 
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
+  // Filtros de nivel superior periodo/asignatura sobre el Select de curso.
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const qbCoursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  const qbFilterScope = useMemo(
+    () => courseIdsInScope(qbCoursesForFilter, periodFilter, subjectFilter),
+    [qbCoursesForFilter, periodFilter, subjectFilter],
+  );
+  const qbCoursesInScope = useMemo(
+    () => (qbFilterScope === null ? courses : courses.filter((c) => qbFilterScope.has(c.id))),
+    [courses, qbFilterScope],
+  );
+  const qbFilterPeriods = useMemo(
+    () =>
+      Array.from(
+        new Set(qbCoursesForFilter.map((c) => c.period).filter((p): p is string => !!p)),
+      ).sort((a, b) => b.localeCompare(a, "es-CO", { numeric: true })),
+    [qbCoursesForFilter],
+  );
+  const qbFilterSubjects = useMemo(
+    () =>
+      Array.from(
+        new Set(qbCoursesForFilter.map((c) => c.subject).filter((s): s is string => !!s)),
+      ).sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" })),
+    [qbCoursesForFilter],
+  );
+  const qbShowPeriodFilter = qbFilterPeriods.length > 1;
+  const qbShowSubjectFilter = qbFilterSubjects.length > 1;
+  const qbCambiarAlcance = (nuevo: { period?: string | null; subject?: string | null }) => {
+    const p = nuevo.period !== undefined ? nuevo.period : periodFilter;
+    const sj = nuevo.subject !== undefined ? nuevo.subject : subjectFilter;
+    if (nuevo.period !== undefined) setPeriodFilter(nuevo.period);
+    if (nuevo.subject !== undefined) setSubjectFilter(nuevo.subject);
+    if (courseId) {
+      const sigue = courses.some(
+        (c) =>
+          c.id === courseId &&
+          (!p || c.period === p) &&
+          (!sj || (c.academic_subjects?.name ?? null) === sj),
+      );
+      if (!sigue) {
+        const next = courses.find(
+          (c) => (!p || c.period === p) && (!sj || (c.academic_subjects?.name ?? null) === sj),
+        );
+        setCourseId(next?.id ?? "");
+      }
+    }
+  };
   const [rows, setRows] = useState<BankRow[]>([]);
   const [identifyOpen, setIdentifyOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -258,13 +319,15 @@ function QuestionBankPage() {
       if (!scopeToMyCourses) {
         query = db
           .from("courses")
-          .select("id, name, status, language")
+          .select("id, name, status, language, period, academic_subjects:subject_id(name)")
           .is("deleted_at", null)
           .order("name");
       } else {
         query = db
           .from("courses")
-          .select("id, name, status, language, course_teachers!inner(user_id)")
+          .select(
+            "id, name, status, language, period, academic_subjects:subject_id(name), course_teachers!inner(user_id)",
+          )
           .eq("course_teachers.user_id", user.id)
           .is("deleted_at", null)
           .order("name");
@@ -822,8 +885,48 @@ function QuestionBankPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <Label className="text-xs">{t("questionBank.courseLabel")}</Label>
+              {qbShowSubjectFilter && (
+                <Select
+                  value={subjectFilter ?? "__all_subjects__"}
+                  onValueChange={(v) =>
+                    qbCambiarAlcance({ subject: v === "__all_subjects__" ? null : v })
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-48">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all_subjects__">{t("listFilters.allSubjects")}</SelectItem>
+                    {qbFilterSubjects.map((sj) => (
+                      <SelectItem key={sj} value={sj}>
+                        {sj}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {qbShowPeriodFilter && (
+                <Select
+                  value={periodFilter ?? "__all_periods__"}
+                  onValueChange={(v) =>
+                    qbCambiarAlcance({ period: v === "__all_periods__" ? null : v })
+                  }
+                >
+                  <SelectTrigger className="w-full sm:w-32">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all_periods__">{t("listFilters.allPeriods")}</SelectItem>
+                    {qbFilterPeriods.map((p) => (
+                      <SelectItem key={p} value={p}>
+                        {p}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <CourseSelect
-                courses={courses}
+                courses={qbCoursesInScope}
                 value={courseId}
                 onChange={(v) => v && setCourseId(v)}
                 disabled={courses.length === 0}

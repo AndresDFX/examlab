@@ -239,7 +239,13 @@ function TeacherPolls() {
   const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const confirm = useConfirm();
   const [polls, setPolls] = useState<Poll[]>([]);
-  const [courses, setCourses] = useState<Array<{ id: string; name: string; status?: string | null }>>([]);
+  const [courses, setCourses] = useState<
+    Array<{ id: string; name: string; status?: string | null; period?: string | null; subject?: string | null }>
+  >([]);
+  // Filtros de nivel superior periodo/asignatura — ListFilters los usa para
+  // acotar las opciones del Select de curso.
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -311,14 +317,20 @@ function TeacherPolls() {
       // Docente: cursos donde es teacher (course_teachers).
       // SuperAdmin: todos los cursos visibles vía RLS (cross-tenant si
       // pure, del tenant si tiene override aplicado por RLS contextual).
-      let myCourses: Array<{ id: string; name: string; status?: string | null }> = [];
+      let myCourses: Array<{
+        id: string;
+        name: string;
+        status?: string | null;
+        period?: string | null;
+        subject?: string | null;
+      }> = [];
       if (isSuperAdminCaller) {
         // Cuando el SA elige una institución en el filtro, acotamos
         // server-side por tenant_id. "all" deja la RLS cross-tenant
         // (todos los cursos visibles para el SA).
         let courseQuery = db
           .from("courses")
-          .select("id, name, status")
+          .select("id, name, status, period, academic_subjects:subject_id(name)")
           .is("deleted_at", null)
           .order("name");
         if (tenantFilter !== "all") {
@@ -331,7 +343,19 @@ function TeacherPolls() {
           setLoading(false);
           return;
         }
-        myCourses = (courseRows ?? []) as Array<{ id: string; name: string; status?: string | null }>;
+        myCourses = ((courseRows ?? []) as Array<{
+          id: string;
+          name: string;
+          status?: string | null;
+          period?: string | null;
+          academic_subjects?: { name: string | null } | null;
+        }>).map((c) => ({
+          id: c.id,
+          name: c.name,
+          status: c.status ?? null,
+          period: c.period ?? null,
+          subject: c.academic_subjects?.name ?? null,
+        }));
 
         // Carga de tenants (paralela en concept, pero acá un await más
         // no agrega latencia perceptible — el listado de tenants es
@@ -352,7 +376,7 @@ function TeacherPolls() {
         // Patrón documentado en CLAUDE.md (regla universal de papelera).
         const { data: courseRows, error: courseErr } = await db
           .from("course_teachers")
-          .select("course_id, courses(id, name, status, deleted_at)")
+          .select("course_id, courses(id, name, status, deleted_at, period, academic_subjects:subject_id(name))")
           .eq("user_id", user.id);
         if (cancelled) return;
         if (courseErr) {
@@ -365,13 +389,21 @@ function TeacherPolls() {
           name: string;
           status: string | null;
           deleted_at: string | null;
+          period: string | null;
+          academic_subjects: { name: string | null } | null;
         };
         myCourses = (courseRows ?? [])
           .map((r: { courses: CursoEmbebido | null }) => r.courses)
           .filter(
             (c: CursoEmbebido | null): c is CursoEmbebido => Boolean(c) && c!.deleted_at === null,
           )
-          .map((c: CursoEmbebido) => ({ id: c.id, name: c.name, status: c.status }));
+          .map((c: CursoEmbebido) => ({
+            id: c.id,
+            name: c.name,
+            status: c.status,
+            period: c.period ?? null,
+            subject: c.academic_subjects?.name ?? null,
+          }));
       }
       setCourses(myCourses);
       // Polls de esos cursos + sus opciones. RLS ya filtra a los cursos
@@ -1086,6 +1118,10 @@ function TeacherPolls() {
         onCourseChange={(v) => setCourseFilter(v ?? "all")}
         courses={coursesConConteo}
         allLabel={t("teacherPolls.allCourses")}
+        period={periodFilter}
+        onPeriodChange={setPeriodFilter}
+        subject={subjectFilter}
+        onSubjectChange={setSubjectFilter}
         onClearExtra={() => setPollStatusFilter("abiertas")}
         extra={
           <>

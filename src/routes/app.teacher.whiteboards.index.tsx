@@ -115,7 +115,15 @@ interface Whiteboard {
    *  courses). Se lee acá y NO desde `draftCourses` (que solo se carga al abrir
    *  el dialog) — si no, la columna "Curso" salía "—" aunque la pizarra tuviera
    *  curso. `deleted_at` para no mostrar el nombre si el curso está en papelera. */
-  courses?: { id: string; name: string; deleted_at: string | null } | null;
+  courses?: {
+    id: string;
+    name: string;
+    deleted_at: string | null;
+    /** Periodo + asignatura solo alimentan el filtro de nivel superior del
+     *  grid (ListFilters), mismo patrón que Exámenes/Talleres/Proyectos. */
+    period?: string | null;
+    academic_subjects?: { name: string | null } | null;
+  } | null;
 }
 
 function TeacherWhiteboards() {
@@ -129,6 +137,10 @@ function TeacherWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
+  // Filtros de nivel superior periodo/asignatura — acotan las opciones del
+  // Select de curso (ListFilters los maneja internamente).
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Filtro por curso del grid (mismo control que talleres/proyectos/exámenes
   // vía ListFilters). null = "Todos los cursos".
   const [courseFilter, setCourseFilter] = useState<string | null>(null);
@@ -308,7 +320,7 @@ function TeacherWhiteboards() {
     let q = db
       .from("whiteboards")
       .select(
-        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at)",
+        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at, period, academic_subjects:subject_id(name))",
       )
       // Ocultar pizarras en papelera de la lista del docente.
       .is("deleted_at", null)
@@ -351,13 +363,18 @@ function TeacherWhiteboards() {
   // derivan de `items` (no requiere query extra) — solo aparecen cursos que
   // realmente tienen pizarras.
   const filterCourses = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { id: string; name: string; period: string | null; subject: string | null }>();
     for (const w of items) {
-      if (w.courses && !w.courses.deleted_at) map.set(w.courses.id, w.courses.name);
+      if (w.courses && !w.courses.deleted_at) {
+        map.set(w.courses.id, {
+          id: w.courses.id,
+          name: w.courses.name,
+          period: w.courses.period ?? null,
+          subject: w.courses.academic_subjects?.name ?? null,
+        });
+      }
     }
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
-      a.name.localeCompare(b.name, "es-CO"),
-    );
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "es-CO"));
   }, [items]);
 
   const filtered = useMemo(
@@ -833,6 +850,10 @@ function TeacherWhiteboards() {
         courseId={courseFilter}
         onCourseChange={setCourseFilter}
         courses={filterCourses}
+        period={periodFilter}
+        onPeriodChange={setPeriodFilter}
+        subject={subjectFilter}
+        onSubjectChange={setSubjectFilter}
         extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
         onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
       />
