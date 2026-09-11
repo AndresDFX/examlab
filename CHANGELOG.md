@@ -131,6 +131,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Exportar «Pendientes por estudiante» a Word.** En Estadísticas del docente, el panel de
+  pendientes tiene un botón **Exportar** que abre un diálogo con el listado COMPLETO de estudiantes
+  del alcance (un curso o «Todos los cursos», ya filtrado por periodo/asignatura) —incluyendo a los
+  que están al día—, cada uno con casilla para excluir a quien haga falta antes de generar. Al
+  confirmar descarga un `.docx` con el nombre y el logo de la institución en el encabezado (mismo
+  mecanismo que los informes) y una tabla con lo que le falta a cada estudiante (firma, encuesta,
+  examen, taller, proyecto) o «Al día». La tabla del Word lleva su fila de encabezado y bordes
+  visibles.
+
 - **Zoom de texto en las hojas y preguntas de SQL.** Control `[−] NN% [+] [↺]` en la barra del
   `SqlRunner`: de 100 % a 200 % en pasos de 25 %, persistido por persona en `examlab_sql_zoom`. El
   docente proyecta la hoja SQL en clase y el texto del editor y de la tabla de resultados se leía
@@ -1422,6 +1431,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   opción del perfil, no el encabezado del calendario.
 
 ### Interno (equipo)
+
+- **Export DOCX de «Pendientes por estudiante»** (`src/modules/statistics/`): `pending-students.ts`
+  suma `loadAllStudentsPending` / `aggregateAllStudents` (universo completo, incluye `total:0`)
+  compartiendo `loadPendingData` con el loader de la tabla; `pending-export.ts` arma el HTML compuesto
+  (puro, testeado) y `PendingStudentsExportDialog.tsx` carga el universo, deja excluir y llama
+  `downloadReportAsWord`. La marca sale de `usePrintBrand` (cadena `certificate_settings` → `tenants`).
+  El HTML del informe usa celdas `<td>` con borde inline y una primera fila en negrita como
+  encabezado — NO `<thead>`/`<th>`, que `html-to-docx.ts` (`tableToWml`) descarta, dejando el Word
+  sin fila de encabezado. `pending-export.test.ts` fija ese contrato.
 
 - **El `node_modules` de la máquina de trabajo se había ido del lockfile, y eso hace mentir al
   build local.** `bun run build` falla acá con `SyntaxError: The requested module
