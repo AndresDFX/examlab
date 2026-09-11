@@ -16,7 +16,7 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { readTenantOverride } from "@/modules/tenants/use-tenant";
+import { readTenantOverride, useTenant } from "@/modules/tenants/use-tenant";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { logEvent } from "@/shared/lib/audit";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -137,7 +137,20 @@ export function AdminModelPanel() {
   // su propia API key.
   const isGlobalScope =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
-  const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
+  // `useTenant()`, NO `profile?.tenant_id`: un SuperAdmin no tiene tenant
+  // propio (su profile.tenant_id es NULL), así que al usar "Ver como
+  // institución" el tenant a editar es el RESUELTO por el override, no el
+  // del profile del caller. Con `profile?.tenant_id` acá, un SuperAdmin
+  // viendo-como-X caía en scopeTenantId=null SIN ser scope global — ni el
+  // branch `.is('tenant_id', null)` ni el `.eq(...)` aplicaban, la query
+  // quedaba sin filtro de tenant y el panel mostraba "No se encontró el
+  // registro" (bug real reproducido en vivo: Bedrock parecía "no dejar
+  // escribir el modelo" porque el panel entero fallaba antes de renderizar
+  // el selector).
+  const { tenant: viewedTenant } = useTenant();
+  const scopeTenantId: string | null = isGlobalScope
+    ? null
+    : (viewedTenant?.id ?? profile?.tenant_id ?? null);
   const [activeRow, setActiveRow] = useState<ModelRow | null>(null);
   const [draftProvider, setDraftProvider] = useState<Provider>("gemini");
   const [draftModel, setDraftModel] = useState<string>("gemini-2.5-flash");

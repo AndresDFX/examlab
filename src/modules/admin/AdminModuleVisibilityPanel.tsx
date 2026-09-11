@@ -23,7 +23,7 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
-import { readTenantOverride } from "@/modules/tenants/use-tenant";
+import { readTenantOverride, useTenant } from "@/modules/tenants/use-tenant";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -138,7 +138,15 @@ export function AdminModuleVisibilityPanel() {
   // tenant, o SuperAdmin con override activo) edita filas del tenant.
   const isGlobalScope =
     roles.includes("SuperAdmin") && activeRole === "SuperAdmin" && readTenantOverride() === null;
-  const scopeTenantId: string | null = isGlobalScope ? null : (profile?.tenant_id ?? null);
+  // `useTenant()`, no `profile?.tenant_id`: mismo bug que en AdminModelPanel
+  // — el profile de un SuperAdmin no tiene tenant propio (es NULL), así que
+  // "Ver como institución" necesita el tenant RESUELTO por el override, no
+  // el del caller. Con `profile?.tenant_id` acá, un SuperAdmin viendo-como-X
+  // caía sin filtro de tenant en la query (ni global ni tenant-scoped).
+  const { tenant: viewedTenant } = useTenant();
+  const scopeTenantId: string | null = isGlobalScope
+    ? null
+    : (viewedTenant?.id ?? profile?.tenant_id ?? null);
   // En scope tenant ocultamos la columna SuperAdmin: el menú del
   // SuperAdmin se administra desde la fila global (`tenant_id IS NULL`),
   // no desde el panel de una institución. Un Admin de tenant NO puede
