@@ -395,6 +395,16 @@ const NAV: NavItem[] = [
     icon: FileBarChart,
     roles: ["Docente"],
   },
+  // El estudiante no gestiona plantillas ni genera documentos: solo ve
+  // (y firma) los que un docente/Admin le pidió — misma familia de
+  // módulo "reports" para que el Admin lo active/desactive con un solo
+  // toggle en el panel "Módulos", igual que las otras dos filas de arriba.
+  {
+    to: "/app/student/signatures",
+    labelKey: "nav.reports",
+    icon: FileBarChart,
+    roles: ["Estudiante"],
+  },
   // Auditoría: Admin ve todo, Docente ve su alcance.
   {
     to: "/app/teacher/audit-logs",

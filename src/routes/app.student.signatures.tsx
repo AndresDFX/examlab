@@ -14,7 +14,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileSignature, PenLine, Redo2 } from "lucide-react";
+import { FileBarChart, FileSignature, PenLine, Redo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -213,7 +213,7 @@ function StudentSignatures() {
   return (
     <div className="space-y-4">
       <PageHeader
-        icon={<FileSignature className="h-6 w-6" />}
+        icon={<FileBarChart className="h-6 w-6" />}
         title={t("studentSignatures.title")}
         subtitle={t("studentSignatures.subtitle", { count: pendientes.length })}
       />

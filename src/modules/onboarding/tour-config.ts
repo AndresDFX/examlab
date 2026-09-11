@@ -241,13 +241,13 @@ export const ADMIN_TOUR: TourStep[] = [
     side: "right",
   },
 
-  // ─── Informes ───────────────────────────────────────────────────────
+  // ─── Documentos ─────────────────────────────────────────────────────
   {
     element: '[data-tour-module="reports"]',
     route: "/app/admin/report-templates",
-    title: "Informes",
+    title: "Documentos",
     description:
-      "Plantillas para generar actas, boletines y reportes en PDF. Cada plantilla define columnas, agrupaciones y filtros — los docentes la usan desde su pestaña Informes.",
+      "Plantillas para generar actas, boletines y reportes en PDF. Cada plantilla define columnas, agrupaciones y filtros — los docentes la usan desde su pestaña Documentos.",
     side: "right",
   },
 
@@ -943,11 +943,11 @@ export const TEACHER_TOUR: TourStep[] = [
     side: "right",
   },
 
-  // ─── Reportes ───────────────────────────────────────────────────────
+  // ─── Documentos ─────────────────────────────────────────────────────
   {
     element: '[data-tour-module="reports"]',
     route: "/app/teacher/reports",
-    title: "Informes",
+    title: "Documentos",
     description:
       "Generás <strong>actas, boletines y reportes</strong> en PDF a partir de plantillas pre-armadas. Eligís curso + corte + periodo y descargás. Lo que te ahorra rellenar el formato del consejo académico a mano cada semestre.",
     side: "right",

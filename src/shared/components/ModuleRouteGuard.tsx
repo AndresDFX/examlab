@@ -88,6 +88,7 @@ export const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/student/polls", "polls"],
   ["/app/student/tutor/", "tutor"],
   ["/app/student/tutor", "tutor"],
+  ["/app/student/signatures", "reports"],
 
   // ── Comunes (todos los roles) ─────────────────────────────────────
   ["/app/certificates", "certificates"],
