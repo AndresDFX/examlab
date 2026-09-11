@@ -2538,11 +2538,34 @@ function TeacherWorkshops() {
             ai_feedback: s.feedback,
           });
         }
+        // Escribir CADA nota por pregunta antes de tocar el status de la
+        // entrega. El trigger `tg_workshop_answer_graded_recompute` (mig
+        // 20260956000000) es quien cierra `final_grade` una vez que TODAS
+        // las respuestas no-cerradas tienen `ai_grade`; si un upsert falla
+        // acá (timeout/red — el caso real que rompió un batch grande contra
+        // Bedrock) esa respuesta se queda con su `ai_grade` viejo (o NULL)
+        // y el trigger nunca cierra la nota. Antes el error de este loop se
+        // ignoraba en silencio y el UPDATE de abajo marcaba igual
+        // status="ai_revisado" — la entrega quedaba con el badge "Revisado
+        // por IA" pero SIN nota (columna "—"), y encima ya no volvía a
+        // aparecer como pendiente. Por eso: si UN upsert falla, abortamos
+        // ACÁ (sin tocar workshop_submissions) — la entrega conserva su
+        // status previo y sigue siendo "pendiente" para el próximo intento.
         for (const u of upserts) {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          await (supabase as any)
+          const { error: answerErr } = await (supabase as any)
             .from("workshop_submission_answers")
             .upsert(u, { onConflict: "submission_id,question_id" });
+          if (answerErr) {
+            toast.error(
+              i18n.t("toast.routes_app_teacher_workshops.answerSaveError", {
+                defaultValue:
+                  "No se pudo guardar la nota de una pregunta: {{error}}. Esta entrega quedó pendiente — reintentala.",
+                error: friendlyError(answerErr),
+              }),
+            );
+            return false;
+          }
         }
         const finalGrade =
           totalPoints > 0
@@ -2669,14 +2692,34 @@ function TeacherWorkshops() {
 
   const gradeAllWithAI = async () => {
     if (!gradingWs || aiGradingAll) return;
+    // Excluye entregas que YA tienen `final_grade` persistida: para un
+    // taller moderno (con preguntas) eso significa que el trigger de cierre
+    // (20260956000000) ya sumó todas las notas por pregunta con éxito —
+    // recalcularla de nuevo gastaría cuota de IA sin necesidad. Sin este
+    // filtro, reintentar "Calificar todo con IA" tras un corte de conexión
+    // a mitad de lote volvía a cobrar cuota por TODAS las entregas ya
+    // calificadas, no solo por las que quedaron pendientes. El botón
+    // "Calificar con IA" de cada entrega (dentro del detalle) sigue
+    // sirviendo para forzar una recalificación puntual.
+    const alreadyGraded = wsSubs.filter(
+      (s) =>
+        (s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado") &&
+        s.final_grade != null,
+    ).length;
     const pending = wsSubs.filter(
-      (s) => s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado",
+      (s) =>
+        (s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado") &&
+        s.final_grade == null,
     );
     if (!pending.length) {
       toast.info(
-        i18n.t("toast.routes_app_teacher_workshops.noSubmissionsToGrade", {
-          defaultValue: "No hay entregas para calificar",
-        }),
+        alreadyGraded > 0
+          ? i18n.t("toast.routes_app_teacher_workshops.allAlreadyGraded", {
+              defaultValue: "Todas las entregas ya tienen nota. Nada pendiente por calificar.",
+            })
+          : i18n.t("toast.routes_app_teacher_workshops.noSubmissionsToGrade", {
+              defaultValue: "No hay entregas para calificar",
+            }),
       );
       return;
     }
@@ -2689,12 +2732,26 @@ function TeacherWorkshops() {
         const ok = await gradeOneWithAI(sub);
         if (ok) graded++;
       }
-      if (graded > 0)
+      const failed = pending.length - graded;
+      if (graded > 0 && failed === 0)
         toast.success(
           i18n.t("toast.routes_app_teacher_workshops.submissionsGradedWithAi", {
             defaultValue: "{{count}} entrega(s) calificadas con IA correctamente",
             count: graded,
           }),
+        );
+      else if (failed > 0)
+        // Progreso parcial SIN excepción no capturada (cada fallo individual
+        // ya se auditó con su propio toast dentro de gradeOneWithAI) —
+        // deja explícito cuántas quedaron pendientes para el próximo intento.
+        toast.warning(
+          i18n.t("toast.routes_app_teacher_workshops.gradeAllPartial", {
+            defaultValue:
+              "{{graded}} calificada(s), {{failed}} quedaron pendientes (revisa los errores arriba y volvé a intentar).",
+            graded,
+            failed,
+          }),
+          { duration: 12000 },
         );
     } catch (e) {
       toast.error(
