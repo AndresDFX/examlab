@@ -1315,6 +1315,15 @@ function BedrockModelSelect({
           className="font-mono text-sm"
         />
       )}
+      {/* El `title` del botón (tooltip nativo, solo hover) no bastaba: el
+          admin reportó el botón "gris"/"no funciona" dos veces sin haber
+          pasado el mouse por encima. Un hint SIEMPRE visible mientras falte
+          la key es la única forma de que la razón se vea sin adivinar. */}
+      {!apiKey && !cargando && (
+        <p className="text-2xs text-muted-foreground">
+          {t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." })}
+        </p>
+      )}
       {errorCarga && (
         <p className="flex items-center gap-1 text-xs text-destructive">
           <XCircle className="h-3.5 w-3.5 shrink-0" />
@@ -1391,36 +1400,52 @@ function HealthCheckButton({
     }
   };
 
+  // Igual que "Cargar modelos" de Bedrock: el `title` (tooltip nativo, solo
+  // hover) no bastaba — el admin reportó el botón gris/"no funciona" sin
+  // haber pasado el mouse. Un hint SIEMPRE visible es la única forma de que
+  // se entienda por qué está apagado sin adivinar.
+  const disabledReason = !model.trim()
+    ? t("aiModel.healthCheckNoModel", { defaultValue: "Elegí un modelo antes de probar." })
+    : !apiKey
+      ? t("aiModel.healthCheckNoKey", { defaultValue: "Pegá la API key antes de probar." })
+      : undefined;
+
   return (
-    <div className="mt-2 flex items-center gap-2">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        onClick={() => void run()}
-      >
-        {checking ? (
-          <Spinner size="sm" className="mr-1.5" />
-        ) : (
-          <PlugZap className="h-4 w-4 mr-1.5" />
-        )}
-        {t("aiModel.healthCheckButton", { defaultValue: "Probar conexión" })}
-      </Button>
-      {result && (
-        <span
-          className={
-            "flex items-center gap-1 text-xs " +
-            (result.ok ? "text-success" : "text-destructive")
-          }
+    <div className="mt-2 space-y-1">
+      <div className="flex items-center gap-2">
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={disabled}
+          onClick={() => void run()}
+          title={disabledReason}
         >
-          {result.ok ? (
-            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+          {checking ? (
+            <Spinner size="sm" className="mr-1.5" />
           ) : (
-            <XCircle className="h-3.5 w-3.5 shrink-0" />
+            <PlugZap className="h-4 w-4 mr-1.5" />
           )}
-          {result.message}
-        </span>
+          {t("aiModel.healthCheckButton", { defaultValue: "Probar conexión" })}
+        </Button>
+        {result && (
+          <span
+            className={
+              "flex items-center gap-1 text-xs " +
+              (result.ok ? "text-success" : "text-destructive")
+            }
+          >
+            {result.ok ? (
+              <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+            ) : (
+              <XCircle className="h-3.5 w-3.5 shrink-0" />
+            )}
+            {result.message}
+          </span>
+        )}
+      </div>
+      {disabledReason && !result && (
+        <p className="text-2xs text-muted-foreground">{disabledReason}</p>
       )}
     </div>
   );

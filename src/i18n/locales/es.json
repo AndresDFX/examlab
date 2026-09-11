@@ -1887,6 +1887,8 @@
     "healthCheckButton": "Probar conexión",
     "healthCheckOk": "Funciona ({{ms}} ms)",
     "healthCheckUnknownError": "Error desconocido",
+    "healthCheckNoModel": "Elegí un modelo antes de probar.",
+    "healthCheckNoKey": "Pegá la API key antes de probar.",
     "bedrockRegionLabel": "Región de AWS",
     "bedrockRegionHint": "Va dentro de la URL del endpoint, así que debe ser el código exacto (us-east-1, us-west-2). Si se deja vacío se usa us-east-1.",
     "platformSwitchWithoutKeyAlert": "Vas a activar <strong>{{provider}}</strong> sin key propia, así que dependerá del secret <code>{{secret}}</code>. Las instituciones que usan la IA compartida toman el proveedor de esta configuración: si ese secret no está cargado, la IA deja de funcionar en <strong>todas</strong>. Confirmalo en Diagnósticos antes de guardar."
