@@ -239,7 +239,7 @@ function TeacherPolls() {
   const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   const confirm = useConfirm();
   const [polls, setPolls] = useState<Poll[]>([]);
-  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [courses, setCourses] = useState<Array<{ id: string; name: string; status?: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -311,14 +311,14 @@ function TeacherPolls() {
       // Docente: cursos donde es teacher (course_teachers).
       // SuperAdmin: todos los cursos visibles vía RLS (cross-tenant si
       // pure, del tenant si tiene override aplicado por RLS contextual).
-      let myCourses: Array<{ id: string; name: string }> = [];
+      let myCourses: Array<{ id: string; name: string; status?: string | null }> = [];
       if (isSuperAdminCaller) {
         // Cuando el SA elige una institución en el filtro, acotamos
         // server-side por tenant_id. "all" deja la RLS cross-tenant
         // (todos los cursos visibles para el SA).
         let courseQuery = db
           .from("courses")
-          .select("id, name")
+          .select("id, name, status")
           .is("deleted_at", null)
           .order("name");
         if (tenantFilter !== "all") {
@@ -331,7 +331,7 @@ function TeacherPolls() {
           setLoading(false);
           return;
         }
-        myCourses = (courseRows ?? []) as Array<{ id: string; name: string }>;
+        myCourses = (courseRows ?? []) as Array<{ id: string; name: string; status?: string | null }>;
 
         // Carga de tenants (paralela en concept, pero acá un await más
         // no agrega latencia perceptible — el listado de tenants es
@@ -352,7 +352,7 @@ function TeacherPolls() {
         // Patrón documentado en CLAUDE.md (regla universal de papelera).
         const { data: courseRows, error: courseErr } = await db
           .from("course_teachers")
-          .select("course_id, courses(id, name, deleted_at)")
+          .select("course_id, courses(id, name, status, deleted_at)")
           .eq("user_id", user.id);
         if (cancelled) return;
         if (courseErr) {
@@ -360,18 +360,18 @@ function TeacherPolls() {
           setLoading(false);
           return;
         }
+        type CursoEmbebido = {
+          id: string;
+          name: string;
+          status: string | null;
+          deleted_at: string | null;
+        };
         myCourses = (courseRows ?? [])
-          .map(
-            (r: { courses: { id: string; name: string; deleted_at: string | null } | null }) =>
-              r.courses,
-          )
+          .map((r: { courses: CursoEmbebido | null }) => r.courses)
           .filter(
-            (
-              c: { id: string; name: string; deleted_at: string | null } | null,
-            ): c is { id: string; name: string; deleted_at: string | null } =>
-              Boolean(c) && c!.deleted_at === null,
+            (c: CursoEmbebido | null): c is CursoEmbebido => Boolean(c) && c!.deleted_at === null,
           )
-          .map((c: { id: string; name: string }) => ({ id: c.id, name: c.name }));
+          .map((c: CursoEmbebido) => ({ id: c.id, name: c.name, status: c.status }));
       }
       setCourses(myCourses);
       // Polls de esos cursos + sus opciones. RLS ya filtra a los cursos
