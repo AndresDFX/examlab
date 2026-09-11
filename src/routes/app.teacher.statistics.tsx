@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { isStaffRole } from "@/shared/lib/roles";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
+import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -66,13 +67,27 @@ import {
   type SubmissionLike,
 } from "@/shared/lib/statistics";
 import { EarlyAlertCard } from "@/modules/earlyalert/EarlyAlertCard";
+import { PendingStudentsPanel } from "@/modules/statistics/PendingStudentsPanel";
 import { formatDateShort } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/teacher/statistics")({
   component: TeacherStatistics,
 });
 
-type CourseOpt = { id: string; name: string; period: string | null };
+type CourseOpt = {
+  id: string;
+  name: string;
+  period: string | null;
+  /** Embed `academic_subjects:subject_id(name)` — solo alimenta el filtro
+   *  de nivel superior (mismo patrón que Exámenes/Talleres/Proyectos/
+   *  Contenidos/Estudiantes/Asistencia). */
+  academic_subjects?: { name: string | null } | null;
+};
+
+/** Valor especial del Select de curso para el agregado cross-curso — el
+ *  panel de Pendientes es el único bloque que sabe combinar varios cursos;
+ *  el resto del dashboard (asistencia/notas/riesgo) sigue siendo por-curso. */
+const ALL_COURSES_VALUE = "__all__";
 
 function TeacherStatistics() {
   const { t } = useTranslation();
@@ -87,6 +102,12 @@ function TeacherStatistics() {
   const [loading, setLoading] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // Filtros de nivel superior sobre el Select de curso — mismo patrón que
+  // Exámenes/Talleres/Proyectos/Contenidos/Estudiantes/Asistencia
+  // (ListFilters + course-filter-scope.ts): periodo/asignatura acotan qué
+  // cursos ofrece el selector.
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
 
   // Cargar cursos. El docente ve SOLO los que dicta; Admin ve todos.
   //
@@ -104,7 +125,7 @@ function TeacherStatistics() {
         activeRole,
         roles,
         user.id,
-        "id, name, period",
+        "id, name, period, academic_subjects:subject_id(name)",
       );
       if (cancelled) return;
       if (error) {
@@ -121,13 +142,66 @@ function TeacherStatistics() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, activeRole, roles.join(","), retryNonce]);
 
+  // Alcance del filtro periodo/asignatura sobre el Select de curso.
+  const coursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  const filterScope = useMemo(
+    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    [coursesForFilter, periodFilter, subjectFilter],
+  );
+  const coursesInScope = useMemo(
+    () => (filterScope === null ? courses : courses.filter((c) => filterScope.has(c.id))),
+    [courses, filterScope],
+  );
+  const filterPeriods = useMemo(
+    () =>
+      Array.from(new Set(coursesForFilter.map((c) => c.period).filter((p): p is string => !!p))).sort(
+        (a, b) => b.localeCompare(a, "es-CO", { numeric: true }),
+      ),
+    [coursesForFilter],
+  );
+  const filterSubjects = useMemo(
+    () =>
+      Array.from(
+        new Set(coursesForFilter.map((c) => c.subject).filter((s): s is string => !!s)),
+      ).sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" })),
+    [coursesForFilter],
+  );
+  const showPeriodFilter = filterPeriods.length > 1;
+  const showSubjectFilter = filterSubjects.length > 1;
+  /** Al cambiar periodo/asignatura, si el curso elegido (o "Todos los
+   *  cursos") queda fuera del alcance se limpia — igual que
+   *  `cambiarAlcance` de ListFilters. */
+  const cambiarAlcanceCurso = (nuevo: { period?: string | null; subject?: string | null }) => {
+    const p = nuevo.period !== undefined ? nuevo.period : periodFilter;
+    const sj = nuevo.subject !== undefined ? nuevo.subject : subjectFilter;
+    if (nuevo.period !== undefined) setPeriodFilter(nuevo.period);
+    if (nuevo.subject !== undefined) setSubjectFilter(nuevo.subject);
+    if (courseId && courseId !== ALL_COURSES_VALUE) {
+      const sigue = courses.some(
+        (c) =>
+          c.id === courseId &&
+          (!p || c.period === p) &&
+          (!sj || (c.academic_subjects?.name ?? null) === sj),
+      );
+      if (!sigue) setCourseId(coursesInScope[0]?.id ?? "");
+    }
+  };
+
   // Cargar dataset del curso seleccionado.
   // Guard `cancelled` evita race condition cuando el docente cambia
   // de curso rápido (Select): la query del curso A puede resolver
   // DESPUÉS de B y sobrescribir el dataset. Además, .catch() asegura
   // que un fallo (RLS, red) no deje el spinner colgado.
   useEffect(() => {
-    if (!courseId) {
+    if (!courseId || courseId === ALL_COURSES_VALUE) {
       setDataset(null);
       return;
     }
@@ -177,19 +251,68 @@ function TeacherStatistics() {
         title={t("statistics.title")}
         subtitle={t("statistics.subtitle")}
         actions={
-          <Select value={courseId} onValueChange={setCourseId}>
-            <SelectTrigger className="w-full sm:w-72">
-              <SelectValue placeholder={t("statistics.coursePlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              {courses.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                  {c.period ? ` (${c.period})` : ""}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {/* Periodo/asignatura acotan las OPCIONES del Select de curso —
+                mismo patrón que Exámenes/Talleres/Proyectos/Contenidos/
+                Estudiantes/Asistencia (ListFilters). Solo aparecen si hay
+                más de un valor distinto. */}
+            {showSubjectFilter && (
+              <Select
+                value={subjectFilter ?? "__all_subjects__"}
+                onValueChange={(v) =>
+                  cambiarAlcanceCurso({ subject: v === "__all_subjects__" ? null : v })
+                }
+              >
+                <SelectTrigger className="w-full sm:w-48">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_subjects__">{t("listFilters.allSubjects")}</SelectItem>
+                  {filterSubjects.map((sj) => (
+                    <SelectItem key={sj} value={sj}>
+                      {sj}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {showPeriodFilter && (
+              <Select
+                value={periodFilter ?? "__all_periods__"}
+                onValueChange={(v) =>
+                  cambiarAlcanceCurso({ period: v === "__all_periods__" ? null : v })
+                }
+              >
+                <SelectTrigger className="w-full sm:w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_periods__">{t("listFilters.allPeriods")}</SelectItem>
+                  {filterPeriods.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            <Select value={courseId} onValueChange={setCourseId}>
+              <SelectTrigger className="w-full sm:w-72">
+                <SelectValue placeholder={t("statistics.coursePlaceholder")} />
+              </SelectTrigger>
+              <SelectContent>
+                {coursesInScope.length > 1 && (
+                  <SelectItem value={ALL_COURSES_VALUE}>{t("statistics.allCourses")}</SelectItem>
+                )}
+                {coursesInScope.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.name}
+                    {c.period ? ` (${c.period})` : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         }
       />
 
@@ -199,10 +322,18 @@ function TeacherStatistics() {
           text={t("statistics.emptyCourses")}
           hint={t("statistics.emptyCoursesHint")}
         />
+      ) : courseId === ALL_COURSES_VALUE ? (
+        // Agregado cross-curso: solo el panel de Pendientes sabe combinar
+        // varios cursos a la vez. El detalle de asistencia/notas/riesgo
+        // sigue siendo inherentemente por-curso.
+        <PendingStudentsPanel courses={coursesInScope} />
       ) : loading || !dataset ? (
         <PageLoader />
       ) : (
-        <CourseDashboard ds={dataset} />
+        <div className="space-y-5">
+          <CourseDashboard ds={dataset} />
+          <PendingStudentsPanel courses={[{ id: dataset.course.id, name: dataset.course.name }]} />
+        </div>
       )}
     </div>
   );
@@ -256,8 +387,11 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
 
   return (
     <div className="space-y-5">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      {/* KPIs — un solo grid compacto de 6 tarjetas (matrícula, aprobación,
+          asistencia y fraude + el desglose de exámenes: perdieron vs no
+          presentaron). En una fila en desktop para no comerse el alto que
+          después necesitan las gráficas y el panel de pendientes. */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         <KpiCard icon={Users} label={t("statistics.kpiStudents")} value={totalEnrolled} accent="text-sky-500" />
         <KpiCard
           icon={CheckCircle2}
@@ -280,11 +414,6 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
           subline={t("statistics.kpiPlagiarismPairs", { count: fraud.plagiarismPairs })}
           accent="text-amber-500"
         />
-      </div>
-
-      {/* KPIs de exámenes — desglose de "Pendientes" en perdieron vs no
-          presentaron. Cuentan estudiantes únicos sobre los exámenes. */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <KpiCard
           icon={XCircle}
           label={t("statistics.kpiFailedExams")}
@@ -334,15 +463,15 @@ function KpiCard({
 }) {
   return (
     <Card>
-      <CardContent className="p-4 flex items-start gap-3">
-        <div className={`rounded-md bg-muted/40 p-2 ${accent}`}>
-          <Icon className="h-5 w-5" />
+      <CardContent className="p-2.5 flex items-center gap-2">
+        <div className={`rounded-md bg-muted/40 p-1.5 shrink-0 ${accent}`}>
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="text-xs text-muted-foreground truncate">{label}</div>
-          <div className="text-2xl font-semibold tabular-nums">{value}</div>
+          <div className="text-2xs text-muted-foreground truncate">{label}</div>
+          <div className="text-lg font-semibold tabular-nums leading-tight">{value}</div>
           {subline && (
-            <div className="text-2xs text-muted-foreground truncate tabular-nums">{subline}</div>
+            <div className="text-3xs text-muted-foreground truncate tabular-nums">{subline}</div>
           )}
         </div>
       </CardContent>
@@ -374,7 +503,7 @@ function ApprovalDonutCard({
   const empty = approval.total === 0;
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           {t("statistics.donutTitle")}
@@ -387,7 +516,7 @@ function ApprovalDonutCard({
         {empty ? (
           <EmptyChart text={t("statistics.donutEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[260px] w-full">
+          <ChartContainer config={config} className="h-[220px] w-full">
             <PieChart>
               <ChartTooltip content={<ChartTooltipContent hideLabel />} />
               <Pie
@@ -430,7 +559,7 @@ function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: Submissi
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-blue-500" />
           {t("statistics.distTitle")}
@@ -443,7 +572,7 @@ function GradeDistributionCard({ ds, subs }: { ds: CourseDataset; subs: Submissi
         {total === 0 ? (
           <EmptyChart text={t("statistics.distEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[260px] w-full">
+          <ChartContainer config={config} className="h-[220px] w-full">
             <BarChart data={data}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="range" tickLine={false} axisLine={false} />
@@ -473,7 +602,7 @@ function ApprovalByKindCard({ ds }: { ds: CourseDataset }) {
   };
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <BarChart3 className="h-4 w-4 text-orange-500" />
           {t("statistics.kindTitle")}
@@ -484,7 +613,7 @@ function ApprovalByKindCard({ ds }: { ds: CourseDataset }) {
         {empty ? (
           <EmptyChart text={t("statistics.kindEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[260px] w-full">
+          <ChartContainer config={config} className="h-[220px] w-full">
             <BarChart data={data}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="kind" tickLine={false} axisLine={false} />
@@ -524,7 +653,7 @@ function CutTrendCard({ ds }: { ds: CourseDataset }) {
   };
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <TrendingUp className="h-4 w-4 text-violet-500" />
           {t("statistics.cutTitle")}
@@ -539,7 +668,7 @@ function CutTrendCard({ ds }: { ds: CourseDataset }) {
         ) : empty ? (
           <EmptyChart text={t("statistics.cutEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[260px] w-full">
+          <ChartContainer config={config} className="h-[220px] w-full">
             <LineChart data={data}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="cut" tickLine={false} axisLine={false} />
@@ -584,7 +713,7 @@ function AttendanceCard({ sessions }: { sessions: ReturnType<typeof computeAtten
   };
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <CalendarCheck className="h-4 w-4 text-cyan-500" />
           {t("statistics.attendTitle")}
@@ -597,7 +726,7 @@ function AttendanceCard({ sessions }: { sessions: ReturnType<typeof computeAtten
         {data.length === 0 ? (
           <EmptyChart text={t("statistics.attendEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[260px] w-full">
+          <ChartContainer config={config} className="h-[220px] w-full">
             <BarChart data={data}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="label" tickLine={false} axisLine={false} fontSize={10} />
@@ -665,7 +794,7 @@ function FraudCard({
 
   return (
     <Card>
-      <CardHeader>
+      <CardHeader className="p-4 pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <AlertTriangle className="h-4 w-4 text-amber-500" />
           {t("statistics.fraudTitle")}
@@ -688,7 +817,7 @@ function FraudCard({
         {empty ? (
           <EmptyChart text={t("statistics.fraudEmpty")} />
         ) : (
-          <ChartContainer config={config} className="h-[200px] w-full">
+          <ChartContainer config={config} className="h-[170px] w-full">
             <BarChart data={data}>
               <CartesianGrid vertical={false} strokeDasharray="3 3" />
               <XAxis dataKey="kind" tickLine={false} axisLine={false} />
@@ -707,7 +836,7 @@ function FraudCard({
 
 function EmptyChart({ text }: { text: string }) {
   return (
-    <div className="h-[180px] flex items-center justify-center text-xs text-muted-foreground text-center px-4">
+    <div className="h-[150px] flex items-center justify-center text-xs text-muted-foreground text-center px-4">
       {text}
     </div>
   );

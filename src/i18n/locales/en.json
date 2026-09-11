@@ -2727,7 +2727,22 @@
     "fraudKindProjects": "Projects",
     "fraudBadgeAi": "{{suspect}}/{{total}} AI suspect",
     "fraudBadgePlagiarism": "{{pairs}} pairs · {{students}} students",
-    "fraudEmpty": "No integrity alerts. Run 'Detect copies' per activity to populate pairs."
+    "fraudEmpty": "No integrity alerts. Run 'Detect copies' per activity to populate pairs.",
+    "allCourses": "All courses",
+    "pendingTitle": "Pending by student",
+    "pendingDesc": "Who still needs to sign a document, answer an open poll, present an exam, or submit a workshop or project.",
+    "pendingColStudent": "Student",
+    "pendingColCourses": "Course(s)",
+    "pendingColTotal": "Total",
+    "pendingKindFirma": "Signature",
+    "pendingKindEncuesta": "Poll",
+    "pendingKindExamen": "Exam",
+    "pendingKindTaller": "Workshop",
+    "pendingKindProyecto": "Project",
+    "pendingEmpty": "No one has anything pending in this scope.",
+    "pendingEmptyHint": "Signatures, polls, exams, workshops and projects for the course are all up to date.",
+    "pendingLoadError": "Could not load pending items",
+    "pendingEntity": "students"
   },
   "studentWhiteboards": {
     "allCourses": "All courses",

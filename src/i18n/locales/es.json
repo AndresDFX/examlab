@@ -2727,7 +2727,22 @@
     "fraudKindProjects": "Proyectos",
     "fraudBadgeAi": "{{suspect}}/{{total}} con sospecha IA",
     "fraudBadgePlagiarism": "{{pairs}} pares · {{students}} estudiantes",
-    "fraudEmpty": "Sin alertas de integridad. Ejecuta 'Detectar copias' por actividad para poblar pares."
+    "fraudEmpty": "Sin alertas de integridad. Ejecuta 'Detectar copias' por actividad para poblar pares.",
+    "allCourses": "Todos los cursos",
+    "pendingTitle": "Pendientes por estudiante",
+    "pendingDesc": "Quién falta por firmar un documento, responder una encuesta abierta, presentar un examen, o entregar un taller o proyecto.",
+    "pendingColStudent": "Estudiante",
+    "pendingColCourses": "Curso(s)",
+    "pendingColTotal": "Total",
+    "pendingKindFirma": "Firma",
+    "pendingKindEncuesta": "Encuesta",
+    "pendingKindExamen": "Examen",
+    "pendingKindTaller": "Taller",
+    "pendingKindProyecto": "Proyecto",
+    "pendingEmpty": "Nadie tiene pendientes en este alcance.",
+    "pendingEmptyHint": "Firmas, encuestas, exámenes, talleres y proyectos del curso están al día.",
+    "pendingLoadError": "No pudimos cargar los pendientes",
+    "pendingEntity": "estudiantes"
   },
   "studentWhiteboards": {
     "allCourses": "Todos los cursos",
