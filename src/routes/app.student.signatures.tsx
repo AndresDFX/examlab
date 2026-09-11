@@ -14,7 +14,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { FileSignature, PenLine } from "lucide-react";
+import { FileSignature, PenLine, Redo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
@@ -158,12 +158,17 @@ function StudentSignatures() {
   // firmar y obliga a un acto deliberado, dibujar— y encadenar dos diálogos hace
   // que el segundo se acepte sin leerlo.
   const [lienzoAbierto, setLienzoAbierto] = useState(false);
+  // El mismo lienzo sirve para firmar la primera vez y para REHACER una firma ya
+  // puesta: lo único que cambia es qué RPC se llama al confirmar. `resign_report`
+  // exige que ya exista una firma (RAISE si no), así que no alcanza con reusar
+  // `sign_report` para los dos casos.
+  const [editando, setEditando] = useState(false);
 
   const firmar = async (dibujo: string | null) => {
     if (!abierto || firmando) return;
     setFirmando(true);
     try {
-      const { data, error: e } = await db.rpc("sign_report", {
+      const { data, error: e } = await db.rpc(editando ? "resign_report" : "sign_report", {
         _report_id: abierto.id,
         _user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         _drawing: dibujo,
@@ -173,8 +178,9 @@ function StudentSignatures() {
         toast.error(friendlyError(e, t("studentSignatures.errSign")));
         return;
       }
-      toast.success(t("studentSignatures.signedOk"));
+      toast.success(t(editando ? "studentSignatures.resignedOk" : "studentSignatures.signedOk"));
       setLienzoAbierto(false);
+      setEditando(false);
       // El documento NO se cierra: se vuelve a pedir para que el estudiante vea su
       // firma aparecer en su renglón. Cerrarlo de golpe lo dejaba sin ninguna
       // señal de qué cambió, que es justo lo que este flujo venía a arreglar.
@@ -290,13 +296,35 @@ function StudentSignatures() {
               {t("common.close")}
             </Button>
             {abierto && !yaFirmo && (
-              <Button onClick={() => setLienzoAbierto(true)} disabled={firmando}>
+              <Button
+                onClick={() => {
+                  setEditando(false);
+                  setLienzoAbierto(true);
+                }}
+                disabled={firmando}
+              >
                 {firmando ? (
                   <Spinner size="sm" className="mr-1" />
                 ) : (
                   <PenLine className="h-4 w-4 mr-1" />
                 )}
                 {t("studentSignatures.signBtn")}
+              </Button>
+            )}
+            {/* Rehacer una firma ya puesta: mismo lienzo, RPC distinto
+                (`resign_report`). Ver nota en `firmar` sobre por qué no alcanza
+                con reusar el botón de arriba. */}
+            {abierto && yaFirmo && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEditando(true);
+                  setLienzoAbierto(true);
+                }}
+                disabled={firmando}
+              >
+                <Redo2 className="h-4 w-4 mr-1" />
+                {t("studentSignatures.editSignatureBtn")}
               </Button>
             )}
           </DialogFooter>

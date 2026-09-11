@@ -273,10 +273,20 @@ type Student = { id: string; full_name: string; institutional_email: string };
 // + metadatos de qué plantilla/curso/estudiante/periodo lo originó.
 type GeneratedReport = {
   id: string;
+  template_id: string | null;
   template_name: string;
   scope: "estudiante" | "curso";
   course_id: string;
   course_name: string | null;
+  /**
+   * Nombre VIVO del curso/plantilla, por embed de la FK. `null` cuando la
+   * plantilla se borró (`template_id` queda NULL, `ON DELETE SET NULL`) o el
+   * curso ya no resuelve — ahí gana el snapshot (`course_name`/`template_name`).
+   * Ver `nombreCursoVivo`/`nombrePlantillaViva`: el HTML del informe sigue
+   * siendo el snapshot congelado, esto solo dinamiza el RÓTULO que lo nombra.
+   */
+  courses?: { name: string } | null;
+  report_templates?: { name: string } | null;
   /** De quién es el informe, cuando es por estudiante. Lo usa "enviar a firmar". */
   student_id: string | null;
   student_name: string | null;
@@ -294,6 +304,29 @@ type GeneratedReport = {
    */
   report_signatures?: Array<{ signed_at: string | null }> | null;
 };
+
+/**
+ * Firma estructural (no `GeneratedReport`) a propósito: `ReportStatusDialog`
+ * declara su propio `InformeParaEstado` para no depender del tipo de la ruta, y
+ * ese objeto —aunque en runtime SEA un `GeneratedReport`— llega tipado más
+ * angosto. Con campos opcionales acá, las dos formas encajan sin castear.
+ */
+type ConNombreVivo = {
+  course_name: string | null;
+  template_name: string;
+  courses?: { name: string } | null;
+  report_templates?: { name: string } | null;
+};
+
+/** Nombre del CURSO a mostrar: el vivo si resuelve, el snapshot como respaldo. */
+function nombreCursoVivo(r: ConNombreVivo): string | null {
+  return r.courses?.name ?? r.course_name;
+}
+
+/** Nombre de la PLANTILLA a mostrar: el vivo si resuelve, el snapshot como respaldo. */
+function nombrePlantillaViva(r: ConNombreVivo): string {
+  return r.report_templates?.name ?? r.template_name;
+}
 
 /** Una evaluación del curso, para elegir el foco del informe. */
 type EvaluacionElegible = { tipo: FocoTipo; id: string; titulo: string };
@@ -580,7 +613,11 @@ function Inner() {
       .from("generated_reports")
       // El embed de `report_signatures` NO agrega una consulta: son dos campos
       // por firma, despreciable al lado del `html` que este select ya arrastra.
-      .select("id, template_name, scope, course_id, course_name, student_id, student_name, periodo, html, created_at, public_token, public_enabled, report_signatures(signed_at)")
+      // `courses(name)` y `report_templates(name)` son el nombre VIVO (se leen al
+      // mostrar, no al generar): un curso o una plantilla renombrados después no
+      // dejan el historial con el rótulo viejo. El HTML del informe NO se toca —
+      // sigue siendo el snapshot congelado; ver `nombreCursoVivo`/`nombrePlantillaViva`.
+      .select("id, template_id, template_name, scope, course_id, course_name, student_id, student_name, periodo, html, created_at, public_token, public_enabled, report_signatures(signed_at), courses(name), report_templates(name)")
       .order("created_at", { ascending: false })
       .limit(200);
     if (isCancelled?.()) return;
@@ -1824,8 +1861,8 @@ function Inner() {
       await yieldToPaint();
       const html = await conFirmas(r);
       const { imagenesPerdidas } = await downloadReportAsWord(html, {
-        templateName: r.template_name,
-        courseName: r.course_name,
+        templateName: nombrePlantillaViva(r),
+        courseName: nombreCursoVivo(r),
         studentName: r.student_name,
         periodo: r.periodo,
         stamp: fileStamp(new Date(r.created_at)),
@@ -2274,20 +2311,20 @@ function Inner() {
                         genReports.map((r) => (
                           <TableRow key={r.id}>
                             <TableCell className="font-medium">
-                              <div className="truncate" title={r.template_name}>{r.template_name}</div>
+                              <div className="truncate" title={nombrePlantillaViva(r)}>{nombrePlantillaViva(r)}</div>
                               {/* En móvil las columnas Curso / Estudiante / Generado
                                   están ocultas (`hidden sm:table-cell`), así que dos
                                   informes de la misma plantilla se leen IGUALES y no
                                   hay forma de saber cuál es cuál. Acá va lo que los
                                   distingue, solo en el ancho donde falta. */}
                               <div className="sm:hidden text-2xs text-muted-foreground truncate">
-                                {[r.course_name, r.student_name, formatDateTime(r.created_at)]
+                                {[nombreCursoVivo(r), r.student_name, formatDateTime(r.created_at)]
                                   .filter(Boolean)
                                   .join(" · ")}
                               </div>
                             </TableCell>
                             <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
-                              <div className="truncate" title={r.course_name ?? undefined}>{r.course_name ?? "—"}</div>
+                              <div className="truncate" title={nombreCursoVivo(r) ?? undefined}>{nombreCursoVivo(r) ?? "—"}</div>
                             </TableCell>
                             <TableCell className="hidden md:table-cell text-sm text-muted-foreground">
                               <div className="truncate">
@@ -2373,7 +2410,7 @@ function Inner() {
                                             setFirmarInforme({
                                               id: r.id,
                                               courseId: r.course_id,
-                                              nombre: r.template_name,
+                                              nombre: nombrePlantillaViva(r),
                                               studentId: r.student_id,
                                               html: r.html,
                                             }),
@@ -2862,7 +2899,7 @@ function Inner() {
           setFirmarInforme({
             id: r.id,
             courseId: r.course_id,
-            nombre: r.template_name,
+            nombre: nombrePlantillaViva(r),
             studentId,
             html: r.html,
           });

@@ -36,7 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { cajaDelTrazo, conMargen, trazoDemasiadoChico } from "./signature-pad";
+import { cajaDelTrazo, conMargen, dimensionesExportacion, trazoDemasiadoChico } from "./signature-pad";
 
 /** Tamaño lógico del lienzo. Proporción parecida a un renglón de firma. */
 const ANCHO = 600;
@@ -141,7 +141,19 @@ export function SignaturePadDialog({
     setHayTrazo(false);
   };
 
-  /** Recorta a la tinta y exporta. `null` si no hay trazo utilizable. */
+  /**
+   * Recorta a la tinta y exporta. `null` si no hay trazo utilizable.
+   *
+   * El recorte llega en píxeles de DISPOSITIVO (el buffer es `ANCHO/ALTO × dpr`,
+   * hasta 3 en un teléfono), así que a densidad 3 el PNG a resolución completa
+   * pesa ~3× lo que en un computador. Ese PNG va a `signed_drawing`, acotada a
+   * 120 000 caracteres por `chk_report_signatures_drawing` — sin capar, una firma
+   * completa desde el celular supera el tope y `sign_report`/`sign_report_public`
+   * la rechazan con `invalid_drawing` ANTES de guardar. Esa era la firma "que no
+   * funciona en el celular": andaba en la compu (dpr 1) y fallaba en el teléfono
+   * (dpr 3) con el mismo trazo. Como la firma se muestra a lo sumo a 34px de alto
+   * (`firmaHtml` en `signature-slots.ts`), capar el lado mayor no cuesta calidad.
+   */
   const exportar = (): string | null => {
     const c = ref.current;
     const g = ctx();
@@ -151,13 +163,14 @@ export function SignaturePadDialog({
     const caja = cajaDelTrazo(img.data, c.width, c.height);
     if (trazoDemasiadoChico(caja, 12 * dpr)) return null;
     const rec = conMargen(caja!, MARGEN_RECORTE * dpr, c.width, c.height);
+    const dim = dimensionesExportacion(rec.w, rec.h);
 
     const salida = document.createElement("canvas");
-    salida.width = rec.w;
-    salida.height = rec.h;
+    salida.width = dim.w;
+    salida.height = dim.h;
     const gs = salida.getContext("2d");
     if (!gs) return null;
-    gs.drawImage(c, rec.x, rec.y, rec.w, rec.h, 0, 0, rec.w, rec.h);
+    gs.drawImage(c, rec.x, rec.y, rec.w, rec.h, 0, 0, dim.w, dim.h);
     return salida.toDataURL("image/png");
   };
 

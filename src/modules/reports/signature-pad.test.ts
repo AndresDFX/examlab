@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { cajaDelTrazo, conMargen, trazoDemasiadoChico } from "./signature-pad";
+import { cajaDelTrazo, conMargen, dimensionesExportacion, trazoDemasiadoChico } from "./signature-pad";
 
 /** Lienzo RGBA con los píxeles indicados opacos. */
 function lienzo(ancho: number, alto: number, puntos: Array<[number, number, number?]>) {
@@ -122,5 +122,35 @@ describe("trazoDemasiadoChico", () => {
     // Con `&&` una firma larga y plana pasa; con `||` se rechazaría, y hay gente
     // que firma con una línea casi recta.
     expect(trazoDemasiadoChico({ x: 0, y: 0, w: 200, h: 3 })).toBe(false);
+  });
+});
+
+describe("dimensionesExportacion", () => {
+  it("no toca un recorte que ya entra dentro del tope", () => {
+    expect(dimensionesExportacion(300, 100)).toEqual({ w: 300, h: 100 });
+  });
+
+  it("el lado mayor no pasa de maxLado, manteniendo la proporción", () => {
+    // A dpr=3 un recorte de 900×300 (equivalente a 300×100 a dpr=1) se achica a
+    // que el lado mayor sea 600 — la mitad del original — y el otro escala igual.
+    expect(dimensionesExportacion(900, 300)).toEqual({ w: 600, h: 200 });
+  });
+
+  it("cuando el lado mayor es el alto, escala por el alto", () => {
+    expect(dimensionesExportacion(150, 1800)).toEqual({ w: 50, h: 600 });
+  });
+
+  it("respeta un maxLado propio", () => {
+    expect(dimensionesExportacion(2000, 1000, 300)).toEqual({ w: 300, h: 150 });
+  });
+
+  it("un recorte vacío da 0×0 en vez de un lienzo negativo", () => {
+    expect(dimensionesExportacion(0, 0)).toEqual({ w: 0, h: 0 });
+  });
+
+  it("nunca redondea a 0 un lado que sí tiene ancho", () => {
+    // Un recorte muy angosto (una firma casi vertical) no debe desaparecer al
+    // escalar: el mínimo es 1px, no 0.
+    expect(dimensionesExportacion(1, 5000)).toEqual({ w: 1, h: 600 });
   });
 });

@@ -88,3 +88,31 @@ export function trazoDemasiadoChico(caja: Caja | null, minLado = 12): boolean {
   if (!caja) return true;
   return caja.w < minLado && caja.h < minLado;
 }
+
+/**
+ * Tamaño del lienzo de EXPORTACIÓN, capado para que el lado mayor no pase de
+ * `maxLado`.
+ *
+ * El recorte llega en píxeles del DISPOSITIVO: el buffer del lienzo se multiplica
+ * por `devicePixelRatio` (hasta 3 en un teléfono), así que a densidad 3 el PNG
+ * exportado a resolución completa pesa ~3× lo que en un computador. Ese PNG va a
+ * la columna `report_signatures.signed_drawing`, acotada a 120 000 caracteres por
+ * `chk_report_signatures_drawing`, y `sign_report` lo rechaza con
+ * `invalid_drawing` ANTES de guardar. El síntoma es exacto: firmar anda en el
+ * computador (dpr 1) y falla en el celular (dpr 3), con la firma «que no se
+ * guarda». Como la firma se muestra a lo sumo a 34px de alto, capar el lado mayor
+ * no cuesta calidad y mantiene el PNG lejos del tope en cualquier densidad.
+ *
+ * Devuelve `{ w: 0, h: 0 }` para un recorte vacío: el caller ya descartó ese caso,
+ * pero no debe producir un lienzo de tamaño negativo.
+ */
+export function dimensionesExportacion(
+  recW: number,
+  recH: number,
+  maxLado = 600,
+): { w: number; h: number } {
+  const lado = Math.max(recW, recH);
+  if (lado <= 0) return { w: 0, h: 0 };
+  const factor = lado > maxLado ? maxLado / lado : 1;
+  return { w: Math.max(1, Math.round(recW * factor)), h: Math.max(1, Math.round(recH * factor)) };
+}
