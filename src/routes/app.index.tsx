@@ -10,6 +10,7 @@ import { sessionIsUpcoming } from "@/shared/lib/session-time";
 import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ErrorState } from "@/components/ui/empty-state";
 import { fetchTeacherCourseIds } from "@/modules/courses/course-scope";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -43,6 +44,8 @@ import {
   Trophy,
   ClipboardCheck,
   Stethoscope,
+  FileSignature,
+  ListChecks,
 } from "lucide-react";
 import {
   Dialog,
@@ -1379,6 +1382,18 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
      *  último comentario es del docente (la pelota está en mi cancha).
      *  Inversa del card del docente. */
     pendingMyResponse: 0,
+    /** Documentos con firma solicitada y aún sin firmar
+     *  (`report_signatures.signed_at IS NULL`). No tiene entrada en el
+     *  nav del sidebar — hoy solo se llega por la notificación o por
+     *  este banner, así que sin esto un alumno puede no enterarse. */
+    pendingSignatures: 0,
+    /** Encuestas abiertas (publicadas, dentro de su ventana, no
+     *  cerradas manualmente) en las que el alumno todavía no respondió
+     *  nada. Aproximación del mismo criterio que `/app/student/polls`
+     *  usa para `hasVoted`/`hasAnyAnswer`, sin replicar toda su lógica
+     *  de preguntas mixtas — acá alcanza con "¿hay al menos una fila
+     *  de respuesta mía?". */
+    openPollsUnanswered: 0,
   });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -1590,8 +1605,74 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           }>,
         );
       }
+      // Firmas pendientes — filas de report_signatures del alumno sin
+      // firmar. La policy de SELECT ya acota a `user_id = auth.uid()`.
+      const { data: sigRows } = await dbAny
+        .from("report_signatures")
+        .select("report_id")
+        .eq("user_id", userId)
+        .is("signed_at", null);
+      const pendingSignatures = (sigRows ?? []).length;
+
+      // Encuestas abiertas sin responder — mismo criterio de "curso
+      // matriculado" que arriba (enrolledCourseIds ya resuelto). Se
+      // resuelve vía poll_courses (multi-curso) porque el ancla
+      // `polls.course_id` no alcanza a las encuestas compartidas.
+      let openPollsUnanswered = 0;
+      if (enrolledCourseIds.length > 0) {
+        const { data: pollCourseRows } = await dbAny
+          .from("poll_courses")
+          .select("poll_id")
+          .in("course_id", enrolledCourseIds);
+        const pollIds = Array.from(
+          new Set(
+            ((pollCourseRows ?? []) as Array<{ poll_id: string }>).map((r) => r.poll_id),
+          ),
+        );
+        if (pollIds.length > 0) {
+          const { data: pollRows } = await dbAny
+            .from("polls")
+            .select("id, poll_type, opens_at, closes_at, closed_manually")
+            .in("id", pollIds)
+            .is("deleted_at", null)
+            .neq("poll_type", "kahoot");
+          const now = Date.now();
+          const openPolls = ((pollRows ?? []) as Array<{
+            id: string;
+            poll_type: string;
+            opens_at: string;
+            closes_at: string | null;
+            closed_manually: boolean;
+          }>).filter(
+            (p) =>
+              !p.closed_manually &&
+              new Date(p.opens_at).getTime() <= now &&
+              (!p.closes_at || new Date(p.closes_at).getTime() > now),
+          );
+          if (openPolls.length > 0) {
+            const openPollIds = openPolls.map((p) => p.id);
+            const [{ data: myVotes }, { data: myMixedAnswers }] = await Promise.all([
+              dbAny.from("poll_responses").select("poll_id").eq("user_id", userId).in(
+                "poll_id",
+                openPollIds,
+              ),
+              dbAny
+                .from("poll_question_responses")
+                .select("poll_id")
+                .eq("user_id", userId)
+                .in("poll_id", openPollIds),
+            ]);
+            const answeredPollIds = new Set([
+              ...((myVotes ?? []) as Array<{ poll_id: string }>).map((r) => r.poll_id),
+              ...((myMixedAnswers ?? []) as Array<{ poll_id: string }>).map((r) => r.poll_id),
+            ]);
+            openPollsUnanswered = openPolls.filter((p) => !answeredPollIds.has(p.id)).length;
+          }
+        }
+      }
+
       if (cancelled) return;
-      setCounts({ pendingMyResponse });
+      setCounts({ pendingMyResponse, pendingSignatures, openPollsUnanswered });
       // (Las "Próximas clases" del estudiante se removieron del dashboard: la
       // columna derecha ahora muestra el ranking acumulado de Kahoot por curso,
       // que se carga en el componente StudentKahootRanking vía RPC + realtime.)
@@ -1624,6 +1705,48 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
     // disponible. Cada card scrollea internamente su lista cuando hay
     // muchos items, sin empujar el botón "Ver todo" fuera de pantalla.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
+      {/* Banner de acciones urgentes — firmas pendientes + encuestas
+          abiertas sin responder. NO es un 5º/6º stat ni un card ancho:
+          el patrón "4 stats + 2 cards" del dashboard es rígido (ver
+          CLAUDE.md) y agregar fila/columna ahí rompería esa regla sin
+          necesidad. Es un banner de una sola línea, mismo patrón que
+          `TenantOverrideBanner` — categoría aparte del grid, no una
+          violación del 4+2. Se justifica porque `/app/student/signatures`
+          NO tiene entrada en el sidebar (solo se llega por notificación
+          o por acá), así que sin esto una firma pendiente puede pasar
+          desapercibida indefinidamente. Solo se renderiza si hay algo
+          pendiente — no ocupa espacio cuando no aplica. */}
+      {!loading && (counts.pendingSignatures > 0 || counts.openPollsUnanswered > 0) && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 py-2.5">
+          <AlertDescription className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 text-amber-800 dark:text-amber-300">
+            {counts.pendingSignatures > 0 && (
+              <Link
+                to="/app/student/signatures"
+                className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
+              >
+                <FileSignature className="h-4 w-4 shrink-0" />
+                {t("dashboard.stats.pendingSignatures", {
+                  count: counts.pendingSignatures,
+                })}
+              </Link>
+            )}
+            {counts.pendingSignatures > 0 && counts.openPollsUnanswered > 0 && (
+              <span className="hidden text-amber-500/50 sm:inline">·</span>
+            )}
+            {counts.openPollsUnanswered > 0 && (
+              <Link
+                to="/app/student/polls"
+                className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
+              >
+                <ListChecks className="h-4 w-4 shrink-0" />
+                {t("dashboard.stats.openPollsUnanswered", {
+                  count: counts.openPollsUnanswered,
+                })}
+              </Link>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
