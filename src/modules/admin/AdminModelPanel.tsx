@@ -1246,6 +1246,12 @@ function BedrockModelSelect({
           onValueChange={(v) => {
             if (v === BEDROCK_CUSTOM_MODEL) {
               setCustomMode(true);
+              // El input de texto libre muestra `value` tal cual — sin
+              // vaciarlo acá, elegir "Otro" dejaba a la vista el ID curado
+              // anterior (ej. "openai.gpt-oss-120b-1:0"), y el admin tenía
+              // que borrarlo a mano para escribir el de Claude que quería.
+              // Reportado dos veces como "no me deja escribir el modelo".
+              onChange("");
               return;
             }
             setCustomMode(false);
