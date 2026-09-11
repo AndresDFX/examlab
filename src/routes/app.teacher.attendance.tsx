@@ -6,6 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { scopedCourseIds } from "@/modules/courses/course-scope";
+import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
@@ -139,7 +140,15 @@ estudiante1@uni.edu,2025-08-03,presente,`;
 
 export const Route = createFileRoute("/app/teacher/attendance")({ component: TeacherAttendance });
 
-type Course = { id: string; name: string; period: string | null; status?: string | null };
+type Course = {
+  id: string;
+  name: string;
+  period: string | null;
+  status?: string | null;
+  /** Embed `academic_subjects:subject_id(name)` — solo alimenta el filtro de
+   *  nivel superior (mismo patrón de Exámenes/Talleres/Proyectos/Contenidos). */
+  academic_subjects?: { name: string | null } | null;
+};
 /**
  * Un item del curso que puede ser REQUISITO para marcar asistencia.
  *
@@ -258,6 +267,15 @@ function TeacherAttendance() {
   const { t } = useTranslation();
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState("");
+  // Filtros de nivel superior sobre el Select de curso — mismo patrón que
+  // Exámenes/Talleres/Proyectos/Contenidos/Estudiantes (ListFilters +
+  // course-filter-scope.ts): periodo/asignatura acotan qué cursos ofrece el
+  // selector. Acá el curso es obligatorio (no hay "todos"), así que al acotar
+  // el alcance se limpia `courseId` si el curso elegido queda afuera — igual
+  // que `cambiarAlcance` en ListFilters, para no dejar seleccionado un curso
+  // que ya no aparece en la lista.
+  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   // Contenidos generados disponibles para asignar (filtrados al curso
@@ -546,7 +564,7 @@ function TeacherAttendance() {
       }
       let q = supabase
         .from("courses")
-        .select("id, name, period, status")
+        .select("id, name, period, status, academic_subjects:subject_id(name)")
         // Ocultar cursos en papelera del Select de curso del tablero.
         .is("deleted_at", null)
         .order("name");
@@ -2333,6 +2351,62 @@ function TeacherAttendance() {
     });
   }, [students, studentSearch]);
 
+  // Lista para el filtro de nivel superior: aplana el embed de asignatura.
+  // Se deriva de `courses` en vez de cambiar el tipo Course, igual que en
+  // Exámenes/Talleres/Proyectos/Contenidos.
+  const coursesForFilter = useMemo(
+    () =>
+      courses.map((c) => ({
+        id: c.id,
+        name: c.name,
+        status: c.status ?? null,
+        period: c.period ?? null,
+        subject: c.academic_subjects?.name ?? null,
+      })),
+    [courses],
+  );
+  const filterScope = useMemo(
+    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    [coursesForFilter, periodFilter, subjectFilter],
+  );
+  const coursesInScope = useMemo(
+    () => (filterScope === null ? courses : courses.filter((c) => filterScope.has(c.id))),
+    [courses, filterScope],
+  );
+  // Con un solo valor el filtro no filtra: se oculta en vez de ocupar lugar
+  // (mismo criterio que ListFilters).
+  const filterPeriods = useMemo(
+    () =>
+      Array.from(new Set(coursesForFilter.map((c) => c.period).filter((p): p is string => !!p))).sort(
+        (a, b) => b.localeCompare(a, "es-CO", { numeric: true }),
+      ),
+    [coursesForFilter],
+  );
+  const filterSubjects = useMemo(
+    () =>
+      Array.from(
+        new Set(coursesForFilter.map((c) => c.subject).filter((s): s is string => !!s)),
+      ).sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" })),
+    [coursesForFilter],
+  );
+  const showPeriodFilter = filterPeriods.length > 1;
+  const showSubjectFilter = filterSubjects.length > 1;
+  /** Al cambiar periodo/asignatura, si el curso elegido queda fuera del
+   *  alcance se limpia — igual que `cambiarAlcance` de ListFilters, para no
+   *  dejar seleccionado un curso que el Select ya no ofrece. */
+  const cambiarAlcanceCurso = (nuevo: { period?: string | null; subject?: string | null }) => {
+    const p = nuevo.period !== undefined ? nuevo.period : periodFilter;
+    const sj = nuevo.subject !== undefined ? nuevo.subject : subjectFilter;
+    if (nuevo.period !== undefined) setPeriodFilter(nuevo.period);
+    if (nuevo.subject !== undefined) setSubjectFilter(nuevo.subject);
+    if (courseId) {
+      const sigue = courses.some(
+        (c) => c.id === courseId && (!p || c.period === p) && (!sj || (c.academic_subjects?.name ?? null) === sj),
+      );
+      if (!sigue) setCourseId("");
+    }
+  };
+
   if (authLoading) return null;
   if (!isTeacher)
     return <p className="text-muted-foreground">{t("teacherAttendance.needsTeacherRole")}</p>;
@@ -2364,8 +2438,53 @@ function TeacherAttendance() {
         })}
         actions={
           <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+            {/* Periodo/asignatura acotan las OPCIONES del Select de curso —
+                mismo patrón que Exámenes/Talleres/Proyectos/Contenidos/
+                Estudiantes (ListFilters). Solo aparecen si hay más de un
+                valor distinto: un filtro con una sola opción no filtra
+                nada y ocupa lugar. */}
+            {showSubjectFilter && (
+              <Select
+                value={subjectFilter ?? "__all_subjects__"}
+                onValueChange={(v) =>
+                  cambiarAlcanceCurso({ subject: v === "__all_subjects__" ? null : v })
+                }
+              >
+                <SelectTrigger className="w-full sm:w-52">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_subjects__">{t("listFilters.allSubjects")}</SelectItem>
+                  {filterSubjects.map((sj) => (
+                    <SelectItem key={sj} value={sj}>
+                      {sj}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {showPeriodFilter && (
+              <Select
+                value={periodFilter ?? "__all_periods__"}
+                onValueChange={(v) =>
+                  cambiarAlcanceCurso({ period: v === "__all_periods__" ? null : v })
+                }
+              >
+                <SelectTrigger className="w-full sm:w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__all_periods__">{t("listFilters.allPeriods")}</SelectItem>
+                  {filterPeriods.map((p) => (
+                    <SelectItem key={p} value={p}>
+                      {p}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             <CourseSelect
-              courses={courses}
+              courses={coursesInScope}
               value={courseId}
               onChange={(v) => v && setCourseId(v)}
               showPeriod
