@@ -93,6 +93,63 @@ export function aggregatePending(
   return rows.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, "es-CO"));
 }
 
+/**
+ * PURO: igual que `aggregatePending`, pero para el UNIVERSO completo — incluye
+ * a los estudiantes matriculados SIN ningún pendiente (`total: 0`), y el campo
+ * `courses` es TODA su matrícula en el alcance (no solo los cursos con
+ * pendiente), para que el informe exportado diga en qué curso(s) está inscrito
+ * incluso si está al día en todos.
+ */
+export function aggregateAllStudents(
+  items: readonly PendingItem[],
+  names: ReadonlyMap<string, string>,
+  courseNames: ReadonlyMap<string, string>,
+  enrolledByUser: ReadonlyMap<string, ReadonlySet<string>>,
+): StudentPendingRow[] {
+  const byUser = new Map<
+    string,
+    { counts: Record<PendingKind, number>; courseIds: Set<string> }
+  >();
+  for (const [userId, courseIds] of enrolledByUser) {
+    byUser.set(userId, {
+      counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 },
+      courseIds: new Set(courseIds),
+    });
+  }
+  for (const it of items) {
+    let e = byUser.get(it.userId);
+    if (!e) {
+      // Defensivo: un pendiente de un estudiante que no figura en la matrícula
+      // (no debería pasar, `studentsByCourse` sale de la misma consulta).
+      e = { counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 }, courseIds: new Set() };
+      byUser.set(it.userId, e);
+    }
+    e.counts[it.kind]++;
+  }
+  const rows: StudentPendingRow[] = [];
+  for (const [userId, e] of byUser) {
+    const total =
+      e.counts.firma + e.counts.encuesta + e.counts.examen + e.counts.taller + e.counts.proyecto;
+    rows.push({
+      userId,
+      name: names.get(userId) ?? "—",
+      courses: [...e.courseIds]
+        .map((id) => courseNames.get(id))
+        .filter((n): n is string => !!n)
+        .sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" })),
+      firma: e.counts.firma,
+      encuesta: e.counts.encuesta,
+      examen: e.counts.examen,
+      taller: e.counts.taller,
+      proyecto: e.counts.proyecto,
+      total,
+    });
+  }
+  // Alfabético: es un ROSTER completo (no un ranking de riesgo), así que el
+  // docente lo lee como una lista de curso, no ordenada por "quién debe más".
+  return rows.sort((a, b) => a.name.localeCompare(b.name, "es-CO", { sensitivity: "base" }));
+}
+
 /** ¿La encuesta está abierta AHORA? Publicada, dentro de su ventana y no
  *  cerrada a mano — mismo criterio que `/app/student/polls`. */
 export function pollIsOpen(
@@ -105,8 +162,19 @@ export function pollIsOpen(
   return true;
 }
 
+/** Resultado crudo compartido entre `loadPendingStudents` (solo pendientes) y
+ *  `loadAllStudentsPending` (universo completo, para el export). */
+type PendingData = {
+  items: PendingItem[];
+  courseNames: Map<string, string>;
+  /** Matrícula completa del alcance: estudiante → cursos (del alcance) donde
+   *  está matriculado, tenga o no pendientes en ellos. */
+  enrolledByUser: Map<string, Set<string>>;
+};
+
 /**
- * Carga los pendientes por estudiante para un conjunto de cursos.
+ * Consulta cruda: pendientes + matrícula completa del alcance. Compartida por
+ * las dos funciones públicas para no duplicar las 5 consultas por tipo.
  *
  * `courseMeta` trae los nombres de los cursos (la pantalla ya los tiene en
  * memoria, así que no se re-consultan). Las submissions de grupo se cuentan por
@@ -114,12 +182,13 @@ export function pollIsOpen(
  * como pendiente aunque el grupo haya entregado; es la misma aproximación que
  * `computeNoPresentedStudents` y se acepta en v1.
  */
-export async function loadPendingStudents(
+async function loadPendingData(
   courseMeta: ReadonlyArray<{ id: string; name: string }>,
-): Promise<StudentPendingRow[]> {
+): Promise<PendingData> {
   const courseIds = courseMeta.map((c) => c.id);
-  if (courseIds.length === 0) return [];
   const courseNames = new Map(courseMeta.map((c) => [c.id, c.name]));
+  const enrolledByUser = new Map<string, Set<string>>();
+  if (courseIds.length === 0) return { items: [], courseNames, enrolledByUser };
 
   // Matrículas: curso → estudiantes, y el universo de user_ids.
   const { data: enrollRaw } = await dbAny
@@ -132,6 +201,10 @@ export async function loadPendingStudents(
     let s = studentsByCourse.get(e.course_id);
     if (!s) studentsByCourse.set(e.course_id, (s = new Set()));
     s.add(e.user_id);
+
+    let u = enrolledByUser.get(e.user_id);
+    if (!u) enrolledByUser.set(e.user_id, (u = new Set()));
+    u.add(e.course_id);
   }
 
   const items: PendingItem[] = [];
@@ -257,20 +330,45 @@ export async function loadPendingStudents(
     items.push({ userId: s.user_id, courseId, kind: "firma" });
   }
 
-  // ── Nombres (user_id → auth.users, NO embebible a profiles) ─────────
-  const userIds = Array.from(new Set(items.map((it) => it.userId)));
-  const names = new Map<string, string>();
-  if (userIds.length > 0) {
-    const { data: profRaw } = await dbAny
-      .from("profiles")
-      .select("id, full_name")
-      .in("id", userIds);
-    for (const p of (profRaw ?? []) as Array<{ id: string; full_name: string | null }>) {
-      names.set(p.id, p.full_name ?? "—");
-    }
-  }
+  return { items, courseNames, enrolledByUser };
+}
 
+/** `user_id → auth.users`, NO embebible a `profiles`: se resuelve aparte. */
+async function fetchNames(userIds: ReadonlyArray<string>): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (userIds.length === 0) return names;
+  const { data: profRaw } = await dbAny.from("profiles").select("id, full_name").in("id", userIds);
+  for (const p of (profRaw ?? []) as Array<{ id: string; full_name: string | null }>) {
+    names.set(p.id, p.full_name ?? "—");
+  }
+  return names;
+}
+
+/**
+ * Carga los pendientes por estudiante para un conjunto de cursos. Solo
+ * devuelve estudiantes CON al menos un pendiente (ver `aggregatePending`) —
+ * es lo que consume la tabla en pantalla.
+ */
+export async function loadPendingStudents(
+  courseMeta: ReadonlyArray<{ id: string; name: string }>,
+): Promise<StudentPendingRow[]> {
+  const { items, courseNames } = await loadPendingData(courseMeta);
+  const names = await fetchNames(Array.from(new Set(items.map((it) => it.userId))));
   return aggregatePending(items, names, courseNames);
+}
+
+/**
+ * Universo COMPLETO de estudiantes matriculados en el alcance, tengan o no
+ * pendientes — para el informe exportable ("qué le falta a cada estudiante, o
+ * si está al día"). A diferencia de `loadPendingStudents`, un estudiante sin
+ * ningún pendiente SÍ aparece (con `total: 0`).
+ */
+export async function loadAllStudentsPending(
+  courseMeta: ReadonlyArray<{ id: string; name: string }>,
+): Promise<StudentPendingRow[]> {
+  const { items, courseNames, enrolledByUser } = await loadPendingData(courseMeta);
+  const names = await fetchNames(Array.from(enrolledByUser.keys()));
+  return aggregateAllStudents(items, names, courseNames, enrolledByUser);
 }
 
 /** Recolecta pendientes de una actividad M:N (taller/proyecto). Compartido

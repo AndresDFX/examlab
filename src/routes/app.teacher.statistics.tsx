@@ -326,7 +326,10 @@ function TeacherStatistics() {
         // Agregado cross-curso: solo el panel de Pendientes sabe combinar
         // varios cursos a la vez. El detalle de asistencia/notas/riesgo
         // sigue siendo inherentemente por-curso.
-        <PendingStudentsPanel courses={coursesInScope} />
+        <PendingStudentsPanel
+          courses={coursesInScope}
+          scopeLabel={[t("statistics.allCourses"), subjectFilter, periodFilter].filter(Boolean).join(" — ")}
+        />
       ) : loading || !dataset ? (
         <PageLoader />
       ) : (

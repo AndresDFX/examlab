@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, Download } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Table,
@@ -21,6 +22,7 @@ import { useTableSort } from "@/hooks/use-table-sort";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
 import { loadPendingStudents, type StudentPendingRow } from "./pending-students";
+import { PendingStudentsExportDialog } from "./PendingStudentsExportDialog";
 
 /**
  * Panel "Pendientes por estudiante". Consume `loadPendingStudents` sobre el
@@ -29,13 +31,19 @@ import { loadPendingStudents, type StudentPendingRow } from "./pending-students"
  */
 export function PendingStudentsPanel({
   courses,
+  scopeLabel,
 }: {
   /** Cursos en alcance (id + nombre). El panel re-carga cuando cambia el set. */
   courses: ReadonlyArray<{ id: string; name: string }>;
+  /** Texto legible del alcance para el diálogo de export (ej. nombre del
+   *  curso, o "Todos los cursos — periodo X"). Si se omite, se arma de
+   *  `courses`. */
+  scopeLabel?: string;
 }) {
   const { t } = useTranslation();
   const [rows, setRows] = useState<StudentPendingRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exportOpen, setExportOpen] = useState(false);
   // Concatenar los ids es la clave del effect: re-carga cuando cambia el
   // conjunto de cursos (elegir otro curso, cambiar periodo/asignatura).
   const key = useMemo(() => courses.map((c) => c.id).sort().join(","), [courses]);
@@ -78,12 +86,18 @@ export function PendingStudentsPanel({
 
   return (
     <Card>
-      <CardHeader className="p-4">
-        <CardTitle className="text-base flex items-center gap-2">
-          <ClipboardList className="h-4 w-4 text-amber-500" />
-          {t("statistics.pendingTitle")}
-        </CardTitle>
-        <CardDescription>{t("statistics.pendingDesc")}</CardDescription>
+      <CardHeader className="p-4 flex flex-row items-start justify-between gap-3 space-y-0">
+        <div>
+          <CardTitle className="text-base flex items-center gap-2">
+            <ClipboardList className="h-4 w-4 text-amber-500" />
+            {t("statistics.pendingTitle")}
+          </CardTitle>
+          <CardDescription>{t("statistics.pendingDesc")}</CardDescription>
+        </div>
+        <Button type="button" size="sm" onClick={() => setExportOpen(true)} className="shrink-0">
+          <Download className="h-4 w-4 mr-1.5" />
+          {t("statistics.pendingExportButton")}
+        </Button>
       </CardHeader>
       <CardContent className="p-0">
         {loading ? (
@@ -170,6 +184,12 @@ export function PendingStudentsPanel({
           </>
         )}
       </CardContent>
+      <PendingStudentsExportDialog
+        open={exportOpen}
+        onOpenChange={setExportOpen}
+        courses={courses}
+        scopeLabel={scopeLabel ?? (courses.length === 1 ? courses[0]?.name ?? "" : t("statistics.allCourses"))}
+      />
     </Card>
   );
 }

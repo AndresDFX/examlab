@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aggregatePending, pollIsOpen, type PendingItem } from "./pending-students";
+import { aggregateAllStudents, aggregatePending, pollIsOpen, type PendingItem } from "./pending-students";
 
 const names = new Map([
   ["u1", "Ana Pérez"],
@@ -53,6 +53,31 @@ describe("aggregatePending", () => {
     );
     expect(rows[0].name).toBe("—");
     expect(rows[0].courses).toEqual([]);
+  });
+});
+
+describe("aggregateAllStudents", () => {
+  it("incluye estudiantes SIN pendientes con total 0", () => {
+    const enrolledByUser = new Map([
+      ["u1", new Set(["c1"])],
+      ["u2", new Set(["c1", "c2"])],
+    ]);
+    const items: PendingItem[] = [{ userId: "u1", courseId: "c1", kind: "examen" }];
+    const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);
+    expect(rows).toHaveLength(2);
+    const beto = rows.find((r) => r.userId === "u2")!;
+    expect(beto.total).toBe(0);
+    // Matrícula COMPLETA aunque no tenga pendiente en ninguno de los dos.
+    expect(beto.courses).toEqual(["Algoritmos", "Bases de datos"]);
+  });
+
+  it("ordena alfabéticamente por nombre (roster, no ranking)", () => {
+    const enrolledByUser = new Map([
+      ["u2", new Set(["c1"])],
+      ["u1", new Set(["c1"])],
+    ]);
+    const rows = aggregateAllStudents([], names, courseNames, enrolledByUser);
+    expect(rows.map((r) => r.userId)).toEqual(["u1", "u2"]); // Ana antes que Beto
   });
 });
 
