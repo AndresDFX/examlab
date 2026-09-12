@@ -197,8 +197,20 @@ export function PendingStudentsExportDialog({
     if (!included) return;
     setGenerating("pdf");
     try {
+      // NO cerrar este diálogo acá (a diferencia de Word, que sí cierra tras
+      // su `await`): `printReportHtml` dispara `window.print()` de forma
+      // DIFERIDA (dentro del `onload` del iframe, ~150ms después), y ese
+      // `print()` bloquea el hilo de JS hasta que el usuario acepta/cancela
+      // el diálogo nativo. Si en ese mismo instante este `<Dialog>` está a
+      // mitad de su animación de cierre (`duration-200` en dialog.tsx),
+      // Radix nunca llega a procesar el `animationend` que necesita para
+      // desmontar el overlay — y el overlay `fixed inset-0` invisible pero
+      // aún montado queda bloqueando los clics del resto de la página
+      // ("modal trabado" reportado al cancelar imprimir). Ningún otro call
+      // site de `printReportHtml` (reportes, resultados de encuesta) cierra
+      // un Dialog propio alrededor de la llamada — se deja este también sin
+      // auto-cerrar; el docente lo cierra con "Cancelar" o la X.
       printReportHtml(buildHtml(included));
-      onOpenChange(false);
     } catch (e) {
       toast.error(friendlyError(e, t("statistics.pendingExportGenerateError")));
     } finally {
