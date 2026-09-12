@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
+import { Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,6 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { usePrintBrand } from "@/modules/polls/use-print-brand";
 import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
@@ -60,6 +62,7 @@ export function PendingStudentsExportDialog({
   const [generating, setGenerating] = useState<"word" | "pdf" | null>(null);
   const [rows, setRows] = useState<StudentPendingRow[]>([]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
   /** Campos de `profiles` a sumar como columna, además del nombre. Vacío por
    *  defecto — mismo informe que antes de que este control existiera. */
   const [extraFields, setExtraFields] = useState<Set<StudentExtraField>>(new Set());
@@ -73,6 +76,7 @@ export function PendingStudentsExportDialog({
         if (cancelled) return;
         setRows(r);
         setExcluded(new Set());
+        setSearch("");
       })
       .catch((e) => {
         if (cancelled) return;
@@ -113,6 +117,20 @@ export function PendingStudentsExportDialog({
     });
   };
   const hasUpToDateIncluded = rows.some((r) => r.total === 0 && !excluded.has(r.userId));
+
+  // Filtro por nombre O correo (institucional/personal) — SOLO visual: acota
+  // qué filas se muestran/scrollean, nunca qué está incluido/excluido. Mismo
+  // criterio que el buscador de la tabla en pantalla (PendingStudentsPanel).
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      if (r.name.toLowerCase().includes(q)) return true;
+      if (r.institutionalEmail?.toLowerCase().includes(q)) return true;
+      if (r.personalEmail?.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [rows, search]);
 
   const toggleField = (field: StudentExtraField) => {
     setExtraFields((prev) => {
@@ -267,11 +285,25 @@ export function PendingStudentsExportDialog({
                 ))}
               </div>
             </div>
+            {rows.length > 0 && (
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("statistics.pendingSearchPlaceholder")}
+                  className="pl-8"
+                  aria-label={t("statistics.pendingSearchPlaceholder")}
+                />
+              </div>
+            )}
             <div className="border rounded-md max-h-64 overflow-y-auto divide-y">
               {rows.length === 0 ? (
                 <p className="p-3 text-sm text-muted-foreground">{t("statistics.pendingExportEmpty")}</p>
+              ) : filteredRows.length === 0 ? (
+                <p className="p-3 text-sm text-muted-foreground">{t("statistics.pendingSearchEmpty")}</p>
               ) : (
-                rows.map((r) => {
+                filteredRows.map((r) => {
                   const checked = !excluded.has(r.userId);
                   return (
                     <label
