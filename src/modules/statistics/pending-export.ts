@@ -52,6 +52,17 @@ export interface PendingReportOptions {
    * los cursos con pendiente.
    */
   courses?: ReadonlyArray<{ id: string; name: string }>;
+  /**
+   * En modo multi-curso, cada sección lista por defecto a TODO matriculado en
+   * ese curso, incluidos los que ahí están "Al día" (útil para ver el roster
+   * completo). El docente puede pedir lo contrario: solo listar, en cada
+   * sección, a quien realmente tiene algo pendiente EN ESE curso puntual —
+   * un estudiante "al día" en un curso se OMITE de esa sección aunque tenga
+   * pendientes en otro curso del informe (así "Excluir al día" del diálogo
+   * deja de sentirse ignorado cuando el estudiante reaparece solo en la
+   * sección donde ya no debe nada). Sin efecto en el modo de 1 solo curso.
+   */
+  hideUpToDatePerCourse?: boolean;
   /** Textos ya traducidos (el módulo es puro, no importa i18n). */
   labels: {
     title: string;
@@ -71,6 +82,8 @@ export interface PendingReportOptions {
     fieldLabels: Record<StudentExtraField, string>;
     /** Encabezado de cada sección en modo multi-curso: "Curso: <nombre>". */
     courseSectionTitle: (courseName: string) => string;
+    /** Mensaje cuando `hideUpToDatePerCourse` deja una sección sin filas. */
+    courseSectionAllUpToDate: string;
   };
 }
 
@@ -234,11 +247,13 @@ function courseSectionHtml(
   labels: PendingReportOptions["labels"],
   extraFields: readonly StudentExtraField[],
   isFirst: boolean,
+  hideUpToDate: boolean,
 ): string {
   const head = headRowHtml(labels, extraFields, false);
   const enrolled = rows
     .map((r) => ({ r, cc: r.byCourse.find((c) => c.courseId === course.id) }))
     .filter((x): x is { r: StudentPendingRow; cc: NonNullable<typeof x.cc> } => !!x.cc)
+    .filter((x) => !hideUpToDate || x.cc.total > 0)
     .sort((a, b) => a.r.name.localeCompare(b.r.name, "es-CO", { sensitivity: "base" }));
   const body = enrolled
     .map(
@@ -253,8 +268,16 @@ function courseSectionHtml(
   // sirve para los dos formatos. No se emite antes de la primera sección: eso
   // dejaría una página en blanco al inicio del informe.
   const pageBreak = isFirst ? "" : `<div class="examlab-page-break"></div>`;
+  // Con `hideUpToDate` puede quedar una sección sin filas (todos al día en
+  // ESE curso puntual, aunque el informe entero no esté vacío) — un <table>
+  // con solo la cabecera se lee como un error de generación, no como "nadie
+  // debe nada acá".
+  const tableOrEmpty =
+    enrolled.length > 0
+      ? `<table>${head}${body}</table>`
+      : `<p><em>${escapeHtml(labels.courseSectionAllUpToDate)}</em></p>`;
   return `${pageBreak}<h2>${escapeHtml(labels.courseSectionTitle(course.name))}</h2>
-  <table>${head}${body}</table>`;
+  ${tableOrEmpty}`;
 }
 
 /**
@@ -266,7 +289,7 @@ export function buildPendingReportHtml(
   excludedCount: number,
   opts: PendingReportOptions,
 ): string {
-  const { brand, labels, extraFields = [], courses = [] } = opts;
+  const { brand, labels, extraFields = [], courses = [], hideUpToDatePerCourse = false } = opts;
   const logoImg = brand.logoUrl
     ? `<img src="${escapeHtml(brand.logoUrl)}" style="height:48px;max-width:220px;object-fit:contain" />`
     : "";
@@ -278,7 +301,7 @@ export function buildPendingReportHtml(
   const tablesHtml =
     courses.length > 1
       ? courses
-          .map((c, i) => courseSectionHtml(c, rows, labels, extraFields, i === 0))
+          .map((c, i) => courseSectionHtml(c, rows, labels, extraFields, i === 0, hideUpToDatePerCourse))
           .join("\n")
       : flatTableHtml(rows, labels, extraFields);
 

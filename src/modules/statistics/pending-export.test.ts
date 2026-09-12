@@ -24,6 +24,7 @@ const labels: PendingReportOptions["labels"] = {
     programa: "Programa",
   },
   courseSectionTitle: (course) => `Curso: ${course}`,
+  courseSectionAllUpToDate: "Todos al día en este curso.",
 };
 
 const opts: PendingReportOptions = {
@@ -172,6 +173,33 @@ describe("buildPendingReportHtml", () => {
       // 1 en la regla CSS + 1 marcador antes de la 2ª sección (ninguno antes de la 1ª).
       expect(breaks).toBe(2);
       expect(html.indexOf("examlab-page-break")).toBeLessThan(html.indexOf("Curso: Álgebra"));
+    });
+
+    describe("hideUpToDatePerCourse", () => {
+      it("omite, en cada sección, a quien está al día EN ESE curso puntual", () => {
+        const html = buildPendingReportHtml([ana, beto], 0, {
+          ...opts,
+          courses: [c1, c2],
+          hideUpToDatePerCourse: true,
+        });
+        const algebraIdx = html.indexOf("Curso: Álgebra");
+        const bdIdx = html.indexOf("Curso: Bases de datos");
+        const algebraSection = html.slice(algebraIdx, bdIdx);
+        const bdSection = html.slice(bdIdx);
+        // Álgebra: ambos tienen pendiente ahí — sin cambios.
+        expect(algebraSection).toContain("Ana");
+        expect(algebraSection).toContain("Beto");
+        // Bases de datos: Ana está al día AHÍ (aunque deba en Álgebra) — se omite.
+        expect(bdSection).not.toContain("Ana");
+        expect(bdSection).toContain("Todos al día en este curso.");
+      });
+
+      it("sin la opción (default), sigue listando a los al día por curso", () => {
+        const html = buildPendingReportHtml([ana, beto], 0, { ...opts, courses: [c1, c2] });
+        const bdSection = html.slice(html.indexOf("Curso: Bases de datos"));
+        expect(bdSection).toContain("Ana");
+        expect(bdSection).toContain("Al día");
+      });
     });
   });
 });

@@ -66,6 +66,14 @@ export function PendingStudentsExportDialog({
   /** Campos de `profiles` a sumar como columna, además del nombre. Vacío por
    *  defecto — mismo informe que antes de que este control existiera. */
   const [extraFields, setExtraFields] = useState<Set<StudentExtraField>>(new Set());
+  // Solo aplica con 2+ cursos en el alcance. Reportado como "excluí a los al
+  // día pero igual aparecen": el docente esperaba que "Excluir al día"
+  // (total GLOBAL) también los sacara de una sección puntual donde están al
+  // día, aunque deban algo en OTRO curso del informe — eso es dato correcto
+  // (sigue debiendo en otro curso), no un bug, pero confundía. Esta opción
+  // deja al docente elegir el roster completo por curso (default, como
+  // siempre) o "solo quien debe algo EN esa sección".
+  const [hideUpToDatePerCourse, setHideUpToDatePerCourse] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -179,7 +187,9 @@ export function PendingStudentsExportDialog({
           programa: t(FIELD_LABEL_KEY.programa),
         },
         courseSectionTitle: (name) => t("statistics.pendingExportCourseSection", { course: name }),
+        courseSectionAllUpToDate: t("statistics.pendingExportCourseSectionAllUpToDate"),
       },
+      hideUpToDatePerCourse: courses.length > 1 ? hideUpToDatePerCourse : false,
     });
 
   const includedRows = () => {
@@ -274,6 +284,15 @@ export function PendingStudentsExportDialog({
                 </Button>
               </div>
             </div>
+            {courses.length > 1 && (
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={hideUpToDatePerCourse}
+                  onCheckedChange={(v) => setHideUpToDatePerCourse(v === true)}
+                />
+                <span>{t("statistics.pendingExportHideUpToDatePerCourse")}</span>
+              </label>
+            )}
             <div className="rounded-md border p-3 space-y-2">
               <p className="text-sm font-medium">{t("statistics.pendingExportFieldsLabel")}</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
