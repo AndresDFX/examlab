@@ -140,6 +140,11 @@ function CertificatesAdmin() {
   // con 2 descargas. `pdfBusyId` alimenta el overlay + deshabilita el item.
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  // Estado de ciclo de vida (courses.status) de los cursos con certificados
+  // cargados, para agrupar "Cursos activos"/"Cursos cerrados" en ListFilters
+  // — un certificado casi siempre corresponde a un curso ya finalizado, así
+  // que sin esto el selector mezcla activos y finalizados sin distinción.
+  const [courseStatusById, setCourseStatusById] = useState<Record<string, string | null>>({});
 
   // Cargar tenants para el Select cuando es SuperAdmin.
   useEffect(() => {
@@ -227,8 +232,28 @@ function CertificatesAdmin() {
       if (cancelled) return;
       if (error) {
         setLoadError(friendlyError(error, t("hc_routesAppCertificates.loadError")));
-      } else {
-        setItems((data ?? []) as CertificateRow[]);
+        setLoading(false);
+        return;
+      }
+      const rows = (data ?? []) as CertificateRow[];
+      setItems(rows);
+      // `certificates` guarda `course_name` denormalizado pero no el status del
+      // curso — se resuelve aparte, solo para los course_id que aparecen acá.
+      const distinctCourseIds = Array.from(new Set(rows.map((r) => r.course_id)));
+      if (distinctCourseIds.length > 0) {
+        const { data: courseRows } = await db
+          .from("courses")
+          .select("id, status")
+          .in("id", distinctCourseIds);
+        if (!cancelled) {
+          const map: Record<string, string | null> = {};
+          for (const c of (courseRows ?? []) as Array<{ id: string; status: string | null }>) {
+            map[c.id] = c.status;
+          }
+          setCourseStatusById(map);
+        }
+      } else if (!cancelled) {
+        setCourseStatusById({});
       }
       setLoading(false);
     })();
@@ -245,10 +270,10 @@ function CertificatesAdmin() {
     for (const c of items) {
       if (!map.has(c.course_id)) map.set(c.course_id, c.course_name);
     }
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
-      a.name.localeCompare(b.name),
+    return Array.from(map, ([id, name]) => ({ id, name, status: courseStatusById[id] ?? null })).sort(
+      (a, b) => a.name.localeCompare(b.name),
     );
-  }, [items]);
+  }, [items, courseStatusById]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
