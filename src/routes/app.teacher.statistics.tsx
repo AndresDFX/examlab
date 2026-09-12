@@ -7,11 +7,15 @@ import { isStaffRole } from "@/shared/lib/roles";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
+import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
+  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -78,6 +82,9 @@ type CourseOpt = {
   id: string;
   name: string;
   period: string | null;
+  /** Distingue abiertos/cerrados en el Select — mismo patrón que
+   *  CourseSelect/ListFilters (partitionCoursesByLifecycle). */
+  status?: string | null;
   /** Embed `academic_subjects:subject_id(name)` — solo alimenta el filtro
    *  de nivel superior (mismo patrón que Exámenes/Talleres/Proyectos/
    *  Contenidos/Estudiantes/Asistencia). */
@@ -125,7 +132,7 @@ function TeacherStatistics() {
         activeRole,
         roles,
         user.id,
-        "id, name, period, academic_subjects:subject_id(name)",
+        "id, name, period, status, academic_subjects:subject_id(name)",
       );
       if (cancelled) return;
       if (error) {
@@ -304,12 +311,34 @@ function TeacherStatistics() {
                 {coursesInScope.length > 1 && (
                   <SelectItem value={ALL_COURSES_VALUE}>{t("statistics.allCourses")}</SelectItem>
                 )}
-                {coursesInScope.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                    {c.period ? ` (${c.period})` : ""}
-                  </SelectItem>
-                ))}
+                {(() => {
+                  const { open, closed } = partitionCoursesByLifecycle(
+                    coursesInScope,
+                    courseId ? [courseId] : undefined,
+                  );
+                  const label = (c: CourseOpt) => `${c.name}${c.period ? ` (${c.period})` : ""}`;
+                  const items = (list: CourseOpt[]) =>
+                    list.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {label(c)}
+                      </SelectItem>
+                    ));
+                  return closed.length > 0 ? (
+                    <>
+                      <SelectGroup>
+                        <SelectLabel>{t("course.groupActive", { defaultValue: "Cursos activos" })}</SelectLabel>
+                        {items(open)}
+                      </SelectGroup>
+                      <SelectSeparator />
+                      <SelectGroup>
+                        <SelectLabel>{t("course.groupClosed", { defaultValue: "Cursos cerrados" })}</SelectLabel>
+                        {items(closed)}
+                      </SelectGroup>
+                    </>
+                  ) : (
+                    items(open)
+                  );
+                })()}
               </SelectContent>
             </Select>
           </div>
