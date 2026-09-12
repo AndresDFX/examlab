@@ -234,7 +234,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid)
       .neq("workshop.status", "draft")
@@ -372,14 +372,17 @@ function StudentWorkshops() {
   // solo curso, el filtro queda como "Todos" con 1 opción — funcional
   // y no inflado.
   const availableCourses = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; status: string | null }>();
     for (const r of rows) {
       if (r.workshop.course_id) {
-        map.set(r.workshop.course_id, r.workshop.course?.name ?? "—");
+        map.set(r.workshop.course_id, {
+          name: r.workshop.course?.name ?? "—",
+          status: (r.workshop.course as { status?: string | null } | undefined)?.status ?? null,
+        });
       }
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, status: v.status }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 

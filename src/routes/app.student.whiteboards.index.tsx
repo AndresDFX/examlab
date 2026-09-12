@@ -106,7 +106,9 @@ function StudentWhiteboards() {
   const navigate = useNavigate();
   const confirm = useConfirm();
   const [items, setItems] = useState<PizarraFila[]>([]);
-  const [courses, setCourses] = useState<Array<{ id: string; name: string }>>([]);
+  const [courses, setCourses] = useState<
+    Array<{ id: string; name: string; status: string | null }>
+  >([]);
   const [trashedCourses, setTrashedCourses] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -147,7 +149,7 @@ function StudentWhiteboards() {
             .order("updated_at", { ascending: false }),
           db
             .from("course_enrollments")
-            .select("course_id, courses(id, name, deleted_at)")
+            .select("course_id, courses(id, name, status, deleted_at)")
             .eq("user_id", user.id),
         ]);
         if (cancelled) return;
@@ -156,10 +158,10 @@ function StudentWhiteboards() {
           return;
         }
         const courseMap = new Map<string, string>();
-        const myCourses: Array<{ id: string; name: string }> = [];
+        const myCourses: Array<{ id: string; name: string; status: string | null }> = [];
         const enPapelera = new Set<string>();
         for (const r of (enrollments ?? []) as Array<{
-          courses: { id: string; name: string; deleted_at: string | null } | null;
+          courses: { id: string; name: string; status: string | null; deleted_at: string | null } | null;
         }>) {
           if (!r.courses) continue;
           if (r.courses.deleted_at) {
@@ -167,7 +169,7 @@ function StudentWhiteboards() {
             continue;
           }
           courseMap.set(r.courses.id, r.courses.name);
-          myCourses.push({ id: r.courses.id, name: r.courses.name });
+          myCourses.push({ id: r.courses.id, name: r.courses.name, status: r.courses.status });
         }
         setCourses(myCourses);
         setTrashedCourses(enPapelera);

@@ -137,6 +137,7 @@ interface Poll {
   closes_at: string | null;
   closed_manually: boolean;
   course_name?: string;
+  course_status?: string | null;
   options: PollOption[];
   // option_ids que YO voté.
   my_votes: string[];
@@ -253,7 +254,7 @@ function StudentPolls() {
       // Cursos en los que estoy matriculado → IDs.
       const { data: enrolls, error: enrollErr } = await db
         .from("course_enrollments")
-        .select("course_id, courses(id, name)")
+        .select("course_id, courses(id, name, status)")
         .eq("user_id", user.id);
       if (cancelled) return;
       if (enrollErr) {
@@ -264,13 +265,15 @@ function StudentPolls() {
       const courseIds = (enrolls ?? [])
         .map((r: { course_id: string }) => r.course_id)
         .filter(Boolean);
+      type EnrollCourse = { id: string; name: string; status: string | null };
+      const enrolledCourses: EnrollCourse[] = (enrolls ?? [])
+        .map((r: { courses: EnrollCourse | null }) => r.courses)
+        .filter((c: EnrollCourse | null): c is EnrollCourse => Boolean(c));
       const courseNameById = new Map<string, string>(
-        (enrolls ?? [])
-          .map((r: { courses: { id: string; name: string } | null }) => r.courses)
-          .filter((c: { id: string; name: string } | null): c is { id: string; name: string } =>
-            Boolean(c),
-          )
-          .map((c: { id: string; name: string }) => [c.id, c.name] as const),
+        enrolledCourses.map((c: EnrollCourse) => [c.id, c.name] as const),
+      );
+      const courseStatusById = new Map<string, string | null>(
+        enrolledCourses.map((c: EnrollCourse) => [c.id, c.status] as const),
       );
       if (courseIds.length === 0) {
         setPolls([]);
@@ -330,6 +333,7 @@ function StudentPolls() {
         return {
           ...p,
           course_name: courseNameById.get(p.course_id) ?? undefined,
+          course_status: courseStatusById.get(p.course_id) ?? null,
           options,
           my_votes: myVotesByPoll.get(p.id) ?? [],
         };
@@ -418,11 +422,13 @@ function StudentPolls() {
   // Cursos presentes en las encuestas cargadas → opciones del selector de curso
   // (ordenados por nombre es-CO). Solo aparecen cursos que tienen encuestas.
   const availableCourses = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; status: string | null }>();
     for (const p of polls) {
-      if (p.course_id && p.course_name) map.set(p.course_id, p.course_name);
+      if (p.course_id && p.course_name) {
+        map.set(p.course_id, { name: p.course_name, status: p.course_status ?? null });
+      }
     }
-    return Array.from(map, ([id, name]) => ({ id, name })).sort((a, b) =>
+    return Array.from(map, ([id, v]) => ({ id, name: v.name, status: v.status })).sort((a, b) =>
       a.name.localeCompare(b.name, "es-CO"),
     );
   }, [polls]);

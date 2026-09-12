@@ -58,6 +58,9 @@ type ExamRow = {
     course: {
       id: string;
       name: string;
+      /** Ciclo de vida del curso (borrador/en_curso/finalizado) — para que
+       *  ListFilters agrupe "Cursos activos"/"Cursos cerrados". */
+      status?: string | null;
       grade_scale_min: number;
       grade_scale_max: number;
       max_exam_attempts?: number;
@@ -183,7 +186,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, max_exam_attempts))",
         )
         .eq("user_id", user.id)
         .neq("exam.status", "draft")
@@ -290,16 +293,22 @@ function StudentExams() {
   // el docente hubiera extendido el end_time.
   useReloadOnVisible(loadExams);
 
-  // Cursos disponibles para el filtro <Select>. Deduplicado por id.
+  // Cursos disponibles para el filtro <Select>. Deduplicado por id. Incluye
+  // `status` para que ListFilters agrupe "Cursos activos"/"Cursos cerrados"
+  // (partitionCoursesByLifecycle) — un curso finalizado de un semestre pasado
+  // no debe mezclarse sin distinción con los cursos en curso.
   const availableCourses = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; status: string | null }>();
     for (const r of rows) {
       if (r.exam.course_id) {
-        map.set(r.exam.course_id, r.exam.course?.name ?? "—");
+        map.set(r.exam.course_id, {
+          name: r.exam.course?.name ?? "—",
+          status: r.exam.course?.status ?? null,
+        });
       }
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, status: v.status }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 

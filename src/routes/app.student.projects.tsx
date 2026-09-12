@@ -249,7 +249,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, course:courses(id, name, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .is("deleted_at", null)
@@ -384,16 +384,20 @@ function StudentProjects() {
     return () => clearInterval(t);
   }, []);
 
-  // Cursos disponibles para el filtro <Select>. Deduplicado por id.
+  // Cursos disponibles para el filtro <Select>. Deduplicado por id. Incluye
+  // `status` para que ListFilters agrupe "Cursos activos"/"Cursos cerrados".
   const availableCourses = useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, { name: string; status: string | null }>();
     for (const r of rows) {
       if (r.project.course_id) {
-        map.set(r.project.course_id, r.project.course?.name ?? "—");
+        map.set(r.project.course_id, {
+          name: r.project.course?.name ?? "—",
+          status: (r.project.course as { status?: string | null } | undefined)?.status ?? null,
+        });
       }
     }
     return Array.from(map.entries())
-      .map(([id, name]) => ({ id, name }))
+      .map(([id, v]) => ({ id, name: v.name, status: v.status }))
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 
