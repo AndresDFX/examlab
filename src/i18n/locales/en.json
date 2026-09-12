@@ -9272,6 +9272,7 @@
     "generateWithAi": "Generate with AI",
     "generating": "Generating…",
     "generatingAi": "Generating…",
+    "genHistoryFrozenHint": "Each report is frozen exactly as it was generated: if you later correct a student's name, already-generated reports still show the old name. Generate the report again to get the updated name.",
     "genHistoryHint": "Every Word/PDF you generated from a template. Re-download anytime.",
     "genHistoryTitle": "Generated reports",
     "genLoadError": "We couldn't load the generated reports history.",

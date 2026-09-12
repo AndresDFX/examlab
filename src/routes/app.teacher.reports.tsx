@@ -137,6 +137,7 @@ import { ActasManager } from "@/modules/reports/ActasManager";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DateCell } from "@/components/ui/date-cell";
+import { HelpHint } from "@/components/ui/help-hint";
 import { formatDateTime } from "@/shared/lib/format";
 import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
 
@@ -2260,6 +2261,12 @@ function Inner() {
                 <h3 className="text-sm font-semibold flex items-center gap-1.5">
                   <History className="h-4 w-4 text-pink-500" />
                   {t("hc_routesAppTeacherReports.genHistoryTitle", { defaultValue: "Informes generados" })}
+                  <HelpHint>
+                    {t("hc_routesAppTeacherReports.genHistoryFrozenHint", {
+                      defaultValue:
+                        "Cada informe queda congelado tal cual se generó: si después corregís el nombre de un estudiante, los informes ya generados siguen mostrando el nombre anterior. Generá el informe de nuevo para que salga con el nombre actualizado.",
+                    })}
+                  </HelpHint>
                 </h3>
                 <p className="text-2xs text-muted-foreground">
                   {t("hc_routesAppTeacherReports.genHistoryHint", {

@@ -9272,6 +9272,7 @@
     "generateWithAi": "Generar con IA",
     "generating": "Generando…",
     "generatingAi": "Generando…",
+    "genHistoryFrozenHint": "Cada informe queda congelado tal cual se generó: si después corregís el nombre de un estudiante, los informes ya generados siguen mostrando el nombre anterior. Generá el informe de nuevo para que salga con el nombre actualizado.",
     "genHistoryHint": "Cada Word/PDF que generaste desde una plantilla. Volvé a descargarlo cuando quieras.",
     "genHistoryTitle": "Informes generados",
     "genLoadError": "No pudimos cargar el historial de informes generados.",
