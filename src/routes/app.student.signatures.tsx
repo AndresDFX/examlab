@@ -10,9 +10,22 @@
  * ── Por qué se muestra el documento antes de poder firmar ─────────────
  * El botón de firmar solo se habilita después de abrirlo. Firmar algo que no se
  * puede leer no es aceptar: es apretar un botón.
+ *
+ * ── Por qué un documento YA FIRMADO abre en modo lectura ───────────────
+ * `onFirmar` en `SignableDocument` solo se pasa cuando `!yaFirmo`, así que la
+ * ranura de firma dentro del documento NO se ofrece de nuevo — el estudiante
+ * ve el documento como quedó, sin invitación a tocarlo. "Editar firma" es un
+ * botón APARTE en el pie (acción explícita, `resign_report`), nunca el
+ * comportamiento por defecto al abrir algo que ya firmó.
+ *
+ * ── Búsqueda + paginación ───────────────────────────────────────────────
+ * Mismo patrón que las demás vistas de cards del estudiante (Exámenes,
+ * Talleres, Proyectos, Encuestas): `ListFilters` para buscar/filtrar por
+ * curso, secciones "Pendientes"/"Firmados" (paralelo a Activas/Cerradas de
+ * Polls) cada una con su propia `usePagination` (cards → 12/[6,12,24,48]).
  */
 import { createFileRoute } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileBarChart, FileSignature, PenLine, Redo2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -24,6 +37,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
+import { ListFilters } from "@/components/ui/list-filters";
+import { usePagination } from "@/hooks/use-pagination";
+import { DataPagination } from "@/components/ui/data-pagination";
 import {
   Dialog,
   DialogContent,
@@ -70,6 +86,15 @@ function StudentSignatures() {
   } | null>(null);
   const [firmando, setFirmando] = useState(false);
   const [intento, setIntento] = useState(0);
+
+  // Búsqueda por nombre del documento / curso. `courseFilter` usa el NOMBRE
+  // del curso como valor (no hay `course_id` disponible acá — `get_report_to_sign`
+  // solo expone `course_name`, y agregar el id es una migración que este cambio
+  // no necesita): sirve igual para filtrar, aunque dos cursos homónimos de
+  // instituciones distintas colisionarían (caso que no se da: el alumno solo ve
+  // sus propios cursos).
+  const [search, setSearch] = useState("");
+  const [courseFilter, setCourseFilter] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     if (!user) return;
@@ -197,6 +222,57 @@ function StudentSignatures() {
     }
   };
 
+  // Cursos presentes en los documentos cargados → opciones del selector de
+  // curso. Solo los que efectivamente tienen documentos aparecen.
+  const availableCourses = useMemo(() => {
+    const names = new Set<string>();
+    for (const i of items) {
+      if (i.course_name) names.add(i.course_name);
+    }
+    return Array.from(names)
+      .sort((a, b) => a.localeCompare(b, "es-CO"))
+      .map((name) => ({ id: name, name }));
+  }, [items]);
+
+  const filteredItems = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return items.filter((i) => {
+      if (courseFilter && i.course_name !== courseFilter) return false;
+      if (!q) return true;
+      return (
+        i.template_name.toLowerCase().includes(q) ||
+        (i.course_name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [items, search, courseFilter]);
+
+  const pendientesFiltrados = useMemo(
+    () => filteredItems.filter((i) => !i.signed_at),
+    [filteredItems],
+  );
+  const firmadosFiltrados = useMemo(
+    () => filteredItems.filter((i) => !!i.signed_at),
+    [filteredItems],
+  );
+
+  // Paginación independiente por sección — mismo patrón que
+  // Activas/Cerradas en `app.student.polls.tsx`. Cards de documento: 12 por
+  // página (más livianas que las de encuesta), `pageSizes` explícito para que
+  // el selector no caiga al default [10,25,50,100].
+  const resetKey = `${search}|${courseFilter ?? ""}`;
+  const pendientesPagination = usePagination(pendientesFiltrados, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_signatures_pending",
+    resetKey,
+  });
+  const firmadosPagination = usePagination(firmadosFiltrados, {
+    defaultPageSize: 12,
+    pageSizes: [6, 12, 24, 48],
+    storageKey: "examlab_pag:student_signatures_signed",
+    resetKey,
+  });
+
   if (cargando) return <PageLoader />;
   if (error) {
     return (
@@ -208,14 +284,14 @@ function StudentSignatures() {
     );
   }
 
-  const pendientes = items.filter((i) => !i.signed_at);
+  const totalPendientes = items.filter((i) => !i.signed_at).length;
 
   return (
     <div className="space-y-4">
       <PageHeader
         icon={<FileBarChart className="h-6 w-6" />}
         title={t("studentSignatures.title")}
-        subtitle={t("studentSignatures.subtitle", { count: pendientes.length })}
+        subtitle={t("studentSignatures.subtitle", { count: totalPendientes })}
       />
 
       {items.length === 0 ? (
@@ -225,50 +301,57 @@ function StudentSignatures() {
           description={t("studentSignatures.emptyDesc")}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {items.map((i) => (
-            <Card key={i.report_id}>
-              <CardContent className="p-4 space-y-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <p className="font-medium truncate" title={i.template_name}>
-                      {i.template_name}
-                    </p>
-                    {i.course_name && (
-                      <p className="text-xs text-muted-foreground truncate">{i.course_name}</p>
-                    )}
+        <div className="space-y-5">
+          <ListFilters
+            search={search}
+            onSearchChange={setSearch}
+            searchPlaceholder={t("studentSignatures.searchPlaceholder")}
+            courseId={courseFilter}
+            onCourseChange={setCourseFilter}
+            courses={availableCourses}
+          />
+          {filteredItems.length === 0 ? (
+            <EmptyState
+              icon={FileSignature}
+              text={t("studentSignatures.noResults")}
+              hint={t("studentSignatures.noResultsHint")}
+            />
+          ) : (
+            <>
+              {pendientesFiltrados.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground">
+                    {t("studentSignatures.pendingSection")} ({pendientesFiltrados.length})
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {pendientesPagination.paginatedItems.map((i) => (
+                      <SignatureCard key={i.report_id} item={i} onOpen={abrir} />
+                    ))}
                   </div>
-                  {i.signed_at ? (
-                    <Badge
-                      variant="outline"
-                      className="text-3xs shrink-0 text-emerald-600 dark:text-emerald-400"
-                    >
-                      {t("studentSignatures.badgeSigned")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="text-3xs shrink-0">
-                      {t("studentSignatures.badgePending")}
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-2xs text-muted-foreground">
-                  {i.signed_at
-                    ? t("studentSignatures.signedOn", { date: formatDateTime(i.signed_at) })
-                    : t("studentSignatures.requestedOn", { date: formatDateTime(i.requested_at) })}
-                </p>
-                <Button
-                  size="sm"
-                  variant={i.signed_at ? "outline" : "default"}
-                  className="w-full"
-                  onClick={() => void abrir(i)}
-                >
-                  {i.signed_at
-                    ? t("studentSignatures.viewBtn")
-                    : t("studentSignatures.reviewAndSignBtn")}
-                </Button>
-              </CardContent>
-            </Card>
-          ))}
+                  <DataPagination
+                    state={pendientesPagination}
+                    entityNamePlural={t("studentSignatures.entityNamePlural")}
+                  />
+                </section>
+              )}
+              {firmadosFiltrados.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-medium text-muted-foreground">
+                    {t("studentSignatures.signedSection")} ({firmadosFiltrados.length})
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {firmadosPagination.paginatedItems.map((i) => (
+                      <SignatureCard key={i.report_id} item={i} onOpen={abrir} />
+                    ))}
+                  </div>
+                  <DataPagination
+                    state={firmadosPagination}
+                    entityNamePlural={t("studentSignatures.entityNamePlural")}
+                  />
+                </section>
+              )}
+            </>
+          )}
         </div>
       )}
 
@@ -338,5 +421,56 @@ function StudentSignatures() {
         nombre={profile?.full_name}
       />
     </div>
+  );
+}
+
+function SignatureCard({
+  item: i,
+  onOpen,
+}: {
+  item: Pendiente;
+  onOpen: (p: Pendiente) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <Card>
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-medium truncate" title={i.template_name}>
+              {i.template_name}
+            </p>
+            {i.course_name && (
+              <p className="text-xs text-muted-foreground truncate">{i.course_name}</p>
+            )}
+          </div>
+          {i.signed_at ? (
+            <Badge
+              variant="outline"
+              className="text-3xs shrink-0 text-emerald-600 dark:text-emerald-400"
+            >
+              {t("studentSignatures.badgeSigned")}
+            </Badge>
+          ) : (
+            <Badge variant="secondary" className="text-3xs shrink-0">
+              {t("studentSignatures.badgePending")}
+            </Badge>
+          )}
+        </div>
+        <p className="text-2xs text-muted-foreground">
+          {i.signed_at
+            ? t("studentSignatures.signedOn", { date: formatDateTime(i.signed_at) })
+            : t("studentSignatures.requestedOn", { date: formatDateTime(i.requested_at) })}
+        </p>
+        <Button
+          size="sm"
+          variant={i.signed_at ? "outline" : "default"}
+          className="w-full"
+          onClick={() => void onOpen(i)}
+        >
+          {i.signed_at ? t("studentSignatures.viewBtn") : t("studentSignatures.reviewAndSignBtn")}
+        </Button>
+      </CardContent>
+    </Card>
   );
 }

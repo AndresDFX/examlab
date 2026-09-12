@@ -27,7 +27,13 @@
     "errSign": "No se pudo registrar tu firma.",
     "errOpen": "No se pudo abrir el documento.",
     "errLoad": "No pudimos cargar tus documentos",
-    "untitled": "Documento"
+    "untitled": "Documento",
+    "searchPlaceholder": "Buscar por documento o curso…",
+    "pendingSection": "Pendientes",
+    "signedSection": "Firmados",
+    "noResults": "Ningún documento coincide con el filtro",
+    "noResultsHint": "Probá con otro término de búsqueda o quitá el filtro de curso.",
+    "entityNamePlural": "documentos"
   },
   "reportLint": {
     "anclaVacia": "Hay {{n}} firma(s) que no corresponden a ninguna persona: al generar el informe quedan como un recuadro imposible de firmar.",

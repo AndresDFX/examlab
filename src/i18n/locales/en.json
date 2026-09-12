@@ -27,7 +27,13 @@
     "errSign": "Could not record your signature.",
     "errOpen": "Could not open the document.",
     "errLoad": "We could not load your documents",
-    "untitled": "Document"
+    "untitled": "Document",
+    "searchPlaceholder": "Search by document or course…",
+    "pendingSection": "Pending",
+    "signedSection": "Signed",
+    "noResults": "No document matches the filter",
+    "noResultsHint": "Try another search term or clear the course filter.",
+    "entityNamePlural": "documents"
   },
   "reportLint": {
     "anclaVacia": "There are {{n}} signature space(s) that belong to nobody: once the report is generated they are boxes no one can sign.",
