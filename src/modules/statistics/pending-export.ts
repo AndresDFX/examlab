@@ -93,37 +93,60 @@ export function buildPendingReportHtml(
   // sale de su `style="border:..."`. Por eso NO se usan <thead>/<th> (los
   // descartaría y el Word saldría SIN fila de encabezado) — la cabecera es la
   // primera fila de <td> en negrita, y todas las celdas llevan el borde inline.
-  const BORDE = "border:1px solid #cccccc;padding:4px 6px";
+  //
+  // El padding es COMPACTO a propósito (fila de tabla normal, no una celda
+  // inflada): el .docx fuerza `wordWrap:0` (parte palabras carácter a
+  // carácter, ver STYLES_XML) para que un correo largo no desborde una
+  // columna angosta — pero eso mismo convierte una columna DEMASIADO angosta
+  // en una fila gigantesca (cada palabra se corta en 2-3 letras por línea).
+  // Por eso el ancho de columna no se reparte en partes iguales más abajo.
+  const BORDE = "border:1px solid #cccccc;padding:3px 5px";
   const centro = `${BORDE};text-align:center`;
-  const cabecera = (w: string) => `${BORDE};width:${w};background-color:#f1f5f9`;
-  const cabeceraCentro = (w: string) => `${cabecera(w)};text-align:center`;
+  const cabecera = (w: number) => `${BORDE};width:${w.toFixed(2)}%;background-color:#f1f5f9`;
+  const cabeceraCentro = (w: number) => `${cabecera(w)};text-align:center`;
 
-  // Las 6 columnas numéricas se quedan con un ancho fijo; el resto (nombre +
-  // campos opcionales elegidos + cursos) se reparte lo que sobra en partes
-  // iguales — así agregar/quitar un campo no exige retocar porcentajes a mano.
+  // Las 6 columnas numéricas llevan un ancho fijo y angosto (son 1-2 dígitos
+  // o "—"). El resto del ancho se reparte por PESO, no en partes iguales:
+  // nombre y cursos suelen tener el contenido más largo, mientras que un
+  // código o un documento entran en pocos caracteres. Repartir parejo
+  // angostaba TODAS las columnas de texto por igual al sumar varios campos
+  // opcionales — el bug reportado de filas gigantescas venía de acá.
   const METRIC_COLS: Array<{ label: string; w: number }> = [
-    { label: labels.colFirma, w: 9 },
-    { label: labels.colEncuesta, w: 10 },
-    { label: labels.colExamen, w: 9 },
-    { label: labels.colTaller, w: 9 },
-    { label: labels.colProyecto, w: 10 },
-    { label: labels.colTotal, w: 9 },
+    { label: labels.colFirma, w: 7 },
+    { label: labels.colEncuesta, w: 8 },
+    { label: labels.colExamen, w: 7 },
+    { label: labels.colTaller, w: 7 },
+    { label: labels.colProyecto, w: 8 },
+    { label: labels.colTotal, w: 7 },
   ];
   const metricWidth = METRIC_COLS.reduce((s, c) => s + c.w, 0);
-  const textColsCount = 2 + extraFields.length; // nombre + cursos + opcionales
-  const textWidth = (100 - metricWidth) / textColsCount;
+  const TEXT_COL_WEIGHT: Record<"name" | "courses" | StudentExtraField, number> = {
+    name: 3,
+    courses: 3,
+    codigo: 1.2,
+    documento: 1.6,
+    institutional_email: 2.4,
+    personal_email: 2.4,
+    programa: 1.8,
+  };
+  const textRemaining = 100 - metricWidth;
+  const textWeightSum =
+    TEXT_COL_WEIGHT.name + TEXT_COL_WEIGHT.courses + extraFields.reduce((s, f) => s + TEXT_COL_WEIGHT[f], 0);
+  const textWidthOf = (weight: number) => (weight / textWeightSum) * textRemaining;
+  const nameWidth = textWidthOf(TEXT_COL_WEIGHT.name);
+  const coursesWidth = textWidthOf(TEXT_COL_WEIGHT.courses);
 
   const headRow = `<tr>
-    <td style="${cabecera(`${textWidth}%`)}"><strong>${escapeHtml(labels.colStudent)}</strong></td>
+    <td style="${cabecera(nameWidth)}"><strong>${escapeHtml(labels.colStudent)}</strong></td>
     ${extraFields
       .map(
         (f) =>
-          `<td style="${cabecera(`${textWidth}%`)}"><strong>${escapeHtml(labels.fieldLabels[f])}</strong></td>`,
+          `<td style="${cabecera(textWidthOf(TEXT_COL_WEIGHT[f]))}"><strong>${escapeHtml(labels.fieldLabels[f])}</strong></td>`,
       )
       .join("")}
-    <td style="${cabecera(`${textWidth}%`)}"><strong>${escapeHtml(labels.colCourses)}</strong></td>
+    <td style="${cabecera(coursesWidth)}"><strong>${escapeHtml(labels.colCourses)}</strong></td>
     ${METRIC_COLS.map(
-      (c) => `<td style="${cabeceraCentro(`${c.w}%`)}"><strong>${escapeHtml(c.label)}</strong></td>`,
+      (c) => `<td style="${cabeceraCentro(c.w)}"><strong>${escapeHtml(c.label)}</strong></td>`,
     ).join("")}
   </tr>`;
 
@@ -149,7 +172,14 @@ export function buildPendingReportHtml(
 
   return `<!doctype html>
 <html><head><meta charset="utf-8" />
-<style>@page { size: A4 landscape; margin: 18mm; }</style>
+<style>
+  @page { size: A4 landscape; margin: 18mm; }
+  /* Solo afecta al PREVIEW/PDF (impreso vía window.print) — el .docx ignora
+     este bloque (html-to-docx.ts solo lee el atributo style de cada elemento,
+     no la cascada de <style>) y ya sale compacto por el ancho de columna. */
+  table { font-size: 9pt; border-collapse: collapse; width: 100%; }
+  td { line-height: 1.25; }
+</style>
 </head>
 <body>
 <header>

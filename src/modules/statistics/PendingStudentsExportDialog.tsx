@@ -13,7 +13,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { usePrintBrand } from "@/modules/polls/use-print-brand";
-import { downloadReportAsWord, fileStamp } from "@/modules/reports/report-download";
+import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/reports/report-download";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import {
@@ -57,7 +57,7 @@ export function PendingStudentsExportDialog({
   const { t } = useTranslation();
   const brand = usePrintBrand();
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [generating, setGenerating] = useState<"word" | "pdf" | null>(null);
   const [rows, setRows] = useState<StudentPendingRow[]>([]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   /** Campos de `profiles` a sumar como columna, además del nombre. Vacío por
@@ -124,54 +124,85 @@ export function PendingStudentsExportDialog({
   };
 
   const scopeCourseNames = useMemo(() => courses.map((c) => c.name).join(", "), [courses]);
+  /** Nombre del archivo: con UN solo curso, su nombre (como siempre). Con
+   *  varios ("Todos los cursos", con o sin filtro de periodo/asignatura),
+   *  `scopeCourseNames` concatenaría TODOS los nombres de curso en un nombre
+   *  de archivo gigante e ilegible — se usa el `scopeLabel` corto que el
+   *  caller ya arma ("Todos los cursos — periodo X") en su lugar. */
+  const fileScopeName =
+    courses.length === 1 ? scopeCourseNames : scopeLabel || t("statistics.allCourses");
 
-  const handleGenerate = async () => {
-    if (generating) return;
+  const buildHtml = (included: StudentPendingRow[]) =>
+    buildPendingReportHtml(included, excluded.size, {
+      brand,
+      scopeLabel: scopeLabel || scopeCourseNames,
+      generatedAtLabel: formatDateTime(new Date()),
+      extraFields: [...extraFields],
+      labels: {
+        title: t("statistics.pendingExportDocTitle"),
+        scope: t("statistics.pendingExportDocScope"),
+        generatedAt: t("statistics.pendingExportDocGeneratedAt"),
+        colStudent: t("statistics.pendingColStudent"),
+        colCourses: t("statistics.pendingColCourses"),
+        colFirma: t("statistics.pendingKindFirma"),
+        colEncuesta: t("statistics.pendingKindEncuesta"),
+        colExamen: t("statistics.pendingKindExamen"),
+        colTaller: t("statistics.pendingKindTaller"),
+        colProyecto: t("statistics.pendingKindProyecto"),
+        colTotal: t("statistics.pendingColTotal"),
+        upToDate: t("statistics.pendingExportUpToDate"),
+        excludedNote: (n) => t("statistics.pendingExportExcludedNote", { count: n }),
+        fieldLabels: {
+          codigo: t(FIELD_LABEL_KEY.codigo),
+          documento: t(FIELD_LABEL_KEY.documento),
+          institutional_email: t(FIELD_LABEL_KEY.institutional_email),
+          personal_email: t(FIELD_LABEL_KEY.personal_email),
+          programa: t(FIELD_LABEL_KEY.programa),
+        },
+      },
+    });
+
+  const includedRows = () => {
     const included = rows.filter((r) => !excluded.has(r.userId));
     if (included.length === 0) {
       toast.error(t("statistics.pendingExportNoneSelected"));
-      return;
+      return null;
     }
-    setGenerating(true);
+    return included;
+  };
+
+  const handleGenerateWord = async () => {
+    if (generating) return;
+    const included = includedRows();
+    if (!included) return;
+    setGenerating("word");
     try {
-      const html = buildPendingReportHtml(included, excluded.size, {
-        brand,
-        scopeLabel: scopeLabel || scopeCourseNames,
-        generatedAtLabel: formatDateTime(new Date()),
-        extraFields: [...extraFields],
-        labels: {
-          title: t("statistics.pendingExportDocTitle"),
-          scope: t("statistics.pendingExportDocScope"),
-          generatedAt: t("statistics.pendingExportDocGeneratedAt"),
-          colStudent: t("statistics.pendingColStudent"),
-          colCourses: t("statistics.pendingColCourses"),
-          colFirma: t("statistics.pendingKindFirma"),
-          colEncuesta: t("statistics.pendingKindEncuesta"),
-          colExamen: t("statistics.pendingKindExamen"),
-          colTaller: t("statistics.pendingKindTaller"),
-          colProyecto: t("statistics.pendingKindProyecto"),
-          colTotal: t("statistics.pendingColTotal"),
-          upToDate: t("statistics.pendingExportUpToDate"),
-          excludedNote: (n) => t("statistics.pendingExportExcludedNote", { count: n }),
-          fieldLabels: {
-            codigo: t(FIELD_LABEL_KEY.codigo),
-            documento: t(FIELD_LABEL_KEY.documento),
-            institutional_email: t(FIELD_LABEL_KEY.institutional_email),
-            personal_email: t(FIELD_LABEL_KEY.personal_email),
-            programa: t(FIELD_LABEL_KEY.programa),
-          },
-        },
-      });
+      const html = buildHtml(included);
       await downloadReportAsWord(html, {
         templateName: t("statistics.pendingExportDocTitle"),
-        courseName: scopeCourseNames,
+        courseName: fileScopeName,
         stamp: fileStamp(new Date()),
       });
       onOpenChange(false);
     } catch (e) {
       toast.error(friendlyError(e, t("statistics.pendingExportGenerateError")));
     } finally {
-      setGenerating(false);
+      setGenerating(null);
+    }
+  };
+
+  const handleGeneratePdf = () => {
+    if (generating) return;
+    const included = includedRows();
+    if (!included) return;
+    setGenerating("pdf");
+    try {
+      printReportHtml(buildHtml(included));
+      onOpenChange(false);
+    } catch (e) {
+      toast.error(friendlyError(e, t("statistics.pendingExportGenerateError")));
+    } finally {
+      setGenerating(null);
     }
   };
 
@@ -249,11 +280,24 @@ export function PendingStudentsExportDialog({
         )}
 
         <DialogFooter>
-          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={generating}>
+          <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={!!generating}>
             {t("common.cancel")}
           </Button>
-          <Button type="button" onClick={handleGenerate} disabled={loading || generating || rows.length === 0}>
-            {generating ? <Spinner size="sm" className="mr-2" /> : null}
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleGeneratePdf}
+            disabled={loading || !!generating || rows.length === 0}
+          >
+            {generating === "pdf" ? <Spinner size="sm" className="mr-2" /> : null}
+            {t("statistics.pendingExportGeneratePdf")}
+          </Button>
+          <Button
+            type="button"
+            onClick={handleGenerateWord}
+            disabled={loading || !!generating || rows.length === 0}
+          >
+            {generating === "word" ? <Spinner size="sm" className="mr-2" /> : null}
             {t("statistics.pendingExportGenerate")}
           </Button>
         </DialogFooter>
