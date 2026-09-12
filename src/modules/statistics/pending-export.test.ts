@@ -23,6 +23,7 @@ const labels: PendingReportOptions["labels"] = {
     personal_email: "Correo personal",
     programa: "Programa",
   },
+  courseSectionTitle: (course) => `Curso: ${course}`,
 };
 
 const opts: PendingReportOptions = {
@@ -111,5 +112,66 @@ describe("buildPendingReportHtml", () => {
     const html = buildPendingReportHtml([row({})], 0, opts);
     expect(html).toContain('src="https://cdn.example/logo.png"');
     expect(html).toMatch(/@page[^}]*landscape/i);
+  });
+
+  describe("alcance de 1 solo curso", () => {
+    it("mantiene la tabla plana con columna Cursos aunque se pase `courses`", () => {
+      const html = buildPendingReportHtml([row({})], 0, { ...opts, courses: [{ id: "c1", name: "Curso X" }] });
+      expect(html).toContain("<strong>Cursos</strong>");
+      expect(html).not.toContain("Curso: Curso X");
+      // Una sola tabla de DATOS (más la del <header>, que ya existía antes).
+      expect((html.match(/<table>/g) ?? []).length).toBe(1);
+    });
+  });
+
+  describe("alcance multi-curso", () => {
+    const c1 = { id: "c1", name: "Álgebra" };
+    const c2 = { id: "c2", name: "Bases de datos" };
+    const ana = row({
+      userId: "u1",
+      name: "Ana",
+      byCourse: [
+        { courseId: "c1", courseName: "Álgebra", firma: 0, encuesta: 0, examen: 2, taller: 0, proyecto: 0, total: 2 },
+        { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 0 },
+      ],
+      total: 2,
+    });
+    const beto = row({
+      userId: "u2",
+      name: "Beto",
+      byCourse: [{ courseId: "c1", courseName: "Álgebra", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 1 }],
+      total: 1,
+    });
+
+    it("arma una sección por curso, sin la columna Cursos", () => {
+      const html = buildPendingReportHtml([ana, beto], 0, { ...opts, courses: [c1, c2] });
+      expect(html).toContain("Curso: Álgebra");
+      expect(html).toContain("Curso: Bases de datos");
+      expect(html).not.toContain("<strong>Cursos</strong>");
+    });
+
+    it("cada sección lista solo a los matriculados en ESE curso, con sus conteos de ESE curso", () => {
+      const html = buildPendingReportHtml([ana, beto], 0, { ...opts, courses: [c1, c2] });
+      // Álgebra: Ana (2 exámenes) y Beto (1 firma) — ambos aparecen.
+      const algebraIdx = html.indexOf("Curso: Álgebra");
+      const bdIdx = html.indexOf("Curso: Bases de datos");
+      const algebraSection = html.slice(algebraIdx, bdIdx);
+      expect(algebraSection).toContain("Ana");
+      expect(algebraSection).toContain("Beto");
+      // Bases de datos: solo Ana está matriculada (Beto no tiene entrada en byCourse para c2).
+      const bdSection = html.slice(bdIdx);
+      expect(bdSection).toContain("Ana");
+      expect(bdSection).not.toContain("Beto");
+      // Ana está "Al día" en Bases de datos (0 pendientes en ESE curso).
+      expect(bdSection).toContain("Al día");
+    });
+
+    it("salto de página entre secciones, pero no antes de la primera", () => {
+      const html = buildPendingReportHtml([ana, beto], 0, { ...opts, courses: [c1, c2] });
+      const breaks = (html.match(/examlab-page-break/g) ?? []).length;
+      // 1 en la regla CSS + 1 marcador antes de la 2ª sección (ninguno antes de la 1ª).
+      expect(breaks).toBe(2);
+      expect(html.indexOf("examlab-page-break")).toBeLessThan(html.indexOf("Curso: Álgebra"));
+    });
   });
 });

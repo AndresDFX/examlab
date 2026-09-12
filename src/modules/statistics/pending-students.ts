@@ -164,6 +164,12 @@ export function aggregatePending(
  * `courses` es TODA su matrícula en el alcance (no solo los cursos con
  * pendiente), para que el informe exportado diga en qué curso(s) está inscrito
  * incluso si está al día en todos.
+ *
+ * `byCourse` acá cubre TODA la matrícula del estudiante (a diferencia de
+ * `aggregatePending`, que solo incluye cursos CON pendiente) — con 0 en cada
+ * conteo para un curso donde está al día. Lo necesita el informe exportado
+ * multi-curso: una sección "por curso" tiene que poder listar también al
+ * estudiante que en ESE curso puntual no debe nada.
  */
 export function aggregateAllStudents(
   items: readonly PendingItem[],
@@ -173,28 +179,57 @@ export function aggregateAllStudents(
 ): StudentPendingRow[] {
   const byUser = new Map<
     string,
-    { counts: Record<PendingKind, number>; courseIds: Set<string> }
+    {
+      counts: Record<PendingKind, number>;
+      courseIds: Set<string>;
+      byCourse: Map<string, Record<PendingKind, number>>;
+    }
   >();
+  const zeroCounts = (): Record<PendingKind, number> => ({
+    firma: 0,
+    encuesta: 0,
+    examen: 0,
+    taller: 0,
+    proyecto: 0,
+  });
   for (const [userId, courseIds] of enrolledByUser) {
-    byUser.set(userId, {
-      counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 },
-      courseIds: new Set(courseIds),
-    });
+    const byCourse = new Map<string, Record<PendingKind, number>>();
+    for (const cid of courseIds) byCourse.set(cid, zeroCounts());
+    byUser.set(userId, { counts: zeroCounts(), courseIds: new Set(courseIds), byCourse });
   }
   for (const it of items) {
     let e = byUser.get(it.userId);
     if (!e) {
       // Defensivo: un pendiente de un estudiante que no figura en la matrícula
       // (no debería pasar, `studentsByCourse` sale de la misma consulta).
-      e = { counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 }, courseIds: new Set() };
+      e = { counts: zeroCounts(), courseIds: new Set(), byCourse: new Map() };
       byUser.set(it.userId, e);
     }
     e.counts[it.kind]++;
+    e.courseIds.add(it.courseId);
+    let cc = e.byCourse.get(it.courseId);
+    if (!cc) {
+      cc = zeroCounts();
+      e.byCourse.set(it.courseId, cc);
+    }
+    cc[it.kind]++;
   }
   const rows: StudentPendingRow[] = [];
   for (const [userId, e] of byUser) {
     const total =
       e.counts.firma + e.counts.encuesta + e.counts.examen + e.counts.taller + e.counts.proyecto;
+    const byCourse: CoursePendingBreakdown[] = [...e.byCourse.entries()]
+      .map(([courseId, c]) => ({
+        courseId,
+        courseName: courseNames.get(courseId) ?? "—",
+        firma: c.firma,
+        encuesta: c.encuesta,
+        examen: c.examen,
+        taller: c.taller,
+        proyecto: c.proyecto,
+        total: c.firma + c.encuesta + c.examen + c.taller + c.proyecto,
+      }))
+      .sort((a, b) => a.courseName.localeCompare(b.courseName, "es-CO", { sensitivity: "base" }));
     rows.push({
       userId,
       name: names.get(userId) ?? "—",
@@ -208,9 +243,7 @@ export function aggregateAllStudents(
       taller: e.counts.taller,
       proyecto: e.counts.proyecto,
       total,
-      // El export no desglosa por curso (ya lista `courses` completos); el
-      // diálogo "Ver detalle" solo consume filas de `loadPendingStudents`.
-      byCourse: [],
+      byCourse,
     });
   }
   // Alfabético: es un ROSTER completo (no un ranking de riesgo), así que el

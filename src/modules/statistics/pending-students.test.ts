@@ -76,6 +76,17 @@ describe("aggregateAllStudents", () => {
     expect(beto.courses).toEqual(["Algoritmos", "Bases de datos"]);
   });
 
+  it("byCourse cubre TODA la matrícula, con 0 en el curso donde está al día", () => {
+    const enrolledByUser = new Map([["u2", new Set(["c1", "c2"])]]);
+    const items: PendingItem[] = [{ userId: "u2", courseId: "c1", kind: "examen" }];
+    const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);
+    const beto = rows.find((r) => r.userId === "u2")!;
+    expect(beto.byCourse).toEqual([
+      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 0, proyecto: 0, total: 1 },
+      { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 0 },
+    ]);
+  });
+
   it("ordena alfabéticamente por nombre (roster, no ranking)", () => {
     const enrolledByUser = new Map([
       ["u2", new Set(["c1"])],

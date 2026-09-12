@@ -138,6 +138,7 @@ export function PendingStudentsExportDialog({
       scopeLabel: scopeLabel || scopeCourseNames,
       generatedAtLabel: formatDateTime(new Date()),
       extraFields: [...extraFields],
+      courses,
       labels: {
         title: t("statistics.pendingExportDocTitle"),
         scope: t("statistics.pendingExportDocScope"),
@@ -159,6 +160,7 @@ export function PendingStudentsExportDialog({
           personal_email: t(FIELD_LABEL_KEY.personal_email),
           programa: t(FIELD_LABEL_KEY.programa),
         },
+        courseSectionTitle: (name) => t("statistics.pendingExportCourseSection", { course: name }),
       },
     });
 

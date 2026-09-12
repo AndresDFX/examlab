@@ -2762,6 +2762,7 @@
     "pendingExportSelectedCount": "{{included}} de {{total}} estudiantes incluidos",
     "pendingExportEmpty": "No hay estudiantes matriculados en este alcance.",
     "pendingExportUpToDate": "Al día",
+    "pendingExportCourseSection": "Curso: {{course}}",
     "pendingExportPendingCount_one": "{{count}} pendiente",
     "pendingExportPendingCount_other": "{{count}} pendientes",
     "pendingExportNoneSelected": "Incluí al menos un estudiante para generar el informe.",
