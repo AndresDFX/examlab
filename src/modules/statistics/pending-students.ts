@@ -170,11 +170,25 @@ export function aggregateAllStudents(
 }
 
 /** ¿La encuesta está abierta AHORA? Publicada, dentro de su ventana y no
- *  cerrada a mano — mismo criterio que `/app/student/polls`. */
+ *  cerrada a mano — mismo criterio que `/app/student/polls`.
+ *
+ *  El check de `is_published` es OBLIGATORIO acá y no en `/app/student/polls`:
+ *  ese lee como el propio estudiante, y su RLS (`polls_select_course_members`)
+ *  ya excluye los borradores. Este loader corre con la sesión del DOCENTE/
+ *  Admin, cuya RLS SÍ deja ver sus propios borradores (`_poll_linked_teacher`)
+ *  — sin este check, una encuesta que el docente todavía no publicó aparecía
+ *  como "pendiente" para sus alumnos (bug reportado: 2 pendientes cuando solo
+ *  1 encuesta estaba realmente publicada). */
 export function pollIsOpen(
-  p: { opens_at: string | null; closes_at: string | null; closed_manually: boolean | null },
+  p: {
+    is_published: boolean | null;
+    opens_at: string | null;
+    closes_at: string | null;
+    closed_manually: boolean | null;
+  },
   now: number,
 ): boolean {
+  if (!p.is_published) return false;
   if (p.closed_manually) return false;
   if (p.opens_at && new Date(p.opens_at).getTime() > now) return false;
   if (p.closes_at && new Date(p.closes_at).getTime() <= now) return false;
@@ -291,13 +305,14 @@ async function loadPendingData(
   if (pollIds.length > 0) {
     const { data: pollRaw } = await dbAny
       .from("polls")
-      .select("id, poll_type, opens_at, closes_at, closed_manually")
+      .select("id, poll_type, is_published, opens_at, closes_at, closed_manually")
       .in("id", pollIds)
       .is("deleted_at", null)
       .neq("poll_type", "kahoot");
     const now = Date.now();
     const openPolls = ((pollRaw ?? []) as Array<{
       id: string;
+      is_published: boolean | null;
       opens_at: string | null;
       closes_at: string | null;
       closed_manually: boolean | null;

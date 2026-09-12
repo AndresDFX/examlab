@@ -85,22 +85,33 @@ describe("pollIsOpen", () => {
   const now = new Date("2026-06-01T12:00:00Z").getTime();
   it("abierta dentro de la ventana", () => {
     expect(
-      pollIsOpen({ opens_at: "2026-05-01T00:00:00Z", closes_at: "2026-07-01T00:00:00Z", closed_manually: false }, now),
+      pollIsOpen(
+        { is_published: true, opens_at: "2026-05-01T00:00:00Z", closes_at: "2026-07-01T00:00:00Z", closed_manually: false },
+        now,
+      ),
     ).toBe(true);
+  });
+  it("borrador (sin publicar) no cuenta aunque las fechas den abierta", () => {
+    expect(
+      pollIsOpen(
+        { is_published: false, opens_at: "2026-05-01T00:00:00Z", closes_at: "2026-07-01T00:00:00Z", closed_manually: false },
+        now,
+      ),
+    ).toBe(false);
   });
   it("cerrada a mano no cuenta", () => {
     expect(
-      pollIsOpen({ opens_at: "2026-05-01T00:00:00Z", closes_at: null, closed_manually: true }, now),
+      pollIsOpen({ is_published: true, opens_at: "2026-05-01T00:00:00Z", closes_at: null, closed_manually: true }, now),
     ).toBe(false);
   });
   it("aún no abrió", () => {
     expect(
-      pollIsOpen({ opens_at: "2026-07-01T00:00:00Z", closes_at: null, closed_manually: false }, now),
+      pollIsOpen({ is_published: true, opens_at: "2026-07-01T00:00:00Z", closes_at: null, closed_manually: false }, now),
     ).toBe(false);
   });
   it("ya cerró por fecha", () => {
     expect(
-      pollIsOpen({ opens_at: null, closes_at: "2026-05-01T00:00:00Z", closed_manually: false }, now),
+      pollIsOpen({ is_published: true, opens_at: null, closes_at: "2026-05-01T00:00:00Z", closed_manually: false }, now),
     ).toBe(false);
   });
 });
