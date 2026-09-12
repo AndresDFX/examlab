@@ -787,6 +787,19 @@ function PollCard({
             <Badge variant={open ? "default" : "secondary"} className="text-3xs">
               {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
             </Badge>
+            {/* En "Activas", distinguir de un vistazo lo que el alumno YA
+                respondió de lo que sigue pendiente — sin tener que abrir la
+                encuesta para recordarlo. */}
+            {open && hasVoted && (
+              <Badge
+                variant="outline"
+                className="text-3xs gap-1 border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"
+                title={i18n.t("studentPolls.badgeAnsweredTitle")}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                {i18n.t("studentPolls.badgeAnswered")}
+              </Badge>
+            )}
             {poll.closes_at && (
               <span className="text-3xs text-muted-foreground">
                 {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
@@ -1355,6 +1368,18 @@ function MixedPollCard({
             <Badge variant={open ? "default" : "secondary"} className="text-3xs">
               {open ? i18n.t("studentPolls.badgeOpen") : i18n.t("studentPolls.badgeClosed")}
             </Badge>
+            {/* Igual que PollCard: en "Activas" marcamos las que el alumno ya
+                empezó a responder (al menos una pregunta con respuesta). */}
+            {open && answeredCount > 0 && (
+              <Badge
+                variant="outline"
+                className="text-3xs gap-1 border-emerald-300 text-emerald-700 dark:border-emerald-800 dark:text-emerald-400"
+                title={t("studentPolls.badgeAnsweredTitle")}
+              >
+                <CheckCircle2 className="h-3 w-3" />
+                {t("studentPolls.badgeAnswered")}
+              </Badge>
+            )}
             {poll.closes_at && (
               <span className="text-3xs text-muted-foreground">
                 {open ? i18n.t("studentPolls.closesPrefix") : i18n.t("studentPolls.closedPrefix")}
