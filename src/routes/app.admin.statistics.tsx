@@ -750,15 +750,15 @@ function KpiCard({
 }) {
   return (
     <Card>
-      <CardContent className="p-4 flex items-start gap-3">
-        <div className={`rounded-md bg-muted/40 p-2 ${accent}`}>
-          <Icon className="h-5 w-5" />
+      <CardContent className="p-2.5 flex items-center gap-2">
+        <div className={`rounded-md bg-muted/40 p-1.5 shrink-0 ${accent}`}>
+          <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <div className="text-xs text-muted-foreground truncate">{label}</div>
-          <div className="text-2xl font-semibold tabular-nums">{value}</div>
+          <div className="text-2xs text-muted-foreground truncate">{label}</div>
+          <div className="text-lg font-semibold tabular-nums leading-tight">{value}</div>
           {subline && (
-            <div className="text-2xs text-muted-foreground truncate tabular-nums">{subline}</div>
+            <div className="text-3xs text-muted-foreground truncate tabular-nums">{subline}</div>
           )}
         </div>
       </CardContent>
