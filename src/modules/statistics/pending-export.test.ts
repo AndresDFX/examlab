@@ -16,6 +16,13 @@ const labels: PendingReportOptions["labels"] = {
   colTotal: "Total",
   upToDate: "Al día",
   excludedNote: (n) => `Se excluyeron ${n} estudiantes.`,
+  fieldLabels: {
+    codigo: "Código",
+    documento: "Documento",
+    institutional_email: "Correo institucional",
+    personal_email: "Correo personal",
+    programa: "Programa",
+  },
 };
 
 const opts: PendingReportOptions = {
@@ -83,6 +90,20 @@ describe("buildPendingReportHtml", () => {
     const html = buildPendingReportHtml([row({ name: "<b>x</b>" })], 0, opts);
     expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
     expect(html).not.toContain("<b>x</b>");
+  });
+
+  it("agrega columnas dinámicas por cada campo opcional elegido", () => {
+    const html = buildPendingReportHtml(
+      [row({ codigo: "202412345", institutionalEmail: "ada@uni.edu" })],
+      0,
+      { ...opts, extraFields: ["codigo", "institutional_email"] },
+    );
+    expect(html).toContain("<strong>Código</strong>");
+    expect(html).toContain("<strong>Correo institucional</strong>");
+    expect(html).toContain(">202412345<");
+    expect(html).toContain(">ada@uni.edu<");
+    // Sin elegir el campo, no aparece su columna.
+    expect(html).not.toContain("<strong>Documento</strong>");
   });
 
   it("incluye el logo remoto como <img> (lo embebe inlineRemoteImages en la descarga)", () => {

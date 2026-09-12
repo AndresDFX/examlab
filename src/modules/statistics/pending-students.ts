@@ -40,7 +40,26 @@ export type StudentPendingRow = {
   taller: number;
   proyecto: number;
   total: number;
+  /** Datos adicionales del `profile`, solo poblados por `loadAllStudentsPending`
+   *  (el export los ofrece como columnas OPCIONALES; la tabla en pantalla no
+   *  los necesita, así que `loadPendingStudents` los deja `undefined`). */
+  institutionalEmail?: string | null;
+  personalEmail?: string | null;
+  codigo?: string | null;
+  documento?: string | null;
+  programa?: string | null;
 };
+
+/** Campos del `profile` que el docente puede sumar como columna del informe
+ *  exportado, además del nombre (que siempre se muestra). */
+export const STUDENT_EXTRA_FIELDS = [
+  "codigo",
+  "documento",
+  "institutional_email",
+  "personal_email",
+  "programa",
+] as const;
+export type StudentExtraField = (typeof STUDENT_EXTRA_FIELDS)[number];
 
 /**
  * PURO: agrupa los pendientes crudos por estudiante y resuelve nombres.
@@ -357,18 +376,85 @@ export async function loadPendingStudents(
   return aggregatePending(items, names, courseNames);
 }
 
+/** Datos de `profiles` más allá del nombre — columnas OPCIONALES del export.
+ *  `programaId` se resuelve a nombre aparte (`fetchProgramNames`) porque vive
+ *  en otra tabla. */
+type StudentDetail = {
+  institutionalEmail: string | null;
+  personalEmail: string | null;
+  codigo: string | null;
+  documento: string | null;
+  programaId: string | null;
+};
+
+async function fetchStudentDetails(userIds: ReadonlyArray<string>): Promise<Map<string, StudentDetail>> {
+  const map = new Map<string, StudentDetail>();
+  if (userIds.length === 0) return map;
+  const { data } = await dbAny
+    .from("profiles")
+    .select("id, institutional_email, personal_email, codigo, documento, programa_id")
+    .in("id", userIds);
+  for (const p of (data ?? []) as Array<{
+    id: string;
+    institutional_email: string | null;
+    personal_email: string | null;
+    codigo: string | null;
+    documento: string | null;
+    programa_id: string | null;
+  }>) {
+    map.set(p.id, {
+      institutionalEmail: p.institutional_email ?? null,
+      personalEmail: p.personal_email ?? null,
+      codigo: p.codigo ?? null,
+      documento: p.documento ?? null,
+      programaId: p.programa_id ?? null,
+    });
+  }
+  return map;
+}
+
+async function fetchProgramNames(programIds: ReadonlyArray<string>): Promise<Map<string, string>> {
+  const map = new Map<string, string>();
+  const ids = Array.from(new Set(programIds));
+  if (ids.length === 0) return map;
+  const { data } = await dbAny.from("academic_programs").select("id, name").in("id", ids);
+  for (const p of (data ?? []) as Array<{ id: string; name: string }>) {
+    map.set(p.id, p.name);
+  }
+  return map;
+}
+
 /**
  * Universo COMPLETO de estudiantes matriculados en el alcance, tengan o no
  * pendientes — para el informe exportable ("qué le falta a cada estudiante, o
  * si está al día"). A diferencia de `loadPendingStudents`, un estudiante sin
- * ningún pendiente SÍ aparece (con `total: 0`).
+ * ningún pendiente SÍ aparece (con `total: 0`), y las filas se enriquecen con
+ * los campos de `profiles` que el docente puede elegir mostrar en el export
+ * (código, documento, correos, programa).
  */
 export async function loadAllStudentsPending(
   courseMeta: ReadonlyArray<{ id: string; name: string }>,
 ): Promise<StudentPendingRow[]> {
   const { items, courseNames, enrolledByUser } = await loadPendingData(courseMeta);
-  const names = await fetchNames(Array.from(enrolledByUser.keys()));
-  return aggregateAllStudents(items, names, courseNames, enrolledByUser);
+  const userIds = Array.from(enrolledByUser.keys());
+  const names = await fetchNames(userIds);
+  const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);
+  const details = await fetchStudentDetails(userIds);
+  const programNames = await fetchProgramNames(
+    Array.from(details.values())
+      .map((d) => d.programaId)
+      .filter((id): id is string => !!id),
+  );
+  for (const row of rows) {
+    const d = details.get(row.userId);
+    if (!d) continue;
+    row.institutionalEmail = d.institutionalEmail;
+    row.personalEmail = d.personalEmail;
+    row.codigo = d.codigo;
+    row.documento = d.documento;
+    row.programa = d.programaId ? (programNames.get(d.programaId) ?? null) : null;
+  }
+  return rows;
 }
 
 /** Recolecta pendientes de una actividad M:N (taller/proyecto). Compartido

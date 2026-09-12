@@ -2759,13 +2759,21 @@
     "pendingExportPendingCount_one": "{{count}} pendiente",
     "pendingExportPendingCount_other": "{{count}} pendientes",
     "pendingExportNoneSelected": "Incluí al menos un estudiante para generar el informe.",
+    "pendingExportExcludeUpToDate": "Excluir al día",
+    "pendingExportFieldsLabel": "Datos a incluir además del nombre",
+    "pendingFieldCodigo": "Código estudiantil",
+    "pendingFieldDocumento": "Documento de identidad",
+    "pendingFieldInstitutionalEmail": "Correo institucional",
+    "pendingFieldPersonalEmail": "Correo personal",
+    "pendingFieldPrograma": "Programa académico",
     "pendingExportGenerate": "Generar informe",
     "pendingExportGenerateError": "No se pudo generar el informe",
     "pendingExportDocTitle": "Pendientes por estudiante",
     "pendingExportDocScope": "Alcance",
     "pendingExportDocGeneratedAt": "Generado el",
     "pendingExportExcludedNote_one": "Se excluyó {{count}} estudiante a pedido del docente.",
-    "pendingExportExcludedNote_other": "Se excluyeron {{count}} estudiantes a pedido del docente."
+    "pendingExportExcludedNote_other": "Se excluyeron {{count}} estudiantes a pedido del docente.",
+    "pendingCoursesRefine": "Cursos incluidos en Pendientes"
   },
   "studentWhiteboards": {
     "allCourses": "Todos los cursos",

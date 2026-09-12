@@ -16,8 +16,23 @@ import { usePrintBrand } from "@/modules/polls/use-print-brand";
 import { downloadReportAsWord, fileStamp } from "@/modules/reports/report-download";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
-import { loadAllStudentsPending, type StudentPendingRow } from "./pending-students";
+import {
+  loadAllStudentsPending,
+  STUDENT_EXTRA_FIELDS,
+  type StudentExtraField,
+  type StudentPendingRow,
+} from "./pending-students";
 import { buildPendingReportHtml } from "./pending-export";
+
+/** Etiqueta i18n de cada campo opcional — un único mapa que alimenta tanto el
+ *  checkbox del diálogo como la columna del .docx. */
+const FIELD_LABEL_KEY: Record<StudentExtraField, string> = {
+  codigo: "statistics.pendingFieldCodigo",
+  documento: "statistics.pendingFieldDocumento",
+  institutional_email: "statistics.pendingFieldInstitutionalEmail",
+  personal_email: "statistics.pendingFieldPersonalEmail",
+  programa: "statistics.pendingFieldPrograma",
+};
 
 /**
  * Diálogo previo a exportar el informe de "Pendientes por estudiante".
@@ -45,6 +60,9 @@ export function PendingStudentsExportDialog({
   const [generating, setGenerating] = useState(false);
   const [rows, setRows] = useState<StudentPendingRow[]>([]);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  /** Campos de `profiles` a sumar como columna, además del nombre. Vacío por
+   *  defecto — mismo informe que antes de que este control existiera. */
+  const [extraFields, setExtraFields] = useState<Set<StudentExtraField>>(new Set());
 
   useEffect(() => {
     if (!open) return;
@@ -84,6 +102,26 @@ export function PendingStudentsExportDialog({
       return next;
     });
   };
+  /** Acción rápida: suma de un tirón a los "al día" (total=0) a la exclusión,
+   *  sin destildarlos uno por uno — no toca lo que el docente ya haya elegido
+   *  a mano sobre el resto. */
+  const excludeUpToDate = () => {
+    setExcluded((prev) => {
+      const next = new Set(prev);
+      for (const r of rows) if (r.total === 0) next.add(r.userId);
+      return next;
+    });
+  };
+  const hasUpToDateIncluded = rows.some((r) => r.total === 0 && !excluded.has(r.userId));
+
+  const toggleField = (field: StudentExtraField) => {
+    setExtraFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(field)) next.delete(field);
+      else next.add(field);
+      return next;
+    });
+  };
 
   const scopeCourseNames = useMemo(() => courses.map((c) => c.name).join(", "), [courses]);
 
@@ -100,6 +138,7 @@ export function PendingStudentsExportDialog({
         brand,
         scopeLabel: scopeLabel || scopeCourseNames,
         generatedAtLabel: formatDateTime(new Date()),
+        extraFields: [...extraFields],
         labels: {
           title: t("statistics.pendingExportDocTitle"),
           scope: t("statistics.pendingExportDocScope"),
@@ -114,6 +153,13 @@ export function PendingStudentsExportDialog({
           colTotal: t("statistics.pendingColTotal"),
           upToDate: t("statistics.pendingExportUpToDate"),
           excludedNote: (n) => t("statistics.pendingExportExcludedNote", { count: n }),
+          fieldLabels: {
+            codigo: t(FIELD_LABEL_KEY.codigo),
+            documento: t(FIELD_LABEL_KEY.documento),
+            institutional_email: t(FIELD_LABEL_KEY.institutional_email),
+            personal_email: t(FIELD_LABEL_KEY.personal_email),
+            programa: t(FIELD_LABEL_KEY.programa),
+          },
         },
       });
       await downloadReportAsWord(html, {
@@ -143,16 +189,38 @@ export function PendingStudentsExportDialog({
           </div>
         ) : (
           <>
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
               <span className="text-muted-foreground">
                 {t("statistics.pendingExportSelectedCount", {
                   included: includedCount,
                   total: rows.length,
                 })}
               </span>
-              <Button type="button" variant="ghost" size="sm" onClick={toggleAll} disabled={rows.length === 0}>
-                {allExcluded ? t("common.selectAll") : t("common.deselectAll")}
-              </Button>
+              <div className="flex gap-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={excludeUpToDate}
+                  disabled={rows.length === 0 || !hasUpToDateIncluded}
+                >
+                  {t("statistics.pendingExportExcludeUpToDate")}
+                </Button>
+                <Button type="button" variant="ghost" size="sm" onClick={toggleAll} disabled={rows.length === 0}>
+                  {allExcluded ? t("common.selectAll") : t("common.deselectAll")}
+                </Button>
+              </div>
+            </div>
+            <div className="rounded-md border p-3 space-y-2">
+              <p className="text-sm font-medium">{t("statistics.pendingExportFieldsLabel")}</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                {STUDENT_EXTRA_FIELDS.map((field) => (
+                  <label key={field} className="flex items-center gap-2 text-sm cursor-pointer">
+                    <Checkbox checked={extraFields.has(field)} onCheckedChange={() => toggleField(field)} />
+                    <span>{t(FIELD_LABEL_KEY[field])}</span>
+                  </label>
+                ))}
+              </div>
             </div>
             <div className="border rounded-md max-h-64 overflow-y-auto divide-y">
               {rows.length === 0 ? (

@@ -2759,13 +2759,21 @@
     "pendingExportPendingCount_one": "{{count}} pending",
     "pendingExportPendingCount_other": "{{count}} pending",
     "pendingExportNoneSelected": "Include at least one student to generate the report.",
+    "pendingExportExcludeUpToDate": "Exclude up to date",
+    "pendingExportFieldsLabel": "Data to include besides the name",
+    "pendingFieldCodigo": "Student ID",
+    "pendingFieldDocumento": "ID document",
+    "pendingFieldInstitutionalEmail": "Institutional email",
+    "pendingFieldPersonalEmail": "Personal email",
+    "pendingFieldPrograma": "Academic program",
     "pendingExportGenerate": "Generate report",
     "pendingExportGenerateError": "Could not generate the report",
     "pendingExportDocTitle": "Pending items by student",
     "pendingExportDocScope": "Scope",
     "pendingExportDocGeneratedAt": "Generated on",
     "pendingExportExcludedNote_one": "{{count}} student was excluded at the teacher's request.",
-    "pendingExportExcludedNote_other": "{{count}} students were excluded at the teacher's request."
+    "pendingExportExcludedNote_other": "{{count}} students were excluded at the teacher's request.",
+    "pendingCoursesRefine": "Courses included in Pending"
   },
   "studentWhiteboards": {
     "allCourses": "All courses",

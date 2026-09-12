@@ -9,6 +9,7 @@ import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CourseCheckboxList } from "@/components/ui/course-checkbox-list";
 import {
   Select,
   SelectContent,
@@ -115,6 +116,12 @@ function TeacherStatistics() {
   // cursos ofrece el selector.
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  // Refinamiento del alcance de "Todos los cursos" para el panel de
+  // Pendientes: por defecto TODOS los cursos del alcance (periodo/asignatura)
+  // alimentan el panel, pero el docente puede destildar cursos puntuales sin
+  // perder el resto del filtro. Se re-siembra completo cada vez que cambia el
+  // conjunto de cursos en alcance (nuevo periodo, nueva asignatura).
+  const [pendingCourseIds, setPendingCourseIds] = useState<Set<string>>(new Set());
 
   // Cargar cursos. El docente ve SOLO los que dicta; Admin ve todos.
   //
@@ -166,6 +173,18 @@ function TeacherStatistics() {
   const coursesInScope = useMemo(
     () => (filterScope === null ? courses : courses.filter((c) => filterScope.has(c.id))),
     [courses, filterScope],
+  );
+  const coursesInScopeKey = coursesInScope.map((c) => c.id).join(",");
+  // Re-siembra la selección de "cursos incluidos en Pendientes" a TODOS los
+  // del alcance cada vez que este cambia (nuevo periodo/asignatura, o carga
+  // inicial) — el docente parte de "todos" y destilda desde ahí.
+  useEffect(() => {
+    setPendingCourseIds(new Set(coursesInScope.map((c) => c.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [coursesInScopeKey]);
+  const pendingCourses = useMemo(
+    () => coursesInScope.filter((c) => pendingCourseIds.has(c.id)),
+    [coursesInScope, pendingCourseIds],
   );
   const filterPeriods = useMemo(
     () =>
@@ -355,10 +374,25 @@ function TeacherStatistics() {
         // Agregado cross-curso: solo el panel de Pendientes sabe combinar
         // varios cursos a la vez. El detalle de asistencia/notas/riesgo
         // sigue siendo inherentemente por-curso.
-        <PendingStudentsPanel
-          courses={coursesInScope}
-          scopeLabel={[t("statistics.allCourses"), subjectFilter, periodFilter].filter(Boolean).join(" — ")}
-        />
+        <div className="space-y-3">
+          {coursesInScope.length > 1 && (
+            <Card>
+              <CardContent className="pt-4 space-y-1">
+                <p className="text-sm font-medium">{t("statistics.pendingCoursesRefine")}</p>
+                <CourseCheckboxList
+                  courses={coursesInScope.map((c) => ({ id: c.id, name: c.name, period: c.period }))}
+                  selectedIds={[...pendingCourseIds]}
+                  onChange={(ids) => setPendingCourseIds(new Set(ids))}
+                  showSelectAll
+                />
+              </CardContent>
+            </Card>
+          )}
+          <PendingStudentsPanel
+            courses={pendingCourses}
+            scopeLabel={[t("statistics.allCourses"), subjectFilter, periodFilter].filter(Boolean).join(" — ")}
+          />
+        </div>
       ) : loading || !dataset ? (
         <PageLoader />
       ) : (
