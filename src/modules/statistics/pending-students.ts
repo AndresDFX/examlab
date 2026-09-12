@@ -29,6 +29,20 @@ export type PendingKind = (typeof PENDING_KINDS)[number];
  *  entregable del curso `courseId`. La agregación cuenta estos items. */
 export type PendingItem = { userId: string; courseId: string; kind: PendingKind };
 
+/** Desglose de pendientes de un estudiante para UN curso puntual — lo que
+ *  alimenta el diálogo de detalle cuando el estudiante tiene más de un curso
+ *  con pendientes en el alcance actual. */
+export type CoursePendingBreakdown = {
+  courseId: string;
+  courseName: string;
+  firma: number;
+  encuesta: number;
+  examen: number;
+  taller: number;
+  proyecto: number;
+  total: number;
+};
+
 export type StudentPendingRow = {
   userId: string;
   name: string;
@@ -40,9 +54,14 @@ export type StudentPendingRow = {
   taller: number;
   proyecto: number;
   total: number;
-  /** Datos adicionales del `profile`, solo poblados por `loadAllStudentsPending`
-   *  (el export los ofrece como columnas OPCIONALES; la tabla en pantalla no
-   *  los necesita, así que `loadPendingStudents` los deja `undefined`). */
+  /** Desglose por curso (solo cursos CON algún pendiente), ordenado por
+   *  nombre. Alimenta el diálogo "Ver detalle" — sin esto, un estudiante con
+   *  pendientes en 2 cursos distintos solo se ve como un total agregado, sin
+   *  poder saber qué le falta en cada uno. */
+  byCourse: CoursePendingBreakdown[];
+  /** Datos adicionales del `profile`, poblados tanto por `loadPendingStudents`
+   *  (para el buscador por correo) como por `loadAllStudentsPending` (columnas
+   *  OPCIONALES del export). */
   institutionalEmail?: string | null;
   personalEmail?: string | null;
   codigo?: string | null;
@@ -76,22 +95,48 @@ export function aggregatePending(
 ): StudentPendingRow[] {
   const byUser = new Map<
     string,
-    { counts: Record<PendingKind, number>; courseIds: Set<string> }
+    {
+      counts: Record<PendingKind, number>;
+      courseIds: Set<string>;
+      byCourse: Map<string, Record<PendingKind, number>>;
+    }
   >();
   for (const it of items) {
     let e = byUser.get(it.userId);
     if (!e) {
-      e = { counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 }, courseIds: new Set() };
+      e = {
+        counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 },
+        courseIds: new Set(),
+        byCourse: new Map(),
+      };
       byUser.set(it.userId, e);
     }
     e.counts[it.kind]++;
     e.courseIds.add(it.courseId);
+    let cc = e.byCourse.get(it.courseId);
+    if (!cc) {
+      cc = { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 };
+      e.byCourse.set(it.courseId, cc);
+    }
+    cc[it.kind]++;
   }
   const rows: StudentPendingRow[] = [];
   for (const [userId, e] of byUser) {
     const total =
       e.counts.firma + e.counts.encuesta + e.counts.examen + e.counts.taller + e.counts.proyecto;
     if (total === 0) continue;
+    const byCourse: CoursePendingBreakdown[] = [...e.byCourse.entries()]
+      .map(([courseId, c]) => ({
+        courseId,
+        courseName: courseNames.get(courseId) ?? "—",
+        firma: c.firma,
+        encuesta: c.encuesta,
+        examen: c.examen,
+        taller: c.taller,
+        proyecto: c.proyecto,
+        total: c.firma + c.encuesta + c.examen + c.taller + c.proyecto,
+      }))
+      .sort((a, b) => a.courseName.localeCompare(b.courseName, "es-CO", { sensitivity: "base" }));
     rows.push({
       userId,
       name: names.get(userId) ?? "—",
@@ -105,6 +150,7 @@ export function aggregatePending(
       taller: e.counts.taller,
       proyecto: e.counts.proyecto,
       total,
+      byCourse,
     });
   }
   // Mayor cantidad de pendientes primero (lo accionable arriba); desempate por
@@ -162,6 +208,9 @@ export function aggregateAllStudents(
       taller: e.counts.taller,
       proyecto: e.counts.proyecto,
       total,
+      // El export no desglosa por curso (ya lista `courses` completos); el
+      // diálogo "Ver detalle" solo consume filas de `loadPendingStudents`.
+      byCourse: [],
     });
   }
   // Alfabético: es un ROSTER completo (no un ranking de riesgo), así que el
@@ -387,8 +436,19 @@ export async function loadPendingStudents(
   courseMeta: ReadonlyArray<{ id: string; name: string }>,
 ): Promise<StudentPendingRow[]> {
   const { items, courseNames } = await loadPendingData(courseMeta);
-  const names = await fetchNames(Array.from(new Set(items.map((it) => it.userId))));
-  return aggregatePending(items, names, courseNames);
+  const userIds = Array.from(new Set(items.map((it) => it.userId)));
+  const names = await fetchNames(userIds);
+  const rows = aggregatePending(items, names, courseNames);
+  // El correo se trae acá (y no solo en el export) para que el buscador de la
+  // tabla pueda filtrar por correo institucional/personal, no solo por nombre.
+  const details = await fetchStudentDetails(userIds);
+  for (const row of rows) {
+    const d = details.get(row.userId);
+    if (!d) continue;
+    row.institutionalEmail = d.institutionalEmail;
+    row.personalEmail = d.personalEmail;
+  }
+  return rows;
 }
 
 /** Datos de `profiles` más allá del nombre — columnas OPCIONALES del export.

@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Download } from "lucide-react";
+import { ClipboardList, Download, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { RowAction } from "@/components/ui/row-action";
 import {
   Table,
   TableBody,
@@ -23,6 +25,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
 import { loadPendingStudents, type StudentPendingRow } from "./pending-students";
 import { PendingStudentsExportDialog } from "./PendingStudentsExportDialog";
+import { PendingStudentDetailDialog } from "./PendingStudentDetailDialog";
 
 /**
  * Panel "Pendientes por estudiante". Consume `loadPendingStudents` sobre el
@@ -44,6 +47,8 @@ export function PendingStudentsPanel({
   const [rows, setRows] = useState<StudentPendingRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [exportOpen, setExportOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const [detailRow, setDetailRow] = useState<StudentPendingRow | null>(null);
   // Concatenar los ids es la clave del effect: re-carga cuando cambia el
   // conjunto de cursos (elegir otro curso, cambiar periodo/asignatura).
   const key = useMemo(() => courses.map((c) => c.id).sort().join(","), [courses]);
@@ -70,7 +75,20 @@ export function PendingStudentsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
-  const sort = useTableSort(rows, {
+  // Filtro por nombre O correo (institucional/personal) — client-side sobre
+  // los datos ya cargados, que vienen acotados al alcance elegido.
+  const filteredRows = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return rows;
+    return rows.filter((r) => {
+      if (r.name.toLowerCase().includes(q)) return true;
+      if (r.institutionalEmail?.toLowerCase().includes(q)) return true;
+      if (r.personalEmail?.toLowerCase().includes(q)) return true;
+      return false;
+    });
+  }, [rows, search]);
+
+  const sort = useTableSort(filteredRows, {
     columns: {
       name: (r) => r.name,
       total: (r) => r.total,
@@ -81,7 +99,7 @@ export function PendingStudentsPanel({
   const pag = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_pending",
-    resetKey: `${key}|${sort.resetKey}`,
+    resetKey: `${key}|${search}|${sort.resetKey}`,
   });
 
   return (
@@ -106,6 +124,18 @@ export function PendingStudentsPanel({
           </div>
         ) : (
           <>
+            <div className="px-4 pb-3">
+              <div className="relative max-w-sm">
+                <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder={t("statistics.pendingSearchPlaceholder")}
+                  className="pl-8"
+                  aria-label={t("statistics.pendingSearchPlaceholder")}
+                />
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
@@ -134,15 +164,16 @@ export function PendingStudentsPanel({
                     <SortableHead sortKey="total" sort={sort} className="text-center w-20">
                       {t("statistics.pendingColTotal")}
                     </SortableHead>
+                    <TableHead className="w-12" />
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {pag.paginatedItems.length === 0 ? (
                     <TableEmpty
-                      colSpan={8}
+                      colSpan={9}
                       icon={ClipboardList}
-                      text={t("statistics.pendingEmpty")}
-                      hint={t("statistics.pendingEmptyHint")}
+                      text={search ? t("statistics.pendingSearchEmpty") : t("statistics.pendingEmpty")}
+                      hint={search ? undefined : t("statistics.pendingEmptyHint")}
                     />
                   ) : (
                     pag.paginatedItems.map((r) => (
@@ -172,6 +203,13 @@ export function PendingStudentsPanel({
                             {r.total}
                           </Badge>
                         </TableCell>
+                        <TableCell className="text-right">
+                          <RowAction
+                            label={t("statistics.pendingViewDetail")}
+                            icon={Eye}
+                            onClick={() => setDetailRow(r)}
+                          />
+                        </TableCell>
                       </TableRow>
                     ))
                   )}
@@ -189,6 +227,13 @@ export function PendingStudentsPanel({
         onOpenChange={setExportOpen}
         courses={courses}
         scopeLabel={scopeLabel ?? (courses.length === 1 ? courses[0]?.name ?? "" : t("statistics.allCourses"))}
+      />
+      <PendingStudentDetailDialog
+        row={detailRow}
+        open={!!detailRow}
+        onOpenChange={(v) => {
+          if (!v) setDetailRow(null);
+        }}
       />
     </Card>
   );

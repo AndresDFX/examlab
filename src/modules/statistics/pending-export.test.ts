@@ -43,6 +43,7 @@ function row(over: Partial<StudentPendingRow>): StudentPendingRow {
     taller: 0,
     proyecto: 0,
     total: 0,
+    byCourse: [],
     ...over,
   };
 }

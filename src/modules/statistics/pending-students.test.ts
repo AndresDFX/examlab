@@ -28,6 +28,11 @@ describe("aggregatePending", () => {
     expect(ana.total).toBe(3);
     // Dedup + orden alfabético de cursos.
     expect(ana.courses).toEqual(["Algoritmos", "Bases de datos"]);
+    // Desglose por curso: 2 pendientes en Algoritmos, 1 en Bases de datos.
+    expect(ana.byCourse).toEqual([
+      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 1, proyecto: 0, total: 2 },
+      { courseId: "c2", courseName: "Bases de datos", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 1 },
+    ]);
   });
 
   it("ordena por total descendente y desempata por nombre", () => {
