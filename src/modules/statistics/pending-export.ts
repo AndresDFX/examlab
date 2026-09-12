@@ -13,7 +13,7 @@
  * dice qué le falta, o "Al día" si no le falta nada — por eso consume
  * `StudentPendingRow[]` de `loadAllStudentsPending`, no de `loadPendingStudents`.
  */
-import type { StudentExtraField, StudentPendingRow } from "./pending-students";
+import { PENDING_KINDS, type PendingKind, type StudentExtraField, type StudentPendingRow } from "./pending-students";
 
 /** Escape mínimo para interpolar texto de usuario/DB en el HTML del informe. */
 function escapeHtml(v: string | null | undefined): string {
@@ -63,6 +63,13 @@ export interface PendingReportOptions {
    * sección donde ya no debe nada). Sin efecto en el modo de 1 solo curso.
    */
   hideUpToDatePerCourse?: boolean;
+  /** Tipos de pendiente a incluir como columna (filtro de sesión — ver
+   *  `filterItemsByKind`). Por defecto los 5 (comportamiento previo). Cuando
+   *  el docente excluye un tipo (ej. Talleres) para el alcance actual, la
+   *  columna correspondiente desaparece del informe entero — mostrarla llena
+   *  de "—" sería más confuso que quitarla. `Total` SIEMPRE se muestra: ya
+   *  refleja solo los tipos incluidos porque las filas llegan pre-filtradas. */
+  includeKinds?: ReadonlySet<PendingKind>;
   /** Textos ya traducidos (el módulo es puro, no importa i18n). */
   labels: {
     title: string;
@@ -130,15 +137,19 @@ const cabeceraCentro = (w: number) => `${cabecera(w)};text-align:center`;
  *  código o un documento entran en pocos caracteres. Repartir parejo
  *  angostaba TODAS las columnas de texto por igual al sumar varios campos
  *  opcionales — el bug reportado de filas gigantescas venía de acá. */
-function metricCols(labels: PendingReportOptions["labels"]): Array<{ label: string; w: number }> {
-  return [
-    { label: labels.colFirma, w: 7 },
-    { label: labels.colEncuesta, w: 8 },
-    { label: labels.colExamen, w: 7 },
-    { label: labels.colTaller, w: 7 },
-    { label: labels.colProyecto, w: 8 },
-    { label: labels.colTotal, w: 7 },
+function metricCols(
+  labels: PendingReportOptions["labels"],
+  includeKinds: ReadonlySet<PendingKind>,
+): Array<{ kind: PendingKind | "total"; label: string; w: number }> {
+  const all: Array<{ kind: PendingKind | "total"; label: string; w: number }> = [
+    { kind: "firma", label: labels.colFirma, w: 7 },
+    { kind: "encuesta", label: labels.colEncuesta, w: 8 },
+    { kind: "examen", label: labels.colExamen, w: 7 },
+    { kind: "taller", label: labels.colTaller, w: 7 },
+    { kind: "proyecto", label: labels.colProyecto, w: 8 },
+    { kind: "total", label: labels.colTotal, w: 7 },
   ];
+  return all.filter((c) => c.kind === "total" || includeKinds.has(c.kind));
 }
 
 const TEXT_COL_WEIGHT: Record<"name" | "courses" | StudentExtraField, number> = {
@@ -159,8 +170,9 @@ function textWidths(
   labels: PendingReportOptions["labels"],
   extraFields: readonly StudentExtraField[],
   includeCourses: boolean,
+  includeKinds: ReadonlySet<PendingKind>,
 ): { nameWidth: number; coursesWidth: number; widthOf: (f: StudentExtraField) => number } {
-  const metricWidth = metricCols(labels).reduce((s, c) => s + c.w, 0);
+  const metricWidth = metricCols(labels, includeKinds).reduce((s, c) => s + c.w, 0);
   const textRemaining = 100 - metricWidth;
   const textWeightSum =
     TEXT_COL_WEIGHT.name +
@@ -179,15 +191,16 @@ function headRowHtml(
   labels: PendingReportOptions["labels"],
   extraFields: readonly StudentExtraField[],
   includeCourses: boolean,
+  includeKinds: ReadonlySet<PendingKind>,
 ): string {
-  const { nameWidth, coursesWidth, widthOf } = textWidths(labels, extraFields, includeCourses);
+  const { nameWidth, coursesWidth, widthOf } = textWidths(labels, extraFields, includeCourses, includeKinds);
   return `<tr>
     <td style="${cabecera(nameWidth)}"><strong>${escapeHtml(labels.colStudent)}</strong></td>
     ${extraFields
       .map((f) => `<td style="${cabecera(widthOf(f))}"><strong>${escapeHtml(labels.fieldLabels[f])}</strong></td>`)
       .join("")}
     ${includeCourses ? `<td style="${cabecera(coursesWidth)}"><strong>${escapeHtml(labels.colCourses)}</strong></td>` : ""}
-    ${metricCols(labels)
+    ${metricCols(labels, includeKinds)
       .map((c) => `<td style="${cabeceraCentro(c.w)}"><strong>${escapeHtml(c.label)}</strong></td>`)
       .join("")}
   </tr>`;
@@ -204,14 +217,13 @@ function commonCellsHtml(r: StudentPendingRow, extraFields: readonly StudentExtr
 function countCellsHtml(
   labels: PendingReportOptions["labels"],
   counts: { firma: number; encuesta: number; examen: number; taller: number; proyecto: number; total: number },
+  includeKinds: ReadonlySet<PendingKind>,
 ): string {
   const upToDate = counts.total === 0;
-  return `<td style="${CENTRO}">${countCell(counts.firma)}</td>
-    <td style="${CENTRO}">${countCell(counts.encuesta)}</td>
-    <td style="${CENTRO}">${countCell(counts.examen)}</td>
-    <td style="${CENTRO}">${countCell(counts.taller)}</td>
-    <td style="${CENTRO}">${countCell(counts.proyecto)}</td>
-    <td style="${CENTRO}">${upToDate ? escapeHtml(labels.upToDate) : String(counts.total)}</td>`;
+  const cells = PENDING_KINDS.filter((k) => includeKinds.has(k))
+    .map((k) => `<td style="${CENTRO}">${countCell(counts[k])}</td>`)
+    .join("");
+  return `${cells}<td style="${CENTRO}">${upToDate ? escapeHtml(labels.upToDate) : String(counts.total)}</td>`;
 }
 
 /** Tabla plana única (comportamiento previo): todos los estudiantes del
@@ -221,14 +233,15 @@ function flatTableHtml(
   rows: readonly StudentPendingRow[],
   labels: PendingReportOptions["labels"],
   extraFields: readonly StudentExtraField[],
+  includeKinds: ReadonlySet<PendingKind>,
 ): string {
-  const head = headRowHtml(labels, extraFields, true);
+  const head = headRowHtml(labels, extraFields, true, includeKinds);
   const body = rows
     .map(
       (r) => `<tr>
         ${commonCellsHtml(r, extraFields)}
         <td style="${BORDE}">${escapeHtml(r.courses.join(", ") || "—")}</td>
-        ${countCellsHtml(labels, r)}
+        ${countCellsHtml(labels, r, includeKinds)}
       </tr>`,
     )
     .join("");
@@ -248,8 +261,9 @@ function courseSectionHtml(
   extraFields: readonly StudentExtraField[],
   isFirst: boolean,
   hideUpToDate: boolean,
+  includeKinds: ReadonlySet<PendingKind>,
 ): string {
-  const head = headRowHtml(labels, extraFields, false);
+  const head = headRowHtml(labels, extraFields, false, includeKinds);
   const enrolled = rows
     .map((r) => ({ r, cc: r.byCourse.find((c) => c.courseId === course.id) }))
     .filter((x): x is { r: StudentPendingRow; cc: NonNullable<typeof x.cc> } => !!x.cc)
@@ -259,7 +273,7 @@ function courseSectionHtml(
     .map(
       ({ r, cc }) => `<tr>
         ${commonCellsHtml(r, extraFields)}
-        ${countCellsHtml(labels, cc)}
+        ${countCellsHtml(labels, cc, includeKinds)}
       </tr>`,
     )
     .join("");
@@ -289,7 +303,14 @@ export function buildPendingReportHtml(
   excludedCount: number,
   opts: PendingReportOptions,
 ): string {
-  const { brand, labels, extraFields = [], courses = [], hideUpToDatePerCourse = false } = opts;
+  const {
+    brand,
+    labels,
+    extraFields = [],
+    courses = [],
+    hideUpToDatePerCourse = false,
+    includeKinds = new Set(PENDING_KINDS),
+  } = opts;
   const logoImg = brand.logoUrl
     ? `<img src="${escapeHtml(brand.logoUrl)}" style="height:48px;max-width:220px;object-fit:contain" />`
     : "";
@@ -301,9 +322,11 @@ export function buildPendingReportHtml(
   const tablesHtml =
     courses.length > 1
       ? courses
-          .map((c, i) => courseSectionHtml(c, rows, labels, extraFields, i === 0, hideUpToDatePerCourse))
+          .map((c, i) =>
+            courseSectionHtml(c, rows, labels, extraFields, i === 0, hideUpToDatePerCourse, includeKinds),
+          )
           .join("\n")
-      : flatTableHtml(rows, labels, extraFields);
+      : flatTableHtml(rows, labels, extraFields, includeKinds);
 
   const excludedNote =
     excludedCount > 0 ? `<p><em>${escapeHtml(labels.excludedNote(excludedCount))}</em></p>` : "";

@@ -19,8 +19,10 @@ import { downloadReportAsWord, printReportHtml, fileStamp } from "@/modules/repo
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import {
+  PENDING_KINDS,
   loadAllStudentsPending,
   STUDENT_EXTRA_FIELDS,
+  type PendingKind,
   type StudentExtraField,
   type StudentPendingRow,
 } from "./pending-students";
@@ -36,6 +38,16 @@ const FIELD_LABEL_KEY: Record<StudentExtraField, string> = {
   programa: "statistics.pendingFieldPrograma",
 };
 
+/** Mismo mapa que `PendingStudentsPanel` (duplicado a propósito: son 5 claves
+ *  i18n, no vale la pena acoplar los dos módulos de UI por esto). */
+const KIND_LABEL_KEY: Record<PendingKind, string> = {
+  firma: "statistics.pendingKindFirma",
+  encuesta: "statistics.pendingKindEncuesta",
+  examen: "statistics.pendingKindExamen",
+  taller: "statistics.pendingKindTaller",
+  proyecto: "statistics.pendingKindProyecto",
+};
+
 /**
  * Diálogo previo a exportar el informe de "Pendientes por estudiante".
  *
@@ -48,6 +60,7 @@ export function PendingStudentsExportDialog({
   onOpenChange,
   courses,
   scopeLabel,
+  excludedKinds,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +68,10 @@ export function PendingStudentsExportDialog({
   courses: ReadonlyArray<{ id: string; name: string }>;
   /** Texto ya armado por el caller: nombre del curso, o "Todos los cursos — periodo X". */
   scopeLabel: string;
+  /** Tipos de pendiente excluidos en el panel (filtro de sesión) — el export
+   *  reusa el MISMO filtro para que la tabla en pantalla y el informe cuenten
+   *  lo mismo, en vez de duplicar el control acá. */
+  excludedKinds?: ReadonlySet<PendingKind>;
 }) {
   const { t } = useTranslation();
   const brand = usePrintBrand();
@@ -75,11 +92,13 @@ export function PendingStudentsExportDialog({
   // siempre) o "solo quien debe algo EN esa sección".
   const [hideUpToDatePerCourse, setHideUpToDatePerCourse] = useState(false);
 
+  const excludedKindsKey = [...(excludedKinds ?? [])].sort().join(",");
+
   useEffect(() => {
     if (!open) return;
     let cancelled = false;
     setLoading(true);
-    loadAllStudentsPending(courses)
+    loadAllStudentsPending(courses, excludedKinds)
       .then((r) => {
         if (cancelled) return;
         setRows(r);
@@ -98,7 +117,16 @@ export function PendingStudentsExportDialog({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, courses.map((c) => c.id).sort().join(",")]);
+  }, [open, courses.map((c) => c.id).sort().join(","), excludedKindsKey]);
+
+  const includeKinds = useMemo(
+    () => new Set(PENDING_KINDS.filter((k) => !excludedKinds?.has(k))),
+    [excludedKinds],
+  );
+  const excludedKindLabels = useMemo(
+    () => PENDING_KINDS.filter((k) => excludedKinds?.has(k)).map((k) => t(KIND_LABEL_KEY[k])),
+    [excludedKinds, t],
+  );
 
   const includedCount = rows.length - excluded.size;
   const allExcluded = rows.length > 0 && excluded.size === rows.length;
@@ -190,6 +218,7 @@ export function PendingStudentsExportDialog({
         courseSectionAllUpToDate: t("statistics.pendingExportCourseSectionAllUpToDate"),
       },
       hideUpToDatePerCourse: courses.length > 1 ? hideUpToDatePerCourse : false,
+      includeKinds,
     });
 
   const includedRows = () => {
@@ -256,6 +285,11 @@ export function PendingStudentsExportDialog({
           <DialogDescription>{t("statistics.pendingExportDesc", { scope: scopeLabel })}</DialogDescription>
         </DialogHeader>
 
+        {excludedKindLabels.length > 0 && (
+          <p className="text-xs text-muted-foreground">
+            {t("statistics.pendingExportKindsExcludedNote", { kinds: excludedKindLabels.join(", ") })}
+          </p>
+        )}
         {loading ? (
           <div className="py-8 flex justify-center">
             <Spinner size="md" />

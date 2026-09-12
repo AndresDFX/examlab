@@ -25,6 +25,28 @@ const dbAny = supabase as any;
 export const PENDING_KINDS = ["firma", "encuesta", "examen", "taller", "proyecto"] as const;
 export type PendingKind = (typeof PENDING_KINDS)[number];
 
+/**
+ * PURO: descarta los items de los tipos excluidos ANTES de agregar.
+ *
+ * Es un filtro de SESIÓN (no persistido en DB, se resetea al recargar la
+ * pantalla — mismo criterio que el buscador y "Excluir al día"): un docente
+ * que, por ejemplo, no usa Talleres como criterio real de "pendiente" en un
+ * curso puntual puede destildar esa categoría mientras la está viendo. Como
+ * el filtro corre sobre los items crudos (antes de `aggregatePending` /
+ * `aggregateAllStudents`), un estudiante cuyo ÚNICO pendiente era de un tipo
+ * excluido pasa a contarse como "al día" para ese tipo — en `aggregatePending`
+ * directamente deja de aparecer si ese era su único pendiente; en
+ * `aggregateAllStudents` queda con `total: 0` para ese tipo, como corresponde
+ * al universo completo.
+ */
+export function filterItemsByKind(
+  items: readonly PendingItem[],
+  excludeKinds: ReadonlySet<PendingKind> | undefined,
+): PendingItem[] {
+  if (!excludeKinds || excludeKinds.size === 0) return [...items];
+  return items.filter((it) => !excludeKinds.has(it.kind));
+}
+
 /** Un pendiente concreto: el estudiante `userId` le debe algo de `kind` a un
  *  entregable del curso `courseId`. La agregación cuenta estos items. */
 export type PendingItem = { userId: string; courseId: string; kind: PendingKind };
@@ -467,8 +489,10 @@ async function fetchNames(userIds: ReadonlyArray<string>): Promise<Map<string, s
  */
 export async function loadPendingStudents(
   courseMeta: ReadonlyArray<{ id: string; name: string }>,
+  excludeKinds?: ReadonlySet<PendingKind>,
 ): Promise<StudentPendingRow[]> {
-  const { items, courseNames } = await loadPendingData(courseMeta);
+  const { items: rawItems, courseNames } = await loadPendingData(courseMeta);
+  const items = filterItemsByKind(rawItems, excludeKinds);
   const userIds = Array.from(new Set(items.map((it) => it.userId)));
   const names = await fetchNames(userIds);
   const rows = aggregatePending(items, names, courseNames);
@@ -542,8 +566,10 @@ async function fetchProgramNames(programIds: ReadonlyArray<string>): Promise<Map
  */
 export async function loadAllStudentsPending(
   courseMeta: ReadonlyArray<{ id: string; name: string }>,
+  excludeKinds?: ReadonlySet<PendingKind>,
 ): Promise<StudentPendingRow[]> {
-  const { items, courseNames, enrolledByUser } = await loadPendingData(courseMeta);
+  const { items: rawItems, courseNames, enrolledByUser } = await loadPendingData(courseMeta);
+  const items = filterItemsByKind(rawItems, excludeKinds);
   const userIds = Array.from(enrolledByUser.keys());
   const names = await fetchNames(userIds);
   const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);

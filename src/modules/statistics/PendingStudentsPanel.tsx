@@ -14,7 +14,8 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
+import { Badge, badgeVariants } from "@/components/ui/badge";
+import { cn } from "@/shared/lib/utils";
 import { BadgeOverflow } from "@/components/ui/badge-overflow";
 import { TableEmpty } from "@/components/ui/empty-state";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -23,9 +24,19 @@ import { DataPagination } from "@/components/ui/data-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
-import { loadPendingStudents, type StudentPendingRow } from "./pending-students";
+import { PENDING_KINDS, loadPendingStudents, type PendingKind, type StudentPendingRow } from "./pending-students";
 import { PendingStudentsExportDialog } from "./PendingStudentsExportDialog";
 import { PendingStudentDetailDialog } from "./PendingStudentDetailDialog";
+
+/** Etiqueta i18n de cada tipo de pendiente — un único mapa que alimenta los
+ *  chips de filtro, la cabecera de la tabla y los chips mobile. */
+const KIND_LABEL_KEY: Record<PendingKind, string> = {
+  firma: "statistics.pendingKindFirma",
+  encuesta: "statistics.pendingKindEncuesta",
+  examen: "statistics.pendingKindExamen",
+  taller: "statistics.pendingKindTaller",
+  proyecto: "statistics.pendingKindProyecto",
+};
 
 /**
  * Panel "Pendientes por estudiante". Consume `loadPendingStudents` sobre el
@@ -49,14 +60,34 @@ export function PendingStudentsPanel({
   const [exportOpen, setExportOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [detailRow, setDetailRow] = useState<StudentPendingRow | null>(null);
+  // Tipos de pendiente a EXCLUIR del cálculo — filtro de SESIÓN (se resetea al
+  // recargar la página, mismo criterio que el buscador): un docente que en
+  // ESTE alcance no quiere que, por ejemplo, "Taller" cuente como pendiente
+  // (talleres opcionales, no ponderan la nota) lo destilda mientras lo está
+  // viendo. Vacío por defecto = comportamiento previo (los 5 tipos cuentan).
+  const [excludedKinds, setExcludedKinds] = useState<Set<PendingKind>>(new Set());
+  const toggleKind = (kind: PendingKind) => {
+    setExcludedKinds((prev) => {
+      const next = new Set(prev);
+      if (next.has(kind)) next.delete(kind);
+      else next.add(kind);
+      return next;
+    });
+  };
   // Concatenar los ids es la clave del effect: re-carga cuando cambia el
-  // conjunto de cursos (elegir otro curso, cambiar periodo/asignatura).
+  // conjunto de cursos (elegir otro curso, cambiar periodo/asignatura) o el
+  // filtro de tipos.
   const key = useMemo(() => courses.map((c) => c.id).sort().join(","), [courses]);
+  const excludedKindsKey = useMemo(() => [...excludedKinds].sort().join(","), [excludedKinds]);
+  const includedKinds = useMemo(
+    () => PENDING_KINDS.filter((k) => !excludedKinds.has(k)),
+    [excludedKinds],
+  );
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    loadPendingStudents(courses)
+    loadPendingStudents(courses, excludedKinds)
       .then((r) => {
         if (!cancelled) setRows(r);
       })
@@ -73,7 +104,7 @@ export function PendingStudentsPanel({
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, excludedKindsKey]);
 
   // Filtro por nombre O correo (institucional/personal) — client-side sobre
   // los datos ya cargados, que vienen acotados al alcance elegido.
@@ -124,7 +155,7 @@ export function PendingStudentsPanel({
           </div>
         ) : (
           <>
-            <div className="px-4 pb-3">
+            <div className="px-4 pb-3 space-y-2">
               <div className="relative max-w-sm">
                 <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
@@ -134,6 +165,27 @@ export function PendingStudentsPanel({
                   className="pl-8"
                   aria-label={t("statistics.pendingSearchPlaceholder")}
                 />
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-muted-foreground">{t("statistics.pendingKindsFilterLabel")}</span>
+                {PENDING_KINDS.map((kind) => {
+                  const included = !excludedKinds.has(kind);
+                  return (
+                    <button
+                      key={kind}
+                      type="button"
+                      onClick={() => toggleKind(kind)}
+                      aria-pressed={included}
+                      className={cn(
+                        badgeVariants({ variant: included ? "secondary" : "outline" }),
+                        "cursor-pointer select-none",
+                        !included && "text-muted-foreground",
+                      )}
+                    >
+                      {t(KIND_LABEL_KEY[kind])}
+                    </button>
+                  );
+                })}
               </div>
             </div>
             <div className="overflow-x-auto">
@@ -146,21 +198,11 @@ export function PendingStudentsPanel({
                     <TableHead className="hidden md:table-cell">
                       {t("statistics.pendingColCourses")}
                     </TableHead>
-                    <TableHead className="text-center hidden sm:table-cell">
-                      {t("statistics.pendingKindFirma")}
-                    </TableHead>
-                    <TableHead className="text-center hidden sm:table-cell">
-                      {t("statistics.pendingKindEncuesta")}
-                    </TableHead>
-                    <TableHead className="text-center hidden sm:table-cell">
-                      {t("statistics.pendingKindExamen")}
-                    </TableHead>
-                    <TableHead className="text-center hidden sm:table-cell">
-                      {t("statistics.pendingKindTaller")}
-                    </TableHead>
-                    <TableHead className="text-center hidden sm:table-cell">
-                      {t("statistics.pendingKindProyecto")}
-                    </TableHead>
+                    {includedKinds.map((kind) => (
+                      <TableHead key={kind} className="text-center hidden sm:table-cell">
+                        {t(KIND_LABEL_KEY[kind])}
+                      </TableHead>
+                    ))}
                     <SortableHead sortKey="total" sort={sort} className="text-center w-20">
                       {t("statistics.pendingColTotal")}
                     </SortableHead>
@@ -170,7 +212,7 @@ export function PendingStudentsPanel({
                 <TableBody>
                   {pag.paginatedItems.length === 0 ? (
                     <TableEmpty
-                      colSpan={9}
+                      colSpan={4 + includedKinds.length}
                       icon={ClipboardList}
                       text={search ? t("statistics.pendingSearchEmpty") : t("statistics.pendingEmpty")}
                       hint={search ? undefined : t("statistics.pendingEmptyHint")}
@@ -183,21 +225,17 @@ export function PendingStudentsPanel({
                           {/* En mobile los conteos por tipo se ocultan; el
                               desglose va como chips debajo del nombre. */}
                           <div className="mt-1 flex flex-wrap gap-1 sm:hidden">
-                            <CountChip n={r.firma} label={t("statistics.pendingKindFirma")} />
-                            <CountChip n={r.encuesta} label={t("statistics.pendingKindEncuesta")} />
-                            <CountChip n={r.examen} label={t("statistics.pendingKindExamen")} />
-                            <CountChip n={r.taller} label={t("statistics.pendingKindTaller")} />
-                            <CountChip n={r.proyecto} label={t("statistics.pendingKindProyecto")} />
+                            {includedKinds.map((kind) => (
+                              <CountChip key={kind} n={r[kind]} label={t(KIND_LABEL_KEY[kind])} />
+                            ))}
                           </div>
                         </TableCell>
                         <TableCell className="hidden md:table-cell">
                           <BadgeOverflow items={r.courses} max={2} />
                         </TableCell>
-                        <CountCell n={r.firma} />
-                        <CountCell n={r.encuesta} />
-                        <CountCell n={r.examen} />
-                        <CountCell n={r.taller} />
-                        <CountCell n={r.proyecto} />
+                        {includedKinds.map((kind) => (
+                          <CountCell key={kind} n={r[kind]} />
+                        ))}
                         <TableCell className="text-center">
                           <Badge variant="secondary" className="tabular-nums">
                             {r.total}
@@ -227,6 +265,7 @@ export function PendingStudentsPanel({
         onOpenChange={setExportOpen}
         courses={courses}
         scopeLabel={scopeLabel ?? (courses.length === 1 ? courses[0]?.name ?? "" : t("statistics.allCourses"))}
+        excludedKinds={excludedKinds}
       />
       <PendingStudentDetailDialog
         row={detailRow}

@@ -2747,6 +2747,8 @@
     "pendingKindExamen": "Examen",
     "pendingKindTaller": "Taller",
     "pendingKindProyecto": "Proyecto",
+    "pendingKindsFilterLabel": "Contar como pendiente:",
+    "pendingExportKindsExcludedNote": "El informe no cuenta {{kinds}} como pendiente (filtro activo en el panel).",
     "pendingEmpty": "Nadie tiene pendientes en este alcance.",
     "pendingEmptyHint": "Firmas, encuestas, exámenes, talleres y proyectos del curso están al día.",
     "pendingLoadError": "No pudimos cargar los pendientes",

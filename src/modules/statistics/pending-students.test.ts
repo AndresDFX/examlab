@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { aggregateAllStudents, aggregatePending, pollIsOpen, type PendingItem } from "./pending-students";
+import {
+  aggregateAllStudents,
+  aggregatePending,
+  filterItemsByKind,
+  pollIsOpen,
+  type PendingItem,
+} from "./pending-students";
 
 const names = new Map([
   ["u1", "Ana Pérez"],
@@ -94,6 +100,54 @@ describe("aggregateAllStudents", () => {
     ]);
     const rows = aggregateAllStudents([], names, courseNames, enrolledByUser);
     expect(rows.map((r) => r.userId)).toEqual(["u1", "u2"]); // Ana antes que Beto
+  });
+});
+
+describe("filterItemsByKind", () => {
+  const items: PendingItem[] = [
+    { userId: "u1", courseId: "c1", kind: "examen" },
+    { userId: "u1", courseId: "c1", kind: "taller" },
+    { userId: "u2", courseId: "c1", kind: "taller" },
+  ];
+
+  it("sin excludeKinds (undefined) devuelve todo tal cual", () => {
+    expect(filterItemsByKind(items, undefined)).toEqual(items);
+  });
+
+  it("con Set vacío devuelve todo tal cual", () => {
+    expect(filterItemsByKind(items, new Set())).toEqual(items);
+  });
+
+  it("descarta los items del tipo excluido", () => {
+    const filtered = filterItemsByKind(items, new Set(["taller"]));
+    expect(filtered).toEqual([{ userId: "u1", courseId: "c1", kind: "examen" }]);
+  });
+
+  it("un estudiante cuyo ÚNICO pendiente es del tipo excluido deja de aparecer en aggregatePending", () => {
+    const filtered = filterItemsByKind(items, new Set(["taller"]));
+    const rows = aggregatePending(filtered, names, courseNames);
+    // u2 solo tenía "taller" (excluido) → ya no tiene ningún pendiente.
+    expect(rows.map((r) => r.userId)).toEqual(["u1"]);
+    expect(rows[0].taller).toBe(0);
+    expect(rows[0].examen).toBe(1);
+    expect(rows[0].total).toBe(1);
+  });
+
+  it("en aggregateAllStudents el estudiante SIGUE apareciendo, pero con total 0 para el tipo excluido", () => {
+    const enrolledByUser = new Map([
+      ["u1", new Set(["c1"])],
+      ["u2", new Set(["c1"])],
+    ]);
+    const filtered = filterItemsByKind(items, new Set(["taller"]));
+    const rows = aggregateAllStudents(filtered, names, courseNames, enrolledByUser);
+    const u2 = rows.find((r) => r.userId === "u2")!;
+    expect(u2.taller).toBe(0);
+    expect(u2.total).toBe(0);
+  });
+
+  it("excluir varios tipos a la vez", () => {
+    const filtered = filterItemsByKind(items, new Set(["taller", "examen"]));
+    expect(filtered).toEqual([]);
   });
 });
 

@@ -2747,6 +2747,8 @@
     "pendingKindExamen": "Exam",
     "pendingKindTaller": "Workshop",
     "pendingKindProyecto": "Project",
+    "pendingKindsFilterLabel": "Count as pending:",
+    "pendingExportKindsExcludedNote": "The report does not count {{kinds}} as pending (filter active in the panel).",
     "pendingEmpty": "No one has anything pending in this scope.",
     "pendingEmptyHint": "Signatures, polls, exams, workshops and projects for the course are all up to date.",
     "pendingLoadError": "Could not load pending items",
