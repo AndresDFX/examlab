@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { needsTeacherScope } from "@/modules/courses/course-scope";
+import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { isStaffRole } from "@/shared/lib/roles";
 import { logEvent } from "@/shared/lib/audit";
@@ -145,7 +146,7 @@ type PromptRow = {
   system_prompt: string;
 };
 
-type CourseLite = { id: string; name: string; period: string | null };
+type CourseLite = { id: string; name: string; period: string | null; status?: string | null };
 
 function TeacherAIPrompts() {
   const { user, roles, loading: authLoading } = useAuth();
@@ -192,7 +193,7 @@ function TeacherAIPrompts() {
       // puede dar: deja ver todo el tenant a cualquier autenticado.
       let q = db
         .from("courses")
-        .select("id, name, period")
+        .select("id, name, period, status")
         .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
@@ -407,21 +408,14 @@ function TeacherAIPrompts() {
             ) : courses.length === 0 ? (
               <p className="text-sm text-muted-foreground mt-1">{t("hc_routesAppTeacherAiPrompts.noCoursesAssigned")}</p>
             ) : (
-              <Select value={courseId ?? undefined} onValueChange={(v) => setCourseId(v)}>
-                <SelectTrigger className="w-full sm:w-[400px] mt-1">
-                  <SelectValue placeholder={t("hc_routesAppTeacherAiPrompts.selectCoursePlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                      {c.period ? (
-                        <span className="text-muted-foreground"> · {c.period}</span>
-                      ) : null}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <CourseSelect
+                courses={courses}
+                value={courseId}
+                onChange={(v) => v && setCourseId(v)}
+                showPeriod
+                placeholder={t("hc_routesAppTeacherAiPrompts.selectCoursePlaceholder")}
+                triggerClassName="w-full sm:w-[400px] mt-1"
+              />
             )}
           </div>
         </CardContent>
