@@ -31,6 +31,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **Cascade al finalizar** (mig `20260991000000`): un trigger `AFTER UPDATE OF status` cierra en cascada lo asociado — exámenes/pizarras (`status='closed'`), talleres/proyectos/encuestas (cerrados SOLO si NINGÚN otro curso ligado sigue `<> 'finalizado'` — caveat M:N), foros (`manually_closed_at`), juegos Kahoot en vivo (`ended`), ventanas de check-in QR. NO cierra sesiones de asistencia ni contenidos/videos (histórico/consultable). NO auto-reabre al reabrir el curso. Funciones `close_*_for_course` son `SECURITY DEFINER` y **REVOCADAS de PUBLIC** (internas). Al agregar una entidad nueva ligada a curso con estado cerrado, sumar su `close_*` al orquestador. **Las actividades EXTERNAS también se cierran** (mig `20261630000000`): antes se excluían con `is_external = false` "porque solo registran nota", y el efecto era que un `Parcial I` externo de un curso finalizado quedaba `published` para siempre, mezclado con los borradores del periodo nuevo. `status` es ciclo de vida, no permiso de calificación: `ExternalGradesEditor` no lee `exams.status`, el alumno filtra los externos de plano, y un curso solo llega a `finalizado` sin pendientes de calificación. **El trigger solo dispara en la TRANSICIÓN** a `finalizado`, así que los cursos ya finalizados antes de `20260991000000` nunca corrieron la cascada — esa misma migración trae el **backfill** idempotente para todos los tenants.
   - **Contraseña temporal FIJA `Temporal#123` para todos** (no aleatoria por usuario). Decisión explícita del usuario (2026-07-14): prefiere una clave uniforme conocida —que el docente dicta en clase— aunque sea insegura, en vez de una temporal única por estudiante que nunca se comunica. El default del edge `bulk-import-users` es `Temporal#123` (era `Cambiar#123`); el template CSV del UI ya lo sugiere. Guardada en claro en `admin_visible_passwords`. Login = correo institucional + `Temporal#123`.
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
+  - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
@@ -73,6 +74,41 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🔔 Notificaciones
+
+- **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está lejos** (mig
+  `20262210000000_defer_publish_notifications_future_start.sql`). Reportado por un estudiante de
+  UNIAJ (curso Introducción a la Ingeniería-SB141C, WhatsApp 2026-09-09): el docente publicó los 16
+  talleres del semestre de una sola vez y le llegaron, EN EL ACTO, avisos de talleres de
+  octubre/noviembre estando recién en semana 1 — "me aparecen notificaciones que la verdad no son
+  para mi". No era un bug de datos (cada alumno ve solo lo de su curso), era de TIMING.
+  - Los tres triggers de `20260603050000_publish_notifications.sql` (talleres, exámenes, proyectos —
+    comparten el mismo patrón) ahora comparan la fecha "disponible desde"
+    (`workshops.start_date` / `exams.start_time` / `projects.start_date`) contra `now() + 1 día`: si
+    está más lejos, NO notifican todavía. Columna nueva `publish_notified_at` (NULL = pendiente) en
+    las tres tablas. El cron horario `dispatch-deferred-publish-notifications`
+    (`public.dispatch_deferred_publish_notifications()`) dispara el aviso diferido en cuanto falta un
+    día o menos (o si la fecha ya pasó), leyendo el valor VIGENTE de la fila — no una cola aparte, así
+    que una edición de la fecha mientras sigue pendiente ya queda cubierta sin sincronizar nada más.
+  - Publicación de último momento (fecha ya hoy, o sin fecha) sigue notificando al instante, igual
+    que siempre.
+  - Efecto colateral: "Taller/Examen/Proyecto actualizado" (aviso de edición post-publicación) ahora
+    también exige que el aviso de publicación YA haya salido (`publish_notified_at IS NOT NULL`) —
+    antes, editar un ítem publicado con la publicación todavía diferida mandaba "actualizado" sobre
+    algo que el alumno ni sabía que existía, el mismo problema con otro nombre.
+  - **Encuestas queda AFUERA a propósito** (tabla de forma distinta — `is_published` boolean,
+    fan-out multi-curso vía `poll_courses` — y no fue parte del reporte); se evalúa aparte si se
+    repite la queja ahí.
+  - **No se tocan notificaciones ya enviadas**: los 16 avisos de SB141C que ya salieron se quedan
+    como están (no hay forma de "desenviarlos" sin generar más ruido). Sí se backfillea
+    `publish_notified_at = now()` en todo lo que ya estaba publicado al momento de la migración, para
+    que el cron nuevo no les mande un SEGUNDO aviso cuando su fecha se acerque — el fix corrige el
+    comportamiento hacia adelante, no reescribe el pasado.
+  - Verificado extremo a extremo contra un Postgres real (Docker, no la base de producción): backfill,
+    diferir/notificar-ya según umbral, el cron disparando el pendiente cuando se acerca la fecha,
+    idempotencia (no duplica en una segunda pasada), papelera excluida, el guard de "actualizado", y
+    exámenes/proyectos con el mismo comportamiento que talleres.
 
 ### 🔒 Seguridad
 
