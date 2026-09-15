@@ -9438,7 +9438,7 @@
     "batchSummaryMany": "Calificación recalculada en batch sobre {{count}} preguntas abiertas (de {{total}} totales).",
     "batchSummaryOne": "Calificación recalculada en batch sobre 1 pregunta abierta (de {{total}} totales).",
     "bulkActionsDesc": "Califica todas las entregas con IA y detecta copias entre estudiantes a nivel pregunta. Los resultados aparecen junto a cada pregunta dentro del acordeón.",
-    "bulkActionsScopeFiltered": "Con la búsqueda activa, las acciones masivas de IA solo toman las {{count}} entregas visibles.",
+    "bulkActionsScopeFiltered": "Con la búsqueda activa, calificar y recalificar con IA solo toman las {{count}} entregas visibles.",
     "bulkActionsTitle": "Acciones masivas",
     "bulkEntityPlural": "talleres",
     "bulkEntitySingular": "taller",

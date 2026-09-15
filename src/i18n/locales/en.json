@@ -9438,7 +9438,7 @@
     "batchSummaryMany": "Grade recomputed in batch over {{count}} open questions (of {{total}} total).",
     "batchSummaryOne": "Grade recomputed in batch over 1 open question (of {{total}} total).",
     "bulkActionsDesc": "Grade all submissions with AI and detect copying between students at the question level. Results appear next to each question inside the accordion.",
-    "bulkActionsScopeFiltered": "With the search active, bulk AI actions only take the {{count}} visible submissions.",
+    "bulkActionsScopeFiltered": "With the search active, grading and re-grading with AI only take the {{count}} visible submissions.",
     "bulkActionsTitle": "Bulk actions",
     "bulkEntityPlural": "workshops",
     "bulkEntitySingular": "workshop",

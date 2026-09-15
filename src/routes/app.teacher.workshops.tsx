@@ -106,7 +106,6 @@ import {
   Check,
   Eye,
   ClipboardList,
-  RefreshCw,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatPercent } from "@/shared/lib/format";
@@ -4637,10 +4636,12 @@ function TeacherWorkshops() {
                 </Button>
                 {/* Recalificar es la acción CARA y destructiva de las dos, así
                     que va `outline` y la primaria sigue siendo "Calificar todo
-                    con IA" (P4: una sola acción primaria por pantalla). Icono
-                    RefreshCw = rehacer, la misma semántica que el "Reintentar"
-                    de la cola de IA; Sparkles queda para calificar por primera
-                    vez, si no las dos acciones se verían idénticas. */}
+                    con IA" (P4: una sola acción primaria por pantalla). Mismo
+                    ícono Sparkles que "Calificar"/el botón por-fila: el
+                    concepto es "calificación con IA" en los dos casos (acá no
+                    se reintenta un job fallido de cola, que es donde el repo
+                    ya reserva RefreshCw), y el texto del botón ("Calificar"
+                    vs "Recalificar") ya distingue las dos acciones. */}
                 <Button
                   size="sm"
                   variant="outline"
@@ -4651,7 +4652,7 @@ function TeacherWorkshops() {
                   {regradeRunning ? (
                     <Spinner size="sm" className="mr-1" />
                   ) : (
-                    <RefreshCw className="h-4 w-4 mr-1" />
+                    <Sparkles className="h-4 w-4 mr-1" />
                   )}
                   {regradeRunning
                     ? t("hc_routesAppTeacherWorkshops.regradeProgressShort", {
@@ -5925,7 +5926,7 @@ function TeacherWorkshops() {
         >
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className={`h-4 w-4 ${regradeRunning ? "animate-spin" : ""}`} />
+              <Sparkles className="h-4 w-4 text-amber-500" />
               {t("hc_routesAppTeacherWorkshops.regradeDialogTitle")}
               {regradeProgress.total > 0 && (
                 <span className="text-xs font-normal text-muted-foreground tabular-nums">
