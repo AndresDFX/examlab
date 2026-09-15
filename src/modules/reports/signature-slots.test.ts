@@ -156,6 +156,55 @@ describe("renderizarRanuras — estado FIRMABLE (el aporte de este cambio)", () 
   });
 });
 
+describe("renderizarRanuras — resalta la FILA de quien mira (además de la celda)", () => {
+  it("pinta el <tr> de quien mira con el marcador de fila, y el de al lado queda intacto", () => {
+    const h = renderizarRanuras(snapshot(ANA, BETO), { firmanteId: ANA });
+    const [filaAna, filaBeto] = h.split("</tr>");
+    expect(filaAna).toContain("data-examlab-fila-firmante");
+    expect(filaBeto).not.toContain("data-examlab-fila-firmante");
+  });
+
+  it('ya firmada, agrega la etiqueta "Tu firma" SOLO en la celda de quien mira', () => {
+    const h = renderizarRanuras(snapshot(ANA, BETO), {
+      firmas: [firma(), firma({ user_id: BETO, nombre: "Beto Ruiz" })],
+      firmanteId: ANA,
+    });
+    const [, filaAna, filaBeto] = h.split(/data-firma-uid="/);
+    expect(filaAna).toContain("Tu firma");
+    expect(filaBeto).not.toContain("Tu firma");
+  });
+
+  it("sin firmanteId no resalta ninguna fila (vista del docente, descarga, impresión)", () => {
+    const h = renderizarRanuras(snapshot(ANA, BETO), { firmas: [firma()] });
+    expect(h).not.toContain("data-examlab-fila-firmante");
+  });
+
+  it("es idempotente: re-renderizar no duplica el resaltado de fila", () => {
+    const una = renderizarRanuras(snapshot(ANA, BETO), { firmanteId: ANA });
+    expect((una.match(/data-examlab-fila-firmante/g) ?? []).length).toBe(1);
+    const dos = renderizarRanuras(una, { firmanteId: ANA });
+    expect(dos).toBe(una);
+    expect((dos.match(/data-examlab-fila-firmante/g) ?? []).length).toBe(1);
+  });
+
+  it("si la ranura no vive dentro de una fila, no rompe: solo queda el resaltado de celda", () => {
+    // Best-effort documentado: una carta con la firma en un párrafo no tiene
+    // <tr> que resaltar, y la función no debe reventar por eso.
+    const html =
+      `<p>Firma: <span class="${CLASE_RANURA}" data-firma-uid="${ANA}"` +
+      ' style="display:block;min-height:30px;">&nbsp;</span></p>';
+    const h = renderizarRanuras(html, { firmanteId: ANA });
+    expect(h).not.toContain("data-examlab-fila-firmante");
+    expect(h).toContain(ATTR_ACCION);
+    expect(h).toContain("background:#eff6ff");
+  });
+
+  it("con el mismo uid repetido en dos filas, resalta solo la PRIMERA (límite documentado)", () => {
+    const h = renderizarRanuras(snapshot(ANA, ANA), { firmanteId: ANA });
+    expect((h.match(/data-examlab-fila-firmante/g) ?? []).length).toBe(1);
+  });
+});
+
 describe("renderizarRanuras — invariantes", () => {
   it("es idempotente: aplicarlo dos veces da lo mismo", () => {
     // La pantalla del estudiante lo re-ejecuta al firmar, sobre el mismo HTML.

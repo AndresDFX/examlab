@@ -198,7 +198,7 @@ function StudentSignatures() {
         _user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
         _drawing: dibujo,
       });
-      const r = data as { ok?: boolean; error?: string } | null;
+      const r = data as { ok?: boolean; error?: string; signed_at?: string | null } | null;
       if (e || !r?.ok) {
         toast.error(friendlyError(e, t("studentSignatures.errSign")));
         return;
@@ -216,7 +216,23 @@ function StudentSignatures() {
           prev ? { ...prev, html: r2.html as string, firmas: r2.firmas ?? [] } : prev,
         );
       }
-      setIntento((n) => n + 1);
+      // Actualiza SOLO este item en la lista, en vez de `setIntento` (que
+      // disparaba `cargar()` completo). `cargar()` arranca con
+      // `setCargando(true)`, y ese es el MISMO flag que hace `if (cargando)
+      // return <PageLoader />` arriba: la pantalla ENTERA —incluido este
+      // diálogo recién actualizado con la firma— se reemplazaba por el loader
+      // de página completa mientras se re-consultaba la lista (una vuelta por
+      // cada documento pendiente, con `get_report_to_sign` en un for-await).
+      // El diálogo se desmontaba a mitad del gesto de firmar y volvía a
+      // aparecer solo un instante después: eso es lo que se veía como "hay
+      // que firmar dos veces" — la firma ya había quedado bien a la primera,
+      // pero la pantalla se "reiniciaba" antes de dejarla verse. `signed_at`
+      // sale de la MISMA respuesta que acaba de guardar la firma; no hace
+      // falta otra vuelta al servidor para saberlo.
+      const firmadoEn = r.signed_at ?? new Date().toISOString();
+      setItems((prev) =>
+        prev.map((it) => (it.report_id === abierto.id ? { ...it, signed_at: firmadoEn } : it)),
+      );
     } finally {
       setFirmando(false);
     }

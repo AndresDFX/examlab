@@ -269,6 +269,32 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Firmar un documento no mostraba la firma hasta firmar una segunda vez.** El estudiante dibujaba
+  su firma y la confirmaba, pero la ranura seguía en blanco (o con el botón "Firmar aquí") hasta
+  volver a firmar. La firma SÍ quedaba guardada a la primera — el bug era visual, no de datos.
+
+  **Causa real**: tanto `/app/student/signatures` como `/acuerdo/$token` re-consultan el documento
+  después de firmar (para pintar la firma sin recargar la página), pero esa re-consulta reusaba el
+  MISMO `cargando`/`setCargando(true)` que gatea el render inicial de toda la pantalla (`if
+  (cargando) return <PageLoader/>` en la app, `<Spinner/>` en el enlace público). El diálogo con el
+  documento recién firmado —abierto en ese instante— se DESMONTABA entero mientras se re-consultaba
+  (en la app, encima, con un for-await de una consulta por cada documento pendiente del alumno) y
+  volvía a aparecer solo un instante después. La firma ya había quedado bien la primera vez; lo que
+  el estudiante veía era la pantalla "reiniciándose" a mitad del gesto de firmar.
+
+  Fix: `app.student.signatures.tsx` deja de llamar `setIntento` (disparaba una recarga COMPLETA de
+  la lista) y actualiza el `signed_at` del ítem firmado directo en `items`, con el valor que la
+  MISMA respuesta de `sign_report`/`resign_report` ya trae — sin otra vuelta al servidor.
+  `acuerdo.$token.tsx` suma un modo `{ silent: true }` a su `cargar()` para el refresco post-firma,
+  que NO toca `cargando` (el botón de firmar ya muestra su propio spinner mientras dura). Ningún
+  camino vuelve a desmontar el diálogo que el estudiante tiene abierto.
+
+  De paso, `signature-slots.ts` (`renderizarRanuras`) suma resaltado visual — fondo + un filo de
+  acento en la fila y en la celda de quien está mirando, y una etiqueta "Tu firma" cuando ya firmó —
+  para que encontrar el propio renglón en un listado largo no dependa de hacer scroll a ciegas. El
+  texto va parametrizado (`etiquetaPropia`, mismo patrón que `etiquetaFirmar`): lo traduce quien
+  llama (`publicSignature.yourSignature`, es/en), no queda hardcodeado en español dentro del módulo.
+
 - **En modo oscuro, el Acuerdo Pedagógico y cualquier informe se veían negro sobre negro.** Las
   celdas parecían vacías; solo se adivinaba un título. Reportado en la ruta pública
   `/documento/<token>`.

@@ -81,15 +81,29 @@ function FirmaPublica() {
    */
   const [conSesion, setConSesion] = useState(false);
 
-  const cargar = useCallback(async () => {
-    setCargando(true);
-    try {
-      const { data } = await db.rpc("report_signature_public_info", { p_token: token });
-      setInfo((data as Info | null) ?? { ok: false, error: "invalid_token" });
-    } finally {
-      setCargando(false);
-    }
-  }, [token]);
+  /**
+   * `silent` es para el refresco DESPUÉS de firmar: sin él, este mismo
+   * `setCargando(true)` es el flag que hace `if (cargando) return <Spinner/>`
+   * más abajo, y la pantalla ENTERA —incluido el documento recién firmado que
+   * el estudiante está mirando— se reemplazaba por el spinner de página
+   * completa mientras se re-consultaba. Eso desmontaba el documento a mitad
+   * del gesto de firmar y lo volvía a montar un instante después: se leía
+   * como "hay que firmar dos veces" (la firma ya había quedado bien a la
+   * primera). El botón de firmar ya tiene su propio spinner (`firmando`)
+   * mientras dura el refresco, así que no hace falta el de página completa acá.
+   */
+  const cargar = useCallback(
+    async (opts?: { silent?: boolean }) => {
+      if (!opts?.silent) setCargando(true);
+      try {
+        const { data } = await db.rpc("report_signature_public_info", { p_token: token });
+        setInfo((data as Info | null) ?? { ok: false, error: "invalid_token" });
+      } finally {
+        if (!opts?.silent) setCargando(false);
+      }
+    },
+    [token],
+  );
 
   useEffect(() => {
     let cancelado = false;
@@ -133,7 +147,8 @@ function FirmaPublica() {
       }
       toast.success(r.already ? t("publicSignature.alreadySigned") : t("publicSignature.signedOk"));
       setLienzoAbierto(false);
-      await cargar();
+      // En silencio: ver el porqué en el comentario de `cargar`.
+      await cargar({ silent: true });
     } finally {
       setFirmando(false);
     }

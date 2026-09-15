@@ -10336,7 +10336,8 @@
     "signBtn": "Firmar",
     "signHere": "Firmar aquí",
     "signedBy": "Firmado por: {{name}}",
-    "signedOk": "Listo, quedó firmado."
+    "signedOk": "Listo, quedó firmado.",
+    "yourSignature": "◀ Tu firma"
   },
   "hc_modulesReportsSignatureBlock": {
     "title": "Caja de firmas",

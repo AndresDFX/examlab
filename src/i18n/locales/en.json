@@ -10336,7 +10336,8 @@
     "signBtn": "Sign",
     "signHere": "Sign here",
     "signedBy": "Signed by: {{name}}",
-    "signedOk": "Done — signed."
+    "signedOk": "Done — signed.",
+    "yourSignature": "◀ Your signature"
   },
   "hc_modulesReportsSignatureBlock": {
     "title": "Signature block",

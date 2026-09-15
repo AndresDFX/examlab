@@ -231,6 +231,76 @@ function botonFirmarHtml(etiqueta: string): string {
   );
 }
 
+/**
+ * Envuelve el contenido de LA CELDA del firmante que está mirando, para que se
+ * distinga de las demás filas de un listado largo sin depender solo de scrollear
+ * hasta ahí.
+ *
+ * El texto (`etiquetaExtra`) es a propósito, no solo color: alguien con daltonismo
+ * o que imprime en blanco y negro tiene que poder encontrar su renglón igual. En
+ * el caso PENDIENTE no hace falta —el botón ya dice "Firmar aquí"— así que
+ * `etiquetaExtra` es opcional.
+ */
+function marcarCeldaPropia(interior: string, etiquetaExtra?: string): string {
+  const extra = etiquetaExtra
+    ? `<span style="display:block;font-size:6.5pt;color:#1d4ed8;font-weight:700;">${esc(etiquetaExtra)}</span>`
+    : "";
+  return (
+    '<span style="display:block;background:#eff6ff;border-radius:4px;' +
+    'box-shadow:inset 3px 0 0 #2563eb;padding:2px 4px;">' +
+    interior +
+    extra +
+    "</span>"
+  );
+}
+
+/** Marca puesta en el `<tr>` para no duplicarla al re-renderizar (idempotencia). */
+const ATTR_FILA_PROPIA = "data-examlab-fila-firmante";
+
+/**
+ * Resalta la FILA completa (el `<tr>`) que contiene la ranura del firmante que
+ * está mirando, además del resaltado de celda que ya pone `marcarCeldaPropia`.
+ *
+ * Best-effort: si el documento no usa tablas (o la ranura no vive dentro de un
+ * `<tr>`, ej. una carta con la firma en un párrafo) simplemente no encuentra
+ * ninguna fila y no toca nada — el resaltado de celda ya alcanza para ese caso.
+ *
+ * Busca el `<tr ...>` MÁS CERCANO que abre antes del ancla y que cierra después:
+ * con `<table>` anidadas dentro de una celda esto podría marcar la fila
+ * equivocada, pero ese caso no existe en las plantillas actuales del proyecto.
+ */
+function resaltarFilaDelFirmante(html: string, firmanteId: string | null | undefined): string {
+  if (!html || !firmanteId) return html;
+  const ancla = `${ATTR_UID}="${firmanteId}"`;
+  const idx = html.indexOf(ancla);
+  if (idx < 0) return html;
+
+  const reTr = /<tr\b[^>]*>/gi;
+  let fila: RegExpExecArray | null = null;
+  let m: RegExpExecArray | null;
+  while ((m = reTr.exec(html)) !== null) {
+    if (m.index > idx) break;
+    fila = m;
+  }
+  if (!fila) return html; // no está dentro de una tabla
+
+  const abre = fila[0];
+  if (abre.includes(ATTR_FILA_PROPIA)) return html; // ya resaltada (re-render)
+
+  const cierre = html.indexOf("</tr>", idx);
+  if (cierre < 0 || cierre < fila.index) return html; // etiqueta sin cerrar
+
+  const cssResalte = "background:#eff6ff;box-shadow:inset 3px 0 0 #2563eb;";
+  const reStyle = /style\s*=\s*"([^"]*)"/i;
+  const mStyle = reStyle.exec(abre);
+  const nuevaAbre = mStyle
+    ? abre.replace(reStyle, `style="${mStyle[1]}${mStyle[1].endsWith(";") ? "" : ";"}${cssResalte}"`)
+    : abre.replace(/^<tr\b/i, `<tr style="${cssResalte}"`);
+  const conAtributo = nuevaAbre.replace(/^<tr\b/i, `<tr ${ATTR_FILA_PROPIA}="1"`);
+
+  return html.slice(0, fila.index) + conAtributo + html.slice(fila.index + abre.length);
+}
+
 export interface OpcionesRender {
   /** Firmas conocidas del informe. Las que no estén quedan pendientes. */
   firmas?: readonly FirmaDeInforme[];
@@ -242,6 +312,12 @@ export interface OpcionesRender {
   firmanteId?: string | null;
   /** Etiqueta del botón. La pasa la pantalla ya traducida. */
   etiquetaFirmar?: string;
+  /**
+   * Etiqueta que marca la celda/fila de quien mira. La pasa la pantalla ya
+   * traducida (mismo patrón que `etiquetaFirmar`): esta función no hardcodea
+   * texto visible en un idioma fijo.
+   */
+  etiquetaPropia?: string;
 }
 
 /**
@@ -284,7 +360,12 @@ function finDelSpan(html: string, desdeApertura: number): number {
  * estudiante lo re-ejecuta al firmar, sobre el mismo HTML.
  */
 export function renderizarRanuras(html: string, op: OpcionesRender = {}): string {
-  const { firmas = [], firmanteId = null, etiquetaFirmar = "Firmar aquí" } = op;
+  const {
+    firmas = [],
+    firmanteId = null,
+    etiquetaFirmar = "Firmar aquí",
+    etiquetaPropia = "◀ Tu firma",
+  } = op;
   if (!html) return html;
   const porUsuario = new Map<string, FirmaDeInforme>();
   for (const f of firmas) if (f.user_id) porUsuario.set(f.user_id, f);
@@ -316,6 +397,10 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
     if (finContenido < 0) continue;
 
     const f = uid ? porUsuario.get(uid) : undefined;
+    // Es la ranura de quien está mirando: se marca para que no tenga que
+    // encontrarla a ojo entre 17+ filas iguales. Solo la CELDA acá — la fila
+    // completa la resalta `resaltarFilaDelFirmante` una vez armado todo el HTML.
+    const esPropia = !!(firmanteId && uid === firmanteId);
     const dentro = !uid
       ? // Sin ancla: NO es de nadie, así que no se puede firmar nunca. Se dibuja
         // el renglón para firmar a mano para que el documento siga sirviendo, y
@@ -323,9 +408,12 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
         // intacta: el snapshot no se toca.
         renglonManualHtml()
       : f?.signed_at
-        ? firmaHtml(f)
-        : firmanteId && uid === firmanteId
-          ? botonFirmarHtml(etiquetaFirmar)
+        ? esPropia
+          ? marcarCeldaPropia(firmaHtml(f), etiquetaPropia)
+          : firmaHtml(f)
+        : esPropia
+          ? // El botón ya dice "Firmar aquí": no hace falta repetir la etiqueta.
+            marcarCeldaPropia(botonFirmarHtml(etiquetaFirmar))
           : // Pendiente y no es quien mira: en blanco, para que el papel siga sirviendo.
             "&nbsp;";
 
@@ -335,7 +423,7 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
     // dibujada adentro volvería a matchear como si fuera otra ranura.
     reApertura.lastIndex = finContenido;
   }
-  return salida + html.slice(cursor);
+  return resaltarFilaDelFirmante(salida + html.slice(cursor), firmanteId);
 }
 
 /** true si el HTML del snapshot trae ranuras (o sea, se puede firmar dentro). */
