@@ -62,6 +62,12 @@ import { usePagination } from "@/hooks/use-pagination";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
+import {
+  esDeterminista,
+  respuestaCrudaDeTaller,
+  scoreDeterministaCliente,
+  type ResultadoDeterminista,
+} from "@/modules/grading/deterministic-scoring";
 import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -140,6 +146,38 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
+
+/**
+ * Texto del feedback de una pregunta calificada sin IA.
+ *
+ * Las cadenas deben coincidir con las que emite el servidor
+ * (`supabase/functions/_shared/deterministic-scoring.ts`, helper `txt`) para
+ * el camino del alumno: es el MISMO resultado, y el estudiante no debería
+ * leer dos redacciones distintas según quién disparó la calificación.
+ */
+function feedbackDeterminista(det: ResultadoDeterminista): string {
+  switch (det.outcome) {
+    case "correcta":
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedCorrect");
+    case "incorrecta":
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedIncorrect");
+    case "supera_maximo":
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedAboveMax", { max: det.max });
+    case "bajo_minimo":
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedBelowMin", { min: det.min });
+    case "parcial":
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedPartial", {
+        earned: det.earned,
+        total: det.total,
+      });
+    case "red":
+      // Ya viene armado como lista de aserciones (✓/✗ + detalle); no es
+      // traducible porque las etiquetas las escribió el docente.
+      return det.detalle || i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer");
+    default:
+      return i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer");
+  }
+}
 
 const WORKSHOPS_TEMPLATE = `course_name,title,description,instructions,external_link,due_date,status
 Programación I,Taller de listas,Práctica de listas enlazadas,Implementa las funciones del enunciado,https://github.com/repo,2025-09-15T23:59,published
@@ -2396,7 +2434,11 @@ function TeacherWorkshops() {
       const [{ data: qs }, { data: ans }] = await Promise.all([
         dbAny
           .from("workshop_questions")
-          .select("id, type, content, points, expected_rubric, language, starter_code")
+          // `options` trae la respuesta correcta (correct_index /
+          // correct_indices) y el escenario de red. Sin esta columna las
+          // preguntas deterministas NO se pueden calificar acá — que es
+          // justamente por qué quedaban en 0.
+          .select("id, type, content, points, expected_rubric, language, starter_code, options")
           .eq("workshop_id", gradingWs.id)
           .order("position"),
         dbAny
@@ -2412,6 +2454,8 @@ function TeacherWorkshops() {
         expected_rubric: string | null;
         language: string | null;
         starter_code: string | null;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        options: any;
       }>;
       const answersByQid = new Map(
         (
@@ -2427,8 +2471,9 @@ function TeacherWorkshops() {
 
       if (questions.length > 0) {
         // Construye batch items SOLO para preguntas abiertas/código/diagrama
-        // con respuesta del alumno. Las cerradas se califican localmente
-        // (correct_index match) y NO entran al prompt — economía de tokens.
+        // con respuesta del alumno. Las deterministas (cerrada, opción
+        // múltiple, red) se califican localmente comparando contra la
+        // respuesta correcta y NO entran al prompt — economía de tokens.
         const batchItems: Array<{
           qid: string;
           type: string;
@@ -2445,12 +2490,20 @@ function TeacherWorkshops() {
         for (const q of questions) {
           totalPoints += Number(q.points) || 0;
           const a = answersByQid.get(q.id);
-          if (q.type === "cerrada" || q.type === "cerrada_multi") {
-            // Scoring local determinístico. La RPC no se ejecuta acá; se
-            // limita a sumar al total.
+          if (esDeterminista(q.type)) {
+            // Calificación determinista (cerradas, opción múltiple, red): NO
+            // van a la IA — no hace falta un modelo para comparar un índice
+            // contra la respuesta correcta, y mandarlas gastaría tokens.
+            //
+            // Acá vivía un `earned: 0` fijo con el comentario "correct_index
+            // match": la comparación nunca existió, así que TODA cerrada que
+            // el docente recalificara quedaba en 0 aunque estuviera bien
+            // (confirmado en producción). La fórmula es la misma que corre en
+            // el servidor para el camino del alumno.
+            const det = scoreDeterministaCliente(q, respuestaCrudaDeTaller(q.type, a));
             localScores.set(q.id, {
-              earned: 0,
-              feedback: i18n.t("hc_routesAppTeacherWorkshops.feedbackClosedLocal"),
+              earned: det.earned,
+              feedback: feedbackDeterminista(det),
             });
             continue;
           }
@@ -2481,8 +2534,9 @@ function TeacherWorkshops() {
           });
         }
 
-        // Si no hay nada para mandar a IA (todas vacías o cerradas), no
-        // gastamos el round-trip — solo persistimos los 0.
+        // Si no hay nada para mandar a IA (todas vacías o deterministas), no
+        // gastamos el round-trip: las notas deterministas ya están calculadas
+        // y se persisten igual más abajo.
         if (batchItems.length > 0) {
           const { data: bData, error: bErr } = await supabase.functions.invoke(
             "ai-grade-submission",

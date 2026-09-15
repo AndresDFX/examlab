@@ -8,8 +8,16 @@
 // `workshop_submission_answers` le prohíbe escribir `ai_grade`, así que la nota
 // determinista también tiene que salir de acá.
 //
-// INVARIANTE: espeja `src/modules/exams/question-scoring.ts` (cliente). Si
-// cambia la fórmula de una de las dos, cambiar la otra.
+// INVARIANTE: espeja `src/modules/grading/deterministic-scoring.ts`, el módulo
+// gemelo del CLIENTE (que reusa las fórmulas de
+// `src/modules/exams/question-scoring.ts` en vez de reescribirlas). Si cambia
+// la fórmula o el set de tipos en una, cambiar la otra.
+//
+// Por qué el cliente TAMBIÉN necesita calcularla, pudiendo el servidor: el
+// re-grade del docente ("Calificar todo con IA") invoca este edge SIN
+// `submissionId`, así que acá no se escribe nada y la nota la persiste el
+// navegador. Cuando las dos divergen, la misma entrega vale distinto según
+// quién apretó el botón — ya pasó, y el lado que estaba mal era el cliente.
 import { gradeNetwork } from "./network/grading.ts";
 import { parseScenario, parseNetworkAnswer } from "./network/scenario.ts";
 
