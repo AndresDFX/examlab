@@ -77,6 +77,7 @@ import { logEvent } from "@/shared/lib/audit";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
+import { withDbRetry } from "@/shared/lib/db-retry";
 import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared/lib/date-range";
 import {
   Plus,
@@ -1886,6 +1887,7 @@ function TeacherWorkshops() {
       setWsSubs([]);
     }
     setGradingSearch(""); // reset buscador al abrir
+    subSel.clear(); // reset selección — no arrastrar tildes de otro taller
     setGradingOpen(true);
     // Al abrir desde la lista de talleres, empezamos siempre en el grid.
     // El deep-link (highlightSubId) lo maneja un effect aparte que abre
@@ -1980,6 +1982,14 @@ function TeacherWorkshops() {
       return name.includes(q) || email.includes(q);
     });
   }, [wsSubs, gradingSearch]);
+
+  /** Selección por checkbox de entregas dentro del diálogo de
+   *  calificaciones — scoped a `filteredWsSubs` (mismo patrón que el resto
+   *  del design system: "seleccionar todo" abarca solo lo visible con el
+   *  buscador activo). Cuando hay selección, `bulkAiTargets` la usa como
+   *  alcance EXCLUSIVO para "Calificar/Recalificar todo con IA" — ver ahí
+   *  el porqué de esa prioridad. */
+  const subSel = useMultiSelect(filteredWsSubs);
 
   /** Recompute the global grade of a submission from its per-question ai_grade
    *  values (capped at each question's `points`) and scale it to max_score. */
@@ -2465,8 +2475,15 @@ function TeacherWorkshops() {
     }
   };
 
-  const gradeOneWithAI = async (sub: WsSub): Promise<boolean> => {
+  const gradeOneWithAI = async (
+    sub: WsSub,
+    opts?: { signal?: AbortSignal },
+  ): Promise<boolean> => {
     if (!gradingWs) return false;
+    // Batch cancelado (Detener) antes de que le tocara el turno a esta
+    // entrega: ni pedimos el gate de IA — reabrirlo para un lote que el
+    // docente ya frenó sería confuso.
+    if (opts?.signal?.aborted) return false;
     const decision = await aiGate.ensureAuthorized();
     if (decision === "cancel") return false;
     setAiGradingId(sub.id);
@@ -2587,6 +2604,7 @@ function TeacherWorkshops() {
         // gastamos el round-trip: las notas deterministas ya están calculadas
         // y se persisten igual más abajo.
         if (batchItems.length > 0) {
+          if (opts?.signal?.aborted) return false;
           const { data: bData, error: bErr } = await supabase.functions.invoke(
             "ai-grade-submission",
             {
@@ -2596,8 +2614,14 @@ function TeacherWorkshops() {
                 useCase: "workshop_question",
                 courseId: gradingWs.course_id,
               },
+              signal: opts?.signal,
             },
           );
+          // Un Detener a mitad de la llamada aborta el fetch (AbortError) —
+          // NO es un error real del modelo, así que no mostramos el toast
+          // "Error IA": confundiría una cancelación pedida por el docente
+          // con un fallo de la IA.
+          if (opts?.signal?.aborted) return false;
           if (bErr || bData?.error) {
             toast.error(
               i18n.t("toast.routes_app_teacher_workshops.aiError", {
@@ -2655,11 +2679,26 @@ function TeacherWorkshops() {
         // ACÁ (sin tocar workshop_submissions) — la entrega conserva su
         // status previo y sigue siendo "pendiente" para el próximo intento.
         for (const u of upserts) {
+          if (opts?.signal?.aborted) return false;
+          // withDbRetry: un statement_timeout (57014) bajo la contención que
+          // genera un lote grande de upserts secuenciales (cada uno dispara
+          // `tg_workshop_answer_graded_recompute`) ya no tira abajo la
+          // entrega en el primer blip — reintenta 2 veces con backoff corto
+          // antes de rendirse. Errores NO transitorios (23503, 23502, RLS)
+          // fallan en el primer intento, igual que antes.
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const { error: answerErr } = await (supabase as any)
-            .from("workshop_submission_answers")
-            .upsert(u, { onConflict: "submission_id,question_id" });
+          const { error: answerErr } = await withDbRetry(
+            () =>
+              (supabase as any)
+                .from("workshop_submission_answers")
+                .upsert(u, { onConflict: "submission_id,question_id" }),
+            { signal: opts?.signal },
+          );
           if (answerErr) {
+            // Si lo que cortó el reintento fue el Detener del docente (no un
+            // error real agotando los intentos), no mostramos el toast de
+            // error — es una cancelación pedida, no un fallo.
+            if (opts?.signal?.aborted) return false;
             toast.error(
               i18n.t("toast.routes_app_teacher_workshops.answerSaveError", {
                 defaultValue:
@@ -2670,6 +2709,7 @@ function TeacherWorkshops() {
             return false;
           }
         }
+        if (opts?.signal?.aborted) return false;
         const finalGrade =
           totalPoints > 0
             ? Number(((totalEarned / totalPoints) * Number(gradingWs.max_score)).toFixed(2))
@@ -2681,11 +2721,16 @@ function TeacherWorkshops() {
                 count: batchItems.length,
                 total: questions.length,
               });
-        const { error: updateErr } = await supabase
-          .from("workshop_submissions")
-          .update({ ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" })
-          .eq("id", sub.id);
+        const { error: updateErr } = await withDbRetry(
+          () =>
+            supabase
+              .from("workshop_submissions")
+              .update({ ai_grade: finalGrade, ai_feedback: summary, status: "ai_revisado" })
+              .eq("id", sub.id),
+          { signal: opts?.signal },
+        );
         if (updateErr) {
+          if (opts?.signal?.aborted) return false;
           toast.error(
             i18n.t("toast.routes_app_teacher_workshops.saveError", {
               defaultValue: "Error guardando: {{error}}",
@@ -2717,6 +2762,7 @@ function TeacherWorkshops() {
           .filter(Boolean)
           .join("\n") || "Sin respuesta";
 
+      if (opts?.signal?.aborted) return false;
       const { data: aiData, error: aiErr } = await supabase.functions.invoke(
         "ai-grade-submission",
         {
@@ -2729,8 +2775,10 @@ function TeacherWorkshops() {
             studentAnswer,
             courseId: gradingWs.course_id,
           },
+          signal: opts?.signal,
         },
       );
+      if (opts?.signal?.aborted) return false;
 
       let aiGrade: number | null = null;
       let aiFeedback = i18n.t("hc_routesAppTeacherWorkshops.feedbackNoneAi");
@@ -2748,16 +2796,21 @@ function TeacherWorkshops() {
         aiFeedback = aiData?.feedback ?? i18n.t("hc_routesAppTeacherWorkshops.feedbackNoneAi");
       }
 
-      const { error: updateErr } = await supabase
-        .from("workshop_submissions")
-        .update({
-          ai_grade: aiGrade,
-          ai_feedback: aiFeedback,
-          status: "ai_revisado",
-        })
-        .eq("id", sub.id);
+      const { error: updateErr } = await withDbRetry(
+        () =>
+          supabase
+            .from("workshop_submissions")
+            .update({
+              ai_grade: aiGrade,
+              ai_feedback: aiFeedback,
+              status: "ai_revisado",
+            })
+            .eq("id", sub.id),
+        { signal: opts?.signal },
+      );
 
       if (updateErr) {
+        if (opts?.signal?.aborted) return false;
         toast.error(
           i18n.t("toast.routes_app_teacher_workshops.saveError", {
             defaultValue: "Error guardando: {{error}}",
@@ -2776,6 +2829,9 @@ function TeacherWorkshops() {
       );
       return true;
     } catch (e: any) {
+      // AbortError de una `functions.invoke` cancelada a mitad (Detener) —
+      // no es un fallo real de la IA, no mostramos el toast de error.
+      if (opts?.signal?.aborted) return false;
       toast.error(
         i18n.t("toast.routes_app_teacher_workshops.aiError", {
           defaultValue: "Error IA: {{detail}}",
@@ -2795,22 +2851,31 @@ function TeacherWorkshops() {
 
   /** Entregas sobre las que operan las acciones masivas de IA.
    *
-   *  ALCANCE: si el buscador del diálogo tiene algo escrito, el lote es
-   *  el FILTRADO; si está vacío, son todas. Es el criterio que hace
-   *  posible el caso que originó la recalificación masiva ("estas 8
-   *  quedaron mal, arreglá solo esas") sin tocar al resto del curso, y
-   *  vale para los DOS botones: que "Calificar todo con IA" ignorara el
-   *  filtro y recalificar sí lo respetara sería justo la clase de
-   *  diferencia invisible que hace desconfiar de un botón caro. El
-   *  encabezado de la barra dice explícitamente cuántas entran cuando
-   *  hay filtro, y el confirm de recalificar lo repite. */
-  const bulkAiTargets = useMemo(
-    () =>
-      (gradingSearch.trim() ? filteredWsSubs : wsSubs).filter((s) =>
-        SUBMITTED_STATUSES.includes(s.status),
-      ),
-    [wsSubs, filteredWsSubs, gradingSearch],
-  );
+   *  ALCANCE, en orden de prioridad — este es el ÚNICO lugar donde se
+   *  decide, para no duplicar el criterio entre "Calificar todo" y
+   *  "Recalificar todo":
+   *   1. Si hay filas TILDADAS (checkbox), son ESAS y ninguna otra — la
+   *      señal más explícita de intención del docente ("elegí exactamente
+   *      a estos"), y por eso ignora el buscador incluso si quedó texto
+   *      escrito. Se resuelve contra `wsSubs` (no `filteredWsSubs`) para
+   *      que cambiar el texto de búsqueda después de tildar no le quite
+   *      del alcance a alguien ya seleccionado.
+   *   2. Si no hay selección pero el buscador tiene texto, el lote es el
+   *      FILTRADO.
+   *   3. Si no hay ni selección ni búsqueda, son todas.
+   *  Es el criterio que hace posible el caso que originó la recalificación
+   *  masiva ("estas 8 quedaron mal, arreglá solo esas") sin tocar al resto
+   *  del curso. El encabezado de la barra dice explícitamente cuántas
+   *  entran en cada caso, y el confirm de recalificar lo repite. */
+  const bulkAiTargets = useMemo(() => {
+    const pool =
+      subSel.selectedIds.size > 0
+        ? wsSubs.filter((s) => subSel.selectedIds.has(s.id))
+        : gradingSearch.trim()
+          ? filteredWsSubs
+          : wsSubs;
+    return pool.filter((s) => SUBMITTED_STATUSES.includes(s.status));
+  }, [wsSubs, filteredWsSubs, gradingSearch, subSel.selectedIds]);
 
   const gradeAllWithAI = async () => {
     if (!gradingWs || aiGradingAll || regradeRunning) return;
@@ -2838,6 +2903,10 @@ function TeacherWorkshops() {
       return;
     }
     setAiGradingAll(true);
+    // Igual que en `regradeAllWithAI`: si el docente tildó filas, se limpia
+    // la selección al terminar para que no quede pegada a la próxima acción
+    // bulk sobre este mismo taller.
+    const hadSelection = subSel.selectedIds.size > 0;
     // `graded` fuera del try para poder reportar el progreso parcial si algo
     // revienta a mitad del lote (cada entrega tarda 30-90s con la IA).
     let graded = 0;
@@ -2882,6 +2951,7 @@ function TeacherWorkshops() {
       // Sin finally, un throw inesperado dejaba el botón "Calificar todo con
       // IA" girando para siempre y el docente sin poder reintentar.
       setAiGradingAll(false);
+      if (hadSelection) subSel.clear();
     }
   };
 
@@ -2909,7 +2979,11 @@ function TeacherWorkshops() {
       return;
     }
     const withGrade = targets.filter((s) => s.final_grade != null).length;
-    const filtering = gradingSearch.trim().length > 0;
+    // Selección tildada > buscador — mismo orden de prioridad que
+    // `bulkAiTargets`, así que el texto del confirm nunca contradice cuál
+    // de los dos alcances se aplicó de verdad.
+    const hadSelection = subSel.selectedIds.size > 0;
+    const filtering = !hadSelection && gradingSearch.trim().length > 0;
     const ok = await confirm({
       title: i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmTitle", {
         defaultValue: "¿Recalificar {{count}} entrega(s) con IA?",
@@ -2923,12 +2997,16 @@ function TeacherWorkshops() {
               count: withGrade,
             })
           : null,
-        filtering
-          ? i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmFiltered", {
-              defaultValue:
-                "Solo entran las entregas que coinciden con la búsqueda activa; el resto del curso no se toca.",
+        hadSelection
+          ? i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmSelected", {
+              defaultValue: "Solo entran las entregas que tildaste; el resto del taller no se toca.",
             })
-          : null,
+          : filtering
+            ? i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmFiltered", {
+                defaultValue:
+                  "Solo entran las entregas que coinciden con la búsqueda activa; el resto del curso no se toca.",
+              })
+            : null,
         i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmCost", {
           defaultValue:
             "Cada entrega consume cuota de IA y tarda entre 30 y 90 segundos. Podés detener el proceso a mitad.",
@@ -2985,7 +3063,7 @@ function TeacherWorkshops() {
         setRegradeRows([...rows]);
         let okOne = false;
         try {
-          okOne = await gradeOneWithAI(sub);
+          okOne = await gradeOneWithAI(sub, { signal });
         } catch (e) {
           rows[i].error = friendlyError(e);
         }
@@ -3018,6 +3096,11 @@ function TeacherWorkshops() {
               ),
             );
           }
+        } else if (signal.aborted) {
+          // gradeOneWithAI cortó por el Detener del docente MIENTRAS esta
+          // entrega estaba en vuelo (por eso no mostró ningún toast de
+          // error) — es "sin tocar", no un fallo real que investigar.
+          rows[i].status = "cancelled";
         } else {
           rows[i].status = "failed";
           failed++;
@@ -3026,7 +3109,9 @@ function TeacherWorkshops() {
         setRegradeProgress((p) => ({ ...p, done: p.done + 1 }));
       }
       // Cancelado a mitad: dejamos marcado qué quedó fuera para que el
-      // docente sepa exactamente desde dónde retomar.
+      // docente sepa exactamente desde dónde retomar. Cubre las que ni
+      // siquiera alcanzaron a arrancar (el `break` de arriba las deja en
+      // "pending"/"running" — la que estaba en vuelo ya se clasificó arriba).
       if (signal.aborted) {
         for (const r of rows) {
           if (r.status === "pending" || r.status === "running") r.status = "cancelled";
@@ -3070,7 +3155,14 @@ function TeacherWorkshops() {
         entityId: gradingWs.id,
         entityName: gradingWs.title,
         courseId: gradingWs.course_id ?? undefined,
-        metadata: { total: targets.length, done, failed, cancelled, filtered: filtering },
+        metadata: {
+          total: targets.length,
+          done,
+          failed,
+          cancelled,
+          filtered: filtering,
+          selected: hadSelection,
+        },
       });
     } catch (e) {
       toast.error(
@@ -3089,6 +3181,9 @@ function TeacherWorkshops() {
       setRegradeRunning(false);
       setRegradeCurrentStudent(null);
       regradeAbortRef.current = null;
+      // Limpia las tildes tras correr sobre una selección — evita que
+      // queden pegadas para la próxima acción bulk sobre este mismo taller.
+      if (hadSelection) subSel.clear();
     }
   };
 
@@ -4609,17 +4704,34 @@ function TeacherWorkshops() {
                   {t("hc_routesAppTeacherWorkshops.bulkActionsTitle")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {/* Con el buscador activo las acciones masivas operan SOLO
-                      sobre lo filtrado: decirlo acá evita que "todo" se lea
+                  {/* Selección tildada > buscador > todas — mismo orden que
+                      `bulkAiTargets`. Decirlo acá evita que "todo" se lea
                       como "todo el curso" justo antes de gastar cuota. */}
-                  {gradingSearch.trim()
-                    ? t("hc_routesAppTeacherWorkshops.bulkActionsScopeFiltered", {
+                  {subSel.selectedIds.size > 0
+                    ? t("hc_routesAppTeacherWorkshops.bulkActionsScopeSelected", {
                         count: bulkAiTargets.length,
                       })
-                    : t("hc_routesAppTeacherWorkshops.bulkActionsDesc")}
+                    : gradingSearch.trim()
+                      ? t("hc_routesAppTeacherWorkshops.bulkActionsScopeFiltered", {
+                          count: bulkAiTargets.length,
+                        })
+                      : t("hc_routesAppTeacherWorkshops.bulkActionsDesc")}
                 </p>
               </div>
               <div className="flex flex-wrap items-center gap-2">
+                {/* Hint inline para invitar al multi-select cuando hay
+                    entregas listadas y ninguna tildada aún — sin esto el
+                    docente no descubre los checkboxes de la tabla y termina
+                    recalificando a todo el curso aunque quería solo unos
+                    pocos (mismo patrón que el monitor de exámenes). Se
+                    apaga apenas hay selección: ahí el MultiSelectToolbar
+                    de arriba de la tabla toma el relevo. */}
+                {filteredWsSubs.length > 0 && subSel.count === 0 && (
+                  <span className="text-2xs text-muted-foreground hidden md:inline-flex items-center gap-1">
+                    <span aria-hidden>↙</span>
+                    {t("hc_routesAppTeacherWorkshops.multiSelectHint")}
+                  </span>
+                )}
                 <Button
                   size="sm"
                   variant="outline"
@@ -4755,6 +4867,24 @@ function TeacherWorkshops() {
                 )}
               </div>
             )}
+            {/* Toolbar de selección — SOLO feedback visual (conteo +
+                "Limpiar selección"). Sin botón de acción propio a
+                propósito: "Calificar todo con IA" y "Recalificar todo con
+                IA" de la barra de arriba YA leen la selección a través de
+                `bulkAiTargets` (ver ahí el porqué), así que un tercer botón
+                acá duplicaría el alcance en dos lugares. */}
+            {!(gradingWs as any)?.is_external && wsSubs.length > 0 && viewingSubId == null && (
+              <MultiSelectToolbar
+                count={subSel.count}
+                onClear={subSel.clear}
+                entityNameSingular={t("hc_routesAppTeacherWorkshops.submissionEntitySingular", {
+                  defaultValue: "entrega",
+                })}
+                entityNamePlural={t("hc_routesAppTeacherWorkshops.submissionEntityPlural", {
+                  defaultValue: "entregas",
+                })}
+              />
+            )}
             {!(gradingWs as any)?.is_external && wsSubs.length === 0 && (
               <p className="text-sm text-muted-foreground">
                 {t("hc_routesAppTeacherWorkshops.noSubmissionsYet")}
@@ -4780,6 +4910,9 @@ function TeacherWorkshops() {
                   <Table>
                     <TableHeader>
                       <TableRow>
+                        <TableHead className="w-10">
+                          <MultiSelectHeaderCheckbox state={subSel} />
+                        </TableHead>
                         <TableHead>{t("hc_routesAppTeacherWorkshops.colStudent")}</TableHead>
                         <TableHead className="hidden sm:table-cell">{t("hc_routesAppTeacherWorkshops.colStatus")}</TableHead>
                         <TableHead className="hidden md:table-cell text-right">{t("hc_routesAppTeacherWorkshops.colGrade")}</TableHead>
@@ -4804,12 +4937,16 @@ function TeacherWorkshops() {
                         return (
                           <TableRow
                             key={sub.id}
+                            data-state={subSel.isSelected(sub.id) ? "selected" : undefined}
                             className={
                               hasPendingAlerts
                                 ? "bg-red-50/30 dark:bg-red-500/5 hover:bg-red-50/50"
                                 : ""
                             }
                           >
+                            <TableCell>
+                              <MultiSelectCheckbox id={sub.id} state={subSel} />
+                            </TableCell>
                             <TableCell className="max-w-[260px] min-w-0">
                               <div className="font-medium text-sm truncate">
                                 {sub.profile?.full_name ?? "—"}
