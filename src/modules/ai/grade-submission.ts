@@ -23,6 +23,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { aiGradeOrEnqueue, PENDING_AI_FEEDBACK } from "@/modules/ai/ai-grading";
 import { parseV86Answer, stripAnsi } from "@/modules/serverconsole/v86-answer";
 import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
+import { esDeterminista } from "@/modules/grading/deterministic-scoring";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -63,8 +64,10 @@ export interface WorkshopAnswerRow {
 /**
  * Arma los `items` para `workshopFullGrading` a partir de las preguntas del
  * taller + las respuestas de la entrega. Mirror EXACTO del re-grade del
- * docente (app.teacher.workshops.tsx): salta cerradas (scoring local) y
- * respuestas vacías (o iguales al starter). Sin items → IA no se invoca.
+ * docente (app.teacher.workshops.tsx): salta las deterministas (cerrada,
+ * cerrada_multi, red_consola, red_gui — scoring local vía
+ * `esDeterminista`/`scoreDeterministaCliente`) y respuestas vacías (o iguales
+ * al starter). Sin items → IA no se invoca.
  */
 export function buildWorkshopItems(
   questions: WorkshopQuestionRow[],
@@ -73,7 +76,7 @@ export function buildWorkshopItems(
   const byQid = new Map(answers.map((a) => [a.question_id, a]));
   const items: GradeBatchItem[] = [];
   for (const q of questions) {
-    if (q.type === "cerrada" || q.type === "cerrada_multi") continue;
+    if (esDeterminista(q.type)) continue;
     const a = byQid.get(q.id);
     // Consola Linux real (so_consola): la respuesta es el transcript de la
     // sesión (JSON en answer_text). Lo desempaquetamos a comandos + salida para
@@ -157,7 +160,7 @@ export interface ProjectZipJob {
   body: Record<string, unknown>;
 }
 export interface ProjectJobs {
-  /** items para el job batch projectFullGrading (no-ZIP, no-cerrada_multi). */
+  /** items para el job batch projectFullGrading (no-ZIP, no-deterministas). */
   batchItems: GradeBatchItem[];
   /** un job projectCodeZipGrading por archivo `codigo_zip` con entrega. */
   zipJobs: ProjectZipJob[];
@@ -167,7 +170,8 @@ export interface ProjectJobs {
  * Arma los jobs IA para una entrega de proyecto. Mirror del submit del
  * estudiante + el re-grade del docente:
  *   - `codigo_zip` con code_paths/zip_path → job projectCodeZipGrading.
- *   - `cerrada` / `cerrada_multi` → scoring local, NO van a IA → se saltan.
+ *   - deterministas (`cerrada`, `cerrada_multi`, `red_consola`, `red_gui`) →
+ *     scoring local vía `esDeterminista`, NO van a IA → se saltan.
  *   - resto (abierta/diagrama/etc.) con contenido → batch projectFullGrading.
  */
 export function buildProjectJobs(
@@ -216,7 +220,7 @@ export function buildProjectJobs(
       });
       continue;
     }
-    if (f.type === "cerrada" || f.type === "cerrada_multi") continue; // scoring local, sin IA
+    if (esDeterminista(f.type)) continue; // scoring local, sin IA
     const userAnswer = String(ans?.content ?? "").trim();
     if (!userAnswer) continue; // vacío → no gastar IA
     batchItems.push({

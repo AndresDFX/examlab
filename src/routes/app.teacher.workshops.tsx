@@ -172,8 +172,12 @@ function feedbackDeterminista(det: ResultadoDeterminista): string {
       });
     case "red":
       // Ya viene armado como lista de aserciones (✓/✗ + detalle); no es
-      // traducible porque las etiquetas las escribió el docente.
-      return det.detalle || i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer");
+      // traducible porque las etiquetas las escribió el docente. `detalle`
+      // es null solo cuando el escenario no tiene aserciones que listar —
+      // ahí SÍ corresponde un texto propio (mismo caso que el edge cubre
+      // con "Calificación de red" / "Network grading"), NO el genérico de
+      // "sin respuesta": la red se evaluó, solo que no hay nada que mostrar.
+      return det.detalle ?? i18n.t("hc_routesAppTeacherWorkshops.feedbackNetworkGrading");
     default:
       return i18n.t("hc_routesAppTeacherWorkshops.feedbackNoAnswer");
   }

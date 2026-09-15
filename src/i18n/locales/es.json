@@ -9459,6 +9459,7 @@
     "feedbackClosedIncorrect": "Respuesta incorrecta",
     "feedbackClosedPartial": "Obtuviste {{earned}} de {{total}} puntos.",
     "feedbackFieldLabel": "Retroalimentación",
+    "feedbackNetworkGrading": "Calificación de red",
     "feedbackNoAnswer": "Sin respuesta",
     "feedbackNone": "Sin retroalimentación",
     "feedbackNoneAi": "Sin retroalimentación de IA",

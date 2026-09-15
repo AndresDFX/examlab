@@ -190,4 +190,50 @@ describe("scoreDeterministaCliente — red", () => {
     expect(r.earned).toBe(0);
     expect(r.outcome).toBe("sin_respuesta");
   });
+
+  it("REGRESIÓN: escenario sin aserciones → detalle null, NO string vacío", () => {
+    // `result.items` sale vacío cuando el escenario no trae aserciones (caso
+    // raro del docente, pero real). `[].map(...).join("\n")` da `""`, y una
+    // cadena vacía se confunde con "no hay feedback" en vez de "se calificó,
+    // no había nada que verificar". `detalle: null` es lo que permite a la
+    // pantalla distinguir los dos casos y mostrar un texto propio en vez de
+    // caer al genérico de "sin respuesta" (mismo bug para el que el edge ya
+    // tiene el fallback "Calificación de red" / "Network grading").
+    const q = {
+      type: "red_consola",
+      points: 5,
+      options: { network: { devices: [], links: [], assertions: [], targetDeviceId: "R1" } },
+    };
+    const answer = JSON.stringify({ topology: { devices: [], links: [] }, histories: {} });
+    const r = scoreDeterministaCliente(q, answer);
+    expect(r.outcome).toBe("red");
+    if (r.outcome === "red") {
+      expect(r.detalle).toBeNull();
+    }
+    expect(r.earned).toBe(0);
+  });
+
+  it("con aserciones, detalle trae la lista ✓/✗ (no null)", () => {
+    const q = {
+      type: "red_gui",
+      points: 10,
+      options: {
+        network: {
+          devices: [],
+          links: [],
+          targetDeviceId: "R1",
+          assertions: [
+            { kind: "connectivity", from: "PC1", toIp: "192.168.1.1", points: 10, label: "Ping a R1" },
+          ],
+        },
+      },
+    };
+    const answer = JSON.stringify({ topology: { devices: [], links: [] }, histories: {} });
+    const r = scoreDeterministaCliente(q, answer);
+    expect(r.outcome).toBe("red");
+    if (r.outcome === "red") {
+      expect(r.detalle).not.toBeNull();
+      expect(r.detalle).toContain("Ping a R1");
+    }
+  });
 });

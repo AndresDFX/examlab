@@ -53,6 +53,25 @@ describe("buildWorkshopItems", () => {
     expect(items).toHaveLength(0);
   });
 
+  it("REGRESIÓN: salta red_consola / red_gui (deterministas, scoring local)", () => {
+    // Antes este builder solo excluía "cerrada"/"cerrada_multi" con un
+    // chequeo literal, así que una pregunta de red terminaba en `items` y se
+    // mandaba a `workshopFullGrading` como texto libre — que la sobreescribe
+    // con la nota que el modelo le adivine a un JSON de topología, pisando
+    // la nota determinista correcta que ya tenía desde el submit.
+    const items = buildWorkshopItems(
+      [
+        wq({ id: "q1", type: "red_consola" }),
+        wq({ id: "q2", type: "red_gui" }),
+      ],
+      [
+        wa({ question_id: "q1", answer_text: '{"topology":{},"histories":{}}' }),
+        wa({ question_id: "q2", answer_text: '{"topology":{},"histories":{}}' }),
+      ],
+    );
+    expect(items).toHaveLength(0);
+  });
+
   it("salta respuestas vacías o sin entrega", () => {
     const items = buildWorkshopItems(
       [wq({ id: "q1" }), wq({ id: "q2" })],
@@ -199,6 +218,21 @@ describe("buildProjectJobs", () => {
     const { batchItems, zipJobs } = buildProjectJobs(
       [pf({ id: "f1", type: "cerrada" }), pf({ id: "f2", type: "cerrada_multi" })],
       [psf({ file_id: "f1", content: "[0]" }), psf({ file_id: "f2", content: "[1,2]" })],
+      null,
+      "es",
+      null,
+    );
+    expect(batchItems).toHaveLength(0);
+    expect(zipJobs).toHaveLength(0);
+  });
+
+  it("REGRESIÓN: red_consola / red_gui → tampoco van a IA (deterministas)", () => {
+    const { batchItems, zipJobs } = buildProjectJobs(
+      [pf({ id: "f1", type: "red_consola" }), pf({ id: "f2", type: "red_gui" })],
+      [
+        psf({ file_id: "f1", content: '{"topology":{},"histories":{}}' }),
+        psf({ file_id: "f2", content: '{"topology":{},"histories":{}}' }),
+      ],
       null,
       "es",
       null,

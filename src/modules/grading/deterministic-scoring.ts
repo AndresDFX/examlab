@@ -144,7 +144,11 @@ export type ResultadoDeterminista = { earned: number } & (
   | { outcome: "supera_maximo"; max: number }
   | { outcome: "bajo_minimo"; min: number }
   | { outcome: "parcial"; total: number }
-  | { outcome: "red"; detalle: string }
+  // `detalle` es `null` cuando el escenario no trae aserciones (raro, pero
+  // posible: el docente armó una red sin nada que verificar) — sin este
+  // caso, `join("\n")` de una lista vacía da `""` y una cadena vacía se lee
+  // como "no hay feedback", cuando en realidad SÍ hubo calificación de red.
+  | { outcome: "red"; detalle: string | null }
 );
 
 /**
@@ -202,9 +206,13 @@ export function scoreDeterministaCliente(
         scenario.assertions,
       );
       const earned = Math.round(result.ratio * pts * 100) / 100;
-      const detalle = result.items
-        .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
-        .join("\n");
+      // MIRROR: el edge usa el mismo `|| null` (allá, `|| txt(...)` con el
+      // texto ya resuelto porque no tiene i18n; acá se resuelve en la
+      // pantalla) para el caso de un escenario sin aserciones.
+      const detalle =
+        result.items
+          .map((it) => `${it.passed ? "✓" : "✗"} ${it.label}${it.detail ? ` — ${it.detail}` : ""}`)
+          .join("\n") || null;
       return { earned, outcome: "red", detalle };
     } catch {
       // Una respuesta de red malformada de UNA pregunta no puede abortar la
