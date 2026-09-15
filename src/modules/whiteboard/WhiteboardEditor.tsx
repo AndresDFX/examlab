@@ -32,7 +32,7 @@
  *   dialog, h-[80dvh] funciona bien (dvh, no vh: iOS Safari).
  */
 import { useEffect, useRef, useState, useCallback } from "react";
-import type { ComponentType } from "react";
+import type { ComponentType, MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
 import {
   requestFullscreen as requestFullscreenCompat,
@@ -76,6 +76,26 @@ import {
   shortLibraryItemName,
   libraryItemPreview,
 } from "@/modules/whiteboard/excalidraw-libraries";
+import {
+  parseExcalidrawClipboard,
+  rehydratePastedElements,
+} from "@/modules/whiteboard/clipboard-paste";
+
+/**
+ * Los controles PROPIOS que van encima del canvas (panel «Figuras», puntero
+ * láser, pantalla completa) no deben robarle el foco a Excalidraw.
+ *
+ * Excalidraw ignora el pegado —y sus atajos de teclado— cuando
+ * `document.activeElement` cae fuera de su contenedor `.excalidraw`. Al
+ * pulsar uno de estos botones el foco pasaba al `<button>` y desde ese
+ * momento Ctrl+V no hacía NADA hasta volver a hacer clic en el lienzo
+ * (medido con Playwright: `dentroDeExcalidraw=false` ⇒ no pega).
+ *
+ * `preventDefault` en `mousedown` evita el cambio de foco sin cancelar el
+ * clic. Solo afecta al ratón: quien llega por Tab y pulsa Enter sigue
+ * moviendo el foco normalmente, así que no rompe el acceso por teclado.
+ */
+const noRobarFoco = (e: ReactMouseEvent) => e.preventDefault();
 
 // Ícono lucide por categoría (la lib expone el NOMBRE; acá lo resolvemos para
 // no acoplar el módulo puro a componentes React).
@@ -774,6 +794,108 @@ function WhiteboardEditorInner({
     [],
   );
 
+  // ── Pegar figuras cuando Excalidraw se desentiende ──
+  //
+  // Excalidraw ignora el evento `paste` en tres casos (ver el encabezado de
+  // `clipboard-paste.ts`, donde están citados contra su fuente): foco fuera de
+  // su contenedor, cursor fuera del `<canvas>`, o destino editable. Los tres se
+  // dan acá porque montamos controles propios ENCIMA del lienzo. El tercero es
+  // el que produce el bug reportado: Excalidraw se retira SIN `preventDefault`,
+  // el navegador pega el texto crudo y el usuario ve el JSON
+  // `{"type":"excalidraw/clipboard",…}` escrito en la pizarra.
+  //
+  // El listener va en CAPTURA sobre nuestro contenedor: así corre antes que el
+  // de Excalidraw (que está en `document`, en burbuja) y `stopPropagation`
+  // evita que los dos peguen lo mismo dos veces.
+  //
+  // Solo intervenimos cuando (a) el portapapeles trae una escena de Excalidraw
+  // y (b) Excalidraw no la va a insertar. Un texto normal pegado en el editor
+  // de texto de una figura tiene que seguir funcionando como siempre, y por eso
+  // `parseExcalidrawClipboard` devuelve `null` para cualquier otra cosa.
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root || readOnly) return;
+
+    const esEditable = (t: EventTarget | null): boolean =>
+      t instanceof HTMLElement &&
+      (t.tagName === "INPUT" ||
+        t.tagName === "TEXTAREA" ||
+        t.isContentEditable ||
+        t.closest("[contenteditable='true']") !== null);
+
+    // Última posición del puntero, con la misma fuente que usa Excalidraw
+    // (`pointermove` en `document`): es lo que él consulta con
+    // `elementFromPoint` para decidir si el pegado cae sobre su lienzo.
+    // Rastrearla acá es la única forma de saber si va a atenderlo, porque ese
+    // dato vive en su estado interno.
+    const puntero = { x: 0, y: 0 };
+    const onPointerMove = (e: PointerEvent) => {
+      puntero.x = e.clientX;
+      puntero.y = e.clientY;
+    };
+
+    const onPaste = (e: ClipboardEvent) => {
+      const api = excalidrawAPIRef.current;
+      if (!api || typeof api.updateScene !== "function") return;
+      const payload = parseExcalidrawClipboard(e.clipboardData?.getData("text/plain"));
+      if (!payload) return;
+
+      // ¿Lo va a manejar Excalidraw? Replica sus TRES condiciones. Si las
+      // cumple, nos hacemos a un lado: pega en la posición del cursor y
+      // respeta su propio historial de deshacer, que es mejor que lo nuestro.
+      const cont = root.querySelector(".excalidraw");
+      const focoAdentro = !!cont && cont.contains(document.activeElement);
+      const destinoEditable = esEditable(e.target);
+      const cursorEnLienzo =
+        document.elementFromPoint(puntero.x, puntero.y) instanceof HTMLCanvasElement;
+      if (focoAdentro && !destinoEditable && cursorEnLienzo) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      try {
+        // Centro del viewport actual: no tenemos la posición del cursor que
+        // Excalidraw lleva internamente, y el centro es un destino predecible
+        // (es el mismo que usa el panel de figuras).
+        const st = typeof api.getAppState === "function" ? api.getAppState() : {};
+        const zoom =
+          typeof st?.zoom?.value === "number"
+            ? st.zoom.value
+            : typeof st?.zoom === "number"
+              ? st.zoom
+              : 1;
+        const w = typeof st?.width === "number" ? st.width : 800;
+        const h = typeof st?.height === "number" ? st.height : 600;
+        const cx = -(st?.scrollX ?? 0) + w / 2 / zoom;
+        const cy = -(st?.scrollY ?? 0) + h / 2 / zoom;
+        const nuevos = rehydratePastedElements(payload.elements, cx, cy);
+        if (!nuevos.length) return;
+        // Los binarios primero: un elemento `image` sin su archivo registrado
+        // se dibuja como un hueco.
+        if (payload.files && typeof api.addFiles === "function") {
+          const arr = Object.values(payload.files);
+          if (arr.length > 0) api.addFiles(arr);
+        }
+        const actuales =
+          typeof api.getSceneElements === "function" ? api.getSceneElements() : [];
+        api.updateScene({
+          elements: [...actuales, ...nuevos],
+          appState: {
+            selectedElementIds: Object.fromEntries(nuevos.map((el) => [el.id, true])),
+          },
+        });
+      } catch (err) {
+        console.warn("[WhiteboardEditor] pegado de figuras falló", err);
+      }
+    };
+
+    root.addEventListener("paste", onPaste, true);
+    document.addEventListener("pointermove", onPointerMove, { passive: true });
+    return () => {
+      root.removeEventListener("paste", onPaste, true);
+      document.removeEventListener("pointermove", onPointerMove);
+    };
+  }, [readOnly, Component]);
+
   // Cleanup del timer de viewport al unmount — sin flush porque el último
   // valor ya está en `lastViewportRef`; el writeViewport pendiente solo
   // ahorra ~500ms y no es crítico (la próxima visita usará el penúltimo).
@@ -935,6 +1057,7 @@ function WhiteboardEditorInner({
                 </div>
                 <button
                   type="button"
+                  onMouseDown={noRobarFoco}
                   onClick={() => setPaletteOpen(false)}
                   aria-label={t("common.close")}
                   className="rounded p-1 text-muted-foreground hover:text-foreground hover:bg-muted shrink-0"
@@ -952,6 +1075,7 @@ function WhiteboardEditorInner({
                           conteo. Colapsable (acordeón estilo draw.io). */}
                       <button
                         type="button"
+                        onMouseDown={noRobarFoco}
                         onClick={() => toggleCat(cat.key)}
                         aria-expanded={open}
                         className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-muted/60 transition-colors"
@@ -978,6 +1102,7 @@ function WhiteboardEditorInner({
                             <button
                               key={item.id as string}
                               type="button"
+                              onMouseDown={noRobarFoco}
                               onClick={() => insertShape(item)}
                               title={shortLibraryItemName(item.name as string)}
                               className="flex flex-col items-center gap-1 rounded-md border border-border/60 bg-card/40 p-1.5 hover:border-primary/50 hover:bg-muted active:bg-muted/70 transition-colors"
@@ -1008,6 +1133,7 @@ function WhiteboardEditorInner({
         {enableLaser && (
           <button
             type="button"
+            onMouseDown={noRobarFoco}
             onClick={toggleLaser}
             aria-pressed={laserActive}
             aria-label={t("hc_modulesWhiteboardWhiteboardEditor.laser", {
@@ -1031,6 +1157,7 @@ function WhiteboardEditorInner({
         {!readOnly && (
           <button
             type="button"
+            onMouseDown={noRobarFoco}
             onClick={() => setPaletteOpen((o) => !o)}
             aria-label={t("hc_modulesWhiteboardWhiteboardEditor.shapes", { defaultValue: "Figuras" })}
             aria-expanded={paletteOpen}
@@ -1049,6 +1176,7 @@ function WhiteboardEditorInner({
         {fullscreenSupported && (
           <button
             type="button"
+            onMouseDown={noRobarFoco}
             onClick={toggleFullscreen}
             aria-label={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
             title={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}

@@ -75,6 +75,37 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🎨 Pizarra
+
+- **Copiar y pegar figuras volvió a funcionar; ya no se pega el JSON crudo como texto.** Reportado
+  por el usuario: al copiar y pegar dentro de una pizarra aparecía en el lienzo un texto tipo
+  `{"type":"excalidraw/clipboard","elements":[{"id":"…","type":"ellipse",…`. **No era el
+  portapapeles ni un problema de permisos**: Excalidraw copia bien (verificado, 482 caracteres con
+  el payload correcto) y es el PEGADO el que se descarta. Su manejador ignora el evento en tres
+  casos —foco fuera de su contenedor `.excalidraw`, cursor fuera del `<canvas>`, o destino
+  editable— y **en el tercero se retira sin `preventDefault`**, así que el navegador pega el texto
+  plano dentro de su propio `textarea.excalidraw-wysiwyg` y el JSON queda escrito en la pizarra.
+  - Lo disparaba ExamLab: el editor monta **controles propios ENCIMA del lienzo** (panel «Figuras»,
+    puntero láser, pantalla completa). Medido con Playwright: al pulsar cualquiera de esos botones
+    el foco salía del contenedor de Excalidraw y **Ctrl+V dejaba de responder hasta volver a hacer
+    clic en el lienzo**; y con el cursor apoyado sobre uno de ellos, tampoco pegaba. Sin respuesta,
+    el gesto natural es doble clic para "poner acá lo copiado" — que abre el editor de texto y
+    convierte el siguiente Ctrl+V en el JSON visible.
+  - Dos arreglos: los controles propios ya **no le roban el foco** (`preventDefault` en `mousedown`;
+    verificado que el clic sigue disparando, que el foco no se mueve y que `requestFullscreen`
+    conserva su activación de usuario), y un manejador de pegado en fase de **captura** sobre el
+    contenedor inserta las figuras vía `excalidrawAPI` **solo** cuando Excalidraw no lo va a hacer.
+    Pegar **texto normal dentro de una figura de texto sigue funcionando igual** — el nuevo módulo
+    puro `clipboard-paste.ts` devuelve `null` para todo lo que no sea una escena de Excalidraw.
+  - Al rehidratar lo pegado se **remapean ids, grupos y referencias** (`containerId`,
+    `boundElements`, `startBinding`/`endBinding`): sin eso el rótulo de una caja copiada se queda
+    apuntando a la caja original y las flechas quedan atadas a las figuras viejas. Por eso NO se
+    reusó `instantiateLibraryElements`, que además aplasta todo en un único grupo — correcto para
+    una plantilla de la paleta, destructivo para un pegado. 16 tests en `clipboard-paste.test.ts`.
+  - Alcance: vale para los cinco puntos de montaje del editor (pizarra del docente, del alumno,
+    multi-hoja, diálogo de pizarra de sesión y overlay de anotación), porque el arreglo vive en
+    `WhiteboardEditor`. En modo solo lectura no se instala nada.
+
 ### 🔔 Notificaciones
 
 - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está lejos** (mig
