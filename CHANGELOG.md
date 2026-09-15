@@ -77,6 +77,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎨 Pizarra
 
+- **Pantalla completa en las SEIS hojas, no solo en dos.** Las hojas de código, SQL, diagrama y
+  consola no tenían el botón que las de dibujo y texto sí tenían; ahora lo tienen todas, en el mismo
+  lugar (abajo a la derecha) y con el mismo ícono.
+  - **El patrón estaba duplicado y las dos copias ya diferían en lo que importa**: el editor de
+    dibujo chequea si el navegador soporta la API antes de PINTAR el botón, el de texto no. Ese
+    chequeo es el que evita que en iPhone —donde la pantalla completa de elementos **no existe**, ni
+    con prefijo (ver `src/shared/lib/fullscreen.ts`)— alguien toque un botón que no puede hacer
+    nada. Al unificar gana esa versión, así que la hoja de texto **deja de ofrecerlo donde no
+    funciona**. Ahora vive en **`src/hooks/use-fullscreen.ts`** + **`FullscreenButton`**
+    (`src/components/ui/fullscreen-button.tsx`), que es la única fuente del ícono
+    (`Maximize2`/`Minimize2`) y de la etiqueta.
+  - **El scroll se movió de la raíz a un hijo** en código, SQL, diagrama y texto-lectura: un botón
+    flotante tiene que ser HERMANO del área que scrollea, o se va con el contenido al hacer scroll.
+    Por lo mismo `MultiPageWhiteboard` dejó de poner `overflow-auto` con un condicional por tipo de
+    hoja — ese scroll vive ahora en el nuevo `ConsolePageEditor`.
+  - **La hoja de consola recibe el botón desde su MARCO, no desde el terminal**: `V86Console` lo usa
+    también la pregunta `so_consola` del taller, donde el alumno RINDE, y agregárselo ahí es otra
+    decisión de producto. Por eso el envoltorio `ConsolePageEditor` y no un cambio al componente.
+  - De paso, el área táctil del botón pasa de 28px a 32px (el patrón viejo, `p-1.5` sobre un ícono
+    de 16px, quedaba bajo el piso del proyecto). i18n: `common.fullscreen` / `common.exitFullscreen`
+    (es+en) reemplazan las cuatro claves que quedaron muertas. Queda **una copia inline por migrar**
+    oportunamente: `app.teacher.kahoot.$gameId`. (commit `f23baaca`)
 - **Copiar y pegar figuras volvió a funcionar; ya no se pega el JSON crudo como texto.** Reportado
   por el usuario: al copiar y pegar dentro de una pizarra aparecía en el lienzo un texto tipo
   `{"type":"excalidraw/clipboard","elements":[{"id":"…","type":"ellipse",…`. **No era el
