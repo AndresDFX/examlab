@@ -871,7 +871,7 @@ function WhiteboardEditorInner({
       root.removeEventListener("paste", onPaste, true);
       document.removeEventListener("pointermove", onPointerMove);
     };
-  }, [readOnly, Component]);
+  }, [readOnly, Component, containerRef]);
 
   // Cleanup del timer de viewport al unmount — sin flush porque el último
   // valor ya está en `lastViewportRef`; el writeViewport pendiente solo
