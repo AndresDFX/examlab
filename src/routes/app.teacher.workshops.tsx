@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
@@ -106,6 +106,7 @@ import {
   Check,
   Eye,
   ClipboardList,
+  RefreshCw,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatPercent } from "@/shared/lib/format";
@@ -279,6 +280,10 @@ type WsSub = {
   ai_detected_reasons?: string | null;
   profile?: { full_name: string; institutional_email: string };
 };
+
+/** Estados que cuentan como entrega REAL para las acciones masivas de IA.
+ *  Un borrador vacío no se manda a calificar ni a recalificar. */
+const SUBMITTED_STATUSES = ["entregado", "calificado", "ai_revisado"];
 
 /** Par de copia detectado entre dos estudiantes para UNA pregunta. */
 type WsSimilarityPair = {
@@ -2221,6 +2226,47 @@ function TeacherWorkshops() {
   const [aiGradingId, setAiGradingId] = useState<string | null>(null);
   const [aiGradingAll, setAiGradingAll] = useState(false);
 
+  // ── Recalificación MASIVA (pisa notas ya existentes) ──
+  // Hermana de `gradeAllWithAI`, no un cambio de su comportamiento: ese
+  // botón salta a propósito toda entrega con `final_grade` para no
+  // re-cobrar cuota de IA al reintentar un lote cortado. Esta acción es
+  // la contraria y por eso vive aparte, con confirmación explícita: sirve
+  // cuando un bug de calificación dejó notas mal puestas y hay que
+  // repararlas en bloque (el equivalente de "Recalificar" del monitor de
+  // exámenes, que el docente ya conoce).
+  //
+  // Diferencia con el monitor de exámenes — NO hay preview dryRun: para
+  // un examen el edge PERSISTE la nota (Caso A), así que dryRun es la
+  // única forma de ver antes de pisar. En talleres el reparto es otro:
+  // el edge `batchGrading` solo DEVUELVE los puntajes y es este cliente
+  // el que escribe (`gradeOneWithAI`), o sea que ya es un "dry run" que
+  // termina en un UPDATE. Partir esa función en calcular/persistir para
+  // insertar una aprobación intermedia obligaría a refactorizar la pieza
+  // más frágil del módulo (la que arrastró los bugs de las cerradas en 0)
+  // a cambio de poco: el trigger `tg_workshop_answer_graded_recompute`
+  // RESPETA la nota que el docente sobreescribió a mano (final_grade
+  // distinto del ai_grade previo), así que recalificar nunca pisa una
+  // corrección manual. Lo que sí damos es la trazabilidad completa:
+  // anterior → nueva por estudiante, releída de la base.
+  type RegradeRow = {
+    submissionId: string;
+    studentName: string;
+    previousGrade: number | null;
+    newGrade: number | null;
+    status: "pending" | "running" | "done" | "failed" | "cancelled";
+    error?: string;
+  };
+  const [regradeOpen, setRegradeOpen] = useState(false);
+  const [regradeRows, setRegradeRows] = useState<RegradeRow[]>([]);
+  const [regradeRunning, setRegradeRunning] = useState(false);
+  const [regradeProgress, setRegradeProgress] = useState({ done: 0, total: 0 });
+  const [regradeCurrentStudent, setRegradeCurrentStudent] = useState<string | null>(null);
+  // AbortController del lote en curso. Cancelar NO aborta la llamada de IA
+  // que ya salió (sus tokens ya se gastaron), pero corta las siguientes y
+  // deja el modal interactivo — mismo criterio que `regradeAbortRef` del
+  // monitor de exámenes.
+  const regradeAbortRef = useRef<AbortController | null>(null);
+
   /** Marca/desmarca una sospecha de IA POR PREGUNTA como revisada. Persiste
    *  `workshop_submission_answers.ai_review_at` (timestamp = revisada,
    *  null = pendiente). Mismo patrón del monitor de exámenes pero usando
@@ -2748,8 +2794,27 @@ function TeacherWorkshops() {
     }
   };
 
+  /** Entregas sobre las que operan las acciones masivas de IA.
+   *
+   *  ALCANCE: si el buscador del diálogo tiene algo escrito, el lote es
+   *  el FILTRADO; si está vacío, son todas. Es el criterio que hace
+   *  posible el caso que originó la recalificación masiva ("estas 8
+   *  quedaron mal, arreglá solo esas") sin tocar al resto del curso, y
+   *  vale para los DOS botones: que "Calificar todo con IA" ignorara el
+   *  filtro y recalificar sí lo respetara sería justo la clase de
+   *  diferencia invisible que hace desconfiar de un botón caro. El
+   *  encabezado de la barra dice explícitamente cuántas entran cuando
+   *  hay filtro, y el confirm de recalificar lo repite. */
+  const bulkAiTargets = useMemo(
+    () =>
+      (gradingSearch.trim() ? filteredWsSubs : wsSubs).filter((s) =>
+        SUBMITTED_STATUSES.includes(s.status),
+      ),
+    [wsSubs, filteredWsSubs, gradingSearch],
+  );
+
   const gradeAllWithAI = async () => {
-    if (!gradingWs || aiGradingAll) return;
+    if (!gradingWs || aiGradingAll || regradeRunning) return;
     // Excluye entregas que YA tienen `final_grade` persistida: para un
     // taller moderno (con preguntas) eso significa que el trigger de cierre
     // (20260956000000) ya sumó todas las notas por pregunta con éxito —
@@ -2759,16 +2824,8 @@ function TeacherWorkshops() {
     // calificadas, no solo por las que quedaron pendientes. El botón
     // "Calificar con IA" de cada entrega (dentro del detalle) sigue
     // sirviendo para forzar una recalificación puntual.
-    const alreadyGraded = wsSubs.filter(
-      (s) =>
-        (s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado") &&
-        s.final_grade != null,
-    ).length;
-    const pending = wsSubs.filter(
-      (s) =>
-        (s.status === "entregado" || s.status === "calificado" || s.status === "ai_revisado") &&
-        s.final_grade == null,
-    );
+    const alreadyGraded = bulkAiTargets.filter((s) => s.final_grade != null).length;
+    const pending = bulkAiTargets.filter((s) => s.final_grade == null);
     if (!pending.length) {
       toast.info(
         alreadyGraded > 0
@@ -2826,6 +2883,213 @@ function TeacherWorkshops() {
       // Sin finally, un throw inesperado dejaba el botón "Calificar todo con
       // IA" girando para siempre y el docente sin poder reintentar.
       setAiGradingAll(false);
+    }
+  };
+
+  /** Recalifica con IA un lote de entregas INCLUYENDO las que ya tienen
+   *  nota. Es la reparación en bloque de un error de calificación: hasta
+   *  ahora el docente tenía que abrir el detalle de cada estudiante y
+   *  apretar "Recalificar con IA" uno por uno.
+   *
+   *  Qué entra: las entregas del alcance vigente (ver `bulkAiTargets`) en
+   *  estado entregado/calificado/ai_revisado. NO se ofrece un sub-filtro
+   *  "solo las que quedaron en 0": el caso real que motivó esto dejó
+   *  notas en 0 Y en 1,13, así que un filtro por 0 habría dejado a medio
+   *  curso sin reparar y con la sensación de que la acción ya corrió. El
+   *  buscador por estudiante que el diálogo ya tiene cubre el recorte
+   *  fino sin inventar un segundo criterio que mantener. */
+  const regradeAllWithAI = async () => {
+    if (!gradingWs || aiGradingAll || regradeRunning) return;
+    const targets = bulkAiTargets;
+    if (!targets.length) {
+      toast.info(
+        i18n.t("toast.routes_app_teacher_workshops.regradeNoTargets", {
+          defaultValue: "No hay entregas para recalificar.",
+        }),
+      );
+      return;
+    }
+    const withGrade = targets.filter((s) => s.final_grade != null).length;
+    const filtering = gradingSearch.trim().length > 0;
+    const ok = await confirm({
+      title: i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmTitle", {
+        defaultValue: "¿Recalificar {{count}} entrega(s) con IA?",
+        count: targets.length,
+      }),
+      description: [
+        withGrade > 0
+          ? i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmOverwrite", {
+              defaultValue:
+                "{{count}} de ellas YA tienen nota y se van a sobrescribir con la que calcule la IA.",
+              count: withGrade,
+            })
+          : null,
+        filtering
+          ? i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmFiltered", {
+              defaultValue:
+                "Solo entran las entregas que coinciden con la búsqueda activa; el resto del curso no se toca.",
+            })
+          : null,
+        i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmCost", {
+          defaultValue:
+            "Cada entrega consume cuota de IA y tarda entre 30 y 90 segundos. Podés detener el proceso a mitad.",
+        }),
+        i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmManual", {
+          defaultValue:
+            "Las notas que corregiste a mano se respetan: solo se reemplazan las que puso la IA.",
+        }),
+      ]
+        .filter(Boolean)
+        .join(" "),
+      confirmLabel: i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmAction", {
+        defaultValue: "Recalificar",
+      }),
+      // `warning` y NO `destructive`: se puede deshacer editando la nota a
+      // mano, y no se borra ninguna entrega.
+      tone: "warning",
+    });
+    if (!ok) return;
+    // Gate de IA UNA sola vez y sin opción de cola: este flujo lo
+    // orquesta el cliente (calcula deterministas, llama al edge por las
+    // abiertas y escribe), así que no hay job encolable. Pedirlo una vez
+    // acá además evita que el diálogo del gate reaparezca por cada
+    // entrega desde `gradeOneWithAI` (si el docente activa el código de
+    // IA inmediata, las llamadas internas ya resuelven en silencio).
+    const decision = await aiGate.ensureAuthorized({ allowQueue: false });
+    if (decision === "cancel") return;
+
+    const abortCtrl = new AbortController();
+    regradeAbortRef.current = abortCtrl;
+    const signal = abortCtrl.signal;
+
+    const rows: RegradeRow[] = targets.map((s) => ({
+      submissionId: s.id,
+      studentName: s.profile?.full_name || s.profile?.institutional_email || "—",
+      previousGrade: s.final_grade ?? s.ai_grade ?? null,
+      newGrade: null,
+      status: "pending",
+    }));
+    setRegradeRows([...rows]);
+    setRegradeProgress({ done: 0, total: targets.length });
+    setRegradeCurrentStudent(null);
+    setRegradeRunning(true);
+    setRegradeOpen(true);
+
+    let done = 0;
+    let failed = 0;
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        if (signal.aborted) break;
+        const sub = targets[i];
+        setRegradeCurrentStudent(rows[i].studentName);
+        rows[i].status = "running";
+        setRegradeRows([...rows]);
+        let okOne = false;
+        try {
+          okOne = await gradeOneWithAI(sub);
+        } catch (e) {
+          rows[i].error = friendlyError(e);
+        }
+        if (okOne) {
+          // La nota final NO la escribe este cliente: la cierra el trigger
+          // `tg_workshop_answer_graded_recompute` cuando ya están todas las
+          // notas por pregunta. Por eso la releemos de la base en vez de
+          // mostrar el número local — mostrar el estimado del cliente haría
+          // que la fila dijera una nota y el grid otra cuando el trigger
+          // respeta un override manual del docente.
+          const { data: fresh } = await supabase
+            .from("workshop_submissions")
+            .select("id, final_grade, ai_grade, status")
+            .eq("id", sub.id)
+            .maybeSingle();
+          rows[i].newGrade = fresh?.final_grade ?? fresh?.ai_grade ?? null;
+          rows[i].status = "done";
+          done++;
+          if (fresh) {
+            setWsSubs((prev) =>
+              prev.map((s) =>
+                s.id === sub.id
+                  ? {
+                      ...s,
+                      final_grade: fresh.final_grade,
+                      ai_grade: fresh.ai_grade,
+                      status: fresh.status,
+                    }
+                  : s,
+              ),
+            );
+          }
+        } else {
+          rows[i].status = "failed";
+          failed++;
+        }
+        setRegradeRows([...rows]);
+        setRegradeProgress((p) => ({ ...p, done: p.done + 1 }));
+      }
+      // Cancelado a mitad: dejamos marcado qué quedó fuera para que el
+      // docente sepa exactamente desde dónde retomar.
+      if (signal.aborted) {
+        for (const r of rows) {
+          if (r.status === "pending" || r.status === "running") r.status = "cancelled";
+        }
+        setRegradeRows([...rows]);
+      }
+      const cancelled = rows.filter((r) => r.status === "cancelled").length;
+      if (cancelled > 0) {
+        toast.info(
+          i18n.t("toast.routes_app_teacher_workshops.regradeCancelled", {
+            defaultValue:
+              "Detenido: {{done}} recalificada(s), {{cancelled}} quedaron sin tocar.",
+            done,
+            cancelled,
+          }),
+          { duration: 10000 },
+        );
+      } else if (failed > 0) {
+        toast.warning(
+          i18n.t("toast.routes_app_teacher_workshops.regradePartial", {
+            defaultValue:
+              "{{done}} recalificada(s), {{failed}} con error (mirá el detalle en la ventana).",
+            done,
+            failed,
+          }),
+          { duration: 12000 },
+        );
+      } else if (done > 0) {
+        toast.success(
+          i18n.t("toast.routes_app_teacher_workshops.regradeDone", {
+            defaultValue: "{{count}} entrega(s) recalificada(s) con IA.",
+            count: done,
+          }),
+        );
+      }
+      void logEvent({
+        action: "workshop.regraded_bulk",
+        category: "workshop",
+        actorRole: roles[0],
+        entityType: "workshop",
+        entityId: gradingWs.id,
+        entityName: gradingWs.title,
+        courseId: gradingWs.course_id ?? undefined,
+        metadata: { total: targets.length, done, failed, cancelled, filtered: filtering },
+      });
+    } catch (e) {
+      toast.error(
+        i18n.t("toast.routes_app_teacher_workshops.regradeError", {
+          defaultValue:
+            "Se recalificaron {{done}} de {{total}} entregas y el proceso se detuvo: {{error}}",
+          done,
+          total: targets.length,
+          error: friendlyError(e),
+        }),
+        { duration: 12000 },
+      );
+    } finally {
+      // Sin finally, un throw inesperado dejaba el botón girando para
+      // siempre y el docente sin poder reintentar.
+      setRegradeRunning(false);
+      setRegradeCurrentStudent(null);
+      regradeAbortRef.current = null;
     }
   };
 
@@ -4346,15 +4610,22 @@ function TeacherWorkshops() {
                   {t("hc_routesAppTeacherWorkshops.bulkActionsTitle")}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {t("hc_routesAppTeacherWorkshops.bulkActionsDesc")}
+                  {/* Con el buscador activo las acciones masivas operan SOLO
+                      sobre lo filtrado: decirlo acá evita que "todo" se lea
+                      como "todo el curso" justo antes de gastar cuota. */}
+                  {gradingSearch.trim()
+                    ? t("hc_routesAppTeacherWorkshops.bulkActionsScopeFiltered", {
+                        count: bulkAiTargets.length,
+                      })
+                    : t("hc_routesAppTeacherWorkshops.bulkActionsDesc")}
                 </p>
               </div>
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button
                   size="sm"
                   variant="outline"
                   onClick={runDetectCopies}
-                  disabled={detectingCopies || aiGradingAll}
+                  disabled={detectingCopies || aiGradingAll || regradeRunning}
                   title={t("hc_routesAppTeacherWorkshops.detectCopiesTitle")}
                 >
                   {detectingCopies ? (
@@ -4364,10 +4635,37 @@ function TeacherWorkshops() {
                   )}
                   {t("hc_routesAppTeacherWorkshops.detectCopies")}
                 </Button>
+                {/* Recalificar es la acción CARA y destructiva de las dos, así
+                    que va `outline` y la primaria sigue siendo "Calificar todo
+                    con IA" (P4: una sola acción primaria por pantalla). Icono
+                    RefreshCw = rehacer, la misma semántica que el "Reintentar"
+                    de la cola de IA; Sparkles queda para calificar por primera
+                    vez, si no las dos acciones se verían idénticas. */}
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void regradeAllWithAI()}
+                  disabled={regradeRunning || aiGradingAll || detectingCopies}
+                  title={t("hc_routesAppTeacherWorkshops.regradeAllWithAiTitle")}
+                >
+                  {regradeRunning ? (
+                    <Spinner size="sm" className="mr-1" />
+                  ) : (
+                    <RefreshCw className="h-4 w-4 mr-1" />
+                  )}
+                  {regradeRunning
+                    ? t("hc_routesAppTeacherWorkshops.regradeProgressShort", {
+                        done: regradeProgress.done,
+                        total: regradeProgress.total,
+                      })
+                    : t("hc_routesAppTeacherWorkshops.regradeAllWithAi")}
+                </Button>
                 <Button
                   size="sm"
                   onClick={gradeAllWithAI}
-                  disabled={aiGradingAll || detectingCopies || aiGradingId != null}
+                  disabled={
+                    aiGradingAll || detectingCopies || regradeRunning || aiGradingId != null
+                  }
                 >
                   {aiGradingAll ? (
                     <Spinner size="md" className="mr-1" />
@@ -4383,7 +4681,7 @@ function TeacherWorkshops() {
               (30-90s por entrega). Un botón deshabilitado con spinner se
               pierde de vista al scrollear el modal: acá el docente ve que
               el proceso sigue vivo y por qué no debe cerrar el diálogo. */}
-          {(aiGradingAll || aiGradingId != null || detectingCopies) && (
+          {(aiGradingAll || aiGradingId != null || detectingCopies || regradeRunning) && (
             <div
               role="status"
               aria-live="polite"
@@ -4396,13 +4694,19 @@ function TeacherWorkshops() {
                     ? t("hc_routesAppTeacherWorkshops.aiBusyDetecting", {
                         defaultValue: "Detectando copias con IA…",
                       })
-                    : aiGradingAll
-                      ? t("hc_routesAppTeacherWorkshops.aiBusyGradingAll", {
-                          defaultValue: "Calificando todas las entregas con IA…",
+                    : regradeRunning
+                      ? t("hc_routesAppTeacherWorkshops.aiBusyRegrading", {
+                          defaultValue: "Recalificando entregas con IA…",
+                          done: regradeProgress.done,
+                          total: regradeProgress.total,
                         })
-                      : t("hc_routesAppTeacherWorkshops.aiBusyGradingOne", {
-                          defaultValue: "Calificando la entrega con IA…",
-                        })}
+                      : aiGradingAll
+                        ? t("hc_routesAppTeacherWorkshops.aiBusyGradingAll", {
+                            defaultValue: "Calificando todas las entregas con IA…",
+                          })
+                        : t("hc_routesAppTeacherWorkshops.aiBusyGradingOne", {
+                            defaultValue: "Calificando la entrega con IA…",
+                          })}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {t("hc_routesAppTeacherWorkshops.aiBusyHint", {
@@ -5513,7 +5817,7 @@ function TeacherWorkshops() {
                             size="sm"
                             variant="outline"
                             onClick={() => gradeOneWithAI(sub)}
-                            disabled={aiGradingId === sub.id || aiGradingAll}
+                            disabled={aiGradingId === sub.id || aiGradingAll || regradeRunning}
                           >
                             {aiGradingId === sub.id ? (
                               <Spinner size="sm" className="mr-1" />
@@ -5602,6 +5906,151 @@ function TeacherWorkshops() {
           }}
         />
       )}
+      {/* Progreso + resultado de la recalificación masiva. Muestra
+          "anterior → nueva" por estudiante porque ese contraste ES la
+          razón de la acción: el docente vino a reparar notas mal puestas
+          y necesita ver que efectivamente cambiaron (y cuáles no). */}
+      <Dialog
+        open={regradeOpen}
+        onOpenChange={(open) => {
+          // No se cierra a mitad del lote: cerrar desmonta el modal pero
+          // no detiene el proceso, y el docente creería que canceló. Para
+          // frenar está el botón "Detener".
+          if (!open && !regradeRunning) setRegradeOpen(false);
+        }}
+      >
+        <DialogContent
+          className="max-w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[88dvh] overflow-hidden flex flex-col"
+          hideCloseButton
+        >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RefreshCw className={`h-4 w-4 ${regradeRunning ? "animate-spin" : ""}`} />
+              {t("hc_routesAppTeacherWorkshops.regradeDialogTitle")}
+              {regradeProgress.total > 0 && (
+                <span className="text-xs font-normal text-muted-foreground tabular-nums">
+                  · {regradeProgress.done}/{regradeProgress.total}
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {regradeProgress.total > 0 && (
+            <div className="space-y-1.5">
+              <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-[width] duration-200"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      (regradeProgress.done / Math.max(1, regradeProgress.total)) * 100,
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span className="truncate">
+                  {regradeRunning && regradeCurrentStudent
+                    ? t("hc_routesAppTeacherWorkshops.regradeProcessing", {
+                        name: regradeCurrentStudent,
+                      })
+                    : regradeRunning
+                      ? t("hc_routesAppTeacherWorkshops.regradeStarting")
+                      : t("hc_routesAppTeacherWorkshops.regradeFinished")}
+                </span>
+                <span className="tabular-nums shrink-0">
+                  {regradeProgress.done}/{regradeProgress.total}
+                </span>
+              </div>
+              {regradeRunning && (
+                <p className="text-2xs text-muted-foreground">
+                  {t("hc_routesAppTeacherWorkshops.regradeSlowHint")}
+                </p>
+              )}
+            </div>
+          )}
+          <div className="flex-1 overflow-y-auto -mx-4 px-4">
+            <div className="border rounded-md divide-y">
+              {regradeRows.map((row) => (
+                <div
+                  key={row.submissionId}
+                  className="flex items-center justify-between gap-2 p-2.5 text-xs"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{row.studentName}</p>
+                    {row.error && <p className="truncate text-destructive">{row.error}</p>}
+                  </div>
+                  <div className="flex items-center gap-1.5 tabular-nums shrink-0">
+                    {/* Tachar un "—" (entrega sin nota previa) se lee como si
+                        se hubiera borrado algo: la raya solo va sobre un
+                        número que efectivamente se reemplaza. */}
+                    <span
+                      className={
+                        row.previousGrade != null
+                          ? "text-muted-foreground line-through"
+                          : "text-muted-foreground"
+                      }
+                    >
+                      {row.previousGrade ?? "—"}
+                    </span>
+                    <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                    <span
+                      className={
+                        row.status === "done" ? "font-semibold" : "text-muted-foreground"
+                      }
+                    >
+                      {row.status === "done" ? (row.newGrade ?? "—") : "…"}
+                    </span>
+                  </div>
+                  <span className="shrink-0 w-20 text-right text-2xs">
+                    {row.status === "done" ? (
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        {t("hc_routesAppTeacherWorkshops.regradeStatusDone")}
+                      </span>
+                    ) : row.status === "failed" ? (
+                      <span className="text-destructive">
+                        {t("hc_routesAppTeacherWorkshops.regradeStatusFailed")}
+                      </span>
+                    ) : row.status === "cancelled" ? (
+                      <span className="text-muted-foreground">
+                        {t("hc_routesAppTeacherWorkshops.regradeStatusCancelled")}
+                      </span>
+                    ) : row.status === "running" ? (
+                      <Spinner size="xs" className="inline-block" />
+                    ) : (
+                      <span className="text-muted-foreground">
+                        {t("hc_routesAppTeacherWorkshops.regradeStatusPending")}
+                      </span>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="static gap-2 flex-col sm:flex-row">
+            {regradeRunning && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="sm:mr-auto"
+                onClick={() => regradeAbortRef.current?.abort()}
+                disabled={regradeAbortRef.current?.signal.aborted ?? false}
+              >
+                <X className="h-3.5 w-3.5 mr-1" />
+                {t("hc_routesAppTeacherWorkshops.regradeStop")}
+              </Button>
+            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setRegradeOpen(false)}
+              disabled={regradeRunning}
+            >
+              {t("common.close")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <aiGate.GateDialog />
     </div>
   );

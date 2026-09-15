@@ -220,6 +220,33 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Recalificar con IA TODAS las entregas de un taller, no de a una.** El diálogo de calificaciones
+  suma **«Recalificar todo con IA»** al lado de «Calificar todo con IA». La diferencia entre los dos
+  es lo que hay que saber: *calificar* saltea a propósito las entregas que ya tienen nota (para no
+  re-cobrar cuota de IA al reintentar un lote que se cortó), y *recalificar* existe justamente para
+  ésas — el caso real es un error de calificación que dejó a varios estudiantes con una nota que no
+  corresponde, y repararlo obligaba a abrir el detalle de cada uno. Pide confirmación diciendo
+  cuántas notas va a sobrescribir y cuánto cuesta, muestra el avance `n de N` con el nombre de quien
+  está procesando, se puede **detener a mitad** (lo ya aplicado queda, el resto queda marcado «Sin
+  tocar») y al terminar lista **nota anterior → nota nueva** por estudiante.
+  - **Las notas corregidas a mano NO se pisan**: el trigger que cierra la nota del taller
+    (`tg_workshop_answer_graded_recompute`) respeta el `final_grade` que difiere del que puso la IA,
+    así que recalificar reemplaza solo lo automático. Por eso una fila puede mostrar la misma nota
+    antes y después: no es que falló, es que ésa la puso una persona.
+  - **Con el buscador activo, «todo» son los filtrados** — y ahora vale para los DOS botones, que
+    antes diferían en silencio. Es lo que permite reparar exactamente a los estudiantes afectados sin
+    tocar al resto del curso; el encabezado de la barra lo dice y el confirm lo repite.
+  - **No hay previsualización antes de aplicar, al revés del monitor de exámenes**, y es por cómo se
+    reparte el trabajo: en un examen el servidor escribe la nota, así que `dryRun` es la única forma
+    de ver antes de pisar; en un taller el servidor solo devuelve los puntajes y quien escribe es el
+    navegador. Partir esa función en calcular/persistir para meter una aprobación intermedia tocaría
+    la pieza más frágil del módulo —la que arrastró los bugs de las preguntas cerradas en 0— a cambio
+    de poco, porque el override manual ya está protegido. Lo que sí se da es la trazabilidad
+    completa del antes/después, **releída de la base** y no del cálculo local.
+  - El gate de IA se pide **una sola vez** por lote y **sin opción de cola**: este flujo lo orquesta
+    el navegador (calcula las deterministas, llama al modelo por las abiertas y escribe), así que no
+    hay job encolable — y pedirlo una vez evita que el diálogo reaparezca por cada entrega.
+
 - **Exportar «Pendientes por estudiante» a Word.** En Estadísticas del docente, el panel de
   pendientes tiene un botón **Exportar** que abre un diálogo con el listado COMPLETO de estudiantes
   del alcance (un curso o «Todos los cursos», ya filtrado por periodo/asignatura) —incluyendo a los
