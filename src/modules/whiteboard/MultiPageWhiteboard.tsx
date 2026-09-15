@@ -69,7 +69,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
-import { WhiteboardEditor, type WhiteboardScene } from "@/modules/whiteboard/WhiteboardEditor";
+import {
+  WhiteboardEditor,
+  noRobarFoco,
+  type WhiteboardScene,
+} from "@/modules/whiteboard/WhiteboardEditor";
 import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
 import { CodePageEditor } from "@/modules/whiteboard/CodePageEditor";
 import { V86Console } from "@/modules/serverconsole/V86Console";
@@ -620,6 +624,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                       />
                       <button
                         type="button"
+                        onMouseDown={noRobarFoco}
                         onClick={() => void saveRename()}
                         disabled={busy}
                         className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400"
@@ -630,6 +635,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                       </button>
                       <button
                         type="button"
+                        onMouseDown={noRobarFoco}
                         onClick={cancelRename}
                         disabled={busy}
                         className="text-muted-foreground hover:text-foreground"
@@ -643,6 +649,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                     <>
                       <button
                         type="button"
+                        onMouseDown={noRobarFoco}
                         onClick={() => setActivePageId(page.id)}
                         className={cn(
                           "flex items-center gap-1.5 font-medium max-w-[140px] truncate",
@@ -662,6 +669,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                         <>
                           <button
                             type="button"
+                            onMouseDown={noRobarFoco}
                             onClick={() => startRename(page)}
                             className="text-muted-foreground hover:text-foreground opacity-70 hover:opacity-100"
                             aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.renamePageAria")}
@@ -672,6 +680,7 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
                           </button>
                           <button
                             type="button"
+                            onMouseDown={noRobarFoco}
                             onClick={() => void deletePage(page.id)}
                             className="text-muted-foreground hover:text-destructive opacity-70 hover:opacity-100"
                             aria-label={t("hc_modulesWhiteboardMultiPageWhiteboard.deletePageAria")}

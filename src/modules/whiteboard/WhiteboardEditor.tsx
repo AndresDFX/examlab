@@ -94,8 +94,14 @@ import {
  * `preventDefault` en `mousedown` evita el cambio de foco sin cancelar el
  * clic. Solo afecta al ratón: quien llega por Tab y pulsa Enter sigue
  * moviendo el foco normalmente, así que no rompe el acceso por teclado.
+ * Verificado también que NO consume la activación de usuario, así que el
+ * botón de pantalla completa sigue pudiendo llamar a `requestFullscreen`.
+ *
+ * Se EXPORTA porque la barra de pestañas de `MultiPageWhiteboard` queda
+ * FUERA de este contenedor —y por lo tanto fuera del alcance del manejador
+ * de pegado— así que sus botones necesitan el mismo trato.
  */
-const noRobarFoco = (e: ReactMouseEvent) => e.preventDefault();
+export const noRobarFoco = (e: ReactMouseEvent) => e.preventDefault();
 
 // Ícono lucide por categoría (la lib expone el NOMBRE; acá lo resolvemos para
 // no acoplar el módulo puro a componentes React).
