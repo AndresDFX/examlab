@@ -187,6 +187,8 @@
     "confirm": "Eliminar curso"
   },
   "common": {
+    "fullscreen": "Pantalla completa",
+    "exitFullscreen": "Salir de pantalla completa",
     "action": "Acción",
     "chooseInstitutionFirst": "Eligí una institución para administrar su estructura académica.",
     "actions": "Acciones",
@@ -5308,8 +5310,6 @@
     "footerText": "La verificación consulta directamente la base de datos de ExamLab. Los datos mostrados provienen del snapshot inmutable del certificado al momento de su emisión."
   },
   "textPageEditor": {
-    "btnFullscreen": "Pantalla completa",
-    "btnExitFullscreen": "Salir de pantalla completa",
     "btnSplitView": "Editor + Vista previa (lado a lado)",
     "btnSplit": "Dividido",
     "tbH1": "Encabezado 1",
@@ -9453,7 +9453,11 @@
     "detectionNoMatches": "No se encontraron coincidencias relevantes.",
     "excludeAll": "Excluir a todos",
     "excludedBadge": "Excluido",
-    "feedbackClosedLocal": "Pregunta cerrada (calificación local)",
+    "feedbackClosedAboveMax": "Marcaste más opciones de las permitidas (máximo {{max}}).",
+    "feedbackClosedBelowMin": "Marcaste menos opciones de las requeridas (mínimo {{min}}).",
+    "feedbackClosedCorrect": "Respuesta correcta",
+    "feedbackClosedIncorrect": "Respuesta incorrecta",
+    "feedbackClosedPartial": "Obtuviste {{earned}} de {{total}} puntos.",
     "feedbackFieldLabel": "Retroalimentación",
     "feedbackNoAnswer": "Sin respuesta",
     "feedbackNone": "Sin retroalimentación",
@@ -9894,8 +9898,6 @@
     "shapesButtonTitle": "Figuras por tipo de diagrama (clases, flujo, E-R…)",
     "shapesPanelTitle": "Figuras por tipo de diagrama",
     "shapesPanelHint": "Toca una para insertarla en el centro.",
-    "exitFullscreen": "Salir de pantalla completa",
-    "enterFullscreen": "Pantalla completa",
     "crashTitle": "No pudimos abrir la pizarra",
     "crashHint": "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador.",
     "laser": "Puntero láser",

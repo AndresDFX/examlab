@@ -32,9 +32,13 @@
  * autoguardado (code 1200 ms, sql 1200 ms con acumulación por spread, text
  * 1500 ms). Cuando llegue la quinta hoja, el refactor correcto es extraer un
  * hook `usePageAutosave` y migrar las cuatro — no copiarlo una quinta vez.
+ * (La pantalla completa ya recorrió ese camino: estaba duplicada en dos hojas y
+ * faltaba en cuatro; hoy vive en `@/hooks/use-fullscreen`.)
  */
 import { useEffect, useRef, useState } from "react";
 
+import { FullscreenButton } from "@/components/ui/fullscreen-button";
+import { useFullscreen } from "@/hooks/use-fullscreen";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { cn } from "@/shared/lib/utils";
 
@@ -62,6 +66,11 @@ export function DiagramPageEditor({
   // controlado y emite por tecla, así que pasarle el valor persistido con
   // 1200 ms de retraso haría saltar el caret mientras se escribe.
   const [code, setCode] = useState<string>(diagramSource ?? "");
+
+  // Pantalla completa: mismo hook, mismo botón y misma ubicación que las otras
+  // hojas de la pizarra (ver `use-fullscreen.ts`).
+  const { ref: containerRef, isFullscreen, supported: fullscreenSupported, toggle: toggleFullscreen } =
+    useFullscreen<HTMLDivElement>();
 
   // Debounce con FLUSH al desmontar — mismo patrón que SqlPageEditor (la
   // variante que acumula con spread, para que dos campos que cambian dentro de
@@ -105,8 +114,25 @@ export function DiagramPageEditor({
   };
 
   return (
-    <div className={cn("flex flex-col h-full min-h-0 overflow-y-auto p-3 gap-3", className)}>
-      <DiagramEditor key={pageId} value={code} onChange={onCodeChange} readOnly={readOnly} />
+    // El scroll vive en el hijo, no en la raíz: el botón flotante es hermano del
+    // área que scrollea y por eso queda fijo abajo a la derecha. Si el scroll
+    // estuviera en la raíz, el botón se iría con el contenido.
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative flex flex-col h-full min-h-0",
+        // Sin fondo propio, en pantalla completa la hoja se ve transparente
+        // sobre el negro que pinta el navegador.
+        isFullscreen && "bg-background",
+        className,
+      )}
+    >
+      <div className="flex flex-1 min-h-0 flex-col gap-3 overflow-y-auto p-3">
+        <DiagramEditor key={pageId} value={code} onChange={onCodeChange} readOnly={readOnly} />
+      </div>
+      {fullscreenSupported && (
+        <FullscreenButton floating isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+      )}
     </div>
   );
 }

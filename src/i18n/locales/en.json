@@ -187,6 +187,8 @@
     "confirm": "Delete course"
   },
   "common": {
+    "fullscreen": "Fullscreen",
+    "exitFullscreen": "Exit fullscreen",
     "action": "Action",
     "chooseInstitutionFirst": "Choose an institution to manage its academic structure.",
     "actions": "Actions",
@@ -5308,8 +5310,6 @@
     "footerText": "Verification queries the ExamLab database directly. The data shown comes from the immutable snapshot of the certificate at the time of issuance."
   },
   "textPageEditor": {
-    "btnFullscreen": "Fullscreen",
-    "btnExitFullscreen": "Exit fullscreen",
     "btnSplitView": "Editor + Preview (side by side)",
     "btnSplit": "Split",
     "tbH1": "Heading 1",
@@ -9453,7 +9453,11 @@
     "detectionNoMatches": "No relevant matches were found.",
     "excludeAll": "Exclude all",
     "excludedBadge": "Excluded",
-    "feedbackClosedLocal": "Closed question (local grading)",
+    "feedbackClosedAboveMax": "You selected more options than allowed (maximum {{max}}).",
+    "feedbackClosedBelowMin": "You selected fewer options than required (minimum {{min}}).",
+    "feedbackClosedCorrect": "Correct answer",
+    "feedbackClosedIncorrect": "Incorrect answer",
+    "feedbackClosedPartial": "You earned {{earned}} of {{total}} points.",
     "feedbackFieldLabel": "Feedback",
     "feedbackNoAnswer": "No answer",
     "feedbackNone": "No feedback",
@@ -9894,8 +9898,6 @@
     "shapesButtonTitle": "Shapes by diagram type (classes, flowchart, E-R…)",
     "shapesPanelTitle": "Shapes by diagram type",
     "shapesPanelHint": "Tap one to insert it in the center.",
-    "exitFullscreen": "Exit fullscreen",
-    "enterFullscreen": "Fullscreen",
     "crashTitle": "We could not open the whiteboard",
     "crashHint": "The saved content could not be loaded in the editor. You can retry; if it keeps failing, let your administrator know.",
     "laser": "Laser pointer",

@@ -34,16 +34,10 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { ComponentType, MouseEvent as ReactMouseEvent } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  requestFullscreen as requestFullscreenCompat,
-  exitFullscreen as exitFullscreenCompat,
-  currentFullscreenElement,
-  onFullscreenChange,
-} from "@/shared/lib/fullscreen";
+import { useFullscreen } from "@/hooks/use-fullscreen";
+import { FullscreenButton } from "@/components/ui/fullscreen-button";
 import {
   Eye,
-  Maximize2,
-  Minimize2,
   Users,
   Shapes,
   X,
@@ -399,8 +393,17 @@ function WhiteboardEditorInner({
   // sus propios shortcuts dentro del canvas, así que no compite con
   // nuestro Esc (el SO/browser sale del fullscreen y disparamos el
   // fullscreenchange handler para sincronizar el state).
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  //
+  // El hook es el MISMO que usan las otras cinco hojas de la pizarra: acá vivía
+  // la única copia completa (con el chequeo de soporte del navegador) y por eso
+  // fue la que se extrajo. `fullscreenTargetRef` es el caso especial que el hook
+  // acepta: proyectar un ANCESTRO en vez de este contenedor.
+  const {
+    ref: containerRef,
+    isFullscreen,
+    supported: fullscreenSupported,
+    toggle: toggleFullscreen,
+  } = useFullscreen<HTMLDivElement>(fullscreenTargetRef);
   // Panel propio de figuras (categorizado). Excalidraw tiene su "Library"
   // pero en grilla plana sin secciones; este panel agrupa por tema
   // (Flujo, E-R, POO/UML, etc.) y se inserta al click.
@@ -418,38 +421,6 @@ function WhiteboardEditorInner({
       else next.add(key);
       return next;
     });
-  }, []);
-  // ¿El navegador soporta la Fullscreen API sobre elementos? iOS Safari en
-  // iPhone NO la expone (solo en <video>), y algunos WebViews tampoco — ahí
-  // `el.requestFullscreen` es `undefined` y llamarla CRASHEA (TypeError
-  // reportado en /app/student/whiteboards). Detectamos soporte (estándar o
-  // webkit) y, si no lo hay, ocultamos el botón y el toggle es no-op.
-  const fullscreenSupported =
-    typeof document !== "undefined" &&
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (((document as any).fullscreenEnabled ?? false) ||
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((document as any).webkitFullscreenEnabled ?? false));
-
-  const toggleFullscreen = useCallback(() => {
-    // El padre puede pedir que el fullscreen abarque un ANCESTRO (ver
-    // `fullscreenTargetRef`): proyectar el canvas solo, cuando es transparente
-    // y la imagen de fondo es un hermano, muestra los trazos sobre negro.
-    const el = fullscreenTargetRef?.current ?? containerRef.current;
-    if (!el) return;
-    // Los prefijos los resuelve el helper compartido. Esta pantalla ya los
-    // manejaba a mano y era la ÚNICA: mantenerla acá dejaba una segunda copia
-    // de la que copiar, y las otras cinco pantallas nunca la copiaron.
-    if (currentFullscreenElement() != null) void exitFullscreenCompat();
-    else void requestFullscreenCompat(el);
-  }, [fullscreenTargetRef]);
-  // Sincronizar state con el evento del navegador — el usuario puede
-  // salir del fullscreen con Esc (no podemos interceptar Esc directo)
-  // o desde el menú del browser. Sin este listener, el botón
-  // "Minimize" mostraría el ícono incorrecto post-Esc. Escuchamos también
-  // el evento webkit-prefijado (Safari).
-  useEffect(() => {
-    return onFullscreenChange(() => setIsFullscreen(currentFullscreenElement() != null));
   }, []);
   // Si el dynamic import de Excalidraw falla (chunk corrupto, red caída
   // a media descarga del chunk grande, etc.), mostramos un ErrorState
@@ -1180,16 +1151,13 @@ function WhiteboardEditorInner({
         {/* El icono cambia según el estado actual (al salir con Esc, el
             listener de fullscreenchange actualiza isFullscreen). */}
         {fullscreenSupported && (
-          <button
-            type="button"
+          <FullscreenButton
+            isFullscreen={isFullscreen}
+            onToggle={toggleFullscreen}
+            // Esta hoja NO usa la variante flotante: su botón vive en la barra
+            // de controles junto al de Figuras, no suelto sobre el canvas.
             onMouseDown={noRobarFoco}
-            onClick={toggleFullscreen}
-            aria-label={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
-            title={isFullscreen ? t("hc_modulesWhiteboardWhiteboardEditor.exitFullscreen", { defaultValue: "Salir de pantalla completa" }) : t("hc_modulesWhiteboardWhiteboardEditor.enterFullscreen", { defaultValue: "Pantalla completa" })}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-border bg-background/90 backdrop-blur-sm text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
-          >
-            {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-          </button>
+          />
         )}
       </div>
     </div>

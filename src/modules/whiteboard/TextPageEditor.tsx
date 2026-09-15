@@ -31,13 +31,9 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  requestFullscreen as requestFullscreenCompat,
-  exitFullscreen as exitFullscreenCompat,
-  currentFullscreenElement,
-  onFullscreenChange,
-} from "@/shared/lib/fullscreen";
+import { useFullscreen } from "@/hooks/use-fullscreen";
 import { Button } from "@/components/ui/button";
+import { FullscreenButton } from "@/components/ui/fullscreen-button";
 import { Textarea } from "@/components/ui/textarea";
 import { MarkdownViewer } from "@/shared/components/MarkdownViewer";
 import { cn } from "@/shared/lib/utils";
@@ -54,8 +50,6 @@ import {
   Quote,
   Eye,
   Pencil,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 
 interface Props {
@@ -139,9 +133,11 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
   const { t } = useTranslation();
   const [value, setValue] = useState(text);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
   const [view, setView] = useState<ViewMode>("split");
-  const [isFullscreen, setIsFullscreen] = useState(false);
+  // Pantalla completa: estado + toggle + soporte del navegador, compartido con
+  // las otras cinco hojas (ver `use-fullscreen.ts`).
+  const { ref: containerRef, isFullscreen, supported: fullscreenSupported, toggle: toggleFullscreen } =
+    useFullscreen<HTMLDivElement>();
 
   // Auto-save con debounce. Mismo modelo que WhiteboardEditor: ref a
   // la última pieza de texto pendiente + Promise.resolve+catch en flush
@@ -262,39 +258,23 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
     );
   };
 
-  // Por el helper compartido: `el.requestFullscreen()` a secas LANZA un
-  // TypeError en Safari (la propiedad no existe, solo la prefijada), así que el
-  // botón de pantalla completa reventaba en vez de no hacer nada.
-  const toggleFullscreen = useCallback(() => {
-    const el = containerRef.current;
-    if (!el) return;
-    if (currentFullscreenElement() == null) void requestFullscreenCompat(el);
-    else void exitFullscreenCompat();
-  }, []);
-  useEffect(() => {
-    // Los dos eventos: sin el prefijado, en Safari el ícono del botón quedaba
-    // al revés después de salir con Esc.
-    return onFullscreenChange(() => setIsFullscreen(currentFullscreenElement() != null));
-  }, []);
-
   // Read-only: solo MarkdownViewer ocupando el área completa.
   if (readOnly) {
     return (
-      <div ref={containerRef} className={cn("relative bg-background overflow-auto", className)}>
-        <div className="p-4 sm:p-6 max-w-4xl mx-auto">
-          <MarkdownViewer>
-            {value || t("textPageEditor.emptyContent", { defaultValue: "*(hoja sin contenido)*" })}
-          </MarkdownViewer>
+      // El scroll vive en el hijo y no en la raíz: el botón flotante es hermano
+      // del área que scrollea, así queda fijo abajo a la derecha en vez de
+      // irse con el contenido.
+      <div ref={containerRef} className={cn("relative bg-background", className)}>
+        <div className="h-full overflow-auto">
+          <div className="p-4 sm:p-6 max-w-4xl mx-auto">
+            <MarkdownViewer>
+              {value || t("textPageEditor.emptyContent", { defaultValue: "*(hoja sin contenido)*" })}
+            </MarkdownViewer>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={toggleFullscreen}
-          aria-label={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
-          title={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
-          className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
-        >
-          {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-        </button>
+        {fullscreenSupported && (
+          <FullscreenButton floating isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+        )}
       </div>
     );
   }
@@ -420,15 +400,9 @@ export function TextPageEditor({ text, onPersist, readOnly, className }: Props) 
         )}
       </div>
 
-      <button
-        type="button"
-        onClick={toggleFullscreen}
-        aria-label={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
-        title={isFullscreen ? t("textPageEditor.btnExitFullscreen") : t("textPageEditor.btnFullscreen")}
-        className="absolute bottom-2 right-2 z-10 rounded-md border border-border bg-background/90 backdrop-blur-sm p-1.5 text-muted-foreground hover:text-foreground hover:bg-background transition-colors shadow-sm"
-      >
-        {isFullscreen ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
-      </button>
+      {fullscreenSupported && (
+        <FullscreenButton floating isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
+      )}
     </div>
   );
 }

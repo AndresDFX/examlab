@@ -16,6 +16,8 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useFullscreen } from "@/hooks/use-fullscreen";
+import { FullscreenButton } from "@/components/ui/fullscreen-button";
 import {
   Select,
   SelectContent,
@@ -73,6 +75,10 @@ export function CodePageEditor({
 }: Props) {
   const { t } = useTranslation();
   const confirm = useConfirm();
+  // Pantalla completa: mismo hook, mismo botón y misma ubicación que las otras
+  // hojas de la pizarra (ver `use-fullscreen.ts`).
+  const { ref: containerRef, isFullscreen, supported: fullscreenSupported, toggle: toggleFullscreen } =
+    useFullscreen<HTMLDivElement>();
   const [lang, setLang] = useState<string>(language || "java");
   const [code, setCode] = useState<string>(source ?? getStarterCode(language || "java"));
   const [running, setRunning] = useState(false);
@@ -291,69 +297,86 @@ export function CodePageEditor({
       : null;
 
   return (
-    <div className={cn("flex flex-col h-full min-h-0 overflow-y-auto p-3 gap-2", className)}>
-      {/* Controles: lenguaje (solo docente) + selector de compilador (para
-          docente Y alumno, porque ambos pueden ejecutar) — igual que el examen. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        {!readOnly && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">
-              {t("hc_modulesWhiteboardCodePageEditor.language", { defaultValue: "Lenguaje" })}
-            </span>
-            <Select value={lang} onValueChange={(v) => void onLangChange(v)}>
-              <SelectTrigger className="h-8 w-[140px] text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
-                    una línea en language-support.ts, no 6 pantallas. */}
-                {UI_EXECUTABLE_LANGUAGES.map((l) => (
-                  <SelectItem key={l} value={l}>
-                    {LANGUAGE_LABEL[l]}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+    // El scroll vive en el hijo, no en la raíz: el botón flotante es hermano del
+    // área que scrollea y por eso queda fijo abajo a la derecha. Si el scroll
+    // estuviera en la raíz, el botón se iría con el contenido.
+    <div
+      ref={containerRef}
+      className={cn(
+        "relative flex flex-col h-full min-h-0",
+        // Sin fondo propio, en pantalla completa la hoja se ve transparente
+        // sobre el negro que pinta el navegador.
+        isFullscreen && "bg-background",
+        className,
+      )}
+    >
+      <div className="flex flex-1 min-h-0 flex-col gap-2 overflow-y-auto p-3">
+        {/* Controles: lenguaje (solo docente) + selector de compilador (para
+            docente Y alumno, porque ambos pueden ejecutar) — igual que el examen. */}
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          {!readOnly && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground">
+                {t("hc_modulesWhiteboardCodePageEditor.language", { defaultValue: "Lenguaje" })}
+              </span>
+              <Select value={lang} onValueChange={(v) => void onLangChange(v)}>
+                <SelectTrigger className="h-8 w-[140px] text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {/* Lista desde el MAPEO OFICIAL: habilitar un lenguaje es
+                      una línea en language-support.ts, no 6 pantallas. */}
+                  {UI_EXECUTABLE_LANGUAGES.map((l) => (
+                    <SelectItem key={l} value={l}>
+                      {LANGUAGE_LABEL[l]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <CodeRunnerPicker
+            language={(lang as CodeLanguage) ?? "java"}
+            defaultProvider={defaultProvider}
+            value={runnerOverride}
+            onChange={setRunnerOverride}
+            disabled={running}
+          />
+        </div>
+        <CodeEditor
+          value={code}
+          onChange={onCodeChange}
+          language={(lang as CodeLanguage) ?? "java"}
+          showLanguageSelector={false}
+          showRunButton
+          onRun={() => void run()}
+          onCancel={cancelRun}
+          isRunning={running}
+          readOnly={readOnly}
+          hideHints
+          height="55vh"
+          output={
+            output
+              ? [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ""].filter(Boolean).join("")
+              : undefined
+          }
+        />
+        {output && (
+          <div className="text-3xs text-muted-foreground">
+            exit {output.exitCode}
+            {!readOnly && executedAt && (
+              <span className="ml-2">
+                • {t("hc_modulesWhiteboardCodePageEditor.lastRun", {
+                  defaultValue: "Última ejecución {{time}}",
+                  time: formatTime(executedAt),
+                })}
+              </span>
+            )}
           </div>
         )}
-        <CodeRunnerPicker
-          language={(lang as CodeLanguage) ?? "java"}
-          defaultProvider={defaultProvider}
-          value={runnerOverride}
-          onChange={setRunnerOverride}
-          disabled={running}
-        />
       </div>
-      <CodeEditor
-        value={code}
-        onChange={onCodeChange}
-        language={(lang as CodeLanguage) ?? "java"}
-        showLanguageSelector={false}
-        showRunButton
-        onRun={() => void run()}
-        onCancel={cancelRun}
-        isRunning={running}
-        readOnly={readOnly}
-        hideHints
-        height="55vh"
-        output={
-          output
-            ? [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ""].filter(Boolean).join("")
-            : undefined
-        }
-      />
-      {output && (
-        <div className="text-3xs text-muted-foreground">
-          exit {output.exitCode}
-          {!readOnly && executedAt && (
-            <span className="ml-2">
-              • {t("hc_modulesWhiteboardCodePageEditor.lastRun", {
-                defaultValue: "Última ejecución {{time}}",
-                time: formatTime(executedAt),
-              })}
-            </span>
-          )}
-        </div>
+      {fullscreenSupported && (
+        <FullscreenButton floating isFullscreen={isFullscreen} onToggle={toggleFullscreen} />
       )}
     </div>
   );

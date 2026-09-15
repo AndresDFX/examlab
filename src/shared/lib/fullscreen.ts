@@ -109,6 +109,25 @@ export function fullscreenApiAvailable(): boolean {
     typeof el?.webkitRequestFullscreen === "function";
 }
 
+/**
+ * ¿Se puede pedir pantalla completa ACÁ, ahora?
+ *
+ * Más estricto que `fullscreenApiAvailable()`: `document.fullscreenEnabled` es
+ * `false` cuando el documento corre dentro de un iframe SIN `allow="fullscreen"`,
+ * aunque el método exista sobre los elementos. Esa es la diferencia que importa
+ * para decidir si **pintar un botón**: uno que no hace nada al tocarlo es peor
+ * que no tenerlo.
+ *
+ * El examen usa el otro: ahí la pregunta no es "¿pinto el botón?" sino "¿esta
+ * plataforma puede cumplir la exigencia?" — y si no puede, deja rendir igual
+ * (ver `proctoringGateFrom`).
+ */
+export function fullscreenAllowed(): boolean {
+  if (typeof document === "undefined") return false;
+  const d = document as any;
+  return (d.fullscreenEnabled ?? false) || (d.webkitFullscreenEnabled ?? false);
+}
+
 /** El modo actual, leyendo el entorno real. */
 export function currentProctoringMode(): ProctoringMode {
   return proctoringModeFrom({

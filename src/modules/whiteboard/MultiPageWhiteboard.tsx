@@ -6,7 +6,8 @@
  *   - 'drawing': escena Excalidraw → renderiza `<WhiteboardEditor>`.
  *   - 'text': markdown editor → renderiza `<TextPageEditor>`.
  *   - 'code': editor + compilador → renderiza `<CodePageEditor>` (mig 20261410000000).
- *   - 'console': consola Linux real (v86) → renderiza `<V86Console>` (mig 20261410000000).
+ *   - 'console': consola Linux real (v86) → renderiza `<ConsolePageEditor>`, que
+ *     envuelve a `<V86Console>` (mig 20261410000000).
  *   - 'sql': PostgreSQL real en el navegador → renderiza `<SqlPageEditor>` (mig 20261610000000),
  *      reusa `SqlRunner`/`sql-answer.ts` (mismo motor que la pregunta `bd_sql`).
  *   - 'diagram': diagrama escrito como texto → renderiza `<DiagramPageEditor>`
@@ -76,7 +77,7 @@ import {
 } from "@/modules/whiteboard/WhiteboardEditor";
 import { TextPageEditor } from "@/modules/whiteboard/TextPageEditor";
 import { CodePageEditor } from "@/modules/whiteboard/CodePageEditor";
-import { V86Console } from "@/modules/serverconsole/V86Console";
+import { ConsolePageEditor } from "@/modules/whiteboard/ConsolePageEditor";
 import { SqlPageEditor } from "@/modules/whiteboard/SqlPageEditor";
 import { DiagramPageEditor } from "@/modules/whiteboard/DiagramPageEditor";
 import type { PageType } from "@/modules/whiteboard/page-types";
@@ -918,17 +919,14 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
           al cambiar de hoja: tanto Excalidraw como TextPageEditor leen
           su contenido inicial via prop en mount, por eso el key change
           es la forma estándar de reset al cambiar de hoja. */}
-      {/* La hoja de CONSOLA es el único tipo cuyo contenido tiene alto
-          INTRÍNSECO (xterm se renderiza con filas/columnas fijas, más el
-          encabezado con la ayuda de comandos) y por eso puede ser más alto que
-          el track: sin scroll propio las últimas filas quedaban recortadas y
-          eran inalcanzables (el bloque de la consola clipea con
-          overflow-hidden, y ni la página ni el track scrolleaban). Las demás
-          hojas (drawing/text/code) SÍ se adaptan al alto disponible → siguen
-          sin scroll para no romper el canvas de Excalidraw ni Monaco. */}
-      <div
-        className={cn("flex-1 min-h-0", activePage.page_type === "console" && "overflow-auto")}
-      >
+      {/* El track NO scrollea: cada hoja resuelve su propio scroll adentro, para
+          que su botón de pantalla completa (flotante, abajo a la derecha) quede
+          fijo en vez de irse con el contenido. La de CONSOLA es el único tipo
+          cuyo contenido tiene alto INTRÍNSECO (xterm se renderiza con
+          filas/columnas fijas) y por eso puede ser más alto que el track: sin
+          scroll propio las últimas filas quedan recortadas e inalcanzables. Ese
+          scroll vive ahora en `ConsolePageEditor`, no en un condicional acá. */}
+      <div className="flex-1 min-h-0">
         {activePage.page_type === "text" ? (
           <TextPageEditor
             key={activePage.id}
@@ -972,24 +970,12 @@ export function MultiPageWhiteboard({ whiteboardId, readOnly, courseId, classNam
             className="w-full h-full"
           />
         ) : activePage.page_type === "console" ? (
-          <V86Console
+          <ConsolePageEditor
             key={activePage.id}
-            value={activePage.console_transcript}
-            onChange={(v) => void persistCodePage({ console_transcript: v })}
+            transcript={activePage.console_transcript}
+            onPersist={persistCodePage}
             readOnly={readOnly}
-            className={cn(
-              // `min-h-full` en vez de `h-full`: llena la hoja cuando sobra
-              // alto, pero deja CRECER al bloque cuando el terminal es más alto
-              // que el track — así el scroll del contenedor alcanza la última
-              // fila en vez de que quede cortada a la mitad.
-              "min-h-full",
-              // Piso de ancho ≈ las columnas fijas de xterm: sin él el terminal
-              // desborda su propio bloque (overflow-hidden) y la mitad derecha
-              // queda inalcanzable, porque el contenedor no tiene nada que
-              // scrollear. En modo revisión no hay terminal (solo el transcript,
-              // que hace wrap) → no forzamos ancho para no meter scroll inútil.
-              !readOnly && "min-w-[52rem]",
-            )}
+            className="w-full h-full"
           />
         ) : (
           <WhiteboardEditor
