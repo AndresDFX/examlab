@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useActiveRole } from "@/hooks/use-active-role";
 import { useTableSort } from "@/hooks/use-table-sort";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -13,6 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
 import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
+import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -65,7 +67,7 @@ type Student = {
 };
 
 // `period`/`subject`/`status` alimentan los filtros de ListFilters. Se piden en
-// la MISMA consulta que ya traía los cursos del docente: sin ellos el docente
+// la MISMA consulta que ya trae los cursos en alcance: sin ellos el docente
 // solo podía filtrar curso por curso, y con 9 cursos de varios periodos eso
 // obliga a saber de memoria cuál es de este semestre.
 type Course = {
@@ -74,6 +76,22 @@ type Course = {
   period: string | null;
   subject: string | null;
   status: string | null;
+};
+
+/**
+ * Forma cruda que devuelve `fetchScopedCourses` (el embed de asignatura llega
+ * anidado). Se aplana a `Course` después — el resto de la pantalla espera
+ * `subject` como campo directo (mismo aplanado que ya hacía el mapeo desde
+ * `course_teachers`).
+ */
+type CourseRow = {
+  id: string;
+  name: string;
+  period: string | null;
+  status: string | null;
+  // `subject_id` es una FK normal (a diferencia de los `*.user_id →
+  // auth.users`), así que el embed sí resuelve.
+  academic_subjects?: { name: string | null } | null;
 };
 
 function TeacherStudents() {
@@ -86,7 +104,8 @@ function TeacherStudents() {
 
 function TeacherStudentsInner() {
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const activeRole = useActiveRole();
   const confirm = useConfirm();
   const [students, setStudents] = useState<Student[]>([]);
   const [courses, setCourses] = useState<Course[]>([]);
@@ -154,32 +173,31 @@ function TeacherStudentsInner() {
     setLoading(true);
     setLoadError(null);
 
-    // 1. Cursos del docente
-    const { data: teacherCourses, error: tcErr } = await supabase
-      .from("course_teachers")
-      .select("course_id, courses(id, name, deleted_at, period, status, academic_subjects:subject_id(name))")
-      .eq("user_id", user.id);
+    // 1. Cursos en alcance. Docente activo → SOLO los que dicta (los que
+    // aparecen en `course_teachers`); Admin/SuperAdmin → todos los del tenant
+    // (la RLS ya acota). Mismo helper compartido que exams/workshops/
+    // projects/gradebook/attendance — ver course-scope.ts: `[]` (docente sin
+    // cursos) es un caso distinto de `null` (sin acotar), así que NO se
+    // reemplaza por un `?? []`.
+    const { data: courseRows, error: csErr } = await fetchScopedCourses<CourseRow>(
+      activeRole,
+      roles,
+      user.id,
+      "id, name, period, status, academic_subjects:subject_id(name)",
+    );
     if (!isActive()) return;
-    if (tcErr) {
-      setLoadError(friendlyError(tcErr, "No pudimos cargar tus cursos."));
+    if (csErr) {
+      setLoadError(friendlyError(csErr, "No pudimos cargar tus cursos."));
       setLoading(false);
       return;
     }
-    // PostgREST no filtra embeds anidados: saltar cursos en papelera en JS
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const myCourses: Course[] = (teacherCourses ?? [])
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .filter((r: any) => !r.courses?.deleted_at)
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      .map((r: any) => ({
-        id: r.courses?.id ?? r.course_id,
-        name: r.courses?.name ?? r.course_id,
-        period: r.courses?.period ?? null,
-        // `subject_id` → academic_subjects es una FK normal, así que el embed
-        // sí funciona acá (a diferencia de los `*.user_id → auth.users`).
-        subject: r.courses?.academic_subjects?.name ?? null,
-        status: r.courses?.status ?? null,
-      }));
+    const myCourses: Course[] = courseRows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      period: r.period ?? null,
+      subject: r.academic_subjects?.name ?? null,
+      status: r.status ?? null,
+    }));
     setCourses(myCourses);
     const courseIds = myCourses.map((c) => c.id);
     if (courseIds.length === 0) {
@@ -266,7 +284,7 @@ function TeacherStudentsInner() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, retryNonce]);
+  }, [user, retryNonce, activeRole, roles]);
 
   const filtered = useMemo(() => {
     let result = students;
@@ -327,6 +345,13 @@ function TeacherStudentsInner() {
     storageKey: "examlab_pag:teacher_students",
     resetKey: `${search}|${courseFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${soloVoceros}|${sort.resetKey}`,
   });
+
+  // Nombre del curso filtrado, si hay uno puntual elegido. Es la referencia
+  // que le da sentido al badge "Vocero" de la fila (ver más abajo): sin un
+  // curso de referencia, "Vocero" a secas es ambiguo cuando la fila puede
+  // pertenecer a varios cursos del docente a la vez.
+  const selectedCourseName =
+    courseFilter !== "all" ? (courses.find((c) => c.id === courseFilter)?.name ?? null) : null;
 
   const handleImpersonate = async (s: Student) => {
     if (impersonating) return;
@@ -524,14 +549,23 @@ function TeacherStudentsInner() {
                             <span className="truncate" title={s.full_name}>
                               {s.full_name}
                             </span>
-                            {/* El `title` dice DE QUÉ curso: con varios cursos en
-                                la misma tabla, un badge suelto no informa. */}
-                            {s.voceroEn.length > 0 && (
+                            {/* Solo aparece cuando hay un curso puntual elegido en
+                                el filtro Y esta fila es vocero DE ESE curso —
+                                mostrarlo sin ese contexto (o por ser vocero de OTRO
+                                curso del docente) es lo que generaba la confusión
+                                reportada: un badge "Vocero" en la fila de un curso
+                                distinto al que se está mirando, sin ninguna pista
+                                visible de que era de otro lado. Con "Todos los
+                                cursos" elegido no hay curso de referencia posible,
+                                así que el badge se oculta entero (el toggle "Solo
+                                voceros" sigue funcionando igual: es un filtro
+                                explícito de fila, no una etiqueta ambigua). */}
+                            {selectedCourseName != null && s.voceroEn.includes(selectedCourseName) && (
                               <Badge
                                 variant="secondary"
                                 className="text-3xs shrink-0 gap-1"
                                 title={t("vocero.badgeInCourses", {
-                                  courses: s.voceroEn.join(", "),
+                                  courses: selectedCourseName,
                                 })}
                               >
                                 <Mic className="h-2.5 w-2.5" />

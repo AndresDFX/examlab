@@ -423,12 +423,15 @@ const NAV: NavItem[] = [
   // patrón que campana de notificaciones: badge con conteo de no leídos
   // + popover con "Marcar todo leído" + link a /app/messages.
   // (Item viejo del nav removido.)
-  // Docente: vista de sus estudiantes con opción "Ver como" (impersonación acotada).
+  // Vista de estudiantes con opción "Ver como" (impersonación acotada).
+  // Admin homologado igual que exams/workshops/gradebook/attendance: supervisa
+  // los estudiantes de su institución (la página ya usa course-scope.ts para
+  // pasar de "solo mis cursos" a "todos los del tenant" según el rol activo).
   {
     to: "/app/teacher/students",
     labelKey: "nav.teacherStudents",
     icon: Users,
-    roles: ["Docente"],
+    roles: ["Docente", "Admin", "SuperAdmin"],
   },
   // Admin-only: gestión de usuarios al final (transversal a la app, no académico).
   { to: "/app/admin/users", labelKey: "nav.users", icon: Users, roles: ["Admin"] },

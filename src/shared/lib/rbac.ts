@@ -65,6 +65,13 @@ export const ROUTE_RULES: RouteRule[] = [
   { prefix: "/app/teacher/gradebook", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/grading", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/attendance", roles: ["Docente", "Admin", "SuperAdmin"] },
+  // Estudiantes del docente: relajado a Admin/SuperAdmin igual que sus
+  // hermanas de arriba. La pantalla usa `course-scope.ts` para pasar de "SOLO
+  // mis cursos" (Docente) a "todos los del tenant" (Admin/SA); sin esta regla
+  // el ítem quedaba en el sidebar de Admin (NAV lo declara con roles Admin) pero
+  // el click mandaba a /app/unauthorized — mismo bug HIGH ya documentado para
+  // el resto de /app/teacher/*.
+  { prefix: "/app/teacher/students", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/calendar", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher/kahoot", roles: ["Docente", "SuperAdmin"] },
   { prefix: "/app/teacher", roles: ["Docente"] },

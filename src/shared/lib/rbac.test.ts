@@ -27,6 +27,7 @@ describe("findRouteRule", () => {
       "/app/teacher/gradebook",
       "/app/teacher/grading",
       "/app/teacher/attendance",
+      "/app/teacher/students",
       "/app/teacher/calendar",
       "/app/teacher/contents",
       "/app/teacher/whiteboards",
@@ -116,6 +117,19 @@ describe("checkAccess", () => {
     // El SA se agrega como segundo rol permitido; el Docente no pierde acceso.
     expect(checkAccess("/app/teacher/exams", "Docente", ["Docente"])).toBeNull();
     expect(checkAccess("/app/teacher/gradebook", "Docente", ["Docente"])).toBeNull();
+  });
+
+  it("Admin y SuperAdmin acceden a /app/teacher/students (antes solo Docente)", () => {
+    // Bug reportado: el Admin no podía entrar a "Estudiantes" del docente
+    // aunque necesitara ver/gestionar matriculados de su institución. La
+    // regla específica en rbac.ts gana por longest-prefix sobre la genérica
+    // `/app/teacher` (Docente-only).
+    expect(checkAccess("/app/teacher/students", "Admin", ["Admin"])).toBeNull();
+    expect(checkAccess("/app/teacher/students", "SuperAdmin", ["SuperAdmin"])).toBeNull();
+    expect(checkAccess("/app/teacher/students", "Docente", ["Docente"])).toBeNull();
+    expect(checkAccess("/app/teacher/students", "Estudiante", ["Estudiante"])).toBe(
+      "/app/unauthorized",
+    );
   });
 });
 
