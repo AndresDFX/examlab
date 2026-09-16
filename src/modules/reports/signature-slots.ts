@@ -471,3 +471,113 @@ export function uidsDeRanuras(html: string | null | undefined): string[] {
   }
   return salida;
 }
+
+/**
+ * Quiénes del curso NO están en el documento: los matriculados que el snapshot
+ * no ancla. Es lo que hay que agregar para que un informe ya generado incluya a
+ * quien se matriculó después.
+ *
+ * IDEMPOTENTE por construcción: una vez agregado, el estudiante pasa a estar
+ * anclado, así que la siguiente llamada ya no lo devuelve. Devuelve en el orden
+ * de `matriculados`, sin repetir.
+ */
+export function faltantesParaAgregar(
+  matriculados: readonly string[],
+  anclados: readonly string[],
+): string[] {
+  const yaEstan = new Set(anclados);
+  const vistos = new Set<string>();
+  const salida: string[] = [];
+  for (const id of matriculados) {
+    const uid = (id ?? "").trim();
+    if (!uid || yaEstan.has(uid) || vistos.has(uid)) continue;
+    vistos.add(uid);
+    salida.push(uid);
+  }
+  return salida;
+}
+
+/**
+ * Encuentra dónde empieza el `</tr>` que cierra el `<tr>` que abre en
+ * `desdeApertura`, contando la anidación.
+ *
+ * Igual que `finDelSpan`: una fila puede tener una TABLA anidada dentro de una
+ * celda, con sus propios `<tr>`. Un `[\s\S]*?</tr>` no codicioso cerraría en el
+ * primer `</tr>` —el de la tabla interna— y cortaría la fila por la mitad.
+ * Devuelve el índice donde empieza el `</tr>` de cierre, o -1 si no cierra.
+ */
+function finDeTr(html: string, desdeApertura: number): number {
+  const re = /<tr\b|<\/tr>/gi;
+  re.lastIndex = desdeApertura;
+  let nivel = 0;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(html)) !== null) {
+    if (m[0].toLowerCase() === "</tr>") {
+      nivel -= 1;
+      if (nivel === 0) return m.index;
+    } else {
+      nivel += 1;
+    }
+  }
+  return -1;
+}
+
+/**
+ * Las filas `<tr>…</tr>` COMPLETAS que contienen una ranura de firma, en orden.
+ *
+ * Se usa para EXTRAER, de un documento rendido con la misma plantilla, las
+ * filas del listado de estudiantes (cada una con su ranura anclada) y poder
+ * agregarlas a un informe ya generado sin adivinar la forma de sus columnas.
+ *
+ * Recorre solo las filas de PRIMER nivel del punto de escaneo: si una fila trae
+ * una tabla anidada, esa fila se devuelve entera (con su tabla adentro) y sus
+ * `<tr>` internos NO se devuelven por separado — se salta el rango ya
+ * consumido. Una fila sin ranura se omite.
+ */
+export function filasConRanura(html: string | null | undefined): string[] {
+  if (!html) return [];
+  const salida: string[] = [];
+  const reTr = /<tr\b[^>]*>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = reTr.exec(html)) !== null) {
+    const fin = finDeTr(html, m.index);
+    if (fin < 0) continue; // fila sin cerrar: se ignora en vez de tragar el resto
+    const cierre = fin + "</tr>".length;
+    const fila = html.slice(m.index, cierre);
+    if (fila.includes(ATTR_UID)) salida.push(fila);
+    // Saltar el rango ya consumido: sin esto, los <tr> de una tabla anidada
+    // dentro de esta fila se re-matchearían como filas sueltas.
+    reTr.lastIndex = cierre;
+  }
+  return salida;
+}
+
+/**
+ * Envuelve filas de tabla en un bloque de tabla AUTÓNOMO, con un título arriba.
+ *
+ * Es lo que se ANEXA (append puro) al final del HTML de un informe para agregar
+ * matriculados faltantes: un `<table>` completo y válido es HTML correcto donde
+ * sea que quede pegado —a diferencia de un `<tr>` suelto, que fuera de una tabla
+ * el navegador descarta—, y en el Acuerdo (donde el listado es la última tabla)
+ * queda justo debajo del roster.
+ *
+ * El `titulo` es TEXTO plano y se escapa: no puede inyectar marcado. Sin filas
+ * devuelve `""` para que el llamador sepa que no hay nada que agregar.
+ */
+export function envolverFilasComoTabla(
+  filasHtml: string,
+  titulo: string,
+): string {
+  if (!filasHtml || !filasHtml.trim()) return "";
+  const encabezado = titulo.trim()
+    ? '<p style="margin-top:12px;text-align:center;">' +
+      `<strong><span style="font-size:9pt">${esc(titulo.trim())}</span></strong></p>`
+    : "";
+  return (
+    encabezado +
+    '<table style="border-collapse:collapse;width:100%;table-layout:fixed;">' +
+    "<tbody>" +
+    filasHtml +
+    "</tbody></table>"
+  );
+}

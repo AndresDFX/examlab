@@ -401,6 +401,7 @@ export function SendToSignDialog({
           requested?: number;
           skipped?: number;
           not_eligible?: number;
+          not_in_document?: number;
           error?: string;
         } | null;
         if (error || !r?.ok) {
@@ -413,6 +414,15 @@ export function SendToSignDialog({
         // "se pidió a 0" sin ninguna pista de por qué.
         if ((r.not_eligible ?? 0) > 0) {
           toast.warning(t("reportSign.notEligible", { count: r.not_eligible }));
+        }
+        // `not_in_document` es gente del curso que el documento ya generado NO
+        // incluye: pedirle la firma dejaría una solicitud sin dónde dibujarse.
+        // Se avisa QUÉ hacer — la acción "Agregar matriculados faltantes" del
+        // historial actualiza el documento.
+        if ((r.not_in_document ?? 0) > 0) {
+          toast.warning(t("reportSign.notInDocument", { count: r.not_in_document }), {
+            duration: 10000,
+          });
         }
       } else {
         toast.success(t("reportSign.withdrawnOk", { count: retirados.length }));

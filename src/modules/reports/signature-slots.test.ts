@@ -3,6 +3,9 @@ import {
   ATTR_ACCION,
   CLASE_RANURA,
   codigoVerificacion,
+  envolverFilasComoTabla,
+  faltantesParaAgregar,
+  filasConRanura,
   firmaHtml,
   ranuraHtml,
   ranuraPlantillaHtml,
@@ -457,5 +460,120 @@ describe("uidsDeRanuras", () => {
 
   it("ignora un data-firma-uid que no sea de una ranura", () => {
     expect(uidsDeRanuras(`<span class="otra-cosa" data-firma-uid="${A}"></span>`)).toEqual([]);
+  });
+});
+
+describe("faltantesParaAgregar", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const C = "33333333-3333-4333-8333-333333333333";
+
+  it("devuelve los matriculados que el documento NO ancla", () => {
+    expect(faltantesParaAgregar([A, B, C], [A])).toEqual([B, C]);
+  });
+
+  it("si están todos anclados, no falta nadie", () => {
+    expect(faltantesParaAgregar([A, B], [A, B])).toEqual([]);
+  });
+
+  it("preserva el orden de matriculados y no repite", () => {
+    expect(faltantesParaAgregar([B, A, B], [])).toEqual([B, A]);
+  });
+
+  it("es idempotente: tras 'agregar' B y C, ya no faltan", () => {
+    // Simula la segunda llamada: ahora A, B y C están anclados.
+    const primera = faltantesParaAgregar([A, B, C], [A]);
+    expect(primera).toEqual([B, C]);
+    const anclados = [A, ...primera];
+    expect(faltantesParaAgregar([A, B, C], anclados)).toEqual([]);
+  });
+
+  it("ignora ids vacíos o solo-espacios", () => {
+    expect(faltantesParaAgregar([A, "", "  ", B], [])).toEqual([A, B]);
+  });
+});
+
+describe("filasConRanura", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const B = "22222222-2222-4222-8222-222222222222";
+  const fila = (uid: string, nombre: string) =>
+    `<tr><td>${nombre}</td><td><span class="${CLASE_RANURA}" data-firma-uid="${uid}"` +
+    ' style="display:block;min-height:30px;">&nbsp;</span></td></tr>';
+
+  it("extrae la única fila con ranura de un documento", () => {
+    const html = `<table><tbody>${fila(A, "Ana")}</tbody></table>`;
+    expect(filasConRanura(html)).toEqual([fila(A, "Ana")]);
+  });
+
+  it("devuelve todas las filas con ranura, en orden", () => {
+    const html = `<table><tbody>${fila(A, "Ana")}${fila(B, "Beto")}</tbody></table>`;
+    expect(filasConRanura(html)).toEqual([fila(A, "Ana"), fila(B, "Beto")]);
+  });
+
+  it("omite las filas sin ranura (encabezado, filas de datos sin firma)", () => {
+    const encabezado = "<tr><td>N°</td><td>Estudiante</td></tr>";
+    const html = `<table><tbody>${encabezado}${fila(A, "Ana")}</tbody></table>`;
+    expect(filasConRanura(html)).toEqual([fila(A, "Ana")]);
+  });
+
+  it("una fila con TABLA anidada se devuelve ENTERA, sin cortarla en el </tr> interno", () => {
+    const filaConTablaInterna =
+      "<tr><td><table><tr><td>x</td></tr></table></td>" +
+      `<td><span class="${CLASE_RANURA}" data-firma-uid="${A}"></span></td></tr>`;
+    const salida = filasConRanura(filaConTablaInterna);
+    expect(salida).toHaveLength(1);
+    expect(salida[0]).toBe(filaConTablaInterna);
+    // No devuelve el <tr> interno como una fila suelta.
+    expect(salida[0]).toContain("<table><tr><td>x</td></tr></table>");
+  });
+
+  it("un documento sin ranuras devuelve vacío (sin explotar)", () => {
+    expect(filasConRanura("<table><tr><td>solo texto</td></tr></table>")).toEqual([]);
+    expect(filasConRanura("")).toEqual([]);
+    expect(filasConRanura(null)).toEqual([]);
+    expect(filasConRanura(undefined)).toEqual([]);
+  });
+
+  it("reconoce la ranura aunque el atributo venga antes de la clase", () => {
+    const f =
+      `<tr><td><span data-firma-uid="${A}" class="${CLASE_RANURA}"></span></td></tr>`;
+    expect(filasConRanura(f)).toEqual([f]);
+  });
+});
+
+describe("envolverFilasComoTabla", () => {
+  const A = "11111111-1111-4111-8111-111111111111";
+  const fila = `<tr><td>Ana</td><td><span class="${CLASE_RANURA}" data-firma-uid="${A}"></span></td></tr>`;
+
+  it("envuelve las filas en un <table> autónomo con el título", () => {
+    const h = envolverFilasComoTabla(fila, "Estudiantes agregados");
+    expect(h).toContain("<table");
+    expect(h).toContain("</table>");
+    expect(h).toContain(fila);
+    expect(h).toContain("Estudiantes agregados");
+  });
+
+  it("sin filas devuelve vacío (nada que agregar)", () => {
+    expect(envolverFilasComoTabla("", "Título")).toBe("");
+    expect(envolverFilasComoTabla("   ", "Título")).toBe("");
+  });
+
+  it("escapa el título: no puede inyectar marcado", () => {
+    const h = envolverFilasComoTabla(fila, "<img src=x onerror=alert(1)>");
+    expect(h).not.toContain("<img");
+    expect(h).toContain("&lt;img");
+  });
+
+  it("las filas envueltas siguen siendo detectables como ranuras", () => {
+    const h = envolverFilasComoTabla(fila, "Agregados");
+    expect(tieneRanuras(h)).toBe(true);
+    expect(uidsDeRanuras(h)).toEqual([A]);
+  });
+
+  it("round-trip: extraer con filasConRanura y volver a envolver conserva la fila", () => {
+    const doc = `<table><tbody>${fila}</tbody></table>`;
+    const filas = filasConRanura(doc);
+    const bloque = envolverFilasComoTabla(filas.join(""), "Agregados");
+    expect(uidsDeRanuras(bloque)).toEqual([A]);
   });
 });

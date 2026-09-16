@@ -349,6 +349,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Un estudiante que se matriculaba DESPUÉS de generar un acuerdo firmable quedaba invisible en el
+  documento —aunque ya lo hubiera firmado.** El HTML de un informe es un snapshot inmutable (es lo
+  que se firma), así que quien entra al curso más tarde no tiene fila ni casilla de firma en él. Y
+  sin embargo se le podía pedir la firma igual: la solicitud se creaba sin verificar que la persona
+  estuviera en el documento. En un curso real, 9 estudiantes ya habían firmado por el enlace de su
+  correo, pero su firma no tenía dónde dibujarse. Ahora:
+  - **La plataforma deja de crear esas firmas «huérfanas».** Al enviar a firmar, quien no esté en el
+    documento no recibe la solicitud y el docente ve un aviso claro de cuántos faltan y qué hacer. Y
+    cuando alguien se matricula tarde en un curso con un acuerdo ya enviado a firmar, en vez de una
+    firma que no se ve, **al docente le llega una notificación** avisándole que ese estudiante no está
+    en el documento.
+  - **Nueva acción «Agregar matriculados faltantes»** en el historial de informes (menú de cada
+    documento de curso con casillas de firma). Lista los matriculados que faltan, el docente revisa a
+    quién agrega, y con un clic se suman al final del documento —sin regenerarlo y **sin tocar
+    ninguna firma ya puesta**— y se les pide la firma. Regenerar habría creado un documento nuevo y
+    dejado sin efecto las firmas ya recogidas.
+  - Migración `20262230000000`, defensiva. El caso puntual de UNIAJ ya se había reparado a mano; esto
+    es la causa raíz para que no vuelva a pasar en ninguna institución.
+
 - **Firmar un documento no mostraba la firma hasta firmar una segunda vez.** El estudiante dibujaba
   su firma y la confirmaba, pero la ranura seguía en blanco (o con el botón "Firmar aquí") hasta
   volver a firmar. La firma SÍ quedaba guardada a la primera — el bug era visual, no de datos.

@@ -58,6 +58,22 @@
     "diffEmpty": "The content is the same. The base was updated, but nothing your template uses changed.",
     "diffCounts": "{{nuevas}} yours · {{faltantes}} from the base"
   },
+  "reportAppend": {
+    "rowAction": "Add missing enrolled students",
+    "dialogTitle": "Add missing enrolled students",
+    "dialogHint": "These enrolled students are not in “{{name}}” because they enrolled after it was generated. They are added at the end of the document and asked to sign. Existing signatures are untouched.",
+    "footHint": "Review the list before adding. If you left someone out on purpose when generating the document, uncheck them.",
+    "confirm_one": "Add 1 to the document",
+    "confirm_other": "Add {{count}} to the document",
+    "noneMissing": "Every enrolled student is already in the document.",
+    "noneSelected": "Select at least one student.",
+    "noTemplate": "The original template no longer exists, so this document cannot be updated.",
+    "noRows": "The student rows could not be generated. Check that the template has a roster with a signature cell.",
+    "blockTitle": "Students enrolled afterwards",
+    "done_one": "1 student was added to the document.",
+    "done_other": "{{count}} students were added to the document.",
+    "error": "The document could not be updated."
+  },
   "reportSign": {
     "clearAction": "Delete this signature",
     "clearBody": "The request goes back to pending, so that person can sign again. They are not removed from the document and nobody else is affected.",
@@ -78,6 +94,8 @@
     "noStudents": "This course has no enrolled students.",
     "notEligible_one": "1 person cannot sign this document: they are not in the course.",
     "notEligible_other": "{{count}} people cannot sign this document: they are not in the course.",
+    "notInDocument_one": "1 person is not in the already-generated document. Use “Add missing enrolled students” to include them first.",
+    "notInDocument_other": "{{count}} people are not in the already-generated document. Use “Add missing enrolled students” to include them first.",
     "nothingToDo": "Nothing to save.",
     "pendingCount_one": "{{count}} pending",
     "pendingCount_other": "{{count}} pending",

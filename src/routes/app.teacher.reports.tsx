@@ -74,6 +74,10 @@ import { conEstilosDeDocumento } from "@/modules/reports/document-css";
 import {
   renderizarRanuras,
   tieneRanuras,
+  uidsDeRanuras,
+  faltantesParaAgregar,
+  filasConRanura,
+  envolverFilasComoTabla,
   type FirmaDeInforme,
 } from "@/modules/reports/signature-slots";
 import { toast } from "sonner";
@@ -100,6 +104,7 @@ import {
   Link2Off,
   Search,
   FileSearch,
+  UserPlus,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -438,6 +443,21 @@ function Inner() {
     /** El snapshot: de sus ranuras sale la lista exacta de firmantes. */
     html: string | null;
   } | null>(null);
+  /**
+   * "Agregar matriculados faltantes": informe de curso cuyos matriculados nuevos
+   * no están en el documento ya generado. `null` = diálogo cerrado. `enrolledIds`
+   * se guarda para armar el `excludeStudentIds` del re-render (todos menos los
+   * elegidos). `null` cierra.
+   */
+  const [agregar, setAgregar] = useState<{
+    report: GeneratedReport;
+    enrolledIds: string[];
+    faltantes: { id: string; nombre: string }[];
+  } | null>(null);
+  /** Quiénes de los faltantes se van a agregar (todos por defecto). */
+  const [agregarSel, setAgregarSel] = useState<Set<string>>(new Set());
+  /** Aplicando: bloquea el botón y muestra spinner mientras rinde + escribe. */
+  const [agregarBusy, setAgregarBusy] = useState(false);
   /**
    * Plantillas base que el docente marcó como "ya lo vi", con la fecha de la base
    * en ese momento. Se lee POST-mount y nunca en el inicializador del estado: leer
@@ -1936,6 +1956,173 @@ function Inner() {
     }
   };
 
+  // ── Historial: agregar matriculados faltantes a un informe ya generado ──
+  //
+  // El HTML de un informe es un snapshot inmutable (es lo que se firma). Quien
+  // se matricula DESPUÉS no aparece en él, ni tiene ranura donde firmar. Esto
+  // agrega sus filas al final del documento SIN regenerarlo —regenerar crearía
+  // un id nuevo y dejaría huérfanas las firmas ya recolectadas— y les pide la
+  // firma. La escritura, la validación y el append-only viven en la RPC
+  // `report_append_students`; acá se calcula quién falta y se rinde el fragmento.
+  const abrirAgregarFaltantes = async (r: GeneratedReport) => {
+    if (histBusyId) return;
+    setHistBusyId(r.id);
+    try {
+      const { data: enr, error } = await db
+        .from("course_enrollments")
+        .select("user_id")
+        .eq("course_id", r.course_id);
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+      const enrolledIds = [
+        ...new Set(((enr ?? []) as Array<{ user_id: string }>).map((e) => e.user_id)),
+      ];
+      // Quiénes del curso NO están anclados en el documento.
+      const faltantesIds = faltantesParaAgregar(enrolledIds, uidsDeRanuras(r.html));
+      if (faltantesIds.length === 0) {
+        toast.info(
+          i18n.t("reportAppend.noneMissing", {
+            defaultValue: "Todos los matriculados están en el documento.",
+          }),
+        );
+        return;
+      }
+      // Nombres (patrón 2-query: course_enrollments.user_id → auth.users, no
+      // embebible). Solo cuentas activas: a una desactivada no se le puede pedir
+      // firma, así que no tiene sentido agregarla.
+      const { data: profs } = await db
+        .from("profiles")
+        .select("id, full_name, institutional_email")
+        .is("deleted_at", null)
+        .not("is_active", "is", false)
+        .in("id", faltantesIds);
+      const nombrePorId = new Map<string, string>();
+      for (const p of (profs ?? []) as Array<{
+        id: string;
+        full_name: string | null;
+        institutional_email: string | null;
+      }>) {
+        nombrePorId.set(p.id, p.full_name ?? p.institutional_email ?? "—");
+      }
+      const faltantes = faltantesIds
+        .filter((id) => nombrePorId.has(id))
+        .map((id) => ({ id, nombre: nombrePorId.get(id) ?? "—" }));
+      if (faltantes.length === 0) {
+        toast.info(
+          i18n.t("reportAppend.noneMissing", {
+            defaultValue: "Todos los matriculados están en el documento.",
+          }),
+        );
+        return;
+      }
+      setAgregar({ report: r, enrolledIds, faltantes });
+      setAgregarSel(new Set(faltantes.map((f) => f.id)));
+    } finally {
+      setHistBusyId(null);
+    }
+  };
+
+  const aplicarAgregarFaltantes = async () => {
+    if (!agregar || agregarBusy) return;
+    const seleccionados = agregar.faltantes.filter((f) => agregarSel.has(f.id));
+    if (seleccionados.length === 0) {
+      toast.info(
+        i18n.t("reportAppend.noneSelected", { defaultValue: "Elegí al menos un estudiante." }),
+      );
+      return;
+    }
+    const r = agregar.report;
+    if (!r.template_id) {
+      toast.error(
+        i18n.t("reportAppend.noTemplate", {
+          defaultValue:
+            "La plantilla original ya no existe, así que no se puede actualizar este documento.",
+        }),
+      );
+      return;
+    }
+    setAgregarBusy(true);
+    try {
+      const { data: tpl, error: te } = await db
+        .from("report_templates")
+        .select("body_html")
+        .eq("id", r.template_id)
+        .maybeSingle();
+      if (te || !tpl?.body_html) {
+        toast.error(
+          friendlyError(
+            te,
+            i18n.t("reportAppend.noTemplate", {
+              defaultValue:
+                "La plantilla original ya no existe, así que no se puede actualizar este documento.",
+            }),
+          ),
+        );
+        return;
+      }
+      const selSet = new Set(seleccionados.map((f) => f.id));
+      // El contexto se rinde con la MISMA plantilla, dejando SOLO a los elegidos
+      // (excluir = todos los matriculados menos los elegidos). Así las filas
+      // nuevas salen con exactamente las columnas que ya usa el documento.
+      const excludeStudentIds = agregar.enrolledIds.filter((id) => !selSet.has(id));
+      const ctx = await buildReportContext({
+        courseId: r.course_id,
+        periodo: r.periodo ?? undefined,
+        excludeStudentIds,
+      });
+      const miniBody = renderTemplate(tpl.body_html, ctx);
+      // De ese fragmento, solo las FILAS que anclan a un elegido (así se descarta
+      // la fila de casillas docente/vocero, que también trae ranuras).
+      const filas = filasConRanura(miniBody).filter((fila) =>
+        uidsDeRanuras(fila).some((u) => selSet.has(u)),
+      );
+      if (filas.length === 0) {
+        toast.error(
+          i18n.t("reportAppend.noRows", {
+            defaultValue:
+              "No se pudieron generar las filas de los estudiantes. Revisá que la plantilla tenga un listado con casilla de firma.",
+          }),
+        );
+        return;
+      }
+      const bloque = envolverFilasComoTabla(
+        filas.join(""),
+        i18n.t("reportAppend.blockTitle", {
+          defaultValue: "Estudiantes matriculados con posterioridad",
+        }),
+      );
+      const { data, error } = await db.rpc("report_append_students", {
+        _report_id: r.id,
+        _new_html: bloque,
+        _user_ids: seleccionados.map((f) => f.id),
+      });
+      const res = data as { ok?: boolean; appended?: number; error?: string } | null;
+      if (error || !res?.ok) {
+        toast.error(
+          friendlyError(
+            error,
+            i18n.t("reportAppend.error", { defaultValue: "No se pudo actualizar el documento." }),
+          ),
+        );
+        return;
+      }
+      // Sin defaultValue: es una clave plural (done_one/done_other) y el gate de
+      // claves registradas comprobaría la base `reportAppend.done`, que no
+      // existe como tal. La clave ya está en ambos locales.
+      toast.success(i18n.t("reportAppend.done", { count: res.appended ?? seleccionados.length }));
+      setAgregar(null);
+      void loadGenReports();
+    } catch (e) {
+      toast.error(
+        friendlyError(e, i18n.t("reportAppend.error", { defaultValue: "No se pudo actualizar el documento." })),
+      );
+    } finally {
+      setAgregarBusy(false);
+    }
+  };
+
   // ── Render ───────────────────────────────────────────────────────
 
   return (
@@ -2421,6 +2608,21 @@ function Inner() {
                                               studentId: r.student_id,
                                               html: r.html,
                                             }),
+                                        },
+                                      ]
+                                    : []),
+                                  // Agregar matriculados faltantes: solo en un
+                                  // informe de CURSO (no por estudiante) que use
+                                  // casillas de firma — es el único caso donde
+                                  // "quien se matriculó después no está en el
+                                  // documento" tiene sentido.
+                                  ...(r.course_id && !r.student_id && tieneRanuras(r.html)
+                                    ? [
+                                        {
+                                          label: t("reportAppend.rowAction"),
+                                          icon: UserPlus,
+                                          disabled: !!histBusyId,
+                                          onClick: () => void abrirAgregarFaltantes(r),
                                         },
                                       ]
                                     : []),
@@ -2923,6 +3125,69 @@ function Inner() {
           if (!abierto) setFirmarInforme(null);
         }}
       />
+
+      {/* Agregar matriculados faltantes: se listan por NOMBRE y el docente los
+          revisa antes de escribir (mismo criterio que un borrado masivo). Van
+          todos marcados; si el docente excluyó a alguien a propósito al generar,
+          lo desmarca acá. */}
+      <Dialog
+        open={!!agregar}
+        onOpenChange={(abierto) => {
+          if (!abierto && !agregarBusy) setAgregar(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-4 w-4" />
+              {t("reportAppend.dialogTitle")}
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            {t("reportAppend.dialogHint", {
+              name: agregar ? nombrePlantillaViva(agregar.report) : "",
+            })}
+          </p>
+          <div className="max-h-[45dvh] overflow-y-auto space-y-1 rounded-md border p-2">
+            {(agregar?.faltantes ?? []).map((f) => (
+              <label
+                key={f.id}
+                className="flex items-center gap-2 rounded p-1.5 text-sm cursor-pointer hover:bg-accent"
+              >
+                <Checkbox
+                  checked={agregarSel.has(f.id)}
+                  onCheckedChange={() =>
+                    setAgregarSel((prev) => {
+                      const s = new Set(prev);
+                      if (s.has(f.id)) s.delete(f.id);
+                      else s.add(f.id);
+                      return s;
+                    })
+                  }
+                />
+                <span className="flex-1 min-w-0 truncate">{f.nombre}</span>
+              </label>
+            ))}
+          </div>
+          <p className="text-2xs text-muted-foreground">{t("reportAppend.footHint")}</p>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setAgregar(null)} disabled={agregarBusy}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => void aplicarAgregarFaltantes()}
+              disabled={agregarBusy || agregarSel.size === 0}
+            >
+              {agregarBusy ? (
+                <Spinner size="sm" className="mr-1" />
+              ) : (
+                <UserPlus className="h-4 w-4 mr-1" />
+              )}
+              {t("reportAppend.confirm", { count: agregarSel.size })}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

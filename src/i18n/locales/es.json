@@ -58,6 +58,22 @@
     "diffEmpty": "El contenido es el mismo. La base se actualizó, pero no cambió nada de lo que tu plantilla usa.",
     "diffCounts": "{{nuevas}} tuyas · {{faltantes}} de la base"
   },
+  "reportAppend": {
+    "rowAction": "Agregar matriculados faltantes",
+    "dialogTitle": "Agregar matriculados faltantes",
+    "dialogHint": "Estos matriculados no están en «{{name}}» porque se inscribieron después de generarlo. Se agregan al final del documento y se les pide la firma. Las firmas que ya hay no se tocan.",
+    "footHint": "Revisá la lista antes de agregar. Si excluiste a alguien a propósito al generar el documento, desmarcalo.",
+    "confirm_one": "Agregar 1 al documento",
+    "confirm_other": "Agregar {{count}} al documento",
+    "noneMissing": "Todos los matriculados ya están en el documento.",
+    "noneSelected": "Elegí al menos un estudiante.",
+    "noTemplate": "La plantilla original ya no existe, así que no se puede actualizar este documento.",
+    "noRows": "No se pudieron generar las filas de los estudiantes. Revisá que la plantilla tenga un listado con casilla de firma.",
+    "blockTitle": "Estudiantes matriculados con posterioridad",
+    "done_one": "Se agregó 1 estudiante al documento.",
+    "done_other": "Se agregaron {{count}} estudiantes al documento.",
+    "error": "No se pudo actualizar el documento."
+  },
   "reportSign": {
     "clearAction": "Borrar esta firma",
     "clearBody": "La solicitud queda pendiente otra vez, así que esa persona puede volver a firmar. No se quita del documento y nadie más se ve afectado.",
@@ -78,6 +94,8 @@
     "noStudents": "El curso no tiene estudiantes matriculados.",
     "notEligible_one": "1 persona no puede firmar este documento: no pertenece al curso.",
     "notEligible_other": "{{count}} personas no pueden firmar este documento: no pertenecen al curso.",
+    "notInDocument_one": "1 persona no está en el documento ya generado. Usá «Agregar matriculados faltantes» para incluirla primero.",
+    "notInDocument_other": "{{count}} personas no están en el documento ya generado. Usá «Agregar matriculados faltantes» para incluirlas primero.",
     "nothingToDo": "No hay cambios para guardar.",
     "pendingCount_one": "{{count}} pendiente",
     "pendingCount_other": "{{count}} pendientes",
