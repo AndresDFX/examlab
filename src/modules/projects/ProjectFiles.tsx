@@ -77,6 +77,7 @@ import {
   readOverrideExpiry,
 } from "@/modules/ai/ai-grading";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { withDbRetry } from "@/shared/lib/db-retry";
 import {
   LANG_TO_EXT,
   LANG_OPTIONS,
@@ -2596,13 +2597,22 @@ export function StudentProjectTaker({
       // `zip_truncated`/`zip_chars_used` salieron de esta lista: desde la
       // mig 20262180000000 el navegador ya no las escribe (las protege el
       // candado), así que ya no forman parte de lo que este upsert manda.
+      //
+      // Envuelto en `withDbRetry`: mismo caso real que motivó el helper en
+      // talleres (ver `src/shared/lib/db-retry.ts`) — un corte de red o un
+      // 57014 de Postgres bajo carga dejaba la sección sin fila y sin nada
+      // que la distinguiera de "el alumno no la respondió". Solo cubre lo
+      // TRANSITORIO: un PGRST204 real (columna sin migrar) sigue cayendo en
+      // la rama de abajo, no tiene sentido reintentarlo.
       const OPTIONAL_COLS = ["code_paths"];
       for (const qid of Object.keys(payloadsByQid)) {
         const payload = payloadsByQid[qid];
 
-        const { error } = await (db
-          .from("project_submission_files")
-          .upsert(payload, { onConflict: "submission_id,file_id" }) as any);
+        const { error } = await withDbRetry(() =>
+          db
+            .from("project_submission_files")
+            .upsert(payload, { onConflict: "submission_id,file_id" }) as any,
+        );
         if (error) {
           const isSchemaErr = /column.*does not exist|PGRST204|schema cache/i.test(
             error.message ?? "",

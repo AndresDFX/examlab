@@ -58,6 +58,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { withDbRetry } from "@/shared/lib/db-retry";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import {
@@ -2257,6 +2258,18 @@ export function StudentWorkshopTaker({
       // guardarse y el alumno veía "Calificación: X" igual. Recolectamos los
       // fallos y los mostramos (sin abortar: lo ya guardado debe quedar).
       //
+      // ── Con reintento corto (`withDbRetry`) ────────────────────────────
+      // Caso real que lo originó: en una entrega de UNIAJ, la respuesta de
+      // UNA pregunta nunca llegó a tener fila (el `submission_id` existía,
+      // la de esa pregunta no) — coincidió con un corte de red del mismo
+      // tipo que ya justificó este helper en el re-grade masivo (ver
+      // `src/shared/lib/db-retry.ts`). Sin reintento, ese upsert fallaba una
+      // sola vez y quedaba en `upsertErrors` (con su toast), pero la
+      // pregunta igual se mandaba a calificar como "sin responder": el
+      // estudiante veía 0 sin que nadie —ni él, revisando el toast, ni el
+      // docente, semanas después— pudiera distinguirlo de una pregunta que
+      // de verdad dejó en blanco.
+      //
       // ── Por qué va ANTES y no después, que es donde estaba ────────────
       // La llamada de calificación de abajo tarda entre 29 y 74 segundos
       // (medido sobre entregas reales de UNIAJ: los saltos de `submitted_at` a
@@ -2276,9 +2289,11 @@ export function StudentWorkshopTaker({
       // las columnas que le pasás, así que ninguno pisa al otro.
       const upsertErrors: Array<{ qid: string; error: unknown }> = [];
       for (const qid of Object.keys(payloadsByQid)) {
-        const { error: upsertErr } = await supabase
-          .from("workshop_submission_answers")
-          .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" });
+        const { error: upsertErr } = await withDbRetry(() =>
+          supabase
+            .from("workshop_submission_answers")
+            .upsert(payloadsByQid[qid], { onConflict: "submission_id,question_id" }),
+        );
         if (upsertErr) {
           console.error("[workshop-submit] upsert failed", qid, upsertErr);
           upsertErrors.push({ qid, error: upsertErr });
