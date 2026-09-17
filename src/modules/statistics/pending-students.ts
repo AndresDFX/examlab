@@ -508,23 +508,30 @@ export async function loadPendingStudents(
   return rows;
 }
 
-/** Datos de `profiles` más allá del nombre — columnas OPCIONALES del export.
- *  `programaId` se resuelve a nombre aparte (`fetchProgramNames`) porque vive
- *  en otra tabla. */
+/** Datos de `profiles` más allá del nombre — columnas OPCIONALES del export. */
 type StudentDetail = {
   institutionalEmail: string | null;
   personalEmail: string | null;
   codigo: string | null;
   documento: string | null;
-  programaId: string | null;
+  programa: string | null;
 };
 
 async function fetchStudentDetails(userIds: ReadonlyArray<string>): Promise<Map<string, StudentDetail>> {
   const map = new Map<string, StudentDetail>();
   if (userIds.length === 0) return map;
+  // El nombre del programa viene COLGADO del perfil del estudiante y no de una
+  // consulta aparte a `academic_programs`. Esa consulta suelta era el problema:
+  // las policies de la estructura académica devuelven las filas de TODAS las
+  // instituciones a quien posee el rol SuperAdmin (mig 20260622000000), así que
+  // toda lectura directa de esas tablas tiene que pasar por `academic-scope`
+  // —lo exige un guardrail— y acá no había con qué acotarla. Por el embed el
+  // programa llega atado a un perfil que el alcance del docente ya recortó, que
+  // es la misma razón por la que `report-context.ts` está exceptuado. De paso
+  // ahorra un viaje a la base.
   const { data } = await dbAny
     .from("profiles")
-    .select("id, institutional_email, personal_email, codigo, documento, programa_id")
+    .select("id, institutional_email, personal_email, codigo, documento, programa:academic_programs(name)")
     .in("id", userIds);
   for (const p of (data ?? []) as Array<{
     id: string;
@@ -532,26 +539,18 @@ async function fetchStudentDetails(userIds: ReadonlyArray<string>): Promise<Map<
     personal_email: string | null;
     codigo: string | null;
     documento: string | null;
-    programa_id: string | null;
+    programa: { name: string | null } | Array<{ name: string | null }> | null;
   }>) {
+    // PostgREST devuelve objeto cuando la relación es a-uno, pero un embed mal
+    // resuelto llega como arreglo: se contemplan los dos para no perder el dato.
+    const programa = Array.isArray(p.programa) ? (p.programa[0] ?? null) : p.programa;
     map.set(p.id, {
       institutionalEmail: p.institutional_email ?? null,
       personalEmail: p.personal_email ?? null,
       codigo: p.codigo ?? null,
       documento: p.documento ?? null,
-      programaId: p.programa_id ?? null,
+      programa: programa?.name ?? null,
     });
-  }
-  return map;
-}
-
-async function fetchProgramNames(programIds: ReadonlyArray<string>): Promise<Map<string, string>> {
-  const map = new Map<string, string>();
-  const ids = Array.from(new Set(programIds));
-  if (ids.length === 0) return map;
-  const { data } = await dbAny.from("academic_programs").select("id, name").in("id", ids);
-  for (const p of (data ?? []) as Array<{ id: string; name: string }>) {
-    map.set(p.id, p.name);
   }
   return map;
 }
@@ -574,11 +573,6 @@ export async function loadAllStudentsPending(
   const names = await fetchNames(userIds);
   const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);
   const details = await fetchStudentDetails(userIds);
-  const programNames = await fetchProgramNames(
-    Array.from(details.values())
-      .map((d) => d.programaId)
-      .filter((id): id is string => !!id),
-  );
   for (const row of rows) {
     const d = details.get(row.userId);
     if (!d) continue;
@@ -586,7 +580,7 @@ export async function loadAllStudentsPending(
     row.personalEmail = d.personalEmail;
     row.codigo = d.codigo;
     row.documento = d.documento;
-    row.programa = d.programaId ? (programNames.get(d.programaId) ?? null) : null;
+    row.programa = d.programa;
   }
   return rows;
 }
