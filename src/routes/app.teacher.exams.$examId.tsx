@@ -835,10 +835,16 @@ function ExamEditor() {
    * lo dice con el número de entregas a la vista.
    */
   const [repartiendo, setRepartiendo] = useState(false);
-  const repartirPuntaje = async () => {
+  /**
+   * `lista` existe porque el aviso que sale al BORRAR una pregunta invoca esta
+   * función desde el render anterior, donde `questions` todavía incluye la
+   * pregunta eliminada. Sin pasarla explícitamente, el upsert la volvía a
+   * INSERTAR y deshacía el borrado que el docente acababa de confirmar.
+   */
+  const repartirPuntaje = async (lista: typeof questions = questions) => {
     const objetivo = Number((exam as any)?.course?.grade_scale_max ?? 5) || 5;
     const nuevos = repartirPuntos(
-      questions.map((q) => Number((q as any).points) || 0),
+      lista.map((q) => Number((q as any).points) || 0),
       objetivo,
     );
     if (!nuevos) {
@@ -865,10 +871,10 @@ function ExamEditor() {
         description: hayEntregas
           ? t("hc_routesAppTeacherExamsExamId.repartirConfirmConEntregas", {
               count: entregas ?? 0,
-              preguntas: questions.length,
+              preguntas: lista.length,
             })
           : t("hc_routesAppTeacherExamsExamId.repartirConfirmBody", {
-              preguntas: questions.length,
+              preguntas: lista.length,
             }),
         confirmLabel: t("hc_routesAppTeacherExamsExamId.repartirConfirmAccion"),
         // Con entregas de por medio esto puede mover una nota ya vista: el tono
@@ -881,9 +887,19 @@ function ExamEditor() {
       // fila y la sexta fallara, el examen quedaría con cinco puntajes nuevos y
       // cinco viejos — sumando MENOS de lo que sumaba antes de pulsar el botón
       // que existe para cuadrarlo.
-      const { error } = await supabase
+      // Solo `id` y `points`: mandar la fila entera reescribiría enunciado,
+      // opciones y rúbrica con la copia que este render tenga en memoria, y
+      // pisaría cualquier edición hecha entretanto. Y si una de esas filas ya no
+      // existe, el INSERT del upsert falla por las columnas obligatorias —
+      // ruidoso, pero mucho mejor que re-crear una pregunta borrada.
+      //
+      // El cast es por eso mismo: los tipos generados exigen la fila COMPLETA
+      // porque un upsert puede insertar, y acá el objetivo es justamente no
+      // mandarla entera.
+      const dbUpsert = supabase as any;
+      const { error } = await dbUpsert
         .from("questions")
-        .upsert(questions.map((q, i) => ({ ...(q as any), points: nuevos[i] })));
+        .upsert(lista.map((q, i) => ({ id: q.id, points: nuevos[i] })));
       if (error) {
         toast.error(friendlyError(error));
         return;
@@ -918,7 +934,46 @@ function ExamEditor() {
         toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
         return;
       }
+
+      // Borrar es JUSTO el momento en que la suma se descuadra, y es el momento
+      // en que el docente puede hacer algo al respecto. Se le ofrece acá en vez
+      // de esperar a que lo note en el recuadro de resumen.
+      //
+      // Se calcula sobre las preguntas que QUEDAN (no sobre el estado, que
+      // `load()` todavía no refrescó) y solo se avisa si el examen ANTES
+      // cuadraba: si ya estaba descuadrado, el aviso no lo causó este borrado y
+      // sería ruido. Tampoco se avisa si no queda ninguna pregunta.
+      const objetivoTrasBorrar = Number((exam as any)?.course?.grade_scale_max ?? 5) || 5;
+      const restantes = questions.filter((q) => q.id !== id);
+      const cuadrabaAntes =
+        diferenciaHastaObjetivo(
+          questions.map((q) => Number((q as any).points) || 0),
+          objetivoTrasBorrar,
+        ) === 0;
+      const faltaAhora = diferenciaHastaObjetivo(
+        restantes.map((q) => Number((q as any).points) || 0),
+        objetivoTrasBorrar,
+      );
+
       await load();
+
+      if (restantes.length > 0 && cuadrabaAntes && faltaAhora !== 0) {
+        toast.warning(
+          t("hc_routesAppTeacherExamsExamId.repartirTrasBorrar", {
+            falta: Math.abs(faltaAhora).toLocaleString("es-CO"),
+            total: objetivoTrasBorrar.toLocaleString("es-CO"),
+          }),
+          {
+            duration: 12000,
+            action: {
+              label: t("hc_routesAppTeacherExamsExamId.repartirBoton", {
+                total: objetivoTrasBorrar.toLocaleString("es-CO"),
+              }),
+              onClick: () => void repartirPuntaje(restantes),
+            },
+          },
+        );
+      }
     } catch (e) {
       toast.error(friendlyError(e));
     } finally {
@@ -1918,12 +1973,42 @@ function ExamEditor() {
               {questions.length > 0 && (
                 <div className="rounded-md border bg-muted/30 px-3 py-2">
                   <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-xs text-muted-foreground font-medium">
-                      {t("hc_routesAppTeacherExamsExamId.questionsSummary", {
-                        count: questions.length,
-                        points: questions.reduce((s, q) => s + ((q as any).points ?? 0), 0),
-                      })}
-                    </span>
+                    {(() => {
+                      const objetivo = Number((exam as any)?.course?.grade_scale_max ?? 5) || 5;
+                      const suma = questions.reduce((s, q) => s + ((q as any).points ?? 0), 0);
+                      const falta = diferenciaHastaObjetivo(
+                        questions.map((q) => Number((q as any).points) || 0),
+                        objetivo,
+                      );
+                      // El estado de la suma se dice SIEMPRE, no solo cuando
+                      // está mal: un docente que no ve nada no sabe si el
+                      // examen cuadra ni que la plataforma puede cuadrarlo.
+                      const estado =
+                        falta === 0
+                          ? t("hc_routesAppTeacherExamsExamId.puntajeCuadra", {
+                              total: objetivo.toLocaleString("es-CO"),
+                            })
+                          : falta > 0
+                            ? t("hc_routesAppTeacherExamsExamId.puntajeFalta", {
+                                falta: falta.toLocaleString("es-CO"),
+                                total: objetivo.toLocaleString("es-CO"),
+                              })
+                            : t("hc_routesAppTeacherExamsExamId.puntajeSobra", {
+                                sobra: Math.abs(falta).toLocaleString("es-CO"),
+                                total: objetivo.toLocaleString("es-CO"),
+                              });
+                      return (
+                        <span
+                          className={`text-xs font-medium ${falta === 0 ? "text-muted-foreground" : "text-warning-on-subtle"}`}
+                        >
+                          {t("hc_routesAppTeacherExamsExamId.questionsSummary", {
+                            count: questions.length,
+                            points: Number(suma.toFixed(2)).toLocaleString("es-CO"),
+                          })}{" "}
+                          {estado}
+                        </span>
+                      );
+                    })()}
                     <div className="flex items-center gap-2">
                       {/* Solo aparece cuando hay algo que cuadrar: un botón que
                           en el 90 % de los casos no hace nada es ruido. */}
@@ -1934,7 +2019,10 @@ function ExamEditor() {
                           questions.map((q) => Number((q as any).points) || 0),
                           objetivo,
                         );
-                        if (falta === 0) return null;
+                        // Visible SIEMPRE, deshabilitado cuando no hay nada
+                        // que hacer: un botón ausente no enseña que la función
+                        // existe, que es justo lo que se reportó.
+                        const cuadra = falta === 0;
                         return (
                           <Button
                             type="button"
@@ -1942,11 +2030,27 @@ function ExamEditor() {
                             size="sm"
                             className="h-7 text-xs"
                             onClick={() => void repartirPuntaje()}
-                            disabled={repartiendo}
-                            title={t("hc_routesAppTeacherExamsExamId.repartirTitulo", {
-                              falta: Math.abs(falta).toLocaleString("es-CO"),
-                              total: objetivo.toLocaleString("es-CO"),
-                            })}
+                            disabled={repartiendo || cuadra}
+                            // `title` no llega en un botón deshabilitado en
+                            // varios navegadores; `aria-label` sí lo lee el
+                            // lector de pantalla.
+                            aria-label={
+                              cuadra
+                                ? t("hc_routesAppTeacherExamsExamId.repartirYaCuadra", {
+                                    total: objetivo.toLocaleString("es-CO"),
+                                  })
+                                : undefined
+                            }
+                            title={
+                              cuadra
+                                ? t("hc_routesAppTeacherExamsExamId.repartirYaCuadra", {
+                                    total: objetivo.toLocaleString("es-CO"),
+                                  })
+                                : t("hc_routesAppTeacherExamsExamId.repartirTitulo", {
+                                    falta: Math.abs(falta).toLocaleString("es-CO"),
+                                    total: objetivo.toLocaleString("es-CO"),
+                                  })
+                            }
                           >
                             {repartiendo ? (
                               <Spinner size="sm" className="mr-1" />

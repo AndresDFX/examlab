@@ -8707,7 +8707,12 @@
     "repartirConfirmTitulo": "¿Cuadrar los puntajes en {{total}}?",
     "repartirConfirmBody": "Se reasignarán los puntajes de las {{preguntas}} preguntas conservando la proporción actual. Podés volver a ajustarlos a mano después.",
     "repartirConfirmConEntregas": "Este examen ya tiene {{count}} entrega(s). Cambiar los puntajes cambia el total sobre el que se calcula la nota, así que una nota que el estudiante ya vio puede moverse la próxima vez que ajustes esa entrega. Se reasignarán los puntajes de las {{preguntas}} preguntas conservando la proporción actual.",
-    "repartirConfirmAccion": "Cuadrar puntajes"
+    "repartirConfirmAccion": "Cuadrar puntajes",
+    "puntajeCuadra": "· cuadra con la nota máxima ({{total}})",
+    "puntajeFalta": "· faltan {{falta}} para {{total}}",
+    "puntajeSobra": "· sobran {{sobra}} sobre {{total}}",
+    "repartirYaCuadra": "Ya suma {{total}}: no hay nada que repartir.",
+    "repartirTrasBorrar": "Al borrar la pregunta quedaron {{falta}} de diferencia con {{total}}. ¿Cuadrás los puntajes?"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",

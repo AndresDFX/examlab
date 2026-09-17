@@ -8707,7 +8707,12 @@
     "repartirConfirmTitulo": "Balance the points to {{total}}?",
     "repartirConfirmBody": "The points of all {{preguntas}} questions will be reassigned, keeping their current proportion. You can still adjust them by hand afterwards.",
     "repartirConfirmConEntregas": "This exam already has {{count}} submission(s). Changing the points changes the total the grade is computed against, so a grade a student has already seen may move the next time you adjust that submission. The points of all {{preguntas}} questions will be reassigned, keeping their current proportion.",
-    "repartirConfirmAccion": "Balance points"
+    "repartirConfirmAccion": "Balance points",
+    "puntajeCuadra": "· adds up to the max grade ({{total}})",
+    "puntajeFalta": "· {{falta}} short of {{total}}",
+    "puntajeSobra": "· {{sobra}} over {{total}}",
+    "repartirYaCuadra": "It already adds up to {{total}}: nothing to balance.",
+    "repartirTrasBorrar": "Deleting the question left a {{falta}} gap to {{total}}. Balance the points?"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",

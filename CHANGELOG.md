@@ -462,6 +462,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **El botón para cuadrar los puntajes de un examen era invisible.** Existía y funcionaba, pero solo
+  se dibujaba cuando la suma NO cuadraba, así que en un examen cuadrado no había ninguna señal de que
+  la función existiera. Reportado tal cual: «no veo esa parte». Verificado con datos: el examen de la
+  captura suma exactamente 5,00 de 5.
+  - El resumen ahora dice **siempre** cómo está la suma («cuadra con la nota máxima», o «faltan 0,3
+    para 5» en ámbar) y el botón se muestra **siempre**, deshabilitado cuando no hay nada que hacer.
+    Un botón ausente no enseña que la función existe; uno visible e inactivo, sí.
+  - **Y al ELIMINAR una pregunta**, si el examen cuadraba y queda descuadrado, el aviso ofrece
+    cuadrarlo ahí mismo: ese es el momento en que el docente se entera del problema y puede
+    resolverlo, no cuando mire el resumen más tarde. No se avisa si ya estaba descuadrado antes (ese
+    desajuste no lo causó ese borrado) ni si no quedan preguntas.
+  - **No recalcula solo.** Cambiar puntajes puede mover una nota que el estudiante ya vio si el
+    examen tiene entregas; eso no puede ocurrir como efecto colateral de borrar una pregunta.
+  - La revisión de consistencia encontró que la primera versión **deshacía el borrado en silencio**:
+    el aviso invocaba la función del render anterior, cuya lista de preguntas todavía incluía la
+    eliminada, y el `upsert` la volvía a insertar. Ahora la lista viaja explícita y el upsert manda
+    solo `id` y `points`, así que tampoco puede pisar un enunciado editado entretanto.
+
 - **La app instalada se podía quedar con el nombre genérico, y no había forma de que se actualizara
   sola.** Dos defectos con la misma causa: el manifest se armaba en el navegador y se colgaba de una
   URL `blob:`.
