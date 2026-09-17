@@ -12,7 +12,11 @@ import {
 // Calificación DETERMINISTA server-side (cerradas, opción múltiple, red). El
 // motor de red vive en ../_shared/network/* (copia Deno de src/modules/network/*,
 // ver invariante en CLAUDE.md) y lo consume este módulo.
-import { esDeterminista, scoreDeterministic } from "../_shared/deterministic-scoring.ts";
+import {
+  esDeterminista,
+  respuestaCrudaDeTaller,
+  scoreDeterministic,
+} from "../_shared/deterministic-scoring.ts";
 import { consolidarNotaTaller, patchCabeceraTaller } from "../_shared/workshop-grading.ts";
 
 const corsHeaders = {
@@ -594,6 +598,87 @@ function textoDeCero(code: unknown, lang: "es" | "en"): string {
  * dos redacciones distintas para el mismo evento según si calificó la IA
  * directo o el docente a mano. Si cambia uno, cambiar el otro.
  */
+/**
+ * Puntúa las preguntas DETERMINISTAS de una entrega de taller leyéndolas de la
+ * BASE, y devuelve cuántas escribió.
+ *
+ * ── Por qué leyendo de la base y no del cuerpo del pedido ─────────────
+ * El modo `batchGrading` (el submit del alumno) ya las puntúa, pero desde
+ * `plainAnswers`, que lo manda el CLIENTE. Los builders de la cola
+ * (`buildWorkshopItems` / `buildProjectJobs`) saltan las deterministas y nunca
+ * mandan ese campo, así que por el camino de «Calificar todos con IA» del
+ * Diagnóstico nadie las puntuaba: quedaban con `ai_grade` NULL, que la
+ * consolidación cuenta como 0 en el numerador **mientras sus puntos siguen en
+ * el denominador**. Una cerrada respondida bien bajaba la nota.
+ *
+ * Leyendo de la base esto vale para CUALQUIER caller, presente o futuro, sin
+ * depender de que se acuerde de mandar las respuestas.
+ *
+ * Solo escribe donde `ai_grade` está NULL: nunca pisa una nota que ya puso el
+ * docente a mano ni una corrida anterior.
+ */
+async function puntuarDeterministasDelTaller(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  adminClient: any,
+  submissionId: string,
+  lang: "es" | "en",
+): Promise<number> {
+  const { data: subRow } = await adminClient
+    .from("workshop_submissions")
+    .select("workshop_id")
+    .eq("id", submissionId)
+    .maybeSingle();
+  const workshopId = (subRow as { workshop_id?: string } | null)?.workshop_id ?? null;
+  if (!workshopId) return 0;
+
+  const [{ data: qRows }, { data: aRows }] = await Promise.all([
+    adminClient
+      .from("workshop_questions")
+      .select("id, type, points, options")
+      .eq("workshop_id", workshopId),
+    adminClient
+      .from("workshop_submission_answers")
+      .select("question_id, answer_text, selected_option, code_content, diagram_code, ai_grade")
+      .eq("submission_id", submissionId),
+  ]);
+
+  const respuestas = new Map<string, Record<string, unknown>>();
+  for (const a of (aRows ?? []) as Array<Record<string, unknown>>) {
+    respuestas.set(String(a.question_id), a);
+  }
+
+  let escritas = 0;
+  for (const q of (qRows ?? []) as Array<{
+    id: string;
+    type: string;
+    points: number | null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    options: any;
+  }>) {
+    if (!esDeterminista(q.type)) continue;
+    const fila = respuestas.get(q.id);
+    // Ya tiene nota (IA previa, o el docente la ajustó): no se toca.
+    if (fila && fila.ai_grade !== null && fila.ai_grade !== undefined) continue;
+
+    const det = scoreDeterministic(
+      { id: q.id, type: q.type, points: q.points, options: q.options },
+      respuestaCrudaDeTaller(q.type, fila as never),
+      lang,
+    );
+    const { error } = await adminClient.from("workshop_submission_answers").upsert(
+      {
+        submission_id: submissionId,
+        question_id: q.id,
+        ai_grade: det.earned,
+        ai_feedback: det.feedback,
+      },
+      { onConflict: "submission_id,question_id" },
+    );
+    if (!error) escritas++;
+  }
+  return escritas;
+}
+
 async function notificarTallerCalificado(
   submissionId: string,
   grade: number,
@@ -1338,14 +1423,29 @@ Deno.serve(async (req) => {
           }),
         );
 
+      // Las cerradas se puntúan SIEMPRE y ANTES de hablar con el modelo: su
+      // nota no depende de que la IA conteste, ni de que haya algo que
+      // preguntarle. Si la llamada falla más abajo, esto ya quedó escrito.
+      const deterministasTaller = await puntuarDeterministasDelTaller(
+        adminClient,
+        submissionId,
+        wfLang,
+      );
+
       // Sin items válidos: salimos OK como si nada hubiera que calificar.
       // El worker marca done. La submission ya tiene su placeholder
       // "Pendiente IA…" del client — limpiar lo dejamos al docente o al
       // próximo refresh; por ahora preservamos para diagnóstico.
       if (batchInput.length === 0) {
-        return new Response(JSON.stringify({ ok: true, persistedInternally: true, processed: 0 }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            persistedInternally: true,
+            processed: 0,
+            deterministas: deterministasTaller,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
       }
 
       const customSystemWf = await buildGradingSystemPrompt(
@@ -1743,10 +1843,27 @@ Deno.serve(async (req) => {
       // esta query. ──
       const plainQids = Object.keys(plainAnswers);
       if (plainQids.length > 0) {
-        const { data: pfRows } = await adminClient
-          .from("project_files")
-          .select("id, type, points, options, starter_code")
-          .in("id", plainQids);
+        const [{ data: pfRows }, { data: notasActuales }] = await Promise.all([
+          adminClient
+            .from("project_files")
+            .select("id, type, points, options, starter_code")
+            .in("id", plainQids),
+          // Qué archivos YA tienen nota. Esta rama no corría en la práctica
+          // mientras nadie mandaba `plainAnswers`; ahora que la cola las manda,
+          // sobrescribir sin mirar pisaría el ajuste MANUAL del docente
+          // (`patchSubFile` de app.teacher.projects.tsx escribe este mismo
+          // `ai_grade`) en cada re-encolado. Mismo guard que su gemelo de
+          // taller, `puntuarDeterministasDelTaller`.
+          adminClient
+            .from("project_submission_files")
+            .select("file_id, ai_grade")
+            .eq("submission_id", submissionId),
+        ]);
+        const yaCalificados = new Set(
+          ((notasActuales ?? []) as Array<{ file_id: string; ai_grade: number | null }>)
+            .filter((r) => r.ai_grade !== null && r.ai_grade !== undefined)
+            .map((r) => r.file_id),
+        );
         for (const pf of (pfRows ?? []) as Array<{
           id: string;
           type: string;
@@ -1756,6 +1873,7 @@ Deno.serve(async (req) => {
           starter_code: string | null;
         }>) {
           if (!esDeterminista(pf.type)) continue; // tipo inesperado en plainAnswers — se ignora
+          if (yaCalificados.has(pf.id)) continue;
           const det = scoreDeterministic(pf, plainAnswers[pf.id], pfLang);
           const { error: upErr } = await adminClient
             .from("project_submission_files")
@@ -3326,6 +3444,27 @@ Idioma de salida: ${langName}.`,
             });
             if (prev.ai_likelihood > maxAiLikelihood) maxAiLikelihood = prev.ai_likelihood;
           }
+        } else if (esDeterminista(q.type)) {
+          // Sin nota previa y sin IA de por medio: se puntúa acá mismo. Poner 0
+          // era destructivo justo en el caso que más lo necesita — una entrega
+          // que NUNCA se calificó completa (la que cerró el cron por
+          // vencimiento no tiene `__breakdown`). Recalificar una abierta suelta
+          // le clavaba 0 a las cerradas respondidas bien, y el UPDATE final
+          // persistía esa nota deprimida para toda la entrega. El valor de una
+          // cerrada no depende de que la IA haya pasado por ahí.
+          const det = scoreDeterministic(
+            { id: q.id, type: q.type, points: q.points, options: q.options },
+            answers[q.id],
+            examLang,
+          );
+          earned += det.earned;
+          breakdown.push({
+            qid: q.id,
+            type: q.type,
+            points: q.points,
+            earned: det.earned,
+            feedback: det.feedback,
+          });
         } else {
           breakdown.push({ qid: q.id, type: q.type, points: q.points, earned: 0 });
         }

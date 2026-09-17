@@ -226,6 +226,43 @@ describe("buildProjectJobs", () => {
     expect(zipJobs).toHaveLength(0);
   });
 
+  it("pero SÍ viajan en plainAnswers: su valor tiene que contar para la nota", () => {
+    // No ir a la IA y no puntuarse son cosas distintas. Saltarlas del todo las
+    // dejaba con `ai_grade` NULL, que el trigger de la nota cuenta como 0 en el
+    // numerador mientras sus puntos siguen en el denominador: el alumno perdía
+    // puntos que respondió bien.
+    const { plainAnswers } = buildProjectJobs(
+      [pf({ id: "f1", type: "cerrada" }), pf({ id: "f2", type: "cerrada_multi" })],
+      [psf({ file_id: "f1", content: "[0]" }), psf({ file_id: "f2", content: "[1,2]" })],
+      null,
+      "es",
+      null,
+    );
+    expect(plainAnswers).toEqual({ f1: "[0]", f2: "[1,2]" });
+  });
+
+  it("una determinista SIN responder también viaja, para que quede en 0 explícito", () => {
+    const { plainAnswers } = buildProjectJobs(
+      [pf({ id: "f1", type: "cerrada" })],
+      [],
+      null,
+      "es",
+      null,
+    );
+    expect(Object.keys(plainAnswers)).toEqual(["f1"]);
+  });
+
+  it("un proyecto sin deterministas no manda nada de más", () => {
+    const { plainAnswers } = buildProjectJobs(
+      [pf({ id: "f1", type: "abierta" })],
+      [psf({ file_id: "f1", content: "una respuesta" })],
+      null,
+      "es",
+      null,
+    );
+    expect(plainAnswers).toEqual({});
+  });
+
   it("REGRESIÓN: red_consola / red_gui → tampoco van a IA (deterministas)", () => {
     const { batchItems, zipJobs } = buildProjectJobs(
       [pf({ id: "f1", type: "red_consola" }), pf({ id: "f2", type: "red_gui" })],

@@ -275,14 +275,64 @@ self.addEventListener("push", (event) => {
   );
 });
 
+/**
+ * Abrir la notificación tiene que llevar a la app que YA está abierta, no a una
+ * pestaña nueva del navegador.
+ *
+ * Lo reportado: desde el móvil, tocar la notificación de un comentario "abre
+ * como en la web" — o sea, fuera de la app instalada — mientras que llegar al
+ * mismo comentario desde el tablero funciona bien.
+ *
+ * Dos causas, las dos acá:
+ *   1. `matchAll` sin `includeUncontrolled` no ve la ventana de la app cuando
+ *      todavía no la controla este Service Worker (el caso típico tras
+ *      actualizar la app, o en el primer arranque de la sesión).
+ *   2. Se reusaba la ventana SOLO si su URL ya contenía el destino. Como la
+ *      app instalada está en otra pantalla —el tablero, por ejemplo— nunca
+ *      coincidía, así que caía en `openWindow`, y en Android eso puede abrir
+ *      el navegador en vez de la app.
+ *
+ * Ahora: si hay una ventana de la app, se enfoca y se NAVEGA a destino
+ * (`client.navigate`), que es lo que hace que el usuario sienta que la
+ * notificación lo llevó adentro de la app. `openWindow` queda solo para cuando
+ * no hay ninguna ventana abierta.
+ */
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const url = (event.notification.data && event.notification.data.link) || "/app";
+  const link = (event.notification.data && event.notification.data.link) || "/app";
+  // Absoluta: `client.navigate` y la comparación de URLs necesitan el origen.
+  const destino = new URL(link, self.location.origin).href;
+
   event.waitUntil(
-    self.clients.matchAll({ type: "window" }).then((clients) => {
-      const existing = clients.find((c) => c.url.includes(url));
-      if (existing) return existing.focus();
-      return self.clients.openWindow(url);
-    }),
+    (async () => {
+      const ventanas = await self.clients.matchAll({
+        type: "window",
+        includeUncontrolled: true,
+      });
+      const propias = ventanas.filter((c) => c.url.startsWith(self.location.origin));
+
+      // Ya está en el destino: alcanza con traerla al frente.
+      const exacta = propias.find((c) => c.url === destino);
+      if (exacta) return exacta.focus();
+
+      // Hay app abierta en otra pantalla: se enfoca y se la lleva al destino.
+      const abierta = propias[0];
+      if (abierta) {
+        try {
+          await abierta.focus();
+        } catch {
+          /* enfocar puede fallar sin gesto del usuario; navegar igual sirve */
+        }
+        if ("navigate" in abierta) {
+          try {
+            return await abierta.navigate(destino);
+          } catch {
+            // Algunos navegadores rechazan `navigate` en clientes que no
+            // controlan. Se cae a abrir ventana, que es el comportamiento viejo.
+          }
+        }
+      }
+      return self.clients.openWindow(destino);
+    })(),
   );
 });

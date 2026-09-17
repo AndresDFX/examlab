@@ -164,6 +164,18 @@ export interface ProjectJobs {
   batchItems: GradeBatchItem[];
   /** un job projectCodeZipGrading por archivo `codigo_zip` con entrega. */
   zipJobs: ProjectZipJob[];
+  /**
+   * Respuestas de las preguntas DETERMINISTAS (cerrada, opción múltiple, red),
+   * por id de archivo. El edge las puntúa sin llamar al modelo.
+   *
+   * Va aparte de `batchItems` a propósito: `batchItems` es lo que se le manda
+   * a la IA, y estas justamente NO se le mandan. Pero tienen que viajar igual,
+   * porque si no nadie las puntúa: quedan con `ai_grade` NULL, que el trigger
+   * `_recompute_project_submission_grade` cuenta como 0 en el numerador
+   * mientras sus puntos siguen en el denominador — el alumno pierde puntos que
+   * respondió bien.
+   */
+  plainAnswers: Record<string, unknown>;
 }
 
 /**
@@ -184,6 +196,7 @@ export function buildProjectJobs(
   const byFileId = new Map(subFiles.map((s) => [s.file_id, s]));
   const batchItems: GradeBatchItem[] = [];
   const zipJobs: ProjectZipJob[] = [];
+  const plainAnswers: Record<string, unknown> = {};
   for (const f of files) {
     const ans = byFileId.get(f.id);
     if (f.type === "codigo_zip") {
@@ -220,7 +233,13 @@ export function buildProjectJobs(
       });
       continue;
     }
-    if (esDeterminista(f.type)) continue; // scoring local, sin IA
+    if (esDeterminista(f.type)) {
+      // No va a la IA, pero SÍ viaja: el edge la puntúa con `scoreDeterministic`.
+      // Saltarla del todo —lo que hacía antes— la dejaba sin nota para siempre
+      // por este camino.
+      plainAnswers[f.id] = ans?.content ?? null;
+      continue;
+    }
     const userAnswer = String(ans?.content ?? "").trim();
     if (!userAnswer) continue; // vacío → no gastar IA
     batchItems.push({
@@ -232,7 +251,7 @@ export function buildProjectJobs(
       maxPoints: Number(f.points) || 0,
     });
   }
-  return { batchItems, zipJobs };
+  return { batchItems, zipJobs, plainAnswers };
 }
 
 // ─────────────────────── Enqueue (con DB) ───────────────────────
@@ -347,7 +366,7 @@ export async function enqueueAiGradeForSubmission(opts: {
         .eq("submission_id", submissionId),
       db.from("projects").select("description").eq("id", itemId).maybeSingle(),
     ]);
-    const { batchItems, zipJobs } = buildProjectJobs(
+    const { batchItems, zipJobs, plainAnswers } = buildProjectJobs(
       (pf ?? []) as ProjectFileRow[],
       (psf ?? []) as ProjectSubFileRow[],
       (proj?.description ?? null) as string | null,
@@ -356,8 +375,9 @@ export async function enqueueAiGradeForSubmission(opts: {
     );
     let enqueued = 0;
     let firstError: string | undefined;
-    // Batch no-ZIP.
-    if (batchItems.length > 0) {
+    // Batch no-ZIP. Se encola también cuando solo hay deterministas: no hay
+    // nada que preguntarle al modelo, pero esas notas igual hay que escribirlas.
+    if (batchItems.length > 0 || Object.keys(plainAnswers).length > 0) {
       const r = await aiGradeOrEnqueue(
         {
           kind: "project_full",
@@ -371,6 +391,9 @@ export async function enqueueAiGradeForSubmission(opts: {
               userAnswer: it.userAnswer,
               maxPoints: it.maxPoints,
             })),
+            // Las deterministas no van en `items` (no se le preguntan al
+            // modelo) pero sí acá: el edge las puntúa con `scoreDeterministic`.
+            plainAnswers,
             courseLanguage,
             courseId: courseId ?? undefined,
             projectDescription: (proj?.description ?? null) as string | null,

@@ -82,6 +82,37 @@ export function esRespuestaVacia(
   return false;
 }
 
+/** Columnas de respuesta de `workshop_submission_answers`. */
+export interface FilaRespuestaTaller {
+  answer_text?: string | null;
+  selected_option?: string | null;
+  code_content?: string | null;
+  diagram_code?: string | null;
+}
+
+/**
+ * De DÓNDE sale la respuesta del alumno según el tipo de pregunta, cuando se
+ * lee de la BASE en vez de recibirla del cliente en `plainAnswers`.
+ *
+ * INVARIANTE con el submit del alumno (`WorkshopQuestions.tsx`, el `payload`
+ * por tipo) y con su gemelo `respuestaCrudaDeTaller` de
+ * `src/modules/grading/deterministic-scoring.ts`: `cerrada` se guarda en
+ * `selected_option`, pero `cerrada_multi` se guarda en **`answer_text`** como
+ * JSON. Leer `selected_option` para las dos —el error natural, porque el
+ * nombre de la columna lo sugiere— deja la opción múltiple SIEMPRE vacía y por
+ * lo tanto SIEMPRE en 0.
+ */
+export function respuestaCrudaDeTaller(
+  type: string,
+  fila: FilaRespuestaTaller | undefined | null,
+): unknown {
+  if (!fila) return null;
+  if (type === "cerrada") return fila.selected_option ?? fila.answer_text ?? null;
+  if (type === "cerrada_multi") return fila.answer_text ?? fila.selected_option ?? null;
+  if (type === "red_consola" || type === "red_gui") return fila.answer_text ?? null;
+  return fila.code_content ?? fila.diagram_code ?? fila.answer_text ?? null;
+}
+
 function txt(lang: "es" | "en", es: string, en: string): string {
   return lang === "en" ? en : es;
 }
