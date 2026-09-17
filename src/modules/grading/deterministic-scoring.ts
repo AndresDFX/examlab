@@ -223,3 +223,70 @@ export function scoreDeterministaCliente(
 
   return { earned: 0, outcome: "sin_respuesta" };
 }
+
+/** Una fila del desglose por pregunta (`submissions.answers.__breakdown`). */
+export interface FilaDesglose {
+  qid: string;
+  type?: string;
+  points?: number | null;
+  earned?: number;
+  feedback?: string;
+  [extra: string]: unknown;
+}
+
+export interface PreguntaParaDesglose {
+  id: string;
+  type: string;
+  points: number | null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  options?: any;
+}
+
+/**
+ * El desglose por pregunta COMPLETADO con lo que se puede puntuar sin modelo.
+ *
+ * ── Por qué existe ────────────────────────────────────────────────────
+ * Una entrega puede tener respuesta a una pregunta cerrada y NO tener su fila
+ * en `__breakdown`: pasa con todo lo calificado antes de que ese desglose
+ * existiera (26 casos en producción al escribir esto, 24 de ellos con la
+ * respuesta CORRECTA). Sin completar, esa pregunta se lee como «no calificada»:
+ * el docente la ve en «—», la da por no evaluada y la pone a mano — que fue
+ * justo lo reportado.
+ *
+ * ── Por qué es UN helper y no el `??` inline en cada pantalla ─────────
+ * Porque el número no es solo para mirar: `computeFinalGrade` reparte sobre el
+ * TOTAL de puntos pero solo suma lo que tiene fila, así que una pantalla que
+ * pinte el valor completado y recompute con el crudo muestra «1 / 1» y guarda
+ * una nota que descuenta esa misma pregunta. Ese desacuerdo entre lo que se ve
+ * y lo que se guarda es peor que el «—» original, porque el «—» al menos
+ * avisaba de que faltaba algo. Este módulo ya documenta dos apariciones
+ * previas de la misma clase de error; esta sería la tercera.
+ *
+ * No inventa notas: solo puntúa lo que es verificable sin criterio humano
+ * (cerrada, opción múltiple, red) y solo donde hay respuesta guardada. Lo que
+ * ya tenía fila NO se toca.
+ */
+export function desgloseEfectivo(
+  preguntas: readonly PreguntaParaDesglose[],
+  desgloseGuardado: readonly FilaDesglose[] | null | undefined,
+  respuestas: Record<string, unknown> | null | undefined,
+): FilaDesglose[] {
+  const filas: FilaDesglose[] = Array.isArray(desgloseGuardado) ? [...desgloseGuardado] : [];
+  const yaTiene = new Set(filas.map((f) => f?.qid).filter(Boolean));
+  for (const q of preguntas) {
+    if (yaTiene.has(q.id)) continue;
+    if (!esDeterminista(q.type)) continue;
+    const respuesta = respuestas?.[q.id];
+    if (respuesta === null || respuesta === undefined) continue;
+    filas.push({
+      qid: q.id,
+      type: q.type,
+      points: q.points,
+      earned: scoreDeterministaCliente(
+        { type: q.type, points: q.points, options: q.options },
+        respuesta,
+      ).earned,
+    });
+  }
+  return filas;
+}

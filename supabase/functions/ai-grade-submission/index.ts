@@ -3578,6 +3578,41 @@ Idioma de salida: ${langName}.`,
         // registros del camino de talleres, que ya retornaba así— pero ahora es
         // el registro principal del fallo, y `auditFromEdge` se traga sus
         // propios errores, así que esperarlo no puede cambiar la respuesta.
+        // …pero lo que NO necesitó al modelo no se tira. Las cerradas ya están
+        // puntuadas en `breakdown` y su nota no depende de que el proveedor
+        // conteste: descartarlas obliga al docente a ponerlas a mano, que es
+        // justo lo reportado. Se guarda SOLO el desglose (mezclado con lo que
+        // ya hubiera), sin tocar `ai_grade` ni `status`: escribir una nota
+        // global a la que le faltan las abiertas sería inventar una nota
+        // deprimida, y la entrega tiene que seguir pendiente para que el
+        // reintento la complete.
+        if (!dryRun) {
+          try {
+            const porQid = new Map<string, unknown>();
+            for (const b of prevBreakdown) {
+              const qid = (b as { qid?: string })?.qid;
+              if (qid) porQid.set(qid, b);
+            }
+            let deterministasGuardadas = 0;
+            for (const b of breakdown) {
+              const qid = (b as { qid?: string; type?: string })?.qid;
+              const tipo = (b as { type?: string })?.type;
+              if (!qid || !tipo || !esDeterminista(tipo)) continue;
+              porQid.set(qid, b);
+              deterministasGuardadas++;
+            }
+            if (deterministasGuardadas > 0) {
+              await adminClient
+                .from("submissions")
+                .update({ answers: { ...answers, __breakdown: Array.from(porQid.values()) } })
+                .eq("id", submissionId);
+            }
+          } catch {
+            // Guardar el desglose es una mejora, no la respuesta: si falla, el
+            // error del modelo sigue siendo lo que el caller tiene que ver.
+          }
+        }
+
         const err = batchOut.batchError;
         await auditFromEdge(adminClient, {
           actorId: auditCallerId,

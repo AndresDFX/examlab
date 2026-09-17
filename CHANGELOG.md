@@ -422,6 +422,20 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     ya tiene nota, que ignore la papelera y que cerrar dos veces siga siendo un no-op.
   - **Quien se queda sin tiempo ya no pierde lo que sí respondió bien** en las cerradas. Esa parte
     de la nota no depende de la IA y no debería haber dependido nunca.
+- **Una pregunta cerrada bien respondida ya no se muestra como sin calificar.** Reportado tras una
+  recalificación: las cerradas "salían como malas aunque estaban bien" y hubo que ponerlas a mano.
+  Medido en producción: **26 preguntas cerradas respondidas no tienen fila en el desglose por
+  pregunta** —son entregas calificadas ANTES de que ese desglose existiera, así que conservan su
+  nota global pero no el detalle— y **24 de esas 26 estaban correctas**. El docente abría la
+  revisión, veía «— / 1» en cada una, las daba por no calificadas y las corregía a mano.
+  - Ahora, cuando falta esa fila, la nota de una pregunta que se puntúa **sin modelo** se calcula
+    con el mismo módulo que usa el servidor, a partir de la respuesta que ya está guardada. No se
+    inventa nada ni se pide IA: es aritmética sobre datos que ya estaban ahí.
+  - **Y si la IA falla, lo determinista deja de tirarse a la basura.** El lote de examen devolvía el
+    error sin guardar nada, así que las cerradas —ya puntuadas, y sin ninguna dependencia del
+    proveedor— se perdían junto con las abiertas. Ahora se guarda su desglose, **sin** tocar la nota
+    global ni el estado: escribir un total al que le faltan las abiertas sería inventar una nota
+    deprimida, y la entrega tiene que seguir pendiente para que el reintento la complete.
 - **La IA no califica preguntas cerradas, pero su valor SÍ cuenta para la nota — en todos los
   caminos.** Una auditoría de los flujos de calificación y recalificación encontró tres lugares
   donde el puntaje de una cerrada se perdía (nunca al revés: en ningún camino se le preguntaba al

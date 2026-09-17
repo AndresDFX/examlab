@@ -93,6 +93,7 @@ import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { desgloseEfectivo } from "@/modules/grading/deterministic-scoring";
 import i18n from "@/i18n";
 import {
   countAnswered,
@@ -1288,9 +1289,23 @@ function ExamMonitor() {
     }
     const nextAnswers = { ...prevAnswers, __manual_overrides: prevManual };
 
-    const breakdown: GradeBreakdown[] = Array.isArray(prevAnswers.__breakdown)
-      ? prevAnswers.__breakdown
-      : [];
+    // El MISMO desglose que ve el docente en pantalla, no el crudo de la base.
+    // `computeFinalGrade` reparte sobre el total de puntos pero solo suma lo que
+    // tiene fila: con el crudo, una cerrada correcta sin fila (las entregas
+    // previas al desglose) se descuenta en silencio al guardar CUALQUIER ajuste
+    // de la entrega, aunque sea de otra pregunta — y encima el badge la muestra
+    // con su puntaje. Que lo que se ve y lo que se guarda discrepen es peor que
+    // el «—» original, porque el «—» al menos avisaba.
+    const breakdown = desgloseEfectivo(
+      questions.map((qq) => ({
+        id: qq.id,
+        type: qq.type,
+        points: qq.points,
+        options: qq.options,
+      })),
+      Array.isArray(prevAnswers.__breakdown) ? prevAnswers.__breakdown : [],
+      prevAnswers as Record<string, unknown>,
+    ) as GradeBreakdown[];
     const recomputed = computeFinalGrade(
       questions.map((qq) => ({ id: qq.id, points: qq.points })),
       breakdown,
@@ -3110,11 +3125,22 @@ function ExamMonitor() {
                     </p>
                   )}
                   {(() => {
-                    const breakdown: BreakdownItem[] = Array.isArray(
-                      viewingSub.answers?.__breakdown,
-                    )
-                      ? viewingSub.answers.__breakdown
-                      : [];
+                    // Completado con lo que se puntúa sin modelo: ver
+                    // `desgloseEfectivo`. Es el MISMO array con el que
+                    // `saveQuestionOverride` recompone la nota, para que lo
+                    // mostrado y lo guardado no puedan discrepar.
+                    const breakdown = desgloseEfectivo(
+                      questions.map((qq) => ({
+                        id: qq.id,
+                        type: qq.type,
+                        points: qq.points,
+                        options: qq.options,
+                      })),
+                      Array.isArray(viewingSub.answers?.__breakdown)
+                        ? viewingSub.answers.__breakdown
+                        : [],
+                      viewingSub.answers as Record<string, unknown>,
+                    ) as BreakdownItem[];
                     const byId = new Map(breakdown.map((b) => [b.qid, b]));
                     const manual: Record<string, ManualOverride> =
                       viewingSub.answers?.__manual_overrides ?? {};

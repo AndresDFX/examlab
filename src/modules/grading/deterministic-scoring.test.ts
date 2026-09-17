@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  desgloseEfectivo,
   esDeterminista,
   parseOptionIndex,
   parseOptionIndices,
@@ -235,5 +236,63 @@ describe("scoreDeterministaCliente — red", () => {
       expect(r.detalle).not.toBeNull();
       expect(r.detalle).toContain("Ping a R1");
     }
+  });
+});
+
+describe("desgloseEfectivo", () => {
+  const cerrada = {
+    id: "q1",
+    type: "cerrada",
+    points: 1,
+    options: { choices: ["a", "b", "c"], correct_index: 2 },
+  };
+  const abierta = { id: "q2", type: "abierta", points: 2, options: null };
+
+  it("completa una cerrada respondida que no tiene fila en el desglose", () => {
+    // El caso reportado: entregas calificadas ANTES de que el desglose
+    // existiera. Sin completar, la pregunta se lee como no calificada.
+    const filas = desgloseEfectivo([cerrada, abierta], [{ qid: "q2", earned: 1.5 }], { q1: 2 });
+    expect(filas.find((f) => f.qid === "q1")?.earned).toBe(1);
+    // Y lo que ya tenía fila se respeta tal cual.
+    expect(filas.find((f) => f.qid === "q2")?.earned).toBe(1.5);
+  });
+
+  it("una cerrada mal respondida se completa en 0, no se omite", () => {
+    const filas = desgloseEfectivo([cerrada], [], { q1: 0 });
+    expect(filas).toHaveLength(1);
+    expect(filas[0].earned).toBe(0);
+  });
+
+  it("NO inventa nota donde no hubo respuesta", () => {
+    expect(desgloseEfectivo([cerrada], [], {})).toHaveLength(0);
+    expect(desgloseEfectivo([cerrada], [], { q1: null })).toHaveLength(0);
+  });
+
+  it("NO toca las preguntas que necesitan modelo", () => {
+    expect(desgloseEfectivo([abierta], [], { q2: "una respuesta larga" })).toHaveLength(0);
+  });
+
+  it("no pisa la fila existente de una cerrada ya calificada", () => {
+    const filas = desgloseEfectivo([cerrada], [{ qid: "q1", earned: 0, feedback: "ajustado" }], {
+      q1: 2,
+    });
+    expect(filas).toHaveLength(1);
+    expect(filas[0].earned).toBe(0);
+    expect(filas[0].feedback).toBe("ajustado");
+  });
+
+  it("lo que se MUESTRA y lo que se GUARDA salen del mismo array", () => {
+    // La regresión que este helper existe para impedir: pintar el valor
+    // completado y recomputar la nota con el crudo. `computeFinalGrade` solo
+    // suma lo que tiene fila, así que con el crudo la cerrada correcta se
+    // descuenta en silencio mientras el badge la muestra con su puntaje.
+    const preguntas = [cerrada, abierta];
+    const guardado = [{ qid: "q2", earned: 2 }];
+    const respuestas = { q1: 2 };
+    const efectivo = desgloseEfectivo(preguntas, guardado, respuestas);
+    const ganadoCrudo = guardado.reduce((s, f) => s + (f.earned ?? 0), 0);
+    const ganadoEfectivo = efectivo.reduce((s, f) => s + (f.earned ?? 0), 0);
+    expect(ganadoCrudo).toBe(2);
+    expect(ganadoEfectivo).toBe(3);
   });
 });

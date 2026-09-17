@@ -20,6 +20,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { desgloseEfectivo } from "@/modules/grading/deterministic-scoring";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
@@ -385,9 +386,16 @@ function StudentExamReview() {
   }
 
   const answers = (submission.answers ?? {}) as Record<string, unknown>;
-  const breakdown: BreakdownItem[] = Array.isArray(answers.__breakdown)
-    ? (answers.__breakdown as BreakdownItem[])
-    : [];
+  // Completado con lo que se puntúa sin modelo (ver `desgloseEfectivo`). Sin
+  // esto, en una entrega calificada antes de que existiera el desglose el
+  // alumno ve «— / 1 pts» arriba y, justo debajo, su propia opción marcada y
+  // etiquetada como «Correcta»: una contradicción en la misma pantalla, y de
+  // las que terminan en un reclamo de nota.
+  const breakdown = desgloseEfectivo(
+    questions.map((q) => ({ id: q.id, type: q.type, points: q.points, options: q.options })),
+    Array.isArray(answers.__breakdown) ? (answers.__breakdown as BreakdownItem[]) : [],
+    answers,
+  ) as BreakdownItem[];
   const byBreakdownId = new Map(breakdown.map((b) => [b.qid, b]));
   const manual = (answers.__manual_overrides ?? {}) as Record<string, ManualOverride>;
 
