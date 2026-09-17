@@ -132,6 +132,7 @@ export function CodeFileRunnerDialog({ file, onOpenChange, auditId }: Props) {
           readOnly={!language}
           hideHints
           height="320px"
+          zoomScopeKey={file ? `content-file:${file.name}` : null}
           output={output}
         />
       </DialogContent>

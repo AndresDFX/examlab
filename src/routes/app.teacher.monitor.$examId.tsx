@@ -3280,6 +3280,7 @@ function ExamMonitor() {
                                 showRunButton={false}
                                 hideHints
                                 height="220px"
+                                zoomScopeKey={q.id}
                               />
                             ) : (
                               q.type !== "cerrada" &&
@@ -4061,6 +4062,7 @@ function ExamMonitor() {
                             showRunButton={false}
                             hideHints
                             height="220px"
+                            zoomScopeKey={`${q.id}:peer`}
                           />
                         ) : (
                           <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">

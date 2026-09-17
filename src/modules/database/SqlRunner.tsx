@@ -100,6 +100,9 @@ interface Props {
    * En examen/taller el runner es el único editor, así que no lleva número.
    */
   queryLabel?: string;
+  /** Identidad estable de la pregunta/hoja, para que el zoom quede guardado
+   *  solo acá — ver `useEditorZoom`. */
+  zoomScopeKey?: string | null;
 }
 
 /** Convierte el resultado crudo de PGlite a nuestra forma serializable. */
@@ -125,6 +128,7 @@ export function SqlRunner({
   starterSql,
   readOnlyAllowRun,
   queryLabel,
+  zoomScopeKey = null,
 }: Props) {
   const { t } = useTranslation();
   const parsed = parseSqlAnswer(value);
@@ -147,7 +151,7 @@ export function SqlRunner({
    * `setupSql` viejo). La ref lo mantiene apuntando a la versión actual.
    */
   const runRef = useRef<() => void>(() => {});
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
   /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
      de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),

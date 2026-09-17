@@ -2453,6 +2453,7 @@ function TakeExam() {
                       showLanguageSelector={false}
                       showRunButton={true}
                       height="250px"
+                      zoomScopeKey={q.id}
                     />
                   </div>
                 ) : q.type === "diagrama" ? (
@@ -2479,6 +2480,7 @@ function TakeExam() {
                           onChange={(v) => updateAnswer(q.id, v)}
                           height="280px"
                           framework={fw}
+                          zoomScopeKey={q.id}
                         />
                       );
                     })()}
@@ -2489,6 +2491,7 @@ function TakeExam() {
                       value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
                       onChange={(v) => updateAnswer(q.id, v)}
                       height="280px"
+                      zoomScopeKey={q.id}
                     />
                   </div>
                 ) : q.type === "red_consola" ? (
@@ -2514,6 +2517,7 @@ function TakeExam() {
                       onChange={(v) => updateAnswer(q.id, v)}
                       setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
                       starterSql={q.starter_code}
+                      zoomScopeKey={q.id}
                     />
                   </div>
                 ) : q.type === "red_gui" ? (

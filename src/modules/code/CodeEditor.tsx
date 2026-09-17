@@ -71,6 +71,10 @@ interface CodeEditorProps {
   /** Esconde tips informativos (ej. el banner de Java cold-start).
    *  Útil para vistas read-only de revisión donde el banner sobra. */
   hideHints?: boolean;
+  /** Identidad estable de ESTA pregunta/superficie para que el zoom quede
+   *  guardado solo acá — ver `useEditorZoom`. Sin esto, cae en la preferencia
+   *  compartida de siempre. */
+  zoomScopeKey?: string | null;
 }
 
 const LANGUAGE_CONFIG: Partial<Record<
@@ -114,6 +118,7 @@ export function CodeEditor({
   showRunButton = true,
   blockClipboard = false,
   hideHints = false,
+  zoomScopeKey = null,
 }: CodeEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<any>(null);
@@ -166,7 +171,7 @@ export function CodeEditor({
 
   // Zoom del editor. Compartido con la hoja de SQL y con los editores de
   // Java/Python con interfaz gráfica: una sola preferencia por persona.
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
   return (
     <div className="space-y-2">

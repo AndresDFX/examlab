@@ -183,6 +183,9 @@ interface Props {
    *  (CheerpJ no soporta JavaFX). El alumno puede overridearlo desde
    *  el selector si el modo lo permite. */
   framework?: JavaGuiFramework;
+  /** Identidad estable de la pregunta, para que el zoom quede guardado solo
+   *  acá — ver `useEditorZoom`. */
+  zoomScopeKey?: string | null;
 }
 
 export function JavaGuiRunner({
@@ -192,6 +195,7 @@ export function JavaGuiRunner({
   readOnly = false,
   blockClipboard = false,
   framework: defaultFramework = "swing",
+  zoomScopeKey = null,
 }: Props) {
   const { t } = useTranslation();
   const editorRef = useRef<any>(null);
@@ -509,9 +513,10 @@ export function JavaGuiRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
 
-  // Zoom del editor, compartido con el compilador de examen/taller y con la
-  // hoja de SQL: una sola preferencia por persona.
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+  // Zoom del editor, con `zoomScopeKey` propio de la pregunta — ver
+  // `useEditorZoom` (dejó de ser una preferencia compartida entre TODOS los
+  // compiladores de la plataforma).
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
   return (
     <div className="space-y-2">

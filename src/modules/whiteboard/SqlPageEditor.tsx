@@ -415,6 +415,7 @@ export function SqlPageEditor({
           readOnlyAllowRun
           queryLabel={readOnly ? undefined : t("bdSql.stepQuery")}
           className="flex-1"
+          zoomScopeKey={`whiteboard-sql-page:${pageId}`}
         />
       </div>
       {fullscreenSupported && (

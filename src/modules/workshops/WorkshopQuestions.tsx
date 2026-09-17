@@ -2836,6 +2836,7 @@ export function StudentWorkshopTaker({
                       showLanguageSelector={false}
                       showRunButton={true}
                       height="280px"
+                      zoomScopeKey={q.id}
                     />
                   </div>
                 );
@@ -2857,6 +2858,7 @@ export function StudentWorkshopTaker({
                     onChange={(v) => updateAnswer(q.id, v)}
                     height="280px"
                     framework={fw}
+                    zoomScopeKey={q.id}
                   />
                 );
               })()}
@@ -2865,6 +2867,7 @@ export function StudentWorkshopTaker({
                 value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
                 onChange={(v) => updateAnswer(q.id, v)}
                 height="280px"
+                zoomScopeKey={q.id}
               />
             )}
             {q.type === "red_consola" &&
@@ -2901,6 +2904,7 @@ export function StudentWorkshopTaker({
                 onChange={(v) => updateAnswer(q.id, v)}
                 setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
                 starterSql={q.starter_code}
+                zoomScopeKey={q.id}
               />
             )}
             {q.type === "so_consola" && (

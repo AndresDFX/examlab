@@ -50,6 +50,9 @@ interface Props {
   readOnly?: boolean;
   /** Bloquea silenciosamente copiar/pegar/cortar dentro del editor. */
   blockClipboard?: boolean;
+  /** Identidad estable de la pregunta, para que el zoom quede guardado solo
+   *  acá — ver `useEditorZoom`. */
+  zoomScopeKey?: string | null;
 }
 
 export function PythonGuiRunner({
@@ -58,6 +61,7 @@ export function PythonGuiRunner({
   height = "320px",
   readOnly = false,
   blockClipboard = false,
+  zoomScopeKey = null,
 }: Readonly<Props>) {
   const { t } = useTranslation();
   const editorRef = useRef<unknown>(null);
@@ -186,9 +190,10 @@ export function PythonGuiRunner({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
 
-  // Zoom del editor, compartido con el compilador de examen/taller y con la
-  // hoja de SQL: una sola preferencia por persona.
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom();
+  // Zoom del editor, con `zoomScopeKey` propio de la pregunta — ver
+  // `useEditorZoom` (dejó de ser una preferencia compartida entre TODOS los
+  // compiladores de la plataforma).
+  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
   return (
     <div className="space-y-2">

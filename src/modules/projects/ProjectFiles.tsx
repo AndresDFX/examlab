@@ -3081,6 +3081,7 @@ export function StudentProjectTaker({
                       showLanguageSelector={false}
                       showRunButton={true}
                       height="280px"
+                      zoomScopeKey={q.id}
                     />
                   </div>
                 );
@@ -3107,6 +3108,7 @@ export function StudentProjectTaker({
                     onChange={(v) => updateAnswer(q.id, v)}
                     height="280px"
                     framework={fw}
+                    zoomScopeKey={q.id}
                   />
                 );
               })()}
@@ -3115,6 +3117,7 @@ export function StudentProjectTaker({
                 value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
                 onChange={(v) => updateAnswer(q.id, v)}
                 height="280px"
+                zoomScopeKey={q.id}
               />
             )}
             {q.type === "red_consola" &&

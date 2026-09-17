@@ -808,6 +808,7 @@ export function SessionCodeSnippets({ sessionId, readOnly }: Props) {
                 readOnly={readOnly}
                 hideHints
                 height="200px"
+                zoomScopeKey={activeFile ? `session-snippet:${snippet.id}:${activeFile.id}` : null}
                 output={
                   output
                     ? [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ""]

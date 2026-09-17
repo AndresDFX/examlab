@@ -22,7 +22,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
-import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
+import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
 import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -625,6 +625,7 @@ function StudentExamReview() {
                     showRunButton={false}
                     hideHints
                     height="220px"
+                    zoomScopeKey={q.id}
                   />
                 ) : (
                   q.type !== "cerrada" &&

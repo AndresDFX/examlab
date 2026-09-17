@@ -355,6 +355,7 @@ export function CodePageEditor({
           readOnly={readOnly}
           hideHints
           height="55vh"
+          zoomScopeKey={`whiteboard-code-page:${pageId}`}
           output={
             output
               ? [output.stdout, output.stderr ? `\n[stderr]\n${output.stderr}` : ""].filter(Boolean).join("")
