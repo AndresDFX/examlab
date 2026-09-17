@@ -28,6 +28,10 @@ export type WarningType =
   // Soft signal: intento de pantallazo. NO suma strike — se registra
   // para que el docente lo vea en el monitor de advertencias.
   | "screenshot_attempt"
+  // Señal blanda de móvil: la ventana perdió el foco sin que el documento se
+  // ocultara. En un teléfono eso lo produce el corrector ortográfico del
+  // sistema, así que NO suma strike — se registra para que el docente lo vea.
+  | "blur_movil"
   | (string & {});
 
 export interface WarningEvent {
@@ -61,6 +65,8 @@ export function warningLabel(type: WarningType): string {
       return "Menú contextual";
     case "screenshot_attempt":
       return "Intento de pantallazo";
+    case "blur_movil":
+      return "Salida momentánea en móvil (no suma)";
     default:
       return String(type);
   }
@@ -122,4 +128,95 @@ export function warningEventTimestamp(ev: WarningEvent): number | null {
     return Number.isNaN(n) ? null : n;
   }
   return null;
+}
+
+/**
+ * ¿Un `blur` de la VENTANA debe sumar strike en este dispositivo?
+ *
+ * ── El problema ───────────────────────────────────────────────────────
+ * En móvil, el corrector ortográfico del sistema abre su propia burbuja
+ * nativa —la sugerencia de reemplazo al tocar una palabra subrayada, el
+ * «Replace…» de iOS— y esa burbuja le quita el foco a la ventana sin que el
+ * estudiante salga de ningún lado. El examen lo contaba como «salida de
+ * pestaña»: corregir una palabra costaba un strike, y con tres el intento
+ * queda marcado como sospechoso. Medido en producción: de 131 advertencias
+ * registradas, 80 son de este tipo — el más frecuente con diferencia.
+ *
+ * ── Por qué distinguir por dispositivo y no intentar detectar el corrector ──
+ * No hay forma de preguntarle al navegador «¿este blur lo causó una burbuja
+ * del sistema?». Lo que sí cambia es qué señal es CONFIABLE en cada uno:
+ *
+ *  · En un teléfono o tableta, salir de la aplicación de verdad —cambiar de
+ *    app, abrir el navegador, bajar el centro de notificaciones— dispara
+ *    `visibilitychange` con el documento OCULTO. Esa señal sigue sumando
+ *    strike, así que el proctoring no se debilita: lo que se deja de contar
+ *    es el blur suelto, que en móvil lo producen las burbujas del sistema.
+ *  · En un computador, cambiar de ventana con alt+tab dispara `blur` y muchas
+ *    veces NO dispara `visibilitychange` (lo documenta el propio listener de
+ *    la pantalla de examen). Ahí el blur es la única señal y se conserva
+ *    intacta. Además el menú contextual está bloqueado, así que las
+ *    sugerencias del corrector ni siquiera se pueden abrir.
+ *
+ * Se exige puntero grueso Y ausencia de puntero fino a propósito: un portátil
+ * con pantalla táctil tiene los dos, y ahí el alt+tab sigue siendo posible, así
+ * que debe seguir contando como en cualquier computador.
+ */
+export function blurCuentaComoStrike(entorno: {
+  punteroGrueso: boolean;
+  punteroFino: boolean;
+}): boolean {
+  const esMovil = entorno.punteroGrueso && !entorno.punteroFino;
+  return !esMovil;
+}
+
+/**
+ * Lee del navegador lo que `blurCuentaComoStrike` necesita. Separado para que
+ * la regla se pueda probar sin DOM.
+ */
+export function entornoDePuntero(): { punteroGrueso: boolean; punteroFino: boolean } {
+  if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    // Sin `matchMedia` no se puede distinguir: se asume computador, que es el
+    // caso donde NO contar un blur debilitaría el proctoring.
+    return { punteroGrueso: false, punteroFino: true };
+  }
+  return {
+    punteroGrueso: window.matchMedia("(pointer: coarse)").matches,
+    punteroFino: window.matchMedia("(pointer: fine)").matches,
+  };
+}
+
+/**
+ * Ventanas de deduplicación SEPARADAS para los strikes y para las señales
+ * blandas.
+ *
+ * ── Por qué separadas ─────────────────────────────────────────────────
+ * Un mismo gesto dispara varios eventos, y por eso hay una ventana que ignora
+ * el segundo. Pero si strikes y señales blandas comparten esa ventana, la
+ * blanda se traga al strike: en un teléfono, cambiar de aplicación dispara
+ * primero `blur` —que desde el arreglo del corrector ortográfico es señal
+ * blanda— y enseguida `visibilitychange`. Con una sola ventana, el blur la
+ * consume sin sumar nada y el `visibility_hidden` que viene detrás la encuentra
+ * cerrada: el cambio de app quedaba SIN registrar, que es exactamente el hueco
+ * que el arreglo decía no abrir.
+ *
+ * Con ventanas separadas cada clase se deduplica contra sí misma y ninguna
+ * silencia a la otra.
+ */
+export function creaVentanasDeProctoring(ventanaMs = 500) {
+  let hastaStrike = 0;
+  let hastaBlanda = 0;
+  return {
+    /** ¿Se puede sumar un strike ahora? Abre la ventana si devuelve true. */
+    permiteStrike(ahora: number): boolean {
+      if (ahora < hastaStrike) return false;
+      hastaStrike = ahora + ventanaMs;
+      return true;
+    },
+    /** Ídem para una señal que no suma. */
+    permiteBlanda(ahora: number): boolean {
+      if (ahora < hastaBlanda) return false;
+      hastaBlanda = ahora + ventanaMs;
+      return true;
+    },
+  };
 }

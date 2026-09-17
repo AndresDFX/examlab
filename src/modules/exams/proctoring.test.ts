@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_WARNINGS,
+  blurCuentaComoStrike,
+  creaVentanasDeProctoring,
+  isStrikeEvent,
   shouldMarkSuspicious,
   warningEventTimestamp,
   warningLabel,
@@ -108,5 +111,59 @@ describe("proctoring flow simulation", () => {
   it("stays within bounds for 2 warnings (autosave but not suspended)", () => {
     const warnings = 2;
     expect(shouldMarkSuspicious(warnings)).toBe(false);
+  });
+});
+
+describe("blurCuentaComoStrike", () => {
+  it("en un teléfono o tableta, el blur suelto NO suma strike", () => {
+    // Es lo que produce la burbuja del corrector ortográfico al tocar una
+    // palabra subrayada: corregir una palabra no puede costar un strike.
+    expect(blurCuentaComoStrike({ punteroGrueso: true, punteroFino: false })).toBe(false);
+  });
+
+  it("en un computador SÍ suma: ahí el blur es la única señal del alt+tab", () => {
+    expect(blurCuentaComoStrike({ punteroGrueso: false, punteroFino: true })).toBe(true);
+  });
+
+  it("un portátil con pantalla táctil sigue contando como computador", () => {
+    // Tiene los dos punteros y el alt+tab sigue siendo posible.
+    expect(blurCuentaComoStrike({ punteroGrueso: true, punteroFino: true })).toBe(true);
+  });
+
+  it("sin información de puntero, falla del lado seguro (cuenta)", () => {
+    expect(blurCuentaComoStrike({ punteroGrueso: false, punteroFino: false })).toBe(true);
+  });
+
+  it("salir de la app en móvil SIGUE sumando por la otra vía", () => {
+    // `visibility_hidden` es lo que dispara cambiar de app en un teléfono, y
+    // se mantiene en el set de tipos que suman: el proctoring no se debilita.
+    expect(isStrikeEvent("visibility_hidden")).toBe(true);
+    expect(isStrikeEvent("fullscreen_exit")).toBe(true);
+  });
+});
+
+describe("creaVentanasDeProctoring", () => {
+  it("una señal blanda NO puede tragarse el strike que viene detrás", () => {
+    // La secuencia real de un cambio de app en un teléfono: primero `blur`
+    // (blanda, por el arreglo del corrector) y enseguida `visibilitychange`
+    // (strike). Con una sola ventana compartida, el strike se perdía.
+    const v = creaVentanasDeProctoring(500);
+    expect(v.permiteBlanda(1000)).toBe(true);
+    expect(v.permiteStrike(1050)).toBe(true);
+  });
+
+  it("y un strike tampoco silencia la señal blanda", () => {
+    const v = creaVentanasDeProctoring(500);
+    expect(v.permiteStrike(1000)).toBe(true);
+    expect(v.permiteBlanda(1050)).toBe(true);
+  });
+
+  it("cada clase sí se deduplica contra sí misma", () => {
+    const v = creaVentanasDeProctoring(500);
+    expect(v.permiteStrike(1000)).toBe(true);
+    expect(v.permiteStrike(1200)).toBe(false);
+    expect(v.permiteStrike(1600)).toBe(true);
+    expect(v.permiteBlanda(1000)).toBe(true);
+    expect(v.permiteBlanda(1200)).toBe(false);
   });
 });

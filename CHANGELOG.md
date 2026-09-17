@@ -456,6 +456,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Usar el corrector ortográfico en el celular ya no cuesta un strike.** En un teléfono, tocar una
+  palabra subrayada abre la burbuja nativa del sistema y eso le quita el foco a la ventana sin que el
+  estudiante salga a ningún lado: el examen lo contaba como «salida de pestaña». Con tres, el intento
+  queda marcado como sospechoso. Medido en producción: de 131 advertencias registradas, **80 eran de
+  ese tipo** — el más frecuente con diferencia.
+  - **No se detecta el corrector, se distingue el dispositivo**, porque no hay forma de preguntarle al
+    navegador quién causó un `blur`. Lo que sí cambia es qué señal es confiable: en un teléfono, salir
+    de la app de verdad dispara `visibilitychange` con el documento oculto, y eso **sigue sumando**;
+    en un computador el `blur` es la única señal del alt+tab y queda intacta. Verificado con
+    Playwright en tres motores reales: escritorio tiene puntero fino, iPhone/Pixel/iPad solo grueso.
+    Un portátil con pantalla táctil tiene los dos, así que sigue contando como computador.
+  - **El evento no se pierde**: se registra como señal blanda, visible para el docente en el monitor,
+    igual que los intentos de pantallazo.
+  - La revisión de consistencia encontró que la primera versión abría un hueco peor: la señal blanda
+    compartía la ventana de deduplicación con los strikes, así que en un cambio de app real el `blur`
+    se tragaba el `visibility_hidden` que venía detrás y **el cambio quedaba sin registrar**. Ahora
+    cada clase tiene su propia ventana, con un test que reproduce esa secuencia.
+
 - **Un examen que cerró el servidor se quedaba sin calificar para siempre — y con él, el puntaje de
   las preguntas cerradas.** Reportado con un caso concreto: una entrega del 1 de septiembre seguía
   dos semanas después con «— / 0.3» en cada pregunta y sin «Nota final». Cuatro de sus trece

@@ -66,7 +66,14 @@ import {
   computeSecondsLeftRelative,
   isExamOpen,
 } from "@/modules/exams/exam-time";
-import { MAX_WARNINGS, shouldMarkSuspicious, warningLabel } from "@/modules/exams/proctoring";
+import {
+  MAX_WARNINGS,
+  blurCuentaComoStrike,
+  creaVentanasDeProctoring,
+  entornoDePuntero,
+  shouldMarkSuspicious,
+  warningLabel,
+} from "@/modules/exams/proctoring";
 import { seededShuffle, examShuffleSeed } from "@/modules/exams/shuffle";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
@@ -1473,7 +1480,11 @@ function TakeExam() {
     };
     window.addEventListener("popstate", onPopstate, true);
 
-    let blurLockUntil = 0;
+    // Ventanas SEPARADAS: si la señal blanda compartiera la del strike, el
+    // `blur` de un cambio de app en móvil se tragaría el `visibility_hidden`
+    // que viene detrás y el cambio quedaría sin registrar. Ver
+    // `creaVentanasDeProctoring`.
+    const ventanas = creaVentanasDeProctoring(500);
     let lastBlurAt = 0;
     const recordWarning = (type: string) => {
       if (submittedRef.current) return;
@@ -1484,8 +1495,7 @@ function TakeExam() {
       // blur/fullscreenchange aquí es parte del flujo de entrada.
       if (!hasEverEnteredFullscreenRef.current) return;
       const now = Date.now();
-      if (now < blurLockUntil) return;
-      blurLockUntil = now + 500;
+      if (!ventanas.permiteStrike(now)) return;
 
       const nw = warningsRef.current + 1;
       warningsRef.current = nw;
@@ -1714,7 +1724,62 @@ function TakeExam() {
       );
     };
 
+    /**
+     * Deja constancia de algo que el docente debería ver pero que NO suma
+     * strike. Mismo camino de persistencia que `recordScreenshotAttempt`.
+     */
+    const registrarSenalBlanda = (type: string) => {
+      if (submittedRef.current) return;
+      if (!hasEverEnteredFullscreenRef.current) return;
+      const now = Date.now();
+      // Ventana propia: deduplica el ruido de un foco que parpadea sin poder
+      // silenciar un strike real que llegue en los mismos milisegundos.
+      if (!ventanas.permiteBlanda(now)) return;
+
+      warningEventsRef.current = [
+        ...warningEventsRef.current,
+        {
+          type,
+          at: new Date(now).toISOString(),
+          questionIdx:
+            exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
+        },
+      ];
+      const updatedAnswers = {
+        ...answersRef.current,
+        __warning_events: warningEventsRef.current,
+        __saved_at: Date.now(),
+      };
+      answersRef.current = updatedAnswers;
+      setAnswers(updatedAnswers);
+      if (submissionIdRef.current && isOnline()) {
+        supabase
+          .from("submissions")
+          .update({ answers: updatedAnswers })
+          .eq("id", submissionIdRef.current)
+          .then(({ error }) => {
+            if (error) console.error("registrarSenalBlanda DB save failed:", error);
+          });
+      }
+    };
+
+    // En un teléfono el corrector ortográfico abre su burbuja nativa y eso
+    // quita el foco de la ventana sin que el estudiante salga a ningún lado:
+    // ver `blurCuentaComoStrike`. Se evalúa una sola vez por intento.
+    const entornoPuntero = entornoDePuntero();
+    const blurSuma = blurCuentaComoStrike(entornoPuntero);
+
     const onBlur = () => {
+      if (!blurSuma) {
+        // No suma, pero no se pierde: el docente lo ve en el monitor. Salir de
+        // la app DE VERDAD sigue sumando por `visibilitychange`, que en móvil
+        // es la señal confiable.
+        registrarSenalBlanda("blur_movil");
+        return;
+      }
+      // Solo se marca cuando el blur SUMÓ: `onBeforeUnload` usa esta marca para
+      // no contar dos veces el cierre de la ventana, y si la pusiéramos igual
+      // en móvil dejaría de contar ese cierre.
       lastBlurAt = Date.now();
       recordWarning("pestaña");
     };
@@ -1819,7 +1884,7 @@ function TakeExam() {
     };
     // Cambio de pestaña / cambio de app: algunos navegadores (sobre todo mobile)
     // disparan visibilitychange pero NO window blur → sin este listener el alumno
-    // escapaba el proctoring. recordWarning ya deduplica con blurLockUntil (500ms)
+    // escapaba el proctoring. recordWarning ya deduplica con su propia ventana de 500 ms
     // cuando desktop dispara ambos, y usa el tipo dedicado visibility_hidden.
     const onVisibility = () => {
       if (document.visibilityState === "hidden") recordWarning("visibility_hidden");
