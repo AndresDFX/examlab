@@ -462,6 +462,32 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **La app instalada se podía quedar con el nombre genérico, y no había forma de que se actualizara
+  sola.** Dos defectos con la misma causa: el manifest se armaba en el navegador y se colgaba de una
+  URL `blob:`.
+  - **Medido**: el cambio tardaba **5,7 s** en la primera visita (1,5 s con caché). Quien pulsaba
+    «Instalar» en esos segundos se llevaba «ExamLab — Plataforma de Exámenes». No es teórico: en una
+    corrida en frío la prueba leyó exactamente ese nombre.
+  - **Y una `blob:` no existe en la sesión siguiente.** Android actualiza una app instalada
+    releyendo el manifest en la URL que registró al instalar, así que por ese camino la
+    actualización del nombre y el ícono no podía funcionar nunca.
+  - **Ahora los genera el despliegue**, uno por institución, justo antes de publicar su Worker
+    (`scripts/manifest-institucion.ts` y `scripts/iconos-institucion.ts`). La URL vuelve a ser
+    `/manifest.json` —estable— y el nombre correcto está desde el primer milisegundo: verificado con
+    Chromium real, «ExamLab - UNIAJ» ya a los 300 ms y cero errores de parseo.
+  - **La geometría del ícono NO se duplicó.** El despliegue dibuja con `sharp` y el navegador con
+    canvas, pero las dos usan las mismas funciones (`medidasDistintivo`, `medidasIcono`), así que el
+    ícono publicado y el de la pestaña son el mismo dibujo. El script de manifest es TypeScript por
+    lo mismo: importa la función que arma el nombre en vez de repetirla.
+  - Una institución **sin logo utilizable** se publica con los íconos de ExamLab, y que no se pueda
+    bajar un logo nunca tumba su despliegue. Probado el ciclo completo contra las 7 instituciones
+    reales: 3 con logo generan el ícono compuesto, 4 caen al genérico.
+  - Al componer con `sharp` aparecieron dos defectos que el navegador no tenía y que solo se ven
+    mirando el PNG: el logo de UNIAJ **no tiene canal alfa** (es un webp opaco), así que su cuadrado
+    blanco asomaba por las esquinas del círculo — hay que recortar al círculo, que es lo que el
+    navegador hacía con `clip()`—; y el mismo cuadrado le tapaba pedazos al aro, que ahora se dibuja
+    **encima** del logo.
+
 - **Usar el corrector ortográfico en el celular ya no cuesta un strike.** En un teléfono, tocar una
   palabra subrayada abre la burbuja nativa del sistema y eso le quita el foco a la ventana sin que el
   estudiante salga a ningún lado: el examen lo contaba como «salida de pestaña». Con tres, el intento

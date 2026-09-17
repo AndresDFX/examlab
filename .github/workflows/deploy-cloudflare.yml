@@ -118,7 +118,11 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           WRANGLER_SEND_METRICS: "false"
-        run: bunx wrangler deploy
+        run: |
+          # El general lleva el manifest de ExamLab. Se restaura explicitamente
+          # por si una corrida anterior dejo pegado el de una institucion.
+          bun scripts/manifest-institucion.ts --restaurar
+          bunx wrangler deploy
 
       - name: Publicar un Worker por institucion
         env:
@@ -130,9 +134,15 @@ jobs:
         run: |
           set -euo pipefail
 
-          slugs=$(curl -sS -X POST "$SB_URL/rest/v1/rpc/list_active_tenants_public" \
+          # slug, nombre Y logo: el nombre va al manifest y el logo al icono. El
+          # separador es TAB porque un nombre de universidad lleva espacios; los TAB
+          # o saltos que trajera el propio nombre se aplastan a espacio para que no
+          # corran las columnas.
+          filas=$(curl -sS -X POST "$SB_URL/rest/v1/rpc/list_active_tenants_public" \
             -H "apikey: $SB_KEY" -H "Authorization: Bearer $SB_KEY" \
-            -H "Content-Type: application/json" -d '{}' | jq -r '.[].slug')
+            -H "Content-Type: application/json" -d '{}' \
+            | jq -r '.[] | [.slug, (.name // "" | gsub("[\t\n]"; " ")), (.logo_path // "")] | @tsv')
+          slugs=$(echo "$filas" | cut -f1)
 
           if [ -z "$slugs" ]; then
             echo "::error::El RPC no devolvio instituciones. No se publica ninguna (y NO se borran las existentes)."
@@ -151,6 +161,16 @@ jobs:
             fi
             echo ""
             echo "--- $slug ---"
+            # El icono y el manifest de ESTA institucion, antes de publicar su Worker:
+            # asi el nombre correcto esta desde el primer milisegundo y la URL del
+            # manifest sigue siendo /manifest.json, que es lo que Android relee para
+            # actualizar una app ya instalada.
+            nombre=$(echo "$filas" | awk -F '\t' -v s="$slug" '$1==s {print $2; exit}')
+            logo=$(echo "$filas" | awk -F '\t' -v s="$slug" '$1==s {print $3; exit}')
+            if [ -n "$logo" ]; then
+              bun scripts/iconos-institucion.ts "$slug" "$SB_URL/storage/v1/object/public/tenant-logos/$logo"
+            fi
+            bun scripts/manifest-institucion.ts "$slug" "$nombre"
             if bunx wrangler deploy --name "$slug"; then
               echo "OK $slug.examlab.workers.dev"
             else

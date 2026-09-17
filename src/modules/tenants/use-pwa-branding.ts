@@ -16,12 +16,10 @@ import {
   LADO_ICONO_CHICO,
   LADO_ICONO_GRANDE,
   RUTA_BASE_EXAMLAB,
-  construirManifestDeInstitucion,
   esColorHex,
   nombreAppInstitucion,
   medidasDistintivo,
   medidasIcono,
-  type IconoManifest,
 } from "@/modules/tenants/pwa-branding";
 
 /** Lo que se guarda en caché por institución. */
@@ -47,9 +45,6 @@ interface BrandingCacheado {
  * tener que esperar a que la institución cambie su logo.
  */
 const CACHE_PREFIJO = "examlab-pwa-branding:v2:";
-
-/** Blob del manifest vigente, para revocarlo al reemplazarlo. */
-let urlManifestActual: string | null = null;
 
 function leerCache(slug: string): BrandingCacheado | null {
   try {
@@ -212,35 +207,17 @@ function aplicar(branding: BrandingCacheado): void {
   if (etiqueta) ponerMeta("apple-mobile-web-app-title", etiqueta);
   if (branding.colorTema) ponerMeta("theme-color", branding.colorTema);
 
-  const iconos: IconoManifest[] = [];
-  if (branding.icono192) {
-    iconos.push({ src: branding.icono192, sizes: "192x192", type: "image/png", purpose: "any" });
-  }
-  if (branding.icono512) {
-    iconos.push({ src: branding.icono512, sizes: "512x512", type: "image/png", purpose: "any" });
-  }
-  if (branding.icono512Maskable) {
-    iconos.push({
-      src: branding.icono512Maskable,
-      sizes: "512x512",
-      type: "image/png",
-      purpose: "maskable",
-    });
-  }
-
-  const manifest = construirManifestDeInstitucion({
-    nombreInstitucion: branding.nombre,
-    slugInstitucion: branding.slug,
-    iconos,
-    colorTema: branding.colorTema,
-    origin,
-  });
-
-  const blob = new Blob([JSON.stringify(manifest)], { type: "application/manifest+json" });
-  const url = URL.createObjectURL(blob);
-  ponerLink("manifest", url);
-  if (urlManifestActual) URL.revokeObjectURL(urlManifestActual);
-  urlManifestActual = url;
+  // El MANIFEST ya no se toca desde acá: lo escribe el despliegue, uno por
+  // institución (`scripts/manifest-institucion.ts`). Colgarlo de un `blob:`
+  // tenía dos costos medidos — una ventana de 5,7 s en la que la app se
+  // instalaba con el nombre genérico, y una URL que no existe en la sesión
+  // siguiente, así que Android nunca podía releerla para actualizar una app ya
+  // instalada.
+  //
+  // Lo que SÍ sigue acá son el favicon y el `apple-touch-icon`, que son por
+  // documento y no tienen ese problema: el `apple-touch-icon` es justamente de
+  // donde iOS toma el ícono al «Añadir a pantalla de inicio», así que el
+  // distintivo de la institución se conserva ahí.
 }
 
 /**

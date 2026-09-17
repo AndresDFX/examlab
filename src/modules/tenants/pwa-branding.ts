@@ -30,12 +30,24 @@
  * instalado es de la DIRECCIÓN, no de quien mira. Por eso acá se lee solo el
  * subdominio.
  *
- * ── Por qué se arma en el navegador y no en el servidor ───────────────
- * El despliegue de Cloudflare es de assets, SIN código de servidor
- * (`wrangler.jsonc` lo explica: el Worker con SSR pesaba 5,34 MB y el plan Free
- * corta en 3 MB). No hay dónde generar un `manifest.json` por host. Así que el
- * manifest se arma en runtime y se cambia el `<link rel="manifest">` a un Blob;
- * los íconos se rasterizan con canvas desde el logo de la institución.
+ * ── Dónde se arma cada cosa ───────────────────────────────────────────
+ * El MANIFEST y los PNG del ícono los genera el DESPLIEGUE, uno por institución
+ * (`scripts/manifest-institucion.ts` y `scripts/iconos-institucion.ts`, que el
+ * workflow corre antes de publicar cada Worker). Antes se armaban en el
+ * navegador y el `<link rel="manifest">` apuntaba a un `blob:`; eso tenía dos
+ * costos medidos: una ventana de 5,7 s en la primera visita durante la cual la
+ * app se instalaba con el nombre genérico, y una URL que no existe en la sesión
+ * siguiente, así que Android nunca podía releerla para actualizar una app ya
+ * instalada.
+ *
+ * Lo que SÍ se sigue armando en el navegador es el favicon y el
+ * `apple-touch-icon` (ver `use-pwa-branding.ts`): son por documento, no tienen
+ * ese problema, y el `apple-touch-icon` es de donde iOS toma el ícono al
+ * «Añadir a pantalla de inicio».
+ *
+ * Las funciones de GEOMETRÍA de este módulo las usan los DOS lados —el
+ * navegador con canvas y el despliegue con `sharp`— para que el ícono publicado
+ * y el que se ve en la pestaña sean el mismo dibujo.
  *
  * ── Dos cosas que quedan FUERA a propósito ────────────────────────────
  * 1. El ícono de las **notificaciones push** sigue siendo el de ExamLab
@@ -48,7 +60,8 @@
  *    instante el favicon de ExamLab. Un favicon que cambia un cuadro después es
  *    mucho menos notorio que un fondo que pasa de claro a oscuro, y evita un
  *    tercer script inline en el `<head>`. De la segunda visita en adelante el
- *    caché lo aplica en el primer efecto.
+ *    caché lo aplica en el primer efecto. Ojo: esto ya NO afecta al nombre ni al
+ *    ícono de la app instalada, que vienen servidos desde el despliegue.
  *
  * ── Lo que se puede y lo que no se puede verificar desde acá ──────────
  * Que Chromium tome el manifest nuevo SÍ se verifica (CDP `Page.getAppManifest`,
