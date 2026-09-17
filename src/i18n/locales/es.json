@@ -10386,7 +10386,7 @@
     "linkWarning": "Este enlace es personal: firma en tu nombre. No lo compartas.",
     "readFirst": "Leé el documento completo. El botón para firmar está debajo.",
     "signBtn": "Firmar",
-    "signHere": "Firmar aquí",
+    "signHere": "Tu firma va aquí",
     "signedBy": "Firmado por: {{name}}",
     "signedOk": "Listo, quedó firmado.",
     "yourSignature": "◀ Tu firma"
@@ -10567,6 +10567,8 @@
     "login": "Entrar",
     "errLogin": "Correo o contraseña incorrectos.",
     "errSign": "No se pudo registrar tu firma. Intentá de nuevo.",
+    "signBtn": "Firmar",
+    "readFirst": "Leé el documento completo. El botón para firmar está debajo.",
     "signedOk": "Tu firma quedó registrada.",
     "alreadySigned": "Ya firmaste este documento.",
     "footerNote": "Firmar acá es un registro de aceptación, no una firma digital certificada. Queda guardado con la fecha, la hora y tu sesión.",

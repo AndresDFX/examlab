@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-  ATTR_ACCION,
   CLASE_RANURA,
   codigoVerificacion,
   envolverFilasComoTabla,
   faltantesParaAgregar,
   filasConRanura,
   firmaHtml,
+  marcaTuFirmaHtml,
   ranuraHtml,
   ranuraPlantillaHtml,
   renderizarRanuras,
@@ -110,7 +110,6 @@ describe("renderizarRanuras — estado FIRMADA", () => {
 describe("renderizarRanuras — estado PENDIENTE", () => {
   it("deja la ranura en blanco, que es lo que hace que el papel siga sirviendo", () => {
     const h = renderizarRanuras(snapshot(ANA, BETO));
-    expect(h).not.toContain(ATTR_ACCION);
     expect(h).toContain("&nbsp;");
     // Y no se pierde la ranura: el documento se puede volver a firmar después.
     expect(tieneRanuras(h)).toBe(true);
@@ -125,29 +124,40 @@ describe("renderizarRanuras — estado PENDIENTE", () => {
   });
 });
 
-describe("renderizarRanuras — estado FIRMABLE (el aporte de este cambio)", () => {
-  it("pone el botón SOLO en el renglón de quien está mirando", () => {
+describe("renderizarRanuras — estado FIRMABLE (resalta y marca, NO es un botón)", () => {
+  // Ya no hay nada pulsable dentro del documento — ver `marcaTuFirmaHtml` y la
+  // cabecera de `SignableDocument.tsx`: un iframe sandboxed sin `allow-scripts`
+  // no entrega eventos en Safari de iOS, así que el botón que hubo acá antes
+  // funcionaba en Chromium y estaba muerto en un iPhone. El gesto de firmar
+  // vive afuera, en un botón real de la pantalla.
+  it("marca 'firmable' SOLO en el renglón de quien está mirando", () => {
     const h = renderizarRanuras(snapshot(ANA, BETO), { firmanteId: ANA });
     const [, filaAna, filaBeto] = h.split(/data-firma-uid="/);
-    expect(filaAna).toContain(ATTR_ACCION);
-    expect(filaBeto).not.toContain(ATTR_ACCION);
+    expect(filaAna).toContain("Tu firma va aquí");
+    expect(filaBeto).not.toContain("Tu firma va aquí");
   });
 
-  it("si ya firmó, muestra su firma y NO el botón", () => {
+  it("no emite ningún elemento pulsable (ni <button>, ni onclick, ni handler de evento)", () => {
+    const h = renderizarRanuras(snapshot(ANA, BETO), { firmanteId: ANA });
+    expect(h).not.toContain("<button");
+    expect(h).not.toMatch(/\son\w+\s*=/i);
+  });
+
+  it("si ya firmó, muestra su firma y no la marca de pendiente", () => {
     const h = renderizarRanuras(snapshot(ANA), { firmanteId: ANA, firmas: [firma()] });
     expect(h).toContain("Ana Gómez");
-    expect(h).not.toContain(ATTR_ACCION);
+    expect(h).not.toContain("Tu firma va aquí");
   });
 
-  it("nadie puede firmar la ranura de otro: sin firmanteId no hay ningún botón", () => {
+  it("nadie ve la marca en la ranura de otro: sin firmanteId no se resalta nada", () => {
     // Es el caso de la vista del docente, la descarga y la impresión.
     const h = renderizarRanuras(snapshot(ANA, BETO), { firmas: [] });
-    expect(h).not.toContain(ATTR_ACCION);
+    expect(h).not.toContain("Tu firma va aquí");
   });
 
-  it("un firmanteId que no está en el documento no agrega ningún botón", () => {
+  it("un firmanteId que no está en el documento no agrega ninguna marca", () => {
     const h = renderizarRanuras(snapshot(ANA), { firmanteId: BETO });
-    expect(h).not.toContain(ATTR_ACCION);
+    expect(h).not.toContain("Tu firma va aquí");
   });
 
   it("usa la etiqueta traducida que le pasa la pantalla", () => {
@@ -156,6 +166,22 @@ describe("renderizarRanuras — estado FIRMABLE (el aporte de este cambio)", () 
       etiquetaFirmar: "Sign here",
     });
     expect(h).toContain("Sign here");
+  });
+});
+
+describe("marcaTuFirmaHtml", () => {
+  it("resalta la celda y muestra la etiqueta, sin ningún elemento pulsable", () => {
+    const h = marcaTuFirmaHtml("Tu firma va aquí");
+    expect(h).toContain("Tu firma va aquí");
+    expect(h).toContain("background:#eff6ff");
+    expect(h).not.toContain("<button");
+    expect(h).not.toMatch(/\son\w+\s*=/i);
+  });
+
+  it("escapa la etiqueta: no puede inyectar marcado", () => {
+    const h = marcaTuFirmaHtml("<img src=x onerror=alert(1)>");
+    expect(h).not.toContain("<img");
+    expect(h).toContain("&lt;img");
   });
 });
 
@@ -198,7 +224,7 @@ describe("renderizarRanuras — resalta la FILA de quien mira (además de la cel
       ' style="display:block;min-height:30px;">&nbsp;</span></p>';
     const h = renderizarRanuras(html, { firmanteId: ANA });
     expect(h).not.toContain("data-examlab-fila-firmante");
-    expect(h).toContain(ATTR_ACCION);
+    expect(h).toContain("Tu firma va aquí");
     expect(h).toContain("background:#eff6ff");
   });
 
@@ -377,9 +403,9 @@ describe("renderizarRanuras — ranura sin ancla y orden de atributos", () => {
     `<p><span class="${CLASE_RANURA}" data-firma-uid=""` +
     ' style="display:block;min-height:30px;">&nbsp;</span></p>';
 
-  it("una ranura sin ancla se pinta como renglón a mano, no como botón", () => {
+  it("una ranura sin ancla se pinta como renglón a mano, nunca marcada como firmable", () => {
     const h = renderizarRanuras(sinAncla, { firmanteId: ANA, etiquetaFirmar: "Firmar aquí" });
-    expect(h).not.toContain(ATTR_ACCION);
+    expect(h).not.toContain("Firmar aquí");
     expect(h).toContain("examlab-renglon");
   });
 

@@ -35,7 +35,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
-import { LogIn, ShieldCheck } from "lucide-react";
+import { LogIn, PenLine, ShieldCheck } from "lucide-react";
 
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -280,6 +280,15 @@ function DocumentoPublico() {
           </Card>
         )}
 
+        {puedeFirmar && (
+          <p className="text-xs text-muted-foreground">{t("publicDocument.readFirst")}</p>
+        )}
+
+        {/* El documento, con SU renglón resaltado y marcado "Tu firma va aquí" si
+            puede firmar — pero nada pulsable DENTRO del iframe (ver
+            `SignableDocument`: en Safari de iOS un iframe sandboxed sin
+            `allow-scripts` no entrega eventos). El botón que firma de verdad es
+            el de abajo. */}
         <Card>
           <CardContent className="p-0">
             <SignableDocument
@@ -291,6 +300,25 @@ function DocumentoPublico() {
             />
           </CardContent>
         </Card>
+
+        {puedeFirmar && (
+          <Card>
+            <CardContent className="p-5">
+              <Button
+                className="w-full"
+                onClick={() => setLienzoAbierto(true)}
+                disabled={firmando}
+              >
+                {firmando ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <PenLine className="h-4 w-4 mr-1" />
+                )}
+                {t("publicDocument.signBtn")}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
 
         <p className="text-2xs text-muted-foreground">{t("publicDocument.footerNote")}</p>
       </div>

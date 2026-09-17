@@ -376,10 +376,12 @@ function StudentSignatures() {
           <DialogHeader>
             <DialogTitle className="truncate">{abierto?.nombre}</DialogTitle>
           </DialogHeader>
-          {/* El documento, con las firmas puestas y —si todavía no firmó— el botón
-              en SU renglón, al que la vista baja sola. El aislamiento del iframe y
-              por qué el sandbox deja pasar `allow-same-origin` está explicado en
-              `SignableDocument`. */}
+          {/* El documento, con las firmas puestas y —si todavía no firmó— su
+              renglón resaltado y marcado "Tu firma va aquí" (la vista baja
+              sola hasta ahí). El botón que de verdad firma es el de abajo, en
+              el pie del diálogo — no hay nada pulsable DENTRO del documento
+              desde que se midió que un iframe sandboxed sin `allow-scripts`
+              no entrega eventos en Safari de iOS. Ver `SignableDocument`. */}
           {abierto && (
             <SignableDocument
               title={abierto.nombre}

@@ -39,15 +39,18 @@
  *   pendiente → recuadro en blanco. Es lo que hace que el papel siga sirviendo:
  *               un documento sin firmar se imprime y se firma a mano igual que
  *               antes.
- *   firmable  → SOLO en la fila de quien está mirando: un botón para firmar ahí
- *               mismo. Sin esto el estudiante tiene que buscar un botón al final
- *               de un documento de tres páginas y confiar en que corresponde a su
- *               renglón.
+ *   firmable  → SOLO en la fila de quien está mirando: se resalta y dice "Tu
+ *               firma va aquí" (`marcaTuFirmaHtml`), para que no tenga que
+ *               buscar su renglón entre 17+ filas iguales. YA NO es un botón
+ *               dentro del documento — ver esa función para el porqué (un
+ *               iframe sandboxed sin `allow-scripts` no entrega eventos en
+ *               Safari de iOS). El gesto de firmar vive afuera, en la pantalla
+ *               que envuelve el documento (`SignableDocument`).
  *   sin ancla → un renglón para firmar a mano. Es el caso de una ranura que quedó
  *               sin `data-firma-uid` (una plantilla que puso la firma donde el
- *               ancla no resolvía). NUNCA el botón: ofrecer "firmar aquí" sobre
- *               una ranura que la base no puede registrar es prometer algo que
- *               falla al hacer clic.
+ *               ancla no resolvía). Nunca se marca como firmable: ofrecer eso
+ *               sobre una ranura que la base no puede registrar es prometer
+ *               algo que no se puede cumplir.
  *
  * ── Estilos en línea, a propósito ─────────────────────────────────────
  * Este HTML va a Word y a la impresión, donde no llega ninguna hoja de estilos de
@@ -71,8 +74,6 @@ export const CLASE_RANURA = "examlab-firma";
 export const CLASE_RENGLON = "examlab-renglon";
 /** Atributo con el id del firmante al que corresponde la ranura. */
 export const ATTR_UID = "data-firma-uid";
-/** Marca el botón de firmar, para la delegación de eventos del contenedor. */
-export const ATTR_ACCION = "data-firma-accion";
 
 export interface FirmaDeInforme {
   /** `report_signatures.id`. Sale en el código de verificación. */
@@ -221,14 +222,26 @@ export function firmaHtml(f: FirmaDeInforme): string {
   );
 }
 
-/** Botón para firmar en el propio renglón. */
-function botonFirmarHtml(etiqueta: string): string {
-  return (
-    `<button type="button" ${ATTR_ACCION}="1"` +
-    ' style="display:block;width:100%;min-height:30px;cursor:pointer;' +
-    "border:1px dashed #2563eb;border-radius:4px;background:#eff6ff;color:#1d4ed8;" +
-    `font-size:8pt;font-weight:600;">${esc(etiqueta)}</button>`
-  );
+/**
+ * La MARCA del renglón propio cuando está pendiente: el recuadro resaltado con
+ * "Tu firma va aquí", sin nada que parezca pulsable dentro del documento.
+ *
+ * Antes esto era un `<button>` que un listener del PADRE atrapaba por
+ * delegación (ver la cabecera de `SignableDocument`). Se sacó por completo,
+ * para TODOS los navegadores y no solo Safari de iOS, medido con WebKit: un
+ * iframe con `sandbox` sin `allow-scripts` no entrega NINGÚN evento a esos
+ * listeners —ni `click` ni `pointerdown` ni `touchstart`, ni con un tap real
+ * ni con uno sintético—, así que el botón funcionaba en Chromium/Android y
+ * estaba completamente MUERTO en un iPhone. Y agregar `allow-scripts` junto a
+ * `allow-same-origin` anularía el sandbox — no es una opción.
+ *
+ * Un botón que responde según el navegador es peor que ningún botón: en
+ * lugar de una plataforma inconsistente, la ranura SOLO señala dónde va la
+ * firma, y el gesto de firmar (abrir el lienzo) vive SIEMPRE afuera del
+ * documento, en un botón real de la pantalla — ver `SignableDocument`.
+ */
+export function marcaTuFirmaHtml(etiqueta: string): string {
+  return marcarCeldaPropia("&nbsp;", etiqueta);
 }
 
 /**
@@ -237,9 +250,10 @@ function botonFirmarHtml(etiqueta: string): string {
  * hasta ahí.
  *
  * El texto (`etiquetaExtra`) es a propósito, no solo color: alguien con daltonismo
- * o que imprime en blanco y negro tiene que poder encontrar su renglón igual. En
- * el caso PENDIENTE no hace falta —el botón ya dice "Firmar aquí"— así que
- * `etiquetaExtra` es opcional.
+ * o que imprime en blanco y negro tiene que poder encontrar su renglón igual.
+ * Para el caso FIRMADO es opcional (el trazo/nombre ya identifica la celda);
+ * para el PENDIENTE (`marcaTuFirmaHtml`) es lo único que hay adentro, así que
+ * ahí sí hace falta siempre.
  */
 function marcarCeldaPropia(interior: string, etiquetaExtra?: string): string {
   const extra = etiquetaExtra
@@ -305,12 +319,12 @@ export interface OpcionesRender {
   /** Firmas conocidas del informe. Las que no estén quedan pendientes. */
   firmas?: readonly FirmaDeInforme[];
   /**
-   * Quién está mirando. Su ranura, si está pendiente, se vuelve el botón de
-   * firmar. `null`/ausente ⇒ nadie firma desde acá (vista del docente, descarga,
-   * impresión).
+   * Quién está mirando. Su ranura, si está pendiente, se resalta con
+   * `marcaTuFirmaHtml`. `null`/ausente ⇒ nadie firma desde acá (vista del
+   * docente, descarga, impresión).
    */
   firmanteId?: string | null;
-  /** Etiqueta del botón. La pasa la pantalla ya traducida. */
+  /** Etiqueta de la marca "Tu firma va aquí". La pasa la pantalla ya traducida. */
   etiquetaFirmar?: string;
   /**
    * Etiqueta que marca la celda/fila de quien mira. La pasa la pantalla ya
@@ -363,7 +377,7 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
   const {
     firmas = [],
     firmanteId = null,
-    etiquetaFirmar = "Firmar aquí",
+    etiquetaFirmar = "Tu firma va aquí",
     etiquetaPropia = "◀ Tu firma",
   } = op;
   if (!html) return html;
@@ -412,8 +426,10 @@ export function renderizarRanuras(html: string, op: OpcionesRender = {}): string
           ? marcarCeldaPropia(firmaHtml(f), etiquetaPropia)
           : firmaHtml(f)
         : esPropia
-          ? // El botón ya dice "Firmar aquí": no hace falta repetir la etiqueta.
-            marcarCeldaPropia(botonFirmarHtml(etiquetaFirmar))
+          ? // Ya no hay botón acá dentro — ver `marcaTuFirmaHtml`. Se marca el
+            // renglón y se indica la etiqueta para que la persona sepa que es
+            // SU firma la que falta, aunque el gesto de firmar viva afuera.
+            marcaTuFirmaHtml(etiquetaFirmar)
           : // Pendiente y no es quien mira: en blanco, para que el papel siga sirviendo.
             "&nbsp;";
 

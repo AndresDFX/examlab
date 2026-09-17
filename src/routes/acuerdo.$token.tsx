@@ -219,9 +219,11 @@ function FirmaPublica() {
           </CardContent>
         </Card>
 
-        {/* El documento, con las firmas puestas y —si todavía no firmó— el botón
-            en SU renglón. El aislamiento y por qué el sandbox deja pasar
-            `allow-same-origin` está explicado en `SignableDocument`. */}
+        {/* El documento, con las firmas puestas y —si todavía no firmó— SU
+            renglón resaltado y marcado "Tu firma va aquí". El botón que firma
+            de verdad es el de la Card de abajo — nada dentro del documento es
+            pulsable (un iframe sandboxed sin `allow-scripts` no entrega
+            eventos en Safari de iOS). Ver `SignableDocument`. */}
         <Card>
           <CardContent className="p-0">
             <SignableDocument

@@ -208,14 +208,15 @@ describe.skipIf(!hayMigracion)("plantilla sembrada «Informe de evaluación»", 
     // Y con un ancla que no está vacía: si lo estuviera, el recuadro se vería
     // igual y nadie podría firmarlo nunca.
     expect(salida).not.toContain('data-firma-uid=""');
-    // Quien mira ve el botón en SU ranura.
-    const conBoton = renderizarRanuras(salida, {
+    // Quien mira ve la marca "Firmar aquí" en SU ranura, sin nada pulsable
+    // (no es un botón — ver `marcaTuFirmaHtml` en signature-slots.ts).
+    const conMarca = renderizarRanuras(salida, {
       firmanteId: "11111111-1111-4111-8111-111111111111",
       etiquetaFirmar: "Firmar aquí",
     });
-    expect(conBoton).toContain("Firmar aquí");
-    // Y el renglón del docente sigue siendo un renglón, sin botón.
-    expect((conBoton.match(/Firmar aquí/g) ?? []).length).toBe(1);
+    expect(conMarca).toContain("Firmar aquí");
+    // Y el renglón del docente sigue siendo un renglón, sin marca.
+    expect((conMarca.match(/Firmar aquí/g) ?? []).length).toBe(1);
   });
 
   it("se siembra como plantilla GLOBAL y por estudiante", () => {

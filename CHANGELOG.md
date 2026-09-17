@@ -349,6 +349,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **En un iPhone, tocar "Firmar aquí" dentro del documento no hacía nada.** Medido con Safari real
+  (WebKit): un documento se muestra en un iframe con `sandbox="allow-same-origin"` (sin
+  `allow-scripts`, a propósito — agregarlo anularía el aislamiento), y en ese modo el iframe **no
+  entrega NINGÚN evento** a los listeners que la pantalla registraba por delegación — ni clic, ni
+  tap, ni uno sintético. En Android/Chromium el mismo botón sí respondía, así que el bug era
+  invisible probando desde una computadora o un Android. Se sacó el botón de DENTRO del documento
+  para todos los navegadores por igual (no solo iOS): ahora el renglón propio se resalta y dice
+  "Tu firma va aquí", y el gesto de firmar vive en un botón real de la pantalla, fuera del
+  documento — que en las dos pantallas donde se firma (`/acuerdo/$token` y
+  `/app/student/signatures`) ya existía. Verificado con Playwright + WebKit + iPhone 13 contra un
+  documento real: tocar el botón externo abre el lienzo y dibujar con el dedo funciona de punta a
+  punta.
+
+- **Subir el zoom del editor de código en UNA pizarra lo dejaba pegado en el compilador de
+  cualquier examen o taller.** El zoom era UNA sola preferencia por persona
+  (`examlab_editor_zoom`), compartida a propósito entre los cuatro editores de la plataforma
+  (código, Java/Python con interfaz gráfica, SQL) para no tener que subirlo cinco veces — pero en
+  la práctica ajustarlo en un lugar lo cambiaba en TODOS, sin relación entre sí. Ahora cada
+  superficie (una pregunta puntual, una hoja de pizarra) guarda su propio zoom
+  (`examlab_editor_zoom:<id>`); quien no pase un identificador sigue en la preferencia compartida
+  de siempre, así que no se rompe nada para quien no se tocó.
+
 - **Un estudiante que se matriculaba DESPUÉS de generar un acuerdo firmable quedaba invisible en el
   documento —aunque ya lo hubiera firmado.** El HTML de un informe es un snapshot inmutable (es lo
   que se firma), así que quien entra al curso más tarde no tiene fila ni casilla de firma en él. Y

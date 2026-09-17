@@ -10386,7 +10386,7 @@
     "linkWarning": "This link is personal: it signs in your name. Do not share it.",
     "readFirst": "Read the whole document. The sign button is below it.",
     "signBtn": "Sign",
-    "signHere": "Sign here",
+    "signHere": "Your signature goes here",
     "signedBy": "Signed by: {{name}}",
     "signedOk": "Done — signed.",
     "yourSignature": "◀ Your signature"
@@ -10567,6 +10567,8 @@
     "login": "Sign in",
     "errLogin": "Wrong email or password.",
     "errSign": "Your signature could not be recorded. Try again.",
+    "signBtn": "Sign",
+    "readFirst": "Read the whole document. The sign button is below it.",
     "signedOk": "Your signature was recorded.",
     "alreadySigned": "You already signed this document.",
     "footerNote": "Signing here is a record of acceptance, not a certified digital signature. It is stored with the date, the time and your session.",
