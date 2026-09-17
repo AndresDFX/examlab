@@ -220,6 +220,43 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **La app instalada lleva el logo y el nombre de la institución, no el de ExamLab.** Quien entra por
+  la dirección de su universidad (`uniaj.examlab.workers.dev`) ve **su** logo en la pestaña del
+  navegador y, al instalar la app, en el ícono de la pantalla de inicio y en la etiqueta debajo. En
+  el despliegue general (`app.examlab.workers.dev`) **no cambia nada**: sigue siendo ExamLab.
+  - **Manda la DIRECCIÓN, no la sesión.** Se lee solo el subdominio (`subdomainTenantSlug`) y no
+    `useTenant()`: el ícono tiene que estar bien **antes** de iniciar sesión —la instalación se
+    ofrece en la pantalla de login— y no puede cambiar porque un SuperAdmin esté «viendo como» otra
+    institución. Lo instalado es del origen, no de quien mira.
+  - **Se arma en el navegador porque no hay dónde armarlo en el servidor**: el despliegue de
+    Cloudflare es de assets, sin código de servidor (el Worker con SSR pesaba 5,34 MB contra el tope
+    de 3 MB del plan Free), así que no existe un `manifest.json` por host. El manifest se genera en
+    runtime y el `<link rel="manifest">` apunta a un Blob; los íconos se rasterizan con canvas desde
+    el logo de la institución. **Todas las URLs del manifest van ABSOLUTAS** (`id`, `start_url`,
+    `scope`, íconos): una relativa se resolvería contra la URL `blob:` —que no es del sitio— y el
+    navegador descartaría el manifest entero.
+  - **Los datos salen del RPC público `list_active_tenants_public()`**, que es el único camino que
+    funciona sin sesión (la RLS de `tenants` es `TO authenticated`). El logo se lee con
+    `resolveTenantLogoUrl`, del bucket público `tenant-logos`, que devuelve
+    `Access-Control-Allow-Origin: *` — por eso el canvas no queda contaminado y `toDataURL`
+    funciona. Se cachea por institución en `localStorage` para que en la segunda visita el ícono
+    correcto esté antes del primer cuadro.
+  - **Dos detalles que no son cosméticos**: se pinta **fondo blanco** bajo el logo (iOS rellena la
+    transparencia con NEGRO y varios logos institucionales son azul oscuro sobre transparente), y el
+    ícono `maskable` deja el logo en el **60 %** del lienzo y no en el 80 % que Android garantiza —
+    los logos de institución son muy apaisados y al contenerlos manda el ancho, así que con 80 % los
+    extremos quedaban pegados al borde del círculo que recorta el lanzador. El nombre largo se
+    convierte en **siglas** («Universidad Antonio Jose Camacho» → «UAJC») porque la pantalla de
+    inicio trunca cerca de los 12 caracteres y «Universidad A…» no identifica nada.
+  - **Falla hacia lo de siempre**: institución sin logo, logo que no carga o color inválido en la
+    base ⇒ se usan los íconos y el color de ExamLab, con el nombre de la institución igual. Nada de
+    esto puede impedir que la app arranque. Se conservan `display: standalone` (la toma de examen lo
+    acepta como equivalente a pantalla completa en iPhone) y `orientation: portrait`.
+  - **Lo verificado y lo que no**: que Chromium tome el manifest nuevo está comprobado por CDP
+    (`Page.getAppManifest`, cero errores de parseo, íconos y nombre por institución) y los PNG
+    generados se inspeccionaron a ojo. Que iOS use el `apple-touch-icon` al crear el ícono desde
+    Compartir → «Añadir a pantalla de inicio» lo decide el sistema operativo y solo se confirma con
+    un iPhone en la mano.
 - **Recalificar con IA TODAS las entregas de un taller, no de a una.** El diálogo de calificaciones
   suma **«Recalificar todo con IA»** al lado de «Calificar todo con IA». La diferencia entre los dos
   es lo que hay que saber: *calificar* saltea a propósito las entregas que ya tienen nota (para no

@@ -8,6 +8,7 @@ import { TenantThemeProvider } from "@/modules/tenants/TenantThemeProvider";
 import { GlobalErrorLogger } from "@/shared/components/GlobalErrorLogger";
 import { IosInstallBanner } from "@/modules/pwa/IosInstallBanner";
 import { usePortraitLock } from "@/shared/lib/portrait-lock";
+import { useTenantPwaBranding } from "@/modules/tenants/use-pwa-branding";
 
 import "@/i18n";
 import appCss from "../styles.css?url";
@@ -298,6 +299,11 @@ function RootComponent() {
   // hidratación (el lock parse-time de arriba es un único intento; este
   // reintenta si rechazó antes de estabilizar standalone). No-op en navegador.
   usePortraitLock();
+
+  // Ícono y nombre de la app según la dirección: en `uniaj.examlab.workers.dev`
+  // la app instalada y el favicon son de esa institución; en el despliegue
+  // general siguen siendo los de ExamLab. Ver `pwa-branding.ts`.
+  useTenantPwaBranding();
 
   // delayDuration en 200ms para que tooltips de RowAction aparezcan
   // rápido al pasar el mouse — el default de 700ms se siente lento
