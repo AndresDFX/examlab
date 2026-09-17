@@ -11,8 +11,16 @@
  * institución entra.
  *
  * Ahora: el HOST manda. Sin institución en el host → ExamLab, exactamente como
- * antes. Con institución → su logo y su nombre, en el favicon, en el ícono de la
- * pantalla de inicio y en el nombre de la app instalada.
+ * antes. Con institución → el ícono de ExamLab con el logo de esa institución
+ * como distintivo, y su etiqueta.
+ *
+ * ── Por qué el ícono es una COMPOSICIÓN y no el logo de la universidad ─
+ * La base a sangre completa es el ícono de ExamLab y el logo de la institución
+ * va chico, en la esquina inferior derecha. Así la app se sigue reconociendo
+ * como la misma en la pantalla de inicio —es la misma plataforma— y el
+ * distintivo dice a qué institución entra. Reemplazar el ícono entero por el
+ * logo de la universidad (la primera versión de esto) hacía lo contrario:
+ * borraba el producto y dejaba tantas apps distintas como instituciones.
  *
  * ── Por qué el HOST y no `useTenant()` ────────────────────────────────
  * `useTenant()` mezcla tres fuentes (override del SuperAdmin, host, y el tenant
@@ -56,50 +64,86 @@ export const LADO_ICONO_CHICO = 192;
 /** Lado del `apple-touch-icon`: el que iOS usa en la pantalla de inicio. */
 export const LADO_APPLE_TOUCH = 180;
 
-/**
- * Cuánto del lienzo puede ocupar el logo en un ícono `maskable`.
- *
- * Android recorta el ícono con la forma que tenga el lanzador (círculo,
- * "squircle", gota) y solo garantiza el círculo central del 80 %. Se usa 60 % y
- * no 80 % porque el logo de una institución suele ser MUY apaisado (el de UNIAJ
- * mide 2506 bytes de webp bien ancho): al "contenerlo" en un cuadrado, lo que
- * define la escala es el ancho, y con 80 % los extremos quedaban pegados al
- * borde del círculo seguro.
- */
-export const FRACCION_SEGURA_MASKABLE = 0.6;
-/** Un ícono `any` no se recorta: el logo puede usar casi todo el lienzo. */
-export const FRACCION_SEGURA_ANY = 0.82;
+/** El ícono de ExamLab que hace de base de la composición. */
+export const RUTA_BASE_EXAMLAB = "/icons/icon-512.png";
 
 /**
- * Nombre corto para la etiqueta de la pantalla de inicio.
+ * Qué parte del lienzo ocupa el distintivo de la institución.
  *
- * Android e iOS truncan alrededor de los 12 caracteres, y un nombre truncado a
- * la mitad ("Universidad A…") no identifica nada. Si el nombre es largo se
- * arman SIGLAS con las iniciales de las palabras significativas — que es como
- * la gente llama a su institución de todos modos ("Universidad Antonio Jose
- * Camacho" → "UAJC").
- *
- * Las palabras de una o dos letras se descartan (de, la, y…) pero solo cuando
- * hay suficientes palabras largas: "Prueba de A" no debe quedar en "P".
+ * Es un DISTINTIVO, no el ícono: la app se sigue reconociendo como ExamLab y el
+ * logo de la universidad dice a cuál se entra. Un tercio del lado es el tamaño
+ * al que el logo todavía se distingue en la pantalla de inicio (48 px sobre un
+ * ícono de 144) sin taparle la mitad al de abajo.
  */
-export function nombreCortoInstitucion(nombre: string | null | undefined): string | null {
+export const FRACCION_DISTINTIVO = 0.34;
+
+/**
+ * Cuánto del círculo del distintivo puede ocupar el logo de la institución.
+ *
+ * El resto es el aro blanco que lo separa del fondo del ícono de ExamLab, que
+ * es índigo oscuro: sin ese margen, un logo azul marino sobre transparente
+ * desaparece contra la base.
+ */
+export const FRACCION_LOGO_EN_DISTINTIVO = 0.76;
+
+/**
+ * Radio del área que un lanzador de Android garantiza que NO recorta, como
+ * fracción del lado. Android puede aplicar círculo, "squircle" o gota, y solo
+ * promete el círculo central del 80 % del lado — o sea, radio 0,4.
+ */
+export const RADIO_SEGURO_MASKABLE = 0.4;
+
+/**
+ * Etiqueta corta de la institución para la pantalla de inicio.
+ *
+ * Es el IDENTIFICADOR de la institución (`slug`), no un acrónimo calculado a
+ * partir del nombre largo. La primera versión armaba siglas y a "Universidad
+ * Antonio Jose Camacho" la bautizó "UAJC", cuando en la plataforma —y para la
+ * gente que la usa— esa institución es **UNIAJ**. Inventar un nombre corto es
+ * inventarle el nombre a la institución; el que ya eligió está en el slug.
+ *
+ * El nombre solo se usa como respaldo si no hay slug utilizable, y ahí sí se
+ * recorta a lo que entra (Android e iOS truncan cerca de los 12 caracteres).
+ */
+export function etiquetaInstitucion(
+  slug: string | null | undefined,
+  nombre?: string | null,
+): string | null {
+  const s = (slug ?? "").trim();
+  if (s && s.length <= 12) return s.toUpperCase();
+
   const limpio = (nombre ?? "").replace(/\s+/g, " ").trim();
-  if (!limpio) return null;
-  if (limpio.length <= 12) return limpio;
+  if (limpio) return limpio.length <= 12 ? limpio : limpio.slice(0, 12).trim();
+  return s ? s.slice(0, 12).toUpperCase() : null;
+}
 
-  const palabras = limpio.split(" ");
-  const significativas = palabras.filter((p) => p.replace(/[^\p{L}\p{N}]/gu, "").length > 2);
-  const base = significativas.length >= 2 ? significativas : palabras;
-  const siglas = base
-    .map((p) => {
-      const letras = p.replace(/[^\p{L}\p{N}]/gu, "");
-      return letras ? letras[0]!.toUpperCase() : "";
-    })
-    .join("");
+/**
+ * Dónde va el círculo del distintivo dentro del lienzo.
+ *
+ * En un ícono `any` se apoya contra la esquina inferior derecha, con un margen
+ * chico. En uno `maskable` NO puede ir en la esquina: la esquina es justo lo que
+ * el lanzador recorta, así que el distintivo se corre sobre la diagonal hasta
+ * quedar ENTERO dentro del círculo seguro — sigue leyéndose abajo a la derecha,
+ * pero sobrevive al recorte.
+ */
+export function medidasDistintivo(
+  lado: number,
+  esMaskable: boolean,
+): { cx: number; cy: number; r: number } | null {
+  if (!(lado > 0)) return null;
+  const r = (lado * FRACCION_DISTINTIVO) / 2;
 
-  // Con una sola palabra larga no hay siglas que valgan: se recorta.
-  if (siglas.length < 2) return limpio.slice(0, 12).trim();
-  return siglas.slice(0, 12);
+  if (!esMaskable) {
+    const margen = lado * 0.045;
+    const c = lado - margen - r;
+    return { cx: c, cy: c, r };
+  }
+
+  // Centro del distintivo sobre la diagonal, a la mayor distancia del centro
+  // que deja el círculo completo dentro del área garantizada.
+  const distancia = Math.max(0, lado * RADIO_SEGURO_MASKABLE - r);
+  const desplazamiento = distancia / Math.SQRT2;
+  return { cx: lado / 2 + desplazamiento, cy: lado / 2 + desplazamiento, r };
 }
 
 export interface IconoManifest {
@@ -112,6 +156,8 @@ export interface IconoManifest {
 export interface ArgsManifest {
   /** Nombre de la institución. Vacío/nulo ⇒ se usa el de ExamLab. */
   nombreInstitucion?: string | null;
+  /** Identificador de la institución: es lo que va bajo el ícono. */
+  slugInstitucion?: string | null;
   /** Íconos ya rasterizados del logo. Vacío ⇒ se dejan los de ExamLab. */
   iconos?: readonly IconoManifest[] | null;
   /** Color de marca de la institución, para la barra del sistema. */
@@ -140,7 +186,7 @@ export function iconosPorDefecto(origin: string): IconoManifest[] {
  * queda naturalmente separada de las demás.
  */
 export function construirManifestDeInstitucion(args: ArgsManifest): Record<string, unknown> {
-  const { nombreInstitucion, iconos, colorTema, origin } = args;
+  const { nombreInstitucion, slugInstitucion, iconos, colorTema, origin } = args;
   const nombre = (nombreInstitucion ?? "").trim();
   // El sufijo dice de qué plataforma es la app; si el nombre de la institución ya
   // lo contiene ("ExamLab Demo"), repetirlo da "ExamLab Demo — ExamLab".
@@ -150,7 +196,10 @@ export function construirManifestDeInstitucion(args: ArgsManifest): Record<strin
       ? nombre
       : `${nombre} — ExamLab`
     : "ExamLab — Plataforma de Exámenes";
-  const corto = nombre ? (nombreCortoInstitucion(nombre) ?? "ExamLab") : "ExamLab";
+  const corto =
+    nombre || slugInstitucion
+      ? (etiquetaInstitucion(slugInstitucion, nombre) ?? "ExamLab")
+      : "ExamLab";
 
   return {
     id: `${origin}/`,

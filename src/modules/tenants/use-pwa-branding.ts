@@ -11,13 +11,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import { subdomainTenantSlug } from "@/modules/tenants/subdomain";
 import {
-  FRACCION_SEGURA_ANY,
-  FRACCION_SEGURA_MASKABLE,
+  FRACCION_LOGO_EN_DISTINTIVO,
   LADO_APPLE_TOUCH,
   LADO_ICONO_CHICO,
   LADO_ICONO_GRANDE,
+  RUTA_BASE_EXAMLAB,
   construirManifestDeInstitucion,
   esColorHex,
+  etiquetaInstitucion,
+  medidasDistintivo,
   medidasIcono,
   type IconoManifest,
 } from "@/modules/tenants/pwa-branding";
@@ -25,6 +27,8 @@ import {
 /** Lo que se guarda en caché por institución. */
 interface BrandingCacheado {
   nombre: string;
+  /** Identificador de la institución: es la etiqueta bajo el ícono. */
+  slug: string;
   colorTema: string | null;
   /** URL del logo con el que se rasterizaron los íconos: si cambia, se rehace. */
   logoUrl: string | null;
@@ -42,7 +46,7 @@ interface BrandingCacheado {
  * y color, que no cambiaron. Subir el número deja obsoleto todo lo viejo sin
  * tener que esperar a que la institución cambie su logo.
  */
-const CACHE_PREFIJO = "examlab-pwa-branding:v1:";
+const CACHE_PREFIJO = "examlab-pwa-branding:v2:";
 
 /** Blob del manifest vigente, para revocarlo al reemplazarlo. */
 let urlManifestActual: string | null = null;
@@ -108,24 +112,60 @@ function cargarImagen(url: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Rasteriza el logo a un PNG cuadrado.
+ * Compone el ícono: ExamLab a sangre completa de base, y el logo de la
+ * institución como distintivo en la esquina inferior derecha.
  *
- * Fondo BLANCO y no transparente: iOS pinta de negro lo transparente del
- * `apple-touch-icon`, y un maskable transparente queda con el recorte del
- * lanzador a la vista. Blanco funciona para logos pensados para papel, que es
- * lo que sube una institución.
+ * El distintivo va sobre un círculo BLANCO y no directo sobre la base: el ícono
+ * de ExamLab es índigo oscuro y los logos institucionales suelen ser azul
+ * marino sobre transparente — sin el círculo, el logo desaparece contra el
+ * fondo. El círculo lleva además un aro tenue para despegarlo del borde.
  */
-function rasterizar(img: HTMLImageElement, lado: number, fraccionSegura: number): string | null {
-  const medidas = medidasIcono(img.naturalWidth, img.naturalHeight, lado, fraccionSegura);
-  if (!medidas) return null;
+function componer(
+  base: HTMLImageElement,
+  logo: HTMLImageElement,
+  lado: number,
+  esMaskable: boolean,
+): string | null {
+  const distintivo = medidasDistintivo(lado, esMaskable);
+  if (!distintivo) return null;
+
   const lienzo = document.createElement("canvas");
   lienzo.width = lado;
   lienzo.height = lado;
   const g = lienzo.getContext("2d");
   if (!g) return null;
+
+  // El ícono de ExamLab ya es un cuadrado redondeado pensado para ocupar todo
+  // el lienzo, así que va a sangre: recortarlo en círculo es exactamente lo que
+  // un `maskable` espera.
+  g.drawImage(base, 0, 0, lado, lado);
+
+  g.save();
+  g.beginPath();
+  g.arc(distintivo.cx, distintivo.cy, distintivo.r, 0, Math.PI * 2);
+  g.closePath();
   g.fillStyle = "#ffffff";
-  g.fillRect(0, 0, lado, lado);
-  g.drawImage(img, medidas.x, medidas.y, medidas.w, medidas.h);
+  g.fill();
+  g.strokeStyle = "rgba(15, 23, 42, 0.18)";
+  g.lineWidth = Math.max(1, lado * 0.006);
+  g.stroke();
+  // Recortar al círculo: un logo apaisado que se pase de ancho no debe
+  // desbordar sobre la base.
+  g.clip();
+
+  const ladoUtil = distintivo.r * 2 * FRACCION_LOGO_EN_DISTINTIVO;
+  const m = medidasIcono(logo.naturalWidth, logo.naturalHeight, ladoUtil, 1);
+  if (m) {
+    g.drawImage(
+      logo,
+      distintivo.cx - distintivo.r + (distintivo.r * 2 - ladoUtil) / 2 + m.x,
+      distintivo.cy - distintivo.r + (distintivo.r * 2 - ladoUtil) / 2 + m.y,
+      m.w,
+      m.h,
+    );
+  }
+  g.restore();
+
   try {
     return lienzo.toDataURL("image/png");
   } catch {
@@ -164,8 +204,11 @@ function aplicar(branding: BrandingCacheado): void {
   if (branding.icono192) ponerLink("icon", branding.icono192, "image/png");
   if (branding.iconoApple) ponerLink("apple-touch-icon", branding.iconoApple);
 
-  // El nombre bajo el ícono en iOS sale de acá; en Android, del manifest.
-  if (branding.nombre) ponerMeta("apple-mobile-web-app-title", branding.nombre);
+  // La etiqueta bajo el ícono en iOS sale de acá; en Android, del manifest.
+  // Va el identificador de la institución (UNIAJ), no su nombre largo: iOS
+  // trunca cerca de los 12 caracteres y "Universidad A…" no identifica nada.
+  const etiqueta = etiquetaInstitucion(branding.slug, branding.nombre);
+  if (etiqueta) ponerMeta("apple-mobile-web-app-title", etiqueta);
   if (branding.colorTema) ponerMeta("theme-color", branding.colorTema);
 
   const iconos: IconoManifest[] = [];
@@ -186,6 +229,7 @@ function aplicar(branding: BrandingCacheado): void {
 
   const manifest = construirManifestDeInstitucion({
     nombreInstitucion: branding.nombre,
+    slugInstitucion: branding.slug,
     iconos,
     colorTema: branding.colorTema,
     origin,
@@ -210,6 +254,15 @@ export function useTenantPwaBranding(): void {
     if (!slug) return;
 
     let cancelado = false;
+
+    // Los íconos de la v1 eran el logo de la institución solo, sin componer con
+    // el de ExamLab: no se van a volver a leer nunca, así que se borran en vez
+    // de quedar ocupando lugar en cada navegador para siempre.
+    try {
+      window.localStorage.removeItem("examlab-pwa-branding:v1:" + slug);
+    } catch {
+      /* storage bloqueado: es limpieza, no puede impedir nada */
+    }
 
     // Lo cacheado se aplica YA: rasterizar tarda, y en una recarga el ícono
     // correcto tiene que estar antes de que alguien toque "Instalar".
@@ -244,21 +297,25 @@ export function useTenantPwaBranding(): void {
 
       if (info.logoUrl) {
         try {
-          const img = await cargarImagen(info.logoUrl);
+          const [base, logo] = await Promise.all([
+            cargarImagen(window.location.origin + RUTA_BASE_EXAMLAB),
+            cargarImagen(info.logoUrl),
+          ]);
           if (cancelado) return;
-          icono192 = rasterizar(img, LADO_ICONO_CHICO, FRACCION_SEGURA_ANY);
-          icono512 = rasterizar(img, LADO_ICONO_GRANDE, FRACCION_SEGURA_ANY);
-          icono512Maskable = rasterizar(img, LADO_ICONO_GRANDE, FRACCION_SEGURA_MASKABLE);
-          iconoApple = rasterizar(img, LADO_APPLE_TOUCH, FRACCION_SEGURA_ANY);
+          icono192 = componer(base, logo, LADO_ICONO_CHICO, false);
+          icono512 = componer(base, logo, LADO_ICONO_GRANDE, false);
+          icono512Maskable = componer(base, logo, LADO_ICONO_GRANDE, true);
+          iconoApple = componer(base, logo, LADO_APPLE_TOUCH, false);
         } catch {
           // Institución sin logo utilizable: se queda con el ícono de ExamLab,
-          // pero el NOMBRE sí se aplica — distinguir la instalación es útil
+          // pero la ETIQUETA sí se aplica — distinguir la instalación es útil
           // aunque el dibujo sea el de la plataforma.
         }
       }
 
       const branding: BrandingCacheado = {
         nombre: info.nombre,
+        slug,
         colorTema: info.colorTema,
         logoUrl: info.logoUrl,
         icono192,

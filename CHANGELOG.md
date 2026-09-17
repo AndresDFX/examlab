@@ -220,10 +220,26 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
-- **La app instalada lleva el logo y el nombre de la institución, no el de ExamLab.** Quien entra por
-  la dirección de su universidad (`uniaj.examlab.workers.dev`) ve **su** logo en la pestaña del
-  navegador y, al instalar la app, en el ícono de la pantalla de inicio y en la etiqueta debajo. En
-  el despliegue general (`app.examlab.workers.dev`) **no cambia nada**: sigue siendo ExamLab.
+- **La app instalada dice a qué institución entra: ícono de ExamLab con el logo de la universidad
+  como distintivo.** Quien entra por la dirección de su universidad (`uniaj.examlab.workers.dev`) ve
+  en la pestaña del navegador y en la pantalla de inicio el ícono de ExamLab a sangre completa con
+  **su** logo chico, en un círculo blanco, en la esquina inferior derecha; debajo, la etiqueta
+  «UNIAJ». En el despliegue general (`app.examlab.workers.dev`) **no cambia nada**: sigue siendo
+  ExamLab pelado.
+  - **Por qué una composición y no el logo de la universidad solo.** La primera versión reemplazaba
+    el ícono entero por el logo institucional, y el efecto era el contrario al buscado: borraba el
+    producto y dejaba tantas apps distintas como instituciones. La base es ExamLab —es la misma
+    plataforma, se reconoce igual en la pantalla de inicio— y el distintivo dice a cuál de ellas se
+    entra.
+  - **En el `maskable` el distintivo NO va en la esquina.** La esquina es exactamente lo que el
+    lanzador de Android recorta (círculo, «squircle» o gota; solo garantiza el círculo central del
+    80 %), así que ahí el distintivo se corre sobre la diagonal hasta quedar ENTERO dentro del área
+    garantizada. Sigue leyéndose abajo a la derecha, pero sobrevive al recorte. Hay un test que lo
+    fija midiendo la distancia al centro más el radio.
+  - **El círculo blanco bajo el logo no es decorativo**: la base de ExamLab es índigo oscuro y los
+    logos institucionales suelen ser azul marino sobre transparente — sin el círculo, el logo
+    desaparece contra el fondo. Lleva además un aro tenue para despegarlo, y recorte al círculo para
+    que un logo apaisado no desborde sobre la base.
   - **Manda la DIRECCIÓN, no la sesión.** Se lee solo el subdominio (`subdomainTenantSlug`) y no
     `useTenant()`: el ícono tiene que estar bien **antes** de iniciar sesión —la instalación se
     ofrece en la pantalla de login— y no puede cambiar porque un SuperAdmin esté «viendo como» otra
@@ -241,15 +257,14 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     `Access-Control-Allow-Origin: *` — por eso el canvas no queda contaminado y `toDataURL`
     funciona. Se cachea por institución en `localStorage` para que en la segunda visita el ícono
     correcto esté antes del primer cuadro.
-  - **Dos detalles que no son cosméticos**: se pinta **fondo blanco** bajo el logo (iOS rellena la
-    transparencia con NEGRO y varios logos institucionales son azul oscuro sobre transparente), y el
-    ícono `maskable` deja el logo en el **60 %** del lienzo y no en el 80 % que Android garantiza —
-    los logos de institución son muy apaisados y al contenerlos manda el ancho, así que con 80 % los
-    extremos quedaban pegados al borde del círculo que recorta el lanzador. El nombre largo se
-    convierte en **siglas** («Universidad Antonio Jose Camacho» → «UAJC») porque la pantalla de
-    inicio trunca cerca de los 12 caracteres y «Universidad A…» no identifica nada.
+  - **La etiqueta bajo el ícono es el identificador de la institución, no un acrónimo calculado.**
+    Android e iOS truncan cerca de los 12 caracteres, así que el nombre largo no sirve; pero armar
+    siglas a partir de él —lo que hacía la primera versión— es **inventarle el nombre a la
+    institución**: a «Universidad Antonio Jose Camacho» la bautizaba «UAJC» cuando en la plataforma,
+    y para la gente que la usa, esa institución es **UNIAJ**. El nombre corto que ya eligió está en
+    su `slug`, y de ahí sale.
   - **Falla hacia lo de siempre**: institución sin logo, logo que no carga o color inválido en la
-    base ⇒ se usan los íconos y el color de ExamLab, con el nombre de la institución igual. Nada de
+    base ⇒ se usan los íconos y el color de ExamLab, con la etiqueta de la institución igual. Nada de
     esto puede impedir que la app arranque. Se conservan `display: standalone` (la toma de examen lo
     acepta como equivalente a pantalla completa en iPhone) y `orientation: portrait`.
   - **Lo verificado y lo que no**: que Chromium tome el manifest nuevo está comprobado por CDP
