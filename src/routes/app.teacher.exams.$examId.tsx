@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { diferenciaHastaObjetivo, repartirPuntos } from "@/modules/exams/repartir-puntos";
 import { Badge } from "@/components/ui/badge";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
@@ -61,7 +62,7 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { IdentifyQuestionsDialog } from "@/modules/questions/IdentifyQuestionsDialog";
-import { Library, ScanText } from "lucide-react";
+import { Equal, Library, ScanText } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import i18n from "@/i18n";
@@ -814,6 +815,90 @@ function ExamEditor() {
       toast.error(friendlyError(e));
     } finally {
       setMovingQuestionId(null);
+    }
+  };
+
+  /**
+   * Reparte los puntos de las preguntas para que sumen la nota máxima del
+   * curso, conservando la proporción que puso el docente.
+   *
+   * La cuenta vive en `repartir-puntos.ts` (con tests): acá solo se confirma y
+   * se persiste.
+   *
+   * ── Por qué pregunta antes, y más fuerte si ya hay entregas ──────────
+   * `computeFinalGrade` divide lo ganado sobre el total REAL de puntos, así que
+   * cambiar los puntajes cambia el denominador. Mientras nadie entregó, eso es
+   * inofensivo. Pero si ya hay entregas calificadas, la nota se recompone con
+   * los puntos NUEVOS la próxima vez que el docente toque un ajuste manual de
+   * esa entrega — o sea que una nota que el estudiante ya vio se movería sin
+   * que nadie haya pedido recalificar. Por eso acá se cuenta primero y el aviso
+   * lo dice con el número de entregas a la vista.
+   */
+  const [repartiendo, setRepartiendo] = useState(false);
+  const repartirPuntaje = async () => {
+    const objetivo = Number((exam as any)?.course?.grade_scale_max ?? 5) || 5;
+    const nuevos = repartirPuntos(
+      questions.map((q) => Number((q as any).points) || 0),
+      objetivo,
+    );
+    if (!nuevos) {
+      toast.error(t("hc_routesAppTeacherExamsExamId.repartirNoAplica"));
+      return;
+    }
+
+    setRepartiendo(true);
+    try {
+      const { count: entregas, error: errConteo } = await supabase
+        .from("submissions")
+        .select("id", { count: "exact", head: true })
+        .eq("exam_id", examId);
+      if (errConteo) {
+        toast.error(friendlyError(errConteo));
+        return;
+      }
+
+      const hayEntregas = (entregas ?? 0) > 0;
+      const ok = await confirm({
+        title: t("hc_routesAppTeacherExamsExamId.repartirConfirmTitulo", {
+          total: objetivo.toLocaleString("es-CO"),
+        }),
+        description: hayEntregas
+          ? t("hc_routesAppTeacherExamsExamId.repartirConfirmConEntregas", {
+              count: entregas ?? 0,
+              preguntas: questions.length,
+            })
+          : t("hc_routesAppTeacherExamsExamId.repartirConfirmBody", {
+              preguntas: questions.length,
+            }),
+        confirmLabel: t("hc_routesAppTeacherExamsExamId.repartirConfirmAccion"),
+        // Con entregas de por medio esto puede mover una nota ya vista: el tono
+        // tiene que decir eso, no ser el mismo aviso de rutina.
+        tone: hayEntregas ? "destructive" : "warning",
+      });
+      if (!ok) return;
+
+      // Un solo `upsert` y no diez UPDATE sueltos: si se escribiera fila por
+      // fila y la sexta fallara, el examen quedaría con cinco puntajes nuevos y
+      // cinco viejos — sumando MENOS de lo que sumaba antes de pulsar el botón
+      // que existe para cuadrarlo.
+      const { error } = await supabase
+        .from("questions")
+        .upsert(questions.map((q, i) => ({ ...(q as any), points: nuevos[i] })));
+      if (error) {
+        toast.error(friendlyError(error));
+        return;
+      }
+
+      await load();
+      toast.success(
+        t("hc_routesAppTeacherExamsExamId.repartirListo", {
+          total: objetivo.toLocaleString("es-CO"),
+        }),
+      );
+    } catch (e) {
+      toast.error(friendlyError(e));
+    } finally {
+      setRepartiendo(false);
     }
   };
 
@@ -1839,17 +1924,53 @@ function ExamEditor() {
                         points: questions.reduce((s, q) => s + ((q as any).points ?? 0), 0),
                       })}
                     </span>
-                    <button
-                      type="button"
-                      className="text-xs text-primary hover:underline"
-                      onClick={() =>
-                        document
-                          .getElementById("exam-questions-list")
-                          ?.scrollIntoView({ behavior: "smooth" })
-                      }
-                    >
-                      {t("hc_routesAppTeacherExamsExamId.viewList")}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      {/* Solo aparece cuando hay algo que cuadrar: un botón que
+                          en el 90 % de los casos no hace nada es ruido. */}
+                      {(() => {
+                        const objetivo =
+                          Number((exam as any)?.course?.grade_scale_max ?? 5) || 5;
+                        const falta = diferenciaHastaObjetivo(
+                          questions.map((q) => Number((q as any).points) || 0),
+                          objetivo,
+                        );
+                        if (falta === 0) return null;
+                        return (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => void repartirPuntaje()}
+                            disabled={repartiendo}
+                            title={t("hc_routesAppTeacherExamsExamId.repartirTitulo", {
+                              falta: Math.abs(falta).toLocaleString("es-CO"),
+                              total: objetivo.toLocaleString("es-CO"),
+                            })}
+                          >
+                            {repartiendo ? (
+                              <Spinner size="sm" className="mr-1" />
+                            ) : (
+                              <Equal className="h-3.5 w-3.5 mr-1" />
+                            )}
+                            {t("hc_routesAppTeacherExamsExamId.repartirBoton", {
+                              total: objetivo.toLocaleString("es-CO"),
+                            })}
+                          </Button>
+                        );
+                      })()}
+                      <button
+                        type="button"
+                        className="text-xs text-primary hover:underline"
+                        onClick={() =>
+                          document
+                            .getElementById("exam-questions-list")
+                            ?.scrollIntoView({ behavior: "smooth" })
+                        }
+                      >
+                        {t("hc_routesAppTeacherExamsExamId.viewList")}
+                      </button>
+                    </div>
                   </div>
                   <div className="flex flex-wrap gap-1">
                     {questions.slice(0, 9).map((q, i) => (

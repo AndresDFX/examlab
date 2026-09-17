@@ -8699,7 +8699,15 @@
     "weightHintPart1": "How much this exam counts toward the",
     "weightHintPart2": ". Exam bucket for the period",
     "weightNoCut": "Assign a grading period above first to be able to configure the weight.",
-    "weightOverBucket": "The current weight ({{current}}%) exceeds the bucket. Reduce this one or adjust the bucket in the grading periods editor."
+    "weightOverBucket": "The current weight ({{current}}%) exceeds the bucket. Reduce this one or adjust the bucket in the grading periods editor.",
+    "repartirBoton": "Balance to {{total}}",
+    "repartirTitulo": "{{falta}} short of {{total}}. Spreads the points across the questions keeping their current proportion.",
+    "repartirListo": "Points balanced: the exam now adds up to {{total}}.",
+    "repartirNoAplica": "Cannot balance: add questions or check the course grade scale.",
+    "repartirConfirmTitulo": "Balance the points to {{total}}?",
+    "repartirConfirmBody": "The points of all {{preguntas}} questions will be reassigned, keeping their current proportion. You can still adjust them by hand afterwards.",
+    "repartirConfirmConEntregas": "This exam already has {{count}} submission(s). Changing the points changes the total the grade is computed against, so a grade a student has already seen may move the next time you adjust that submission. The points of all {{preguntas}} questions will be reassigned, keeping their current proportion.",
+    "repartirConfirmAccion": "Balance points"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",

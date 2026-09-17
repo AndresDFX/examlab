@@ -8699,7 +8699,15 @@
     "weightHintPart1": "Cuánto pesa este examen en la",
     "weightHintPart2": ". Bucket exámenes del corte",
     "weightNoCut": "Asigna primero un corte de evaluación arriba para poder configurar el peso.",
-    "weightOverBucket": "El peso actual ({{current}}%) excede el bucket. Reduce este o ajusta el bucket en el editor de cortes."
+    "weightOverBucket": "El peso actual ({{current}}%) excede el bucket. Reduce este o ajusta el bucket en el editor de cortes.",
+    "repartirBoton": "Cuadrar en {{total}}",
+    "repartirTitulo": "Faltan {{falta}} para llegar a {{total}}. Reparte los puntos entre las preguntas conservando la proporción actual.",
+    "repartirListo": "Puntajes repartidos: el examen suma {{total}}.",
+    "repartirNoAplica": "No se puede repartir: agrega preguntas o revisa la nota máxima del curso.",
+    "repartirConfirmTitulo": "¿Cuadrar los puntajes en {{total}}?",
+    "repartirConfirmBody": "Se reasignarán los puntajes de las {{preguntas}} preguntas conservando la proporción actual. Podés volver a ajustarlos a mano después.",
+    "repartirConfirmConEntregas": "Este examen ya tiene {{count}} entrega(s). Cambiar los puntajes cambia el total sobre el que se calcula la nota, así que una nota que el estudiante ya vio puede moverse la próxima vez que ajustes esa entrega. Se reasignarán los puntajes de las {{preguntas}} preguntas conservando la proporción actual.",
+    "repartirConfirmAccion": "Cuadrar puntajes"
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",

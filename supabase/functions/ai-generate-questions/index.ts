@@ -794,7 +794,7 @@ Idioma obligatorio: ${langName}.`,
       }
       const pqaLangName = pqaLangCode === "en" ? "inglés (English)" : "español";
 
-      const fallbackPQA = `Eres un docente experto que diseña la estructura de evaluación de un proyecto. Devuelve EXACTAMENTE 1 pregunta tipo "codigo_zip" (donde el estudiante sube el ZIP del código) y entre 2 y 5 preguntas adicionales con tipo entre "abierta" | "diagrama" | "cerrada" para evaluar análisis y diseño por separado. Cada pregunta debe tener title, description, type y expected_rubric.`;
+      const fallbackPQA = `Eres un docente experto que diseña la estructura de evaluación de un proyecto. Devuelve EXACTAMENTE 1 pregunta tipo "codigo_zip" (donde el estudiante sube el ZIP del código) y entre 2 y 5 preguntas adicionales con tipo entre "abierta" | "diagrama" | "cerrada" para evaluar análisis y diseño por separado. Cada pregunta debe tener title, description, type y expected_rubric. Cada pregunta debe entenderse POR SI SOLA: el estudiante las resuelve en el orden que quiera, asi que no te refieras a otra pregunta ('lo hecho en el punto anterior'); si comparten contexto, repetilo en cada una.`;
       const systemPromptPQA = await resolveSystemPrompt(
         adminPQA,
         "project_questions",
@@ -978,6 +978,7 @@ Idioma obligatorio: ${langName}.`,
           {
             role: "system",
             content: `Eres un docente experto que diseña proyectos académicos. Dado un tema, debes producir EXACTAMENTE ${cnt} archivos esperados que un estudiante debe entregar para completar el proyecto. Cada archivo es una pieza textual independiente (documento de diseño, código, evidencias, manual de usuario, etc.) que el estudiante pegará en una caja de texto y la IA calificará con la rúbrica que tú escribas.
+Cada enunciado debe entenderse POR SI SOLO: el estudiante puede resolverlos en cualquier orden. No escribas 'el documento anterior' ni 'la clase que definiste en el archivo 2' — si hace falta ese contexto, repetilo.
 REGLA DE IDIOMA: responde siempre en ${pfLangName}.`,
           },
           {
@@ -1366,13 +1367,14 @@ Idioma obligatorio: ${pfLangName}.`,
     }
 
     const systemPrompt = isKahoot
-      ? `Eres un diseñador de cuestionarios interactivos tipo Kahoot. Generas preguntas dinámicas, claras y sin ambigüedad para un quiz EN VIVO. Cada pregunta tiene entre 2 y 4 opciones CORTAS (deben caber en un botón). Una pregunta puede tener UNA sola respuesta correcta o VARIAS: pon multi_select=true SOLO cuando hay más de una opción correcta, e incluí en correct_indices TODOS los índices correctos (0-based). Cuando es de una sola respuesta, correct_indices tiene exactamente un índice y multi_select=false. Evita preguntas triviales o capciosas; varía la dificultad.${
+      ? `Eres un diseñador de cuestionarios interactivos tipo Kahoot. Generas preguntas dinámicas, claras y sin ambigüedad para un quiz EN VIVO. Cada pregunta tiene entre 2 y 4 opciones CORTAS (deben caber en un botón). Una pregunta puede tener UNA sola respuesta correcta o VARIAS: pon multi_select=true SOLO cuando hay más de una opción correcta, e incluí en correct_indices TODOS los índices correctos (0-based). Cuando es de una sola respuesta, correct_indices tiene exactamente un índice y multi_select=false. Evita preguntas triviales o capciosas; varía la dificultad. Cada pregunta se muestra SOLA en pantalla y por unos segundos, asi que tiene que entenderse sin ninguna otra: no te refieras a preguntas anteriores ni al material como si el jugador lo tuviera delante.${
           kahootMaterial
             ? "\nBASA las preguntas EXCLUSIVAMENTE en el material del curso que se te entrega en el mensaje del usuario; no inventes temas fuera de ese material."
             : ""
         }
 REGLA DE IDIOMA: Responde siempre en ${langName}. Todos los enunciados y opciones en ${langName}.`
       : `Eres un asistente experto en evaluación académica. Generas preguntas de examen claras, sin ambigüedad. Para cada pregunta incluyes una rúbrica de evaluación (qué debe contener una respuesta correcta).
+REGLA DE AUTOSUFICIENCIA (obligatoria): cada pregunta debe poder entenderse y responderse POR SI SOLA. Esta PROHIBIDO referirse a otra pregunta ('la pregunta anterior', 'el caso del punto 3', 'usando la clase que creaste antes') o dar por sentado que el estudiante ya la respondio o la tiene a la vista: el examen puede tener navegacion secuencial, mezclar el orden de las preguntas o mostrarlas de a una. Si varias preguntas comparten un caso, un enunciado o un fragmento de codigo, REPETILO COMPLETO dentro de cada una. La rubrica tampoco puede apoyarse en otra pregunta.
 REGLA DE IDIOMA: Responde siempre en el idioma configurado para este curso: ${langName}. Todos los enunciados, opciones y rúbricas deben estar en ${langName}.`;
 
     // Para proyectos: prepende la descripción del proyecto al user

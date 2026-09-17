@@ -220,6 +220,38 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Botón para cuadrar los puntajes de un examen.** Borrar una pregunta dejaba el examen sumando 4,70
+  y ninguna forma cómoda de volver a 5,00: corregir diez preguntas a mano para recuperar 0,30 es la
+  clase de tarea que se hace mal y se abandona a la mitad. Ahora, cuando la suma no da, aparece
+  «Cuadrar en 5» junto al resumen de preguntas.
+  - **Conserva la proporción que puso el docente**: si la pregunta de código valía el doble que las
+    cerradas, sigue valiendo el doble. Repartir en partes iguales habría borrado ese criterio sin
+    avisar. Solo reparte parejo cuando NINGUNA pregunta tiene puntaje, porque ahí no hay proporción
+    que conservar.
+  - **La cuenta trabaja en centésimas enteras.** Redondear cada pregunta por separado deja sobras:
+    5,00 entre tres da 1,67 × 3 = 5,01, y el docente vería «4,99 de 5,00» justo después de pulsar el
+    botón que existe para cuadrarlo. Ninguna pregunta puede quedar en cero — una pregunta que no vale
+    nada se puede dejar en blanco sin costo.
+  - **Avisa distinto si ya hay entregas.** La nota se calcula sobre el total REAL de puntos, así que
+    cambiarlos cambia el denominador: en un examen sin entregas es inofensivo, pero con entregas ya
+    calificadas una nota que el estudiante vio puede moverse la próxima vez que el docente ajuste esa
+    entrega. El aviso lo dice con el número de entregas a la vista y en tono destructivo. Lo detectó
+    la revisión de consistencia sobre la primera versión, que no preguntaba nada.
+  - Se escribe en **un solo `upsert`** y no diez actualizaciones sueltas: si la sexta fallara, el
+    examen quedaría con cinco puntajes nuevos y cinco viejos, sumando menos que antes de empezar.
+- **Las preguntas que genera la IA ya no pueden apoyarse en otra pregunta.** Reportado sobre un
+  parcial real: una pregunta decía «modele el diagrama del sistema del punto anterior». En un examen
+  eso no se sostiene —la navegación puede ser secuencial, el orden puede mezclarse y cada pregunta se
+  responde sola— y nada en los prompts se lo impedía al modelo, que genera todas las preguntas en una
+  sola llamada. Se agregó una regla de autosuficiencia a los prompts de generación de preguntas
+  (examen, taller y proyecto), al de Kahoot (donde cada pregunta se muestra sola y por segundos), al
+  de archivos esperados de un proyecto y al de identificación desde un texto pegado — ahí, además,
+  cuando varias preguntas comparten un caso, el contexto se copia COMPLETO dentro de cada una.
+  - **También en la base, no solo en el código** (mig `20262260000000`): el prompt de las preguntas de
+    proyecto es configurable por institución y esa fila GANA sobre el respaldo del código, así que
+    arreglar solo el edge habría dejado el cambio sin efecto en las ocho instituciones que ya tienen
+    su fila. La migración es idempotente y agrega al final, sin pisar lo que un docente haya editado.
+
 - **Lo que se genera con IA queda en el banco de preguntas, por defecto.** Generar cuesta cuota de
   IA y tiempo del docente, y hasta ahora ese trabajo moría en el examen o el taller donde se generó:
   el banco solo se llenaba cuando alguien elegía generar DENTRO del banco. Ahora toda generación deja
