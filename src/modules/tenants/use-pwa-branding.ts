@@ -18,7 +18,7 @@ import {
   RUTA_BASE_EXAMLAB,
   construirManifestDeInstitucion,
   esColorHex,
-  etiquetaInstitucion,
+  nombreAppInstitucion,
   medidasDistintivo,
   medidasIcono,
   type IconoManifest,
@@ -204,10 +204,11 @@ function aplicar(branding: BrandingCacheado): void {
   if (branding.icono192) ponerLink("icon", branding.icono192, "image/png");
   if (branding.iconoApple) ponerLink("apple-touch-icon", branding.iconoApple);
 
-  // La etiqueta bajo el ícono en iOS sale de acá; en Android, del manifest.
-  // Va el identificador de la institución (UNIAJ), no su nombre largo: iOS
-  // trunca cerca de los 12 caracteres y "Universidad A…" no identifica nada.
-  const etiqueta = etiquetaInstitucion(branding.slug, branding.nombre);
+  // La etiqueta bajo el ícono en iOS sale de acá; en Android, del manifest. Las
+  // dos dicen lo MISMO —«ExamLab - UNIAJ»— y por eso salen de la misma función:
+  // tenerlas separadas fue el error de la primera versión, donde el manifest
+  // decía «ExamLab - UNIAJ» pero lo que se veía en el teléfono era «UNIAJ».
+  const etiqueta = nombreAppInstitucion(branding.slug, branding.nombre);
   if (etiqueta) ponerMeta("apple-mobile-web-app-title", etiqueta);
   if (branding.colorTema) ponerMeta("theme-color", branding.colorTema);
 

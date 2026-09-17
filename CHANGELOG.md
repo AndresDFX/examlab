@@ -314,10 +314,16 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     siglas a partir de él —lo que hacía la primera versión— es **inventarle el nombre a la
     institución**: a «Universidad Antonio Jose Camacho» la bautizaba «UAJC» cuando en la plataforma,
     y para la gente que la usa, esa institución es **UNIAJ**. El nombre corto que ya eligió está en
-    su `slug`, y de ahí sale. El nombre completo de la app instalada sigue el mismo criterio:
-    **«ExamLab - UNIAJ»**, la plataforma primero y la institución después. Se descartó «<nombre
-    largo> — ExamLab» porque un listado de apps instaladas lo ordena y lo busca por la institución,
-    dispersando todas las instalaciones por la «U» de Universidad.
+    su `slug`, y de ahí sale. El nombre de la app instalada es **«ExamLab - UNIAJ»**: la plataforma
+    primero y la institución después. Se descartó «<nombre largo> — ExamLab» porque un listado de
+    apps instaladas lo ordena y lo busca por la institución, dispersando todas las instalaciones por
+    la «U» de Universidad.
+  - **Ese nombre sale de UN solo lugar y se usa en los tres**: `name` y `short_name` del manifest, y
+    el título que usa iOS. Tenerlos separados fue un error de la primera versión — el manifest decía
+    «ExamLab - UNIAJ» pero lo que la persona veía bajo el ícono era `short_name`, que decía solo
+    «UNIAJ», y la app no se reconocía como ExamLab en la pantalla de inicio. Se sabe que la etiqueta
+    se recorta cerca de los 12 caracteres: se prefiere que diga de qué plataforma es, aun cortada, a
+    un identificador que fuera de contexto no significa nada.
   - **Falla hacia lo de siempre**: institución sin logo, logo que no carga o color inválido en la
     base ⇒ se usan los íconos y el color de ExamLab, con la etiqueta de la institución igual. Nada de
     esto puede impedir que la app arranque. Se conservan `display: standalone` (la toma de examen lo

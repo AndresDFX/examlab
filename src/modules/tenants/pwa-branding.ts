@@ -185,6 +185,33 @@ export function iconosPorDefecto(origin: string): IconoManifest[] {
  * identidad de la app instalada; como cada institución es un origen distinto,
  * queda naturalmente separada de las demás.
  */
+/**
+ * Nombre de la app instalada: «ExamLab - UNIAJ», o sea plataforma + el
+ * identificador de la institución.
+ *
+ * Es UNA sola función porque el nombre tiene que salir igual en los tres
+ * lugares donde se lee —`name` y `short_name` del manifest, y el título que usa
+ * iOS— y la primera versión los tenía separados: `name` decía «ExamLab - UNIAJ»
+ * pero lo que la persona veía bajo el ícono era `short_name`, que decía solo
+ * «UNIAJ». La app no se reconocía como ExamLab en la pantalla de inicio.
+ *
+ * Nota de presentación: Android e iOS truncan la etiqueta cerca de los 12
+ * caracteres, así que en la pantalla de inicio se leerá recortado. Es una
+ * decisión tomada a sabiendas: se prefiere que diga de qué plataforma es, aun
+ * cortado, a que diga un identificador que fuera de contexto no significa nada.
+ */
+export function nombreAppInstitucion(
+  slug: string | null | undefined,
+  nombre?: string | null,
+): string {
+  const corto = etiquetaInstitucion(slug, nombre);
+  if (!corto) return "ExamLab — Plataforma de Exámenes";
+  // Una institución que YA se llama con la marca (la demo) no se antepone otra
+  // vez: daría «ExamLab - EXAMLAB-DEMO».
+  if (/examlab/i.test(corto)) return corto;
+  return `ExamLab - ${corto}`;
+}
+
 export function construirManifestDeInstitucion(args: ArgsManifest): Record<string, unknown> {
   const { nombreInstitucion, slugInstitucion, iconos, colorTema, origin } = args;
   const nombre = (nombreInstitucion ?? "").trim();
@@ -193,24 +220,15 @@ export function construirManifestDeInstitucion(args: ArgsManifest): Record<strin
       ? (etiquetaInstitucion(slugInstitucion, nombre) ?? "ExamLab")
       : "ExamLab";
 
-  // «ExamLab - UNIAJ»: la plataforma primero y la institución después, con el
-  // MISMO identificador corto que va bajo el ícono. Se descartó «<nombre largo>
-  // — ExamLab» porque ese nombre se ordena y se busca por la institución (un
-  // listado de apps instaladas las dispersa por la U), y porque al repetirse la
-  // marca daba cosas como «ExamLab Demo — ExamLab».
-  const nombreApp =
-    corto === "ExamLab"
-      ? "ExamLab — Plataforma de Exámenes"
-      : // Una institución que YA se llama con la marca (la demo) no se antepone
-        // otra vez: daría «ExamLab - EXAMLAB-DEMO».
-        /examlab/i.test(corto)
-        ? corto
-        : `ExamLab - ${corto}`;
+  const nombreApp = nombreAppInstitucion(slugInstitucion, nombreInstitucion);
 
   return {
     id: `${origin}/`,
     name: nombreApp,
-    short_name: corto,
+    // El MISMO nombre que `name`, no solo el identificador. Lo que la persona
+    // ve bajo el ícono sale de acá, y con solo «UNIAJ» la app no se reconocía
+    // como ExamLab en la pantalla de inicio ni en el listado de aplicaciones.
+    short_name: nombreApp,
     description: nombre
       ? `Plataforma académica de ${nombre}: exámenes, talleres y seguimiento.`
       : "Plataforma académica con IA, proctoring y gestión completa de exámenes online.",

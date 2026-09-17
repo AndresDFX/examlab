@@ -8,6 +8,7 @@ import {
   iconosPorDefecto,
   medidasDistintivo,
   medidasIcono,
+  nombreAppInstitucion,
 } from "./pwa-branding";
 
 const ORIGIN = "https://uniaj.examlab.workers.dev";
@@ -153,10 +154,11 @@ describe("construirManifestDeInstitucion", () => {
       colorTema: "#006CD0",
       origin: ORIGIN,
     });
-    // La plataforma primero y la institución después, con el mismo
-    // identificador corto que va bajo el ícono.
+    // La plataforma primero y la institución después. `short_name` dice lo
+    // MISMO que `name`: es lo que la persona ve bajo el ícono, y con solo
+    // «UNIAJ» la app no se reconocía como ExamLab en la pantalla de inicio.
     expect(m.name).toBe("ExamLab - UNIAJ");
-    expect(m.short_name).toBe("UNIAJ");
+    expect(m.short_name).toBe("ExamLab - UNIAJ");
     expect(m.theme_color).toBe("#006CD0");
   });
 
@@ -170,6 +172,7 @@ describe("construirManifestDeInstitucion", () => {
     });
     // Anteponer la marca daría «ExamLab - EXAMLAB-DEMO».
     expect(m.name).toBe("EXAMLAB-DEMO");
+    expect(m.short_name).toBe("EXAMLAB-DEMO");
   });
 
   it("sin institución en el host no antepone nada", () => {
@@ -210,7 +213,7 @@ describe("construirManifestDeInstitucion", () => {
   it("sin institución queda el manifest de ExamLab de siempre", () => {
     const m = construirManifestDeInstitucion({ origin: ORIGIN });
     expect(m.name).toBe("ExamLab — Plataforma de Exámenes");
-    expect(m.short_name).toBe("ExamLab");
+    expect(m.short_name).toBe("ExamLab — Plataforma de Exámenes");
     expect(m.theme_color).toBe("#6366f1");
     expect(m.icons).toEqual(iconosPorDefecto(ORIGIN));
   });
@@ -236,5 +239,22 @@ describe("construirManifestDeInstitucion", () => {
     });
     expect(m.display).toBe("standalone");
     expect(m.orientation).toBe("portrait");
+  });
+});
+
+describe("nombreAppInstitucion", () => {
+  it("es plataforma + identificador, que es lo que se lee bajo el ícono", () => {
+    expect(nombreAppInstitucion("uniaj", "Universidad Antonio Jose Camacho")).toBe(
+      "ExamLab - UNIAJ",
+    );
+    expect(nombreAppInstitucion("fesna")).toBe("ExamLab - FESNA");
+  });
+
+  it("no antepone la marca dos veces", () => {
+    expect(nombreAppInstitucion("examlab-demo", "ExamLab Demo")).toBe("EXAMLAB-DEMO");
+  });
+
+  it("sin institución, el nombre de la plataforma", () => {
+    expect(nombreAppInstitucion(null, null)).toBe("ExamLab — Plataforma de Exámenes");
   });
 });
