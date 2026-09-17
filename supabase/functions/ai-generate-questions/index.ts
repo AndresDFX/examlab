@@ -451,6 +451,92 @@ function classNumberFromFilename(name: string): number | null {
   return null;
 }
 
+/**
+ * Deja en el BANCO una copia de lo que se acaba de generar, con los metadatos
+ * que hacen que otro docente pueda encontrarla y reusarla.
+ *
+ * ── Por qué acá y no en cada pantalla ─────────────────────────────────
+ * Generar preguntas cuesta cuota de IA y tiempo del docente, y hasta ahora ese
+ * trabajo moria en el examen o el taller donde se genero: el banco solo se
+ * llenaba cuando alguien elegia generar DENTRO del banco. Poniendolo en el
+ * edge vale para TODOS los flujos —examen, taller, proyecto, la cola— sin que
+ * cada pantalla tenga que acordarse, que es el mismo motivo por el que la
+ * puntuacion determinista se resolvio del lado del servidor.
+ *
+ * ── Lo que NO hace ────────────────────────────────────────────────────
+ * No inventa una dificultad: el modelo no la evalua, y un numero puesto al azar
+ * ensucia el filtro para todos. Queda en NULL hasta que alguien la asigne.
+ *
+ * Nunca hace fallar la generacion: las preguntas ya se crearon, y no poder
+ * copiarlas al banco es una perdida menor comparada con devolver un error
+ * despues de haber gastado la llamada al modelo.
+ */
+async function copiarAlBanco(opts: {
+  // deno-lint-ignore no-explicit-any
+  admin: any;
+  filas: Array<{ content: string; options?: unknown; expected_rubric?: string | null }>;
+  tipo: string;
+  lenguaje: string | null;
+  courseId: string | null;
+  actorId: string | null;
+  topics: string | null;
+}): Promise<number> {
+  const { admin, filas, tipo, lenguaje, courseId, actorId, topics } = opts;
+  if (!courseId || filas.length === 0) return 0;
+
+  const tema = (topics ?? "").trim().slice(0, 200) || null;
+  // Etiquetas: solo HECHOS de la generacion (el tipo, el lenguaje), nada
+  // inferido. Sirven para filtrar sin prometer una clasificacion que nadie hizo.
+  const etiquetas = [tipo, lenguaje].filter((t): t is string => !!t);
+
+  try {
+    // Sin dedup, un docente que regenera tres veces deja el banco con la misma
+    // pregunta tres veces, y el banco pasa de ser util a ser ruido. Se compara
+    // por enunciado dentro del curso, que es lo que un humano leeria como
+    // "esta ya esta".
+    const { data: yaEstan } = await admin
+      .from("question_bank")
+      .select("content")
+      .eq("course_id", courseId)
+      // Tope defensivo: la dedup no justifica traerse a memoria el texto de un
+      // banco enorme en cada generacion.
+      .limit(2000);
+    const conocidas = new Set(
+      ((yaEstan ?? []) as Array<{ content: string | null }>)
+        .map((r) => (r.content ?? "").trim().toLowerCase())
+        .filter(Boolean),
+    );
+    const nuevas = filas.filter((q) => !conocidas.has((q.content ?? "").trim().toLowerCase()));
+    if (nuevas.length === 0) return 0;
+
+    const { error } = await admin.from("question_bank").insert(
+      nuevas.map((q) => ({
+        course_id: courseId,
+        created_by: actorId,
+        type: tipo,
+        content: q.content,
+        options: q.options ?? null,
+        expected_rubric: q.expected_rubric ?? null,
+        language: lenguaje,
+        suggested_points: 1,
+        topic: tema,
+        tags: etiquetas,
+        // Es lo que habilita a un docente de OTRO curso a reutilizarla: sin
+        // esto la fila queda encerrada en el curso donde se genero.
+        shared_org: true,
+      })),
+    );
+    if (error) {
+      console.error("[ai-generate-questions] copia al banco:", error.message);
+      return 0;
+    }
+    return nuevas.length;
+  } catch (e) {
+    console.error("[ai-generate-questions] copia al banco:", e);
+    return 0;
+  }
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
   // Auth interna (verify_jwt=false en config.toml). Aceptamos:
@@ -1548,6 +1634,11 @@ Idioma de salida obligatorio: ${langName}.`;
         expected_rubric: q.expected_rubric ?? null,
         language: isCodeType ? codeLanguage : null,
         suggested_points: 1,
+        // Mismos metadatos que la copia automatica de los demas flujos, para
+        // que una pregunta del banco se vea igual sin importar por donde entro.
+        topic: (topics ?? "").trim().slice(0, 200) || null,
+        tags: [type, isCodeType ? codeLanguage : null].filter((t: unknown): t is string => !!t),
+        shared_org: true,
       }));
       const { data: insertedB, error: bErr } = await admin
         .from("question_bank")
@@ -1611,7 +1702,36 @@ Idioma de salida obligatorio: ${langName}.`;
       );
     }
 
-    return new Response(JSON.stringify({ ok: true, inserted }), {
+    // Copia al banco, por defecto. `alBanco: false` en el cuerpo la desactiva
+    // para un pedido puntual; sin el campo, se copia — que es lo que hace que el
+    // banco se llene solo con el trabajo que el docente ya hizo.
+    let alBanco = 0;
+    if (body.alBanco !== false) {
+      // El banco vive POR CURSO, y el flujo generico no lo recibe: se deriva del
+      // destino. Si no se puede derivar, no se copia (mejor eso que colgar la
+      // pregunta de un curso equivocado).
+      const tablaPadre = isProject ? "projects" : isWorkshop ? "workshops" : "exams";
+      const { data: padre } = await admin
+        .from(tablaPadre)
+        .select("course_id")
+        .eq("id", targetId)
+        .maybeSingle();
+      alBanco = await copiarAlBanco({
+        admin,
+        filas: questions.map((q: any) => ({
+          content: q.content,
+          options: q.options ?? null,
+          expected_rubric: q.expected_rubric ?? null,
+        })),
+        tipo: type,
+        lenguaje: type === "java_gui" ? "java" : codeLanguage,
+        courseId: (padre as { course_id?: string } | null)?.course_id ?? null,
+        actorId,
+        topics: typeof topics === "string" ? topics : null,
+      });
+    }
+
+    return new Response(JSON.stringify({ ok: true, inserted, alBanco }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {

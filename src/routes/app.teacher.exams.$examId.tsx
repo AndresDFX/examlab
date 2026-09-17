@@ -228,6 +228,10 @@ function ExamEditor() {
 
   // AI
   const [aiTopics, setAiTopics] = useState("");
+  // Por defecto SÍ: generar cuesta cuota de IA y tiempo del docente, y hasta
+  // ahora ese trabajo moría donde se generó. Se desmarca cuando el enunciado
+  // trae datos propios del grupo.
+  const [alBanco, setAlBanco] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   type AiRow = { type: string; count: number; language: string };
   const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
@@ -933,6 +937,7 @@ function ExamEditor() {
           count: row.count,
           language: row.type === "codigo" ? row.language : undefined,
           targetTable: "questions",
+          alBanco,
         },
       }));
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
@@ -969,6 +974,7 @@ function ExamEditor() {
             type: row.type,
             count: row.count,
             language: row.type === "codigo" ? row.language : undefined,
+            alBanco,
           },
         });
         if (error || data?.error) {
@@ -1786,6 +1792,17 @@ function ExamEditor() {
                   <Plus className="h-4 w-4 mr-1" /> {t("hc_routesAppTeacherExamsExamId.addType")}
                 </Button>
               </div>
+              <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+                <Checkbox
+                  checked={alBanco}
+                  onCheckedChange={(v) => setAlBanco(v === true)}
+                  className="mt-0.5"
+                />
+                <span>
+                  {t("workshopQuestions.alBanco")}{" "}
+                  <HelpHint>{t("workshopQuestions.alBancoHint")}</HelpHint>
+                </span>
+              </label>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-muted-foreground">
                   {t("hc_routesAppTeacherExamsExamId.totalQuestions", {

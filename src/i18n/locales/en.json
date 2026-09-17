@@ -4776,7 +4776,9 @@
     "networkScenarioLabel": "Network scenario (JSON)",
     "networkScenarioHint": "Define the topology (devices/links), targetDeviceId (the device the student configures) and assertions (auto-graded rubric: hostname, interface_ip, interface_up, connectivity, command_used). The student solves it from an IOS-like console.",
     "networkResetTemplate": "Reset template",
-    "typeNetworkGui": "Network (diagram)"
+    "typeNetworkGui": "Network (diagram)",
+    "alBanco": "Also save to the question bank",
+    "alBancoHint": "They become available to reuse in other courses of your institution, with their topic and tags. Uncheck it if the wording contains data specific to this group."
   },
   "adminSupport": {
     "title": "Support",

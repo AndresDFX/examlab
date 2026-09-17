@@ -220,6 +220,26 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Lo que se genera con IA queda en el banco de preguntas, por defecto.** Generar cuesta cuota de
+  IA y tiempo del docente, y hasta ahora ese trabajo moría en el examen o el taller donde se generó:
+  el banco solo se llenaba cuando alguien elegía generar DENTRO del banco. Ahora toda generación deja
+  además una copia con su **tema**, sus **etiquetas** y `shared_org`, que es lo que habilita a un
+  docente de otro curso de la misma institución a encontrarla y reutilizarla.
+  - **Vive en el edge, no en cada pantalla**, así que vale para todos los flujos —examen, taller,
+    proyecto y la cola— sin que cada uno tenga que acordarse. Mismo criterio por el que la
+    puntuación determinista se resolvió del lado del servidor.
+  - **No inventa una dificultad.** El modelo no la evalúa, y un número puesto al azar ensucia el
+    filtro para todos: queda vacía hasta que alguien la asigne. Las etiquetas sí se llenan, pero solo
+    con hechos de la generación (el tipo y el lenguaje).
+  - **Deduplica por enunciado dentro del curso.** Sin eso, un docente que regenera tres veces dejaba
+    la misma pregunta tres veces y el banco pasaba de útil a ruido.
+  - **Se puede desmarcar** («Guardar también en el banco de preguntas», marcado por defecto en los
+    diálogos de taller, examen y proyecto): el enunciado puede traer datos propios de un grupo, y
+    compartir eso con toda la institución sin poder evitarlo era un cambio de comportamiento
+    silencioso. Kahoot queda fuera a propósito — sus opciones viven en otra tabla.
+  - Copiar al banco **nunca** hace fallar la generación: las preguntas ya se crearon, y perderlas por
+    un fallo secundario sería peor que no tener la copia.
+
 - **La app instalada dice a qué institución entra: ícono de ExamLab con el logo de la universidad
   como distintivo.** Quien entra por la dirección de su universidad (`uniaj.examlab.workers.dev`) ve
   en la pestaña del navegador y en la pantalla de inicio el ícono de ExamLab a sangre completa con

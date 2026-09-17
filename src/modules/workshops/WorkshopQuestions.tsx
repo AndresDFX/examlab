@@ -18,6 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { HelpHint } from "@/components/ui/help-hint";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -279,6 +280,10 @@ export function TeacherWorkshopQuestionsEditor({
 
   // AI form
   const [aiTopics, setAiTopics] = useState("");
+  // Por defecto SÍ: generar cuesta cuota de IA y tiempo del docente, y hasta
+  // ahora ese trabajo moría en el taller donde se generó. El docente lo puede
+  // desmarcar cuando el enunciado trae datos propios de su grupo.
+  const [alBanco, setAlBanco] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   type AiRow = { type: WorkshopQuestion["type"]; count: number; language: string };
   const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
@@ -674,6 +679,7 @@ export function TeacherWorkshopQuestionsEditor({
           language: row.type === "codigo" ? row.language : undefined,
           courseLanguage,
           targetTable: "workshop_questions",
+          alBanco,
         },
       }));
       const { error: enqErr } = await dbAny3.from("ai_generation_queue").insert(rows);
@@ -704,6 +710,7 @@ export function TeacherWorkshopQuestionsEditor({
             type: row.type,
             count: row.count,
             examId: workshopId,
+            alBanco,
             language: row.type === "codigo" ? row.language : undefined,
             courseLanguage,
             targetTable: "workshop_questions",
@@ -1283,6 +1290,17 @@ INSERT INTO cliente (nombre) VALUES ('Ana'), ('Luis');`}
               <Plus className="h-4 w-4 mr-1" /> {t("workshopQuestions.btnAddType")}
             </Button>
           </div>
+          <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+            <Checkbox
+              checked={alBanco}
+              onCheckedChange={(v) => setAlBanco(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              {t("workshopQuestions.alBanco")}{" "}
+              <HelpHint>{t("workshopQuestions.alBancoHint")}</HelpHint>
+            </span>
+          </label>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
               {t("workshopQuestions.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}

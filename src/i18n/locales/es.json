@@ -4776,7 +4776,9 @@
     "networkScenarioLabel": "Escenario de red (JSON)",
     "networkScenarioHint": "Define la topología (devices/links), targetDeviceId (el dispositivo que configura el alumno) y assertions (rúbrica auto-calificada: hostname, interface_ip, interface_up, connectivity, command_used). El alumno resuelve desde una consola tipo IOS.",
     "networkResetTemplate": "Restablecer plantilla",
-    "typeNetworkGui": "Red (diagrama)"
+    "typeNetworkGui": "Red (diagrama)",
+    "alBanco": "Guardar también en el banco de preguntas",
+    "alBancoHint": "Quedan disponibles para reutilizarlas en otros cursos de la institución, con su tema y etiquetas. Desmárcalo si el enunciado trae datos propios de este grupo."
   },
   "adminSupport": {
     "title": "Soporte",

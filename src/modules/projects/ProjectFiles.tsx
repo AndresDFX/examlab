@@ -71,6 +71,7 @@ import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { HelpHint } from "@/components/ui/help-hint";
+import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
 import {
   getProcessingMode,
@@ -224,6 +225,10 @@ export function TeacherProjectFilesEditor({
 
   // AI form
   const [aiTopics, setAiTopics] = useState("");
+  // Por defecto SÍ: generar cuesta cuota de IA y tiempo del docente, y hasta
+  // ahora ese trabajo moría donde se generó. Se desmarca cuando el enunciado
+  // trae datos propios del grupo.
+  const [alBanco, setAlBanco] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
   type AiRow = { type: ProjectFile["type"]; count: number; language: string };
   const [aiRows, setAiRows] = useState<AiRow[]>([{ type: "abierta", count: 3, language: "java" }]);
@@ -746,6 +751,7 @@ export function TeacherProjectFilesEditor({
           courseLanguage,
           targetTable: "project_files",
           projectDescription,
+          alBanco,
         },
       }));
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
@@ -785,6 +791,7 @@ export function TeacherProjectFilesEditor({
             courseLanguage,
             targetTable: "project_files",
             projectDescription,
+            alBanco,
           },
         });
         if (error || data?.error) {
@@ -1369,6 +1376,17 @@ export function TeacherProjectFilesEditor({
               <Plus className="h-4 w-4 mr-1" /> {t("projectFiles.btnAddType")}
             </Button>
           </div>
+          <label className="flex items-start gap-2 text-xs text-muted-foreground cursor-pointer">
+            <Checkbox
+              checked={alBanco}
+              onCheckedChange={(v) => setAlBanco(v === true)}
+              className="mt-0.5"
+            />
+            <span>
+              {t("workshopQuestions.alBanco")}{" "}
+              <HelpHint>{t("workshopQuestions.alBancoHint")}</HelpHint>
+            </span>
+          </label>
           <div className="flex items-center justify-between">
             <span className="text-xs text-muted-foreground">
               {t("projectFiles.totalQuestions", { count: aiRows.reduce((s, r) => s + (r.count || 0), 0) })}
