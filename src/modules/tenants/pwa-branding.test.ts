@@ -153,7 +153,9 @@ describe("construirManifestDeInstitucion", () => {
       colorTema: "#006CD0",
       origin: ORIGIN,
     });
-    expect(m.name).toBe("Universidad Antonio Jose Camacho — ExamLab");
+    // La plataforma primero y la institución después, con el mismo
+    // identificador corto que va bajo el ícono.
+    expect(m.name).toBe("ExamLab - UNIAJ");
     expect(m.short_name).toBe("UNIAJ");
     expect(m.theme_color).toBe("#006CD0");
   });
@@ -166,7 +168,14 @@ describe("construirManifestDeInstitucion", () => {
       colorTema: null,
       origin: ORIGIN,
     });
-    expect(m.name).toBe("ExamLab Demo");
+    // Anteponer la marca daría «ExamLab - EXAMLAB-DEMO».
+    expect(m.name).toBe("EXAMLAB-DEMO");
+  });
+
+  it("sin institución en el host no antepone nada", () => {
+    expect(construirManifestDeInstitucion({ origin: ORIGIN }).name).toBe(
+      "ExamLab — Plataforma de Exámenes",
+    );
   });
 
   it("todas las URLs van ABSOLUTAS: el manifest se sirve desde un blob:", () => {

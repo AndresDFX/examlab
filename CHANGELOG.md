@@ -262,7 +262,10 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     siglas a partir de él —lo que hacía la primera versión— es **inventarle el nombre a la
     institución**: a «Universidad Antonio Jose Camacho» la bautizaba «UAJC» cuando en la plataforma,
     y para la gente que la usa, esa institución es **UNIAJ**. El nombre corto que ya eligió está en
-    su `slug`, y de ahí sale.
+    su `slug`, y de ahí sale. El nombre completo de la app instalada sigue el mismo criterio:
+    **«ExamLab - UNIAJ»**, la plataforma primero y la institución después. Se descartó «<nombre
+    largo> — ExamLab» porque un listado de apps instaladas lo ordena y lo busca por la institución,
+    dispersando todas las instalaciones por la «U» de Universidad.
   - **Falla hacia lo de siempre**: institución sin logo, logo que no carga o color inválido en la
     base ⇒ se usan los íconos y el color de ExamLab, con la etiqueta de la institución igual. Nada de
     esto puede impedir que la app arranque. Se conservan `display: standalone` (la toma de examen lo
@@ -401,6 +404,49 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🐛 Arreglos
 
+- **Un examen que cerró el servidor se quedaba sin calificar para siempre — y con él, el puntaje de
+  las preguntas cerradas.** Reportado con un caso concreto: una entrega del 1 de septiembre seguía
+  dos semanas después con «— / 0.3» en cada pregunta y sin «Nota final». Cuatro de sus trece
+  preguntas eran CERRADAS, o sea que no necesitaban modelo alguno para puntuarse, y valían cero
+  igual.
+  - **La causa**: la calificación la dispara el CLIENTE al entregar. Pero hay dos caminos que
+    cierran un intento sin que haya un cliente mirando —el cron que cierra los vencidos (el de este
+    caso: `close_reason = 'vencimiento'`) y el botón del docente para terminar un intento en curso—
+    y los dos viven en SQL, que **no puede invocar una edge function**. Marcaban la entrega como
+    completada y ahí terminaba todo. Verificado en la base: cero trabajos en la cola para esa
+    entrega.
+  - **El arreglo** (mig `20262250000000`): los dos cierres encolan la calificación, igual que el
+    alumno al entregar. Trae además un rescate para los intentos ya cerrados sin nota, porque a esos
+    nadie los va a volver a cerrar. Se verificó contra un PostgreSQL real (PGlite) antes de
+    mergear: que el cierre encole, que dos pasadas del cron no dupliquen, que no re-califique lo que
+    ya tiene nota, que ignore la papelera y que cerrar dos veces siga siendo un no-op.
+  - **Quien se queda sin tiempo ya no pierde lo que sí respondió bien** en las cerradas. Esa parte
+    de la nota no depende de la IA y no debería haber dependido nunca.
+- **La IA no califica preguntas cerradas, pero su valor SÍ cuenta para la nota — en todos los
+  caminos.** Una auditoría de los flujos de calificación y recalificación encontró tres lugares
+  donde el puntaje de una cerrada se perdía (nunca al revés: en ningún camino se le preguntaba al
+  modelo por una cerrada).
+  - **Recalificar UNA pregunta de examen** le clavaba 0 a las demás cuando la entrega no tenía
+    calificación previa — justo el caso del intento cerrado por el cron, que no tiene desglose. Una
+    cerrada respondida bien quedaba en 0 y esa nota deprimida se persistía para toda la entrega.
+    Ahora, sin nota previa y sin IA de por medio, se puntúa en el momento.
+  - **«Calificar todos con IA» del Diagnóstico** dejaba las cerradas de TALLER sin puntuar: los
+    constructores de la cola las saltan y nunca mandaban las respuestas, así que quedaban con nota
+    nula — que la consolidación cuenta como 0 en el numerador **mientras sus puntos siguen en el
+    denominador**. Ahora el servidor las lee de la BASE y las puntúa antes de hablar con el modelo,
+    así que vale para cualquier llamador, presente o futuro, sin depender de que se acuerde de
+    mandarlas.
+  - **Lo mismo en PROYECTOS**, donde el servidor ya sabía puntuarlas pero nunca recibía las
+    respuestas. Hoy ningún proyecto en producción usa preguntas cerradas, así que no hay notas mal
+    puestas por esta vía — era un candado listo para romperse el día que alguien las usara.
+  - En ningún caso se pisa una nota ya existente: solo se escribe donde no había.
+- **Tocar una notificación en el móvil abría el navegador en vez de la app instalada.** Reportado
+  con los comentarios a estudiantes: llegar desde el tablero funcionaba, llegar desde la
+  notificación "abría como en la web". Dos causas, las dos en el Service Worker: buscaba ventanas
+  sin `includeUncontrolled`, así que no veía la app cuando el worker todavía no la controlaba; y
+  reusaba una ventana **solo si su URL ya contenía el destino**, cosa que nunca pasa si la app está
+  abierta en otra pantalla. Ahora enfoca la ventana de la app y la NAVEGA al destino, y solo abre
+  una ventana nueva si no había ninguna.
 - **En un iPhone, tocar "Firmar aquí" dentro del documento no hacía nada.** Medido con Safari real
   (WebKit): un documento se muestra en un iframe con `sandbox="allow-same-origin"` (sin
   `allow-scripts`, a propósito — agregarlo anularía el aislamiento), y en ese modo el iframe **no

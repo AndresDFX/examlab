@@ -188,18 +188,24 @@ export function iconosPorDefecto(origin: string): IconoManifest[] {
 export function construirManifestDeInstitucion(args: ArgsManifest): Record<string, unknown> {
   const { nombreInstitucion, slugInstitucion, iconos, colorTema, origin } = args;
   const nombre = (nombreInstitucion ?? "").trim();
-  // El sufijo dice de qué plataforma es la app; si el nombre de la institución ya
-  // lo contiene ("ExamLab Demo"), repetirlo da "ExamLab Demo — ExamLab".
-  const yaSeNombra = /examlab/i.test(nombre);
-  const nombreApp = nombre
-    ? yaSeNombra
-      ? nombre
-      : `${nombre} — ExamLab`
-    : "ExamLab — Plataforma de Exámenes";
   const corto =
     nombre || slugInstitucion
       ? (etiquetaInstitucion(slugInstitucion, nombre) ?? "ExamLab")
       : "ExamLab";
+
+  // «ExamLab - UNIAJ»: la plataforma primero y la institución después, con el
+  // MISMO identificador corto que va bajo el ícono. Se descartó «<nombre largo>
+  // — ExamLab» porque ese nombre se ordena y se busca por la institución (un
+  // listado de apps instaladas las dispersa por la U), y porque al repetirse la
+  // marca daba cosas como «ExamLab Demo — ExamLab».
+  const nombreApp =
+    corto === "ExamLab"
+      ? "ExamLab — Plataforma de Exámenes"
+      : // Una institución que YA se llama con la marca (la demo) no se antepone
+        // otra vez: daría «ExamLab - EXAMLAB-DEMO».
+        /examlab/i.test(corto)
+        ? corto
+        : `ExamLab - ${corto}`;
 
   return {
     id: `${origin}/`,
