@@ -93,6 +93,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {
   matchesActivityStatus,
@@ -173,7 +174,7 @@ function TeacherExams() {
   const [importing, setImporting] = useState(false);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
@@ -208,7 +209,7 @@ function TeacherExams() {
     const q = search.trim().toLowerCase();
     return exams.filter((e) => {
       if (!itemInScope(filterScope, e.course_id)) return false;
-      if (courseFilter && e.course_id !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, e.course_id)) return false;
       if (cutFilter && e.cut_id !== cutFilter) return false;
       if (q && !e.title.toLowerCase().includes(q)) return false;
       if (!matchesActivityStatus((e as any).status, statusFilter)) return false;
@@ -266,7 +267,7 @@ function TeacherExams() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_exams",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -855,8 +856,8 @@ function TeacherExams() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppTeacherExamsIndex.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={(v) => {
+        courseIds={courseFilter}
+        onCourseIdsChange={(v) => {
           setCourseFilter(v);
           setCutFilter(null);
         }}

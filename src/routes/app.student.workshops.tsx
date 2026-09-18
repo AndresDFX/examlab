@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -148,7 +149,7 @@ function StudentWorkshops() {
   // Arranca en true para no mostrar el empty ("no hay talleres") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Default "available" (publicado, dentro de plazo, sin entregar) = "lo que
   // está en curso/accionable ahora". El estudiante puede ver lo cerrado/vencido
   // o todo cambiando el filtro a su opción o a "Todos". Valor determinista
@@ -412,7 +413,7 @@ function StudentWorkshops() {
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
-      if (courseFilter && r.workshop.course_id !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, r.workshop.course_id)) return false;
       if (statusFilter !== "all" && getWorkshopDisplayStatus(r, now) !== statusFilter) return false;
       // Rango de fechas — filtra por due_date (deadline). Vacío = sin
       // tope en ese lado.
@@ -457,7 +458,7 @@ function StudentWorkshops() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_workshops",
-    resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
 
@@ -517,8 +518,8 @@ function StudentWorkshops() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppStudentWorkshops.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
           setStatusFilter("all");
@@ -623,7 +624,7 @@ function StudentWorkshops() {
                     size="sm"
                     onClick={() => {
                       setSearch("");
-                      setCourseFilter(null);
+                      setCourseFilter([]);
                       setStatusFilter("all");
                       setDateFrom("");
                       setDateTo("");

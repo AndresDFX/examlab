@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -137,7 +138,7 @@ function StudentProjects() {
   // Arranca en true para no mostrar el empty ("no hay proyectos") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Default a "available" (proyecto publicado, dentro del plazo y sin entregar):
   // mostramos lo vigente/accionable primero; "Todos" y los estados cerrados
   // siguen disponibles en el Select. Constante determinista (sin storage/URL)
@@ -423,7 +424,7 @@ function StudentProjects() {
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
-      if (courseFilter && r.project.course_id !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, r.project.course_id)) return false;
       if (statusFilter !== "all" && getProjectDisplayStatus(r, now) !== statusFilter) return false;
       // Rango de fechas — filtra por due_date (deadline). Vacío = sin
       // tope en ese lado.
@@ -468,7 +469,7 @@ function StudentProjects() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_projects",
-    resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
 
@@ -535,8 +536,8 @@ function StudentProjects() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppStudentProjects.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
           setStatusFilter("all");
@@ -639,7 +640,7 @@ function StudentProjects() {
                     size="sm"
                     onClick={() => {
                       setSearch("");
-                      setCourseFilter(null);
+                      setCourseFilter([]);
                       setStatusFilter("all");
                       setDateFrom("");
                       setDateTo("");

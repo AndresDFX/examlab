@@ -56,6 +56,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { RowAction } from "@/components/ui/row-action";
 import {
   Select,
@@ -114,7 +115,7 @@ function StudentWhiteboards() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   const [sortMode, setSortMode] = useState<"updated_desc" | "name_asc" | "course_asc">(
     "updated_desc",
   );
@@ -195,7 +196,7 @@ function StudentWhiteboards() {
   // que las dos listas salgan con el criterio elegido.
   const filtered = useMemo(() => {
     let arr = items;
-    if (courseFilter !== "all") arr = arr.filter((w) => w.course_id === courseFilter);
+    arr = arr.filter((w) => coincideFiltro(courseFilter, w.course_id));
     const q = search.trim().toLowerCase();
     if (!q) return arr;
     return arr.filter(
@@ -240,13 +241,13 @@ function StudentWhiteboards() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_whiteboards_own",
-    resetKey: `${search}|${courseFilter}|${sortMode}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${sortMode}`,
   });
   const pagCompartidas = usePagination(compartidas, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_whiteboards",
-    resetKey: `${search}|${courseFilter}|${sortMode}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${sortMode}`,
   });
 
   const resetCreate = () => {
@@ -414,7 +415,7 @@ function StudentWhiteboards() {
     </div>
   );
 
-  const hayFiltro = search.trim() !== "" || courseFilter !== "all";
+  const hayFiltro = search.trim() !== "" || courseFilter.length > 0;
 
   return (
     <div className="space-y-5">
@@ -449,8 +450,8 @@ function StudentWhiteboards() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("studentWhiteboards.searchPlaceholder")}
-            courseId={courseFilter === "all" ? null : courseFilter}
-            onCourseChange={(v) => setCourseFilter(v ?? "all")}
+            courseIds={courseFilter}
+            onCourseIdsChange={setCourseFilter}
             courses={courses}
             allLabel={t("studentWhiteboards.allCourses")}
             extra={

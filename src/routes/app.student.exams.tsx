@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
   Select,
@@ -136,7 +137,7 @@ function StudentExams() {
   // se había colado la misma clase de defecto.
   const [now, setNow] = useState(0);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Default: "available" (ventana abierta = lo que el alumno puede tomar
   // ahora). El alumno puede cambiar a "Todos" o a estados cerrados/
   // completados con el Select. Constante determinista — NO leer storage
@@ -337,7 +338,7 @@ function StudentExams() {
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
-      if (courseFilter && r.exam.course_id !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, r.exam.course_id)) return false;
       if (statusFilter !== "all" && getExamDisplayStatus(r, now) !== statusFilter) return false;
       // Rango de fechas — filtra por end_time (deadline). Una fecha
       // vacía significa sin tope en ese lado.
@@ -383,7 +384,7 @@ function StudentExams() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_exams",
-    resetKey: `${search}|${courseFilter}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
   if (loadError) {
@@ -437,8 +438,8 @@ function StudentExams() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppStudentExams.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
           setStatusFilter("all");
@@ -536,7 +537,7 @@ function StudentExams() {
                     size="sm"
                     onClick={() => {
                       setSearch("");
-                      setCourseFilter(null);
+                      setCourseFilter([]);
                       setStatusFilter("all");
                       setDateFrom("");
                       setDateTo("");

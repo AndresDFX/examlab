@@ -30,6 +30,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -143,7 +144,7 @@ function TeacherWhiteboards() {
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Filtro por curso del grid (mismo control que talleres/proyectos/exámenes
   // vía ListFilters). null = "Todos los cursos".
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Filtro de estado: por defecto "activos" (oculta las cerradas), igual que
   // exámenes/talleres/proyectos. Mismo helper compartido `matchesActivityStatus`.
   const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
@@ -381,7 +382,7 @@ function TeacherWhiteboards() {
     () =>
       filterWhiteboards(items, search)
         .filter((w) => matchesActivityStatus(w.status, statusFilter))
-        .filter((w) => !courseFilter || w.course_id === courseFilter),
+        .filter((w) => coincideFiltro(courseFilter, w.course_id)),
     [items, search, statusFilter, courseFilter],
   );
   const sort = useTableSort(filtered, {
@@ -419,7 +420,7 @@ function TeacherWhiteboards() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: `${search}|${courseFilter ?? ""}|${statusFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
@@ -847,8 +848,8 @@ function TeacherWhiteboards() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppTeacherWhiteboardsIndex.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={setCourseFilter}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={filterCourses}
         period={periodFilter}
         onPeriodChange={setPeriodFilter}

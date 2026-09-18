@@ -38,6 +38,7 @@ import { PageLoader } from "@/components/ui/loaders";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import {
@@ -94,7 +95,7 @@ function StudentSignatures() {
   // instituciones distintas colisionarían (caso que no se da: el alumno solo ve
   // sus propios cursos).
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
 
   const cargar = useCallback(async () => {
     if (!user) return;
@@ -253,7 +254,7 @@ function StudentSignatures() {
   const filteredItems = useMemo(() => {
     const q = search.trim().toLowerCase();
     return items.filter((i) => {
-      if (courseFilter && i.course_name !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, i.course_name)) return false;
       if (!q) return true;
       return (
         i.template_name.toLowerCase().includes(q) ||
@@ -275,7 +276,7 @@ function StudentSignatures() {
   // Activas/Cerradas en `app.student.polls.tsx`. Cards de documento: 12 por
   // página (más livianas que las de encuesta), `pageSizes` explícito para que
   // el selector no caiga al default [10,25,50,100].
-  const resetKey = `${search}|${courseFilter ?? ""}`;
+  const resetKey = `${search}|${courseFilter.join(",")}`;
   const pendientesPagination = usePagination(pendientesFiltrados, {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
@@ -322,8 +323,8 @@ function StudentSignatures() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("studentSignatures.searchPlaceholder")}
-            courseId={courseFilter}
-            onCourseChange={setCourseFilter}
+            courseIds={courseFilter}
+            onCourseIdsChange={setCourseFilter}
             courses={availableCourses}
           />
           {filteredItems.length === 0 ? (

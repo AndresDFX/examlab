@@ -40,6 +40,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideAlgunFiltro } from "@/shared/lib/filtro-multiple";
 import {
   resumirPendientes,
   type CursoEncuesta,
@@ -250,7 +251,7 @@ function TeacherPolls() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Filtro de estado del grid: por defecto "abiertas" (oculta las cerradas,
   // incl. las que el cascade cerró al finalizar el curso). Paridad con los
   // demás grids docentes (que ocultan lo cerrado por defecto).
@@ -527,16 +528,14 @@ function TeacherPolls() {
     if (q) {
       arr = arr.filter((p) => (p.title ?? "").toLowerCase().includes(q));
     }
-    if (courseFilter !== "all") {
-      // El filtro por curso ahora matchea contra el set linkeado (no solo
-      // el ancla). Una encuesta multi-curso aparece en el filtro de
-      // cualquiera de sus cursos.
-      arr = arr.filter(
-        (p) =>
-          p.course_id === courseFilter ||
-          (p.linked_courses ?? []).some((c) => c.id === courseFilter),
-      );
-    }
+    // M:N: la encuesta aparece si CUALQUIERA de sus cursos (ancla + linkeados)
+    // está marcado.
+    arr = arr.filter((p) =>
+      coincideAlgunFiltro(courseFilter, [
+        p.course_id,
+        ...(p.linked_courses ?? []).map((c) => c.id),
+      ]),
+    );
     // Filtro de estado abierta/cerrada (default "abiertas" → oculta las
     // cerradas, p.ej. las que cerró el cascade al finalizar el curso).
     if (pollStatusFilter !== "todas") {
@@ -603,7 +602,7 @@ function TeacherPolls() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_polls",
-    resetKey: `${search}|${courseFilter}|${pollStatusFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${pollStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats compactas — mismo patrón que proyectos / talleres / exámenes.
@@ -1114,8 +1113,8 @@ function TeacherPolls() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("teacherPolls.searchPlaceholder", { defaultValue: "Buscar encuesta…" })}
-        courseId={courseFilter === "all" ? null : courseFilter}
-        onCourseChange={(v) => setCourseFilter(v ?? "all")}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={coursesConConteo}
         allLabel={t("teacherPolls.allCourses")}
         period={periodFilter}

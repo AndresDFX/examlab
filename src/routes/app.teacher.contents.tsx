@@ -14,6 +14,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
@@ -302,7 +303,7 @@ function TeacherContents() {
    *  resto de grids docente (talleres, proyectos, exámenes) que usan
    *  `ListFilters`. Útil para que el docente vea qué material tiene
    *  asignado a un curso específico cuando administra varios. */
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
@@ -356,9 +357,7 @@ function TeacherContents() {
     // Ojo: un contenido SIN curso (material personal del docente) queda fuera
     // cuando hay periodo/asignatura activos — no se le puede atribuir uno.
     if (filterScope !== null) arr = arr.filter((it) => itemInScope(filterScope, it.course_id));
-    if (courseFilter) {
-      arr = arr.filter((it) => it.course_id === courseFilter);
-    }
+    arr = arr.filter((it) => coincideFiltro(courseFilter, it.course_id));
     const q = search.trim().toLowerCase();
     if (!q) return arr;
     return arr.filter((it) => {
@@ -392,7 +391,7 @@ function TeacherContents() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_contents",
-    resetKey: `${search}|${courseFilter ?? ""}|${materialStatusFilter}|${tenantFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${materialStatusFilter}|${tenantFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -1394,8 +1393,8 @@ function TeacherContents() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("hc_routesAppTeacherContents.searchPlaceholder")}
-            courseId={courseFilter}
-            onCourseChange={setCourseFilter}
+            courseIds={courseFilter}
+            onCourseIdsChange={setCourseFilter}
             courses={coursesForFilter}
             period={periodFilter}
             onPeriodChange={setPeriodFilter}
@@ -1482,7 +1481,7 @@ function TeacherContents() {
                     // un mensaje con la pista para ajustar el filtro.
                     const filterActive =
                       search.trim() !== "" ||
-                      courseFilter != null ||
+                      courseFilter.length > 0 ||
                       materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
                     const noMatch = filterActive && items.length > 0;
                     return (
@@ -2259,13 +2258,13 @@ function TeacherContents() {
       {/* Dialog "Subir externo" — crea un `generated_contents` con
           status='done' (sin IA) y asigna el material a N cursos via
           `content_course_assignments`. El padre recarga el listado al
-          completarse. defaultCourseId pre-marca el filtro activo si
-          el docente ya estaba viendo un curso específico. */}
+          completarse. defaultCourseId pre-marca el filtro activo solo si hay UN
+          curso seleccionado; con varios (o ninguno) no hay uno que pre-elegir. */}
       <UploadExternalContentDialog
         open={uploadDialogOpen}
         onOpenChange={setUploadDialogOpen}
         courses={courses}
-        defaultCourseId={courseFilter || null}
+        defaultCourseId={courseFilter.length === 1 ? courseFilter[0] : null}
         onCreated={() => void load()}
       />
 

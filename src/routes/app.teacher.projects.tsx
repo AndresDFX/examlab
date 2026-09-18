@@ -101,6 +101,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideAlgunFiltro } from "@/shared/lib/filtro-multiple";
 import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {
   matchesActivityStatus,
@@ -262,7 +263,7 @@ function TeacherProjects() {
     courseId: string;
   } | null>(null);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
@@ -303,9 +304,9 @@ function TeacherProjects() {
       // alcance del periodo/asignatura elegidos.
       if (filterScope !== null && !anyCourseInScope(filterScope, p.linked_course_ids ?? [p.course_id]))
         return false;
-      if (courseFilter) {
+      {
         const linked = p.linked_course_ids ?? [p.course_id];
-        if (!linked.includes(courseFilter)) return false;
+        if (!coincideAlgunFiltro(courseFilter, linked)) return false;
       }
       if (cutFilter && p.cut_id !== cutFilter) return false;
       if (q && !p.title.toLowerCase().includes(q)) return false;
@@ -361,7 +362,7 @@ function TeacherProjects() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_projects",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
@@ -2641,8 +2642,8 @@ function TeacherProjects() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("hc_routesAppTeacherProjects.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={(v) => {
+        courseIds={courseFilter}
+        onCourseIdsChange={(v) => {
           setCourseFilter(v);
           setCutFilter(null);
         }}

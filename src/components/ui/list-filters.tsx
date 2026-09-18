@@ -20,8 +20,8 @@
  *   <ListFilters
  *     search={search}
  *     onSearchChange={setSearch}
- *     courseId={courseFilter}
- *     onCourseChange={setCourseFilter}
+ *     courseIds={courseFilter}
+ *     onCourseIdsChange={setCourseFilter}
  *     courses={courses}
  *   />
  */
@@ -41,6 +41,8 @@ import {
   SelectValue,
 } from "./select";
 import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { limpiarSeleccionInvalida } from "@/shared/lib/filtro-multiple";
 
 const ALL_COURSES = "__all__";
 const ALL_CUTS = "__all_cuts__";
@@ -51,9 +53,13 @@ interface ListFiltersProps {
   search: string;
   onSearchChange: (v: string) => void;
   searchPlaceholder?: string;
-  /** ID del curso seleccionado, o null para "Todos los cursos". */
-  courseId: string | null;
-  onCourseChange: (v: string | null) => void;
+  /**
+   * Cursos seleccionados. **Vacío = todos**, no «ninguno» — la semántica la fija
+   * `filtro-multiple.ts`, que existe justamente para que esa distinción no se
+   * reescriba mal en cada pantalla.
+   */
+  courseIds: readonly string[];
+  onCourseIdsChange: (v: string[]) => void;
   /** `status` (opcional) habilita el agrupado "Cursos activos"/"Cerrados" con
    *  los abiertos primero. Si no viene, degrada a una lista plana alfabética. */
   courses: Array<{
@@ -71,8 +77,9 @@ interface ListFiltersProps {
   allLabel?: string;
   /**
    * Lista completa de cuts (cualquier curso). Si está presente y hay un
-   * `courseId` seleccionado, se renderiza un segundo Select con los
-   * cuts de ese curso. Si el curso no tiene cuts, no se muestra nada.
+   * UN solo curso seleccionado, se renderiza un segundo Select con los cuts de
+   * ese curso. Con varios cursos no aparece: los cortes son de un curso
+   * concreto y mezclarlos no se podría distinguir.
    */
   cuts?: Array<{ id: string; course_id: string; name: string }>;
   /** ID del corte seleccionado, o null para "Todos los cortes". */
@@ -107,8 +114,8 @@ export function ListFilters({
   search,
   onSearchChange,
   searchPlaceholder,
-  courseId,
-  onCourseChange,
+  courseIds,
+  onCourseIdsChange,
   courses,
   allLabel,
   cuts,
@@ -154,28 +161,35 @@ export function ListFilters({
   // seleccionado en el grupo activo aunque esté finalizado (no lo esconde abajo).
   const { open: openCourses, closed: closedCourses } = partitionCoursesByLifecycle(
     coursesInScope,
-    courseId ? [courseId] : undefined,
+    courseIds.length > 0 ? [...courseIds] : undefined,
   );
 
-  /** Al cambiar periodo o asignatura, si el curso elegido deja de estar en el
-   *  alcance se limpia. Dejarlo seleccionado mostraría un curso que ya no
-   *  aparece en la lista — el usuario vería un filtro que no puede deshacer. */
+  /** Al cambiar periodo o asignatura, los cursos elegidos que dejan de estar en
+   *  el alcance se quitan. Dejarlos seleccionados filtraría la tabla por un
+   *  curso que ya no aparece en la lista — el usuario vería un filtro que no
+   *  puede deshacer. */
   const cambiarAlcance = (nuevo: { period?: string | null; subject?: string | null }) => {
     const p = nuevo.period !== undefined ? nuevo.period : period;
     const sj = nuevo.subject !== undefined ? nuevo.subject : subject;
     if (nuevo.period !== undefined) onPeriodChange?.(nuevo.period);
     if (nuevo.subject !== undefined) onSubjectChange?.(nuevo.subject);
-    if (courseId) {
-      const sigue = courses.some(
-        (c) => c.id === courseId && (!p || c.period === p) && (!sj || c.subject === sj),
-      );
-      if (!sigue) onCourseChange(null);
+    if (courseIds.length > 0) {
+      const validos = courses
+        .filter((c) => (!p || c.period === p) && (!sj || c.subject === sj))
+        .map((c) => c.id);
+      const limpio = limpiarSeleccionInvalida(courseIds, validos);
+      if (limpio !== courseIds) onCourseIdsChange([...limpio]);
     }
   };
-  const cutsForCourse = courseId ? (cuts ?? []).filter((c) => c.course_id === courseId) : [];
-  const showCutSelect = !!courseId && cutsForCourse.length > 0 && !!onCutChange;
+  // El filtro de CORTE sigue siendo de un solo curso: los cortes pertenecen a
+  // un curso concreto, así que con dos seleccionados la lista mezclaría cortes
+  // homónimos de cursos distintos sin forma de distinguirlos. Con varios cursos
+  // marcados, el selector de corte simplemente no aparece.
+  const unicoCurso = courseIds.length === 1 ? courseIds[0] : null;
+  const cutsForCourse = unicoCurso ? (cuts ?? []).filter((c) => c.course_id === unicoCurso) : [];
+  const showCutSelect = !!unicoCurso && cutsForCourse.length > 0 && !!onCutChange;
   const hasFilters =
-    !!search || courseId != null || cutId != null || period != null || subject != null;
+    !!search || courseIds.length > 0 || cutId != null || period != null || subject != null;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
@@ -227,48 +241,27 @@ export function ListFilters({
           </SelectContent>
         </Select>
       )}
-      <Select
-        value={courseId ?? ALL_COURSES}
-        onValueChange={(v) => onCourseChange(v === ALL_COURSES ? null : v)}
-      >
-        <SelectTrigger className="w-full sm:w-56">
-          <SelectValue placeholder={resolvedAllLabel} />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value={ALL_COURSES}>{resolvedAllLabel}</SelectItem>
-          {closedCourses.length > 0 ? (
-            <>
-              <SelectGroup>
-                <SelectLabel>
-                  {t("course.groupActive", { defaultValue: "Cursos activos" })}
-                </SelectLabel>
-                {openCourses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-              <SelectSeparator />
-              <SelectGroup>
-                <SelectLabel>
-                  {t("course.groupClosed", { defaultValue: "Cursos cerrados" })}
-                </SelectLabel>
-                {closedCourses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.name}
-                  </SelectItem>
-                ))}
-              </SelectGroup>
-            </>
-          ) : (
-            openCourses.map((c) => (
-              <SelectItem key={c.id} value={c.id}>
-                {c.name}
-              </SelectItem>
-            ))
-          )}
-        </SelectContent>
-      </Select>
+      <MultiSelectFilter
+        opciones={[
+          ...openCourses.map((c) => ({
+            value: c.id,
+            label: c.name,
+            grupo:
+              closedCourses.length > 0
+                ? t("course.groupActive", { defaultValue: "Cursos activos" })
+                : undefined,
+          })),
+          ...closedCourses.map((c) => ({
+            value: c.id,
+            label: c.name,
+            grupo: t("course.groupClosed", { defaultValue: "Cursos cerrados" }),
+          })),
+        ]}
+        seleccion={courseIds}
+        onChange={onCourseIdsChange}
+        etiquetaTodos={resolvedAllLabel}
+        triggerClassName="w-full sm:w-56"
+      />
       {showCutSelect && (
         <Select
           value={cutId ?? ALL_CUTS}
@@ -294,7 +287,7 @@ export function ListFilters({
           size="sm"
           onClick={() => {
             onSearchChange("");
-            onCourseChange(null);
+            onCourseIdsChange([]);
             onCutChange?.(null);
             onPeriodChange?.(null);
             onSubjectChange?.(null);

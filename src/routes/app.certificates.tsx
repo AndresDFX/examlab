@@ -29,6 +29,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import {
   Table,
   TableBody,
@@ -125,7 +126,7 @@ function CertificatesAdmin() {
   const isSuperAdminCaller = activeRole === "SuperAdmin" && roles.includes("SuperAdmin");
   // Filtros UI (mismo patrón que otros módulos): selector de curso +
   // search por nombre/email/código + toggle "mostrar revocados".
-  const [filterCourseId, setFilterCourseId] = useState<string>("");
+  const [filterCourseId, setFilterCourseId] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [showRevoked, setShowRevoked] = useState(false);
   // SuperAdmin: filtro funcional por institución. Como `certificates`
@@ -279,7 +280,7 @@ function CertificatesAdmin() {
     const q = search.trim().toLowerCase();
     return items.filter((c) => {
       if (!showRevoked && c.revoked_at) return false;
-      if (filterCourseId && c.course_id !== filterCourseId) return false;
+      if (!coincideFiltro(filterCourseId, c.course_id)) return false;
       if (q) {
         const hay = [
           c.student_full_name,
@@ -308,7 +309,7 @@ function CertificatesAdmin() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:certificates",
-    resetKey: `${search}|${filterCourseId}|${showRevoked}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${filterCourseId.join(",")}|${showRevoked}|${tenantFilter}|${sort.resetKey}`,
   });
 
   const handleDownload = async (cert: CertificateRow) => {
@@ -469,8 +470,8 @@ function CertificatesAdmin() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("hc_routesAppCertificates.searchPlaceholder")}
-            courseId={filterCourseId || null}
-            onCourseChange={(v) => setFilterCourseId(v ?? "")}
+            courseIds={filterCourseId}
+            onCourseIdsChange={setFilterCourseId}
             courses={courseOptions}
             allLabel={t("hc_routesAppCertificates.allCourses")}
             onClearExtra={() => setShowRevoked(false)}

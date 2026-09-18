@@ -10666,5 +10666,10 @@
     "warnSubstituted": "El modelo de IA de tu institución no lee imágenes, así que esta captura la leyó {{model}}.",
     "warnTruncated": "La imagen tenía más participantes de los que se pueden leer de una vez.",
     "warnUnreadable": "{{n}} nombre(s) no se pudieron leer: revisá la captura."
+  },
+  "filtros": {
+    "seleccionados_one": "{{count}} seleccionado",
+    "seleccionados_other": "{{count}} seleccionados",
+    "sinOpciones": "No hay opciones para filtrar."
   }
 }

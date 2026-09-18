@@ -32,6 +32,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -204,7 +205,7 @@ function VideoLibrary() {
   // Filtros del grid — search (título/descripción) + curso. null = sin filtro
   // de curso (incluye videos globales y de cualquier curso).
   const [search, setSearch] = useState("");
-  const [filterCourseId, setFilterCourseId] = useState<string | null>(null);
+  const [filterCourseId, setFilterCourseId] = useState<string[]>([]);
   // Filtro por estado del CURSO del video. Default "activos" = videos de
   // cursos NO finalizados (+ globales sin curso). Los videos de cursos
   // FINALIZADOS pasan a "cerrados" y se ocultan por defecto. course_id null
@@ -317,7 +318,7 @@ function VideoLibrary() {
       // (Global sin curso siempre pasa).
       if (!matchesMaterialStatus(r.course_id, courseStatusById, materialStatusFilter, now))
         return false;
-      if (filterCourseId && r.course_id !== filterCourseId) return false;
+      if (!coincideFiltro(filterCourseId, r.course_id)) return false;
       if (search) {
         const q = search.toLowerCase();
         const hay =
@@ -354,7 +355,7 @@ function VideoLibrary() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId ?? ""}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${filterCourseId.join(",")}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -781,8 +782,8 @@ function VideoLibrary() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("videosPage.searchPlaceholder")}
-            courseId={filterCourseId}
-            onCourseChange={setFilterCourseId}
+            courseIds={filterCourseId}
+            onCourseIdsChange={setFilterCourseId}
             courses={courses}
           />
         </div>
@@ -864,7 +865,7 @@ function VideoLibrary() {
                   ? (() => {
                       const filterActive =
                         !!search ||
-                        filterCourseId != null ||
+                        filterCourseId.length > 0 ||
                         materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
                       const noMatch = filterActive && rows.length > 0;
                       return (

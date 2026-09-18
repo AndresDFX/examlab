@@ -31,6 +31,7 @@ import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { DateCell } from "@/components/ui/date-cell";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import {
   Select,
   SelectContent,
@@ -235,7 +236,7 @@ function StudentPolls() {
   const [search, setSearch] = useState("");
   // Filtro por curso del listado (mismo control que exámenes/talleres/proyectos
   // del estudiante vía ListFilters). null = "Todos los cursos".
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Orden elegible (paridad con las demás vistas de cards del estudiante).
   const [sortMode, setSortMode] = useState<"recent" | "closes_asc" | "title_asc">("recent");
   // Estado de "voting" por poll_id → option_id para mostrar spinner en
@@ -438,7 +439,7 @@ function StudentPolls() {
   const filteredPolls = useMemo(() => {
     const q = search.trim().toLowerCase();
     return polls.filter((p) => {
-      if (courseFilter && p.course_id !== courseFilter) return false;
+      if (!coincideFiltro(courseFilter, p.course_id)) return false;
       if (!q) return true;
       return (
         p.title.toLowerCase().includes(q) ||
@@ -478,13 +479,13 @@ function StudentPolls() {
     defaultPageSize: 6,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_polls_active",
-    resetKey: `${search}|${courseFilter ?? ""}|${sortMode}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${sortMode}`,
   });
   const closedPagination = usePagination(closedPolls, {
     defaultPageSize: 6,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_polls_closed",
-    resetKey: `${search}|${courseFilter ?? ""}|${sortMode}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${sortMode}`,
   });
 
   const castVote = async (poll: Poll, optionId: string) => {
@@ -618,8 +619,8 @@ function StudentPolls() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder={t("studentPolls.searchPlaceholder")}
-            courseId={courseFilter}
-            onCourseChange={setCourseFilter}
+            courseIds={courseFilter}
+            onCourseIdsChange={setCourseFilter}
             courses={availableCourses}
             extra={
               <Select value={sortMode} onValueChange={(v) => setSortMode(v as typeof sortMode)}>

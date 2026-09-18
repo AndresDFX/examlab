@@ -220,6 +220,26 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Los filtros de los grids permiten elegir VARIOS cursos, no uno o todos.** Pedido tal cual: «para
+  cuando quiera ver dos cursos poder seleccionarlos y no tener que seleccionar uno u otro o Todos».
+  Vale para talleres, proyectos, exámenes, encuestas, contenidos, pizarras, videos, certificados,
+  firmas, estudiantes y las vistas del estudiante.
+  - **La regla vive en un solo lugar** (`filtro-multiple.ts`, 16 tests): **sin nada marcado no se
+    filtra**. Parece obvio y no lo es — es la misma confusión que este repo ya pagó dos veces con los
+    `[]` de PostgREST, donde tratar «sin filtro» como «sin resultados» esconde la tabla entera. Por
+    eso no se reescribe como un `length === 0 ||` en cada pantalla.
+  - **Talleres, proyectos y encuestas usan «cualquiera de sus cursos»**: se comparten entre cursos,
+    así que exigir que coincidan todos le escondería al docente su propio trabajo compartido.
+  - **El filtro de CORTE sigue siendo de un curso**, y solo aparece con uno marcado: los cortes
+    pertenecen a un curso concreto y con dos la lista mezclaría cortes homónimos sin forma de
+    distinguirlos.
+  - En «Estudiantes», las acciones que necesitan un curso puntual —desmatricular, designar vocero,
+    prellenar el alta— quedan deshabilitadas con varios marcados, igual que antes pasaba con «Todos».
+    Y si un curso seleccionado deja de existir se quita de la selección: esa pantalla filtra por
+    NOMBRE, así que un id que ya no se encuentra habría vaciado el filtro en silencio —destapando la
+    tabla entera— mientras el botón seguía mostrando el conteo. Lo encontró la revisión de
+    consistencia.
+
 - **Botón para cuadrar los puntajes de un examen.** Borrar una pregunta dejaba el examen sumando 4,70
   y ninguna forma cómoda de volver a 5,00: corregir diez preguntas a mano para recuperar 0,30 es la
   clase de tarea que se hace mal y se abandona a la mitad. Ahora, cuando la suma no da, aparece

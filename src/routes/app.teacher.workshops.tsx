@@ -120,6 +120,7 @@ import {
 } from "@/components/ui/multi-select";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideAlgunFiltro } from "@/shared/lib/filtro-multiple";
 import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {
   matchesActivityStatus,
@@ -408,7 +409,7 @@ function TeacherWorkshops() {
   const [togglingReviewId, setTogglingReviewId] = useState<string | null>(null);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [search, setSearch] = useState("");
-  const [courseFilter, setCourseFilter] = useState<string | null>(null);
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
@@ -452,12 +453,12 @@ function TeacherWorkshops() {
         const todos = wcIds && wcIds.length > 0 ? wcIds : [w.course_id];
         if (!anyCourseInScope(filterScope, todos)) return false;
       }
-      if (courseFilter) {
-        // Multi-curso: el filtro matchea si CUALQUIER curso del taller
-        // coincide (workshop_courses) — no solo el course_id primario.
+      {
+        // M:N: el taller pasa si CUALQUIER curso suyo está marcado
+        // (workshop_courses), no solo el course_id primario.
         const wcIds = workshopCourses.get(w.id);
         const allCourseIds = wcIds && wcIds.length > 0 ? wcIds : [w.course_id];
-        if (!allCourseIds.includes(courseFilter)) return false;
+        if (!coincideAlgunFiltro(courseFilter, allCourseIds)) return false;
       }
       if (cutFilter && (w as any).cut_id !== cutFilter) return false;
       if (q && !w.title.toLowerCase().includes(q)) return false;
@@ -519,7 +520,7 @@ function TeacherWorkshops() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_workshops",
-    resetKey: `${search}|${courseFilter ?? ""}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
   });
 
   const handleBulkDelete = async (ids: string[]) => {
@@ -3603,8 +3604,8 @@ function TeacherWorkshops() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("teacherWorkshops.searchPlaceholder")}
-        courseId={courseFilter}
-        onCourseChange={(v) => {
+        courseIds={courseFilter}
+        onCourseIdsChange={(v) => {
           setCourseFilter(v);
           // Resetear corte cuando cambia el curso: los cortes son
           // específicos del curso, así que conservar el corte anterior

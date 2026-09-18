@@ -13,6 +13,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { coincideAlgunFiltro, limpiarSeleccionInvalida } from "@/shared/lib/filtro-multiple";
 import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
@@ -115,7 +116,11 @@ function TeacherStudentsInner() {
   const [search, setSearch] = useState("");
   const [periodFilter, setPeriodFilter] = useState<string | null>(null);
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
-  const [courseFilter, setCourseFilter] = useState<string>("all");
+  const [courseFilter, setCourseFilter] = useState<string[]>([]);
+  // Varias acciones de esta pantalla (desmatricular, designar vocero, prellenar
+  // el alta) necesitan UN curso concreto; con "todos" o varios marcados no hay
+  // uno solo, así que quedan deshabilitadas.
+  const unicoCurso = courseFilter.length === 1 ? courseFilter[0] : null;
   const [impersonating, setImpersonating] = useState<string | null>(null);
   const [bulkPasswordOpen, setBulkPasswordOpen] = useState(false);
   // Reset de contraseña individual (acción de fila). Reusa el mismo diálogo/edge
@@ -140,8 +145,8 @@ function TeacherStudentsInner() {
    * podría significar sacarlo de todos, que no es lo que nadie quiere.
    */
   const desmatricular = async (s: Student) => {
-    if (courseFilter === "all") return;
-    const curso = courses.find((c) => c.id === courseFilter);
+    if (!unicoCurso) return;
+    const curso = courses.find((c) => c.id === unicoCurso);
     const ok = await confirm({
       title: t("teacherStudents.unenrollConfirmTitle"),
       description: t("teacherStudents.unenrollConfirmDesc", {
@@ -155,7 +160,7 @@ function TeacherStudentsInner() {
     const { error } = await supabase
       .from("course_enrollments")
       .delete()
-      .eq("course_id", courseFilter)
+      .eq("course_id", unicoCurso)
       .eq("user_id", s.id);
     if (error) {
       toast.error(friendlyError(error), { duration: 12000 });
@@ -199,6 +204,14 @@ function TeacherStudentsInner() {
       status: r.status ?? null,
     }));
     setCourses(myCourses);
+    // Si un curso seleccionado ya no está (al docente se lo reasignaron, o la
+    // recarga trae menos), se QUITA de la selección. Dejarlo sería peor que un
+    // filtro de más: esta pantalla traduce los ids a NOMBRES para filtrar, así
+    // que un id que no se encuentra desaparece de esa traducción y el filtro se
+    // volvería vacío — o sea «todos» — mientras el botón sigue mostrando el
+    // conteo de seleccionados. La tabla se destaparía entera y el filtro
+    // mentiría.
+    setCourseFilter((sel) => [...limpiarSeleccionInvalida(sel, myCourses.map((c) => c.id))]);
     const courseIds = myCourses.map((c) => c.id);
     if (courseIds.length === 0) {
       setStudents([]);
@@ -303,10 +316,13 @@ function TeacherStudentsInner() {
       );
       result = result.filter((s) => s.courses.some((n) => nombresEnAlcance.has(n)));
     }
-    if (courseFilter !== "all") {
-      const courseName = courses.find((c) => c.id === courseFilter)?.name;
-      if (courseName) result = result.filter((s) => s.courses.includes(courseName));
-    }
+    // M:N: la fila del alumno guarda los NOMBRES de sus cursos, así que los
+    // ids seleccionados se traducen a nombres y el alumno pasa si comparte
+    // cualquiera. `coincideAlgunFiltro` ya trata la lista vacía como «todos».
+    const nombresSel = courseFilter
+      .map((id) => courses.find((c) => c.id === id)?.name)
+      .filter((n): n is string => !!n);
+    result = result.filter((s) => coincideAlgunFiltro(nombresSel, s.courses));
     if (soloVoceros) {
       result = result.filter((s) => s.voceroEn.length > 0);
     }
@@ -343,15 +359,16 @@ function TeacherStudentsInner() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_students",
-    resetKey: `${search}|${courseFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${soloVoceros}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${soloVoceros}|${sort.resetKey}`,
   });
 
   // Nombre del curso filtrado, si hay uno puntual elegido. Es la referencia
   // que le da sentido al badge "Vocero" de la fila (ver más abajo): sin un
   // curso de referencia, "Vocero" a secas es ambiguo cuando la fila puede
   // pertenecer a varios cursos del docente a la vez.
-  const selectedCourseName =
-    courseFilter !== "all" ? (courses.find((c) => c.id === courseFilter)?.name ?? null) : null;
+  const selectedCourseName = unicoCurso
+    ? (courses.find((c) => c.id === unicoCurso)?.name ?? null)
+    : null;
 
   const handleImpersonate = async (s: Student) => {
     if (impersonating) return;
@@ -416,8 +433,8 @@ function TeacherStudentsInner() {
         search={search}
         onSearchChange={setSearch}
         searchPlaceholder={t("teacherStudents.searchPlaceholder")}
-        courseId={courseFilter === "all" ? null : courseFilter}
-        onCourseChange={(v) => setCourseFilter(v ?? "all")}
+        courseIds={courseFilter}
+        onCourseIdsChange={setCourseFilter}
         courses={courses}
         allLabel={t("teacherStudents.allCourses")}
         period={periodFilter}
@@ -445,10 +462,10 @@ function TeacherStudentsInner() {
               size="sm"
               variant="outline"
               className="h-9 text-xs"
-              disabled={courseFilter === "all"}
-              onClick={() => setVoceroCourseId(courseFilter)}
+              disabled={!unicoCurso}
+              onClick={() => setVoceroCourseId(unicoCurso)}
               title={
-                courseFilter === "all" ? t("vocero.pickCourseFirst") : t("vocero.rowActionHint")
+                !unicoCurso ? t("vocero.pickCourseFirst") : t("vocero.rowActionHint")
               }
             >
               <Mic className="h-3.5 w-3.5 mr-1" />
@@ -479,7 +496,7 @@ function TeacherStudentsInner() {
         onOpenChange={setFormOpen}
         editing={editando}
         courses={courses}
-        defaultCourseId={courseFilter}
+        defaultCourseId={unicoCurso}
         onSaved={() => void load()}
       />
 
@@ -658,11 +675,10 @@ function TeacherStudentsInner() {
                                 icon: UserMinus,
                                 tone: "destructive" as const,
                                 separatorBefore: true,
-                                hint:
-                                  courseFilter === "all"
-                                    ? t("teacherStudents.unenrollPickCourse")
-                                    : t("teacherStudents.unenrollHint"),
-                                disabled: courseFilter === "all",
+                                hint: !unicoCurso
+                                  ? t("teacherStudents.unenrollPickCourse")
+                                  : t("teacherStudents.unenrollHint"),
+                                disabled: !unicoCurso,
                                 onClick: () => void desmatricular(s),
                               },
                             ]}

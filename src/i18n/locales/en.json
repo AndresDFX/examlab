@@ -10666,5 +10666,10 @@
     "warnSubstituted": "Your institution's AI model doesn't read images, so this screenshot was read by {{model}}.",
     "warnTruncated": "The image had more participants than can be read at once.",
     "warnUnreadable": "{{n}} name(s) could not be read: check the screenshot."
+  },
+  "filtros": {
+    "seleccionados_one": "{{count}} selected",
+    "seleccionados_other": "{{count}} selected",
+    "sinOpciones": "No options to filter by."
   }
 }
