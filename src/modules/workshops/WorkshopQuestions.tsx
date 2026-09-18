@@ -57,6 +57,7 @@ import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/
 import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { withDbRetry } from "@/shared/lib/db-retry";
@@ -800,6 +801,7 @@ export function TeacherWorkshopQuestionsEditor({
                   <div className="text-sm">
                     <MarkdownInline>{q.content}</MarkdownInline>
                   </div>
+                  <QuestionOptionsPreview type={q.type} options={q.options} />
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <RowAction

@@ -10677,5 +10677,13 @@
     "seleccionados_one": "{{count}} seleccionado",
     "seleccionados_other": "{{count}} seleccionados",
     "sinOpciones": "No hay opciones para filtrar."
+  },
+  "questionOptions": {
+    "correct": "Correcta",
+    "selectMultiple": "Se pueden marcar varias",
+    "min": "mínimo {{min}}",
+    "max": "máximo {{max}}",
+    "minMax": "mínimo {{min}}, máximo {{max}}",
+    "noAnswerKey": "Sin respuesta correcta marcada: tal como está, esta pregunta calificaría en cero a todos. Editala y marcá la correcta."
   }
 }

@@ -10677,5 +10677,13 @@
     "seleccionados_one": "{{count}} selected",
     "seleccionados_other": "{{count}} selected",
     "sinOpciones": "No options to filter by."
+  },
+  "questionOptions": {
+    "correct": "Correct",
+    "selectMultiple": "Several can be selected",
+    "min": "minimum {{min}}",
+    "max": "maximum {{max}}",
+    "minMax": "minimum {{min}}, maximum {{max}}",
+    "noAnswerKey": "No correct answer marked: as it stands, this question would score zero for everyone. Edit it and mark the correct one."
   }
 }

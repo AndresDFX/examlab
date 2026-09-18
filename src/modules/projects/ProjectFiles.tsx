@@ -70,6 +70,7 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
@@ -875,6 +876,7 @@ export function TeacherProjectFilesEditor({
                   <div className="text-sm">
                     <MarkdownInline>{q.title}</MarkdownInline>
                   </div>
+                  <QuestionOptionsPreview type={q.type} options={q.options} />
                 </div>
                 <div className="flex items-center gap-1 shrink-0">
                   <RowAction

@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { questionTypeLabel } from "@/shared/lib/question-type-label";
+import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
 import { toast } from "sonner";
 import {
   Plus,
@@ -2386,7 +2387,7 @@ function ExamEditor() {
                         #{i + 1}
                       </Badge>
                       <Badge variant="secondary" className="text-3xs">
-                        {q.type}
+                        {questionTypeLabel(q.type, t)}
                       </Badge>
                       {q.type === "codigo" && q.language && (
                         <Badge variant="outline" className="text-3xs">
@@ -2401,21 +2402,12 @@ function ExamEditor() {
                         {t("hc_routesAppTeacherExamsExamId.rubricLabel")} {q.expected_rubric}
                       </p>
                     )}
-                    {q.options?.choices && (
-                      <ul className="text-xs text-muted-foreground mt-2 space-y-0.5">
-                        {q.options.choices.map((c: string, idx: number) => (
-                          <li
-                            key={idx}
-                            className={
-                              idx === q.options.correct_index ? "text-success font-medium" : ""
-                            }
-                          >
-                            {String.fromCharCode(65 + idx)}. {c}{" "}
-                            {idx === q.options.correct_index && "✓"}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                    {/* Antes acá vivía este mismo bloque escrito a mano, y comparaba
+                        `idx === q.options.correct_index` con `===` estricto: una
+                        `cerrada_multi` (cuya clave es `correct_indices`) salía sin
+                        ninguna opción marcada, y una `cerrada` cuyo índice viajó
+                        como texto, también. */}
+                    <QuestionOptionsPreview type={q.type} options={q.options} />
                   </div>
                   <div className="flex items-center gap-1 shrink-0">
                     <RowAction
