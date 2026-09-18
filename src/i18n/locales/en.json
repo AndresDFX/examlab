@@ -10693,5 +10693,16 @@
     "max": "maximum {{max}}",
     "minMax": "minimum {{min}}, maximum {{max}}",
     "noAnswerKey": "No correct answer marked: as it stands, this question would score zero for everyone. Edit it and mark the correct one."
+  },
+  "publicacion": {
+    "publish": "Publish",
+    "backToDraft": "Back to draft",
+    "confirmPublishTitle": "Publish “{{nombre}}”?",
+    "confirmPublishNow": "It will show up in students' lists and they are notified right away. Moving it back to draft hides it again, but the notification cannot be taken back.",
+    "confirmPublishLater": "It will show up in students' lists. They are notified only when the start date is one day away, not now.",
+    "confirmDraftTitle": "Move “{{nombre}}” back to draft?",
+    "confirmDraftBody": "It stops showing up in students' lists. Existing submissions are not deleted.",
+    "published": "“{{nombre}}” is now published.",
+    "backToDraftDone": "“{{nombre}}” is back to draft."
   }
 }

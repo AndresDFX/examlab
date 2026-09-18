@@ -11,6 +11,9 @@
  * y rúbrica para que la calificación sea consistente.
  */
 import { createFileRoute } from "@tanstack/react-router";
+import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
+import { transicionDeFila } from "@/shared/lib/publicacion";
+import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -223,6 +226,8 @@ function TeacherProjects() {
   const activeRole = useActiveRole();
   const { t } = useTranslation();
   const confirm = useConfirm();
+  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
+    useCambiarPublicacion("projects", () => load());
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
@@ -2814,6 +2819,23 @@ function TeacherProjects() {
                           icon: ClipboardList,
                           onClick: () => openGradingDialog(p),
                         },
+                        (() => {
+                          const tr = transicionDeFila(p.status);
+                          return tr ? {
+                                label:
+                                  tr.clave === "publicar"
+                                    ? t("publicacion.publish")
+                                    : t("publicacion.backToDraft"),
+                                icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
+                                disabled: cambiandoPublicacionId != null,
+                                onClick: () =>
+                                  void cambiarPublicacion(
+                                    { id: p.id, titulo: p.title, inicio: p.start_date },
+                                    tr,
+                                  ),
+                              }
+                            : null;
+                        })(),
                         {
                           label: t("common.edit"),
                           icon: Pencil,

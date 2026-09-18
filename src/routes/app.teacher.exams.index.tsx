@@ -1,4 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
+import { transicionDeFila } from "@/shared/lib/publicacion";
+import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -312,6 +315,8 @@ function TeacherExams() {
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
   const confirm = useConfirm();
+  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
+    useCambiarPublicacion("exams", () => load());
 
   const remove = async (exam: Exam) => {
     if (deletingId) return;
@@ -1108,6 +1113,23 @@ function TeacherExams() {
                           to: "/app/teacher/monitor/$examId",
                           params: { examId: e.id },
                         },
+                        (() => {
+                          const tr = transicionDeFila(e.status);
+                          return tr ? {
+                                label:
+                                  tr.clave === "publicar"
+                                    ? t("publicacion.publish")
+                                    : t("publicacion.backToDraft"),
+                                icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
+                                disabled: cambiandoPublicacionId != null,
+                                onClick: () =>
+                                  void cambiarPublicacion(
+                                    { id: e.id, titulo: e.title, inicio: e.start_time },
+                                    tr,
+                                  ),
+                              }
+                            : null;
+                        })(),
                         {
                           label: t("common.edit"),
                           icon: Pencil,

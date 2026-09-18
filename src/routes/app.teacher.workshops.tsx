@@ -1,4 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
+import { transicionDeFila } from "@/shared/lib/publicacion";
+import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
@@ -362,6 +365,8 @@ function TeacherWorkshops() {
   const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
+  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
+    useCambiarPublicacion("workshops", () => load());
   // Gate IA: cubre los tres handlers que invocan IA acá —
   // aiRegradeAnswer (re-grade pregunta), gradeOneWithAI (calificar
   // workshop completo) y runDetectCopies (detectar plagio).
@@ -3834,6 +3839,23 @@ function TeacherWorkshops() {
                           disabled: openingGradingId != null,
                           onClick: () => openGrading(ws),
                         },
+                        (() => {
+                          const tr = transicionDeFila(ws.status);
+                          return tr ? {
+                                label:
+                                  tr.clave === "publicar"
+                                    ? t("publicacion.publish")
+                                    : t("publicacion.backToDraft"),
+                                icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
+                                disabled: cambiandoPublicacionId != null,
+                                onClick: () =>
+                                  void cambiarPublicacion(
+                                    { id: ws.id, titulo: ws.title, inicio: ws.start_date },
+                                    tr,
+                                  ),
+                              }
+                            : null;
+                        })(),
                         {
                           label: t("teacherWorkshops.actionEdit"),
                           icon: Pencil,
