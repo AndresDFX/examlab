@@ -859,7 +859,18 @@ function StudentProjects() {
           if (!o && user) void reload(user.id);
         }}
       >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
+        <DialogContent
+          // Salir SOLO por la X. Un clic afuera o un Escape cerraban el
+          // diálogo y, hasta el borrador local, se llevaban todo lo escrito.
+          // El borrador ya no lo pierde, pero seguir permitiendo el cierre
+          // accidental hace que el alumno crea que perdió la entrega — así que
+          // el cierre pasa a ser siempre deliberado. Mismo patrón que
+          // `ForceChangePasswordDialog`.
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto"
+        >
           <DialogHeader>
             <DialogTitle>{active?.project.title}</DialogTitle>
           </DialogHeader>

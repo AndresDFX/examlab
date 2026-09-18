@@ -13,6 +13,7 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
@@ -376,13 +377,17 @@ function TeacherWhiteboards() {
     return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name, "es-CO"));
   }, [items]);
 
-  const filtered = useMemo(
-    () =>
-      filterWhiteboards(items, search)
-        .filter((w) => matchesActivityStatus(w.status, statusFilter))
-        .filter((w) => coincideFiltro(courseFilter, w.course_id)),
-    [items, search, statusFilter, courseFilter],
-  );
+  const filtered = useMemo(() => {
+    // Periodo y asignatura acotan la TABLA, no solo las opciones del menú de
+    // curso. Una pizarra SIN curso (personal del docente) se oculta con un
+    // filtro de periodo activo: no se le puede atribuir un periodo, y decir
+    // que pertenece al elegido sería inventar el dato.
+    const alcance = courseIdsInScopeMulti(filterCourses, periodFilter, subjectFilter);
+    return filterWhiteboards(items, search)
+      .filter((w) => matchesActivityStatus(w.status, statusFilter))
+      .filter((w) => itemInScope(alcance, w.course_id))
+      .filter((w) => coincideFiltro(courseFilter, w.course_id));
+  }, [items, search, statusFilter, courseFilter, filterCourses, periodFilter, subjectFilter]);
   const sort = useTableSort(filtered, {
     columns: {
       name: (w) => w.name,

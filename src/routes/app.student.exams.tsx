@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
@@ -138,11 +139,25 @@ function StudentExams() {
   const [now, setNow] = useState(0);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string[]>([]);
-  // Default: "available" (ventana abierta = lo que el alumno puede tomar
-  // ahora). El alumno puede cambiar a "Todos" o a estados cerrados/
-  // completados con el Select. Constante determinista — NO leer storage
-  // en el initializer (regla hidratación React #418).
-  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus | "all">("available");
+  // Default: lo PENDIENTE — disponible, en curso y lo que todavía no abre.
+  //
+  // Antes el default era solo "available", y eso escondía los exámenes cuya
+  // ventana aún no empezó. El problema no es cosmético: el panel de NOTAS DE
+  // APOYO de un examen solo exige `now < end`, así que el alumno puede
+  // prepararlas desde que se publica — pero no podía, porque la tarjeta no
+  // aparecía hasta el día del examen. Un alumno con un parcial la semana que
+  // viene y nada abierto veía la lista vacía.
+  //
+  // Incluir "upcoming" NO lo hace respondible: la pantalla de toma valida la
+  // ventana por su cuenta.
+  //
+  // Selección múltiple, como el resto de los filtros. Constante determinista
+  // — NO leer storage en el initializer (regla hidratación React #418).
+  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus[]>([
+    "available",
+    "in_progress",
+    "upcoming",
+  ]);
   // Filtros adicionales: rango de fechas (sobre la fecha relevante de
   // la entidad — end_time/start_time del examen) y orden. Defaults no
   // afectan la UX vieja: dateFrom="" y dateTo="" no filtran nada;
@@ -339,7 +354,7 @@ function StudentExams() {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (!coincideFiltro(courseFilter, r.exam.course_id)) return false;
-      if (statusFilter !== "all" && getExamDisplayStatus(r, now) !== statusFilter) return false;
+      if (!coincideFiltro(statusFilter, getExamDisplayStatus(r, now))) return false;
       // Rango de fechas — filtra por end_time (deadline). Una fecha
       // vacía significa sin tope en ese lado.
       const dueAt = r.exam.end_time ? new Date(r.exam.end_time) : null;
@@ -384,7 +399,7 @@ function StudentExams() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_exams",
-    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
   if (loadError) {
@@ -442,39 +457,29 @@ function StudentExams() {
         onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
-          setStatusFilter("all");
+          // Vuelve al DEFAULT (lo pendiente), no a «todos»: mostrar de golpe lo
+          // cerrado y lo ya calificado no es lo que busca quien limpia filtros.
+          setStatusFilter(["available", "in_progress", "upcoming"]);
           setDateFrom("");
           setDateTo("");
           setSortBy("due_asc");
         }}
         extra={
           <>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as ExamDisplayStatus | "all")}
-            >
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("hc_routesAppStudentExams.filterAllStatuses")}</SelectItem>
-                <SelectItem value="available">
-                  {t("hc_routesAppStudentExams.filterAvailable")}
-                </SelectItem>
-                <SelectItem value="upcoming">
-                  {t("hc_routesAppStudentExams.filterUpcoming")}
-                </SelectItem>
-                <SelectItem value="in_progress">
-                  {t("hc_routesAppStudentExams.filterInProgress")}
-                </SelectItem>
-                <SelectItem value="completed">
-                  {t("hc_routesAppStudentExams.filterCompleted")}
-                </SelectItem>
-                <SelectItem value="closed">
-                  {t("hc_routesAppStudentExams.filterClosed")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              opciones={[
+                { value: "available", label: t("hc_routesAppStudentExams.filterAvailable") },
+                { value: "in_progress", label: t("hc_routesAppStudentExams.filterInProgress") },
+                { value: "upcoming", label: t("hc_routesAppStudentExams.filterUpcoming") },
+                { value: "completed", label: t("hc_routesAppStudentExams.filterCompleted") },
+                { value: "closed", label: t("hc_routesAppStudentExams.filterClosed") },
+              ]}
+              seleccion={statusFilter}
+              onChange={(v) => setStatusFilter(v as ExamDisplayStatus[])}
+              etiquetaTodos={t("hc_routesAppStudentExams.filterAllStatuses")}
+              entidadPlural={t("filtros.nounStatuses")}
+              triggerClassName="w-full sm:w-44"
+            />
             <div className="w-full sm:w-44">
               <DatePicker
                 value={dateFrom}
@@ -538,7 +543,7 @@ function StudentExams() {
                     onClick={() => {
                       setSearch("");
                       setCourseFilter([]);
-                      setStatusFilter("all");
+                      setStatusFilter(["available", "in_progress", "upcoming"]);
                       setDateFrom("");
                       setDateTo("");
                       setSortBy("due_asc");

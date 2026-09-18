@@ -42,10 +42,9 @@ import {
   ListChecks,
   Trash2,
   Hammer,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 import { useMaximized } from "@/hooks/use-maximized";
+import { DialogMaximizeButton } from "@/components/ui/dialog-maximize-button";
 import { cn } from "@/shared/lib/utils";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -868,6 +867,14 @@ function StudentWorkshops() {
         }}
       >
         <DialogContent
+          // Salir SOLO por la X. Un clic afuera o un Escape cerraban el diálogo
+          // y, hasta el borrador local, se llevaban todo lo escrito. El borrador
+          // ya no lo pierde, pero seguir permitiendo el cierre accidental hace
+          // que el alumno crea que perdió la entrega — así que cerrar pasa a ser
+          // siempre deliberado. Mismo patrón que `ForceChangePasswordDialog`.
+          onEscapeKeyDown={(e) => e.preventDefault()}
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
           className={cn(
             "overflow-y-auto",
             maximized
@@ -875,36 +882,17 @@ function StudentWorkshops() {
               : "max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh]",
           )}
         >
+          {/* «Ampliar»: se posiciona solo, con las mismas anclas que la X — por
+              eso NO va dentro del header. Antes vivía en el flujo del header con
+              `h-8 w-8` y quedaba desalineado respecto de la X (`h-9 w-9`,
+              absoluta contra el borde del modal). */}
+          <DialogMaximizeButton maximized={maximized} onToggle={toggleMaximized} />
           <DialogHeader>
-            {/* Toggle "tamaño completo": el alumno puede expandir el modal
-                para tener más espacio al resolver. Persistido. El botón va
-                con margen derecho para no chocar con la X de cierre. */}
-            <div className="flex items-center justify-between gap-2 pr-7">
-              <DialogTitle className="min-w-0 flex-1 truncate">{questionsWs?.workshop.title}</DialogTitle>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 shrink-0"
-                onClick={toggleMaximized}
-                title={
-                  maximized
-                    ? t("hc_routesAppStudentWorkshops.restoreSize")
-                    : t("hc_routesAppStudentWorkshops.fullSize")
-                }
-                aria-label={
-                  maximized
-                    ? t("hc_routesAppStudentWorkshops.restoreSize")
-                    : t("hc_routesAppStudentWorkshops.fullSize")
-                }
-              >
-                {maximized ? (
-                  <Minimize2 className="h-4 w-4" />
-                ) : (
-                  <Maximize2 className="h-4 w-4" />
-                )}
-              </Button>
-            </div>
+            {/* `pr-20`: el header reserva el ancho de la X MÁS el de ampliar. El
+                `pr-9/sm:pr-10` que `DialogHeader` ya trae solo cuenta la X. */}
+            <DialogTitle className="min-w-0 truncate pr-12">
+              {questionsWs?.workshop.title}
+            </DialogTitle>
           </DialogHeader>
           {questionsWs && (
             <StudentWorkshopTaker

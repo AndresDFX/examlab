@@ -122,6 +122,7 @@ import { optionFillPercent } from "@/modules/polls/poll-results";
 import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useTranslation } from "react-i18next";
+import { anyCourseInScope, courseIdsInScopeMulti } from "@/modules/courses/course-filter-scope";
 import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherPolls });
@@ -531,6 +532,15 @@ function TeacherPolls() {
     }
     // M:N: la encuesta aparece si CUALQUIERA de sus cursos (ancla + linkeados)
     // está marcado.
+    // Periodo y asignatura acotan la TABLA, no solo las opciones del menú de
+    // curso. Sin esto, elegir "2026-2" recortaba la lista de cursos y la tabla
+    // seguía mostrando todo: un filtro que se ve puesto y no filtra.
+    const alcance = courseIdsInScopeMulti(courses, periodFilter, subjectFilter);
+    // M:N: la encuesta aparece si CUALQUIERA de sus cursos cumple. Exigir que
+    // todos cumplan escondería una encuesta compartida con un curso del periodo.
+    arr = arr.filter((p) =>
+      anyCourseInScope(alcance, [p.course_id, ...(p.linked_courses ?? []).map((c) => c.id)]),
+    );
     arr = arr.filter((p) =>
       coincideAlgunFiltro(courseFilter, [
         p.course_id,
@@ -545,7 +555,7 @@ function TeacherPolls() {
       );
     }
     return arr;
-  }, [polls, search, courseFilter, pollStatusFilter]);
+  }, [polls, search, courseFilter, pollStatusFilter, courses, periodFilter, subjectFilter]);
 
   /**
    * Los cursos del selector, con el conteo de encuestas ABIERTAS y CERRADAS de

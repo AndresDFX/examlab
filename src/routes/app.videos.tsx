@@ -94,6 +94,7 @@ import {
 import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
+import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
 
 export const Route = createFileRoute("/app/videos")({ component: VideoLibrary });
 
@@ -130,6 +131,8 @@ interface CourseOption {
   status?: string | null;
   start_date?: string | null;
   end_date?: string | null;
+  /** Periodo académico. Alimenta el filtro de periodo de `ListFilters`. */
+  period?: string | null;
 }
 
 // MIME types aceptados por el bucket — debe coincidir con la migración.
@@ -207,6 +210,7 @@ function VideoLibrary() {
   // de curso (incluye videos globales y de cualquier curso).
   const [search, setSearch] = useState("");
   const [filterCourseId, setFilterCourseId] = useState<string[]>([]);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
   // Filtro por estado del CURSO del video. Default "activos" = videos de
   // cursos NO finalizados (+ globales sin curso). Los videos de cursos
   // FINALIZADOS pasan a "cerrados" y se ocultan por defecto. course_id null
@@ -276,7 +280,7 @@ function VideoLibrary() {
         activeRole,
         roles,
         user?.id,
-        "id, name, status, start_date, end_date",
+        "id, name, status, start_date, end_date, period",
       );
       setCourses((data ?? []) as CourseOption[]);
     })();
@@ -324,11 +328,17 @@ function VideoLibrary() {
 
   const visible = useMemo(() => {
     const now = Date.now();
+    // El periodo acota la TABLA, no solo las opciones del menú de curso.
+    const alcancePeriodo = courseIdsInScopeMulti(courses, periodFilter, []);
     return rows.filter((r) => {
       // Estado del curso: por defecto oculta videos de cursos finalizados
       // (Global sin curso siempre pasa).
       if (!matchesMaterialStatus(r.course_id, courseStatusById, materialStatusFilter, now))
         return false;
+      // Un video GLOBAL (sin curso) se oculta con un filtro de periodo
+      // activo: no se le puede atribuir un periodo, y decir que pertenece al
+      // elegido sería inventar el dato.
+      if (!itemInScope(alcancePeriodo, r.course_id)) return false;
       if (!coincideFiltro(filterCourseId, r.course_id)) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -339,7 +349,7 @@ function VideoLibrary() {
       }
       return true;
     });
-  }, [rows, filterCourseId, search, courseStatusById, materialStatusFilter]);
+  }, [rows, filterCourseId, search, courseStatusById, materialStatusFilter, courses, periodFilter]);
   const courseNameById = useMemo(() => {
     const m: Record<string, string> = {};
     for (const c of courses) m[c.id] = c.name;
@@ -366,7 +376,7 @@ function VideoLibrary() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId.join(",")}|${materialStatusFilter.join(",")}|${tenantFilter.join(",")}|${sort.resetKey}`,
+    resetKey: `${search}|${periodFilter.join(",")}|${filterCourseId.join(",")}|${materialStatusFilter.join(",")}|${tenantFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -796,6 +806,8 @@ function VideoLibrary() {
             courseIds={filterCourseId}
             onCourseIdsChange={setFilterCourseId}
             courses={courses}
+            periods={periodFilter}
+            onPeriodsChange={setPeriodFilter}
           />
         </div>
         {/* Filtro por estado del curso: por defecto "Activos" oculta los

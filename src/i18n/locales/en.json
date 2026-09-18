@@ -293,7 +293,9 @@
     "view": "View",
     "weight": "Weight",
     "yes": "Yes",
-    "you": "You"
+    "you": "You",
+    "restoreSize": "Restore size",
+    "fullSize": "Full size"
   },
   "nav": {
     "dashboard": "Home",

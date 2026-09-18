@@ -30,6 +30,8 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
+import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,6 +95,10 @@ interface TrashItem {
   deleted_at: string;
   deleted_by: string | null;
   deleted_by_name: string | null;
+  /** Curso al que pertenece, cuando la entidad cuelga de uno. `null` en las
+   *  que no (una pizarra o un contenido personal del docente) y en `courses`,
+   *  donde el propio item ES el curso. */
+  course_id: string | null;
 }
 
 /** Días que un item permanece en papelera antes de que el cron lo purge.
@@ -125,6 +131,13 @@ function TrashPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [filterTable, setFilterTable] = useState<TrashTable | "all">("all");
   const [search, setSearch] = useState("");
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  /** Periodo de cada curso que la papelera referencia. Se resuelve en UNA
+   *  consulta sobre los cursos que los items realmente citan: pedir todos los
+   *  del tenant ofrecería periodos sin nada que filtrar. */
+  const [cursosDePapelera, setCursosDePapelera] = useState<
+    Array<{ id: string; period: string | null }>
+  >([]);
   const [busy, setBusy] = useState<string | null>(null);
   // Bulk operation state — al hacer "Restaurar seleccionados" o
   // "Eliminar definitivo en bulk", deshabilitamos toda la tabla mientras
@@ -187,6 +200,9 @@ function TrashPage() {
             deleted_at: String(row.deleted_at),
             deleted_by: row.deleted_by ? String(row.deleted_by) : null,
             deleted_by_name: null as string | null,
+            // `courseCol === "id"` es el caso de `courses`: el item ES el curso,
+            // así que su propio id es el que lleva el periodo.
+            course_id: courseCol && row[courseCol] ? String(row[courseCol]) : null,
           }));
         }),
       );
@@ -212,6 +228,21 @@ function TrashPage() {
       // Sort por deleted_at desc (más recientes arriba).
       flat.sort((a, b) => (a.deleted_at < b.deleted_at ? 1 : -1));
       setItems(flat);
+      // Periodos de los cursos que la papelera referencia — alimentan el filtro.
+      const idsDeCurso = Array.from(
+        new Set(flat.map((i) => i.course_id).filter(Boolean) as string[]),
+      );
+      if (idsDeCurso.length > 0) {
+        const { data: cs } = await db.from("courses").select("id, period").in("id", idsDeCurso);
+        setCursosDePapelera(
+          ((cs ?? []) as Array<{ id: string; period: string | null }>).map((c) => ({
+            id: c.id,
+            period: c.period,
+          })),
+        );
+      } else {
+        setCursosDePapelera([]);
+      }
       setLoading(false);
     } catch (e) {
       setLoadError(
@@ -225,10 +256,24 @@ function TrashPage() {
     void load();
   }, [load, retryNonce]);
 
+  /** Los periodos que DE VERDAD hay en la papelera. Ofrecer uno sin items
+   *  sería prometer un filtro que devuelve vacío. */
+  const periodosEnPapelera = useMemo(
+    () =>
+      Array.from(
+        new Set(cursosDePapelera.map((c) => c.period).filter((p): p is string => !!p)),
+      ).sort((a, b) => b.localeCompare(a, "es-CO", { numeric: true })),
+    [cursosDePapelera],
+  );
+
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    const alcancePeriodo = courseIdsInScopeMulti(cursosDePapelera, periodFilter, []);
     return items.filter((i) => {
       if (filterTable !== "all" && i.table !== filterTable) return false;
+      // Un item SIN curso (pizarra o contenido personal del docente) se oculta
+      // con un filtro de periodo activo: no se le puede atribuir un periodo.
+      if (!itemInScope(alcancePeriodo, i.course_id)) return false;
       if (q) {
         const hay =
           i.name.toLowerCase().includes(q) ||
@@ -238,7 +283,7 @@ function TrashPage() {
       }
       return true;
     });
-  }, [items, filterTable, search]);
+  }, [items, filterTable, search, cursosDePapelera, periodFilter]);
 
   // Conteo por tipo — se muestra en el select de filtro. Sobre `items`
   // (no `filtered`) para que el dropdown muestre conteos absolutos
@@ -577,6 +622,19 @@ function TrashPage() {
               placeholder={t("trash.searchPlaceholder")}
             />
           </div>
+          {/* Periodo: solo aparece si la papelera tiene items de MÁS DE UN
+              periodo. Con uno solo no filtra nada y ocupa lugar — mismo
+              criterio que `ListFilters`. */}
+          {periodosEnPapelera.length > 1 && (
+            <MultiSelectFilter
+              opciones={periodosEnPapelera.map((p) => ({ value: p, label: p }))}
+              seleccion={periodFilter}
+              onChange={setPeriodFilter}
+              etiquetaTodos={t("listFilters.allPeriods", { defaultValue: "Todos los periodos" })}
+              entidadPlural={t("filtros.nounPeriods")}
+              triggerClassName="w-full sm:w-44 h-9"
+            />
+          )}
           <Select
             value={filterTable}
             onValueChange={(v) => setFilterTable(v as TrashTable | "all")}

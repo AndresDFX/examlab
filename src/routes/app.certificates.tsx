@@ -16,6 +16,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { scopedCourseIds } from "@/modules/courses/course-scope";
@@ -130,6 +131,7 @@ function CertificatesAdmin() {
   const [filterCourseId, setFilterCourseId] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [showRevoked, setShowRevoked] = useState(false);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
   // SuperAdmin: filtro funcional por institución. Como `certificates`
   // NO tiene tenant_id directo, lo resolvemos en 2 pasos: primero los
   // course_ids del tenant elegido, luego `.in('course_id', ...)` en
@@ -267,20 +269,35 @@ function CertificatesAdmin() {
   // Lista derivada (course_id, nombre) para alimentar el selector: los cursos
   // disponibles son justo los que tienen certificados emitidos. Se apoya en que
   // `items` ya viene acotado arriba — NO en la RLS, que solo acota al tenant.
+  const coursePeriodById = useMemo(() => {
+    const m: Record<string, string | null> = {};
+    for (const c of items) if (!(c.course_id in m)) m[c.course_id] = c.course_period;
+    return m;
+  }, [items]);
+
   const courseOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of items) {
       if (!map.has(c.course_id)) map.set(c.course_id, c.course_name);
     }
-    return Array.from(map, ([id, name]) => ({ id, name, status: courseStatusById[id] ?? null })).sort(
-      (a, b) => a.name.localeCompare(b.name),
-    );
-  }, [items, courseStatusById]);
+    return Array.from(map, ([id, name]) => ({
+      id,
+      name,
+      status: courseStatusById[id] ?? null,
+      // El periodo ya viaja en cada certificado (`course_period`), así que el
+      // filtro no necesita ninguna consulta nueva.
+      period: coursePeriodById[id] ?? null,
+    })).sort((a, b) => a.name.localeCompare(b.name));
+  }, [items, courseStatusById, coursePeriodById]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
+    // El periodo acota la TABLA. Sin esto recorta el menú de cursos y la tabla
+    // sigue mostrando todo: un filtro que se ve puesto y no filtra.
+    const alcancePeriodo = courseIdsInScopeMulti(courseOptions, periodFilter, []);
     return items.filter((c) => {
       if (!showRevoked && c.revoked_at) return false;
+      if (!itemInScope(alcancePeriodo, c.course_id)) return false;
       if (!coincideFiltro(filterCourseId, c.course_id)) return false;
       if (q) {
         const hay = [
@@ -295,7 +312,7 @@ function CertificatesAdmin() {
       }
       return true;
     });
-  }, [items, filterCourseId, search, showRevoked]);
+  }, [items, filterCourseId, search, showRevoked, courseOptions, periodFilter]);
   const sort = useTableSort(filtered, {
     columns: {
       student: (c) => c.student_full_name,
@@ -475,6 +492,8 @@ function CertificatesAdmin() {
             onCourseIdsChange={setFilterCourseId}
             courses={courseOptions}
             allLabel={t("hc_routesAppCertificates.allCourses")}
+            periods={periodFilter}
+            onPeriodsChange={setPeriodFilter}
             onClearExtra={() => setShowRevoked(false)}
             extra={
               <>
