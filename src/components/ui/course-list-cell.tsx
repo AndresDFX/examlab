@@ -45,12 +45,20 @@ export function CourseListCell({
   const overflow = courses.slice(inlineLimit);
 
   return (
-    <div className="flex flex-wrap items-center gap-1">
+    // `min-w-0` y NO `flex-wrap`: la celda vive en una tabla `table-fixed`, así
+    // que su ancho ya está dado. Sin `min-w-0` un hijo flex no puede encogerse
+    // por debajo de su contenido y se sale de la columna; con `flex-wrap`, el
+    // «+N» caía a una segunda línea y esa fila quedaba más alta que las demás.
+    <div className="flex items-center gap-1 min-w-0">
       {inline.map((c) => (
         <Badge
           key={c.id}
           variant="outline"
-          className="text-3xs max-w-[10rem] truncate"
+          // El tope lo pone la CELDA (`max-w-full`), no un valor en rem: el
+          // anterior era `max-w-[10rem]` (160px) dentro de columnas de `w-32`
+          // (128px), así que el badge desbordaba por diseño — era el síntoma
+          // reportado. `min-w-0` es lo que habilita truncar dentro de un flex.
+          className="text-3xs min-w-0 max-w-full truncate"
           title={`${c.name}${c.period ? ` · ${c.period}` : ""}`}
         >
           {c.name}
@@ -62,7 +70,10 @@ export function CourseListCell({
           <PopoverTrigger asChild>
             <button
               type="button"
-              className="inline-flex items-center rounded-full border bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-3xs font-medium text-muted-foreground transition-colors"
+              // `shrink-0`: son dos o tres caracteres y es el único indicio de
+              // que hay más cursos. Lo que cede espacio es el nombre, que ya
+              // trunca y conserva el texto completo en su `title`.
+              className="shrink-0 inline-flex items-center rounded-full border bg-muted/40 hover:bg-muted px-1.5 py-0.5 text-3xs font-medium text-muted-foreground transition-colors"
               title={t("hc_componentsUiCourseListCell.moreCourses", {
                 count: overflow.length,
                 defaultValue_one: "+{{count}} curso más",

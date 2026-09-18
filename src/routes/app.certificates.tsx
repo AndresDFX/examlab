@@ -589,12 +589,16 @@ function CertificatesAdmin() {
                     >
                       <TableCell className="font-medium">
                         <div className="flex flex-col gap-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          {/* Sin `flex-wrap`: con él, cuando el badge no cabía
+                              el nombre NO truncaba y el badge caía a otra
+                              línea, estirando esa fila. Cede el nombre, que
+                              conserva el texto completo en su `title`. */}
+                          <div className="flex items-center gap-2 min-w-0">
                             <span className="truncate" title={c.student_full_name}>
                               {c.student_full_name}
                             </span>
                             {c.revoked_at && (
-                              <Badge variant="destructive" className="text-3xs">
+                              <Badge variant="destructive" className="text-3xs shrink-0">
                                 {t("hc_routesAppCertificates.revokedBadge")}
                               </Badge>
                             )}

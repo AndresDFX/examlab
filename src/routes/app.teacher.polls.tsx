@@ -1254,8 +1254,11 @@ function TeacherPolls() {
                           })()}
                         </TableCell>
                         <TableCell>
-                          <div className="flex flex-wrap items-center gap-1">
-                            <Badge variant="outline" className="text-3xs">
+                          {/* Sin `flex-wrap`: la tabla es `fixed resizable`, y
+                              al angostar la columna los badges caían a una
+                              segunda línea y esa fila quedaba más alta. */}
+                          <div className="flex flex-nowrap items-center gap-1 min-w-0 overflow-hidden">
+                            <Badge variant="outline" className="text-3xs shrink-0">
                               <Icon className="h-3 w-3 mr-1" />
                               {pollTypeLabel(p.poll_type)}
                             </Badge>

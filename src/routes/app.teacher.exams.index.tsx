@@ -1003,12 +1003,16 @@ function TeacherExams() {
                   </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex flex-col gap-1 min-w-0">
-                      <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+                      {/* Sin `flex-wrap`: con él, cuando el badge no cabía el
+                          título NO truncaba y el badge caía a otra línea, así
+                          que esa fila quedaba más alta que las demás. Ahora
+                          cede el título, que conserva el texto en su `title`. */}
+                      <div className="flex items-center gap-1.5 min-w-0">
                         <span className="truncate" title={e.title}>
                           {e.title}
                         </span>
                         {e.parent_exam_id && (
-                          <Badge variant="outline" className="text-3xs">
+                          <Badge variant="outline" className="text-3xs shrink-0">
                             <GitBranch className="h-3 w-3 mr-1" />
                             {t("exam.supletorio")}
                           </Badge>

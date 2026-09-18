@@ -344,6 +344,54 @@ for (const p of todo) {
  * Al agregar una entrada acá: el criterio NO es "molesta", es "el principio no
  * aplica a este caso, y acá está la razón".
  */
+// ── R5 · las filas de un grid no cambian de alto ──────────────────────
+// En una tabla `fixed`/`resizable` (o sea, `table-fixed`) el ancho de cada
+// columna ya está dado. Un `flex-wrap` DENTRO de una fila no ensancha la
+// columna: manda el contenido a una segunda línea, y esa fila queda más alta
+// que las demás — la tabla se ve escalonada. El patrón correcto ya está
+// resuelto y documentado en `BadgeOverflow`: `flex-nowrap … min-w-0
+// overflow-hidden`, con el texto truncando y los adornos en `shrink-0`.
+//
+// Se mira SOLO entre `<TableBody>` y `</TableBody>`: fuera de ahí (barras de
+// filtros, encabezados de tarjeta, diálogos) envolver es correcto y deseable.
+const ABRE_BODY = /<TableBody\b/;
+const CIERRA_BODY = /<\/TableBody>/;
+const TABLA_FIJA = /<Table\s+[^>]*\b(fixed|resizable)\b/;
+for (const archivo of todo) {
+  const src = leer(archivo);
+  if (!TABLA_FIJA.test(src)) continue;
+  let dentro = 0;
+  src.split("\n").forEach((l, i) => {
+    if (ABRE_BODY.test(l)) dentro += 1;
+    if (CIERRA_BODY.test(l)) dentro = Math.max(0, dentro - 1);
+    // Se exige que esté DENTRO de un `className`: si no, un comentario JSX que
+    // explica por qué acá NO va `flex-wrap` se reporta a sí mismo, y el
+    // guardrail termina señalando su propia documentación.
+    //
+    // Y se exceptúa el bloque SOLO-MÓVIL (`sm:hidden` y compañía): ese existe
+    // únicamente por debajo del breakpoint, donde las columnas del grid ni
+    // siquiera se renderizan y apilar es el comportamiento responsive que se
+    // busca. La regla habla del grid de escritorio, que es donde el ancho de
+    // columna está fijado.
+    const soloMovil = /\b(sm|md|lg):hidden\b/.test(l);
+    if (
+      dentro > 0 &&
+      !soloMovil &&
+      /className=\{?"[^"]*\bflex-wrap\b/.test(l) &&
+      !esComentario(l)
+    ) {
+      add(
+        "R5-fila",
+        archivo,
+        i + 1,
+        "flex-wrap dentro de una fila de un grid table-fixed: esa fila queda " +
+          "más alta que el resto. Usar flex-nowrap + min-w-0 + overflow-hidden, " +
+          `o <BadgeOverflow> si es una lista: ${l.trim().slice(0, 80)}`,
+      );
+    }
+  });
+}
+
 const ACEPTADOS = [
   {
     regla: "DS-fecha",

@@ -24,6 +24,7 @@ import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { BadgeOverflow } from "@/components/ui/badge-overflow";
 import { Switch } from "@/components/ui/switch";
 import { Spinner } from "@/components/ui/spinner";
 import { PageLoader } from "@/components/ui/loaders";
@@ -1092,14 +1093,22 @@ function QuestionBankPage() {
                         <div className="line-clamp-2 text-sm">{r.content}</div>
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        <div className="flex flex-wrap items-center gap-1">
-                          <Badge variant="secondary" className="text-3xs whitespace-nowrap">
+                        {/* Sin `flex-wrap`: la tabla es `resizable` (y por eso
+                            `table-fixed`), así que al angostar la columna los
+                            badges caían a una segunda línea y esa fila quedaba
+                            más alta que el resto. Se clipean, como en
+                            `BadgeOverflow`. */}
+                        <div className="flex flex-nowrap items-center gap-1 min-w-0 overflow-hidden">
+                          <Badge
+                            variant="secondary"
+                            className="text-3xs whitespace-nowrap shrink-0"
+                          >
                             {typeLabel(r.type)}
                           </Badge>
                           {r.shared_org && (
                             <Badge
                               variant="outline"
-                              className="text-3xs whitespace-nowrap gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
+                              className="text-3xs whitespace-nowrap shrink-0 gap-0.5 border-emerald-500/40 text-emerald-600 dark:text-emerald-400"
                             >
                               <Globe className="h-2.5 w-2.5" />
                               {t("questionBank.sharedBadge")}
@@ -1111,18 +1120,13 @@ function QuestionBankPage() {
                         {r.topic || "—"}
                       </TableCell>
                       <TableCell className="hidden lg:table-cell">
-                        <div className="flex flex-wrap gap-1">
-                          {r.tags.slice(0, 3).map((t) => (
-                            <Badge key={t} variant="outline" className="text-3xs">
-                              {t}
-                            </Badge>
-                          ))}
-                          {r.tags.length > 3 && (
-                            <Badge variant="outline" className="text-3xs">
-                              +{r.tags.length - 3}
-                            </Badge>
-                          )}
-                        </div>
+                        {/* `BadgeOverflow` y no la lista a mano: es el componente
+                            del design system para justamente esto —una columna
+                            con un arreglo donde lo normal es 1 o 2 y hay filas
+                            con más—, y ya trae el `flex-nowrap … overflow-hidden`
+                            que mantiene todas las filas de la misma altura. La
+                            versión anterior envolvía a la línea siguiente. */}
+                        <BadgeOverflow items={r.tags} max={2} variant="outline" />
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-center text-xs tabular-nums">
                         {r.difficulty ?? "—"}
