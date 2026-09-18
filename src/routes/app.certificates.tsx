@@ -484,6 +484,7 @@ function CertificatesAdmin() {
                     seleccion={tenantFilter}
                     onChange={setTenantFilter}
                     etiquetaTodos={t("tenant.filterAllTenants")}
+                    entidadPlural={t("filtros.nounInstitutions")}
                     triggerClassName="w-full sm:w-48 h-9 text-xs"
                   />
                 )}

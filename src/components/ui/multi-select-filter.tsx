@@ -46,6 +46,7 @@ export function MultiSelectFilter({
   seleccion,
   onChange,
   etiquetaTodos,
+  entidadPlural,
   className,
   triggerClassName,
   disabled = false,
@@ -57,6 +58,16 @@ export function MultiSelectFilter({
   onChange: (seleccion: string[]) => void;
   /** Lo que se lee cuando no hay nada marcado, p. ej. «Todos los cursos». */
   etiquetaTodos: string;
+  /**
+   * El sustantivo EN PLURAL de lo que este filtro filtra: «cursos»,
+   * «periodos», «asignaturas», «estados».
+   *
+   * Sin esto, con varios marcados el botón decía «2 seleccionados», y una barra
+   * con cuatro filtros mostraba cuatro botones que decían exactamente lo mismo:
+   * el usuario ve que hay filtros puestos y no puede saber cuáles. Con el
+   * sustantivo dice «2 asignaturas», «2 cursos», y además ocupa menos ancho.
+   */
+  entidadPlural?: string;
   className?: string;
   triggerClassName?: string;
   disabled?: boolean;
@@ -71,7 +82,13 @@ export function MultiSelectFilter({
 
   const etiqueta = etiquetaSeleccion(seleccion, nombrePorValor, {
     todos: etiquetaTodos,
-    varios: (n) => t("filtros.seleccionados", { count: n }),
+    // `varios(1)` solo se alcanza cuando hay UN valor marcado cuyo nombre no
+    // está entre las opciones (quedó huérfano). Ahí «1 cursos» se leería mal,
+    // así que ese caso conserva la forma vieja.
+    varios: (n) =>
+      entidadPlural && n > 1
+        ? t("filtros.variosDe", { count: n, entidad: entidadPlural })
+        : t("filtros.seleccionados", { count: n }),
   });
 
   // Se conserva el orden en que llegan las opciones; solo se agrupan las que

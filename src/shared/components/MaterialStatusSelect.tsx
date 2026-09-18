@@ -38,6 +38,7 @@ export function MaterialStatusSelect({
       seleccion={value}
       onChange={(v) => onChange(v as MaterialStatusValue[])}
       etiquetaTodos={t("materialStatus.filtroTodos", { defaultValue: "Todos los estados" })}
+      entidadPlural={t("filtros.nounStatuses")}
       triggerClassName={className ?? "w-full sm:w-44"}
     />
   );

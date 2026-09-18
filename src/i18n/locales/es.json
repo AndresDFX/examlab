@@ -10676,7 +10676,15 @@
   "filtros": {
     "seleccionados_one": "{{count}} seleccionado",
     "seleccionados_other": "{{count}} seleccionados",
-    "sinOpciones": "No hay opciones para filtrar."
+    "sinOpciones": "No hay opciones para filtrar.",
+    "variosDe": "{{count}} {{entidad}}",
+    "nounCourses": "cursos",
+    "nounPeriods": "periodos",
+    "nounSubjects": "asignaturas",
+    "nounStatuses": "estados",
+    "nounRoles": "roles",
+    "nounTypes": "tipos",
+    "nounInstitutions": "instituciones"
   },
   "questionOptions": {
     "correct": "Correcta",

@@ -10676,7 +10676,15 @@
   "filtros": {
     "seleccionados_one": "{{count}} selected",
     "seleccionados_other": "{{count}} selected",
-    "sinOpciones": "No options to filter by."
+    "sinOpciones": "No options to filter by.",
+    "variosDe": "{{count}} {{entidad}}",
+    "nounCourses": "courses",
+    "nounPeriods": "periods",
+    "nounSubjects": "subjects",
+    "nounStatuses": "statuses",
+    "nounRoles": "roles",
+    "nounTypes": "types",
+    "nounInstitutions": "institutions"
   },
   "questionOptions": {
     "correct": "Correct",

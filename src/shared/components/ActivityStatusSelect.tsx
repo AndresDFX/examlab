@@ -36,6 +36,7 @@ export function ActivityStatusSelect({
       seleccion={value}
       onChange={(v) => onChange(v as ActivityStatusValue[])}
       etiquetaTodos={t("activityStatus.filtroTodos", { defaultValue: "Todos los estados" })}
+      entidadPlural={t("filtros.nounStatuses")}
       triggerClassName="w-full sm:w-44"
     />
   );

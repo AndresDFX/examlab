@@ -1134,6 +1134,7 @@ function TeacherPolls() {
               seleccion={pollStatusFilter}
               onChange={(v) => setPollStatusFilter(v as PollStatusValue[])}
               etiquetaTodos={t("teacherPolls.filterAllStatuses", { defaultValue: "Todos los estados" })}
+              entidadPlural={t("filtros.nounStatuses")}
               triggerClassName="w-full sm:w-40 h-9 text-xs"
             />
             {/* SuperAdmin cross-tenant: filtro por institución (acota la query de
@@ -1144,6 +1145,7 @@ function TeacherPolls() {
                 seleccion={tenantFilter}
                 onChange={setTenantFilter}
                 etiquetaTodos={t("teacherPolls.allInstitutions")}
+                entidadPlural={t("filtros.nounInstitutions")}
                 triggerClassName="w-full sm:w-56 h-9 text-xs"
               />
             )}

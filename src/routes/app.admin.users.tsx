@@ -1983,6 +1983,7 @@ function AdminUsers() {
           seleccion={roleFilter}
           onChange={(v) => setRoleFilter(v as AppRole[])}
           etiquetaTodos={t("adminUsers.filterRoleAll")}
+          entidadPlural={t("filtros.nounRoles")}
           triggerClassName="sm:w-44"
         />
         {/* Filtro por estado de cuenta (activo/inactivo). */}

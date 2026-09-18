@@ -2475,6 +2475,7 @@ function ExamMonitor() {
                 seleccion={estadoFiltro}
                 onChange={setEstadoFiltro}
                 etiquetaTodos={t("hc_routesAppTeacherMonitorExamId.estadoTodos")}
+                entidadPlural={t("filtros.nounStatuses")}
                 triggerClassName="h-8 text-xs w-full sm:w-44"
               />
               {(monitorSearch || estadoFiltro.length > 0) && (

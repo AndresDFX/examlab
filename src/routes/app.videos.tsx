@@ -818,6 +818,7 @@ function VideoLibrary() {
             seleccion={tenantFilter}
             onChange={setTenantFilter}
             etiquetaTodos={t("videos.allInstitutions")}
+            entidadPlural={t("filtros.nounInstitutions")}
             triggerClassName="w-full sm:w-56 h-9 text-xs"
           />
         )}

@@ -217,6 +217,7 @@ export function ListFilters({
           seleccion={selectedSubjects}
           onChange={aplicarAsignaturas}
           etiquetaTodos={t("listFilters.allSubjects", { defaultValue: "Todas las asignaturas" })}
+          entidadPlural={t("filtros.nounSubjects")}
           triggerClassName="w-full sm:w-52"
         />
       )}
@@ -226,7 +227,11 @@ export function ListFilters({
           seleccion={selectedPeriods}
           onChange={aplicarPeriodos}
           etiquetaTodos={t("listFilters.allPeriods", { defaultValue: "Todos los periodos" })}
-          triggerClassName="w-full sm:w-36"
+          entidadPlural={t("filtros.nounPeriods")}
+          // «Todos los periodos» no entraba en `w-36` y se leía «Todos los …»,
+          // que es justo lo que hay que evitar en un filtro: el usuario tiene
+          // que poder saber QUÉ filtra sin abrirlo.
+          triggerClassName="w-full sm:w-44"
         />
       )}
       <MultiSelectFilter
@@ -248,6 +253,7 @@ export function ListFilters({
         seleccion={courseIds}
         onChange={onCourseIdsChange}
         etiquetaTodos={resolvedAllLabel}
+        entidadPlural={t("filtros.nounCourses")}
         triggerClassName="w-full sm:w-56"
       />
       {showCutSelect && (
