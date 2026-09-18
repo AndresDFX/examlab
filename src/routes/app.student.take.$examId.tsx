@@ -61,6 +61,8 @@ import {
   clearLocalAnswers,
 } from "@/modules/exams/offline-sync";
 import { useTranslation } from "react-i18next";
+import { OpenAnswerTextarea } from "@/components/ui/open-answer-textarea";
+import { DEFAULT_MAX_OPEN_ANSWER_CHARS } from "@/hooks/use-max-open-answer-chars";
 import {
   computeSecondsLeft,
   computeSecondsLeftRelative,
@@ -209,7 +211,7 @@ function TakeExam() {
   // respuestas tipo `abierta`. Default 500 — fuerza respuestas concisas
   // y mantiene bajo el costo de tokens de la IA. El admin lo modifica
   // desde Settings (rango 100..50000).
-  const [maxOpenChars, setMaxOpenChars] = useState(500);
+  const [maxOpenChars, setMaxOpenChars] = useState(DEFAULT_MAX_OPEN_ANSWER_CHARS);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   // `preparingSubmit`: cubre la ventana entre el click en "Finalizar" y el
@@ -2602,40 +2604,13 @@ function TakeExam() {
                     </p>
                   )
                 ) : (
-                  (() => {
-                    const current = String(answers[q.id] ?? "");
-                    const len = current.length;
-                    // Umbral ámbar a 90% para que el alumno sepa que se
-                    // acerca al tope antes de chocarse con el maxLength
-                    // (el browser ignora el input pero sin feedback el
-                    // alumno cree que el teclado falló).
-                    const warn = len >= Math.floor(maxOpenChars * 0.9);
-                    const atMax = len >= maxOpenChars;
-                    return (
-                      <div className="space-y-1">
-                        <Textarea
-                          rows={4}
-                          placeholder={t("hc_routesAppStudentTakeExamId.yourAnswerPlaceholder")}
-                          value={current}
-                          maxLength={maxOpenChars}
-                          onChange={(e) => updateAnswer(q.id, e.target.value)}
-                          onBlur={saveAnswersNow}
-                        />
-                        <div
-                          className={`text-2xs text-right tabular-nums ${
-                            atMax
-                              ? "text-destructive"
-                              : warn
-                                ? "text-amber-600 dark:text-amber-400"
-                                : "text-muted-foreground"
-                          }`}
-                        >
-                          {len.toLocaleString("es-CO")} / {maxOpenChars.toLocaleString("es-CO")}
-                          {atMax ? t("hc_routesAppStudentTakeExamId.limitReachedSuffix") : ""}
-                        </div>
-                      </div>
-                    );
-                  })()
+                  <OpenAnswerTextarea
+                    value={String(answers[q.id] ?? "")}
+                    onChange={(v) => updateAnswer(q.id, v)}
+                    onBlur={saveAnswersNow}
+                    placeholder={t("hc_routesAppStudentTakeExamId.yourAnswerPlaceholder")}
+                    max={maxOpenChars}
+                  />
                 )}
               </CardContent>
             </Card>

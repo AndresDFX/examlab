@@ -9,6 +9,7 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { OpenAnswerTextarea } from "@/components/ui/open-answer-textarea";
 import {
   borrarBorrador as borrarBorradorLocal,
   claveBorrador as claveBorradorLocal,
@@ -3057,10 +3058,9 @@ export function StudentProjectTaker({
           <CardContent className="space-y-2">
             <MarkdownInline>{q.title}</MarkdownInline>
             {q.type === "abierta" && (
-              <Textarea
-                rows={4}
-                value={answers[q.id] ?? ""}
-                onChange={(e) => updateAnswer(q.id, e.target.value)}
+              <OpenAnswerTextarea
+                value={String(answers[q.id] ?? "")}
+                onChange={(v) => updateAnswer(q.id, v)}
                 placeholder={t("hc_modulesProjectsProjectFiles.answerPlaceholder")}
               />
             )}

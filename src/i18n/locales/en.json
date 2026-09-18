@@ -10710,5 +10710,8 @@
   "borradorLocal": {
     "recuperado_one": "We recovered {{count}} answer you had written and never submitted.",
     "recuperado_other": "We recovered {{count}} answers you had written and never submitted."
+  },
+  "openAnswer": {
+    "limitReached": "limit reached"
   }
 }

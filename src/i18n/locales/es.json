@@ -10710,5 +10710,8 @@
   "borradorLocal": {
     "recuperado_one": "Recuperamos {{count}} respuesta que habías escrito y no se alcanzó a enviar.",
     "recuperado_other": "Recuperamos {{count}} respuestas que habías escrito y no se alcanzaron a enviar."
+  },
+  "openAnswer": {
+    "limitReached": "llegaste al límite"
   }
 }
