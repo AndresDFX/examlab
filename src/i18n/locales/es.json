@@ -10704,5 +10704,9 @@
     "confirmDraftBody": "Deja de aparecer en la lista de los estudiantes. Las entregas que ya existan no se borran.",
     "published": "«{{nombre}}» quedó publicado.",
     "backToDraftDone": "«{{nombre}}» volvió a borrador."
+  },
+  "borradorLocal": {
+    "recuperado_one": "Recuperamos {{count}} respuesta que habías escrito y no se alcanzó a enviar.",
+    "recuperado_other": "Recuperamos {{count}} respuestas que habías escrito y no se alcanzaron a enviar."
   }
 }

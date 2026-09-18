@@ -10704,5 +10704,9 @@
     "confirmDraftBody": "It stops showing up in students' lists. Existing submissions are not deleted.",
     "published": "“{{nombre}}” is now published.",
     "backToDraftDone": "“{{nombre}}” is back to draft."
+  },
+  "borradorLocal": {
+    "recuperado_one": "We recovered {{count}} answer you had written and never submitted.",
+    "recuperado_other": "We recovered {{count}} answers you had written and never submitted."
   }
 }

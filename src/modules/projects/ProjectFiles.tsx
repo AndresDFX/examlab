@@ -9,6 +9,13 @@
  */
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import {
+  borrarBorrador as borrarBorradorLocal,
+  claveBorrador as claveBorradorLocal,
+  combinarConBorrador,
+  guardarBorrador as guardarBorradorLocal,
+  leerBorrador as leerBorradorLocal,
+} from "@/modules/submissions/borrador-local";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
@@ -1703,6 +1710,52 @@ export function StudentProjectTaker({
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
+  // ── Borrador local ──────────────────────────────────────────────────
+  // El proyecto solo escribe en la base al ENTREGAR, así que un clic fuera del
+  // diálogo se llevaba todo lo escrito. Mismo mecanismo que el taller.
+  const claveBorradorProyecto = claveBorradorLocal("proyecto", projectId, user?.id);
+  // El `beforeunload` y el desmontaje leen de acá: si cerraran sobre `answers`,
+  // guardarían el valor que tenía cuando se montó el listener, no el último.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const borradorRestauradoRef = useRef(false);
+
+  // Restaurar UNA vez, ya cargado lo del servidor. `combinarConBorrador` solo
+  // rellena lo que quedó vacío: en un proyecto grupal, lo que subió un
+  // compañero no se pisa.
+  useEffect(() => {
+    if (loading || graded || borradorRestauradoRef.current) return;
+    borradorRestauradoRef.current = true;
+    const guardado = leerBorradorLocal(claveBorradorProyecto);
+    if (!guardado) return;
+    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas);
+    if (recuperadas.length === 0) return;
+    setAnswers(respuestas);
+    toast.info(t("borradorLocal.recuperado", { count: recuperadas.length }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, graded, claveBorradorProyecto]);
+
+  useEffect(() => {
+    if (loading || graded) return;
+    const id = setTimeout(
+      () => guardarBorradorLocal(claveBorradorProyecto, answersRef.current),
+      1000,
+    );
+    return () => clearTimeout(id);
+  }, [answers, loading, graded, claveBorradorProyecto]);
+
+  // Descarga al salir. El desmontaje es EL caso reportado —clic fuera del
+  // diálogo— y ahí el debounce todavía no disparó.
+  useEffect(() => {
+    if (loading || graded) return;
+    const guardarYa = () => guardarBorradorLocal(claveBorradorProyecto, answersRef.current);
+    window.addEventListener("beforeunload", guardarYa);
+    return () => {
+      window.removeEventListener("beforeunload", guardarYa);
+      guardarYa();
+    };
+  }, [loading, graded, claveBorradorProyecto]);
+
   // Escenarios de red memoizados (estables) — evita reiniciar la consola.
   const networkScenarios = useMemo(() => {
     const map: Record<string, NetworkScenario> = {};
@@ -2766,6 +2819,8 @@ export function StudentProjectTaker({
       // abajo o, si eso falla/tarda, el cron horario). `graded.grade = null`
       // es "entregado y sin nota todavía" — NO "sacó cero".
       setGraded({ grade: null });
+      // Entregado: el borrador local ya no representa nada pendiente.
+      borrarBorradorLocal(claveBorradorProyecto);
       // El padre usa esto solo para disparar reload (ignora el valor).
       onGraded?.(0);
       toast.success(t("hc_modulesProjectsProjectFiles.submittedGradeLater"), { duration: 9000 });

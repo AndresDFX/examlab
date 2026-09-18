@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
+  borrarBorrador as borrarBorradorLocal,
+  claveBorrador as claveBorradorLocal,
+  combinarConBorrador,
+  guardarBorrador as guardarBorradorLocal,
+  leerBorrador as leerBorradorLocal,
+} from "@/modules/submissions/borrador-local";
+import {
   getUnansweredIndices,
   type QuestionForAnswered,
 } from "@/modules/exams/answered";
@@ -1592,6 +1599,52 @@ export function StudentWorkshopTaker({
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
 
+  // ── Borrador local ──────────────────────────────────────────────────
+  // El taller solo escribe en la base al ENTREGAR, así que un clic fuera del
+  // diálogo se llevaba todo lo escrito. Ver `borrador-local.ts`.
+  const claveBorradorTaller = claveBorradorLocal("taller", workshopId, user?.id);
+  // El `beforeunload` y el desmontaje leen de acá: si cerraran sobre `answers`,
+  // guardarían el valor que tenía cuando se montó el listener, no el último.
+  const answersRef = useRef(answers);
+  answersRef.current = answers;
+  const borradorRestauradoRef = useRef(false);
+
+  // Restaurar UNA vez, ya cargado lo del servidor. `combinarConBorrador` solo
+  // rellena lo que quedó vacío: en un taller grupal, la respuesta que subió un
+  // compañero no se pisa.
+  useEffect(() => {
+    if (loading || graded || borradorRestauradoRef.current) return;
+    borradorRestauradoRef.current = true;
+    const guardado = leerBorradorLocal(claveBorradorTaller);
+    if (!guardado) return;
+    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas);
+    if (recuperadas.length === 0) return;
+    setAnswers(respuestas);
+    // Restaurar en silencio deja al estudiante sin saber si lo que ve lo
+    // escribió él o se lo inventó la aplicación.
+    toast.info(t("borradorLocal.recuperado", { count: recuperadas.length }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, graded, claveBorradorTaller]);
+
+  useEffect(() => {
+    if (loading || graded) return;
+    const id = setTimeout(() => guardarBorradorLocal(claveBorradorTaller, answersRef.current), 1000);
+    return () => clearTimeout(id);
+  }, [answers, loading, graded, claveBorradorTaller]);
+
+  // Descarga al salir. El desmontaje es EL caso reportado —clic fuera del
+  // diálogo— y ahí el debounce de arriba todavía no disparó, así que sin este
+  // guardado el último minuto de escritura se pierde igual.
+  useEffect(() => {
+    if (loading || graded) return;
+    const guardarYa = () => guardarBorradorLocal(claveBorradorTaller, answersRef.current);
+    window.addEventListener("beforeunload", guardarYa);
+    return () => {
+      window.removeEventListener("beforeunload", guardarYa);
+      guardarYa();
+    };
+  }, [loading, graded, claveBorradorTaller]);
+
   // Escenarios de red parseados y ESTABLES (memoizados por questions) — pasar
   // un objeto nuevo en cada render reiniciaría la NetworkConsole (su init está
   // keyed por identidad del scenario).
@@ -2537,6 +2590,8 @@ export function StudentWorkshopTaker({
       // NULL — no hay marcador que escribir, y el navegador del alumno no
       // podría escribirlo aunque quisiéramos (candado de la cabecera).
       setGraded({ grade: null, breakdown });
+      // Entregado: el borrador local ya no representa nada pendiente.
+      borrarBorradorLocal(claveBorradorTaller);
       // El aviso NO puede ser solo "Por calificar": ahora la nota nunca
       // aparece en esta pantalla, y ese rótulo suelto se lee como si algo
       // hubiera fallado. Tiene que decir las dos cosas que el alumno necesita
