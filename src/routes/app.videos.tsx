@@ -85,10 +85,11 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
   matchesMaterialStatus,
   DEFAULT_MATERIAL_STATUS_FILTER,
-  type MaterialStatusFilter,
+  type MaterialStatusValue,
 } from "@/shared/lib/material-status";
 import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 import i18n from "@/i18n";
@@ -210,9 +211,7 @@ function VideoLibrary() {
   // cursos NO finalizados (+ globales sin curso). Los videos de cursos
   // FINALIZADOS pasan a "cerrados" y se ocultan por defecto. course_id null
   // (Global / catálogo) nunca se considera cerrado. Ver material-status.ts.
-  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusFilter>(
-    DEFAULT_MATERIAL_STATUS_FILTER,
-  );
+  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusValue[]>([...DEFAULT_MATERIAL_STATUS_FILTER]);
   const [courses, setCourses] = useState<CourseOption[]>([]);
   // Tenants — solo el SuperAdmin ve la lista. La RLS acota a 1 para
   // Admin/Docente normal y el filtro UI no se renderiza.
@@ -220,7 +219,7 @@ function VideoLibrary() {
   // Filtro por institución para SuperAdmin. "all" = sin filtro,
   // "global" = solo videos del catálogo global (tenant_id NULL),
   // <uuid> = solo videos de ese tenant.
-  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenantFilter, setTenantFilter] = useState<string[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   // Deep-link `?video=<id>` (ej. desde un #-tag en mensajes): resalta la fila.
@@ -243,8 +242,20 @@ function VideoLibrary() {
     // Filtro server-side por institución (solo SuperAdmin). "global"
     // mapea a `tenant_id IS NULL` (catálogo cross-tenant); un UUID
     // específico a `.eq("tenant_id", X)`. "all" = sin filtro.
-    if (isSuperAdminActive && tenantFilter !== "all") {
-      q = tenantFilter === "global" ? q.is("tenant_id", null) : q.eq("tenant_id", tenantFilter);
+    if (isSuperAdminActive && tenantFilter.length > 0) {
+      // "global" es la etiqueta del catálogo cross-tenant (`tenant_id IS NULL`);
+      // el resto son UUID de institución. Con ambos marcados hay que combinar el
+      // `is null` con el `in (...)` en un solo `.or()` — PostgREST no acepta dos
+      // filtros sobre la misma columna encadenados con AND implícito.
+      const incluyeGlobal = tenantFilter.includes("global");
+      const uuids = tenantFilter.filter((x) => x !== "global");
+      if (incluyeGlobal && uuids.length > 0) {
+        q = q.or(`tenant_id.is.null,tenant_id.in.(${uuids.join(",")})`);
+      } else if (incluyeGlobal) {
+        q = q.is("tenant_id", null);
+      } else {
+        q = q.in("tenant_id", uuids);
+      }
     }
     const { data, error } = await q;
     if (error) {
@@ -355,7 +366,7 @@ function VideoLibrary() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:videos",
-    resetKey: `${search}|${filterCourseId.join(",")}|${materialStatusFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${filterCourseId.join(",")}|${materialStatusFilter.join(",")}|${tenantFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -799,20 +810,16 @@ function VideoLibrary() {
             filtro se aplica server-side en `load()` para que la RLS
             cross-tenant del SuperAdmin no traiga toda la base. */}
         {isSuperAdminActive && tenants.length > 0 && (
-          <Select value={tenantFilter} onValueChange={setTenantFilter}>
-            <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
-              <SelectValue placeholder={t("videos.institutionPlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("videos.allInstitutions")}</SelectItem>
-              <SelectItem value="global">{t("videos.globalPlatform")}</SelectItem>
-              {tenants.map((tn) => (
-                <SelectItem key={tn.id} value={tn.id}>
-                  {tn.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            opciones={[
+              { value: "global", label: t("videos.globalPlatform") },
+              ...tenants.map((tn) => ({ value: tn.id, label: tn.name })),
+            ]}
+            seleccion={tenantFilter}
+            onChange={setTenantFilter}
+            etiquetaTodos={t("videos.allInstitutions")}
+            triggerClassName="w-full sm:w-56 h-9 text-xs"
+          />
         )}
       </div>
 
@@ -866,7 +873,8 @@ function VideoLibrary() {
                       const filterActive =
                         !!search ||
                         filterCourseId.length > 0 ||
-                        materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
+                        (materialStatusFilter.length !== DEFAULT_MATERIAL_STATUS_FILTER.length ||
+                        materialStatusFilter.some((v) => !DEFAULT_MATERIAL_STATUS_FILTER.includes(v)));
                       const noMatch = filterActive && rows.length > 0;
                       return (
                         <TableEmpty

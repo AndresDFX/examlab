@@ -43,6 +43,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
+import { coincideAlgunFiltro } from "@/shared/lib/filtro-multiple";
 import {
   Table,
   TableBody,
@@ -367,7 +369,7 @@ function AdminUsers() {
   // Filtro por rol — "all" muestra todos. Si el rol elegido es
   // SuperAdmin pero el caller no lo tiene, el Select no muestra esa
   // opción (filtered abajo en el render).
-  const [roleFilter, setRoleFilter] = useState<"all" | AppRole>("all");
+  const [roleFilter, setRoleFilter] = useState<AppRole[]>([]);
   const [activeFilter, setActiveFilter] = useState<"all" | "active" | "inactive">("all");
   const filteredRows = useMemo(() => {
     let out = rows;
@@ -381,8 +383,8 @@ function AdminUsers() {
           r.roles.some((role) => role.toLowerCase().includes(q)),
       );
     }
-    if (roleFilter !== "all") {
-      out = out.filter((r) => r.roles.includes(roleFilter));
+    if (roleFilter.length > 0) {
+      out = out.filter((r) => coincideAlgunFiltro(roleFilter, r.roles));
     }
     if (activeFilter !== "all") {
       // is_active nullish ⇒ activo (compat con filas pre-migración).
@@ -423,7 +425,7 @@ function AdminUsers() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_users",
-    resetKey: `${search}|${roleFilter}|${activeFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${roleFilter.join(",")}|${activeFilter}|${tenantFilter}|${sort.resetKey}`,
   });
 
   // Stats 4-card sobre los usuarios visibles al caller. Se calcula
@@ -1973,19 +1975,16 @@ function AdminUsers() {
             institución (todos AND). El SuperAdmin se filtra del listado
             si el caller no tiene ese rol, para que un Admin común no
             vea una opción que su RLS nunca le mostraría. */}
-        <Select value={roleFilter} onValueChange={(v) => setRoleFilter(v as "all" | AppRole)}>
-          <SelectTrigger className="sm:w-44">
-            <SelectValue placeholder={t("adminUsers.filterRolePlaceholder")} />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">{t("adminUsers.filterRoleAll")}</SelectItem>
-            {ALL_ROLES.filter((r) => r !== "SuperAdmin" || isSuperAdminCaller).map((r) => (
-              <SelectItem key={r} value={r}>
-                {r}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          opciones={ALL_ROLES.filter((r) => r !== "SuperAdmin" || isSuperAdminCaller).map((r) => ({
+            value: r,
+            label: r,
+          }))}
+          seleccion={roleFilter}
+          onChange={(v) => setRoleFilter(v as AppRole[])}
+          etiquetaTodos={t("adminUsers.filterRoleAll")}
+          triggerClassName="sm:w-44"
+        />
         {/* Filtro por estado de cuenta (activo/inactivo). */}
         <Select
           value={activeFilter}

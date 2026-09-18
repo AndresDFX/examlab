@@ -1,54 +1,42 @@
 /**
- * Select de filtro por estado para los grids de actividades del docente
- * (exámenes, talleres, proyectos). Se pasa al slot `extra` de `ListFilters`.
+ * Filtro por estado (selección MÚLTIPLE) para los grids de actividades del
+ * docente (exámenes, talleres, proyectos, pizarras). Se pasa al slot `extra`
+ * de `ListFilters`.
  *
- * Default = "Activos" (activos + borradores; oculta cerrados). Ver
- * [status-filter.ts](src/shared/lib/status-filter.ts) para la regla.
+ * Default = borradores + publicados (oculta cerrados). Ver
+ * [status-filter.ts](src/shared/lib/status-filter.ts) para la regla del
+ * default no-vacío y la semántica de "Todos".
  */
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useTranslation } from "react-i18next";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
-  ACTIVITY_STATUS_OPTIONS,
-  type ActivityStatusFilter,
+  ACTIVITY_STATUS_VALUES,
+  type ActivityStatusValue,
 } from "@/shared/lib/status-filter";
-
-/** Etiqueta por opción. Se resuelven con `t()` dentro del componente. */
-const LABEL_KEY: Record<ActivityStatusFilter, { key: string; es: string }> = {
-  activos: { key: "activityStatus.activos", es: "Activos y borradores" },
-  borradores: { key: "activityStatus.borradores", es: "Solo borradores" },
-  publicados: { key: "activityStatus.publicados", es: "Solo publicados" },
-  cerrados: { key: "activityStatus.cerrados", es: "Cerrados" },
-  todos: { key: "activityStatus.todos", es: "Todos" },
-};
 
 export function ActivityStatusSelect({
   value,
   onChange,
 }: {
-  value: ActivityStatusFilter;
-  onChange: (v: ActivityStatusFilter) => void;
+  value: readonly ActivityStatusValue[];
+  onChange: (v: ActivityStatusValue[]) => void;
 }) {
   const { t } = useTranslation();
+  const labelByValue: Record<ActivityStatusValue, { key: string; es: string }> = {
+    borradores: { key: "activityStatus.optBorradores", es: "Borradores" },
+    publicados: { key: "activityStatus.optPublicados", es: "Publicados" },
+    cerrados: { key: "activityStatus.cerrados", es: "Cerrados" },
+  };
   return (
-    <Select value={value} onValueChange={(v) => onChange(v as ActivityStatusFilter)}>
-      <SelectTrigger className="w-full sm:w-44">
-        <SelectValue />
-      </SelectTrigger>
-      <SelectContent>
-        {/* Se generan desde ACTIVITY_STATUS_OPTIONS: agregar un estado es una
-            línea en status-filter.ts, no tocar este componente ni los 4 grids. */}
-        {ACTIVITY_STATUS_OPTIONS.map((opt) => (
-          <SelectItem key={opt} value={opt}>
-            {t(LABEL_KEY[opt].key, { defaultValue: LABEL_KEY[opt].es })}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
+    <MultiSelectFilter
+      opciones={ACTIVITY_STATUS_VALUES.map((v) => ({
+        value: v,
+        label: t(labelByValue[v].key, { defaultValue: labelByValue[v].es }),
+      }))}
+      seleccion={value}
+      onChange={(v) => onChange(v as ActivityStatusValue[])}
+      etiquetaTodos={t("activityStatus.filtroTodos", { defaultValue: "Todos los estados" })}
+      triggerClassName="w-full sm:w-44"
+    />
   );
 }

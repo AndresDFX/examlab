@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { anyCourseInScope, courseIdsInScope, itemInScope } from "./course-filter-scope";
+import {
+  anyCourseInScope,
+  courseIdsInScope,
+  courseIdsInScopeMulti,
+  itemInScope,
+} from "./course-filter-scope";
 
 /**
  * Lo que estos tests protegen es UNA distinción: `null` (no hay filtro) vs el
@@ -47,6 +52,49 @@ describe("courseIdsInScope", () => {
     expect(courseIdsInScope(CURSOS, null, "Programación II")?.has("sin-asignatura")).toBe(false);
     // Pero por periodo sí entra.
     expect(courseIdsInScope(CURSOS, "2026-1", null)?.has("sin-asignatura")).toBe(true);
+  });
+});
+
+describe("courseIdsInScopeMulti", () => {
+  it("listas vacías = null (no hay filtro), NO conjunto vacío", () => {
+    expect(courseIdsInScopeMulti(CURSOS, [], [])).toBeNull();
+  });
+
+  it("varios periodos: unión dentro de la dimensión periodo", () => {
+    expect(courseIdsInScopeMulti(CURSOS, ["2026-1", "2026-2"], [])).toEqual(
+      new Set(["arq", "bd2", "prog-viejo", "prog", "sin-asignatura"]),
+    );
+  });
+
+  it("varias asignaturas: unión dentro de la dimensión asignatura", () => {
+    expect(courseIdsInScopeMulti(CURSOS, [], ["Arquitectura", "Programación II"])).toEqual(
+      new Set(["arq", "prog-viejo", "prog"]),
+    );
+  });
+
+  it("combina dimensiones: AND entre periodo y asignatura, OR dentro de cada una", () => {
+    expect(
+      courseIdsInScopeMulti(CURSOS, ["2026-2"], ["Arquitectura", "Programación II"]),
+    ).toEqual(new Set(["arq", "prog"]));
+  });
+
+  it("una combinación sin cursos devuelve conjunto VACÍO, no null", () => {
+    const r = courseIdsInScopeMulti(CURSOS, ["2026-1"], ["Arquitectura"]);
+    expect(r).not.toBeNull();
+    expect(r?.size).toBe(0);
+  });
+
+  it("un curso sin asignatura queda fuera al filtrar por asignatura", () => {
+    expect(
+      courseIdsInScopeMulti(CURSOS, [], ["Programación II"])?.has("sin-asignatura"),
+    ).toBe(false);
+  });
+
+  it("courseIdsInScope (valor único) es equivalente a la múltiple con una lista de a uno", () => {
+    expect(courseIdsInScope(CURSOS, "2026-2", "Programación II")).toEqual(
+      courseIdsInScopeMulti(CURSOS, ["2026-2"], ["Programación II"]),
+    );
+    expect(courseIdsInScope(CURSOS, null, null)).toEqual(courseIdsInScopeMulti(CURSOS, [], []));
   });
 });
 

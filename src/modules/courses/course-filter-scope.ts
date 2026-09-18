@@ -8,6 +8,13 @@
  * que se lee como que el filtro está roto. Y el bug es fácil de repetir en cada
  * grid, así que la regla vive en un solo lugar.
  *
+ * ── Dos formas: múltiple (grids) y de valor único (vistas de detalle) ──
+ * Los grids del docente filtran por VARIOS periodos/asignaturas a la vez
+ * (`courseIdsInScopeMulti`). Los selectores de vista de detalle (estadísticas,
+ * gradebook, banco de preguntas, asistencia) siguen eligiendo UN periodo y UNA
+ * asignatura para acotar el curso que se está mirando: para esos está
+ * `courseIdsInScope`, que es un azúcar de valor único sobre la múltiple.
+ *
  * Es una función PURA para poder testear el caso que importa (`null` ≠ conjunto
  * vacío) sin montar la pantalla.
  */
@@ -19,29 +26,45 @@ export interface CourseScopeRow {
 }
 
 /**
- * Ids de los cursos que cumplen el periodo y la asignatura seleccionados.
+ * Ids de los cursos que cumplen ALGUNO de los periodos y ALGUNA de las
+ * asignaturas seleccionados. Cada dimensión filtra por separado (periodo AND
+ * asignatura), pero dentro de una dimensión basta con coincidir con cualquiera
+ * de los valores marcados.
  *
- * Devuelve **`null` cuando no hay ningún filtro activo**, y eso NO es lo mismo
- * que un conjunto vacío: `null` significa "no acotes nada" y el conjunto vacío
- * significa "ningún curso cumple, la tabla va vacía". Confundirlos es el mismo
- * error que documenta `course-scope.ts` con los `[]` de PostgREST: tratar
- * "sin filtro" como "sin resultados" esconde toda la tabla, y tratar "sin
- * resultados" como "sin filtro" la muestra entera. Por eso el caller debe
- * chequear `!== null` antes de usarlo.
+ * Devuelve **`null` cuando no hay ningún filtro activo** (ambas listas vacías), y
+ * eso NO es lo mismo que un conjunto vacío: `null` significa "no acotes nada" y
+ * el conjunto vacío significa "ningún curso cumple, la tabla va vacía".
+ * Confundirlos es el mismo error que documenta `course-scope.ts` con los `[]` de
+ * PostgREST. Por eso el caller debe chequear `!== null` antes de usarlo.
+ */
+export function courseIdsInScopeMulti(
+  courses: readonly CourseScopeRow[],
+  periods: readonly string[],
+  subjects: readonly string[],
+): Set<string> | null {
+  const periodSet = periods.length > 0 ? new Set(periods) : null;
+  const subjectSet = subjects.length > 0 ? new Set(subjects) : null;
+  if (!periodSet && !subjectSet) return null;
+  const out = new Set<string>();
+  for (const c of courses) {
+    if (periodSet && !(c.period != null && periodSet.has(c.period))) continue;
+    if (subjectSet && !(c.subject != null && subjectSet.has(c.subject))) continue;
+    out.add(c.id);
+  }
+  return out;
+}
+
+/**
+ * Variante de VALOR ÚNICO (un periodo, una asignatura), para los selectores de
+ * vista de detalle que siguen eligiendo uno de cada. Es azúcar sobre la
+ * múltiple: `null`/`""`/`undefined` = esa dimensión no filtra.
  */
 export function courseIdsInScope(
   courses: readonly CourseScopeRow[],
   period: string | null | undefined,
   subject: string | null | undefined,
 ): Set<string> | null {
-  if (!period && !subject) return null;
-  const out = new Set<string>();
-  for (const c of courses) {
-    if (period && c.period !== period) continue;
-    if (subject && c.subject !== subject) continue;
-    out.add(c.id);
-  }
-  return out;
+  return courseIdsInScopeMulti(courses, period ? [period] : [], subject ? [subject] : []);
 }
 
 /**

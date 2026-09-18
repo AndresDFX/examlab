@@ -4,10 +4,14 @@
  * "cerrado" cuando su curso relacionado está FINALIZADO
  * (`deriveCourseDisplayState(...) === "finalizado"`).
  *
- * Regla de UX (paralela a status-filter.ts para actividades): por DEFECTO
- * ("activos") se ve el material de cursos NO finalizados (borradores, próximos
- * y en curso); el material de cursos finalizados no se ve hasta que el usuario
- * cambia el filtro a "Cerrados" o "Todos".
+ * ── Selección MÚLTIPLE, con un default NO vacío ───────────────────────
+ * Paralelo a status-filter.ts: el filtro es un menú de casillas y la semántica
+ * central la fija `filtro-multiple.ts` (**vacío = sin filtrar = todo**). El
+ * estado derivado es binario (activo / cerrado), así que las opciones marcables
+ * son solo esas dos; marcar ambas equivale a "todos". El default es `["activos"]`
+ * (oculta el material de cursos finalizados) y NO `[]`, porque vacío mostraría
+ * también los cerrados. "Limpiar" restaura ese default; el item "Todos" del menú
+ * es el "mostrar todo" explícito.
  *
  * Material sin curso relacionado (`course_id = null` — contenido/video global,
  * reutilizable, catálogo de plataforma) NUNCA se considera cerrado: siempre
@@ -20,11 +24,16 @@ import {
   deriveCourseDisplayState,
   type CourseLifecycleShape,
 } from "@/modules/courses/course-status";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 
-export type MaterialStatusFilter = "activos" | "cerrados" | "todos";
+/** Los dos estados atómicos derivados del curso. */
+export type MaterialStatusValue = "activos" | "cerrados";
 
-/** Estado inicial del filtro: material de cursos no finalizados (oculta cerrados). */
-export const DEFAULT_MATERIAL_STATUS_FILTER: MaterialStatusFilter = "activos";
+/** Opciones marcables, en orden de presentación. */
+export const MATERIAL_STATUS_VALUES: readonly MaterialStatusValue[] = ["activos", "cerrados"];
+
+/** Estado inicial: material de cursos no finalizados (oculta cerrados). NO `[]`. */
+export const DEFAULT_MATERIAL_STATUS_FILTER: readonly MaterialStatusValue[] = ["activos"];
 
 /**
  * `true` si el curso relacionado con este material está FINALIZADO → su
@@ -43,19 +52,24 @@ export function isMaterialClosed(
   return deriveCourseDisplayState(course, now) === "finalizado";
 }
 
+/** A qué opción atómica pertenece el material de este curso. */
+export function materialStatusValue(
+  courseId: string | null | undefined,
+  courseStatusById: Map<string, CourseLifecycleShape>,
+  now: number,
+): MaterialStatusValue {
+  return isMaterialClosed(courseId, courseStatusById, now) ? "cerrados" : "activos";
+}
+
 /**
- * `true` si un item de material atado a `courseId` debe verse bajo `filter`.
- *   • `activos`  → material de cursos NO finalizados (+ global) — DEFAULT.
- *   • `cerrados` → solo material de cursos finalizados.
- *   • `todos`    → todo.
+ * `true` si un item de material atado a `courseId` debe verse bajo la selección.
+ * Sin nada marcado pasa todo (regla de `filtro-multiple.ts`).
  */
 export function matchesMaterialStatus(
   courseId: string | null | undefined,
   courseStatusById: Map<string, CourseLifecycleShape>,
-  filter: MaterialStatusFilter,
+  seleccion: readonly MaterialStatusValue[],
   now: number,
 ): boolean {
-  if (filter === "todos") return true;
-  const closed = isMaterialClosed(courseId, courseStatusById, now);
-  return filter === "cerrados" ? closed : !closed;
+  return coincideFiltro(seleccion, materialStatusValue(courseId, courseStatusById, now));
 }

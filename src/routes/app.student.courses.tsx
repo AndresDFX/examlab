@@ -77,9 +77,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import {
   DEFAULT_MATERIAL_STATUS_FILTER,
-  type MaterialStatusFilter,
+  type MaterialStatusValue,
 } from "@/shared/lib/material-status";
 import { deriveCourseDisplayState } from "@/modules/courses/course-status";
 import {
@@ -230,9 +231,7 @@ function StudentCourses() {
   // los FINALIZADOS (y todo su material) se ocultan de la vista activa y
   // quedan accesibles en "Cerrados"/"Todos". El estado se deriva del curso
   // (courses.status) — mismo criterio que el grid docente de cursos.
-  const [statusFilter, setStatusFilter] = useState<MaterialStatusFilter>(
-    DEFAULT_MATERIAL_STATUS_FILTER,
-  );
+  const [statusFilter, setStatusFilter] = useState<MaterialStatusValue[]>([...DEFAULT_MATERIAL_STATUS_FILTER]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -316,10 +315,10 @@ function StudentCourses() {
     // Estado del curso: por defecto oculta los finalizados (y con ellos
     // todo su material del tablero). "cerrados" muestra solo finalizados;
     // "todos" no filtra.
-    if (statusFilter !== "todos") {
+    if (statusFilter.length > 0) {
       base = base.filter((c) => {
         const finalized = deriveCourseDisplayState(c, now) === "finalizado";
-        return statusFilter === "cerrados" ? finalized : !finalized;
+        return coincideFiltro(statusFilter, finalized ? "cerrados" : "activos");
       });
     }
     const arr = base.slice();
@@ -351,7 +350,7 @@ function StudentCourses() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_courses",
-    resetKey: `${search}|${sortMode}|${statusFilter}`,
+    resetKey: `${search}|${sortMode}|${statusFilter.join(",")}`,
   });
 
   if (loading) {
@@ -428,13 +427,13 @@ function StudentCourses() {
       {filteredCourses.length === 0 ? (
         <EmptyState
           text={
-            (search.trim() || statusFilter !== DEFAULT_MATERIAL_STATUS_FILTER) &&
+            (search.trim() || (statusFilter.length !== DEFAULT_MATERIAL_STATUS_FILTER.length || statusFilter.some((v) => !DEFAULT_MATERIAL_STATUS_FILTER.includes(v)))) &&
             courses.length > 0
               ? t("hc_routesAppStudentCourses.noMatches")
               : t("courseBoard.noEnrollments")
           }
           hint={
-            (search.trim() || statusFilter !== DEFAULT_MATERIAL_STATUS_FILTER) &&
+            (search.trim() || (statusFilter.length !== DEFAULT_MATERIAL_STATUS_FILTER.length || statusFilter.some((v) => !DEFAULT_MATERIAL_STATUS_FILTER.includes(v)))) &&
             courses.length > 0
               ? t("hc_routesAppStudentCourses.noMatchesHint")
               : undefined

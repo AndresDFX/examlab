@@ -422,6 +422,10 @@ function TeacherAttendance() {
    */
   const [checkInClosesTouched, setCheckInClosesTouched] = useState(false);
   const [checkInRotation, setCheckInRotation] = useState<number>(ATTENDANCE_CODE_ROTATION_DEFAULT);
+  /** Lo que se está escribiendo en el campo, en MINUTOS. Ver el input. */
+  const [rotacionTexto, setRotacionTexto] = useState<string>(
+    String(Math.round(ATTENDANCE_CODE_ROTATION_DEFAULT / 60)),
+  );
   /**
    * ¿La rotación pedida se va a normalizar a código FIJO?
    *
@@ -1733,6 +1737,7 @@ function TeacherAttendance() {
     setCheckInClosesAt(w.closesAt);
     setCheckInClosesTouched(false);
     setCheckInRotation(ATTENDANCE_CODE_ROTATION_DEFAULT);
+    setRotacionTexto(String(Math.round(ATTENDANCE_CODE_ROTATION_DEFAULT / 60)));
     setCheckInEmailOnly(false);
     // Se PRE-CARGA el requisito que la sesion ya tenga: la RPC escribe lo que
     // recibe, asi que arrancar en blanco lo BORRARIA al reabrir el check-in.
@@ -1794,6 +1799,9 @@ function TeacherAttendance() {
     // ajuste la apertura ni se muestra.
     setCheckInClosesTouched(true);
     setCheckInRotation(row.rotation_seconds);
+    setRotacionTexto(
+      row.rotation_seconds === 0 ? "0" : String(Math.round(row.rotation_seconds / 60)),
+    );
     setCheckInEmailOnly(row.email_only);
     // Mismo gate que al abrir: hasta que se lea lo que la sesión YA tiene, no se
     // manda arreglo de requisitos (mandar uno vacío los borraría).
@@ -3348,21 +3356,35 @@ function TeacherAttendance() {
               </Label>
               {/* 0 = código FIJO toda la ventana. No se clampea hacia arriba a
                   15: escribir 0 ES la forma de pedir el modo fijo. */}
+              {/* El campo está en MINUTOS y el estado sigue en segundos, que es lo
+                  que guarda la columna.
+
+                  Y el texto se mantiene aparte a propósito: antes el valor se
+                  clampeaba en CADA tecla, así que escribir «5» lo convertía en
+                  el mínimo y el siguiente dígito construía otro número. Tipear
+                  500 daba 1500 — no era un tope, era que no se podía escribir.
+                  El clamp corre al salir del campo, cuando el número ya está
+                  completo. */}
               <Input
                 type="number"
                 min={0}
-                value={checkInRotation === 0 ? "0" : checkInRotation || ""}
-                onChange={(e) => {
-                  const n = e.target.value === "" ? 0 : Number(e.target.value);
-                  if (!Number.isFinite(n)) return;
-                  // 0 = fijo (no se sube a 15: escribir 0 ES pedir el modo fijo).
-                  // Sin tope de negocio; el clamp con ATTENDANCE_CODE_ROTATION_MAX
-                  // es solo el techo del tipo `int` de la columna.
-                  setCheckInRotation(
-                    n <= 0
-                      ? 0
-                      : Math.max(15, Math.min(ATTENDANCE_CODE_ROTATION_MAX, Math.round(n))),
+                value={rotacionTexto}
+                onChange={(e) => setRotacionTexto(e.target.value)}
+                onBlur={() => {
+                  const min = rotacionTexto.trim() === "" ? 0 : Number(rotacionTexto);
+                  if (!Number.isFinite(min) || min <= 0) {
+                    // 0 = código FIJO toda la ventana. Escribirlo ES pedir ese
+                    // modo, así que no se sube al mínimo.
+                    setCheckInRotation(0);
+                    setRotacionTexto("0");
+                    return;
+                  }
+                  const segundos = Math.min(
+                    ATTENDANCE_CODE_ROTATION_MAX,
+                    Math.max(60, Math.round(min) * 60),
                   );
+                  setCheckInRotation(segundos);
+                  setRotacionTexto(String(Math.round(segundos / 60)));
                 }}
               />
               {checkInRotation === 0 ? (

@@ -1,7 +1,9 @@
 import { describe, it, expect } from "vitest";
 import {
   isMaterialClosed,
+  materialStatusValue,
   matchesMaterialStatus,
+  MATERIAL_STATUS_VALUES,
   DEFAULT_MATERIAL_STATUS_FILTER,
 } from "./material-status";
 import type { CourseLifecycleShape } from "@/modules/courses/course-status";
@@ -13,8 +15,9 @@ function mapOf(entries: Record<string, CourseLifecycleShape>): Map<string, Cours
 }
 
 describe("material-status", () => {
-  it("default filter is 'activos'", () => {
-    expect(DEFAULT_MATERIAL_STATUS_FILTER).toBe("activos");
+  it("default filter oculta cerrados (no es vacío)", () => {
+    expect([...DEFAULT_MATERIAL_STATUS_FILTER]).toEqual(["activos"]);
+    expect([...MATERIAL_STATUS_VALUES]).toEqual(["activos", "cerrados"]);
   });
 
   describe("isMaterialClosed", () => {
@@ -47,28 +50,34 @@ describe("material-status", () => {
     });
   });
 
-  describe("matchesMaterialStatus", () => {
+  describe("matchesMaterialStatus (selección múltiple)", () => {
     const courses = mapOf({
       fin: { status: "finalizado" },
       cur: { status: "en_curso" },
     });
 
-    it("'activos' shows non-finalized + global, hides finalized", () => {
-      expect(matchesMaterialStatus("cur", courses, "activos", NOW)).toBe(true);
-      expect(matchesMaterialStatus(null, courses, "activos", NOW)).toBe(true);
-      expect(matchesMaterialStatus("fin", courses, "activos", NOW)).toBe(false);
+    it("materialStatusValue mapea al estado atómico", () => {
+      expect(materialStatusValue("fin", courses, NOW)).toBe("cerrados");
+      expect(materialStatusValue("cur", courses, NOW)).toBe("activos");
+      expect(materialStatusValue(null, courses, NOW)).toBe("activos");
     });
 
-    it("'cerrados' shows only finalized", () => {
-      expect(matchesMaterialStatus("fin", courses, "cerrados", NOW)).toBe(true);
-      expect(matchesMaterialStatus("cur", courses, "cerrados", NOW)).toBe(false);
-      expect(matchesMaterialStatus(null, courses, "cerrados", NOW)).toBe(false);
+    it("default ['activos'] muestra no-finalizados + global, oculta finalizados", () => {
+      expect(matchesMaterialStatus("cur", courses, DEFAULT_MATERIAL_STATUS_FILTER, NOW)).toBe(true);
+      expect(matchesMaterialStatus(null, courses, DEFAULT_MATERIAL_STATUS_FILTER, NOW)).toBe(true);
+      expect(matchesMaterialStatus("fin", courses, DEFAULT_MATERIAL_STATUS_FILTER, NOW)).toBe(false);
     });
 
-    it("'todos' shows everything", () => {
-      expect(matchesMaterialStatus("fin", courses, "todos", NOW)).toBe(true);
-      expect(matchesMaterialStatus("cur", courses, "todos", NOW)).toBe(true);
-      expect(matchesMaterialStatus(null, courses, "todos", NOW)).toBe(true);
+    it("['cerrados'] muestra solo finalizados", () => {
+      expect(matchesMaterialStatus("fin", courses, ["cerrados"], NOW)).toBe(true);
+      expect(matchesMaterialStatus("cur", courses, ["cerrados"], NOW)).toBe(false);
+      expect(matchesMaterialStatus(null, courses, ["cerrados"], NOW)).toBe(false);
+    });
+
+    it("vacío = sin filtrar: muestra todo", () => {
+      expect(matchesMaterialStatus("fin", courses, [], NOW)).toBe(true);
+      expect(matchesMaterialStatus("cur", courses, [], NOW)).toBe(true);
+      expect(matchesMaterialStatus(null, courses, [], NOW)).toBe(true);
     });
   });
 });

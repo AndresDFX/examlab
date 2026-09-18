@@ -14,7 +14,7 @@ import { PageHeader } from "@/components/ui/page-header";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
 import { coincideAlgunFiltro, limpiarSeleccionInvalida } from "@/shared/lib/filtro-multiple";
-import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
+import { courseIdsInScopeMulti } from "@/modules/courses/course-filter-scope";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
 import { ModuleGuard } from "@/shared/components/ModuleGuard";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -114,8 +114,8 @@ function TeacherStudentsInner() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
   const [search, setSearch] = useState("");
-  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Varias acciones de esta pantalla (desmatricular, designar vocero, prellenar
   // el alta) necesitan UN curso concreto; con "todos" o varios marcados no hay
@@ -309,7 +309,7 @@ function TeacherStudentsInner() {
     // El alcance se calcula con el helper compartido (misma regla que los otros
     // grids), pero acá hay que traducir ids → NOMBRES: la fila del alumno guarda
     // los nombres de sus cursos, no los course_id.
-    const scope = courseIdsInScope(courses, periodFilter, subjectFilter);
+    const scope = courseIdsInScopeMulti(courses, periodFilter, subjectFilter);
     if (scope !== null) {
       const nombresEnAlcance = new Set(
         courses.filter((c) => scope.has(c.id)).map((c) => c.name),
@@ -359,7 +359,7 @@ function TeacherStudentsInner() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_students",
-    resetKey: `${search}|${courseFilter.join(",")}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${soloVoceros}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${soloVoceros}|${sort.resetKey}`,
   });
 
   // Nombre del curso filtrado, si hay uno puntual elegido. Es la referencia
@@ -437,10 +437,10 @@ function TeacherStudentsInner() {
         onCourseIdsChange={setCourseFilter}
         courses={courses}
         allLabel={t("teacherStudents.allCourses")}
-        period={periodFilter}
-        onPeriodChange={setPeriodFilter}
-        subject={subjectFilter}
-        onSubjectChange={setSubjectFilter}
+        periods={periodFilter}
+        onPeriodsChange={setPeriodFilter}
+        subjects={subjectFilter}
+        onSubjectsChange={setSubjectFilter}
         extra={
           <div className="flex items-center gap-2">
             <Button

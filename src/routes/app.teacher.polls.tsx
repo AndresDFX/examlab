@@ -40,7 +40,8 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DateCell } from "@/components/ui/date-cell";
 import { HelpHint } from "@/components/ui/help-hint";
 import { ListFilters } from "@/components/ui/list-filters";
-import { coincideAlgunFiltro } from "@/shared/lib/filtro-multiple";
+import { coincideAlgunFiltro, coincideFiltro } from "@/shared/lib/filtro-multiple";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
   resumirPendientes,
   type CursoEncuesta,
@@ -218,6 +219,8 @@ const visLabel = (vis: ResultsVis): string =>
     never: i18n.t("teacherPolls.visNever"),
   })[vis];
 
+type PollStatusValue = "abiertas" | "cerradas";
+
 function pollIsOpen(p: Poll): boolean {
   if (p.closed_manually) return false;
   const now = Date.now();
@@ -245,8 +248,8 @@ function TeacherPolls() {
   >([]);
   // Filtros de nivel superior periodo/asignatura — ListFilters los usa para
   // acotar las opciones del Select de curso.
-  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -255,15 +258,13 @@ function TeacherPolls() {
   // Filtro de estado del grid: por defecto "abiertas" (oculta las cerradas,
   // incl. las que el cascade cerró al finalizar el curso). Paridad con los
   // demás grids docentes (que ocultan lo cerrado por defecto).
-  const [pollStatusFilter, setPollStatusFilter] = useState<"abiertas" | "cerradas" | "todas">(
-    "abiertas",
-  );
+  const [pollStatusFilter, setPollStatusFilter] = useState<PollStatusValue[]>(["abiertas"]);
   // SuperAdmin cross-tenant: filtro por institución que acota la query
   // de cursos al tenant elegido. Si NO está activo o está en "all", la
   // RLS deja al SuperAdmin ver cross-tenant. Mismo patrón que en
   // /app/teacher/contents y /app/admin/courses.
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
-  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenantFilter, setTenantFilter] = useState<string[]>([]);
   // Dialog state — crear / editar.
   const [dialogOpen, setDialogOpen] = useState(false);
   // editPoll != null → el dialog opera en modo edición (hidrata desde
@@ -334,8 +335,8 @@ function TeacherPolls() {
           .select("id, name, status, period, academic_subjects:subject_id(name)")
           .is("deleted_at", null)
           .order("name");
-        if (tenantFilter !== "all") {
-          courseQuery = courseQuery.eq("tenant_id", tenantFilter);
+        if (tenantFilter.length > 0) {
+          courseQuery = courseQuery.in("tenant_id", tenantFilter);
         }
         const { data: courseRows, error: courseErr } = await courseQuery;
         if (cancelled) return;
@@ -538,9 +539,10 @@ function TeacherPolls() {
     );
     // Filtro de estado abierta/cerrada (default "abiertas" → oculta las
     // cerradas, p.ej. las que cerró el cascade al finalizar el curso).
-    if (pollStatusFilter !== "todas") {
-      const wantOpen = pollStatusFilter === "abiertas";
-      arr = arr.filter((p) => pollIsOpen(p) === wantOpen);
+    if (pollStatusFilter.length > 0) {
+      arr = arr.filter((p) =>
+        coincideFiltro(pollStatusFilter, pollIsOpen(p) ? "abiertas" : "cerradas"),
+      );
     }
     return arr;
   }, [polls, search, courseFilter, pollStatusFilter]);
@@ -602,7 +604,7 @@ function TeacherPolls() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_polls",
-    resetKey: `${search}|${courseFilter.join(",")}|${pollStatusFilter}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${pollStatusFilter.join(",")}|${tenantFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Stats compactas — mismo patrón que proyectos / talleres / exámenes.
@@ -1117,48 +1119,33 @@ function TeacherPolls() {
         onCourseIdsChange={setCourseFilter}
         courses={coursesConConteo}
         allLabel={t("teacherPolls.allCourses")}
-        period={periodFilter}
-        onPeriodChange={setPeriodFilter}
-        subject={subjectFilter}
-        onSubjectChange={setSubjectFilter}
-        onClearExtra={() => setPollStatusFilter("abiertas")}
+        periods={periodFilter}
+        onPeriodsChange={setPeriodFilter}
+        subjects={subjectFilter}
+        onSubjectsChange={setSubjectFilter}
+        onClearExtra={() => setPollStatusFilter(["abiertas"])}
         extra={
           <>
-            <Select
-              value={pollStatusFilter}
-              onValueChange={(v) => setPollStatusFilter(v as "abiertas" | "cerradas" | "todas")}
-            >
-              <SelectTrigger className="w-full sm:w-40 h-9 text-xs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="abiertas">
-                  {t("teacherPolls.filterOpen", { defaultValue: "Abiertas" })}
-                </SelectItem>
-                <SelectItem value="cerradas">
-                  {t("teacherPolls.filterClosed", { defaultValue: "Cerradas" })}
-                </SelectItem>
-                <SelectItem value="todas">
-                  {t("teacherPolls.filterAll", { defaultValue: "Todas" })}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              opciones={[
+                { value: "abiertas", label: t("teacherPolls.filterOpen", { defaultValue: "Abiertas" }) },
+                { value: "cerradas", label: t("teacherPolls.filterClosed", { defaultValue: "Cerradas" }) },
+              ]}
+              seleccion={pollStatusFilter}
+              onChange={(v) => setPollStatusFilter(v as PollStatusValue[])}
+              etiquetaTodos={t("teacherPolls.filterAllStatuses", { defaultValue: "Todos los estados" })}
+              triggerClassName="w-full sm:w-40 h-9 text-xs"
+            />
             {/* SuperAdmin cross-tenant: filtro por institución (acota la query de
                 cursos server-side vía useEffect deps). */}
             {isSuperAdminCaller && tenants.length > 0 && (
-              <Select value={tenantFilter} onValueChange={setTenantFilter}>
-                <SelectTrigger className="w-full sm:w-56 h-9 text-xs">
-                  <SelectValue placeholder={t("teacherPolls.institution")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">{t("teacherPolls.allInstitutions")}</SelectItem>
-                  {tenants.map((tn) => (
-                    <SelectItem key={tn.id} value={tn.id}>
-                      {tn.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <MultiSelectFilter
+                opciones={tenants.map((tn) => ({ value: tn.id, label: tn.name }))}
+                seleccion={tenantFilter}
+                onChange={setTenantFilter}
+                etiquetaTodos={t("teacherPolls.allInstitutions")}
+                triggerClassName="w-full sm:w-56 h-9 text-xs"
+              />
             )}
           </>
         }

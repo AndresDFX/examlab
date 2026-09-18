@@ -25,7 +25,7 @@ import {
   fetchScopedCourses,
   visibleForScopedCourses,
 } from "@/modules/courses/course-scope";
-import { courseIdsInScope, anyCourseInScope } from "@/modules/courses/course-filter-scope";
+import { courseIdsInScopeMulti, anyCourseInScope } from "@/modules/courses/course-filter-scope";
 import { PageLoader } from "@/components/ui/loaders";
 import { isStaffRole } from "@/shared/lib/roles";
 import { scoreCerradaMulti } from "@/modules/exams/question-scoring";
@@ -106,7 +106,7 @@ import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {
   matchesActivityStatus,
   DEFAULT_ACTIVITY_STATUS_FILTER,
-  type ActivityStatusFilter,
+  type ActivityStatusValue,
 } from "@/shared/lib/status-filter";
 import { StatCard } from "@/components/ui/stat-card";
 import { CheckCircle2, Lock, ExternalLink, Video, Upload, FileUp } from "lucide-react";
@@ -264,8 +264,8 @@ function TeacherProjects() {
   } | null>(null);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState<string[]>([]);
-  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
   // `courses` en vez de cambiar el tipo Course, que se usa en los formularios.
   const coursesForFilter = useMemo(
@@ -282,16 +282,14 @@ function TeacherProjects() {
   // Periodo/asignatura filtran la TABLA, no solo el Select de curso: acotar solo
   // las opciones dejaba la tabla completa y se lee como que el filtro no sirve.
   const filterScope = useMemo(
-    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    () => courseIdsInScopeMulti(coursesForFilter, periodFilter, subjectFilter),
     [coursesForFilter, periodFilter, subjectFilter],
   );
 
   const [cutFilter, setCutFilter] = useState<string | null>(null);
   // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
   // el filtro de estado a "Cerrados" o "Todos".
-  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
-    DEFAULT_ACTIVITY_STATUS_FILTER,
-  );
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusValue[]>([...DEFAULT_ACTIVITY_STATUS_FILTER]);
   // Proyectos filtrados por título, curso, corte y estado. A diferencia de
   // talleres/exámenes, un proyecto puede estar vinculado a N cursos
   // vía linked_course_ids — el match contra el filtro chequea esa
@@ -362,7 +360,7 @@ function TeacherProjects() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_projects",
-    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Export CSV de la lista filtrada — solo lectura. No soportamos import
@@ -2648,15 +2646,15 @@ function TeacherProjects() {
           setCutFilter(null);
         }}
         courses={coursesForFilter}
-        period={periodFilter}
-        onPeriodChange={setPeriodFilter}
-        subject={subjectFilter}
-        onSubjectChange={setSubjectFilter}
+        periods={periodFilter}
+        onPeriodsChange={setPeriodFilter}
+        subjects={subjectFilter}
+        onSubjectsChange={setSubjectFilter}
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
         extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
-        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
+        onClearExtra={() => setStatusFilter([...DEFAULT_ACTIVITY_STATUS_FILTER])}
       />
 
       <MultiSelectToolbar

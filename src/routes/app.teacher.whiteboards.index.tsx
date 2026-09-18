@@ -63,7 +63,7 @@ import { ActivityStatusSelect } from "@/shared/components/ActivityStatusSelect";
 import {
   matchesActivityStatus,
   DEFAULT_ACTIVITY_STATUS_FILTER,
-  type ActivityStatusFilter,
+  type ActivityStatusValue,
 } from "@/shared/lib/status-filter";
 import {
   Select,
@@ -140,16 +140,14 @@ function TeacherWhiteboards() {
   const [search, setSearch] = useState("");
   // Filtros de nivel superior periodo/asignatura — acotan las opciones del
   // Select de curso (ListFilters los maneja internamente).
-  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   // Filtro por curso del grid (mismo control que talleres/proyectos/exámenes
   // vía ListFilters). null = "Todos los cursos".
   const [courseFilter, setCourseFilter] = useState<string[]>([]);
   // Filtro de estado: por defecto "activos" (oculta las cerradas), igual que
   // exámenes/talleres/proyectos. Mismo helper compartido `matchesActivityStatus`.
-  const [statusFilter, setStatusFilter] = useState<ActivityStatusFilter>(
-    DEFAULT_ACTIVITY_STATUS_FILTER,
-  );
+  const [statusFilter, setStatusFilter] = useState<ActivityStatusValue[]>([...DEFAULT_ACTIVITY_STATUS_FILTER]);
   // Create dialog state.
   const [createOpen, setCreateOpen] = useState(false);
   const [draftName, setDraftName] = useState("");
@@ -420,7 +418,7 @@ function TeacherWhiteboards() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
-    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
@@ -851,12 +849,12 @@ function TeacherWhiteboards() {
         courseIds={courseFilter}
         onCourseIdsChange={setCourseFilter}
         courses={filterCourses}
-        period={periodFilter}
-        onPeriodChange={setPeriodFilter}
-        subject={subjectFilter}
-        onSubjectChange={setSubjectFilter}
+        periods={periodFilter}
+        onPeriodsChange={setPeriodFilter}
+        subjects={subjectFilter}
+        onSubjectsChange={setSubjectFilter}
         extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
-        onClearExtra={() => setStatusFilter(DEFAULT_ACTIVITY_STATUS_FILTER)}
+        onClearExtra={() => setStatusFilter([...DEFAULT_ACTIVITY_STATUS_FILTER])}
       />
 
       {/* Toolbar de bulk delete — solo se renderiza cuando hay items

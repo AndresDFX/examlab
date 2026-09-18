@@ -29,6 +29,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { ListFilters } from "@/components/ui/list-filters";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import {
   Table,
@@ -134,7 +135,7 @@ function CertificatesAdmin() {
   // course_ids del tenant elegido, luego `.in('course_id', ...)` en
   // la query de certificados. Para Admin normal el filtro no se
   // renderiza (RLS ya lo acota a su tenant).
-  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenantFilter, setTenantFilter] = useState<string[]>([]);
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   // Generar el PDF es client-side (jspdf + QR) y bloquea el hilo principal
   // varios segundos. Sin indicador el docente clickea otra vez y termina
@@ -188,11 +189,11 @@ function CertificatesAdmin() {
       // Filtro tenant del SuperAdmin: 2-step query porque certificates
       // no tiene tenant_id propio (vive en el course).
       let courseIdsFilter: string[] | null = null;
-      if (isSuperAdminCaller && tenantFilter !== "all") {
+      if (isSuperAdminCaller && tenantFilter.length > 0) {
         const { data: courseRows, error: coursesErr } = await db
           .from("courses")
           .select("id")
-          .eq("tenant_id", tenantFilter);
+          .in("tenant_id", tenantFilter);
         if (cancelled) return;
         if (coursesErr) {
           // Sin esto, un fallo acá se veía EXACTAMENTE igual que "el tenant
@@ -309,7 +310,7 @@ function CertificatesAdmin() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:certificates",
-    resetKey: `${search}|${filterCourseId.join(",")}|${showRevoked}|${tenantFilter}|${sort.resetKey}`,
+    resetKey: `${search}|${filterCourseId.join(",")}|${showRevoked}|${tenantFilter.join(",")}|${sort.resetKey}`,
   });
 
   const handleDownload = async (cert: CertificateRow) => {
@@ -460,7 +461,7 @@ function CertificatesAdmin() {
       />
 
       {/* Filtros: mismo patrón que talleres/proyectos/exámenes. */}
-      {!loading && (items.length > 0 || tenantFilter !== "all") && (
+      {!loading && (items.length > 0 || tenantFilter.length > 0) && (
         <div className="flex flex-wrap items-center gap-2">
           {/* Barra estándar búsqueda + curso (ListFilters). El filtro de
               institución (SuperAdmin) y el toggle "mostrar revocados" van en el
@@ -478,19 +479,13 @@ function CertificatesAdmin() {
             extra={
               <>
                 {isSuperAdminCaller && tenants.length > 0 && (
-                  <Select value={tenantFilter} onValueChange={setTenantFilter}>
-                    <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-                      <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
-                      {tenants.map((tn) => (
-                        <SelectItem key={tn.id} value={tn.id}>
-                          {tn.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <MultiSelectFilter
+                    opciones={tenants.map((tn) => ({ value: tn.id, label: tn.name }))}
+                    seleccion={tenantFilter}
+                    onChange={setTenantFilter}
+                    etiquetaTodos={t("tenant.filterAllTenants")}
+                    triggerClassName="w-full sm:w-48 h-9 text-xs"
+                  />
                 )}
                 <Button
                   variant={showRevoked ? "default" : "outline"}

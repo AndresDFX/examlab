@@ -1975,7 +1975,7 @@
     "cutSelectionHelp": "La sesión aporta a la nota de asistencia del corte que elijas. Si la dejas en \"Sin\nCorte\", quedará visible pero no contará para la nota. Puedes reasignarla después\ndesde la columna \"Corte\" de la tabla.",
     "recordingOptionsHelp": "Puedes pegar el enlace de la grabación (Meet, Teams, Zoom, Loom…), elegir un video\nde la biblioteca de la plataforma o ambos. Si subiste la grabación a la\nbiblioteca, el estudiante la verá embebida en la sesión; si es un enlace externo\nse mostrará como botón \"Ver grabación\".",
     "checkinDurationHelp": "Cuánto tiempo permanece abierta la ventana antes de cerrarse automáticamente. Entre 1 minuto y 24 horas (1440). Default 10 min; podés estirarla después sin invalidar el QR.",
-    "checkinRotationHelp": "Cada cuánto cambia el código de 6 dígitos. Mínimo 15 segundos y sin máximo. Con 0 el código no cambia nunca. Si pones una rotación más larga que la ventana, queda fijo igual que con 0. Más corto es más seguro; más largo le da tiempo a alguien de pasarle el código a quien no vino. Lo habitual es 60.",
+    "checkinRotationHelp": "Cada cuántos minutos cambia el código de seis dígitos. Escribí 0 para que el código sea FIJO durante toda la ventana. El mínimo es 1 minuto.",
     "rubricHelpCriteria": "Criterios para que la IA califique. Para tipos cerrada/multi no aplica.",
     "whiteboardCourseSharingHelp": "Al asociar la pizarra a un curso, los alumnos del curso podrán verla en modo solo-lectura cuando actives \"Compartir con alumnos\" desde la pizarra. Sin curso, la pizarra es privada (solo vos la ves).",
     "whiteboardSessionBindingHelp": "Si el curso tiene sesiones programadas, podés atar la pizarra a una específica para que aparezca en el contexto de esa clase. Podés tener varias pizarras por sesión.",
@@ -5955,7 +5955,8 @@
     "courseOpenCount_one": "{{count}} abierta",
     "courseOpenCount_other": "{{count}} abiertas",
     "courseClosedCount_one": "{{count}} cerrada",
-    "courseClosedCount_other": "{{count}} cerradas"
+    "courseClosedCount_other": "{{count}} cerradas",
+    "filterAllStatuses": "Todos los estados"
   },
   "sessionType": {
     "label": "Tipo de sesión",
@@ -5984,7 +5985,7 @@
     "classesLabel": "Clases",
     "classesResourceName": "clases",
     "classN": "Clase {{n}}",
-    "codeRotationLabel": "Rotación del código (segundos)",
+    "codeRotationLabel": "Rotación del código (minutos)",
     "configureCutContentTitle": "Configurar corte y contenido de la sesión",
     "contentFallback": "Contenido",
     "contentLabel": "Contenido",
@@ -6020,7 +6021,7 @@
     "errInvalidExtra": "El tiempo que querés agregar no es válido.",
     "errInvalidRange": "La hora de cierre debe ser posterior a la de apertura.",
     "errInvalidRequirement": "Uno de los requisitos no es válido. Volvé a elegirlo.",
-    "errInvalidRotation": "El código debe cambiar cada 15 segundos o más. Con 0 no cambia nunca.",
+    "errInvalidRotation": "El código debe cambiar cada 1 minuto o más. Con 0 no cambia nunca.",
     "errMaxWindow": "No se puede extender más: se alcanzó el máximo de la ventana.",
     "errNoAuth": "Tu sesión expiró. Volvé a iniciar sesión.",
     "errNotOpen": "El check-in de esta sesión no está abierto.",
@@ -9056,7 +9057,8 @@
     "questionsCount": "{{count}} pregunta(s)",
     "statement": "Enunciado",
     "discard": "Descartar",
-    "applyNewGrade": "Aplicar nueva calificación"
+    "applyNewGrade": "Aplicar nueva calificación",
+    "estadoTodos": "Todos los estados"
   },
   "hc_routesAppTeacherProjects": {
     "actionAssignStudents": "Asignar estudiantes",
@@ -9999,11 +10001,15 @@
     "cerrados": "Cerrados",
     "borradores": "Solo borradores",
     "publicados": "Solo publicados",
-    "todos": "Todos"
+    "todos": "Todos",
+    "filtroTodos": "Todos los estados",
+    "optBorradores": "Borradores",
+    "optPublicados": "Publicados"
   },
   "materialStatus": {
     "activos": "Activos",
-    "cerrados": "Cerrados"
+    "cerrados": "Cerrados",
+    "filtroTodos": "Todos los estados"
   },
   "reopenBanner": {
     "message": "Esto está cerrado.",

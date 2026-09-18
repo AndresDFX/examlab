@@ -7,11 +7,15 @@
  * decide cómo filtrar (especialmente útil para proyectos, donde un
  * item está vinculado a N cursos vía linked_course_ids).
  *
+ * Curso, periodo y asignatura son de selección MÚLTIPLE (menú de casillas):
+ * **vacío = sin filtrar**, semántica de `filtro-multiple.ts`. Solo el CORTE
+ * sigue siendo de un valor: un corte pertenece a un curso concreto.
+ *
  * Uso:
  *   const [search, setSearch] = useState("");
- *   const [courseFilter, setCourseFilter] = useState<string | null>(null);
+ *   const [courseIds, setCourseIds] = useState<string[]>([]);
  *   const filtered = items.filter((it) => {
- *     if (courseFilter && it.course_id !== courseFilter) return false;
+ *     if (courseIds.length && !courseIds.includes(it.course_id)) return false;
  *     if (search && !it.title.toLowerCase().includes(search.toLowerCase()))
  *       return false;
  *     return true;
@@ -20,8 +24,8 @@
  *   <ListFilters
  *     search={search}
  *     onSearchChange={setSearch}
- *     courseIds={courseFilter}
- *     onCourseIdsChange={setCourseFilter}
+ *     courseIds={courseIds}
+ *     onCourseIdsChange={setCourseIds}
  *     courses={courses}
  *   />
  */
@@ -33,10 +37,7 @@ import { Button } from "./button";
 import {
   Select,
   SelectContent,
-  SelectGroup,
   SelectItem,
-  SelectLabel,
-  SelectSeparator,
   SelectTrigger,
   SelectValue,
 } from "./select";
@@ -44,10 +45,7 @@ import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { limpiarSeleccionInvalida } from "@/shared/lib/filtro-multiple";
 
-const ALL_COURSES = "__all__";
 const ALL_CUTS = "__all_cuts__";
-const ALL_PERIODS = "__all_periods__";
-const ALL_SUBJECTS = "__all_subjects__";
 
 interface ListFiltersProps {
   search: string;
@@ -67,10 +65,10 @@ interface ListFiltersProps {
     name: string;
     status?: string | null;
     /** Periodo académico del curso (ej. "2026-2"). Si al menos un curso lo
-     *  trae, aparece el Select de periodo. */
+     *  trae, aparece el filtro de periodo. */
     period?: string | null;
     /** Nombre de la asignatura. Si al menos un curso lo trae, aparece el
-     *  Select de asignatura. */
+     *  filtro de asignatura. */
     subject?: string | null;
   }>;
   /** Etiqueta para el item "todos" — default "Todos los cursos". */
@@ -88,18 +86,19 @@ interface ListFiltersProps {
   /** Etiqueta para "todos los cortes" — default "Todos los cortes". */
   allCutsLabel?: string;
   /**
-   * Periodo y asignatura seleccionados. Son OPT-IN: el Select solo aparece si
-   * el padre pasa el handler Y los cursos traen ese dato con más de un valor
-   * distinto. Un filtro con una sola opción no filtra nada y ocupa lugar.
+   * Periodos y asignaturas seleccionados (**vacío = todos**). Son OPT-IN: el
+   * filtro solo aparece si el padre pasa el handler Y los cursos traen ese dato
+   * con más de un valor distinto. Un filtro con una sola opción no filtra nada y
+   * ocupa lugar.
    *
    * No hacen falta consultas nuevas: las listas se derivan de `courses`, así
    * que las opciones que se ofrecen son exactamente las que el docente tiene.
    * Ofrecer un periodo sin cursos sería prometer un filtro que da vacío.
    */
-  period?: string | null;
-  onPeriodChange?: (v: string | null) => void;
-  subject?: string | null;
-  onSubjectChange?: (v: string | null) => void;
+  periods?: readonly string[];
+  onPeriodsChange?: (v: string[]) => void;
+  subjects?: readonly string[];
+  onSubjectsChange?: (v: string[]) => void;
   /** Slot opcional al lado de los selects internos. Útil para filtros
    *  específicos del contexto (ej. estado de entrega en listas del
    *  estudiante) sin tener que envolver `ListFilters` con un wrapper
@@ -122,14 +121,16 @@ export function ListFilters({
   cutId,
   onCutChange,
   allCutsLabel,
-  period,
-  onPeriodChange,
-  subject,
-  onSubjectChange,
+  periods,
+  onPeriodsChange,
+  subjects,
+  onSubjectsChange,
   extra,
   onClearExtra,
 }: ListFiltersProps) {
   const { t } = useTranslation();
+  const selectedPeriods = periods ?? [];
+  const selectedSubjects = subjects ?? [];
   const resolvedSearchPlaceholder =
     searchPlaceholder ??
     t("hc_componentsUiListFilters.searchPlaceholder", { defaultValue: "Buscar por título…" });
@@ -140,22 +141,26 @@ export function ListFilters({
   // Periodos y asignaturas que EXISTEN en los cursos del usuario. Orden:
   // periodo descendente (el vigente arriba, que es lo que se busca casi
   // siempre) y asignatura alfabética.
-  const periods = Array.from(
+  const periodOptions = Array.from(
     new Set(courses.map((c) => c.period).filter((p): p is string => !!p)),
   ).sort((a, b) => b.localeCompare(a, "es-CO", { numeric: true }));
-  const subjects = Array.from(
+  const subjectOptions = Array.from(
     new Set(courses.map((c) => c.subject).filter((sj): sj is string => !!sj)),
   ).sort((a, b) => a.localeCompare(b, "es-CO", { sensitivity: "base" }));
   // Con un solo valor el filtro no filtra: se oculta en vez de ocupar lugar.
-  const showPeriod = !!onPeriodChange && periods.length > 1;
-  const showSubject = !!onSubjectChange && subjects.length > 1;
+  const showPeriod = !!onPeriodsChange && periodOptions.length > 1;
+  const showSubject = !!onSubjectsChange && subjectOptions.length > 1;
+
+  const enPeriodo = (c: { period?: string | null }, ps: readonly string[]) =>
+    ps.length === 0 || (c.period != null && ps.includes(c.period));
+  const enAsignatura = (c: { subject?: string | null }, ss: readonly string[]) =>
+    ss.length === 0 || (c.subject != null && ss.includes(c.subject));
 
   // CASCADA: el Select de curso solo ofrece los que cumplen periodo+asignatura.
   // Sin esto el docente puede elegir "2026-2" y un curso de 2026-1 y quedarse
   // con la tabla vacía sin entender por qué.
   const coursesInScope = courses.filter(
-    (c) =>
-      (!period || c.period === period) && (!subject || c.subject === subject),
+    (c) => enPeriodo(c, selectedPeriods) && enAsignatura(c, selectedSubjects),
   );
   // Prioridad UX: cursos ABIERTOS primero. `keepIds` mantiene el curso
   // seleccionado en el grupo activo aunque esté finalizado (no lo esconde abajo).
@@ -168,18 +173,19 @@ export function ListFilters({
    *  el alcance se quitan. Dejarlos seleccionados filtraría la tabla por un
    *  curso que ya no aparece en la lista — el usuario vería un filtro que no
    *  puede deshacer. */
-  const cambiarAlcance = (nuevo: { period?: string | null; subject?: string | null }) => {
-    const p = nuevo.period !== undefined ? nuevo.period : period;
-    const sj = nuevo.subject !== undefined ? nuevo.subject : subject;
-    if (nuevo.period !== undefined) onPeriodChange?.(nuevo.period);
-    if (nuevo.subject !== undefined) onSubjectChange?.(nuevo.subject);
-    if (courseIds.length > 0) {
-      const validos = courses
-        .filter((c) => (!p || c.period === p) && (!sj || c.subject === sj))
-        .map((c) => c.id);
-      const limpio = limpiarSeleccionInvalida(courseIds, validos);
-      if (limpio !== courseIds) onCourseIdsChange([...limpio]);
-    }
+  const limpiarCursosFueraDeAlcance = (ps: readonly string[], ss: readonly string[]) => {
+    if (courseIds.length === 0) return;
+    const validos = courses.filter((c) => enPeriodo(c, ps) && enAsignatura(c, ss)).map((c) => c.id);
+    const limpio = limpiarSeleccionInvalida(courseIds, validos);
+    if (limpio !== courseIds) onCourseIdsChange([...limpio]);
+  };
+  const aplicarPeriodos = (nuevos: string[]) => {
+    onPeriodsChange?.(nuevos);
+    limpiarCursosFueraDeAlcance(nuevos, selectedSubjects);
+  };
+  const aplicarAsignaturas = (nuevas: string[]) => {
+    onSubjectsChange?.(nuevas);
+    limpiarCursosFueraDeAlcance(selectedPeriods, nuevas);
   };
   // El filtro de CORTE sigue siendo de un solo curso: los cortes pertenecen a
   // un curso concreto, así que con dos seleccionados la lista mezclaría cortes
@@ -189,7 +195,11 @@ export function ListFilters({
   const cutsForCourse = unicoCurso ? (cuts ?? []).filter((c) => c.course_id === unicoCurso) : [];
   const showCutSelect = !!unicoCurso && cutsForCourse.length > 0 && !!onCutChange;
   const hasFilters =
-    !!search || courseIds.length > 0 || cutId != null || period != null || subject != null;
+    !!search ||
+    courseIds.length > 0 ||
+    cutId != null ||
+    selectedPeriods.length > 0 ||
+    selectedSubjects.length > 0;
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
@@ -202,44 +212,22 @@ export function ListFilters({
         />
       </div>
       {showSubject && (
-        <Select
-          value={subject ?? ALL_SUBJECTS}
-          onValueChange={(v) => cambiarAlcance({ subject: v === ALL_SUBJECTS ? null : v })}
-        >
-          <SelectTrigger className="w-full sm:w-52">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_SUBJECTS}>
-              {t("listFilters.allSubjects", { defaultValue: "Todas las asignaturas" })}
-            </SelectItem>
-            {subjects.map((sj) => (
-              <SelectItem key={sj} value={sj}>
-                {sj}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          opciones={subjectOptions.map((sj) => ({ value: sj, label: sj }))}
+          seleccion={selectedSubjects}
+          onChange={aplicarAsignaturas}
+          etiquetaTodos={t("listFilters.allSubjects", { defaultValue: "Todas las asignaturas" })}
+          triggerClassName="w-full sm:w-52"
+        />
       )}
       {showPeriod && (
-        <Select
-          value={period ?? ALL_PERIODS}
-          onValueChange={(v) => cambiarAlcance({ period: v === ALL_PERIODS ? null : v })}
-        >
-          <SelectTrigger className="w-full sm:w-36">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={ALL_PERIODS}>
-              {t("listFilters.allPeriods", { defaultValue: "Todos los periodos" })}
-            </SelectItem>
-            {periods.map((p) => (
-              <SelectItem key={p} value={p}>
-                {p}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <MultiSelectFilter
+          opciones={periodOptions.map((p) => ({ value: p, label: p }))}
+          seleccion={selectedPeriods}
+          onChange={aplicarPeriodos}
+          etiquetaTodos={t("listFilters.allPeriods", { defaultValue: "Todos los periodos" })}
+          triggerClassName="w-full sm:w-36"
+        />
       )}
       <MultiSelectFilter
         opciones={[
@@ -289,8 +277,8 @@ export function ListFilters({
             onSearchChange("");
             onCourseIdsChange([]);
             onCutChange?.(null);
-            onPeriodChange?.(null);
-            onSubjectChange?.(null);
+            onPeriodsChange?.([]);
+            onSubjectsChange?.([]);
             onClearExtra?.();
           }}
           title={t("hc_componentsUiListFilters.clearFiltersTitle", { defaultValue: "Limpiar filtros" })}

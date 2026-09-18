@@ -220,6 +220,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🎉 Novedades
 
+- **Selección múltiple en el RESTO de los filtros de los grids**, no solo en el de curso: estado
+  (talleres, proyectos, exámenes, pizarras, contenidos, videos, certificados, encuestas), rol
+  (usuarios), institución (las vistas cross-tenant) y periodo/asignatura.
+  - **Los filtros de ESTADO son la única excepción a «vacío = todos»**, y a propósito: arrancan con
+    un default marcado (`borradores` + `publicados`, o `activos`) porque la convención del proyecto
+    es que el filtro de estado abra en lo vigente, y con la lista vacía se verían también los
+    cerrados. «Todos» vacía la selección; «Limpiar» restaura el default.
+  - **El filtro de institución no es cosmético: dispara consultas.** Con varias marcadas se unen sus
+    cursos, y si esa unión queda vacía **se corta antes de consultar** — un `.in(columna, [])` en
+    PostgREST devuelve TODAS las filas, o sea que un filtro vacío se habría convertido en una fuga
+    entre instituciones. Verificado en certificados, contenidos, videos y encuestas.
+- **El grid del monitor de examen gana filtro por estado**, también múltiple: se pueden ver «en
+  progreso» y «sospechoso» a la vez.
+  - El estado que muestra el monitor **no sale de una columna, se compone**: un intento en curso
+    manda sobre todo, y una entrega marcada `sospechoso` se muestra como «chequeado» cuando el
+    docente ya revisó lo que la disparó. Esa regla se extrajo a una función pura con 9 tests para que
+    la celda y el filtro no puedan discrepar — si el filtro la reimplementara, filtrar por
+    «chequeado» podría devolver filas rojas.
+  - La revisión de consistencia encontró que la primera versión hacía justo eso por otra vía: el
+    filtro miraba el intento más ANTIGUO y la celda el más reciente, así que con reintentos un alumno
+    se filtraba por un estado que ya no era el suyo.
+
 - **Los filtros de los grids permiten elegir VARIOS cursos, no uno o todos.** Pedido tal cual: «para
   cuando quiera ver dos cursos poder seleccionarlos y no tener que seleccionar uno u otro o Todos».
   Vale para talleres, proyectos, exámenes, encuestas, contenidos, pizarras, videos, certificados,
@@ -239,6 +261,27 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
     NOMBRE, así que un id que ya no se encuentra habría vaciado el filtro en silencio —destapando la
     tabla entera— mientras el botón seguía mostrando el conteo. Lo encontró la revisión de
     consistencia.
+
+- **El resto de los filtros de grid también aceptan VARIAS opciones a la vez**, no solo el de curso.
+  Ahora se pueden combinar dos ESTADOS (p. ej. borradores y cerrados a la vez en talleres/exámenes/
+  proyectos/pizarras, o activos y cerrados en contenidos/videos/material del estudiante), varias
+  INSTITUCIONES en las pantallas cross-tenant del SuperAdmin (certificados, contenidos, videos,
+  encuestas), varios ROLES en Usuarios, varios ESTADOS de encuesta, y varios PERIODOS/ASIGNATURAS en
+  la barra de filtros de los grids del docente. Todos comparten el mismo menú de casillas y la misma
+  regla: **sin nada marcado, no se filtra** (`filtro-multiple.ts`).
+  - **Los filtros de estado son la excepción de diseño**: su default NO es «vacío». Un grid abre
+    ocultando lo cerrado (borradores + publicados), así que su selección inicial es ese par y
+    «Limpiar» la restaura; el item «Todos los estados» del menú es el «mostrar todo, incluidos los
+    cerrados» explícito. Documentado en `status-filter.ts` / `material-status.ts`.
+  - **El filtro por institución no es solo visual**: dispara consultas a la base. Con varias marcadas
+    se unen los cursos de todas antes de acotar, y si la unión queda vacía se corta ANTES de
+    consultar (un `.in(col, [])` de PostgREST devuelve TODAS las filas, no ninguna). En Videos, la
+    opción «Global plataforma» (catálogo sin institución) se combina con las instituciones concretas
+    en una sola consulta.
+  - **Lo que NO cambió, a propósito**: el filtro de CORTE sigue siendo de un curso (los cortes son de
+    un curso concreto), y los selectores de PERIODO/ASIGNATURA de las vistas de DETALLE (estadísticas,
+    gradebook, banco de preguntas, asistencia) siguen eligiendo uno de cada, porque acotan un único
+    curso que se está mirando, no una tabla.
 
 - **Botón para cuadrar los puntajes de un examen.** Borrar una pregunta dejaba el examen sumando 4,70
   y ninguna forma cómoda de volver a 5,00: corregir diez preguntas a mano para recuperar 0,30 es la

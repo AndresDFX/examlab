@@ -5,7 +5,7 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
-import { courseIdsInScope, itemInScope } from "@/modules/courses/course-filter-scope";
+import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -123,10 +123,11 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { MaterialStatusSelect } from "@/shared/components/MaterialStatusSelect";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import {
   matchesMaterialStatus,
   DEFAULT_MATERIAL_STATUS_FILTER,
-  type MaterialStatusFilter,
+  type MaterialStatusValue,
 } from "@/shared/lib/material-status";
 import type { CourseLifecycleShape } from "@/modules/courses/course-status";
 
@@ -284,7 +285,7 @@ function TeacherContents() {
   // filtro abajo.
   const [tenants, setTenants] = useState<Array<{ id: string; slug: string; name: string }>>([]);
   /** Filtro por institución (solo SuperAdmin). "all" = sin filtro. */
-  const [tenantFilter, setTenantFilter] = useState<string>("all");
+  const [tenantFilter, setTenantFilter] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   // Deep-link `?content=<id>` (ej. desde un #-tag en mensajes): resalta la fila.
@@ -304,8 +305,8 @@ function TeacherContents() {
    *  `ListFilters`. Útil para que el docente vea qué material tiene
    *  asignado a un curso específico cuando administra varios. */
   const [courseFilter, setCourseFilter] = useState<string[]>([]);
-  const [periodFilter, setPeriodFilter] = useState<string | null>(null);
-  const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
+  const [periodFilter, setPeriodFilter] = useState<string[]>([]);
+  const [subjectFilter, setSubjectFilter] = useState<string[]>([]);
   // Lista para la barra de filtros: aplana el embed de asignatura. Se deriva de
   // `courses` en vez de cambiar el tipo Course, que se usa en los formularios.
   const coursesForFilter = useMemo(
@@ -322,7 +323,7 @@ function TeacherContents() {
   // Periodo/asignatura filtran la TABLA, no solo el Select de curso: acotar solo
   // las opciones dejaba la tabla completa y se lee como que el filtro no sirve.
   const filterScope = useMemo(
-    () => courseIdsInScope(coursesForFilter, periodFilter, subjectFilter),
+    () => courseIdsInScopeMulti(coursesForFilter, periodFilter, subjectFilter),
     [coursesForFilter, periodFilter, subjectFilter],
   );
 
@@ -332,9 +333,7 @@ function TeacherContents() {
   // ve por defecto. El estado se deriva del curso ancla — ver
   // material-status.ts. Contenidos con course_id null (sin curso) nunca
   // se consideran cerrados.
-  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusFilter>(
-    DEFAULT_MATERIAL_STATUS_FILTER,
-  );
+  const [materialStatusFilter, setMaterialStatusFilter] = useState<MaterialStatusValue[]>([...DEFAULT_MATERIAL_STATUS_FILTER]);
   // Map courseId → ciclo de vida (status + fechas) para derivar si el
   // material está "cerrado" (curso finalizado). Se rellena desde el mismo
   // `courses` que alimenta el dropdown de curso.
@@ -391,7 +390,7 @@ function TeacherContents() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_contents",
-    resetKey: `${search}|${courseFilter.join(",")}|${materialStatusFilter}|${tenantFilter}|${periodFilter ?? ""}|${subjectFilter ?? ""}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${materialStatusFilter.join(",")}|${tenantFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${sort.resetKey}`,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
@@ -606,11 +605,11 @@ function TeacherContents() {
     // — un `.in("teacher_id", [])` en PostgREST devuelve TODOS los
     // rows, no ninguno.
     let teacherIdsForTenant: string[] | null = null;
-    if (isSuperAdminCaller && tenantFilter !== "all") {
+    if (isSuperAdminCaller && tenantFilter.length > 0) {
       const { data: profsForTenant } = await db
         .from("profiles")
         .select("id")
-        .eq("tenant_id", tenantFilter);
+        .in("tenant_id", tenantFilter);
       if (!isActive()) return;
       teacherIdsForTenant = ((profsForTenant ?? []) as { id: string }[]).map((p) => p.id);
       if (teacherIdsForTenant.length === 0) {
@@ -1396,10 +1395,10 @@ function TeacherContents() {
             courseIds={courseFilter}
             onCourseIdsChange={setCourseFilter}
             courses={coursesForFilter}
-            period={periodFilter}
-            onPeriodChange={setPeriodFilter}
-            subject={subjectFilter}
-            onSubjectChange={setSubjectFilter}
+            periods={periodFilter}
+            onPeriodsChange={setPeriodFilter}
+            subjects={subjectFilter}
+            onSubjectsChange={setSubjectFilter}
           />
         </div>
         {/* Filtro por estado del curso: por defecto "Activos" oculta el
@@ -1414,19 +1413,13 @@ function TeacherContents() {
             tenants cargados (Admin común no llega a verlo). Aplica vía
             `teacher_id IN (profiles del tenant)` en `load()`. */}
         {isSuperAdminCaller && tenants.length > 0 && (
-          <Select value={tenantFilter} onValueChange={setTenantFilter}>
-            <SelectTrigger className="w-full sm:w-48 h-9 text-xs">
-              <SelectValue placeholder={t("tenant.filterTenantPlaceholder")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">{t("tenant.filterAllTenants")}</SelectItem>
-              {tenants.map((tn) => (
-                <SelectItem key={tn.id} value={tn.id}>
-                  {tn.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <MultiSelectFilter
+            opciones={tenants.map((tn) => ({ value: tn.id, label: tn.name }))}
+            seleccion={tenantFilter}
+            onChange={setTenantFilter}
+            etiquetaTodos={t("tenant.filterAllTenants")}
+            triggerClassName="w-full sm:w-48 h-9 text-xs"
+          />
         )}
       </div>
 
@@ -1482,7 +1475,8 @@ function TeacherContents() {
                     const filterActive =
                       search.trim() !== "" ||
                       courseFilter.length > 0 ||
-                      materialStatusFilter !== DEFAULT_MATERIAL_STATUS_FILTER;
+                      (materialStatusFilter.length !== DEFAULT_MATERIAL_STATUS_FILTER.length ||
+                        materialStatusFilter.some((v) => !DEFAULT_MATERIAL_STATUS_FILTER.includes(v)));
                     const noMatch = filterActive && items.length > 0;
                     return (
                       <TableEmpty

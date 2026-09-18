@@ -1,66 +1,65 @@
 /**
  * Filtro de estado para los grids de actividades del docente (exámenes,
- * talleres, proyectos), cuyo `status` es `draft | published | closed`.
+ * talleres, proyectos, pizarras), cuyo `status` es `draft | published | closed`.
  *
- * Regla de UX (goal): al abrir el grid, por DEFECTO se ven los ACTIVOS y los
- * BORRADORES (todo lo que NO está cerrado). Los CERRADOS (completados) no se ven
- * hasta que el docente cambia el filtro a "Cerrados" o "Todos". Antes los grids
- * mostraban todo sin distinción de estado.
+ * ── Selección MÚLTIPLE, con un default NO vacío ───────────────────────
+ * El filtro pasó de un `<Select>` de una opción a un menú de casillas
+ * (`MultiSelectFilter`), para poder ver, p. ej., borradores Y cerrados a la vez.
+ * La semántica central la fija `filtro-multiple.ts`: **arreglo vacío = sin
+ * filtrar (todos los estados)**.
+ *
+ * Eso choca con una regla de UX que hay que preservar: al abrir el grid NO se
+ * ven los cerrados (solo borradores + publicados). Como "vacío = todos" ya está
+ * tomado por "mostrar TODO, incluidos los cerrados", el default NO puede ser
+ * vacío: es el conjunto `["borradores", "publicados"]`. Por eso este filtro es
+ * el único donde `DEFAULT ≠ []`, y por eso "Limpiar" restaura ese conjunto en
+ * vez de vaciar (vaciar mostraría los cerrados). El item "Todos" del menú sí
+ * vacía: es el "mostrar todo" explícito.
+ *
+ * Antes existía una opción-preajuste "activos" (draft+published de un clic); con
+ * casillas deja de tener sentido (se marcan las dos), así que las opciones son
+ * los tres estados atómicos.
  */
-export type ActivityStatusFilter =
-  | "activos"
-  | "borradores"
-  | "publicados"
-  | "cerrados"
-  | "todos";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 
-/**
- * Opciones en el orden en que se muestran. La combinada va primera porque es el
- * default; después los estados individuales; "Todos" al final.
- *
- * WHY existen las individuales: el filtro solo ofrecía activos / cerrados /
- * todos, así que un docente NO podía ver únicamente sus BORRADORES — quedaban
- * mezclados con los publicados dentro de "Activos". Reportado sobre Pizarras, y
- * aplicaba a los cuatro grids que comparten este componente. La grilla de Cursos
- * ya ofrecía una opción por estado; esto la alinea.
- */
-export const ACTIVITY_STATUS_OPTIONS: readonly ActivityStatusFilter[] = [
-  "activos",
+/** Los tres estados atómicos que se pueden marcar. */
+export type ActivityStatusValue = "borradores" | "publicados" | "cerrados";
+
+/** Opciones marcables, en orden de presentación. */
+export const ACTIVITY_STATUS_VALUES: readonly ActivityStatusValue[] = [
   "borradores",
   "publicados",
   "cerrados",
-  "todos",
 ] as const;
 
-/** Estado inicial del filtro: activos + borradores (oculta cerrados). */
-export const DEFAULT_ACTIVITY_STATUS_FILTER: ActivityStatusFilter = "activos";
+/**
+ * Estado inicial del filtro: borradores + publicados (oculta cerrados). NO es
+ * `[]` a propósito — ver el encabezado del archivo.
+ */
+export const DEFAULT_ACTIVITY_STATUS_FILTER: readonly ActivityStatusValue[] = [
+  "borradores",
+  "publicados",
+];
 
 /**
- * `true` si una actividad con `status` debe verse bajo `filter`.
- *   • `activos`     → draft + published (todo lo que NO está cerrado) — DEFAULT.
- *   • `borradores`  → solo draft.
- *   • `publicados`  → solo published.
- *   • `cerrados`    → solo closed.
- *   • `todos`       → todo.
- * `status` nullish se trata como `published` (mismo fallback que el resto de la
- * app: una fila sin estado se asume publicada, no cerrada).
+ * A qué opción atómica pertenece un `status`. `status` nullish se asume
+ * `published` (mismo fallback que el resto de la app: una fila sin estado se
+ * asume publicada, no cerrada).
+ */
+export function activityStatusValue(status: string | null | undefined): ActivityStatusValue {
+  const s = status ?? "published";
+  if (s === "draft") return "borradores";
+  if (s === "closed") return "cerrados";
+  return "publicados";
+}
+
+/**
+ * `true` si una actividad con `status` debe verse bajo la selección. Sin nada
+ * marcado pasa todo (regla de `filtro-multiple.ts`).
  */
 export function matchesActivityStatus(
   status: string | null | undefined,
-  filter: ActivityStatusFilter,
+  seleccion: readonly ActivityStatusValue[],
 ): boolean {
-  const s = status ?? "published";
-  switch (filter) {
-    case "todos":
-      return true;
-    case "borradores":
-      return s === "draft";
-    case "publicados":
-      return s === "published";
-    case "cerrados":
-      return s === "closed";
-    case "activos":
-    default:
-      return s !== "closed";
-  }
+  return coincideFiltro(seleccion, activityStatusValue(status));
 }

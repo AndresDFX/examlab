@@ -94,6 +94,9 @@ import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { desgloseEfectivo } from "@/modules/grading/deterministic-scoring";
+import { estadoDeFila } from "@/modules/exams/estado-monitor";
+import { coincideFiltro } from "@/shared/lib/filtro-multiple";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import i18n from "@/i18n";
 import {
   countAnswered,
@@ -280,6 +283,8 @@ function ExamMonitor() {
   // del estudiante client-side. Persiste mientras el docente revisa la
   // pantalla (no se limpia automáticamente).
   const [monitorSearch, setMonitorSearch] = useState("");
+  // Vacío = todos. Ver `filtro-multiple.ts`.
+  const [estadoFiltro, setEstadoFiltro] = useState<string[]>([]);
   const [questions, setQuestions] = useState<Question[]>([]);
   // Pares de copia detectados (similarity_pairs) cruzados por user_id
   // para sugerir penalización por plagio en el modal "Respuestas". Se
@@ -2079,13 +2084,26 @@ function ExamMonitor() {
   // `monitorSearch` se declara abajo donde viven los demás useState; acá
   // solo derivamos. Si el buscador está vacío, devuelve todos los rows.
   const monitorQuery = monitorSearch.trim().toLowerCase();
-  const filteredStudentRows = monitorQuery
-    ? studentRows.filter((r) => {
-        const name = (r.profile?.full_name ?? "").toLowerCase();
-        const email = (r.profile?.institutional_email ?? "").toLowerCase();
-        return name.includes(monitorQuery) || email.includes(monitorQuery);
-      })
-    : studentRows;
+  const filteredStudentRows = studentRows.filter((r) => {
+    if (monitorQuery) {
+      const name = (r.profile?.full_name ?? "").toLowerCase();
+      const email = (r.profile?.institutional_email ?? "").toLowerCase();
+      if (!name.includes(monitorQuery) && !email.includes(monitorQuery)) return false;
+    }
+    // El MISMO estado que pinta la celda: si el filtro lo recalculara por su
+    // cuenta, filtrar por «chequeado» podría devolver filas rojas.
+    const estado = estadoDeFila({
+      userId: r.userId,
+      enProgreso: !!r.inProgress,
+      // `latest`, NO `finishedAttempts[0]`: esa lista viene en orden ascendente,
+      // así que su primer elemento es el intento más ANTIGUO. Con reintentos, un
+      // alumno cuyo primer intento quedó «completado» y el último «sospechoso»
+      // se filtraba por el viejo y no por el que la fila muestra.
+      ultima: r.latest,
+      pares: similarityPairs,
+    });
+    return coincideFiltro(estadoFiltro, estado);
+  });
 
   const inProgressStudents = studentRows.filter((r) => r.inProgress);
   const completedStudents = studentRows.filter((r) => !r.inProgress && r.finishedAttempts.length);
@@ -2447,7 +2465,19 @@ function ExamMonitor() {
                   </button>
                 )}
               </div>
-              {monitorSearch && (
+              <MultiSelectFilter
+                opciones={[
+                  { value: "en_progreso", label: statusLabel("en_progreso") },
+                  { value: "completado", label: statusLabel("completado") },
+                  { value: "sospechoso", label: statusLabel("sospechoso") },
+                  { value: "chequeado", label: statusLabel("chequeado") },
+                ]}
+                seleccion={estadoFiltro}
+                onChange={setEstadoFiltro}
+                etiquetaTodos={t("hc_routesAppTeacherMonitorExamId.estadoTodos")}
+                triggerClassName="h-8 text-xs w-full sm:w-44"
+              />
+              {(monitorSearch || estadoFiltro.length > 0) && (
                 <span className="text-2xs text-muted-foreground tabular-nums">
                   {t("hc_routesAppTeacherMonitorExamId.filteredCount", {
                     shown: filteredStudentRows.length,
@@ -2595,25 +2625,13 @@ function ExamMonitor() {
                         // aparece, mostramos un badge verde en vez del
                         // rojo de "sospechoso". El status crudo en DB
                         // sigue siendo "sospechoso" — esto es solo UI.
-                        if (inProg) return <StatusBadge status="en_progreso" />;
-                        if (latest.status === "sospechoso") {
-                          const aiReviewed = latest.ai_review_at != null;
-                          const myPairs = similarityPairs.filter(
-                            (p) => p.user_a === row.userId || p.user_b === row.userId,
-                          );
-                          const allPairsReviewed =
-                            myPairs.length === 0
-                              ? true
-                              : myPairs.every((p) => p.reviewed_at != null);
-                          // Si hay sospecha IA (score >= 0.6), exige
-                          // ai_review_at; si nunca hubo IA flagged, no.
-                          const aiSuspected = (latest.ai_detected_score ?? 0) >= 0.6;
-                          const aiOk = !aiSuspected || aiReviewed;
-                          if (aiOk && allPairsReviewed) {
-                            return <StatusBadge status="chequeado" />;
-                          }
-                        }
-                        return <StatusBadge status={latest.status} />;
+                        const estado = estadoDeFila({
+                          userId: row.userId,
+                          enProgreso: inProg,
+                          ultima: latest,
+                          pares: similarityPairs,
+                        });
+                        return estado ? <StatusBadge status={estado} /> : null;
                       })()}
                     </TableCell>
                     <TableCell className="text-sm tabular-nums hidden md:table-cell">
