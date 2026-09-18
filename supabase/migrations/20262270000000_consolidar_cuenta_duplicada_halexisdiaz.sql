@@ -46,6 +46,14 @@
 -- las respuestas ya están en la cuenta real. El `UNIQUE (question_id,
 -- user_id)` no puede chocar: el WHERE excluye las preguntas que la cuenta real
 -- ya tenga respondidas (hoy, ninguna).
+-- ── Ojo con el NÚMERO de esta migración ─────────────────────────────────
+-- Nació como 20262240000000 y NO se aplicó: ya existía
+-- `20262240000000_reset_attempt_yefferson_scope_taller.sql` con ese mismo
+-- número. Supabase lleva el registro por VERSIÓN (el prefijo), no por nombre
+-- de archivo, así que dio la versión por aplicada y se saltó el archivo — el
+-- workflow terminó en verde y no movió ni una fila. Por eso se renumeró.
+-- Al crear una migración, verificar que el prefijo no exista ya:
+--   ls supabase/migrations/*.sql | sed 's#.*/##' | cut -c1-14 | sort | uniq -d
 -- ══════════════════════════════════════════════════════════════════════════
 
 DO $$
