@@ -75,6 +75,61 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🧑‍🏫 Docente — grids, filtros y publicación
+
+- **Las preguntas de selección muestran sus opciones y cuál es la correcta.** Reportado sobre el
+  taller: la lista de «Preguntas (N)» pintaba tipo, puntos y enunciado, y nada más — para ver las
+  opciones había que abrir el lápiz una por una. La de proyectos tenía el mismo hueco. La de
+  exámenes sí las pintaba, pero con **dos fallas propias que nadie había visto**: comparaba el
+  índice correcto con `===` estricto (un `correct_index` guardado como TEXTO `"2"`, forma que vive
+  en producción, no marcaba nada) y **nunca miraba `correct_indices`**, así que TODA pregunta de
+  selección múltiple se veía sin correcta marcada.
+  - La lectura de la clave vive ahora en `src/modules/questions/opciones-preview.ts`, que importa
+    `parseOptionIndex`/`parseOptionIndices` del módulo que **puntúa de verdad**: lo que el docente ve
+    marcado es, por construcción, lo que el calificador cuenta. Se lee estrictamente por tipo, igual
+    que `deterministic-scoring.ts` y su espejo del edge.
+  - Avisa además cuando una pregunta quedó **sin respuesta correcta utilizable**: hoy eso califica en
+    cero a todo el mundo, sin error ni constraint, y solo se descubre cuando el alumno ya entregó.
+    (commit `c46342f4`)
+- **Publicar sin abrir «Editar».** Acción de fila en talleres, exámenes y proyectos, justo antes de
+  «Editar», que es la que venía a reemplazar. Se adapta al estado: borrador → «Publicar», publicado →
+  «Volver a borrador». Una actividad **cerrada no ofrece nada** a propósito (reabrirla habilita
+  entregas sobre notas quizá ya publicadas). Publicar **confirma**, y el texto dice CUÁNDO le llega
+  el aviso al estudiante, calculado con la misma condición del trigger de la mig `20262210000000`.
+  (commit `3b0321a4`…, `src/shared/lib/publicacion.ts`)
+- **Cada filtro dice QUÉ filtra.** Con varios valores marcados todos los menús decían «2
+  seleccionados»: cuatro filtros, cuatro botones idénticos, ninguna forma de saber cuál era cuál sin
+  abrirlos. Ahora nombran la entidad («2 asignaturas», «3 periodos», «2 cursos»), en los 12 puntos de
+  uso. (commit `3b0321a4`)
+- **Filtro de periodo en las grillas que faltaban.** Dos clases de hueco: en Encuestas y Pizarras el
+  filtro **existía pero no filtraba** (acotaba el menú de curso y la tabla seguía mostrando todo); en
+  Certificados, Videos y Papelera no existía. Las cinco lo aplican ahora a la TABLA. Un item SIN
+  curso (video global, pizarra o contenido personal) se oculta con un filtro de periodo activo: no se
+  le puede atribuir un periodo. **Usuarios queda sin filtro de periodo a propósito** — una persona no
+  pertenece a un periodo, y «matriculada en algún curso de 2026-2» es otra cosa. (commit `7ba18bc1`)
+- **Las filas de los grids dejan de desbordar su columna y de cambiar de alto.** `CourseListCell`
+  capeaba el badge con `max-w-[10rem]` (160px) dentro de una columna `w-32` (128px): desbordaba por
+  diseño. Y su `flex-wrap` mandaba el «+N» a una segunda línea, estirando esa fila. Se alinearon las
+  cuatro celdas inline con el mismo defecto. **La regla queda en `scripts/audit-ui.mjs` como
+  `R5-fila`**, no solo en un comentario. (commit `6d9bd30e`)
+
+### 🎓 Estudiante
+
+- **El taller y el proyecto guardan borrador local de lo no enviado.** Se responden dentro de un
+  diálogo y solo escriben en la base al ENTREGAR: un clic fuera se llevaba todo lo escrito. Ahora van
+  a `localStorage` con debounce de 1 s y —lo que cierra el caso— también **en el desmontaje**, porque
+  cuando el diálogo se cierra el debounce todavía no disparó. Al reabrir, el borrador **nunca pisa**
+  una respuesta que el servidor ya tenga: en un trabajo grupal, lo que subió un compañero le gana a
+  un borrador viejo de este dispositivo. (commit `…`, `src/modules/submissions/borrador-local.ts`)
+- **Salir de los modales de entrega es solo por la X**, y el botón de ampliar quedó alineado con
+  ella (`DialogMaximizeButton`). (commit `7ba18bc1`)
+- **La lista de exámenes ya no esconde los próximos.** El default del filtro era solo «Disponibles»,
+  y eso tapaba los exámenes cuya ventana aún no abre. No era cosmético: el panel de **notas de apoyo**
+  solo exige `now < end`, o sea que el alumno puede prepararlas desde que el examen se publica — pero
+  no podía, porque la tarjeta no aparecía hasta el día del parcial. El default pasa a lo PENDIENTE
+  (disponible + en curso + próximo). Incluirlos **no los hace respondibles**: la pantalla de toma
+  valida la ventana por su cuenta. (commit `7ba18bc1`)
+
 ### 🎨 Pizarra
 
 - **Pantalla completa en las SEIS hojas, no solo en dos.** Las hojas de código, SQL, diagrama y
