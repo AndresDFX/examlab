@@ -189,7 +189,7 @@ Cubre el ingreso a la plataforma (login + selección de institución, SSO, recup
 | ID | Caso | Precondición | Pasos | Resultado esperado |
 |---|---|---|---|---|
 | NOTIF-01 | Campana de notificaciones + badge | Sesión con notificaciones no leídas | Ver el footer del sidebar (desktop) y el header (móvil) | La campana muestra badge con el conteo de no leídas; abre popover con la lista y "Marcar todo leído" |
-| NOTIF-02 | Actualización en vivo | Sesión abierta | Generar una notificación (p.ej. desde otro rol/pestaña) | La campana refleja el nuevo aviso vía realtime/polling (≈15s) sin recargar; refetch al volver el foco a la pestaña |
+| NOTIF-02 | Actualización en vivo | Sesión abierta | Generar una notificación (p.ej. desde otro rol/pestaña) | La campana refleja el nuevo aviso por SONDEO (hasta 60 s). Ojo: la suscripción realtime de `notifications` NO dispara —esa tabla no está en la publicación `supabase_realtime`—, así que no esperes entrega instantánea. Y desde la mig 20262300000000 solo avisan las categorías encendidas en Configuración → Correos (hoy: comentarios, conversaciones y alertas del sistema) sin recargar; refetch al volver el foco a la pestaña |
 | NOTIF-03 | Toast en primer arribo | Sesión abierta | Recibir una notificación nueva | Aparece un toast efímero (deduplicado entre instancias de la campana) |
 | NOTIF-04 | Solicitud de permiso de push | Navegador soportado, permiso `default` | Cargar el app autenticado | Se solicita permiso de notificaciones; al aceptar se registra la suscripción (`push_subscriptions`, sin duplicados por recarga) |
 | NOTIF-05 | Permiso denegado no re-pregunta | Permiso `denied` | Recargar el app | NO se vuelve a pedir permiso; la app sigue funcionando con realtime + polling |

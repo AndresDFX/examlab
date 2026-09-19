@@ -39,6 +39,8 @@ import {
   MailX,
   Plus,
   Trash2,
+  CalendarCheck,
+  PenLine,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -70,6 +72,14 @@ interface EnabledKinds {
   /** Aviso al inicio de una sesión AUTÓNOMA (cron notify-autonomous-sessions,
    *  mig 20261490000000). Default true. */
   session_start?: boolean;
+  /** "Check-in abierto" cuando el docente abre el pase de lista. Es el aviso
+   *  más urgente que existe (el alumno tiene minutos para marcarse) y por eso
+   *  mismo el que peor funciona por correo. */
+  attendance?: boolean;
+  /** "Tienes un documento para firmar" (Acuerdo Pedagógico). OJO al apagarlo:
+   *  el documento tiene fecha y al alumno que no entra a la app no le llega
+   *  por ningún otro lado. */
+  report_signature?: boolean;
 }
 
 interface EmailSettings {
@@ -163,6 +173,20 @@ const CATEGORIES: Array<{
     desc: "Correo automático cuando se inscribe a un estudiante en un curso, por cualquier vía (alta individual, importación masiva o gestión de estudiantes del curso).",
     icon: GraduationCap,
     color: "text-teal-500",
+  },
+  {
+    key: "attendance",
+    label: "Asistencia",
+    desc: "Aviso a los estudiantes cuando el docente abre el check-in de una sesión, para que alcancen a marcarse.",
+    icon: CalendarCheck,
+    color: "text-emerald-500",
+  },
+  {
+    key: "report_signature",
+    label: "Documentos para firmar",
+    desc: "Aviso cuando el docente envía un documento a firmar (Acuerdo Pedagógico). Al apagarlo, el estudiante que no entra a la app no se entera de que tiene algo pendiente con fecha.",
+    icon: PenLine,
+    color: "text-orange-500",
   },
   {
     key: "session_start",
@@ -556,6 +580,12 @@ export function AdminEmailSettingsPanel() {
               defaultValue: "Por categoría",
             })}
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {t("hc_modulesAdminAdminEmailSettingsPanel.byCategoryHint", {
+              defaultValue:
+                "Cada interruptor gobierna la notificación completa: la campanita dentro de la app, el correo y el aviso al celular. Apagado, esa categoría deja de avisar por todos lados. Recuperar contraseña y confirmar cambio de correo NO se pueden apagar acá.",
+            })}
+          </p>
         </CardHeader>
         <CardContent className="divide-y">
           {CATEGORIES.map((cat) => {
@@ -590,7 +620,6 @@ export function AdminEmailSettingsPanel() {
                 <Switch
                   id={`kind-${cat.key}`}
                   checked={isOn}
-                  disabled={!globallyEnabled}
                   onCheckedChange={(v) => setEnabledKinds((prev) => ({ ...prev, [cat.key]: v }))}
                 />
               </div>

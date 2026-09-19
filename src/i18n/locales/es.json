@@ -10702,6 +10702,7 @@
     "confirmPublishTitle": "¿Publicar «{{nombre}}»?",
     "confirmPublishNow": "Va a aparecer en la lista de los estudiantes y se les avisa ahora mismo. Volver a borrador después la esconde de nuevo, pero el aviso ya no se puede retirar.",
     "confirmPublishLater": "Va a aparecer en la lista de los estudiantes. El aviso les llega solo cuando falte un día para la fecha de inicio, no ahora.",
+    "confirmPublishSilenced": "Va a aparecer en la lista de los estudiantes, pero NO se les avisa: los avisos de esta categoría están apagados en Configuración → Correos. Si querés que se enteren, avisales por Difundir a curso o pedile al Admin que los vuelva a encender.",
     "confirmDraftTitle": "¿Volver «{{nombre}}» a borrador?",
     "confirmDraftBody": "Deja de aparecer en la lista de los estudiantes. Las entregas que ya existan no se borran.",
     "published": "«{{nombre}}» quedó publicado.",

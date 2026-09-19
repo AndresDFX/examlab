@@ -75,6 +75,88 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🔔 Notificaciones — se reducen al negocio, y las gobierna el panel
+
+- **Quedan solo comentarios y conversaciones.** Medido en producción sobre 30 días: **6.592 avisos
+  con 14 % de lectura**, y la correlación es INVERSA — los tipos de volumen alto están todos entre
+  12 % y 16 % (`exam` 1.859 · `workshop` 1.786 · `content` 1.113 · `attendance` 845), y los que sí
+  se leen son los de volumen bajo (`feedback` 26 → 50 %, `exam_integrity_staff` 8 → 88 %). O sea:
+  cuanto más mandábamos de algo, menos se leía.
+
+  El volumen tampoco venía de que pasaran muchas cosas. En esos mismos 30 días hubo **8 talleres,
+  11 exámenes, 3 contenidos y 3 encuestas**: tres contenidos generaron 1.113 avisos a 84 personas
+  (4,4 por persona por contenido, porque cada archivo subido re-notificaba), y un mismo examen
+  mandaba hasta tres avisos distintos —«Te asignaron», «ya está disponible», «inicia pronto»—, 259
+  sobre una sola Prueba diagnóstica. Aparte, 1.076 avisos al mes eran «X actualizado», que no dicen
+  QUÉ cambió y castigan al docente por corregir un typo.
+
+  Encendidos: `feedback`, `messages` y `system_alerts` (el aviso al dueño de que se llena el
+  almacenamiento, ~3 al mes). **Se silencian 6.478 de los 6.592**, verificado simulando el filtro
+  contra los datos reales antes de aplicarlo.
+
+- **Lo decide el panel que ya existía, no el código** (mig `20262300000000`). Configuración →
+  Correos pasa a gobernar la notificación COMPLETA: campanita, correo y push. Lo hace **UN** trigger
+  `BEFORE INSERT` en `notifications` que devuelve `NULL` cuando la categoría está apagada —hay **54
+  migraciones que insertan notificaciones**, así que gatear en cada sitio de inserción significa
+  encontrarlos todos hoy y acordarse del próximo, y el que se olvide no falla: simplemente vuelve a
+  mandar—. Cancelar la fila se lleva además el correo y el push, porque esos triggers son
+  `AFTER INSERT`. Consecuencia práctica: **el próximo cambio de criterio se hace con un clic**.
+  - Una clave AUSENTE deja pasar, a propósito: un tipo nuevo avisa hasta que alguien lo apague; al
+    revés, estrenar un aviso lo dejaría mudo sin que nadie entienda por qué.
+  - Los **transaccionales no se pueden apagar** desde el panel (recuperar contraseña, confirmar
+    cambio de correo). Verificado con inserciones reales y `ROLLBACK`: de 7 pruebas sobrevivieron
+    las 4 que debían —comentario, conversación, recuperar contraseña y alerta de fraude— y se
+    descartaron examen, taller y asistencia.
+  - Dos interruptores nuevos en el panel, que antes no existían aunque el filtro ya los respetaba:
+    **Asistencia** y **Documentos para firmar**. El segundo avisa en su propia descripción que al
+    apagarlo el Acuerdo Pedagógico —que tiene fecha— no le llega por ningún lado al alumno que no
+    entra a la app.
+
+- **La campanita se consulta cada 60 s, no cada 15.** El comentario que fijaba los 15 s decía que
+  «el costo de un GET cada 15 s es trivial», medido con UN usuario; con los 526 matriculados de hoy
+  esas consultas sumaron 52.893 llamadas en 205 horas. Y ahora la campanita lleva 26 comentarios al
+  mes. **No retrasa el chat**: los mensajes tienen su propio canal sobre `messages`, que sí está
+  publicada y sí dispara en milisegundos.
+
+- **El diálogo de «Publicar» dejó de prometer un aviso que ya no sale.** Lo encontró la revisión de
+  consistencia y era el hallazgo más caro del lote: con `workshop`/`exam`/`project` apagados, el
+  trigger que notifica al publicar sigue corriendo pero la fila se cancela, y el docente seguía
+  leyendo «se les avisa ahora mismo… el aviso ya no se puede retirar». Publicaba creyendo que el
+  curso se enteró, sin forma de verificarlo hasta que un estudiante preguntara. Ahora el diálogo lee
+  la configuración y dice la verdad, con un tercer texto que además indica qué hacer (difundir a
+  curso, o pedirle al Admin que reactive la categoría). Cubierto por tests de regresión.
+
+- **Dos excepciones documentadas que el recorte NO puede apagar**, y conviene saberlas: los
+  transaccionales (recuperar contraseña, confirmar cambio de correo) a propósito, y **«Bienvenida a
+  ExamLab»**, que se apaga en el panel pero no tiene efecto —es previo a este cambio— porque esa
+  notificación reusa el `kind` y el enlace de recuperar contraseña, así que el filtro la trata como
+  transaccional. Es lo correcto: sin ese correo el usuario nuevo no puede definir su contraseña y no
+  entra nunca. Darle dientes al interruptor exige un `kind` propio, que es otro cambio.
+
+- **Advertencia de alcance**: `email_settings` sigue siendo un **singleton GLOBAL** editable por el
+  Admin de cualquier institución (ya documentado como pendiente de decisión de producto). Antes ese
+  interruptor solo apagaba el correo; ahora apaga también campanita y push, **para las 7
+  instituciones a la vez**. No es una regresión nueva, pero el radio de lo que un solo Admin puede
+  apagar creció.
+
+### 📡 Realtime — la medición, que contradice lo que parecía
+
+- **Realtime NO es una carga.** Es el 51 % del tiempo de consulta que `pg_stat_statements` registra,
+  pero eso es el 51 % de casi nada: procesa 1,45 registros de WAL por segundo a 7,24 ms → **~1 % de
+  un núcleo**. Sumando TODO lo medido (Realtime + app + cron) la base usa **~2 % de un núcleo**. La
+  instancia sufre por E/S, no por CPU. Queda escrito en CLAUDE.md para que nadie «optimice» Realtime
+  buscando rendimiento que no está ahí.
+- **La publicación y el cliente llevan meses desalineados**: el cliente escucha por
+  `postgres_changes` **13 tablas que no están en `supabase_realtime`** (`notifications`,
+  `submissions`, `exam_timer_controls`, `exams`, `workshops`, `attendance_sessions`…), así que esas
+  suscripciones **nunca disparan** y lo que entrega el dato es el sondeo. Es el peor modo de falla:
+  el código compila, no da error y no hace nada. Antes de escribir una suscripción nueva hay que
+  verificar que la tabla esté publicada — queda documentado con la consulta exacta.
+- **No se tocó la publicación**, y es deliberado: el beneficio medible es ≈ 0 y cada quite arriesga
+  una regresión (las bandejas de soporte no tienen ni sondeo ni botón de refrescar). Lo que sí
+  necesita Realtime —Reto en vivo, chat, el contador proyectado del check-in, el chat de un ticket
+  y la encuesta en vivo— ya está publicado y sigue igual.
+
 ### 🖥️ Infraestructura — la caída del 2026-09-19
 
 - **PostgREST y Auth quedaron en «Unhealthy» y los estudiantes recibían 504 justo al entregar**

@@ -576,6 +576,15 @@ Va **justo antes de «Editar»**, que es la que reemplaza.
   aunque el estado vuelva atrás. El texto dice CUÁNDO llega, con la misma condición del trigger
   (mig `20262210000000`): con la fecha de inicio a más de un día el aviso queda diferido al cron.
   **Si cambia el umbral del trigger, cambia `HORAS_DE_AVISO_INMEDIATO`.**
+- **Y confirma la verdad sobre si el aviso SALE, no solo sobre cuándo.** Desde que el panel gobierna
+  qué avisa (mig `20262300000000`), si la categoría del ítem está apagada el trigger corre igual pero
+  el `BEFORE INSERT` cancela la fila: no sale ni campanita, ni correo, ni push. El diálogo lee
+  `email_settings.enabled_kinds` y lo dice (`avisoAlPublicar(..., categoriaActiva)` → `silenciado`).
+  Sin eso prometía «se les avisa ahora mismo… el aviso ya no se puede retirar» sobre un aviso que
+  nunca salía — el docente publica creyendo que el curso se enteró y no tiene cómo verificarlo hasta
+  que un estudiante pregunta. `CATEGORIA_DE_TABLA` traduce la tabla del grid a la clave del panel, que
+  está en SINGULAR: con `workshops` la búsqueda daría `undefined`, se leería como encendido y
+  volvería el mismo bug.
 
 ### Borrador LOCAL de talleres y proyectos sin entregar
 
@@ -793,9 +802,69 @@ ExamLab es una SPA: el login (`signInWithPassword` + `window.location.href`) y e
 - Se llama en [auth.index.tsx](src/routes/auth.index.tsx) `onLogin` (solo en el camino válido, ANTES de `window.location.href` — awaiteado para que la burbuja quede encolada y Chrome la muestre tras el redirect) y en [ForceChangePasswordDialog](src/modules/auth/ForceChangePasswordDialog.tsx) tras `updateUser` (ANTES de `onChanged()`, que desmonta el diálogo — así el navegador actualiza la credencial a la contraseña REAL en vez de quedarse con la temporal).
 - Feature-detected + try/catch: `PasswordCredential` es Chromium-only (Firefox/Safari caen al heurístico del form, que ya tiene `autoComplete` username/current-password/new-password); en contextos http (no seguros) y SSR es no-op. Los `autoComplete` + el `<form>` se mantienen como fallback — NO quitarlos.
 
+### Qué avisa la plataforma — lo decide el panel, no el código
+
+**Configuración → Correos** (`email_settings.enabled_kinds`, [AdminEmailSettingsPanel](src/modules/admin/AdminEmailSettingsPanel.tsx))
+gobierna la **notificación completa** de cada categoría: la campanita, el correo y el push. No es
+solo correos, aunque el módulo se siga llamando así.
+
+Lo hace **UN** trigger `BEFORE INSERT` en `notifications`
+(mig [20262300000000](supabase/migrations/20262300000000_notificaciones_gobernadas_por_el_panel.sql))
+que devuelve `NULL` cuando la categoría está apagada. Hay **54 migraciones que hacen
+`INSERT INTO notifications`**: gatear en el sitio de inserción obliga a encontrarlos todos y a
+acordarse del próximo, y el que se olvide no falla —simplemente vuelve a mandar—. Cancelar la fila
+se lleva además el correo y el push, porque `notifications_send_email` y `notifications_send_push`
+son `AFTER INSERT` y sin fila no se disparan. Eso es lo buscado: apagar el aviso, no apagarle un
+canal y dejar el otro.
+
+- **Una clave AUSENTE deja pasar** (se exige el literal `false`, no «distinto de true»): un tipo
+  nuevo avisa hasta que alguien decida apagarlo. Al revés, estrenar un aviso lo dejaría mudo sin
+  que nadie entienda por qué.
+- **Los transaccionales NO se pueden apagar desde acá** (recuperar contraseña, confirmar cambio de
+  correo). Sin ellos alguien queda sin poder entrar y el panel se vuelve un arma.
+- **Estado desde el 2026-09-19**: encendidos `feedback` (comentarios), `messages` (conversaciones)
+  y `system_alerts` (aviso al dueño de que se llena el almacenamiento, ~3 al mes). Todo lo demás
+  apagado. El motivo está medido: en 30 días hubo **6.592 avisos con 14% de lectura**, y la
+  correlación es inversa —los de volumen alto están entre 12% y 16%, los de volumen bajo son los
+  que se leen (`feedback` 50%, `exam_integrity_staff` 88%)—. Y el volumen no venía de que pasara
+  mucho: en esos mismos 30 días hubo **8 talleres, 11 exámenes, 3 contenidos y 3 encuestas**. Tres
+  contenidos generaron 1.113 avisos a 84 personas.
+- **Al apagar `report_signature` se acepta un costo concreto**: el Acuerdo Pedagógico tiene fecha y
+  el alumno que no entra a la app no se entera por ningún otro lado. Está escrito en el propio
+  interruptor del panel.
+
+### Realtime — qué está vivo, qué no, y cuánto cuesta de verdad
+
+**Medido el 2026-09-19, y NO es lo que parece.** Realtime es el 51% del tiempo de consulta que
+`pg_stat_statements` registra, pero eso es el 51% de casi nada: procesa 1,45 registros de WAL por
+segundo a 7,24 ms, o sea **~1% de un núcleo**. Sumando TODO lo medido (Realtime + app + cron) la
+base usa ~2% de un núcleo. **No optimices Realtime buscando rendimiento** — la instancia sufre por
+E/S, no por CPU (ver la caída del 2026-09-19 en el CHANGELOG).
+
+**La publicación y el cliente NO coinciden, y hace meses que no.** La publicación
+`supabase_realtime` tiene 16 tablas; el cliente escucha por `postgres_changes` **13 tablas que no
+están en ella** (`notifications`, `submissions`, `exam_timer_controls`, `exams`, `workshops`,
+`projects`, `attendance_sessions`, `generated_contents`, `courses`, `project_submissions`,
+`project_submission_files`, `workshop_submissions`, `workshop_submission_answers`). Esas
+suscripciones **nunca disparan**: el dato lo entrega el sondeo (la campanita cada 60 s, el reloj
+del examen cada 4 s, el monitor cada 60 s), y los comentarios de `use-realtime-timer` ya lo daban
+por hecho llamándolo «poll de respaldo».
+
+- **Antes de escribir una suscripción nueva, verificá que la tabla esté publicada**:
+  `select tablename from pg_publication_tables where pubname='supabase_realtime'`. Si no está, el
+  código compila, no da error y no hace nada — el peor modo de falla.
+- **Lo que de verdad necesita Realtime** (sin él la funcionalidad no existe, no es que vaya lenta):
+  Reto en vivo (`kahoot_*`), chat 1-a-1 (`messages`/`conversations`), el contador proyectado del
+  check-in (`attendance_records`), el chat de un ticket abierto (`support_ticket_messages`) y la
+  encuesta en vivo (`poll_*`). Todas están publicadas.
+- **Lo que NO lo necesita**: paneles de gestión (colas de IA, bandeja de soporte). Un panel de
+  trabajos de fondo con un botón de refrescar no gana nada con entrega en milisegundos.
+- **La pizarra compartida usa `broadcast`, no `postgres_changes`** — no toca la base en absoluto.
+  Es el patrón preferible cuando el dato no necesita persistir.
+
 ### Notificaciones realtime + push
 
-`use-notifications.ts` hace polling cada 15s + Supabase realtime + refetch al volver al tab. Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
+`use-notifications.ts` hace polling cada **60 s** + refetch al volver al tab. (Tiene además una suscripción a `notifications` que **no dispara** —esa tabla no está publicada—; el sondeo es el camino real. Ver la sección de Realtime arriba.) Toast aparece en first-load detection. Set de IDs a nivel de módulo deduplica entre múltiples instancias del hook (sidebar bell + mobile header bell + dashboard). Si tab oculto, push via Service Worker.
 
 ### Módulo Cron (Admin / Docente)
 
@@ -1731,6 +1800,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/modules/messaging/message-tags.ts` (`buildTagToken`/`parseMessageBody` regex) ↔ `src/modules/messaging/broadcast.ts` (`humanizeTags` regex) ↔ SQL `dispatch_scheduled_messages` (`regexp_replace`)                                                                                                                                                                                                | Formato del token `[[T:type:id:label]]` (whitelist de tipos + id hex + label sin `]`)                                                                | Cambiar el formato del token en uno sin los otros → tags no se parsean, no se humanizan, o se rompe el chip                                                                               |
 | `src/modules/ai/grade-submission.ts` (`GradeBatchItem.executionOutput` + desempaque de `so_consola` en `buildWorkshopItems`) ↔ `supabase/functions/ai-grade-submission/index.ts` (`BatchItem.executionOutput` + sección "SALIDA DE EJECUCIÓN / SESIÓN DE CONSOLA" + directiva `so_consola`) ↔ `src/modules/workshops/WorkshopQuestions.tsx` (push a `batchItems` + mapping del encolado async) | Campo `executionOutput` que lleva la salida/transcript de consola al prompt de IA + desempaque del transcript v86 de so_consola (comandos → `userAnswer`, transcript → `executionOutput`) | Divergen → la salida de consola NO llega al prompt (so_consola se califica a ciegas), o el path async pierde el campo que el sync sí manda |
 | `supabase/functions/_shared/ai-content.ts` (`textoUtil`) ↔ los 7 edges que leen `message.content` (`tutor-chat`, `platform-support-chat`, `support-ai-suggest`, `ai-generate-sql`, `ai-generate-report`, `generate-contents`, `ai-generate-questions`) | Todo `content` que se muestre o se inserte pasa por `textoUtil`. Los `openai.gpt-oss-*` de **Bedrock** devuelven su deliberación DENTRO de `content`, pegada a la respuesta (medido: `<reasoning>…</reasoning>Un ADR es…`) y sin campo aparte. Los que usan `tool_calls` NO lo necesitan: ahí el razonamiento no se mezcla | Un edge nuevo que lea `content` sin pasarlo por el helper le muestra al estudiante el borrador del modelo, o lo inserta en un documento generado / en el SQL de una pizarra. Y solo se ve si la institución está en `bedrock`, así que no aparece en pruebas con Gemini |
+| `supabase/migrations/20262300000000_notificaciones_gobernadas_por_el_panel.sql` (`tg_notifications_respect_enabled_kinds`) ↔ `supabase/functions/send-email/index.ts` (`isMessage` / `isSystemAlert` / `isTransactional` / `categoryKey`) | Cómo se traduce una notificación a la CATEGORÍA del panel: `info`+`/app/messages` → `messages`, `system`+`/app/admin/system` → `system_alerts`, el resto es su propio `kind`; y qué cuenta como transaccional y por eso no se puede apagar. El trigger decide si la fila existe; el edge decide si esa fila emailea | Divergen → el panel apaga el correo de una categoría y deja la campanita encendida (o al revés), que es peor que no tener panel: el admin apaga un interruptor y el aviso sigue llegando por el otro lado sin explicación. Y si el trigger deja de exentar los transaccionales, apagar `system` deja a la gente sin poder recuperar su contraseña |
 | `src/hooks/use-theme.ts` (`STORAGE_KEY` + `EVENT_NAME`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-theme'`)                                                                                                                                                                                                                                                                  | Nombre de la key en localStorage (`examlab-theme`) + nombre del custom event                                                                         | Cambiar la key en uno sin el otro → el script pre-paint no aplica `.dark` (flash) o el tema se desincroniza entre instancias                                                              |
 | `src/modules/tenants/TenantThemeProvider.tsx` (`TENANT_VARS_CACHE_KEY = 'examlab-tenant-vars'` + set `TENANT_VARS`) ↔ `src/routes/__root.tsx` (script inline pre-paint que lee `'examlab-tenant-vars'` y aplica las vars SOLO en `/app/*`) | Key del cache pre-paint del branding del tenant + semántica: el provider escribe el snapshot tras aplicar vars y lo limpia en SA cross-tenant; el script lo re-aplica antes del primer paint | Divergen → vuelve el flash "default → branding" en cada carga fría (la "carga rara" reportada), o el SA cross-tenant ve el branding del último tenant en el primer frame |
 | `supabase/functions/_shared/transient-errors.ts` (`TRANSIENT_ERROR_PATTERN`, con test propio; lo importan el worker de generación y el de grading) ↔ `supabase/migrations/20260601001000_*` (regex en `complete_ai_grading` SQL). **Ya normalizado a UN módulo del lado TS** — antes cada worker tenía su copia. Los patrones son idénticos salvo `` (TS) vs `\y` (Postgres), que son el mismo constructo en cada dialecto                                                                                                                                                                                                                                                  | Regex que detecta errores transitorios reintenttables (429, 5xx, rate.limit, timeout, ECONN\*, fetch.failed, quota.exceeded, etc.)                   | Divergen → grading reintenta un error que generación marca failed final (o viceversa). UX inconsistente entre las dos colas                                                               |

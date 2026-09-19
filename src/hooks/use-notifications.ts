@@ -258,17 +258,31 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
     return () => document.removeEventListener("visibilitychange", onVis);
   }, [userId, load]);
 
-  // Polling cada 15 s mientras el tab está visible. Garantiza que las
-  // notificaciones aparezcan aunque realtime esté caído. Bajamos de
-  // 30 s a 15 s porque en pruebas con un solo usuario es notorio
-  // el delay; el costo de un GET cada 15 s es trivial.
+  // Sondeo mientras la pestaña está visible. Es el camino REAL por el que
+  // llega la campanita: la suscripción de arriba nunca dispara, porque
+  // `notifications` no está en la publicación `supabase_realtime` (verificado
+  // en producción el 2026-09-19; son 13 las tablas que el cliente escucha y
+  // que no están publicadas).
+  //
+  // Estaba en 15 s con el argumento de que "el costo de un GET cada 15 s es
+  // trivial" — medido con UN usuario. Con los 526 matriculados de hoy, las
+  // consultas de esta campanita sumaron 52.893 llamadas en 205 horas. Y desde
+  // que el panel de Notificaciones gobierna qué avisa (mig 20262300000000), la
+  // campanita lleva comentarios y conversaciones y nada más: son 26 comentarios
+  // al mes. Sondear cuatro veces por minuto algo que ocurre una vez al día es
+  // gasto sin destinatario.
+  //
+  // 60 s NO retrasa el chat: los mensajes tienen su propio canal en
+  // `use-messaging-toasts`, sobre `messages`, que SÍ está publicada y sí
+  // dispara en milisegundos. Lo que puede tardar hasta un minuto es el aviso
+  // de un comentario nuevo, y para eso un minuto está bien.
   useEffect(() => {
     if (!userId) return;
     const id = setInterval(() => {
       if (typeof document === "undefined" || document.visibilityState === "visible") {
         void load();
       }
-    }, 15_000);
+    }, 60_000);
     return () => clearInterval(id);
   }, [userId, load]);
 

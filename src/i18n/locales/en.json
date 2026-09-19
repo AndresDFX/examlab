@@ -10702,6 +10702,7 @@
     "confirmPublishTitle": "Publish “{{nombre}}”?",
     "confirmPublishNow": "It will show up in students' lists and they are notified right away. Moving it back to draft hides it again, but the notification cannot be taken back.",
     "confirmPublishLater": "It will show up in students' lists. They are notified only when the start date is one day away, not now.",
+    "confirmPublishSilenced": "It will appear in the students' list, but they will NOT be notified: notifications for this category are turned off in Settings → Emails. If you want them to know, use Broadcast to course or ask the Admin to turn them back on.",
     "confirmDraftTitle": "Move “{{nombre}}” back to draft?",
     "confirmDraftBody": "It stops showing up in students' lists. Existing submissions are not deleted.",
     "published": "“{{nombre}}” is now published.",

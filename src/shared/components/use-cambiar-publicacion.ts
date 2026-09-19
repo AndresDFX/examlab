@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { avisoAlPublicar, type Transicion } from "@/shared/lib/publicacion";
+import { avisoAlPublicar, CATEGORIA_DE_TABLA, type Transicion } from "@/shared/lib/publicacion";
 
 export type TablaPublicable = "workshops" | "exams" | "projects";
 
@@ -40,14 +40,39 @@ export function useCambiarPublicacion(
     if (cambiandoId) return;
     const publicando = transicion.clave === "publicar";
 
+    // Si la categoría está apagada en el panel de Notificaciones, publicar NO
+    // avisa a nadie (mig 20262300000000) y el diálogo tiene que decirlo. Se lee
+    // acá y no una vez al montar la pantalla porque un Admin puede cambiarlo
+    // mientras el docente tiene la lista abierta, y prometer de más es
+    // justamente el error que este diálogo existe para evitar.
+    //
+    // `email_settings` es legible por cualquier autenticado (policy
+    // `email_settings_select`, `USING (true)`) y en esa tabla no hay secretos:
+    // las credenciales SMTP viven en `tenant_email_settings`.
+    let categoriaActiva = true;
+    if (publicando) {
+      const { data } = await supabase
+        .from("email_settings")
+        .select("enabled_kinds")
+        .eq("id", 1)
+        .maybeSingle();
+      const kinds = (data as { enabled_kinds?: Record<string, boolean> } | null)?.enabled_kinds;
+      // Clave AUSENTE = encendida, igual que el trigger y que el edge: se exige
+      // el literal `false`. Y si la consulta falla, se asume encendida — decir
+      // «no se avisa» cuando sí se avisa es el error caro de los dos.
+      if (kinds && kinds[CATEGORIA_DE_TABLA[tabla]] === false) categoriaActiva = false;
+    }
+
     const ok = await confirm({
       title: publicando
         ? t("publicacion.confirmPublishTitle", { nombre: fila.titulo })
         : t("publicacion.confirmDraftTitle", { nombre: fila.titulo }),
       description: publicando
-        ? avisoAlPublicar(fila.inicio, new Date()) === "ahora"
-          ? t("publicacion.confirmPublishNow")
-          : t("publicacion.confirmPublishLater")
+        ? {
+            ahora: t("publicacion.confirmPublishNow"),
+            cuandoSeAcerque: t("publicacion.confirmPublishLater"),
+            silenciado: t("publicacion.confirmPublishSilenced"),
+          }[avisoAlPublicar(fila.inicio, new Date(), categoriaActiva)]
         : t("publicacion.confirmDraftBody"),
       confirmLabel: publicando ? t("publicacion.publish") : t("publicacion.backToDraft"),
       // `warning` y no `destructive`: no se pierde nada, pero el aviso que sale

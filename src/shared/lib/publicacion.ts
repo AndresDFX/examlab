@@ -57,13 +57,42 @@ export function transicionDeFila(status: string | null | undefined): Transicion 
  */
 export const HORAS_DE_AVISO_INMEDIATO = 24;
 
+/**
+ * El tercer resultado, `silenciado`, existe desde que el panel de
+ * Notificaciones gobierna qué avisa (mig 20262300000000): si la categoría del
+ * ítem —`workshop`, `exam`, `project`— está apagada, el trigger que notifica
+ * al publicar sigue corriendo pero el `BEFORE INSERT` de `notifications`
+ * cancela la fila, así que NO sale nada: ni campanita, ni correo, ni push.
+ *
+ * Sin esto el diálogo prometía «se les avisa ahora mismo... el aviso ya no se
+ * puede retirar» sobre un aviso que nunca salía. Es la peor clase de mentira
+ * en esta pantalla: el docente publica confiado en que el curso se enteró, y
+ * no tiene cómo verificarlo hasta que un estudiante pregunta por qué no sabía.
+ */
 export function avisoAlPublicar(
   inicio: string | null | undefined,
   ahora: Date,
-): "ahora" | "cuandoSeAcerque" {
+  categoriaActiva = true,
+): "ahora" | "cuandoSeAcerque" | "silenciado" {
+  if (!categoriaActiva) return "silenciado";
   if (!inicio) return "ahora";
   const t = new Date(inicio).getTime();
   if (!Number.isFinite(t)) return "ahora";
   const horas = (t - ahora.getTime()) / 3_600_000;
   return horas > HORAS_DE_AVISO_INMEDIATO ? "cuandoSeAcerque" : "ahora";
 }
+
+/**
+ * La tabla del grid → la clave de categoría del panel de Notificaciones.
+ *
+ * INVARIANTE: los valores son los MISMOS literales de `EnabledKinds` en
+ * `AdminEmailSettingsPanel` y del `kind` con que `notify_course_students` crea
+ * la notificación. Si acá dijera `workshops` (en plural, como la tabla), la
+ * búsqueda en el JSON daría `undefined`, se leería como «encendido» y el
+ * diálogo volvería a prometer un aviso que no sale.
+ */
+export const CATEGORIA_DE_TABLA = {
+  workshops: "workshop",
+  exams: "exam",
+  projects: "project",
+} as const;
