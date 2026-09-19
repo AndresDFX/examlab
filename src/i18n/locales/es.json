@@ -2771,6 +2771,8 @@
     "pendingKindProyecto": "Proyecto",
     "pendingKindAsistencia": "Asistencia",
     "pendingKindsFilterLabel": "Contar como pendiente:",
+    "pendingKindInclude": "Incluir {{label}} en el conteo",
+    "pendingKindExclude": "Excluir {{label}} del conteo",
     "pendingExportKindsExcludedNote": "El informe no cuenta {{kinds}} como pendiente (filtro activo en el panel).",
     "pendingEmpty": "Nadie tiene pendientes en este alcance.",
     "pendingEmptyHint": "Firmas, encuestas, exámenes, talleres y proyectos del curso están al día.",

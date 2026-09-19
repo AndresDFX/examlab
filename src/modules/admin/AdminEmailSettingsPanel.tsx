@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -580,12 +580,12 @@ export function AdminEmailSettingsPanel() {
               defaultValue: "Por categoría",
             })}
           </CardTitle>
-          <p className="text-xs text-muted-foreground">
+          <CardDescription className="text-xs">
             {t("hc_modulesAdminAdminEmailSettingsPanel.byCategoryHint", {
               defaultValue:
-                "Cada interruptor gobierna la notificación completa: la campanita dentro de la app, el correo y el aviso al celular. Apagado, esa categoría deja de avisar por todos lados. Recuperar contraseña y confirmar cambio de correo NO se pueden apagar acá.",
+                "Cada interruptor gobierna la notificación completa: campanita, correo y aviso al celular. Apagado, esa categoría deja de avisar por todos lados. Recuperar contraseña y confirmar cambio de correo no se pueden apagar acá.",
             })}
-          </p>
+          </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
           {CATEGORIES.map((cat) => {

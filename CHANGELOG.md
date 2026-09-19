@@ -75,6 +75,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📱 Móvil — los filtros de Estadísticas se entienden
+
+- **«Desde móvil no sé bien el tema de incluir o excluir»**, reportado sobre los chips de «Contar
+  como pendiente». Eran dos fallas a la vez, las dos medidas y no estimadas:
+  - **El área táctil era de 22 px** (renderizado y medido a 375 px con Playwright), cuando la
+    convención del proyecto pide ≥32 px. El chip era un `<button>` con clases de `Badge`, y el Badge
+    está pensado para ETIQUETAR, no para tocar.
+  - **Los dos estados eran indistinguibles**: incluido usaba `--secondary` = `oklch(0.96 …)` y
+    excluido un borde `oklch(0.92 …)`, sobre un fondo `oklch(0.985)`. Tres grises casi iguales; en un
+    teléfono, imposible.
+  - Ahora son **`<Toggle size="sm">`** del design system (32 px medidos) **con un ✓** en los
+    incluidos: el color solo no alcanza para decir «encendido». La barra ocupa 2 filas a 375 px.
+- **El auditor pasaba limpio sobre esos 22 px**, que es por qué hizo falta que lo encontrara una
+  persona. Se agregó la regla **`R6-tactil`**, que caza un `<button>` con `badgeVariants`. **Se probó
+  reintroduciendo el antipatrón a propósito, en sus dos formatos de JSX** — y la primera versión de
+  la regla NO lo cazaba: un `` se había convertido en un carácter de retroceso (0x08) al pasar por
+  el script que la escribió, así que el regex no podía coincidir con nada y el auditor seguía
+  diciendo «Sin hallazgos». Un guardrail que no se prueba es peor que ninguno, porque da confianza.
+- De paso, dos correcciones de consistencia en lo de la tanda anterior: el párrafo nuevo del panel de
+  Notificaciones pasó a `<CardDescription>` (había quedado como un `<p>` a mano, duplicando el
+  componente que el proyecto ya usa para eso), y la variable de interpolación de las etiquetas nuevas
+  pasó de `{{tipo}}` a `{{label}}`, que es la convención dominante en los locales.
+
 ### 📊 Estadísticas — el informe de pendientes incluye las asistencias faltantes
 
 - **Sexto tipo de pendiente: `asistencia`.** Aparece en la tabla, en los chips de filtro, en el

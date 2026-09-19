@@ -392,6 +392,43 @@ for (const archivo of todo) {
   });
 }
 
+// ── R6 · un Badge no es un area tactil ─────────────────────────────────
+// Un `<button>` estilizado con `badgeVariants` mide ~22 px de alto: el Badge
+// es `py-0.5` + `text-xs`, pensado para ETIQUETAR, no para tocar. La
+// convencion del proyecto pide >=32 px en movil, y el auditor no lo veia —
+// paso limpio sobre los chips de "Contar como pendiente" de Estadisticas, que
+// el usuario reporto justamente como "desde movil no se bien el tema de
+// incluir o excluir". Dos fallas a la vez: el dedo no acierta, y los dos
+// estados del Badge (relleno `secondary` contra solo borde `outline`) son
+// oklch 0.96 y 0.92 sobre un fondo 0.985 — tres grises que no se distinguen.
+//
+// El reemplazo correcto es <Toggle size="sm"> del design system (h-8 = 32 px,
+// con estado on/off real), y conviene sumarle un icono: el color solo no
+// alcanza para decir "encendido", menos a la luz del dia.
+for (const archivo of todo) {
+  const src = leer(archivo);
+  if (!src.includes("badgeVariants(")) continue;
+  const lineas = src.split(/\r?\n/);
+  lineas.forEach((l, i) => {
+    if (!l.includes("badgeVariants(") || esComentario(l)) return;
+    // La etiqueta JSX va ARRIBA del className: se mira una ventana corta hacia
+    // atras. Importar `badgeVariants` o usarlo en un <span> no es hallazgo.
+    // Se incluye la linea PROPIA: `<button className={badgeVariants(...)}>` en
+    // una sola linea es igual de valido que repartido en varias, y una regla
+    // que dependiera de como quedo formateado el JSX no guardaria nada.
+    const ventana = lineas.slice(Math.max(0, i - 8), i + 1).join(" ");
+    if (!/<button[\s/>]/.test(ventana)) return;
+    add(
+      "R6-tactil",
+      archivo,
+      i + 1,
+      "un <button> con badgeVariants mide ~22px de alto; la convencion pide " +
+        ">=32px en movil. Usar <Toggle size=\"sm\"> del design system (h-8) y " +
+        "un icono para el estado, no solo el color.",
+    );
+  });
+}
+
 const ACEPTADOS = [
   {
     regla: "DS-fecha",

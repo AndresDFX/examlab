@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ClipboardList, Download, Eye, Search } from "lucide-react";
+import { Check, ClipboardList, Download, Eye, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import {
   TableRow,
   SortableHead,
 } from "@/components/ui/table";
-import { Badge, badgeVariants } from "@/components/ui/badge";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/shared/lib/utils";
 import { BadgeOverflow } from "@/components/ui/badge-overflow";
 import { TableEmpty } from "@/components/ui/empty-state";
@@ -25,6 +25,7 @@ import { useTableSort } from "@/hooks/use-table-sort";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { toast } from "sonner";
 import { PENDING_KINDS, loadPendingStudents, type PendingKind, type StudentPendingRow } from "./pending-students";
+import { Toggle } from "@/components/ui/toggle";
 import { PendingStudentsExportDialog } from "./PendingStudentsExportDialog";
 import { PendingStudentDetailDialog } from "./PendingStudentDetailDialog";
 
@@ -167,24 +168,37 @@ export function PendingStudentsPanel({
                   aria-label={t("statistics.pendingSearchPlaceholder")}
                 />
               </div>
+              {/* Chips de incluir/excluir. Son `Toggle` del design system y no
+                  un `<button>` con clases de Badge, por dos motivos que se
+                  notaban sobre todo en el teléfono: el Badge mide ~20 px de alto
+                  (`py-0.5` + `text-xs`) cuando la convención del proyecto pide
+                  ≥32 px de área táctil, y sus dos estados —relleno gris contra
+                  solo borde— no se leen como encendido/apagado. Reportado tal
+                  cual: «desde móvil no sé bien el tema de incluir o excluir». El
+                  ✓ es lo que vuelve explícito el estado: el color solo no
+                  alcanza, y menos a la luz del día. */}
               <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-xs text-muted-foreground">{t("statistics.pendingKindsFilterLabel")}</span>
+                <span className="w-full text-xs text-muted-foreground sm:w-auto">
+                  {t("statistics.pendingKindsFilterLabel")}
+                </span>
                 {PENDING_KINDS.map((kind) => {
                   const included = !excludedKinds.has(kind);
                   return (
-                    <button
+                    <Toggle
                       key={kind}
-                      type="button"
-                      onClick={() => toggleKind(kind)}
-                      aria-pressed={included}
-                      className={cn(
-                        badgeVariants({ variant: included ? "secondary" : "outline" }),
-                        "cursor-pointer select-none",
-                        !included && "text-muted-foreground",
+                      size="sm"
+                      variant="outline"
+                      pressed={included}
+                      onPressedChange={() => toggleKind(kind)}
+                      aria-label={t(
+                        included ? "statistics.pendingKindExclude" : "statistics.pendingKindInclude",
+                        { label: t(KIND_LABEL_KEY[kind]) },
                       )}
+                      className={cn("text-xs", !included && "text-muted-foreground")}
                     >
+                      {included ? <Check /> : null}
                       {t(KIND_LABEL_KEY[kind])}
-                    </button>
+                    </Toggle>
                   );
                 })}
               </div>

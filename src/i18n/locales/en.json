@@ -2771,6 +2771,8 @@
     "pendingKindProyecto": "Project",
     "pendingKindAsistencia": "Attendance",
     "pendingKindsFilterLabel": "Count as pending:",
+    "pendingKindInclude": "Include {{label}} in the count",
+    "pendingKindExclude": "Exclude {{label}} from the count",
     "pendingExportKindsExcludedNote": "The report does not count {{kinds}} as pending (filter active in the panel).",
     "pendingEmpty": "No one has anything pending in this scope.",
     "pendingEmptyHint": "Signatures, polls, exams, workshops and projects for the course are all up to date.",
