@@ -75,6 +75,50 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🖥️ Infraestructura — la caída del 2026-09-19
+
+- **PostgREST y Auth quedaron en «Unhealthy» y los estudiantes recibían 504 justo al entregar**
+  (`PATCH /submissions`, `GET /notifications`). **La base nunca estuvo caída**: 181 MB, 31 de 60
+  conexiones, sin cadenas de bloqueo, log de Postgres limpio y Realtime replicando al día. Lo que se
+  cayó fue PostgREST, y la cadena —toda medida— es esta:
+  1. La instancia es el tier más chico (`shared_buffers` 224 MB) y su E/S va por créditos. Al
+     agotarlos, `SELECT name FROM pg_timezone_names` —que lee los ~1.196 husos del disco y que
+     PostgREST corre en **cada** recarga de su caché de esquema— pasó de 55 ms a **3.496 / 7.666 /
+     16.887 ms** en tres tomas seguidas. Es la consulta **más lenta por llamada de toda la base**
+     (839 ms de promedio), por encima de cualquier consulta de la aplicación.
+  2. El rol `authenticator` tenía `statement_timeout = 8s`, así que la recarga se cancelaba con
+     `57014` antes de terminar.
+  3. PostgREST reintenta, y **cada intento retiene una de sus ~10 conexiones del pool**. El pool se
+     agota → `PGRST003: Timed out acquiring connection from connection pool` → 504 para todos.
+
+  Es una espiral que no sale sola: mientras la E/S siga lenta, cada reintento vuelve a fallar por el
+  mismo timeout. **Arreglo: `statement_timeout` de `authenticator` a 30 s**
+  (mig `20262290000000`) — la recarga termina aunque la instancia esté lenta. Solo ese rol:
+  `authenticated` (8 s) y `anon` (3 s) quedan igual, porque las consultas de los usuarios corren
+  después de un `SET ROLE` y ahí sí un tope alto dejaría una consulta cara comiéndose una conexión.
+  Verificado: los cinco servicios volvieron a `ACTIVE_HEALTHY` **sin reiniciar nada** y el REST
+  volvió a 200 en ~0,3 s.
+
+- **Lo que la caída dejó a la vista, y que sigue pendiente de decisión.** Reparto del CPU de la base
+  en 205 horas: **Realtime 51 %** (7.739 s, 1,07 M de llamadas), app vía PostgREST 32 %, cron 16 %,
+  recarga de catálogo 1,4 %. El decodificado de WAL recorre la base **entera** y después descarta lo
+  que no esté en la publicación `supabase_realtime`… y **las tablas calientes no están en ella**: las
+  16 publicadas suman ~730 escrituras en la ventana del contador, mientras `submissions` sola suma
+  **19.721**. Al mismo tiempo, 13 tablas que el código SÍ escucha por `postgres_changes`
+  (`notifications`, `submissions`, `exam_timer_controls`, `workshops`…) **no están publicadas**, así
+  que esas suscripciones nunca disparan y lo que realmente entrega el dato es el sondeo
+  (notificaciones cada 15 s, reloj del examen cada 4 s — el respaldo que `use-realtime-timer` ya
+  documenta en sus comentarios). O sea: pagamos Realtime completo y lo usa el sondeo.
+  **No se tocó la publicación en esta tarea**: agregar las 13 dispararía el costo de Realtime, y
+  quitar las que nadie escucha (`group_chats`, `group_chat_members`) es cosmético porque casi no
+  escriben. La decisión de fondo —subir el tier o desmontar Realtime en favor del sondeo que ya
+  carga con todo— es del dueño.
+
+- **El `NOTIFY pgrst, 'reload schema'` de las migraciones es redundante** y NO fue el disparador (213
+  recargas en 205 h ≈ una por hora, sin ráfagas). Supabase ya trae el event trigger `pgrst_ddl_watch`
+  (`ddl_command_end`, activo), que recarga sola ante cualquier DDL. 395 de 598 migraciones lo emiten
+  igual; las aplicadas son inmutables, pero **en una migración nueva no hace falta escribirlo**.
+
 ### 🧑‍🏫 Docente — grids, filtros y publicación
 
 - **Las preguntas de selección muestran sus opciones y cuál es la correcta.** Reportado sobre el
