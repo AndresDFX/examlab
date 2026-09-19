@@ -46,6 +46,7 @@ const KIND_LABEL_KEY: Record<PendingKind, string> = {
   examen: "statistics.pendingKindExamen",
   taller: "statistics.pendingKindTaller",
   proyecto: "statistics.pendingKindProyecto",
+  asistencia: "statistics.pendingKindAsistencia",
 };
 
 /**
@@ -204,6 +205,7 @@ export function PendingStudentsExportDialog({
         colExamen: t("statistics.pendingKindExamen"),
         colTaller: t("statistics.pendingKindTaller"),
         colProyecto: t("statistics.pendingKindProyecto"),
+        colAsistencia: t("statistics.pendingKindAsistencia"),
         colTotal: t("statistics.pendingColTotal"),
         upToDate: t("statistics.pendingExportUpToDate"),
         excludedNote: (n) => t("statistics.pendingExportExcludedNote", { count: n }),

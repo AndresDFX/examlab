@@ -13,6 +13,7 @@ const labels: PendingReportOptions["labels"] = {
   colExamen: "Examen",
   colTaller: "Taller",
   colProyecto: "Proyecto",
+  colAsistencia: "Asistencia",
   colTotal: "Total",
   upToDate: "Al día",
   excludedNote: (n) => `Se excluyeron ${n} estudiantes.`,
@@ -44,6 +45,7 @@ function row(over: Partial<StudentPendingRow>): StudentPendingRow {
     examen: 0,
     taller: 0,
     proyecto: 0,
+    asistencia: 0,
     total: 0,
     byCourse: [],
     ...over,
@@ -132,15 +134,15 @@ describe("buildPendingReportHtml", () => {
       userId: "u1",
       name: "Ana",
       byCourse: [
-        { courseId: "c1", courseName: "Álgebra", firma: 0, encuesta: 0, examen: 2, taller: 0, proyecto: 0, total: 2 },
-        { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 0 },
+        { courseId: "c1", courseName: "Álgebra", firma: 0, encuesta: 0, examen: 2, taller: 0, proyecto: 0, asistencia: 0, total: 2 },
+        { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, asistencia: 0, total: 0 },
       ],
       total: 2,
     });
     const beto = row({
       userId: "u2",
       name: "Beto",
-      byCourse: [{ courseId: "c1", courseName: "Álgebra", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 1 }],
+      byCourse: [{ courseId: "c1", courseName: "Álgebra", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, asistencia: 0, total: 1 }],
       total: 1,
     });
 

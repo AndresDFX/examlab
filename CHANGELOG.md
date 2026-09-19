@@ -75,6 +75,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📊 Estadísticas — el informe de pendientes incluye las asistencias faltantes
+
+- **Sexto tipo de pendiente: `asistencia`.** Aparece en la tabla, en los chips de filtro, en el
+  detalle por curso y en el informe exportable, junto a firma / encuesta / examen / taller /
+  proyecto.
+- **Lo difícil no era contarlo, era no mentir.** Un estudiante sin registro en una sesión significa
+  dos cosas opuestas: que faltó, o que el docente no pasó lista ese día. Sin distinguirlas, el curso
+  ENTERO aparece pendiente cada vez que alguien no tomó asistencia — y un informe que acusa de más
+  se deja de mirar. **El criterio: si al menos un compañero del mismo curso tiene registro en esa
+  sesión, la lista sí se tomó**, así que ahí la ausencia de registro es un dato sobre el estudiante.
+  Las sesiones sin ningún registro se ignoran. Es la misma lógica por la que la Alerta temprana las
+  saca del denominador.
+- **Medido contra producción antes de construirlo**: de las sesiones pasadas, 26 tienen asistencia
+  realmente tomada, y la regla produce **159 pendientes en 76 estudiantes** de 8 cursos (~2 cada
+  uno, máximo 4). Volumen utilizable, no una inundación — la misma verificación que se le hizo al
+  recorte de notificaciones.
+- La regla vive en `asistenciasFaltantes`, PURA y con 6 tests, extraída del loader a propósito:
+  es lo único de este flujo que puede estar mal sin que nadie lo note, porque un conteo de más acusa
+  a alguien de faltar a una clase que nunca se dio.
+- De paso, **los totales dejan de escribirse a mano**: estaban sumados campo por campo en cuatro
+  lugares, así que sumar un tipo y olvidar una suma devolvía un total menor que la suma de sus
+  propias columnas. Ahora se derivan de `PENDING_KINDS`.
+
 ### 🔔 Notificaciones — se reducen al negocio, y las gobierna el panel
 
 - **Quedan solo comentarios y conversaciones.** Medido en producción sobre 30 días: **6.592 avisos

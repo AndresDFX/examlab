@@ -77,5 +77,7 @@ function kindLabel(kind: PendingKind, t: (key: string) => string): string {
       return t("statistics.pendingKindTaller");
     case "proyecto":
       return t("statistics.pendingKindProyecto");
+    case "asistencia":
+      return t("statistics.pendingKindAsistencia");
   }
 }

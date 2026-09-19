@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateAllStudents,
   aggregatePending,
+  asistenciasFaltantes,
   filterItemsByKind,
   pollIsOpen,
   type PendingItem,
@@ -36,8 +37,8 @@ describe("aggregatePending", () => {
     expect(ana.courses).toEqual(["Algoritmos", "Bases de datos"]);
     // Desglose por curso: 2 pendientes en Algoritmos, 1 en Bases de datos.
     expect(ana.byCourse).toEqual([
-      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 1, proyecto: 0, total: 2 },
-      { courseId: "c2", courseName: "Bases de datos", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 1 },
+      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 1, proyecto: 0, asistencia: 0, total: 2 },
+      { courseId: "c2", courseName: "Bases de datos", firma: 1, encuesta: 0, examen: 0, taller: 0, proyecto: 0, asistencia: 0, total: 1 },
     ]);
   });
 
@@ -88,8 +89,8 @@ describe("aggregateAllStudents", () => {
     const rows = aggregateAllStudents(items, names, courseNames, enrolledByUser);
     const beto = rows.find((r) => r.userId === "u2")!;
     expect(beto.byCourse).toEqual([
-      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 0, proyecto: 0, total: 1 },
-      { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, total: 0 },
+      { courseId: "c1", courseName: "Algoritmos", firma: 0, encuesta: 0, examen: 1, taller: 0, proyecto: 0, asistencia: 0, total: 1 },
+      { courseId: "c2", courseName: "Bases de datos", firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0, asistencia: 0, total: 0 },
     ]);
   });
 
@@ -183,5 +184,78 @@ describe("pollIsOpen", () => {
     expect(
       pollIsOpen({ is_published: true, opens_at: null, closes_at: "2026-05-01T00:00:00Z", closed_manually: false }, now),
     ).toBe(false);
+  });
+});
+
+describe("asistenciasFaltantes", () => {
+  const curso = new Map([["c1", new Set(["ana", "beto", "caro"])]]);
+
+  it("una sesión SIN ningún registro no genera pendientes", () => {
+    // El caso que hace o rompe esta funcionalidad. Si el docente no pasó lista,
+    // NADIE tiene registro — y contar eso como falta marcaría al curso entero
+    // por un hueco que no es de los estudiantes. El informe dejaría de creerse.
+    expect(asistenciasFaltantes([{ id: "s1", course_id: "c1" }], [], curso)).toEqual([]);
+  });
+
+  it("con al menos un compañero marcado, los demás SÍ quedan pendientes", () => {
+    // Que Ana figure prueba que la lista se tomó ese día, así que la ausencia
+    // de Beto y Caro es un dato sobre ellos, no sobre el docente.
+    const r = asistenciasFaltantes(
+      [{ id: "s1", course_id: "c1" }],
+      [{ session_id: "s1", user_id: "ana" }],
+      curso,
+    );
+    expect(r.map((x) => x.userId).sort()).toEqual(["beto", "caro"]);
+    expect(r.every((x) => x.kind === "asistencia" && x.courseId === "c1")).toBe(true);
+  });
+
+  it("quien tiene registro nunca queda pendiente", () => {
+    const r = asistenciasFaltantes(
+      [{ id: "s1", course_id: "c1" }],
+      [
+        { session_id: "s1", user_id: "ana" },
+        { session_id: "s1", user_id: "beto" },
+        { session_id: "s1", user_id: "caro" },
+      ],
+      curso,
+    );
+    expect(r).toEqual([]);
+  });
+
+  it("cada sesión se evalúa por separado", () => {
+    // s1 tiene lista tomada y s2 no: solo s1 debe producir pendientes. Sin esto,
+    // un curso con una sola clase registrada arrastraría a todas las demás.
+    const r = asistenciasFaltantes(
+      [
+        { id: "s1", course_id: "c1" },
+        { id: "s2", course_id: "c1" },
+      ],
+      [{ session_id: "s1", user_id: "ana" }],
+      curso,
+    );
+    expect(r).toHaveLength(2);
+    expect(r.map((x) => x.userId).sort()).toEqual(["beto", "caro"]);
+  });
+
+  it("no toca a estudiantes de otro curso", () => {
+    const dos = new Map([
+      ["c1", new Set(["ana"])],
+      ["c2", new Set(["zoe"])],
+    ]);
+    const r = asistenciasFaltantes(
+      [{ id: "s1", course_id: "c1" }],
+      [{ session_id: "s1", user_id: "otro" }],
+      dos,
+    );
+    expect(r.map((x) => x.userId)).toEqual(["ana"]);
+  });
+
+  it("una sesión de un curso sin matrícula cargada no rompe", () => {
+    const r = asistenciasFaltantes(
+      [{ id: "s1", course_id: "desconocido" }],
+      [{ session_id: "s1", user_id: "ana" }],
+      curso,
+    );
+    expect(r).toEqual([]);
   });
 });

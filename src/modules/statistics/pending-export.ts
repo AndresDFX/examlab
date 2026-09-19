@@ -82,6 +82,7 @@ export interface PendingReportOptions {
     colExamen: string;
     colTaller: string;
     colProyecto: string;
+    colAsistencia: string;
     colTotal: string;
     upToDate: string;
     excludedNote: (n: number) => string;
@@ -131,7 +132,8 @@ const CENTRO = `${BORDE};text-align:center`;
 const cabecera = (w: number) => `${BORDE};width:${w.toFixed(2)}%;background-color:#f1f5f9`;
 const cabeceraCentro = (w: number) => `${cabecera(w)};text-align:center`;
 
-/** Las 6 columnas numéricas llevan un ancho fijo y angosto (son 1-2 dígitos
+/** Las columnas numéricas (una por tipo de pendiente, más el total) llevan un
+ *  ancho fijo y angosto, porque son 1-2 dígitos
  *  o "—"). El resto del ancho se reparte por PESO, no en partes iguales:
  *  nombre y cursos suelen tener el contenido más largo, mientras que un
  *  código o un documento entran en pocos caracteres. Repartir parejo
@@ -147,6 +149,7 @@ function metricCols(
     { kind: "examen", label: labels.colExamen, w: 7 },
     { kind: "taller", label: labels.colTaller, w: 7 },
     { kind: "proyecto", label: labels.colProyecto, w: 8 },
+    { kind: "asistencia", label: labels.colAsistencia, w: 9 },
     { kind: "total", label: labels.colTotal, w: 7 },
   ];
   return all.filter((c) => c.kind === "total" || includeKinds.has(c.kind));
@@ -213,10 +216,10 @@ function commonCellsHtml(r: StudentPendingRow, extraFields: readonly StudentExtr
     ${extraFields.map((f) => `<td style="${BORDE}">${escapeHtml(EXTRA_FIELD_GETTERS[f](r))}</td>`).join("")}`;
 }
 
-/** Las 6 celdas de conteo (firma..total), a partir de conteos crudos. */
+/** Las celdas de conteo (una por tipo incluido + total), a partir de conteos crudos. */
 function countCellsHtml(
   labels: PendingReportOptions["labels"],
-  counts: { firma: number; encuesta: number; examen: number; taller: number; proyecto: number; total: number },
+  counts: Record<PendingKind, number> & { total: number },
   includeKinds: ReadonlySet<PendingKind>,
 ): string {
   const upToDate = counts.total === 0;

@@ -36,6 +36,7 @@ const KIND_LABEL_KEY: Record<PendingKind, string> = {
   examen: "statistics.pendingKindExamen",
   taller: "statistics.pendingKindTaller",
   proyecto: "statistics.pendingKindProyecto",
+  asistencia: "statistics.pendingKindAsistencia",
 };
 
 /**

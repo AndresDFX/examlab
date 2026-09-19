@@ -22,7 +22,14 @@ import { supabase } from "@/integrations/supabase/client";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const dbAny = supabase as any;
 
-export const PENDING_KINDS = ["firma", "encuesta", "examen", "taller", "proyecto"] as const;
+export const PENDING_KINDS = [
+  "firma",
+  "encuesta",
+  "examen",
+  "taller",
+  "proyecto",
+  "asistencia",
+] as const;
 export type PendingKind = (typeof PENDING_KINDS)[number];
 
 /**
@@ -47,6 +54,17 @@ export function filterItemsByKind(
   return items.filter((it) => !excludeKinds.has(it.kind));
 }
 
+/** Contadores en cero para TODOS los tipos. Derivado de `PENDING_KINDS` a
+ *  propósito: las cuatro sumas de este archivo estaban escritas a mano
+ *  (`firma + encuesta + examen + taller + proyecto`), así que sumar un tipo y
+ *  olvidar una de ellas no rompía nada — devolvía un total MENOR que la suma de
+ *  sus propias columnas, que es un error que nadie mira dos veces. */
+const zeroCounts = (): Record<PendingKind, number> =>
+  Object.fromEntries(PENDING_KINDS.map((k) => [k, 0])) as Record<PendingKind, number>;
+
+const sumCounts = (c: Record<PendingKind, number>): number =>
+  PENDING_KINDS.reduce((acc, k) => acc + c[k], 0);
+
 /** Un pendiente concreto: el estudiante `userId` le debe algo de `kind` a un
  *  entregable del curso `courseId`. La agregación cuenta estos items. */
 export type PendingItem = { userId: string; courseId: string; kind: PendingKind };
@@ -62,6 +80,7 @@ export type CoursePendingBreakdown = {
   examen: number;
   taller: number;
   proyecto: number;
+  asistencia: number;
   total: number;
 };
 
@@ -75,6 +94,7 @@ export type StudentPendingRow = {
   examen: number;
   taller: number;
   proyecto: number;
+  asistencia: number;
   total: number;
   /** Desglose por curso (solo cursos CON algún pendiente), ordenado por
    *  nombre. Alimenta el diálogo "Ver detalle" — sin esto, un estudiante con
@@ -127,7 +147,7 @@ export function aggregatePending(
     let e = byUser.get(it.userId);
     if (!e) {
       e = {
-        counts: { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 },
+        counts: zeroCounts(),
         courseIds: new Set(),
         byCourse: new Map(),
       };
@@ -137,15 +157,14 @@ export function aggregatePending(
     e.courseIds.add(it.courseId);
     let cc = e.byCourse.get(it.courseId);
     if (!cc) {
-      cc = { firma: 0, encuesta: 0, examen: 0, taller: 0, proyecto: 0 };
+      cc = zeroCounts();
       e.byCourse.set(it.courseId, cc);
     }
     cc[it.kind]++;
   }
   const rows: StudentPendingRow[] = [];
   for (const [userId, e] of byUser) {
-    const total =
-      e.counts.firma + e.counts.encuesta + e.counts.examen + e.counts.taller + e.counts.proyecto;
+    const total = sumCounts(e.counts);
     if (total === 0) continue;
     const byCourse: CoursePendingBreakdown[] = [...e.byCourse.entries()]
       .map(([courseId, c]) => ({
@@ -156,7 +175,8 @@ export function aggregatePending(
         examen: c.examen,
         taller: c.taller,
         proyecto: c.proyecto,
-        total: c.firma + c.encuesta + c.examen + c.taller + c.proyecto,
+        asistencia: c.asistencia,
+        total: sumCounts(c),
       }))
       .sort((a, b) => a.courseName.localeCompare(b.courseName, "es-CO", { sensitivity: "base" }));
     rows.push({
@@ -171,6 +191,7 @@ export function aggregatePending(
       examen: e.counts.examen,
       taller: e.counts.taller,
       proyecto: e.counts.proyecto,
+      asistencia: e.counts.asistencia,
       total,
       byCourse,
     });
@@ -207,13 +228,6 @@ export function aggregateAllStudents(
       byCourse: Map<string, Record<PendingKind, number>>;
     }
   >();
-  const zeroCounts = (): Record<PendingKind, number> => ({
-    firma: 0,
-    encuesta: 0,
-    examen: 0,
-    taller: 0,
-    proyecto: 0,
-  });
   for (const [userId, courseIds] of enrolledByUser) {
     const byCourse = new Map<string, Record<PendingKind, number>>();
     for (const cid of courseIds) byCourse.set(cid, zeroCounts());
@@ -238,8 +252,7 @@ export function aggregateAllStudents(
   }
   const rows: StudentPendingRow[] = [];
   for (const [userId, e] of byUser) {
-    const total =
-      e.counts.firma + e.counts.encuesta + e.counts.examen + e.counts.taller + e.counts.proyecto;
+    const total = sumCounts(e.counts);
     const byCourse: CoursePendingBreakdown[] = [...e.byCourse.entries()]
       .map(([courseId, c]) => ({
         courseId,
@@ -249,7 +262,8 @@ export function aggregateAllStudents(
         examen: c.examen,
         taller: c.taller,
         proyecto: c.proyecto,
-        total: c.firma + c.encuesta + c.examen + c.taller + c.proyecto,
+        asistencia: c.asistencia,
+        total: sumCounts(c),
       }))
       .sort((a, b) => a.courseName.localeCompare(b.courseName, "es-CO", { sensitivity: "base" }));
     rows.push({
@@ -264,6 +278,7 @@ export function aggregateAllStudents(
       examen: e.counts.examen,
       taller: e.counts.taller,
       proyecto: e.counts.proyecto,
+      asistencia: e.counts.asistencia,
       total,
       byCourse,
     });
@@ -271,6 +286,50 @@ export function aggregateAllStudents(
   // Alfabético: es un ROSTER completo (no un ranking de riesgo), así que el
   // docente lo lee como una lista de curso, no ordenada por "quién debe más".
   return rows.sort((a, b) => a.name.localeCompare(b.name, "es-CO", { sensitivity: "base" }));
+}
+
+/**
+ * PURO: las asistencias faltantes, y la regla que distingue «faltó» de «el
+ * docente no tomó lista».
+ *
+ * Un estudiante sin registro en una sesión puede significar dos cosas
+ * OPUESTAS, y tratarlas igual rompe el informe: si el docente no pasó lista ese
+ * día NADIE tiene registro, así que el curso ENTERO aparecería como pendiente y
+ * el docente dejaría de creerle a la pantalla. Es la misma trampa por la que
+ * `early-alert.ts` saca del denominador las sesiones sin registros.
+ *
+ * El criterio que las separa: **si al menos un compañero del mismo curso tiene
+ * registro en esa sesión, la lista SÍ se tomó**. Ahí, no tener registro es un
+ * dato sobre el estudiante y no un hueco del docente. Las sesiones sin ningún
+ * registro se ignoran por completo.
+ *
+ * Se extrae del loader porque esto es lo único de este flujo que puede estar
+ * mal sin que nadie lo note: un conteo de más acusa a un estudiante de faltar a
+ * una clase que nunca se dio.
+ */
+export function asistenciasFaltantes(
+  sesiones: ReadonlyArray<{ id: string; course_id: string }>,
+  registros: ReadonlyArray<{ session_id: string; user_id: string }>,
+  studentsByCourse: ReadonlyMap<string, ReadonlySet<string>>,
+): PendingItem[] {
+  const conRegistro = new Set<string>(); // `${session_id}::${user_id}`
+  const listaTomada = new Set<string>();
+  for (const r of registros) {
+    conRegistro.add(`${r.session_id}::${r.user_id}`);
+    listaTomada.add(r.session_id);
+  }
+  const items: PendingItem[] = [];
+  for (const ses of sesiones) {
+    if (!listaTomada.has(ses.id)) continue;
+    const students = studentsByCourse.get(ses.course_id);
+    if (!students) continue;
+    for (const uid of students) {
+      if (!conRegistro.has(`${ses.id}::${uid}`)) {
+        items.push({ userId: uid, courseId: ses.course_id, kind: "asistencia" });
+      }
+    }
+  }
+  return items;
 }
 
 /** ¿La encuesta está abierta AHORA? Publicada, dentro de su ventana y no
@@ -466,6 +525,47 @@ async function loadPendingData(
     const courseId = s.generated_reports?.course_id;
     if (!courseId) continue;
     items.push({ userId: s.user_id, courseId, kind: "firma" });
+  }
+
+  // ── Asistencias faltantes en sesiones que SÍ se dieron ──────────────
+  // La trampa de este pendiente, y por la que no existía hasta ahora: un
+  // estudiante "sin registro" puede significar dos cosas OPUESTAS — que faltó,
+  // o que el docente no tomó asistencia ese día. Tratar las dos igual marca al
+  // curso ENTERO como pendiente cada vez que alguien no pasó lista, y entonces
+  // el informe deja de creerse (es la misma razón por la que `early-alert.ts`
+  // excluye del denominador las sesiones sin registros).
+  //
+  // El criterio que las distingue: si **al menos un compañero del mismo curso**
+  // tiene registro en esa sesión, la asistencia SÍ se tomó. Ahí, no tener
+  // registro es un dato real sobre el estudiante y no un hueco del docente.
+  // Verificado contra producción: de todas las sesiones pasadas, 26 tienen
+  // asistencia tomada, y la regla produce 159 pendientes en 76 estudiantes
+  // (~2 cada uno) — señal utilizable, no una inundación.
+  //
+  // El filtro por fecha es una salvaguarda ADEMÁS de la prueba anterior: cubre
+  // al docente que abre el check-in para probar el proyector días antes de la
+  // clase y queda una marca suelta, que sin esto volvería pendiente a todo el
+  // curso por una sesión que todavía no ocurrió.
+  const hoy = new Date();
+  const hoyISO = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, "0")}-${String(
+    hoy.getDate(),
+  ).padStart(2, "0")}`;
+  const { data: sesRaw } = await dbAny
+    .from("attendance_sessions")
+    .select("id, course_id")
+    .in("course_id", courseIds)
+    .is("deleted_at", null)
+    .lte("session_date", hoyISO);
+  const sesiones = (sesRaw ?? []) as Array<{ id: string; course_id: string }>;
+  if (sesiones.length > 0) {
+    const { data: regRaw } = await dbAny
+      .from("attendance_records")
+      .select("session_id, user_id")
+      .in(
+        "session_id",
+        sesiones.map((x) => x.id),
+      );
+    items.push(...asistenciasFaltantes(sesiones, (regRaw ?? []) as Array<{ session_id: string; user_id: string }>, studentsByCourse));
   }
 
   return { items, courseNames, enrolledByUser };

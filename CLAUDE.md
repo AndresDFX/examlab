@@ -1069,6 +1069,31 @@ gráficas** a propósito: es lo accionable de la pantalla.
   "empeoró desde el último snapshot" + cadencia de digest. Se dejó afuera a propósito: sería la 15ª
   invariante cross-file del proyecto y hacerla mal genera spam, que es peor que no tenerla.
 
+### Pendientes por estudiante (Estadísticas) — incluye asistencia
+
+`src/modules/statistics/pending-students.ts` responde «qué le falta HACER a cada estudiante, ahora»
+(la Alerta temprana responde otra cosa: a quién buscar por riesgo). Seis tipos: `firma`, `encuesta`,
+`examen`, `taller`, `proyecto` y **`asistencia`**.
+
+- **La regla de asistencia es lo único delicado acá** (`asistenciasFaltantes`, PURA y con tests): un
+  estudiante sin registro en una sesión significa dos cosas OPUESTAS — que faltó, o que el docente
+  no pasó lista ese día. Si no se distinguen, el curso ENTERO aparece pendiente cada vez que alguien
+  no tomó asistencia, y el docente deja de creerle a la pantalla. **El criterio que las separa: si al
+  menos un compañero del mismo curso tiene registro en esa sesión, la lista SÍ se tomó.** Las
+  sesiones sin ningún registro se ignoran por completo. Es la misma lógica por la que
+  `early-alert.ts` saca esas sesiones del denominador, y **no es opcional**: sin ella el informe se
+  inunda de acusaciones falsas.
+- El filtro `session_date <= hoy` es una salvaguarda ADEMÁS de lo anterior: cubre al docente que
+  abre el check-in para probar el proyector días antes y deja una marca suelta.
+- **En producción solo existe el estado `presente`** — los docentes marcan quién vino, no quién
+  faltó. Por eso «sin registro en una sesión que se dio» ES la asistencia faltante, y no hace falta
+  mirar `status`.
+- **Los totales se derivan de `PENDING_KINDS`** (`zeroCounts` / `sumCounts`), no se escriben a mano.
+  Estaban a mano en cuatro lugares: sumar un tipo y olvidar una de esas sumas no rompe nada, devuelve
+  un total MENOR que la suma de sus propias columnas — un error que nadie mira dos veces. Al agregar
+  un tipo el compilador ya marca los 6 sitios de UI/export que hay que tocar; las sumas no las
+  marcaba nadie.
+
 ### Progreso de material + continuidad ("Seguías en…")
 
 Registra qué archivos del material del tablero abrió/descargó cada alumno, para mostrarle cuánto

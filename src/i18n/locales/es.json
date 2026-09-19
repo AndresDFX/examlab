@@ -2769,6 +2769,7 @@
     "pendingKindExamen": "Examen",
     "pendingKindTaller": "Taller",
     "pendingKindProyecto": "Proyecto",
+    "pendingKindAsistencia": "Asistencia",
     "pendingKindsFilterLabel": "Contar como pendiente:",
     "pendingExportKindsExcludedNote": "El informe no cuenta {{kinds}} como pendiente (filtro activo en el panel).",
     "pendingEmpty": "Nadie tiene pendientes en este alcance.",
