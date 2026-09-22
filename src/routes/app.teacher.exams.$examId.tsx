@@ -884,23 +884,26 @@ function ExamEditor() {
       });
       if (!ok) return;
 
-      // Un solo `upsert` y no diez UPDATE sueltos: si se escribiera fila por
+      // Una sola sentencia y no diez UPDATE sueltos: si se escribiera fila por
       // fila y la sexta fallara, el examen quedaría con cinco puntajes nuevos y
       // cinco viejos — sumando MENOS de lo que sumaba antes de pulsar el botón
       // que existe para cuadrarlo.
-      // Solo `id` y `points`: mandar la fila entera reescribiría enunciado,
-      // opciones y rúbrica con la copia que este render tenga en memoria, y
-      // pisaría cualquier edición hecha entretanto. Y si una de esas filas ya no
-      // existe, el INSERT del upsert falla por las columnas obligatorias —
-      // ruidoso, pero mucho mejor que re-crear una pregunta borrada.
       //
-      // El cast es por eso mismo: los tipos generados exigen la fila COMPLETA
-      // porque un upsert puede insertar, y acá el objetivo es justamente no
-      // mandarla entera.
-      const dbUpsert = supabase as any;
-      const { error } = await dbUpsert
-        .from("questions")
-        .upsert(lista.map((q, i) => ({ id: q.id, points: nuevos[i] })));
+      // Va por RPC y NO por `.upsert({id, points})`, que es lo que había y no
+      // funcionó nunca: PostgREST lo manda como INSERT … ON CONFLICT, Postgres
+      // evalúa el WITH CHECK de la política de INSERT sobre la fila propuesta
+      // —donde `exam_id` es NULL— y la sentencia entera rebota con 42501, que
+      // el usuario lee como «No tienes permisos». La RPC hace UPDATE … FROM
+      // unnest(): atómica, sin ruta de INSERT, y sin tocar enunciado, opciones
+      // ni rúbrica (mandar la fila completa las pisaría con la copia que este
+      // render tenga en memoria).
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dbRpc = supabase as any;
+      const { error } = await dbRpc.rpc("exam_repartir_puntajes", {
+        _exam_id: examId,
+        _ids: lista.map((q) => q.id),
+        _puntos: nuevos,
+      });
       if (error) {
         toast.error(friendlyError(error));
         return;
