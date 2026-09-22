@@ -661,6 +661,40 @@ Los estudiantes se marcan presentes solos para que el docente no tenga que llama
 - **Deep-link**: el QR codifica `https://<host>/app/student/attendance?session=X&code=Y`. Si el estudiante lo abre así (cámara nativa o desde la app), el effect en `app.student.attendance.tsx` parsea, llama RPC y limpia la URL con `history.replaceState`.
 - **Parametrización**: cada inicio de check-in toma `duration_minutes` (default 10, rango 1-240) y `rotation_seconds` (default 60, rango 15-600) desde un dialog. No hay default global todavía — se agrega cuando se necesite.
 
+### Asistencia múltiple — un código para varias sesiones
+
+Mig [20262310000000](supabase/migrations/20262310000000_asistencia_multiple_un_codigo_varias_sesiones.sql).
+El docente marca sesiones extra en el diálogo de check-in y el curso escanea **una** vez.
+
+- **Funciona porque el código sale de la SEMILLA.** `compute_attendance_code(seed, period)` deriva
+  el número de la semilla, así que dos sesiones que la comparten ya aceptan el mismo código. **El QR,
+  el enlace `?session=X&code=Y`, `compute_attendance_code` y su espejo en JS NO se tocaron**: el
+  enlace apunta al ANCLA (la sesión más temprana del grupo) y la propagación es del servidor.
+- **`attendance_check_in_state.group_id`** marca el grupo. Explícito y no «misma semilla»: deducirlo
+  por coincidencia de semillas es un invariante implícito cuyo modo de falla es marcar asistencia en
+  la clase de otro.
+- **`attendance_marcar_grupo(session, user)` es el ÚNICO lugar de la propagación**, y la llaman los
+  dos caminos de check-in (autenticado y público por correo). Si difirieran, el mismo código marcaría
+  dos sesiones por un camino y una por el otro. **Cada hermana se valida sola** —papelera del curso,
+  ventana, matrícula, sus propios requisitos—: compartir grupo no es permiso para marcar.
+- **`teacher_open_attendance_check_in_multi` DELEGA en la RPC de una sesión** y después copia la
+  semilla del ancla + sella el grupo. No se le agregó un arreglo a la RPC existente porque esa ya
+  tiene seis parámetros, dos caminos (abrir/ajustar) y un contrato «NULL = no tocar» documentado
+  parámetro por parámetro. Una hermana que falla **no aborta el grupo**, y por eso el conteo que se
+  le muestra al docente sale del SERVIDOR (`opened`) y no del tamaño de su selección.
+- **Ajustar nunca usa la múltiple**: re-abriría las hermanas con otra semilla e invalidaría el código
+  que la clase está mirando en el proyector.
+- **Cerrar es del grupo** (`teacher_close_attendance_check_in_group`, desde cualquiera de sus
+  sesiones): cerrar solo el ancla dejaba las hermanas abiertas con la misma semilla — el código
+  seguía sirviendo y no se veía.
+- **Tope de 20 y un solo CURSO por grupo** (`mixed_courses`): un código que cruza cursos es una
+  puerta a marcar asistencia en una clase a la que el alumno no va, y uno que cubre media asignatura
+  deja de ser «la clase de hoy».
+- **Verificado contra PGlite con 16 comprobaciones**, la mayoría de lo que NO debe pasar: código
+  inválido → 0 marcas, hermana con requisito pendiente → omitida y reportada, hermana cerrada → sin
+  marca, curso en papelera → nada, estudiante abriendo el grupo → `unauthorized`, sesión sola → no
+  propaga.
+
 ### Proyectos: sustentación + link al repo obligatorio
 
 La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").

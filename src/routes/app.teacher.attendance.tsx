@@ -87,7 +87,13 @@ import {
   Copy,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
-import { formatDateShort, formatSessionLabel, formatTime, todayLocalISO } from "@/shared/lib/format";
+import {
+  formatDateOnly,
+  formatDateShort,
+  formatSessionLabel,
+  formatTime,
+  todayLocalISO,
+} from "@/shared/lib/format";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
@@ -471,7 +477,9 @@ function TeacherAttendance() {
   const [checkInReqItems, setCheckInReqItems] = useState<RequisitoItem[]>([]);
   const [checkInReqLoading, setCheckInReqLoading] = useState(false);
   /** Cuantos ya lo cumplen, para no abrir un check-in que bloquea a media clase. */
-  const [checkInReqCumplen, setCheckInReqCumplen] = useState<{ ok: number; total: number } | null>(null);
+  const [checkInReqCumplen, setCheckInReqCumplen] = useState<{ ok: number; total: number } | null>(
+    null,
+  );
   /**
    * Aplicar el mismo requisito a las sesiones que VIENEN de este curso.
    *
@@ -484,6 +492,55 @@ function TeacherAttendance() {
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
    *  con la asistencia en la nota herede el modo flojo de la clase anterior. */
   const [checkInEmailOnly, setCheckInEmailOnly] = useState(false);
+  /**
+   * La sesión del diálogo de check-in, sea que se esté abriendo o ajustando.
+   * Ya existía como `checkInAjusteSession ?? checkInConfigSession` calculado
+   * dentro de `startCheckIn`; acá se necesita también en el render.
+   */
+  /**
+   * Sesiones ADEMÁS de la actual que el mismo código va a cubrir
+   * («asistencia múltiple», mig 20262310000000).
+   *
+   * Vacío = comportamiento de siempre: un check-in para UNA sesión. El caso que
+   * resuelve es el bloque de tres horas partido en dos o tres sesiones del
+   * sistema: hoy hay que abrir el check-in una vez por sesión y proyectar un QR
+   * distinto para cada una, así que el curso escanea dos o tres veces.
+   *
+   * Son casillas y no un `Select` múltiple por el mismo motivo que
+   * `CourseCheckboxList`: lo elegido es justo lo que hay que revisar antes de
+   * confirmar —acá se está decidiendo en qué sesiones va a quedar asistencia—, y
+   * un Select obliga a abrirlo para saber qué quedó marcado.
+   */
+  const [checkInExtraSessions, setCheckInExtraSessions] = useState<Set<string>>(new Set());
+
+  const sesionCheckInActual = checkInAjusteSession ?? checkInConfigSession;
+  /**
+   * Las otras sesiones del MISMO curso que el código podría cubrir. Se ordenan
+   * con las del mismo día primero (el bloque partido, que es el caso real) y
+   * después el resto por fecha. Se excluye la propia y las de la papelera.
+   */
+  const candidatasCheckInMultiple = useMemo(() => {
+    const actual = sesionCheckInActual;
+    if (!actual) return [] as Session[];
+    return sessions
+      .filter(
+        (s) =>
+          s.id !== actual.id &&
+          s.course_id === actual.course_id &&
+          // Una sesión con su check-in YA abierto no se puede sumar al grupo:
+          // adoptaría la semilla del ancla y el código que esa clase está
+          // mirando dejaría de valer. El servidor también lo rechaza
+          // (`session_already_open`) — acá se filtra para que el docente ni
+          // siquiera pueda elegirlo y reciba un error que no esperaba.
+          !s.check_in_open,
+      )
+      .sort((a, b) => {
+        const aMismoDia = a.session_date === actual.session_date ? 0 : 1;
+        const bMismoDia = b.session_date === actual.session_date ? 0 : 1;
+        if (aMismoDia !== bMismoDia) return aMismoDia - bMismoDia;
+        return a.session_date.localeCompare(b.session_date);
+      });
+  }, [sessions, sesionCheckInActual]);
   /**
    * ¿El cierre elegido ya pasó? Solo tiene sentido al AJUSTAR: el servidor
    * rechaza un cierre pasado, y con razón —la ventana vencida se borra sola y
@@ -498,8 +555,7 @@ function TeacherAttendance() {
    * no cambia nada — y al hacerla, el docente se queda sin saber si pasó algo.
    * Los requisitos entran solo cuando ya se leyeron los que la sesión tenía.
    */
-  const checkInReqsCambiaron =
-    huellaRequisitos([...checkInReqs]) !== checkInReqsIniciales;
+  const checkInReqsCambiaron = huellaRequisitos([...checkInReqs]) !== checkInReqsIniciales;
   const checkInHuboCambios = (() => {
     if (!checkInAjusteSession || !checkInPrev) return false;
     if (checkInRotation !== checkInPrev.rotationSeconds) return true;
@@ -510,7 +566,8 @@ function TeacherAttendance() {
       // exacto marcaría "cambió" por los segundos que el guardado traía.
       if (
         Number.isFinite(elegido) &&
-        Math.floor(elegido / 60_000) !== Math.floor(new Date(checkInPrev.closesAt).getTime() / 60_000)
+        Math.floor(elegido / 60_000) !==
+          Math.floor(new Date(checkInPrev.closesAt).getTime() / 60_000)
       ) {
         return true;
       }
@@ -637,133 +694,133 @@ function TeacherAttendance() {
      *    de error. El próximo refresco lo arregla, y el manual sí lo muestra.
      */
     async (isActive: () => boolean = () => true, silencioso = false) => {
-    if (!courseId) return;
-    const miTurno = ++turnoCargaRef.current;
-    // `isActive` cubre el desmontaje; el turno cubre el adelantamiento.
-    const aplicable = () => isActive() && turnoCargaRef.current === miTurno;
-    // Único camino para los fallos, para que las cuatro ramas de error
-    // (las tres de dentro del `try` y el `catch`) respeten `silencioso`.
-    // Estaban sueltas y tres de ellas lo ignoraban.
-    const fallo = (err: unknown) => {
-      if (!aplicable()) return;
-      if (silencioso) {
-        console.warn("[asistencia] refresco de fondo falló:", err);
-        return;
-      }
-      setCourseError(friendlyError(err, t("teacherAttendance.loadCoursesErrorHint")));
-    };
-    if (!silencioso) {
-      setLoadingCourse(true);
-      setCourseError(null);
-    }
-    try {
-    const [
-      { data: sess, error: sessErr },
-      { data: enr, error: enrErr },
-      { data: cs },
-      { data: gens },
-    ] = await Promise.all([
-      supabase
-        .from("attendance_sessions")
-        .select("*")
-        .eq("course_id", courseId)
-        // Ocultar sesiones en papelera del tablero del docente.
-        .is("deleted_at", null)
-        .order("session_date"),
-      supabase.from("course_enrollments").select("user_id").eq("course_id", courseId),
-      // grade_cuts no está en types.ts auto-generado todavía
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from("grade_cuts")
-        .select("id, name, position, start_date, end_date")
-        .eq("course_id", courseId)
-        .order("position"),
-      // generated_contents disponibles: status='done' del docente.
-      // Filtramos a contenidos que sean del propio curso O sin curso
-      // asociado (material reutilizable). RLS ya restringe al teacher_id.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (supabase as any)
-        .from("generated_contents")
-        .select("id, display_name, topic, mode, course_id, files")
-        .eq("status", "done")
-        // No ofrecer contenidos en papelera para asignar a sesiones.
-        .is("deleted_at", null)
-        .or(`course_id.eq.${courseId},course_id.is.null`),
-    ]);
-    if (!aplicable()) return;
-    // sesiones + matriculados son la data crítica del tablero: sin ellas la
-    // grilla no tiene sentido. cortes / contenidos son secundarios (solo
-    // enriquecen los selectores), así que no bloquean el render.
-    const criticalErr = sessErr ?? enrErr;
-    if (criticalErr) {
-      fallo(criticalErr);
-      return;
-    }
-    setSessions((sess ?? []) as Session[]);
-    setCuts((cs ?? []) as Cut[]);
-    // Aplana files[] → classes[] para no recalcular en cada Select.
-    setAvailableContents(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      ((gens ?? []) as any[]).map((g) => {
-        const files = (g.files ?? []) as Array<{ name: string }>;
-        const set = new Set<number>();
-        for (const f of files) {
-          const m = f.name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
-          if (m) set.add(Number(m[1]));
+      if (!courseId) return;
+      const miTurno = ++turnoCargaRef.current;
+      // `isActive` cubre el desmontaje; el turno cubre el adelantamiento.
+      const aplicable = () => isActive() && turnoCargaRef.current === miTurno;
+      // Único camino para los fallos, para que las cuatro ramas de error
+      // (las tres de dentro del `try` y el `catch`) respeten `silencioso`.
+      // Estaban sueltas y tres de ellas lo ignoraban.
+      const fallo = (err: unknown) => {
+        if (!aplicable()) return;
+        if (silencioso) {
+          console.warn("[asistencia] refresco de fondo falló:", err);
+          return;
         }
-        return {
-          id: g.id,
-          // Fallback al topic para filas pre-migración display_name.
-          display_name: (g.display_name as string | null) ?? g.topic,
-          topic: g.topic,
-          mode: g.mode,
-          course_id: g.course_id,
-          classes: Array.from(set).sort((a, b) => a - b),
-        };
-      }),
-    );
-
-    const userIds = (enr ?? []).map((e: any) => e.user_id);
-    if (userIds.length) {
-      const { data: profs, error: profErr } = await supabase
-        .from("profiles")
-        .select("id, full_name, institutional_email")
-        .in("id", userIds)
-        .order("full_name");
-      if (!aplicable()) return;
-      if (profErr) {
-        fallo(profErr);
-        return;
+        setCourseError(friendlyError(err, t("teacherAttendance.loadCoursesErrorHint")));
+      };
+      if (!silencioso) {
+        setLoadingCourse(true);
+        setCourseError(null);
       }
-      setStudents((profs ?? []) as Student[]);
-    } else {
-      setStudents([]);
-    }
+      try {
+        const [
+          { data: sess, error: sessErr },
+          { data: enr, error: enrErr },
+          { data: cs },
+          { data: gens },
+        ] = await Promise.all([
+          supabase
+            .from("attendance_sessions")
+            .select("*")
+            .eq("course_id", courseId)
+            // Ocultar sesiones en papelera del tablero del docente.
+            .is("deleted_at", null)
+            .order("session_date"),
+          supabase.from("course_enrollments").select("user_id").eq("course_id", courseId),
+          // grade_cuts no está en types.ts auto-generado todavía
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("grade_cuts")
+            .select("id, name, position, start_date, end_date")
+            .eq("course_id", courseId)
+            .order("position"),
+          // generated_contents disponibles: status='done' del docente.
+          // Filtramos a contenidos que sean del propio curso O sin curso
+          // asociado (material reutilizable). RLS ya restringe al teacher_id.
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (supabase as any)
+            .from("generated_contents")
+            .select("id, display_name, topic, mode, course_id, files")
+            .eq("status", "done")
+            // No ofrecer contenidos en papelera para asignar a sesiones.
+            .is("deleted_at", null)
+            .or(`course_id.eq.${courseId},course_id.is.null`),
+        ]);
+        if (!aplicable()) return;
+        // sesiones + matriculados son la data crítica del tablero: sin ellas la
+        // grilla no tiene sentido. cortes / contenidos son secundarios (solo
+        // enriquecen los selectores), así que no bloquean el render.
+        const criticalErr = sessErr ?? enrErr;
+        if (criticalErr) {
+          fallo(criticalErr);
+          return;
+        }
+        setSessions((sess ?? []) as Session[]);
+        setCuts((cs ?? []) as Cut[]);
+        // Aplana files[] → classes[] para no recalcular en cada Select.
+        setAvailableContents(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ((gens ?? []) as any[]).map((g) => {
+            const files = (g.files ?? []) as Array<{ name: string }>;
+            const set = new Set<number>();
+            for (const f of files) {
+              const m = f.name.match(/(?:CLASE|CLASS|SESION|SESSION)[_\s-]*(\d+)/i);
+              if (m) set.add(Number(m[1]));
+            }
+            return {
+              id: g.id,
+              // Fallback al topic para filas pre-migración display_name.
+              display_name: (g.display_name as string | null) ?? g.topic,
+              topic: g.topic,
+              mode: g.mode,
+              course_id: g.course_id,
+              classes: Array.from(set).sort((a, b) => a - b),
+            };
+          }),
+        );
 
-    // Load all records for this course's sessions
-    const sessionIds = (sess ?? []).map((s: any) => s.id);
-    if (sessionIds.length) {
-      const { data: recs, error: recsErr } = await supabase
-        .from("attendance_records")
-        .select("*")
-        .in("session_id", sessionIds);
-      if (!aplicable()) return;
-      if (recsErr) {
-        fallo(recsErr);
-        return;
+        const userIds = (enr ?? []).map((e: any) => e.user_id);
+        if (userIds.length) {
+          const { data: profs, error: profErr } = await supabase
+            .from("profiles")
+            .select("id, full_name, institutional_email")
+            .in("id", userIds)
+            .order("full_name");
+          if (!aplicable()) return;
+          if (profErr) {
+            fallo(profErr);
+            return;
+          }
+          setStudents((profs ?? []) as Student[]);
+        } else {
+          setStudents([]);
+        }
+
+        // Load all records for this course's sessions
+        const sessionIds = (sess ?? []).map((s: any) => s.id);
+        if (sessionIds.length) {
+          const { data: recs, error: recsErr } = await supabase
+            .from("attendance_records")
+            .select("*")
+            .in("session_id", sessionIds);
+          if (!aplicable()) return;
+          if (recsErr) {
+            fallo(recsErr);
+            return;
+          }
+          setRecords((recs ?? []) as Record_[]);
+        } else {
+          setRecords([]);
+        }
+      } catch (e) {
+        fallo(e);
+      } finally {
+        // SIN el guard de turno a propósito: si esta carga quedó adelantada por
+        // un refresco SILENCIOSO (que no toca `loadingCourse`), gatearlo acá
+        // dejaría el skeleton puesto para siempre.
+        if (isActive() && !silencioso) setLoadingCourse(false);
       }
-      setRecords((recs ?? []) as Record_[]);
-    } else {
-      setRecords([]);
-    }
-    } catch (e) {
-      fallo(e);
-    } finally {
-      // SIN el guard de turno a propósito: si esta carga quedó adelantada por
-      // un refresco SILENCIOSO (que no toca `loadingCourse`), gatearlo acá
-      // dejaría el skeleton puesto para siempre.
-      if (isActive() && !silencioso) setLoadingCourse(false);
-    }
     },
     // `t` se usa solo para los mensajes de error y es estable por instancia de
     // i18n; incluirlo re-crearía el callback en cada cambio de idioma y
@@ -1092,9 +1149,7 @@ function TeacherAttendance() {
             .select("id, position");
           if (snErr) {
             // No abortamos: la sesión ya se creó; avisamos que faltaron snippets.
-            toast.warning(
-              friendlyError(snErr, t("teacherAttendance.duplicateSnippetsFailed")),
-            );
+            toast.warning(friendlyError(snErr, t("teacherAttendance.duplicateSnippetsFailed")));
           } else if (newSnips) {
             // Copiar también session_snippet_files: son la FUENTE DE VERDAD del
             // contenido multi-archivo (source_code es solo un fallback legacy
@@ -1107,19 +1162,35 @@ function TeacherAttendance() {
               .in("snippet_id", oldIds);
             if (files && files.length > 0) {
               const posByOldId = new Map(
-                (snips as Array<{ id: string; position: number }>).map((sn) => [sn.id, sn.position]),
+                (snips as Array<{ id: string; position: number }>).map((sn) => [
+                  sn.id,
+                  sn.position,
+                ]),
               );
               const newIdByPos = new Map(
-                (newSnips as Array<{ id: string; position: number }>).map((sn) => [sn.position, sn.id]),
+                (newSnips as Array<{ id: string; position: number }>).map((sn) => [
+                  sn.position,
+                  sn.id,
+                ]),
               );
               const fileRows = (
-                files as Array<{ snippet_id: string; filename: string; content: string; position: number }>
+                files as Array<{
+                  snippet_id: string;
+                  filename: string;
+                  content: string;
+                  position: number;
+                }>
               )
                 .map((f) => {
                   const pos = posByOldId.get(f.snippet_id);
                   const newId = pos != null ? newIdByPos.get(pos) : undefined;
                   return newId
-                    ? { snippet_id: newId, filename: f.filename, content: f.content, position: f.position }
+                    ? {
+                        snippet_id: newId,
+                        filename: f.filename,
+                        content: f.content,
+                        position: f.position,
+                      }
                     : null;
                 })
                 .filter(Boolean);
@@ -1446,9 +1517,12 @@ function TeacherAttendance() {
   // (course_id, created_by) y disparamos el insert + reload.
   const importSessions = async (rows: Record<string, string>[]) => {
     if (!courseId || !user) throw new Error(t("teacherAttendance.selectCourse"));
-    if (importing) throw new Error(t("teacherAttendance.importInProgress", {
-      defaultValue: "Ya hay una importación en curso. Espera a que termine.",
-    }));
+    if (importing)
+      throw new Error(
+        t("teacherAttendance.importInProgress", {
+          defaultValue: "Ya hay una importación en curso. Espera a que termine.",
+        }),
+      );
     const cutByName = new Map(cuts.map((c) => [c.name.trim().toLowerCase(), c.id]));
     const { rows: parsed, unmatchedCuts } = parseSessionsCsv(rows, cutByName);
     if (!parsed.length) throw new Error(t("teacherAttendance.noValidRows"));
@@ -1487,9 +1561,12 @@ function TeacherAttendance() {
   // mezclaba "fila inválida" con "el UPDATE falló").
   const importAttendance = async (rows: Record<string, string>[]) => {
     if (!courseId) throw new Error(t("teacherAttendance.selectCourse"));
-    if (importing) throw new Error(t("teacherAttendance.importInProgress", {
-      defaultValue: "Ya hay una importación en curso. Espera a que termine.",
-    }));
+    if (importing)
+      throw new Error(
+        t("teacherAttendance.importInProgress", {
+          defaultValue: "Ya hay una importación en curso. Espera a que termine.",
+        }),
+      );
     const sessionByDate = new Map(sessions.map((s) => [s.session_date, s.id]));
     const studentByEmail = new Map(
       students.map((s) => [s.institutional_email.toLowerCase(), s.id]),
@@ -1748,6 +1825,9 @@ function TeacherAttendance() {
     setCheckInReqCumplen(null);
     setCheckInReqItems([]);
     void cargarItemsRequisito(sess.course_id);
+    // Sin esto la selección queda pegada y el check-in siguiente abriría
+    // sesiones de la clase anterior.
+    setCheckInExtraSessions(new Set());
     setCheckInConfigSession(sess);
   };
 
@@ -1848,9 +1928,10 @@ function TeacherAttendance() {
         sb.from("poll_responses").select("user_id").eq("poll_id", id),
       ]);
       cumplen = new Set(
-        [...((a.data ?? []) as Array<{ user_id: string }>), ...((b.data ?? []) as Array<{ user_id: string }>)].map(
-          (x) => x.user_id,
-        ),
+        [
+          ...((a.data ?? []) as Array<{ user_id: string }>),
+          ...((b.data ?? []) as Array<{ user_id: string }>),
+        ].map((x) => x.user_id),
       );
     } else if (kind === "report_signature") {
       const { data } = await sb
@@ -1866,7 +1947,8 @@ function TeacherAttendance() {
           : kind === "project"
             ? "project_submissions"
             : "submissions";
-      const col = kind === "workshop" ? "workshop_id" : kind === "project" ? "project_id" : "exam_id";
+      const col =
+        kind === "workshop" ? "workshop_id" : kind === "project" ? "project_id" : "exam_id";
       const { data } = await sb
         .from(tabla)
         .select("user_id")
@@ -1924,37 +2006,54 @@ function TeacherAttendance() {
 
     setStartingCheckIn(true);
     try {
+      // Con sesiones extra va la RPC MÚLTIPLE, que abre todas con la misma
+      // semilla y las sella en un grupo; sin extras va la de siempre. No es un
+      // parámetro más de la misma función a propósito: la RPC de una sesión ya
+      // tiene seis parámetros y dos caminos (abrir y ajustar), con un contrato
+      // «NULL = no tocar» documentado parámetro por parámetro.
+      //
+      // En AJUSTE nunca se usa la múltiple: ajustar re-arma el grupo y le
+      // cambiaría la semilla a las hermanas, invalidando el código que la clase
+      // está mirando en el proyector.
+      const usarMultiple = !esAjuste && checkInExtraSessions.size > 0;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data, error } = await (supabase as any).rpc("teacher_open_attendance_check_in", {
-        p_session_id: sess.id,
-        // `localToIso` convierte el "yyyy-MM-ddTHH:mm" del picker (hora LOCAL)
-        // a ISO con zona. Mandarlo crudo lo interpretaría como UTC y la ventana
-        // abriría cinco horas antes de lo que el docente escribió.
-        //
-        // En AJUSTE va `null`: la apertura no se mueve (es el ancla del tope de
-        // la ventana y del "todavía no empezó" que ve el alumno). El servidor lo
-        // ignora en ese camino; mandarlo explícito deja claro que no se pretende
-        // cambiarlo.
-        p_opens_at: esAjuste ? null : checkInOpensAt ? localToIso(checkInOpensAt) : null,
-        p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
-        p_rotation_seconds: checkInRotation,
-        p_email_only: checkInEmailOnly,
-        // `null` = "no toques los requisitos". Solo se manda el arreglo cuando se
-        // leyó lo que la sesión ya tenía; si no, abrir el check-in apurado los
-        // borraría.
-        // En AJUSTE, si los requisitos NO se tocaron va `null`. Reenviar el mismo
-        // arreglo hace que el servidor los re-valide, y un requisito que dejó de
-        // estar disponible (una encuesta que se cerró, un video despublicado)
-        // devuelve `requirement_unavailable` — o sea que el docente no puede
-        // corregir la hora de cierre por algo que ni editó.
-        p_requirements:
-          checkInReqsCargados && (!esAjuste || checkInReqsCambiaron)
-            ? [...checkInReqs].map((v) => {
-                const [kind, id] = v.split(":");
-                return { kind, id };
-              })
-            : null,
-      });
+      const { data, error } = await (supabase as any).rpc(
+        usarMultiple
+          ? "teacher_open_attendance_check_in_multi"
+          : "teacher_open_attendance_check_in",
+        {
+          ...(usarMultiple
+            ? { p_session_ids: [sess.id, ...checkInExtraSessions] }
+            : { p_session_id: sess.id }),
+          // `localToIso` convierte el "yyyy-MM-ddTHH:mm" del picker (hora LOCAL)
+          // a ISO con zona. Mandarlo crudo lo interpretaría como UTC y la ventana
+          // abriría cinco horas antes de lo que el docente escribió.
+          //
+          // En AJUSTE va `null`: la apertura no se mueve (es el ancla del tope de
+          // la ventana y del "todavía no empezó" que ve el alumno). El servidor lo
+          // ignora en ese camino; mandarlo explícito deja claro que no se pretende
+          // cambiarlo.
+          p_opens_at: esAjuste ? null : checkInOpensAt ? localToIso(checkInOpensAt) : null,
+          p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
+          p_rotation_seconds: checkInRotation,
+          p_email_only: checkInEmailOnly,
+          // `null` = "no toques los requisitos". Solo se manda el arreglo cuando se
+          // leyó lo que la sesión ya tenía; si no, abrir el check-in apurado los
+          // borraría.
+          // En AJUSTE, si los requisitos NO se tocaron va `null`. Reenviar el mismo
+          // arreglo hace que el servidor los re-valide, y un requisito que dejó de
+          // estar disponible (una encuesta que se cerró, un video despublicado)
+          // devuelve `requirement_unavailable` — o sea que el docente no puede
+          // corregir la hora de cierre por algo que ni editó.
+          p_requirements:
+            checkInReqsCargados && (!esAjuste || checkInReqsCambiaron)
+              ? [...checkInReqs].map((v) => {
+                  const [kind, id] = v.split(":");
+                  return { kind, id };
+                })
+              : null,
+        },
+      );
       if (error) {
         toast.error(friendlyError(error));
         return;
@@ -1971,6 +2070,11 @@ function TeacherAttendance() {
         opened_at?: string;
         closes_at?: string;
         email_only?: boolean;
+        // Solo de `teacher_open_attendance_check_in_multi`.
+        group_id?: string;
+        anchor_session_id?: string;
+        opened?: number;
+        requested?: number;
       };
       // `== null` y NO `!result.rotation_seconds`: con `0` (código fijo) el falsy
       // hacía que el docente leyera "No se pudo iniciar el check-in" mientras el
@@ -2078,6 +2182,26 @@ function TeacherAttendance() {
       // abrirlo en 15 sesiones futuras a la vez seria un desastre (notificaria a
       // todo el curso 15 veces por el trigger de `check_in_open`). Acá solo se
       // guarda el requisito; cada sesion se abre cuando toque.
+      // Cuántas sesiones quedaron cubiertas por el código. El conteo viene del
+      // SERVIDOR y no del tamaño de la selección: una hermana puede no haber
+      // abierto (papelera, requisito no disponible) y la RPC no aborta el grupo
+      // por eso — decirle al docente «abrí 3» cuando abrió 2 es mentirle sobre
+      // quién va a poder marcar.
+      if (usarMultiple && typeof result.opened === "number") {
+        const pedidas = result.requested ?? checkInExtraSessions.size + 1;
+        if (result.opened < pedidas) {
+          toast.warning(
+            t("teacherAttendance.multiPartialToast", {
+              opened: result.opened,
+              requested: pedidas,
+            }),
+            { duration: 12000 },
+          );
+        } else {
+          toast.success(t("teacherAttendance.multiOpenedToast", { count: result.opened }));
+        }
+      }
+
       if (checkInReqFuturas && checkInReqsCargados) {
         const desde = sess.session_date;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -2111,7 +2235,8 @@ function TeacherAttendance() {
             friendlyError(
               eFut,
               t("teacherAttendance.reqFuturasError", {
-                defaultValue: "El check-in se abrió, pero no se pudo aplicar el requisito a las próximas sesiones.",
+                defaultValue:
+                  "El check-in se abrió, pero no se pudo aplicar el requisito a las próximas sesiones.",
               }),
             ),
           );
@@ -2136,6 +2261,7 @@ function TeacherAttendance() {
       // cliente adicional duplicaba notif/correo/push por cada alumno
       // (2× por apertura — p.ej. 186 correos en un curso de 93).
       setCheckInConfigSession(null);
+      setCheckInExtraSessions(new Set());
       // Refresca listado para reflejar check_in_open=true
       await loadCourse();
     } catch (e) {
@@ -2385,9 +2511,9 @@ function TeacherAttendance() {
   // (mismo criterio que ListFilters).
   const filterPeriods = useMemo(
     () =>
-      Array.from(new Set(coursesForFilter.map((c) => c.period).filter((p): p is string => !!p))).sort(
-        (a, b) => b.localeCompare(a, "es-CO", { numeric: true }),
-      ),
+      Array.from(
+        new Set(coursesForFilter.map((c) => c.period).filter((p): p is string => !!p)),
+      ).sort((a, b) => b.localeCompare(a, "es-CO", { numeric: true })),
     [coursesForFilter],
   );
   const filterSubjects = useMemo(
@@ -2409,7 +2535,10 @@ function TeacherAttendance() {
     if (nuevo.subject !== undefined) setSubjectFilter(nuevo.subject);
     if (courseId) {
       const sigue = courses.some(
-        (c) => c.id === courseId && (!p || c.period === p) && (!sj || (c.academic_subjects?.name ?? null) === sj),
+        (c) =>
+          c.id === courseId &&
+          (!p || c.period === p) &&
+          (!sj || (c.academic_subjects?.name ?? null) === sj),
       );
       if (!sigue) setCourseId("");
     }
@@ -2557,9 +2686,7 @@ function TeacherAttendance() {
       {/* Legend (above the grid) */}
       <Card className="bg-muted/30 border-dashed">
         <CardContent className="p-3 flex flex-wrap items-center gap-4 text-xs">
-          <span className="font-medium text-muted-foreground">
-            {t("teacherAttendance.legend")}
-          </span>
+          <span className="font-medium text-muted-foreground">{t("teacherAttendance.legend")}</span>
           {STATUS_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             return (
@@ -2611,410 +2738,425 @@ function TeacherAttendance() {
           onRetry={() => setCourseRetryNonce((n) => n + 1)}
         />
       ) : (
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <Table>
-            <TableHeader>
-              {cutGroups.length > 0 && (
+        <Card>
+          <CardContent className="p-0 overflow-x-auto">
+            <Table>
+              <TableHeader>
+                {cutGroups.length > 0 && (
+                  <TableRow>
+                    <TableHead className="sticky left-0 z-10 bg-card" />
+                    {cutGroups.map((g, idx) => (
+                      <TableHead
+                        key={g.cut?.id ?? `orphan-${idx}`}
+                        colSpan={g.sessions.length}
+                        className={`text-center text-xs font-semibold uppercase tracking-wide py-1.5 bg-muted/40 border-b ${
+                          idx > 0 ? "border-l-2 border-l-primary/40" : ""
+                        }`}
+                      >
+                        <span className={g.cut ? "" : "text-muted-foreground italic"}>
+                          {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
+                        </span>
+                        <span className="ml-2 text-3xs font-normal text-muted-foreground">
+                          {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
+                        </span>
+                      </TableHead>
+                    ))}
+                    <TableHead />
+                  </TableRow>
+                )}
                 <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card" />
-                  {cutGroups.map((g, idx) => (
-                    <TableHead
-                      key={g.cut?.id ?? `orphan-${idx}`}
-                      colSpan={g.sessions.length}
-                      className={`text-center text-xs font-semibold uppercase tracking-wide py-1.5 bg-muted/40 border-b ${
-                        idx > 0 ? "border-l-2 border-l-primary/40" : ""
-                      }`}
-                    >
-                      <span className={g.cut ? "" : "text-muted-foreground italic"}>
-                        {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
-                      </span>
-                      <span className="ml-2 text-3xs font-normal text-muted-foreground">
-                        {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
-                      </span>
-                    </TableHead>
-                  ))}
-                  <TableHead />
-                </TableRow>
-              )}
-              <TableRow>
-                <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
-                  {t("teacherAttendance.studentColumn")}
-                </TableHead>
-                {sessions.map((sess) => {
-                  // Labels compactos para el resumen de "corte · contenido"
-                  // que aparece debajo del header — evita reservar 2
-                  // selects en cada columna del grid (antes ~6 filas de
-                  // alto; ahora ~4). La edición vive en el Popover.
-                  const cutLabel = sess.cut_id
-                    ? (cuts.find((c) => c.id === sess.cut_id)?.name ?? t("teacherAttendance.cutFallback"))
-                    : null;
-                  const contentLabel = (() => {
-                    if (!sess.content_id) return null;
-                    const c = availableContents.find((x) => x.id === sess.content_id);
-                    if (!c) return t("teacherAttendance.contentFallback");
-                    return sess.content_class_index && sess.content_class_index > 0
-                      ? `${c.topic} · ${t("teacherAttendance.classN", { n: sess.content_class_index })}`
-                      : c.topic;
-                  })();
-                  return (
-                    <TableHead
-                      key={sess.id}
-                      className={`text-center min-w-[6.5rem] align-bottom p-2 ${
-                        cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
-                      }`}
-                    >
-                      <div className="flex flex-col items-stretch gap-1.5">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            type="button"
-                            variant={sess.check_in_open ? "default" : "outline"}
-                            size="icon"
-                            className="h-8 w-8 shrink-0"
-                            disabled={checkInBusyId === sess.id}
-                            onClick={() =>
-                              sess.check_in_open
-                                ? void reopenProjector(sess)
-                                : openCheckInConfig(sess)
-                            }
-                            title={
-                              sess.check_in_open
-                                ? t("teacherAttendance.checkInActiveOpenProjector")
-                                : t("teacherAttendance.startCheckInQr")
-                            }
-                          >
-                            {checkInBusyId === sess.id ? (
-                              <Spinner size="sm" />
-                            ) : (
-                              <QrCode className="h-4 w-4" aria-hidden />
-                            )}
-                          </Button>
-                          {/* Configurar sesión: corte + contenido — popover
+                  <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
+                    {t("teacherAttendance.studentColumn")}
+                  </TableHead>
+                  {sessions.map((sess) => {
+                    // Labels compactos para el resumen de "corte · contenido"
+                    // que aparece debajo del header — evita reservar 2
+                    // selects en cada columna del grid (antes ~6 filas de
+                    // alto; ahora ~4). La edición vive en el Popover.
+                    const cutLabel = sess.cut_id
+                      ? (cuts.find((c) => c.id === sess.cut_id)?.name ??
+                        t("teacherAttendance.cutFallback"))
+                      : null;
+                    const contentLabel = (() => {
+                      if (!sess.content_id) return null;
+                      const c = availableContents.find((x) => x.id === sess.content_id);
+                      if (!c) return t("teacherAttendance.contentFallback");
+                      return sess.content_class_index && sess.content_class_index > 0
+                        ? `${c.topic} · ${t("teacherAttendance.classN", { n: sess.content_class_index })}`
+                        : c.topic;
+                    })();
+                    return (
+                      <TableHead
+                        key={sess.id}
+                        className={`text-center min-w-[6.5rem] align-bottom p-2 ${
+                          cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                        }`}
+                      >
+                        <div className="flex flex-col items-stretch gap-1.5">
+                          <div className="flex items-center justify-center gap-1">
+                            <Button
+                              type="button"
+                              variant={sess.check_in_open ? "default" : "outline"}
+                              size="icon"
+                              className="h-8 w-8 shrink-0"
+                              disabled={checkInBusyId === sess.id}
+                              onClick={() =>
+                                sess.check_in_open
+                                  ? void reopenProjector(sess)
+                                  : openCheckInConfig(sess)
+                              }
+                              title={
+                                sess.check_in_open
+                                  ? t("teacherAttendance.checkInActiveOpenProjector")
+                                  : t("teacherAttendance.startCheckInQr")
+                              }
+                            >
+                              {checkInBusyId === sess.id ? (
+                                <Spinner size="sm" />
+                              ) : (
+                                <QrCode className="h-4 w-4" aria-hidden />
+                              )}
+                            </Button>
+                            {/* Configurar sesión: corte + contenido — popover
                               porque son Selects que necesitan espacio. */}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                title={t("teacherAttendance.configureCutContentTitle")}
-                              >
-                                <Settings2 className="h-4 w-4 text-muted-foreground" aria-hidden />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-72 p-3 space-y-3" align="end">
-                              <div className="text-xs font-medium">
-                                {t("teacherAttendance.sessionLabel")}{" "}
-                                <span className="tabular-nums text-muted-foreground">
-                                  {formatDateShort(sess.session_date + "T12:00:00")}
-                                </span>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-2xs">{t("sessionType.label")}</Label>
-                                <Select
-                                  value={sess.session_type ?? "virtual"}
-                                  onValueChange={(v) => updateSessionType(sess.id, v as SessionType)}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  title={t("teacherAttendance.configureCutContentTitle")}
                                 >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    {SESSION_TYPES.map((st) => (
-                                      <SelectItem key={st} value={st}>
-                                        {t(`sessionType.${st}`)}
+                                  <Settings2
+                                    className="h-4 w-4 text-muted-foreground"
+                                    aria-hidden
+                                  />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent className="w-72 p-3 space-y-3" align="end">
+                                <div className="text-xs font-medium">
+                                  {t("teacherAttendance.sessionLabel")}{" "}
+                                  <span className="tabular-nums text-muted-foreground">
+                                    {formatDateShort(sess.session_date + "T12:00:00")}
+                                  </span>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-2xs">{t("sessionType.label")}</Label>
+                                  <Select
+                                    value={sess.session_type ?? "virtual"}
+                                    onValueChange={(v) =>
+                                      updateSessionType(sess.id, v as SessionType)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {SESSION_TYPES.map((st) => (
+                                        <SelectItem key={st} value={st}>
+                                          {t(`sessionType.${st}`)}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-2xs flex items-center gap-1">
+                                    <Scissors className="h-3 w-3" />
+                                    {t("teacherAttendance.cutLabel")}
+                                  </Label>
+                                  <Select
+                                    value={sess.cut_id ?? "__none"}
+                                    onValueChange={(v) =>
+                                      updateSessionCut(sess.id, v === "__none" ? null : v)
+                                    }
+                                  >
+                                    <SelectTrigger className="h-8 text-xs">
+                                      <SelectValue placeholder={t("teacherAttendance.noCut")} />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="__none">
+                                        {t("teacherAttendance.noCut")}
                                       </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-2xs flex items-center gap-1">
-                                  <Scissors className="h-3 w-3" />
-                                  {t("teacherAttendance.cutLabel")}
-                                </Label>
-                                <Select
-                                  value={sess.cut_id ?? "__none"}
-                                  onValueChange={(v) =>
-                                    updateSessionCut(sess.id, v === "__none" ? null : v)
-                                  }
-                                >
-                                  <SelectTrigger className="h-8 text-xs">
-                                    <SelectValue placeholder={t("teacherAttendance.noCut")} />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="__none">
-                                      {t("teacherAttendance.noCut")}
-                                    </SelectItem>
-                                    {cuts.map((c) => (
-                                      <SelectItem key={c.id} value={c.id}>
-                                        {c.name}
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              <div className="space-y-1.5">
-                                <Label className="text-2xs flex items-center gap-1">
-                                  <PresentationIcon className="h-3 w-3" />
-                                  {t("teacherAttendance.contentLabel")}
-                                </Label>
-                                <ContentPicker
-                                  value={
-                                    sess.content_id
-                                      ? `${sess.content_id}:${sess.content_class_index ?? 0}`
-                                      : "__none"
-                                  }
-                                  contents={availableContents}
-                                  onChange={(v) => updateSessionContent(sess.id, v)}
-                                />
-                              </div>
-                            </PopoverContent>
-                          </Popover>
-                          {/* Menú "Más acciones" — antes había 3 botones inline
+                                      {cuts.map((c) => (
+                                        <SelectItem key={c.id} value={c.id}>
+                                          {c.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-2xs flex items-center gap-1">
+                                    <PresentationIcon className="h-3 w-3" />
+                                    {t("teacherAttendance.contentLabel")}
+                                  </Label>
+                                  <ContentPicker
+                                    value={
+                                      sess.content_id
+                                        ? `${sess.content_id}:${sess.content_class_index ?? 0}`
+                                        : "__none"
+                                    }
+                                    contents={availableContents}
+                                    onChange={(v) => updateSessionContent(sess.id, v)}
+                                  />
+                                </div>
+                              </PopoverContent>
+                            </Popover>
+                            {/* Menú "Más acciones" — antes había 3 botones inline
                               (marcar todos / reiniciar / eliminar) que hacían
                               el header de cada columna muy ancho. Las acciones
                               menos frecuentes ahora viven en este DropdownMenu;
                               QR y Settings se quedan inline porque son los más
                               usados. */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button
-                                type="button"
-                                variant="outline"
-                                size="icon"
-                                className="h-8 w-8 shrink-0"
-                                title={t("teacherAttendance.moreActionsTitle")}
-                                disabled={sessionBusyId === sess.id}
-                              >
-                                {sessionBusyId === sess.id ? (
-                                  <Spinner size="sm" />
-                                ) : (
-                                  <MoreVertical className="h-4 w-4" aria-hidden />
-                                )}
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-56">
-                              {/* Primero, y solo con el check-in abierto: es lo
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="icon"
+                                  className="h-8 w-8 shrink-0"
+                                  title={t("teacherAttendance.moreActionsTitle")}
+                                  disabled={sessionBusyId === sess.id}
+                                >
+                                  {sessionBusyId === sess.id ? (
+                                    <Spinner size="sm" />
+                                  ) : (
+                                    <MoreVertical className="h-4 w-4" aria-hidden />
+                                  )}
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-56">
+                                {/* Primero, y solo con el check-in abierto: es lo
                                   urgente cuando lo está (mover el cierre, hacer
                                   rotar el código que se filtró). Sin proyector a
                                   la vista, este menú es la única entrada. */}
-                              {sess.check_in_open && (
-                                <>
-                                  <DropdownMenuItem onSelect={() => void openCheckInAjuste(sess)}>
-                                    <SlidersHorizontal className="h-4 w-4 mr-2 text-primary" />
-                                    {t("teacherAttendance.adjustCheckInAction")}
-                                  </DropdownMenuItem>
-                                  <DropdownMenuSeparator />
-                                </>
-                              )}
-                              <DropdownMenuItem
-                                disabled={sessionBusyId !== null}
-                                onSelect={() => void markAllPresent(sess.id)}
-                              >
-                                <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
-                                {t("teacherAttendance.markAllPresent")}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                disabled={sessionBusyId !== null}
-                                onSelect={() => void clearSessionAttendance(sess.id)}
-                              >
-                                <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
-                                {t("teacherAttendance.resetAttendance")}
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
-                                <PlayCircle className="h-4 w-4 mr-2 text-primary" />
-                                {sess.recording_url || sess.recording_video_id || sess.notes_url
-                                  ? t("attendance.editRecordingNotes", {
-                                      defaultValue: "Editar grabación / notas",
-                                    })
-                                  : t("attendance.addRecordingNotes", {
-                                      defaultValue: "Agregar grabación / notas",
-                                    })}
-                              </DropdownMenuItem>
-                              {/* Lanzar encuesta en vivo durante esta
+                                {sess.check_in_open && (
+                                  <>
+                                    <DropdownMenuItem onSelect={() => void openCheckInAjuste(sess)}>
+                                      <SlidersHorizontal className="h-4 w-4 mr-2 text-primary" />
+                                      {t("teacherAttendance.adjustCheckInAction")}
+                                    </DropdownMenuItem>
+                                    <DropdownMenuSeparator />
+                                  </>
+                                )}
+                                <DropdownMenuItem
+                                  disabled={sessionBusyId !== null}
+                                  onSelect={() => void markAllPresent(sess.id)}
+                                >
+                                  <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
+                                  {t("teacherAttendance.markAllPresent")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  disabled={sessionBusyId !== null}
+                                  onSelect={() => void clearSessionAttendance(sess.id)}
+                                >
+                                  <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  {t("teacherAttendance.resetAttendance")}
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
+                                  <PlayCircle className="h-4 w-4 mr-2 text-primary" />
+                                  {sess.recording_url || sess.recording_video_id || sess.notes_url
+                                    ? t("attendance.editRecordingNotes", {
+                                        defaultValue: "Editar grabación / notas",
+                                      })
+                                    : t("attendance.addRecordingNotes", {
+                                        defaultValue: "Agregar grabación / notas",
+                                      })}
+                                </DropdownMenuItem>
+                                {/* Lanzar encuesta en vivo durante esta
                                   sesión. El attendance_session_id queda
                                   ligado a la encuesta (FK en `polls`),
                                   permite mostrar la encuesta al alumno
                                   con un badge "Sesión presencial" y a
                                   futuro destacarla cuando esté dentro
                                   de la clase. */}
-                              <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
-                                <Zap className="h-4 w-4 mr-2 text-sky-500" />
-                                {t("teacherAttendance.launchPoll")}
-                              </DropdownMenuItem>
-                              {/* Pizarra de la sesión — abre el editor
+                                <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
+                                  <Zap className="h-4 w-4 mr-2 text-sky-500" />
+                                  {t("teacherAttendance.launchPoll")}
+                                </DropdownMenuItem>
+                                {/* Pizarra de la sesión — abre el editor
                                   Excalidraw embebido. Persiste en
                                   attendance_sessions.whiteboard_scene
                                   (1:1 con la sesión). El docente reabre
                                   y su contenido reaparece. */}
-                              <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
-                                <Palette className="h-4 w-4 mr-2 text-violet-500" />
-                                {t("teacherAttendance.whiteboard")}
-                              </DropdownMenuItem>
-                              {/* Duplicar la sesión: crea una copia (misma fecha,
+                                <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
+                                  <Palette className="h-4 w-4 mr-2 text-violet-500" />
+                                  {t("teacherAttendance.whiteboard")}
+                                </DropdownMenuItem>
+                                {/* Duplicar la sesión: crea una copia (misma fecha,
                                   el docente la reubica) con opción de copiar el
                                   contenido asignado, la pizarra y los snippets. */}
-                              <DropdownMenuItem
-                                disabled={sessionBusyId !== null}
-                                onSelect={() => setDuplicateSessionFor(sess)}
-                              >
-                                <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
-                                {t("teacherAttendance.duplicateSession")}
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem
-                                disabled={sessionBusyId !== null}
-                                onSelect={() => void deleteSession(sess.id)}
-                                className="text-destructive focus:text-destructive"
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" />
-                                {t("teacherAttendance.deleteSession")}
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </div>
-                        {sess.check_in_open && (
-                          <Badge variant="default" className="text-3xs py-0 px-1 self-center">
-                            {t("teacherAttendance.checkInActive")}
-                          </Badge>
-                        )}
-                        <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
-                          <span className="text-3xs font-medium leading-tight tabular-nums">
-                            {formatDateShort(sess.session_date + "T12:00:00")}
-                          </span>
-                          {sess.title && (
-                            <span
-                              className="text-3xs text-muted-foreground truncate max-w-[5.5rem]"
-                              title={sess.title ?? undefined}
-                            >
-                              {sess.title}
-                            </span>
+                                <DropdownMenuItem
+                                  disabled={sessionBusyId !== null}
+                                  onSelect={() => setDuplicateSessionFor(sess)}
+                                >
+                                  <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
+                                  {t("teacherAttendance.duplicateSession")}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  disabled={sessionBusyId !== null}
+                                  onSelect={() => void deleteSession(sess.id)}
+                                  className="text-destructive focus:text-destructive"
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" />
+                                  {t("teacherAttendance.deleteSession")}
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
+                          {sess.check_in_open && (
+                            <Badge variant="default" className="text-3xs py-0 px-1 self-center">
+                              {t("teacherAttendance.checkInActive")}
+                            </Badge>
                           )}
-                          {/* Resumen compacto del corte y contenido —
-                              indicador read-only; click en el Settings
-                              de arriba para editar. */}
-                          <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
-                            <SessionTypeBadge type={sess.session_type} className="text-3xs py-0 px-1" />
-                            {cutLabel ? (
-                              <Badge
-                                variant="outline"
-                                className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
+                          <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
+                            <span className="text-3xs font-medium leading-tight tabular-nums">
+                              {formatDateShort(sess.session_date + "T12:00:00")}
+                            </span>
+                            {sess.title && (
+                              <span
+                                className="text-3xs text-muted-foreground truncate max-w-[5.5rem]"
+                                title={sess.title ?? undefined}
                               >
-                                <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
-                                {cutLabel}
-                              </Badge>
-                            ) : (
-                              <span className="text-3xs text-muted-foreground/50">
-                                {t("teacherAttendance.noCutShort")}
+                                {sess.title}
                               </span>
                             )}
-                            {contentLabel && (
-                              <Badge
-                                variant="outline"
-                                className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                title={t("teacherAttendance.contentTooltip", {
-                                  content: contentLabel,
-                                })}
-                              >
-                                <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
-                                {contentLabel}
-                              </Badge>
-                            )}
+                            {/* Resumen compacto del corte y contenido —
+                              indicador read-only; click en el Settings
+                              de arriba para editar. */}
+                            <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
+                              <SessionTypeBadge
+                                type={sess.session_type}
+                                className="text-3xs py-0 px-1"
+                              />
+                              {cutLabel ? (
+                                <Badge
+                                  variant="outline"
+                                  className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                  title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
+                                >
+                                  <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                  {cutLabel}
+                                </Badge>
+                              ) : (
+                                <span className="text-3xs text-muted-foreground/50">
+                                  {t("teacherAttendance.noCutShort")}
+                                </span>
+                              )}
+                              {contentLabel && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                  title={t("teacherAttendance.contentTooltip", {
+                                    content: contentLabel,
+                                  })}
+                                >
+                                  <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                  {contentLabel}
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                         </div>
-                      </div>
-                    </TableHead>
-                  );
-                })}
-                <TableHead className="text-center min-w-16">
-                  {t("teacherAttendance.percentColumn")}
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredStudents.length === 0 && (
-                <TableRow>
-                  <TableCell
-                    colSpan={sessions.length + 2}
-                    className="text-center text-muted-foreground py-8"
-                  >
-                    {studentSearch.trim() && students.length > 0
-                      ? t("teacherAttendance.noMatches")
-                      : t("teacherAttendance.noStudentsEnrolled")}
-                  </TableCell>
+                      </TableHead>
+                    );
+                  })}
+                  <TableHead className="text-center min-w-16">
+                    {t("teacherAttendance.percentColumn")}
+                  </TableHead>
                 </TableRow>
-              )}
-              {filteredStudents.map((s) => {
-                const total = sessions.length;
-                const present = sessions.filter((sess) => {
-                  const st = getStatus(sess.id, s.id);
-                  return st === "presente";
-                }).length;
-                const pct = total > 0 ? Math.round((present / total) * 100) : 0;
-                return (
-                  <TableRow key={s.id}>
-                    <TableCell className="sticky left-0 z-10 bg-card">
-                      <div className="text-sm font-medium truncate">{s.full_name}</div>
-                      <div className="text-xs text-muted-foreground truncate">
-                        {s.institutional_email}
-                      </div>
-                    </TableCell>
-                    {sessions.map((sess) => {
-                      const status = getStatus(sess.id, s.id);
-                      return (
-                        <TableCell
-                          key={sess.id}
-                          className={`text-center p-1 ${
-                            cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
-                          }`}
-                        >
-                          <Select
-                            value={status || "none"}
-                            onValueChange={(v) => setAttendance(sess.id, s.id, v)}
-                          >
-                            <SelectTrigger
-                              className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-success border-success/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
-                            >
-                              <SelectValue placeholder="—" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="none">
-                                <span className="text-muted-foreground text-xs">—</span>
-                              </SelectItem>
-                              {STATUS_OPTIONS.map((opt) => (
-                                <SelectItem key={opt.value} value={opt.value}>
-                                  <span className={`text-xs font-bold ${opt.color}`}>
-                                    {opt.short}
-                                  </span>
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </TableCell>
-                      );
-                    })}
-                    <TableCell className="text-center">
-                      <Badge
-                        variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
-                        className="text-3xs"
-                      >
-                        {pct}%
-                      </Badge>
+              </TableHeader>
+              <TableBody>
+                {filteredStudents.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={sessions.length + 2}
+                      className="text-center text-muted-foreground py-8"
+                    >
+                      {studentSearch.trim() && students.length > 0
+                        ? t("teacherAttendance.noMatches")
+                        : t("teacherAttendance.noStudentsEnrolled")}
                     </TableCell>
                   </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                )}
+                {filteredStudents.map((s) => {
+                  const total = sessions.length;
+                  const present = sessions.filter((sess) => {
+                    const st = getStatus(sess.id, s.id);
+                    return st === "presente";
+                  }).length;
+                  const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+                  return (
+                    <TableRow key={s.id}>
+                      <TableCell className="sticky left-0 z-10 bg-card">
+                        <div className="text-sm font-medium truncate">{s.full_name}</div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {s.institutional_email}
+                        </div>
+                      </TableCell>
+                      {sessions.map((sess) => {
+                        const status = getStatus(sess.id, s.id);
+                        return (
+                          <TableCell
+                            key={sess.id}
+                            className={`text-center p-1 ${
+                              cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                            }`}
+                          >
+                            <Select
+                              value={status || "none"}
+                              onValueChange={(v) => setAttendance(sess.id, s.id, v)}
+                            >
+                              <SelectTrigger
+                                className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-success border-success/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
+                              >
+                                <SelectValue placeholder="—" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="none">
+                                  <span className="text-muted-foreground text-xs">—</span>
+                                </SelectItem>
+                                {STATUS_OPTIONS.map((opt) => (
+                                  <SelectItem key={opt.value} value={opt.value}>
+                                    <span className={`text-xs font-bold ${opt.color}`}>
+                                      {opt.short}
+                                    </span>
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </TableCell>
+                        );
+                      })}
+                      <TableCell className="text-center">
+                        <Badge
+                          variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
+                          className="text-3xs"
+                        >
+                          {pct}%
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
       )}
 
       {/* New session dialog */}
-      <Dialog open={newSessionOpen} onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}>
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm" data-tour-id="dialog-session">
+      <Dialog
+        open={newSessionOpen}
+        onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}
+      >
+        <DialogContent
+          className="max-w-[calc(100vw-2rem)] sm:max-w-sm"
+          data-tour-id="dialog-session"
+        >
           <DialogHeader>
             <DialogTitle>{t("teacherAttendance.newSessionDialogTitle")}</DialogTitle>
           </DialogHeader>
@@ -3028,7 +3170,10 @@ function TeacherAttendance() {
                 para alimentar la sincronización a Google Calendar (que
                 consume duration_minutes). Mobile-first: 1 col en xs
                 (inputs time se ven completos sin truncar), 2 en sm+. */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-tour-id="session-field-time">
+            <div
+              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+              data-tour-id="session-field-time"
+            >
               <div>
                 <Label>
                   {t("teacherAttendance.startTimeLabel")}{" "}
@@ -3082,8 +3227,7 @@ function TeacherAttendance() {
             </div>
             <div data-tour-id="session-field-cut">
               <Label>
-                {t("teacherAttendance.cutLabel")}{" "}
-                <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
+                {t("teacherAttendance.cutLabel")} <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
               </Label>
               <Select
                 value={newCutId || "__none"}
@@ -3125,9 +3269,7 @@ function TeacherAttendance() {
                   <SelectValue placeholder={t("teacherAttendance.libraryVideoPlaceholder")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">
-                    {t("teacherAttendance.noLibraryVideo")}
-                  </SelectItem>
+                  <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
                   {sessionVideos.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.title}
@@ -3207,9 +3349,7 @@ function TeacherAttendance() {
                   <SelectValue placeholder={t("teacherAttendance.noLibraryVideo")} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="__none">
-                    {t("teacherAttendance.noLibraryVideo")}
-                  </SelectItem>
+                  <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
                   {sessionVideos.map((v) => (
                     <SelectItem key={v.id} value={v.id}>
                       {v.title}
@@ -3265,6 +3405,7 @@ function TeacherAttendance() {
         onOpenChange={(o) => {
           if (o) return;
           setCheckInConfigSession(null);
+          setCheckInExtraSessions(new Set());
           setCheckInAjusteSession(null);
           setCheckInPrev(null);
         }}
@@ -3293,10 +3434,7 @@ function TeacherAttendance() {
             {/* Fechas, no minutos: ver el comentario de `checkInOpensAt`.
                 Vacías = ahora + 10 min, que resuelve el servidor. */}
             <div
-              className={cn(
-                "grid grid-cols-1 gap-2",
-                !checkInAjusteSession && "sm:grid-cols-2",
-              )}
+              className={cn("grid grid-cols-1 gap-2", !checkInAjusteSession && "sm:grid-cols-2")}
             >
               {checkInAjusteSession ? (
                 checkInPrev && (
@@ -3518,6 +3656,64 @@ function TeacherAttendance() {
               )}
             </div>
 
+            {/* Un solo código para VARIAS sesiones. Solo al ABRIR: ajustar
+                re-abriría las hermanas con otra semilla e invalidaría el código
+                que la clase está mirando.
+
+                Se ofrecen primero las del MISMO DÍA porque ese es el caso real
+                (un bloque de tres horas partido en dos o tres sesiones); el
+                resto del curso queda abajo para el caso de recuperar una clase.
+                No se muestra si el curso no tiene otra sesión. */}
+            {!checkInAjusteSession && candidatasCheckInMultiple.length > 0 && (
+              <div className="rounded-md border p-3 space-y-2">
+                <div className="flex items-start gap-1.5">
+                  <Label className="cursor-default">
+                    {t("teacherAttendance.multiSessionLabel")}
+                  </Label>
+                  <HelpHint>{t("teacherAttendance.multiSessionHint")}</HelpHint>
+                </div>
+                <div className="max-h-40 space-y-1 overflow-y-auto">
+                  {candidatasCheckInMultiple.map((s) => (
+                    <label
+                      key={s.id}
+                      className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-xs hover:bg-accent"
+                    >
+                      <Checkbox
+                        className="mt-0.5"
+                        checked={checkInExtraSessions.has(s.id)}
+                        onCheckedChange={(v) =>
+                          setCheckInExtraSessions((prev) => {
+                            const next = new Set(prev);
+                            if (v) next.add(s.id);
+                            else next.delete(s.id);
+                            return next;
+                          })
+                        }
+                      />
+                      <span className="min-w-0">
+                        <span className="block truncate">
+                          {s.title?.trim() || t("teacherAttendance.sessionNoTitle")}
+                        </span>
+                        <span className="block text-2xs text-muted-foreground">
+                          {formatDateOnly(s.session_date)}
+                          {s.session_date === sesionCheckInActual?.session_date
+                            ? ` · ${t("teacherAttendance.multiSessionSameDay")}`
+                            : ""}
+                        </span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+                {checkInExtraSessions.size > 0 && (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400">
+                    {t("teacherAttendance.multiSessionWarn", {
+                      count: checkInExtraSessions.size + 1,
+                    })}
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Debilita un control de fraude, así que se elige a conciencia y
                 el texto dice exactamente qué se gana y qué se pierde. */}
             <div className="rounded-md border p-3 flex items-start justify-between gap-3">
@@ -3548,6 +3744,7 @@ function TeacherAttendance() {
               variant="outline"
               onClick={() => {
                 setCheckInConfigSession(null);
+                setCheckInExtraSessions(new Set());
                 setCheckInAjusteSession(null);
                 setCheckInPrev(null);
               }}
@@ -3868,9 +4065,7 @@ function ContentPicker({ value, contents, onChange }: ContentPickerProps) {
                   <div className="min-w-0">
                     <div className="text-xs font-medium truncate">{o.primary}</div>
                     {o.secondary && o.secondary !== o.primary && (
-                      <div className="text-3xs text-muted-foreground truncate">
-                        {o.secondary}
-                      </div>
+                      <div className="text-3xs text-muted-foreground truncate">{o.secondary}</div>
                     )}
                   </div>
                 </CommandItem>

@@ -35,6 +35,11 @@ export const CHECKIN_TEACHER_ERRORS: Record<string, string> = {
   invalid_requirement: "teacherAttendance.errInvalidRequirement",
   requirement_not_in_course: "teacherAttendance.errRequirementNotInCourse",
   requirement_unavailable: "teacherAttendance.errRequirementUnavailable",
+  // Asistencia múltiple (un código para varias sesiones, mig 20262310000000)
+  no_sessions: "teacherAttendance.errNoSessions",
+  too_many_sessions: "teacherAttendance.errTooManySessions",
+  mixed_courses: "teacherAttendance.errMixedCourses",
+  session_already_open: "teacherAttendance.errSessionAlreadyOpen",
 };
 
 /**

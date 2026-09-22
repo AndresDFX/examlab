@@ -75,6 +75,68 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🙋 Asistencia múltiple — un enlace y un código para varias sesiones
+
+- **El caso**: una clase de tres horas partida en dos o tres sesiones del sistema. Hoy el docente
+  abre el check-in una vez por sesión, proyecta un QR distinto para cada una y el curso escanea dos
+  o tres veces — con 21 personas son dos o tres rondas de «no me tomó», y el docente termina
+  marcando a mano. Ahora marca las sesiones extra en el mismo diálogo y **el curso escanea una vez**.
+- **Es un cambio chico porque el código ya sale de la SEMILLA.**
+  `compute_attendance_code(seed, period)` deriva el número de la semilla, así que dos sesiones que
+  la comparten ya aceptan el mismo código. Faltaba solo (a) abrirlas juntas con la misma semilla y
+  (b) que marcar una marque las demás. **El QR, el enlace `?session=X&code=Y`,
+  `compute_attendance_code`, su espejo en JavaScript y el escáner del alumno quedan IDÉNTICOS**: el
+  enlace apunta a una sesión (el ancla, la más temprana) y la propagación pasa del lado del
+  servidor, así que un cliente viejo sigue funcionando y el alumno no aprende nada nuevo.
+- **`group_id` explícito y no «misma semilla»**: deducir el grupo comparando semillas sería un
+  invariante implícito, y su modo de falla es marcar asistencia en la sesión de otra clase.
+- **La propagación vive en UN lugar** (`attendance_marcar_grupo`) y la llaman los dos caminos de
+  check-in —el autenticado y el público por correo—. Si difirieran, el mismo alumno con el mismo
+  código quedaría marcado en dos sesiones por un camino y en una por el otro. **Cada hermana se
+  valida por su cuenta**: papelera del curso, ventana abierta, matrícula y sus propios requisitos.
+  Compartir grupo no alcanza — marcar sin validar sería inventar asistencia.
+- **Verificado contra un PostgreSQL real (PGlite) antes de mergear**, con 16 comprobaciones, y lo
+  que se probó no es que aplique sino **lo que NO hace**: un código inválido deja 0 marcas (la
+  propagación no es una puerta trasera), una hermana con requisito pendiente se omite y se reporta,
+  una con el check-in cerrado no se marca, el curso en papelera no habilita nada, un grupo que cruza
+  dos cursos se rechaza (`mixed_courses`), un estudiante no puede abrir el grupo, y una sesión sola
+  no propaga — que es el 99 % de los casos y no cambia en nada.
+- **Cerrar es del GRUPO** (`teacher_close_attendance_check_in_group`): sin eso, cerrar solo el ancla
+  dejaba las hermanas abiertas con la misma semilla, o sea el código siguiendo válido sin que nadie
+  lo viera.
+- **Los dos lados se enteran de qué pasó.** El docente recibe el conteo **del servidor** y no del
+  tamaño de su selección: si una hermana no abrió, la RPC no aborta el grupo, y decirle «abrí 3»
+  cuando abrió 2 sería mentirle sobre quién va a poder marcar. El alumno ve en qué otras sesiones
+  quedó, en la pantalla del QR y no en un toast — se lee de pie con la clase empezando, y es lo
+  único que le permite verificar que el código cubrió lo que el docente dijo.
+- **La revisión de consistencia encontró un bloqueante, y era el daño más caro posible.** Si el
+  docente sumaba al grupo una hermana que YA tenía su check-in abierto, esa llamada tomaba la rama de
+  AJUSTE —que preserva la semilla a propósito— y el `UPDATE` siguiente se la pisaba con la del ancla:
+  **el código que esa clase estaba mirando en el proyector dejaba de valer, en silencio**. Es
+  exactamente lo que `checkin-preserva-semilla.test.ts` existe para impedir, por una vía que ese test
+  no mira porque no toca el cuerpo de aquella función. Ahora se **rechaza** con
+  `session_already_open` —y no se saltea, que dejaría la sesión fuera del grupo sin que el docente lo
+  pida—, el cliente ni siquiera la ofrece, y hay una prueba que reproduce el escenario y verifica que
+  la semilla queda intacta. El guard está en el SERVIDOR además del cliente: filtrar solo en la UI
+  deja la RPC abierta a una llamada directa.
+- **El guardrail de mensajes de error ahora cubre las funciones nuevas.**
+  `checkin-errors.test.ts` lee los códigos que emiten las funciones del docente y exige que estén
+  mapeados y traducidos, pero su lista no incluía las nuevas — así que seguía en verde mientras un
+  `mixed_courses` habría salido a pantalla en inglés con guiones bajos. Se agregaron a la lista y se
+  **probó que caza**, quitando un código del mapa a propósito: falla nombrando la función y el
+  código.
+
+- **El arnés casi deja pasar un error que rompía la funcionalidad entera.** La primera versión
+  filtraba por `st.opens_at`, y esa columna **no existe**: `attendance_check_in_state` tiene
+  `opened_at`, y `p_opens_at` es el PARÁMETRO de la RPC de apertura. Las 16 comprobaciones pasaban
+  igual porque el stub de la tabla —escrito a mano— tenía las dos columnas. Se detectó comparando el
+  stub contra las columnas REALES leídas por REST, y el arnés quedó alineado al esquema de
+  producción. **Un arnés con un esquema más generoso que el real prueba una ficción**: la primera
+  propagación de verdad habría fallado con «column does not exist», frente al curso.
+
+- **Tope de 20 sesiones por grupo**: un código que cubre media asignatura deja de ser «la clase de
+  hoy» y se vuelve una forma de regalar asistencia del semestre.
+
 ### 🗄️ Hoja SQL de la pizarra — el Ejecutar deja de escaparse y los resultados se arrastran
 
 - **«Debo estar constantemente subiendo si quiero ejecutar».** La causa no era la posición del

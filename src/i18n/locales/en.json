@@ -6125,7 +6125,18 @@
     "rotationChangeConfirmCta": "Yes, change the code",
     "adjustEarlierCloseConfirmTitle": "You are moving the closing time earlier",
     "adjustEarlierCloseConfirmBody": "The check-in will close at {{time}} instead of {{before}}. Anyone marking right at that moment is left out and you will have to mark them by hand.",
-    "emailOnlyChangeReloadHint": "If you change it now, anyone with the form already open has to reload it."
+    "emailOnlyChangeReloadHint": "If you change it now, anyone with the form already open has to reload it.",
+    "multiSessionLabel": "Cover several sessions with this same code",
+    "multiSessionHint": "For a long class split into several sessions: tick the others here and the class scans only ONCE. They all open with the same code and the same time window. Closing the check-in from any of them closes them all.",
+    "multiSessionSameDay": "same day",
+    "multiSessionWarn": "A single scan will mark attendance in {{count}} sessions. Check the list before opening: attendance can be corrected, but only by hand.",
+    "sessionNoTitle": "(untitled)",
+    "multiOpenedToast": "Check-in opened for {{count}} sessions with a single code.",
+    "multiPartialToast": "Check-in opened in {{opened}} of {{requested}} sessions. Review the ones that stayed closed.",
+    "errNoSessions": "Pick at least one session to open the check-in.",
+    "errTooManySessions": "That's too many sessions for a single code. A code covering half the subject stops being today's class code.",
+    "errMixedCourses": "The sessions must belong to the same course. A code spanning courses would let a student mark attendance in a class they don't attend.",
+    "errSessionAlreadyOpen": "One of the sessions you picked already has its own check-in open. Adding it to the group would change the code that class is using: close that check-in first, then open them together."
   },
   "privacy": {
     "contents": "Contents",
@@ -6223,7 +6234,8 @@
     "statusNone": "No record",
     "statusPresent": "Present",
     "subtitle": "Attendance record your teacher has uploaded for your courses.",
-    "viewVideo": "View video"
+    "viewVideo": "View video",
+    "alsoMarkedIn": "You were also marked in {{count}} more session(s) with this same code: {{sessions}}."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Showing",
@@ -10230,7 +10242,8 @@
     "subtitle": "Confirm your attendance for this class.",
     "success": "Attendance recorded!",
     "successHint": "You can close this screen now.",
-    "title": "Mark attendance"
+    "title": "Mark attendance",
+    "alsoMarkedIn": "You were also marked in {{count}} more session(s): {{sessions}}."
   },
   "actasManager": {
     "searchPlaceholder": "Search by course, term or teacher…",
@@ -10324,6 +10337,7 @@
     "selectionHint": "Only the selection runs. Whatever is above runs first as context, because the database is fresh on every run.",
     "contextFailed": "{{count}} statement(s) above failed while preparing the context.",
     "runShortcut": "Run (Ctrl+Enter). If you select text, only that part runs.",
+    "resizeSplitAria": "Resize the query and the results",
     "firstRunHint": "The first run downloads the database engine (~16 MB). It may take a moment; later runs are instant.",
     "engineLoadError": "Could not load the database engine: {{error}}. Check your connection and try again.",
     "setupErrorTitle": "This question's schema has an error (not your SQL):",

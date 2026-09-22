@@ -30,6 +30,12 @@ const FUNCIONES_DEL_DOCENTE = [
   "teacher_open_attendance_check_in",
   "teacher_extend_attendance_check_in",
   "teacher_mark_pending_absent",
+  // Asistencia múltiple: sus códigos también salen a la pantalla del docente,
+  // así que entran al guardrail. Sin agregarlas acá el test seguía en verde y
+  // un `mixed_courses` habría salido a pantalla en inglés con guiones bajos —
+  // que es justo lo que este archivo existe para impedir.
+  "teacher_open_attendance_check_in_multi",
+  "teacher_close_attendance_check_in_group",
 ];
 
 /**

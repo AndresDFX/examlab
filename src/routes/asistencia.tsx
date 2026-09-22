@@ -45,6 +45,11 @@ interface RequisitoPendiente {
 }
 
 interface RespuestaCheckIn {
+  /** Sesiones ADEMÁS de la escaneada que quedaron marcadas con el mismo código
+   *  («asistencia múltiple», mig 20262310000000). 0 en el caso normal. */
+  marcadas?: number;
+  /** Los nombres de esas sesiones. */
+  sesiones?: string[];
   ok?: boolean;
   error?: string;
   already?: boolean;
@@ -89,10 +94,7 @@ export const Route = createFileRoute("/asistencia")({
     code: typeof s.code === "string" ? s.code : "",
   }),
   head: () => ({
-    meta: [
-      { title: "Asistencia · ExamLab" },
-      { name: "robots", content: "noindex, nofollow" },
-    ],
+    meta: [{ title: "Asistencia · ExamLab" }, { name: "robots", content: "noindex, nofollow" }],
   }),
   component: PublicAttendance,
 });
@@ -101,7 +103,10 @@ export const Route = createFileRoute("/asistencia")({
 const db = supabase as any;
 
 /** Mapea el error del RPC a un mensaje claro para el alumno. */
-function errorText(t: (k: string, o?: Record<string, unknown>) => string, code: string | null): string {
+function errorText(
+  t: (k: string, o?: Record<string, unknown>) => string,
+  code: string | null,
+): string {
   switch (code) {
     case "bad_credentials":
       return t("publicAttendance.errBadCredentials", {
@@ -133,8 +138,7 @@ function errorText(t: (k: string, o?: Record<string, unknown>) => string, code: 
       // respuesta no traiga el detalle, para que nadie lea «Intentá de nuevo» sobre
       // algo que reintentar no arregla.
       return t("publicAttendance.errRequirement", {
-        defaultValue:
-          "Te falta completar un ítem del curso antes de poder marcar asistencia.",
+        defaultValue: "Te falta completar un ítem del curso antes de poder marcar asistencia.",
       });
     case "invalid_email":
       return t("publicAttendance.errInvalidEmail", {
@@ -178,6 +182,8 @@ function PublicAttendance() {
   const [info, setInfo] = useState<InfoPublica | null>(null);
   /** La asistencia YA estaba puesta antes de este intento. */
   const [yaEstaba, setYaEstaba] = useState(false);
+  /** En cuántas sesiones MÁS quedó marcado (0 = check-in de una sola sesión). */
+  const [tambienEn, setTambienEn] = useState<string[]>([]);
   /** Estado registrado (presente / tardanza / justificado / ausente). */
   const [estadoPrevio, setEstadoPrevio] = useState<string | null>(null);
 
@@ -215,6 +221,7 @@ function PublicAttendance() {
       // porque el QR sigue proyectado— recibe otra vez "asistencia registrada"
       // y no puede saber si marcó dos veces.
       setYaEstaba(!!res.already);
+      setTambienEn((res.sesiones ?? []).filter(Boolean));
       setEstadoPrevio(res.status ?? null);
       setStatus("success");
     } else {
@@ -375,6 +382,18 @@ function PublicAttendance() {
                   })}
                 </p>
               )}
+              {/* En qué OTRAS sesiones quedó. Se muestra en la pantalla y no en
+                  un toast: esto se lee de pie, con el celular en la mano y la
+                  clase empezando, y es lo único que le permite verificar que el
+                  código cubrió lo que el docente dijo que cubría. */}
+              {tambienEn.length > 0 && (
+                <p className="rounded-md border border-emerald-500/40 bg-emerald-500/5 px-2 py-1.5 text-xs">
+                  {t("publicAttendance.alsoMarkedIn", {
+                    count: tambienEn.length,
+                    sessions: tambienEn.join(", "),
+                  })}
+                </p>
+              )}
               <p className="text-xs text-muted-foreground">
                 {t("publicAttendance.successHint", {
                   defaultValue: "Ya podés cerrar esta pantalla.",
@@ -411,8 +430,16 @@ function PublicAttendance() {
                       defaultValue: "Sesión iniciada. Se marcará con tu cuenta.",
                     })}
                   </p>
-                  <Button className="w-full" onClick={() => void checkInLoggedIn()} disabled={submitting || !code.trim()}>
-                    {submitting ? <Spinner size="sm" className="mr-1" /> : <CalendarCheck className="h-4 w-4 mr-1" />}
+                  <Button
+                    className="w-full"
+                    onClick={() => void checkInLoggedIn()}
+                    disabled={submitting || !code.trim()}
+                  >
+                    {submitting ? (
+                      <Spinner size="sm" className="mr-1" />
+                    ) : (
+                      <CalendarCheck className="h-4 w-4 mr-1" />
+                    )}
                     {t("publicAttendance.markBtn", { defaultValue: "Marcar asistencia" })}
                   </Button>
                 </>
@@ -450,8 +477,16 @@ function PublicAttendance() {
                       />
                     </div>
                   )}
-                  <Button className="w-full" onClick={() => void checkInPublic()} disabled={submitting}>
-                    {submitting ? <Spinner size="sm" className="mr-1" /> : <LogIn className="h-4 w-4 mr-1" />}
+                  <Button
+                    className="w-full"
+                    onClick={() => void checkInPublic()}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <Spinner size="sm" className="mr-1" />
+                    ) : (
+                      <LogIn className="h-4 w-4 mr-1" />
+                    )}
                     {t("publicAttendance.markBtn", { defaultValue: "Marcar asistencia" })}
                   </Button>
                   <p className="text-2xs text-muted-foreground text-center">
@@ -463,7 +498,9 @@ function PublicAttendance() {
                 </>
               )}
 
-              {status === "error" && errorCode === "requirement_pending" && pendientes.length > 0 ? (
+              {status === "error" &&
+              errorCode === "requirement_pending" &&
+              pendientes.length > 0 ? (
                 // Se listan TODOS: informar de a uno obliga a resolver, reintentar y
                 // descubrir el siguiente, de pie y con el docente esperando.
                 <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 space-y-2">

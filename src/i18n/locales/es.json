@@ -6125,7 +6125,18 @@
     "rotationChangeConfirmCta": "Sí, cambiar el código",
     "adjustEarlierCloseConfirmTitle": "Vas a adelantar el cierre",
     "adjustEarlierCloseConfirmBody": "El check-in va a cerrar a las {{time}} en vez de a las {{before}}. Quien esté marcándose justo en ese momento queda afuera y tendrás que marcarlo a mano.",
-    "emailOnlyChangeReloadHint": "Si lo cambiás ahora, quien ya tenga el formulario abierto tiene que recargarlo."
+    "emailOnlyChangeReloadHint": "Si lo cambiás ahora, quien ya tenga el formulario abierto tiene que recargarlo.",
+    "multiSessionLabel": "Cubrir varias sesiones con este mismo código",
+    "multiSessionHint": "Para una clase larga que quedó partida en varias sesiones: marcás las demás acá y el curso escanea UNA sola vez. Se abren todas con el mismo código y con esta misma ventana de tiempo. Cerrar el check-in desde cualquiera de ellas cierra todas.",
+    "multiSessionSameDay": "mismo día",
+    "multiSessionWarn": "Un solo escaneo va a marcar asistencia en {{count}} sesiones. Revisá la lista antes de abrir: una asistencia marcada se puede corregir, pero hay que hacerlo a mano.",
+    "sessionNoTitle": "(sin título)",
+    "multiOpenedToast": "Check-in abierto para {{count}} sesiones con un solo código.",
+    "multiPartialToast": "Check-in abierto en {{opened}} de {{requested}} sesiones. Revisá las que quedaron sin abrir.",
+    "errNoSessions": "Elegí al menos una sesión para abrir el check-in.",
+    "errTooManySessions": "Son demasiadas sesiones para un mismo código. Un código que cubre media asignatura deja de ser el de la clase de hoy.",
+    "errMixedCourses": "Las sesiones tienen que ser del mismo curso. Un código que cruza cursos dejaría marcar asistencia en una clase a la que el estudiante no va.",
+    "errSessionAlreadyOpen": "Una de las sesiones que elegiste ya tiene su propio check-in abierto. Sumarla al grupo le cambiaría el código que esa clase está usando: cerrá ese check-in primero y volvé a abrirlo en conjunto."
   },
   "privacy": {
     "contents": "Contenido",
@@ -6223,7 +6234,8 @@
     "statusNone": "Sin registro",
     "statusPresent": "Presente",
     "subtitle": "Registro de asistencia que el docente ha cargado para tus cursos.",
-    "viewVideo": "Ver video"
+    "viewVideo": "Ver video",
+    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más con este mismo código: {{sessions}}."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Mostrando",
@@ -10230,7 +10242,8 @@
     "subtitle": "Confirmá tu asistencia a esta clase.",
     "success": "¡Asistencia registrada!",
     "successHint": "Ya podés cerrar esta pantalla.",
-    "title": "Marcar asistencia"
+    "title": "Marcar asistencia",
+    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más: {{sessions}}."
   },
   "actasManager": {
     "searchPlaceholder": "Buscar por curso, período o docente…",
@@ -10324,6 +10337,7 @@
     "selectionHint": "Se ejecuta solo lo seleccionado. Lo de arriba corre antes como contexto, porque la base es nueva en cada ejecución.",
     "contextFailed": "{{count}} sentencia(s) de arriba fallaron al preparar el contexto.",
     "runShortcut": "Ejecutar (Ctrl+Enter). Si seleccionas texto, corre solo esa parte.",
+    "resizeSplitAria": "Redimensionar la consulta y los resultados",
     "firstRunHint": "La primera ejecución descarga el motor de base de datos (~16 MB). Puede tardar; las siguientes son inmediatas.",
     "engineLoadError": "No se pudo cargar el motor de base de datos: {{error}}. Revisá tu conexión y volvé a intentar.",
     "setupErrorTitle": "El esquema de esta pregunta tiene un error (no es tu SQL):",

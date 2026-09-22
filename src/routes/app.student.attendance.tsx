@@ -498,6 +498,11 @@ function StudentAttendance() {
             title: string;
             public_token: string | null;
           }> | null;
+          /** Cuántas sesiones MÁS quedaron marcadas con este mismo código
+           *  («asistencia múltiple», mig 20262310000000). 0 en el caso normal. */
+          marcadas?: number;
+          /** Los nombres de esas sesiones, para poder decir en cuáles quedó. */
+          sesiones?: string[];
           /** Formato anterior: una sola. Se sigue leyendo por compatibilidad. */
           requirement?: {
             kind: "poll" | "workshop" | "project" | "exam" | "report_signature";
@@ -533,8 +538,7 @@ function StudentAttendance() {
               pend.length === 1
                 ? t("studentAttendance.reqPending", { title: pend[0].title })
                 : t("studentAttendance.reqPendingVarios", {
-                    defaultValue:
-                      "Antes de marcar asistencia te falta completar {{items}}.",
+                    defaultValue: "Antes de marcar asistencia te falta completar {{items}}.",
                     items: titulos,
                   }),
               {
@@ -559,7 +563,10 @@ function StudentAttendance() {
           // «requirement_pending» en pantalla: alcanzaba con que un código no
           // estuviera en el mapa. Un mensaje genérico es peor que uno preciso, pero
           // muchísimo mejor que un identificador técnico.
-          { const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""]; toast.error(_k ? t(_k) : t("studentAttendance.errGeneric")); }
+          {
+            const _k = CHECK_IN_ERROR_MESSAGES[result?.error ?? ""];
+            toast.error(_k ? t(_k) : t("studentAttendance.errGeneric"));
+          }
           return false;
         }
         // "Ya estabas marcado" vs "marcado": sin la distinción, el alumno que
@@ -580,6 +587,21 @@ function StudentAttendance() {
             i18n.t("toast.routes_app_student_attendance.markedAsPresent", {
               defaultValue: "¡Marcado como presente!",
             }),
+          );
+        }
+        // Un solo código pudo cubrir varias sesiones. Se avisa APARTE y no
+        // metido en el mensaje anterior: el alumno tiene que poder verificar en
+        // cuáles quedó, porque si el docente configuró mal el grupo la
+        // diferencia la nota. Silenciarlo sería marcar asistencia en sesiones
+        // que la persona no sabe que tiene.
+        if ((result.marcadas ?? 0) > 0) {
+          const nombres = (result.sesiones ?? []).filter(Boolean);
+          toast.success(
+            t("studentAttendance.alsoMarkedIn", {
+              count: result.marcadas,
+              sessions: nombres.join(", "),
+            }),
+            { duration: 10000 },
           );
         }
         // Refresca records del curso seleccionado para que se vea inmediato
@@ -775,13 +797,17 @@ function StudentAttendance() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{t("studentAttendance.sessionsCount", { defaultValue: "Sesiones" })}</div>
+                <div className="text-xs text-muted-foreground">
+                  {t("studentAttendance.sessionsCount", { defaultValue: "Sesiones" })}
+                </div>
                 <div className="text-2xl font-semibold tabular-nums">{stats.total}</div>
               </CardContent>
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{t("studentAttendance.presentCount")}</div>
+                <div className="text-xs text-muted-foreground">
+                  {t("studentAttendance.presentCount")}
+                </div>
                 <div className="text-2xl font-semibold tabular-nums text-success">
                   {stats.presente}
                 </div>
@@ -789,7 +815,9 @@ function StudentAttendance() {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{t("studentAttendance.absencesCount", { defaultValue: "Ausencias" })}</div>
+                <div className="text-xs text-muted-foreground">
+                  {t("studentAttendance.absencesCount", { defaultValue: "Ausencias" })}
+                </div>
                 <div className="text-2xl font-semibold tabular-nums text-destructive">
                   {stats.ausente}
                 </div>
@@ -797,7 +825,9 @@ function StudentAttendance() {
             </Card>
             <Card>
               <CardContent className="p-4">
-                <div className="text-xs text-muted-foreground">{t("studentAttendance.attendancePct", { defaultValue: "% asistencia" })}</div>
+                <div className="text-xs text-muted-foreground">
+                  {t("studentAttendance.attendancePct", { defaultValue: "% asistencia" })}
+                </div>
                 <div className="text-2xl font-semibold tabular-nums">
                   {stats.pct == null ? "—" : `${stats.pct}%`}
                 </div>
@@ -901,7 +931,9 @@ function StudentAttendance() {
                                     }}
                                   >
                                     <PlayCircle className="h-3 w-3 mr-1" />
-                                    {t("studentAttendance.viewVideo", { defaultValue: "Ver video" })}
+                                    {t("studentAttendance.viewVideo", {
+                                      defaultValue: "Ver video",
+                                    })}
                                   </Button>
                                 )}
                                 {s.recording_url && (
@@ -931,16 +963,11 @@ function StudentAttendance() {
                                     variant="outline"
                                     className="h-8 px-2 text-2xs"
                                   >
-                                    <a
-                                      href={s.notes_url}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                    >
+                                    <a href={s.notes_url} target="_blank" rel="noopener noreferrer">
                                       <FileText className="h-3 w-3 mr-1" />
-                                      {t(
-                                        "routes_app_student_attendance.viewNotes",
-                                        { defaultValue: "Ver notas" },
-                                      )}
+                                      {t("routes_app_student_attendance.viewNotes", {
+                                        defaultValue: "Ver notas",
+                                      })}
                                     </a>
                                   </Button>
                                 )}
@@ -1084,11 +1111,12 @@ function StudentAttendance() {
 
       {/* Manual code dialog */}
       {manualOpen && (
-        <CheckInDialog title={t("studentAttendance.enterCodeManual")} onClose={() => setManualOpen(null)}>
+        <CheckInDialog
+          title={t("studentAttendance.enterCodeManual")}
+          onClose={() => setManualOpen(null)}
+        >
           <div className="space-y-3">
-            <p className="text-xs text-muted-foreground">
-              {t("studentAttendance.manualHint")}
-            </p>
+            <p className="text-xs text-muted-foreground">{t("studentAttendance.manualHint")}</p>
             <Input
               autoFocus
               inputMode="numeric"
@@ -1136,7 +1164,9 @@ function StudentAttendance() {
       <Dialog open={!!recordingDialog} onOpenChange={(o) => !o && setRecordingDialog(null)}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>{t("studentAttendance.recordingTitle", { title: recordingDialog?.sessionTitle })}</DialogTitle>
+            <DialogTitle>
+              {t("studentAttendance.recordingTitle", { title: recordingDialog?.sessionTitle })}
+            </DialogTitle>
           </DialogHeader>
           {recordingDialog && (
             <div className="space-y-2">
@@ -1234,7 +1264,10 @@ function CheckInDialog({
       if (!e.shiftKey && document.activeElement === last) {
         e.preventDefault();
         first.focus();
-      } else if (e.shiftKey && (document.activeElement === first || document.activeElement === panelRef.current)) {
+      } else if (
+        e.shiftKey &&
+        (document.activeElement === first || document.activeElement === panelRef.current)
+      ) {
         e.preventDefault();
         last.focus();
       }
