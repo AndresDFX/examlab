@@ -75,6 +75,41 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🗄️ Hoja SQL de la pizarra — el Ejecutar deja de escaparse y los resultados se arrastran
+
+- **«Debo estar constantemente subiendo si quiero ejecutar».** La causa no era la posición del
+  botón: el contenedor de la hoja scrolleaba la página ENTERA, así que el encabezado del runner
+  —donde vive Ejecutar— se iba de pantalla en cuanto el guion o los resultados crecían. Ahora las
+  herramientas de arriba (generador con IA y esquema de partida) tienen su propio scroll acotado al
+  45 % del alto, y el runner se queda con el resto: su encabezado es `shrink-0` y **nunca se va**.
+  Con el esquema plegado el editor ocupa casi toda la hoja.
+- **La caja de resultados se arrastra.** Tenía el problema inverso al editor: el editor con alto
+  FIJO (`14 × zoom rem`) y los resultados creciendo sin tope, empujando todo hacia abajo y sin forma
+  de darles aire para leer una consulta de muchas filas. Ahora un divisor reparte editor y
+  resultados, cada mitad scrollea por dentro, y **el reparto queda guardado** (`examlab_sql_split`)
+  — se acomoda una vez y no se vuelve a tocar. Una clave para todas las hojas, no una por hoja: la
+  proporción es preferencia de la persona (mismo criterio que el zoom compartido).
+- **El componente `Resizable` del design system estaba ROTO, y nadie lo sabía porque no se usaba.**
+  Era el envoltorio que shadcn genera para `react-resizable-panels` v2/v3, pero el repo tiene la
+  **v4**, donde: la orientación se pasa en `orientation` y no en `direction`; la v4 emite
+  `data-group`/`data-panel`/`data-separator` y **ya no** `data-panel-group-direction`, así que todas
+  las clases `data-[panel-group-direction=vertical]:*` del envoltorio eran **selectores muertos** —un
+  grupo vertical quedaba con el divisor de 1px de ANCHO en vez de alto, es decir invisible e
+  imposible de agarrar—; y la v4 controla `display`/`flex-direction` por su cuenta. Reescrito para
+  v4, con `orientation` **explícita** en el divisor: la v4 no expone en el DOM de dónde deducirla, y
+  adivinarla con un selector sobre estilos en línea es la clase de acoplamiento que lo dejó roto la
+  primera vez.
+  - **Verificado montando la librería real con Playwright**, no por compilación: reparto 55/45
+    respetado, separador de 1 px de alto por el ancho completo del grupo, arrastrar 80 px arriba
+    lleva los resultados de 180 px a 260 px, y `onLayoutChanged` entrega `{"sql-editor":34.8,
+    "sql-results":65.2}` —indexado por id de panel, que es el contrato de la persistencia—. Un
+    primitivo roto que nadie usa se ve exactamente igual que uno que funciona.
+- **`fillHeight` es opt-in, y no por gusto.** De los tres puntos de montaje de `SqlRunner`, el
+  examen y el taller **no pasan `className`**: su alto lo da el contenido dentro de la tarjeta de la
+  pregunta, que scrollea. Volver el layout nuevo el comportamiento por defecto los colapsaría a cero
+  — o sea, rompería la pantalla de tomar un examen, con un parcial real esta semana. Solo la hoja de
+  la pizarra lo pide, porque es la única que tiene un alto propio que llenar.
+
 ### 📱 Móvil — los filtros de Estadísticas se entienden
 
 - **«Desde móvil no sé bien el tema de incluir o excluir»**, reportado sobre los chips de «Contar

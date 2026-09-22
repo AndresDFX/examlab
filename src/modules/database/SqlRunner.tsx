@@ -54,6 +54,8 @@ import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
+import { cn } from "@/shared/lib/utils";
 import { useEditorZoom } from "@/hooks/use-editor-zoom";
 import { EditorZoomControls } from "@/modules/code/EditorZoomControls";
 import {
@@ -103,14 +105,37 @@ interface Props {
   /** Identidad estable de la pregunta/hoja, para que el zoom quede guardado
    *  solo acá — ver `useEditorZoom`. */
   zoomScopeKey?: string | null;
+  /**
+   * Layout de HERRAMIENTA: el runner llena el alto que le dan, el encabezado
+   * (con Ejecutar) queda siempre a la vista, y el editor y los resultados se
+   * reparten el resto con un divisor que el usuario arrastra.
+   *
+   * Es **opt-in** y no el comportamiento por defecto por una razón concreta:
+   * de los tres puntos de montaje, examen y taller NO pasan `className`, así
+   * que su alto lo da el contenido dentro de la tarjeta de la pregunta, que
+   * scrollea. Volver esto el default los colapsaría a cero — es decir,
+   * rompería la pantalla de tomar un examen. Lo usa solo la hoja de la
+   * pizarra, que sí tiene un alto propio que llenar.
+   *
+   * Sin esto, el encabezado se iba con el scroll: para ejecutar había que
+   * subir, que es exactamente lo que se reportó.
+   */
+  fillHeight?: boolean;
 }
+
+/** Reparto editor/resultados del divisor. UNA clave para todas las hojas: la
+ *  proporción preferida es de la persona, y por hoja obligaría a re-arrastrar
+ *  cada vez que se crea una nueva (mismo criterio que el zoom compartido). */
+const SPLIT_KEY = "examlab_sql_split";
+const PANEL_EDITOR = "sql-editor";
+const PANEL_RESULTS = "sql-results";
 
 /** Convierte el resultado crudo de PGlite a nuestra forma serializable. */
 function toStatementResult(sql: string, r: PgliteResult): SqlStatementResult {
   const columns = (r.fields ?? []).map((f) => f.name);
-  const rows = (r.rows ?? []).slice(0, MAX_PERSISTED_ROWS).map((row) =>
-    columns.map((c) => formatCell((row as Record<string, unknown>)[c])),
-  );
+  const rows = (r.rows ?? [])
+    .slice(0, MAX_PERSISTED_ROWS)
+    .map((row) => columns.map((c) => formatCell((row as Record<string, unknown>)[c])));
   return {
     sql,
     columns,
@@ -129,6 +154,7 @@ export function SqlRunner({
   readOnlyAllowRun,
   queryLabel,
   zoomScopeKey = null,
+  fillHeight,
 }: Props) {
   const { t } = useTranslation();
   const parsed = parseSqlAnswer(value);
@@ -151,7 +177,15 @@ export function SqlRunner({
    * `setupSql` viejo). La ref lo mantiene apuntando a la versión actual.
    */
   const runRef = useRef<() => void>(() => {});
-  const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
+  const {
+    zoom,
+    zoomIn,
+    zoomOut,
+    reset: resetZoom,
+    atMin,
+    atMax,
+    pct,
+  } = useEditorZoom(zoomScopeKey);
 
   /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
      de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),
@@ -388,181 +422,269 @@ export function SqlRunner({
     runRef.current = run;
   });
 
+  // Reparto guardado del divisor. NO se lee en el initializer de `useState`
+  // (regla de hidratación #418 del proyecto): arranca en null y se lee
+  // post-montaje. El grupo no se renderiza hasta esa lectura porque la librería
+  // consulta `defaultLayout` UNA sola vez, al montar — renderizarlo antes
+  // dejaría el reparto por defecto y la preferencia guardada no se aplicaría
+  // nunca. Todo en try/catch: `localStorage` LANZA en navegación privada.
+  const [reparto, setReparto] = useState<Record<string, number> | null>(null);
+  const [repartoListo, setRepartoListo] = useState(false);
+  useEffect(() => {
+    if (!fillHeight) return;
+    try {
+      const raw = window.localStorage.getItem(SPLIT_KEY);
+      const parsed = raw ? JSON.parse(raw) : null;
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        setReparto(parsed as Record<string, number>);
+      }
+    } catch {
+      /* storage bloqueado: se usa el reparto por defecto */
+    }
+    setRepartoListo(true);
+  }, [fillHeight]);
+
+  const guardarReparto = (layout: Record<string, number>) => {
+    try {
+      window.localStorage.setItem(SPLIT_KEY, JSON.stringify(layout));
+    } catch {
+      /* no se puede guardar: el arrastre igual funciona en esta sesión */
+    }
+  };
+
+  // Editor y resultados salen a variables para poder COMPONERLOS de dos formas
+  // sin duplicar el JSX: apilados (examen/taller, alto por contenido) o
+  // repartidos por un divisor arrastrable (la hoja de la pizarra).
+  // El editor: en modo herramienta llena su panel y el alto lo decide el
+  // divisor que arrastra el usuario; si no, conserva el alto fijo que escala
+  // con la fuente.
+  const bloqueEditor = (
+    <div className={cn("overflow-hidden rounded-md border", fillHeight && "h-full min-h-0")}>
+      <Editor
+        // Sin `fillHeight` el alto escala con la fuente: si no, subir el
+        // zoom no agranda, RECORTA (de ~11 líneas visibles a ~4).
+        height={fillHeight ? "100%" : `${14 * zoom}rem`}
+        language="sql"
+        value={sql}
+        onChange={(v) => onSqlChange(v ?? "")}
+        onMount={handleMount}
+        options={{
+          readOnly: !!readOnly,
+          minimap: { enabled: false },
+          fontSize: Math.round(13 * zoom),
+          scrollBeyondLastLine: false,
+          wordWrap: "on",
+          automaticLayout: true,
+        }}
+      />
+    </div>
+  );
+
+  const bloqueResultados = (
+    <>
+      {loadError && (
+        <p className="flex items-start gap-1.5 text-2xs text-destructive">
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          {t("bdSql.engineLoadError", { error: loadError })}
+        </p>
+      )}
+
+      {setupError && (
+        <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
+          <strong>{t("bdSql.setupErrorTitle")}</strong> {setupError}
+        </div>
+      )}
+
+      {/* Estado vacío: sin esto, debajo del editor no había NADA y no quedaba
+            claro que hubiera que pulsar Ejecutar para ver algo. */}
+      {results.length === 0 && !loadError && !setupError && (
+        <p className="rounded-md border border-dashed p-3 text-center text-2xs text-muted-foreground">
+          {t("bdSql.emptyHint")}
+        </p>
+      )}
+
+      {results.length > 0 && (
+        <div className="space-y-2">
+          {results.map((r, i) => (
+            <div key={i} className="rounded-md border bg-muted/30 p-2">
+              <p className="mb-1 text-3xs text-muted-foreground" style={zoomStyle("--text-3xs")}>
+                {t("bdSql.statementN", { n: i + 1 })}
+              </p>
+              {r.error ? (
+                <p
+                  className="whitespace-pre-wrap break-words font-mono text-2xs text-destructive"
+                  style={zoomStyle("--text-2xs")}
+                >
+                  {r.error}
+                </p>
+              ) : r.columns.length === 0 ? (
+                <p
+                  className="font-mono text-2xs text-muted-foreground"
+                  style={zoomStyle("--text-2xs")}
+                >
+                  {t("bdSql.affectedRows", { count: r.affectedRows ?? 0 })}
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <pre
+                    className="font-mono text-2xs leading-relaxed"
+                    style={zoomStyle("--text-2xs")}
+                  >
+                    {renderTable(r.columns, r.rows)}
+                  </pre>
+                  {r.rows.length >= MAX_PERSISTED_ROWS && (
+                    <p
+                      className="mt-1 text-3xs text-muted-foreground"
+                      style={zoomStyle("--text-3xs")}
+                    >
+                      {t("bdSql.truncated", { max: MAX_PERSISTED_ROWS })}
+                    </p>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
   return (
-    <div className={className}>
-      <div className="space-y-2">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* El encabezado nombra la TAREA ("Consulta"), no la tecnología. Antes
+    <div className={cn(fillHeight && "flex h-full min-h-0 flex-col", className)}>
+      <div className={cn("space-y-2", fillHeight && "flex min-h-0 flex-1 flex-col")}>
+        {/* Bloque FIJO: el encabezado con Ejecutar y los avisos. En modo
+            herramienta es `shrink-0`, así que el botón queda a la vista por
+            mucho que crezcan el guion o los resultados — antes se iba con el
+            scroll y había que subir para ejecutar. */}
+        <div className={cn("space-y-2", fillHeight && "shrink-0")}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* El encabezado nombra la TAREA ("Consulta"), no la tecnología. Antes
               la única etiqueta era el motor ("PostgreSQL real en tu navegador"),
               así que en la hoja de la pizarra —donde arriba hay OTRO editor de
               SQL, el del esquema— no había forma de saber cuál era cuál. El dato
               del motor sigue visible debajo, que es donde importa. */}
-          <span className="flex items-center gap-1.5 text-xs font-medium">
-            <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            {queryLabel ?? t("bdSql.queryLabel")}
-            <HelpHint>{t("bdSql.queryHint")}</HelpHint>
-          </span>
-          <div className="ml-auto flex items-center gap-1">
-            {/* El control (y el motivo de que sea solo-clic) vive en
+            <span className="flex items-center gap-1.5 text-xs font-medium">
+              <Database className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              {queryLabel ?? t("bdSql.queryLabel")}
+              <HelpHint>{t("bdSql.queryHint")}</HelpHint>
+            </span>
+            <div className="ml-auto flex items-center gap-1">
+              {/* El control (y el motivo de que sea solo-clic) vive en
                 `EditorZoomControls`, compartido con los tres editores de
                 código. Va también en readOnly: quien mira la hoja
                 compartida es quien más necesita agrandar la letra. */}
-            <EditorZoomControls
-              zoomIn={zoomIn}
-              zoomOut={zoomOut}
-              reset={resetZoom}
-              atMin={atMin}
-              atMax={atMax}
-              pct={pct}
-            />
-            {(!readOnly || readOnlyAllowRun) && (
-              <Button
-                size="sm"
-                onClick={() => void run()}
-                disabled={running || !sql.trim()}
-                title={t("bdSql.runShortcut")}
-              >
-                {running ? (
-                  <Spinner size="xs" className="mr-1" />
-                ) : (
-                  <Play className="mr-1 h-4 w-4" />
-                )}
-                {running
-                  ? t("bdSql.running")
-                  : hasSelection
-                    ? t("bdSql.runSelection")
-                    : t("bdSql.run")}
-              </Button>
-            )}
+              <EditorZoomControls
+                zoomIn={zoomIn}
+                zoomOut={zoomOut}
+                reset={resetZoom}
+                atMin={atMin}
+                atMax={atMax}
+                pct={pct}
+              />
+              {(!readOnly || readOnlyAllowRun) && (
+                <Button
+                  size="sm"
+                  onClick={() => void run()}
+                  disabled={running || !sql.trim()}
+                  title={t("bdSql.runShortcut")}
+                >
+                  {running ? (
+                    <Spinner size="xs" className="mr-1" />
+                  ) : (
+                    <Play className="mr-1 h-4 w-4" />
+                  )}
+                  {running
+                    ? t("bdSql.running")
+                    : hasSelection
+                      ? t("bdSql.runSelection")
+                      : t("bdSql.run")}
+                </Button>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* El motor y —lo que más confunde— que la base se recrea en CADA
+          {/* El motor y —lo que más confunde— que la base se recrea en CADA
             ejecución. Ese comportamiento estaba documentado solo en un comentario
             del código: el usuario que insertaba una fila y en la corrida siguiente
             no la encontraba no tenía NADA en pantalla que lo explicara. */}
-        <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
-          <Database className="mt-0.5 h-3 w-3 shrink-0" />
-          {t("bdSql.engineLabel")}
-        </p>
+          <p className="flex items-start gap-1.5 text-2xs text-muted-foreground">
+            <Database className="mt-0.5 h-3 w-3 shrink-0" />
+            {t("bdSql.engineLabel")}
+          </p>
 
-        {/* Qué contiene la base, a la vista y en un botón. En readOnly Monaco no
+          {/* Qué contiene la base, a la vista y en un botón. En readOnly Monaco no
             acepta escritura, así que la consulta no se podría insertar ni pegar en
             ningún lado: ahí lo único que corre es la consulta fija del docente.
             Es la única superficie que EJECUTA y queda sin la ayuda; cubrirla pide
             un editor propio para el alumno, que es trabajo aparte. */}
-        {!readOnly && <SqlTablesHelp onInsert={insertListTables} />}
+          {!readOnly && <SqlTablesHelp onInsert={insertListTables} />}
 
-        {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
-        {running && (
-          <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>
-        )}
+          {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
+          {running && <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>}
 
-        {/* Antes de la primera corrida el aviso de los 16 MB no se veía (solo
+          {/* Antes de la primera corrida el aviso de los 16 MB no se veía (solo
             aparecía DURANTE la ejecución), así que la espera larga llegaba sin
             explicación. Acá se anticipa, y solo mientras no haya resultados. */}
-        {!running && results.length === 0 && (
-          <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHintIdle")}</p>
-        )}
+          {!running && results.length === 0 && (
+            <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHintIdle")}</p>
+          )}
 
-        {/* Que se pueda correr un fragmento no se descubre solo: sin este
+          {/* Que se pueda correr un fragmento no se descubre solo: sin este
             aviso el usuario asume que el botón siempre corre la hoja entera. */}
-        {!running && hasSelection && (
-          <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
-        )}
+          {!running && hasSelection && (
+            <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
+          )}
 
-        {/* Si la selección falla por algo de más arriba, el motivo tiene que
+          {/* Si la selección falla por algo de más arriba, el motivo tiene que
             estar en pantalla: el contexto corre sin mostrar sus resultados. */}
-        {!running && contextoFallido > 0 && (
-          <p className="flex items-start gap-1.5 text-2xs text-amber-700 dark:text-amber-300">
-            <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-            {t("bdSql.contextFailed", { count: contextoFallido })}
-          </p>
-        )}
-
-        <div className="overflow-hidden rounded-md border">
-          <Editor
-            // El alto escala con la fuente: sin eso, subir el zoom no agranda,
-            // RECORTA (de ~11 líneas visibles a ~4).
-            height={`${14 * zoom}rem`}
-            language="sql"
-            value={sql}
-            onChange={(v) => onSqlChange(v ?? "")}
-            onMount={handleMount}
-            options={{
-              readOnly: !!readOnly,
-              minimap: { enabled: false },
-              fontSize: Math.round(13 * zoom),
-              scrollBeyondLastLine: false,
-              wordWrap: "on",
-              automaticLayout: true,
-            }}
-          />
+          {!running && contextoFallido > 0 && (
+            <p className="flex items-start gap-1.5 text-2xs text-amber-700 dark:text-amber-300">
+              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+              {t("bdSql.contextFailed", { count: contextoFallido })}
+            </p>
+          )}
         </div>
 
-        {loadError && (
-          <p className="flex items-start gap-1.5 text-2xs text-destructive">
-            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            {t("bdSql.engineLoadError", { error: loadError })}
-          </p>
-        )}
+        {/* En modo herramienta se espera la lectura del reparto antes de montar
+            el grupo. Sin esa espera el primer fotograma caía en la rama apilada
+            —layout equivocado a la vista y Monaco montándose dos veces— porque
+            `repartoListo` todavía era falso. */}
+        {fillHeight ? (
+          !repartoListo ? null : (
+            /* Divisor arrastrable entre el guion y los resultados. El alto de la
+             caja de resultados era el problema reportado: sin tope crecía sin
+             control y empujaba todo, y no había forma de darle más aire para
+             leer una consulta de muchas filas. Ahora se arrastra, cada mitad
+             scrollea por dentro, y `autoSaveId` recuerda el reparto — el
+             docente lo acomoda una vez y no vuelve a hacerlo.
 
-        {setupError && (
-          <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
-            <strong>{t("bdSql.setupErrorTitle")}</strong> {setupError}
-          </div>
-        )}
-
-        {/* Estado vacío: sin esto, debajo del editor no había NADA y no quedaba
-            claro que hubiera que pulsar Ejecutar para ver algo. */}
-        {results.length === 0 && !loadError && !setupError && (
-          <p className="rounded-md border border-dashed p-3 text-center text-2xs text-muted-foreground">
-            {t("bdSql.emptyHint")}
-          </p>
-        )}
-
-        {results.length > 0 && (
-          <div className="space-y-2">
-            {results.map((r, i) => (
-              <div key={i} className="rounded-md border bg-muted/30 p-2">
-                <p className="mb-1 text-3xs text-muted-foreground" style={zoomStyle("--text-3xs")}>
-                  {t("bdSql.statementN", { n: i + 1 })}
-                </p>
-                {r.error ? (
-                  <p
-                    className="whitespace-pre-wrap break-words font-mono text-2xs text-destructive"
-                    style={zoomStyle("--text-2xs")}
-                  >
-                    {r.error}
-                  </p>
-                ) : r.columns.length === 0 ? (
-                  <p
-                    className="font-mono text-2xs text-muted-foreground"
-                    style={zoomStyle("--text-2xs")}
-                  >
-                    {t("bdSql.affectedRows", { count: r.affectedRows ?? 0 })}
-                  </p>
-                ) : (
-                  <div className="overflow-x-auto">
-                    <pre
-                      className="font-mono text-2xs leading-relaxed"
-                      style={zoomStyle("--text-2xs")}
-                    >
-                      {renderTable(r.columns, r.rows)}
-                    </pre>
-                    {r.rows.length >= MAX_PERSISTED_ROWS && (
-                      <p
-                        className="mt-1 text-3xs text-muted-foreground"
-                        style={zoomStyle("--text-3xs")}
-                      >
-                        {t("bdSql.truncated", { max: MAX_PERSISTED_ROWS })}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+             El id es UNO para todas las hojas, no uno por hoja: la proporción
+             preferida es de la persona, y por hoja obligaría a re-arrastrar
+             cada vez que crea una nueva. */
+            <ResizablePanelGroup
+              orientation="vertical"
+              {...(reparto ? { defaultLayout: reparto } : {})}
+              onLayoutChanged={guardarReparto}
+              className="min-h-0 flex-1"
+            >
+              <ResizablePanel id={PANEL_EDITOR} defaultSize={55} minSize={20} className="min-h-0">
+                {bloqueEditor}
+              </ResizablePanel>
+              <ResizableHandle
+                withHandle
+                orientation="vertical"
+                ariaLabel={t("bdSql.resizeSplitAria")}
+              />
+              <ResizablePanel id={PANEL_RESULTS} defaultSize={45} minSize={15} className="min-h-0">
+                <div className="h-full space-y-2 overflow-y-auto pt-2">{bloqueResultados}</div>
+              </ResizablePanel>
+            </ResizablePanelGroup>
+          )
+        ) : (
+          <>
+            {bloqueEditor}
+            {bloqueResultados}
+          </>
         )}
       </div>
     </div>
