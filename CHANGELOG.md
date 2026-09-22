@@ -75,6 +75,57 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🐞 «Cuadrar en N» del examen nunca funcionó, y culpaba al docente
+
+- **Lo que se veía**: «No tienes permisos para realizar esta acción.» al pulsar el botón que reparte
+  los puntajes de las preguntas para que sumen la escala del curso. Sobre el propio examen del
+  docente, en su propio curso.
+- **Por qué**: el botón mandaba un `upsert` parcial `{id, points}`, elegido a propósito para no
+  reescribir enunciado, opciones ni rúbrica con la copia que el render tuviera en memoria. PostgREST
+  lo traduce a `INSERT … ON CONFLICT`, y PostgreSQL evalúa el `WITH CHECK` de la política de INSERT
+  sobre la fila **propuesta**, donde `exam_id` va en `NULL`: `exam_in_my_tenant(NULL)` es falso y la
+  sentencia entera rebota con **42501**, que el traductor de errores convierte en el mensaje de
+  permisos. **Fallaba para todos, siempre** — no dependía del tenant ni del rol.
+- **El arreglo** (mig `20262320000000_repartir_puntajes_examen.sql`): RPC `exam_repartir_puntajes`
+  con **una sola** sentencia `UPDATE … FROM unnest()`. No podía ser «mandar la fila completa» (es
+  justo lo que el upsert parcial evitaba) ni N updates sueltos (si el sexto falla, el examen queda
+  sumando MENOS que antes de pulsar el botón que existe para cuadrarlo). `SECURITY INVOKER` para que
+  `questions_staff_manage` aplique tal cual, sin reimplementar autorización.
+- **El guard de papelera va en la RPC, no en la policy**: `exam_in_my_tenant` **no mira
+  `deleted_at`** (hueco preexistente de `20260929000000`), así que sin eso un examen borrado seguiría
+  aceptando el reparto. Como esta es una vía de escritura nueva, se cierra acá.
+- **12 comprobaciones contra PostgreSQL real** (PGlite), la mayoría de lo que NO debe pasar: un id de
+  otro examen en el lote se rechaza, un examen de otra institución no se toca y queda intacto, uno en
+  la papelera tampoco, y si la RLS filtra alguna fila **aborta** en vez de dejar el reparto a medias.
+  Una de ellas re-ejecuta el upsert viejo y verifica que sigue dando 42501, para que el diagnóstico
+  quede fijado y nadie lo revierta por parecer más simple.
+
+### 🐞 El enunciado del examen se veía sin formato en la lista del docente
+
+- Era **el único** sitio de autoría, toma o revisión que pintaba `questions.content` como texto plano
+  (`<p>{q.content}</p>`); los otros nueve ya usaban `MarkdownInline`. El enunciado ES markdown, así
+  que salía todo en un párrafo con los `**` y los acentos graves a la vista, y el bloque ```sql de
+  una pregunta de base de datos quedaba aplastado adentro — reportado como «no veo el script para
+  create table», cuando el script sí estaba.
+- Mismo componente y mismo string que ya renderiza la pantalla donde el alumno responde, así que no
+  hay un camino de render nuevo que pueda verse distinto. Verificado renderizando los 10 enunciados
+  REALES bajados de producción: nada de sintaxis cruda queda a la vista y la pregunta de
+  procedimientos almacenados pasa de un párrafo a dos bloques de código (la plantilla y el
+  `CREATE TABLE`).
+- **Queda pendiente, a propósito**: la `expected_rubric` de la misma tarjeta sigue en texto plano.
+  Hoy no se ve mal (ninguna de las 10 rúbricas tiene markdown) y es un defecto preexistente; se
+  separó para no mezclar dos cambios.
+
+### 📚 Los enunciados de SQL traen su esquema de partida
+
+- Cada pregunta `bd_sql` del taller y el parcial de Bases de Datos II (y sus copias en el banco, 16
+  filas) cierra con el `CREATE TABLE` + `INSERT` del `setupSql`, y la aclaración de que **se ejecuta
+  solo y no hay que copiarlo en la respuesta**. Antes decían «la tabla `producto` ya existe con dos
+  filas» sin nombrar las columnas, así que el alumno no podía escribir el `INSERT` y el tema de la
+  pregunta dejaba de ser el tema.
+- El bloque se **genera desde el `setupSql` guardado** de cada pregunta, no escrito a mano: lo que el
+  alumno lee es por construcción lo que la base ejecuta.
+
 ### 🙋 Asistencia múltiple — un enlace y un código para varias sesiones
 
 - **El caso**: una clase de tres horas partida en dos o tres sesiones del sistema. Hoy el docente

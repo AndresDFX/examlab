@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { questionTypeLabel } from "@/shared/lib/question-type-label";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
 import { toast } from "sonner";
 import {
@@ -2399,7 +2400,17 @@ function ExamEditor() {
                       )}
                       <span className="text-xs text-muted-foreground">{q.points} pt</span>
                     </div>
-                    <p className="text-sm">{q.content}</p>
+                    {/* El enunciado es MARKDOWN: lo escribe la IA o el docente con
+                        negritas, listas y bloques ```sql. Pintado como texto plano se
+                        veía todo en un párrafo con los asteriscos y los acentos graves
+                        a la vista, y el `CREATE TABLE` de una pregunta de SQL quedaba
+                        aplastado adentro — reportado como «no veo el script». Es el
+                        MISMO componente y el MISMO string que ya renderizan la pantalla
+                        de toma, la de revisión y el monitor: esta lista era el único
+                        lugar de autoría que no lo usaba. */}
+                    <div className="text-sm">
+                      <MarkdownInline>{q.content}</MarkdownInline>
+                    </div>
                     {q.expected_rubric && (
                       <p className="text-xs text-muted-foreground mt-1 italic">
                         {t("hc_routesAppTeacherExamsExamId.rubricLabel")} {q.expected_rubric}
