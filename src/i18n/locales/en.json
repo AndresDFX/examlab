@@ -10503,7 +10503,13 @@
     "hint": "With your finger, a stylus or the mouse.",
     "signWithoutDrawing": "Sign without drawing",
     "title": "Sign with your own hand",
-    "tooSmall": "The stroke came out too small. Draw it again or sign without a stroke."
+    "tooSmall": "The stroke came out too small. Draw it again or sign without a stroke.",
+    "attach": "Attach image",
+    "attachHint": "Or attach a photo of your signature on paper: the background is removed right here, without leaving your device.",
+    "attached": "Signature ready. Check it and confirm.",
+    "noContrast": "The signature cannot be told apart from the paper. Try more light, a light sheet and a well-marked signature.",
+    "imageUnreadable": "That image could not be read. Try a JPG or PNG photo.",
+    "tooBig": "The signature ended up too heavy to save. Try a simpler photo or draw it in the box."
   },
   "identifyQuestions": {
     "button": "Identify from text",

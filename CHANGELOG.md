@@ -75,6 +75,44 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📷 La firma también se puede adjuntar como foto, y el fondo lo quita la plataforma
+
+- Quien firma desde el teléfono casi siempre ya tiene su firma: la hizo en un papel y le tomó una
+  foto. Adjuntarla tal cual no servía, y no por estética — el documento pone la firma en una celda
+  sobre fondo blanco, así que la foto metía su rectángulo de papel encima del renglón, con la sombra
+  de la mano y el color del escritorio, y pesaba cientos de kilobytes cuando la columna acepta
+  120 000 caracteres.
+- Ahora hay **«Adjuntar imagen»** en el mismo diálogo del lienzo: se le quita el fondo, se recorta a
+  la tinta y se escala, **todo en el navegador**. No sale del equipo, no cuesta una llamada a ningún
+  servicio y funciona sin red.
+- **El resultado se pinta en el lienzo ANTES de confirmar.** Separar tinta de papel es una
+  estimación y con una foto muy despareja puede salir regular; verlo antes de firmar deja decidir.
+  Adjuntar a ciegas convertiría un documento firmado en una lotería.
+- **Lo delicado es que el papel se estima POR ZONAS, no con un umbral.** La primera versión usaba un
+  percentil global y el test la tumbó: con una foto donde una esquina del papel vale 240 y la otra,
+  en la sombra de la propia mano, 150, el percentil global da ~231 y la zona oscura sale con un velo
+  de alfa 94 — medio rectángulo gris pegado a la firma. Peor todavía: ese velo **rompe el recorte**,
+  porque `cajaDelTrazo` cuenta como tinta todo lo que pase de 8, así que la caja se abriría a la hoja
+  entera y la firma saldría diminuta. Ahora se divide en una grilla, se toma el percentil alto de
+  cada celda y se interpola: cada píxel se compara contra el papel que tiene al lado.
+- Otro número que casi arruina todo: el percentil de la TINTA. Con el 5 % «bajo» que parecía
+  razonable, una firma fina sobre una hoja —que ocupa bastante menos del 5 % de los píxeles— hacía
+  que el percentil cayera sobre el papel, el contraste diera casi cero y la foto se rechazara por
+  «sin contraste» **aunque se viera perfecta**. Va en 0,1 %.
+- **El color de la tinta se conserva**: una lapicera azul sigue azul. Y el borde del trazo queda con
+  alfa parcial, que es el antialiasing que tendría un trazo dibujado, en vez de una escalera.
+- **La exportación ahora reintenta** con lados cada vez menores hasta que el PNG entre en la columna.
+  Una foto trae muchísimo más alfa parcial que un trazo y comprime peor; sin el bucle se repetiría el
+  fallo que ya tuvo la firma dibujada en el celular — `sign_report` la rechaza con `invalid_drawing`
+  **después** de que la persona creyó haber firmado. Medido con una foto sintética: a 600 px pesa
+  15 018 de los 120 000 permitidos, así que el bucle es red de seguridad y no el camino normal.
+- **Sobre la «opción B» con la API key**: no es alcanzable con lo que hay. La plataforma llama a
+  Gemini por su endpoint **compatible con OpenAI** (`/openai/chat/completions`), que devuelve TEXTO;
+  quitar un fondo requeriría un endpoint que devuelva imagen —el `generateContent` nativo de Google o
+  el de ediciones de OpenAI—, o sea una edge nueva, y una llamada con red y costo por cada firma para
+  hacer algo que el navegador ya resuelve gratis, sin conexión y en milisegundos. Queda anotado por
+  si alguna vez aparece una foto que esto no pueda con ella.
+
 ### ✍️ El Acuerdo Pedagógico firma con nombre, no solo con el cargo
 
 - Reportado: «en las firmas del acuerdo pedagógico, si es el vocero debería verse el nombre completo

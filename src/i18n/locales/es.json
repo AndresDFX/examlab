@@ -10503,7 +10503,13 @@
     "hint": "Con el dedo, el lápiz o el ratón.",
     "signWithoutDrawing": "Firmar sin trazo",
     "title": "Firmá con tu trazo",
-    "tooSmall": "El trazo quedó muy pequeño. Volvé a dibujarlo o firmá sin trazo."
+    "tooSmall": "El trazo quedó muy pequeño. Volvé a dibujarlo o firmá sin trazo.",
+    "attach": "Adjuntar imagen",
+    "attachHint": "O adjuntá una foto de tu firma en papel: se le quita el fondo acá mismo, sin salir del equipo.",
+    "attached": "Firma lista. Revisala y confirmá.",
+    "noContrast": "No se distingue la firma del papel. Probá con más luz, sobre una hoja clara y con la firma bien marcada.",
+    "imageUnreadable": "No se pudo leer esa imagen. Probá con una foto en JPG o PNG.",
+    "tooBig": "La firma quedó demasiado pesada para guardarla. Probá con una foto más sencilla o dibujala en el recuadro."
   },
   "identifyQuestions": {
     "button": "Identificar desde texto",

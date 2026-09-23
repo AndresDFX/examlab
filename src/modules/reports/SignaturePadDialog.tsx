@@ -16,6 +16,17 @@
  * trazo sale pixelado. El buffer se crea multiplicado por `devicePixelRatio` y el
  * contexto se escala, así que las coordenadas siguen siendo las de la pantalla.
  *
+ * ── También se puede ADJUNTAR una foto de la firma ─────────────────────
+ * Quien firma desde el teléfono casi siempre ya tiene su firma hecha en un papel.
+ * La foto se procesa acá mismo, en el navegador: se le quita el fondo
+ * (`signature-image.ts`), se recorta a la tinta y se escala. Nada sale del
+ * equipo, no cuesta una llamada a ningún servicio y funciona sin red.
+ *
+ * El resultado se PINTA en el mismo lienzo antes de confirmar. Eso no es un
+ * detalle: separar la tinta del papel es una estimación, y con una foto muy
+ * despareja puede salir regular. Verlo antes de firmar deja decidir; adjuntar a
+ * ciegas convertiría un documento firmado en una lotería.
+ *
  * ── Se recorta a la tinta antes de exportar ────────────────────────────
  * El lienzo es ancho y una firma ocupa una parte; sin recortar, el PNG llega a la
  * celda del documento con transparencia alrededor y el navegador escala la imagen
@@ -25,7 +36,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Eraser, PenLine } from "lucide-react";
+import { Eraser, ImageUp, PenLine } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -37,6 +48,12 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { cajaDelTrazo, conMargen, dimensionesExportacion, trazoDemasiadoChico } from "./signature-pad";
+import {
+  dimensionesDeAnalisis,
+  firmaCabeEnColumna,
+  LADOS_DE_REINTENTO,
+  quitarFondoDeFirma,
+} from "./signature-image";
 
 /** Tamaño lógico del lienzo. Proporción parecida a un renglón de firma. */
 const ANCHO = 600;
@@ -62,6 +79,7 @@ export function SignaturePadDialog({
   const ref = useRef<HTMLCanvasElement>(null);
   const dibujando = useRef(false);
   const [hayTrazo, setHayTrazo] = useState(false);
+  const [procesando, setProcesando] = useState(false);
 
   const ctx = () => ref.current?.getContext("2d") ?? null;
 
@@ -142,6 +160,81 @@ export function SignaturePadDialog({
   };
 
   /**
+   * Adjuntar una FOTO de la firma: se le quita el fondo, se recorta a la tinta y
+   * se pinta en el lienzo para que quien firma la vea antes de confirmar.
+   *
+   * Todo ocurre en el navegador. El `URL.createObjectURL` se revoca siempre —
+   * también si la imagen falla al decodificar—, porque el objeto queda retenido
+   * hasta que se revoque o se cierre la pestaña.
+   */
+  const adjuntar = async (archivo: File) => {
+    setProcesando(true);
+    const url = URL.createObjectURL(archivo);
+    try {
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const i = new Image();
+        i.onload = () => resolve(i);
+        i.onerror = () => reject(new Error("decode"));
+        i.src = url;
+      });
+
+      // Se analiza a tamaño acotado: una foto de teléfono son doce megapíxeles y
+      // recorrerla varias veces en JavaScript se siente, sin aportar nada.
+      const an = dimensionesDeAnalisis(img.naturalWidth, img.naturalHeight);
+      if (an.w === 0 || an.h === 0) {
+        toast.error(t("signaturePad.imageUnreadable"));
+        return;
+      }
+      const tmp = document.createElement("canvas");
+      tmp.width = an.w;
+      tmp.height = an.h;
+      const gt = tmp.getContext("2d", { willReadFrequently: true });
+      if (!gt) return;
+      gt.drawImage(img, 0, 0, an.w, an.h);
+
+      const datos = gt.getImageData(0, 0, an.w, an.h);
+      const res = quitarFondoDeFirma(datos.data, an.w, an.h);
+      if (!res.ok) {
+        // Se dice QUÉ pasó y qué hacer, no «error al procesar»: la causa casi
+        // siempre es una foto de una hoja sin firma o con muy poca luz.
+        toast.error(
+          res.motivo === "sin_contraste"
+            ? t("signaturePad.noContrast")
+            : t("signaturePad.imageUnreadable"),
+        );
+        return;
+      }
+      gt.putImageData(datos, 0, 0);
+
+      // Recorte a la tinta: ya vale el mismo helper del trazo dibujado, porque
+      // mira el alfa y el papel quedó transparente.
+      const caja = cajaDelTrazo(datos.data, an.w, an.h);
+      if (trazoDemasiadoChico(caja, 12)) {
+        toast.error(t("signaturePad.noContrast"));
+        return;
+      }
+      const rec = conMargen(caja!, MARGEN_RECORTE, an.w, an.h);
+
+      // Se pinta CENTRADA y sin deformar en el lienzo, que es 3:1 y la foto no.
+      preparar();
+      const c = ref.current;
+      const g = ctx();
+      if (!c || !g) return;
+      const escala = Math.min((ANCHO * 0.94) / rec.w, (ALTO * 0.94) / rec.h);
+      const w = rec.w * escala;
+      const h = rec.h * escala;
+      g.drawImage(tmp, rec.x, rec.y, rec.w, rec.h, (ANCHO - w) / 2, (ALTO - h) / 2, w, h);
+      setHayTrazo(true);
+      toast.success(t("signaturePad.attached"));
+    } catch {
+      toast.error(t("signaturePad.imageUnreadable"));
+    } finally {
+      URL.revokeObjectURL(url);
+      setProcesando(false);
+    }
+  };
+
+  /**
    * Recorta a la tinta y exporta. `null` si no hay trazo utilizable.
    *
    * El recorte llega en píxeles de DISPOSITIVO (el buffer es `ANCHO/ALTO × dpr`,
@@ -154,24 +247,34 @@ export function SignaturePadDialog({
    * (dpr 3) con el mismo trazo. Como la firma se muestra a lo sumo a 34px de alto
    * (`firmaHtml` en `signature-slots.ts`), capar el lado mayor no cuesta calidad.
    */
-  const exportar = (): string | null => {
+  const exportar = (): { dibujo: string } | { error: "vacio" | "muy_grande" } => {
     const c = ref.current;
     const g = ctx();
-    if (!c || !g) return null;
+    if (!c || !g) return { error: "vacio" };
     const dpr = c.width / ANCHO;
     const img = g.getImageData(0, 0, c.width, c.height);
     const caja = cajaDelTrazo(img.data, c.width, c.height);
-    if (trazoDemasiadoChico(caja, 12 * dpr)) return null;
+    if (trazoDemasiadoChico(caja, 12 * dpr)) return { error: "vacio" };
     const rec = conMargen(caja!, MARGEN_RECORTE * dpr, c.width, c.height);
-    const dim = dimensionesExportacion(rec.w, rec.h);
 
-    const salida = document.createElement("canvas");
-    salida.width = dim.w;
-    salida.height = dim.h;
-    const gs = salida.getContext("2d");
-    if (!gs) return null;
-    gs.drawImage(c, rec.x, rec.y, rec.w, rec.h, 0, 0, dim.w, dim.h);
-    return salida.toDataURL("image/png");
+    // Se baja el lado máximo hasta que el PNG entre en la columna. Un trazo
+    // dibujado entra siempre en el primer intento; una FOTO no necesariamente:
+    // trae muchísimo más alfa parcial —todo el borde del trazo real— y el PNG
+    // comprime peor. Sin este bucle, adjuntar una foto reproduciría el fallo que
+    // ya tuvo la firma dibujada en el celular: `sign_report` la rechaza con
+    // `invalid_drawing` DESPUÉS de que la persona creyó haber firmado.
+    for (const lado of LADOS_DE_REINTENTO) {
+      const dim = dimensionesExportacion(rec.w, rec.h, lado);
+      const salida = document.createElement("canvas");
+      salida.width = dim.w;
+      salida.height = dim.h;
+      const gs = salida.getContext("2d");
+      if (!gs) return { error: "vacio" };
+      gs.drawImage(c, rec.x, rec.y, rec.w, rec.h, 0, 0, dim.w, dim.h);
+      const dibujo = salida.toDataURL("image/png");
+      if (firmaCabeEnColumna(dibujo)) return { dibujo };
+    }
+    return { error: "muy_grande" };
   };
 
   /**
@@ -183,16 +286,22 @@ export function SignaturePadDialog({
    * puño y en el documento aparecía su nombre tipeado. Mejor decirlo y no firmar.
    */
   const confirmarConTrazo = () => {
-    const dibujo = exportar();
-    if (!dibujo) {
-      toast.error(t("signaturePad.tooSmall"));
+    const r = exportar();
+    if ("error" in r) {
+      toast.error(
+        r.error === "muy_grande" ? t("signaturePad.tooBig") : t("signaturePad.tooSmall"),
+      );
       return;
     }
-    onConfirmar(dibujo);
+    onConfirmar(r.dibujo);
   };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !firmando && onOpenChange(o)}>
+        // Tampoco se cierra mientras se procesa una foto: `adjuntar()` termina
+    // leyendo `ref.current`, y si el diálogo se cerró y se volvió a abrir en el
+    // medio, ese ref ya apunta al lienzo de la sesión NUEVA — la promesa vieja
+    // pintaría encima de lo que la persona acaba de empezar a dibujar.
+    <Dialog open={open} onOpenChange={(o) => !firmando && !procesando && onOpenChange(o)}>
       <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>{t("signaturePad.title")}</DialogTitle>
@@ -214,12 +323,51 @@ export function SignaturePadDialog({
             className="w-full touch-none rounded-md border-2 border-dashed bg-white cursor-crosshair aspect-[3/1]"
             aria-label={t("signaturePad.canvasLabel")}
           />
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-2xs text-muted-foreground">{t("signaturePad.hint")}</p>
-            <Button variant="ghost" size="sm" onClick={limpiar} disabled={!hayTrazo || firmando}>
-              <Eraser className="h-4 w-4 mr-1" />
-              {t("signaturePad.clear")}
-            </Button>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="min-w-0 flex-1 text-2xs text-muted-foreground">
+              {t("signaturePad.hint")} {t("signaturePad.attachHint")}
+            </p>
+            <div className="flex shrink-0 items-center gap-1">
+              {/* Adjuntar la foto de una firma hecha en papel. Es un `<label>`
+                  con el input escondido y no un Button que dispare un click
+                  sintético: así el control nativo queda alcanzable por teclado y
+                  el hit zone es el del rótulo entero. */}
+              <label
+                className={
+                  // `h-9 md:h-8` y no `h-8`: es exactamente lo que resuelve `size="sm"` del
+                  // Button de al lado. Con `h-8` fijo, los dos controles de esta misma
+                  // barra quedaban con 4 px de diferencia de alto en móvil.
+                  "inline-flex h-9 md:h-8 cursor-pointer items-center gap-1 rounded-md px-2.5 text-xs hover:bg-accent" +
+                  (procesando || firmando ? " pointer-events-none opacity-50" : "")
+                }
+              >
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={procesando || firmando}
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    // Se limpia el input ANTES de procesar: si no, elegir el
+                    // MISMO archivo dos veces seguidas no dispara `change` y
+                    // parece que el botón dejó de responder.
+                    e.currentTarget.value = "";
+                    if (f) void adjuntar(f);
+                  }}
+                />
+                {procesando ? <Spinner size="sm" /> : <ImageUp className="h-4 w-4" />}
+                {t("signaturePad.attach")}
+              </label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={limpiar}
+                disabled={!hayTrazo || firmando || procesando}
+              >
+                <Eraser className="h-4 w-4 mr-1" />
+                {t("signaturePad.clear")}
+              </Button>
+            </div>
           </div>
         </div>
 
