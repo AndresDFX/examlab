@@ -143,6 +143,21 @@ matriculado seis días después de que cerrara la Prueba diagnóstica.
   entorno donde ese examen no existe, e ejecutarla dos veces no duplica el `add_time` (duplicarlo
   correría el plazo al doble y eso no se ve hasta que alguien lo mide).
 
+### 📌 La barra de selección de los grids ya no se pierde al desplazarse
+
+Reporte: al seleccionar filas en un grid, las acciones no aparecen a la vista. `MultiSelectToolbar`
+vive arriba de la tabla, así que marcando una fila del fondo —en un grid de 34 exámenes hay que
+desplazarse— quedaba fuera de la pantalla: se seleccionaba y no se veía qué hacer con lo
+seleccionado, ni que hubiera una barra.
+
+Ahora es **pegajosa**, y **opaca**: una barra semitransparente pegada deja ver las filas corriendo
+por detrás y se vuelve ilegible justo cuando más se la mira. Su `top` sigue a la barra móvil del
+shell y su `z` la deja sobre la tabla pero por debajo de esa barra, que no debe taparse.
+
+Verificado con Playwright en escritorio y a 390 px: desplazándose al final y marcando la fila 39, la
+barra queda visible arriba (`top` 8 px en escritorio, 56 px en móvil). Son **35 grids** los que usan
+el componente; no hubo que tocar ninguno.
+
 ### ↕️ El compilador, ahora sí REORGANIZADO para el teléfono
 
 El primer intento achicó la decoración de Monaco y agrandó el editor. Eso mejoró el tamaño, pero el

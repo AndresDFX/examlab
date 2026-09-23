@@ -361,6 +361,20 @@ Detalles que no se deducen:
   `PendingStudentsPanel` (es un ranking calculado, no hay fecha que ordenar). Agregar a esa lista es
   una decisión; si una grilla nueva no cumple, casi siempre es que le falta el accessor.
 
+#### La barra de selección es PEGAJOSA
+
+`MultiSelectToolbar` vive ARRIBA de la tabla, así que al marcar una fila del
+fondo —en un grid de 34 exámenes hay que desplazarse— las acciones quedaban
+fuera de la pantalla: el usuario seleccionaba y no veía qué hacer con lo
+seleccionado, ni que existiera una barra. Ahora es `sticky` y **opaca**
+(`bg-muted`, no `bg-muted/40`): una barra semitransparente pegada deja ver las
+filas corriendo por detrás y se vuelve ilegible justo cuando más se la mira.
+
+`top` sigue a la barra móvil del shell (`fixed`, `min-h-14` + el inset de
+arriba) y en escritorio deja un respiro; `z-20` la pone sobre la tabla y debajo
+de esa barra móvil (`z-30`), que no debe taparse. Alcanza a los **35 grids** que
+usan el componente, sin tocar ninguno.
+
 #### Filtros de grid con selección múltiple
 
 `MultiSelectFilter` ([multi-select-filter.tsx](src/components/ui/multi-select-filter.tsx)) acepta

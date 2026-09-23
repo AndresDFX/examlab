@@ -231,7 +231,22 @@ export function MultiSelectToolbar({
     clearLabel ?? t("common.clearSelection", { defaultValue: "Limpiar selección" });
   const label = count === 1 ? `1 ${entityNameSingular}` : `${count} ${entityNamePlural}`;
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+    <div
+      /* PEGAJOSA, y no por adorno: las acciones de la selección viven ARRIBA de
+         la tabla, así que al marcar una fila que está abajo —en un grid de 34
+         exámenes hay que desplazarse— quedaban fuera de la pantalla. El usuario
+         seleccionaba y no veía qué hacer con lo seleccionado, ni se enteraba de
+         que había una barra.
+
+         `top` sigue a la barra móvil del shell, que es `fixed` con `min-h-14`
+         más el inset de arriba; en escritorio no hay barra superior, así que
+         basta un respiro.
+
+         El fondo pasa de `bg-muted/40` a OPACO: una barra semitransparente
+         pegada deja ver las filas corriendo por detrás y se vuelve ilegible
+         justo cuando más se la mira. `z-20` la deja sobre la tabla y por debajo
+         de la barra móvil (`z-30`), que no debe taparse. */
+      className="sticky top-[calc(3.5rem+env(safe-area-inset-top))] md:top-2 z-20 flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted px-3 py-2 shadow-sm">
       <div className="flex items-center gap-2 text-sm">
         <span className="font-medium">{label}</span>
         <span className="text-muted-foreground">
