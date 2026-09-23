@@ -1304,6 +1304,22 @@
       "not_found": "That attempt no longer exists.",
       "forbidden": "You cannot end attempts for this exam.",
       "generic": "The attempt could not be ended."
+    },
+    "reopenAttempt": "Reopen the attempt",
+    "reopenAttemptTitle": "Reopen {{name}}’s attempt?",
+    "reopenAttemptBody": "The student will be able to resume the exam where they left off, with the answers they already had. If the attempt already has a grade, it is kept until they submit again.",
+    "reopenAttemptConfirm": "Reopen",
+    "reopenAttemptDone": "Attempt reopened. The student can resume it now.",
+    "reopenAttemptAlready": "That attempt was already in progress.",
+    "reopenNeedsTimeTitle": "{{name}}’s attempt needs more time",
+    "reopenNeedsTimeBody": "This exam’s deadline has passed, so reopening it without extra time would be pointless: the system would close it again in under a minute.",
+    "reopenNeedsTimeLabel": "Extra minutes",
+    "reopenNeedsTimeHint": "This is the time missing to reach the deadline, plus a margin. The student sees it on their clock as soon as they enter.",
+    "reopenAttemptError": {
+      "no_auth": "Your session expired. Sign in again.",
+      "not_found": "We could not find that attempt.",
+      "forbidden": "You do not have permission on this exam.",
+      "generic": "The attempt could not be reopened."
     }
   },
   "grading": {

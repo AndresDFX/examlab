@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **81 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262400000000_acuerdo_docente_rotulo_y_nombre`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **82 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262410000000_reabrir_intento_examen`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,49 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### ↩️ Reabrir un intento de examen desde el monitor
+
+- Faltaba el inverso de «terminar el intento»: se podía dar por terminado, pero no deshacerlo. El caso
+  es concreto — al estudiante se le cortó el examen, el docente amplía el plazo y quiere que retome
+  donde iba. Ahora hay «Reabrir el intento» en la fila del estudiante y en el diálogo de intentos.
+- **Lo que hace que esto FUNCIONE y no solo que corra**: `close_expired_exam_attempts()` pasa CADA
+  MINUTO cerrando lo vencido, así que reabrir sin mirar el plazo se deshace solo y el docente ve que
+  «no funciona» sin forma de saber por qué. La RPC calcula el plazo que quedaría tras conceder los
+  minutos pedidos y, si sigue vencido, **no reabre**: devuelve cuántos minutos faltan y la pantalla
+  abre el campo con ese número más un margen. Con el examen todavía abierto es un clic y nada más.
+- El cálculo va **antes** de escribir. Lo tenía al revés y una llamada que devolvía error ya había
+  dejado tiempo concedido; reintentar con más minutos lo iba acumulando.
+- El tiempo se concede en los dos lugares que el plazo mira: `submissions.extra_seconds` y una fila en
+  `exam_timer_controls`, que es la tabla publicada en realtime y por donde el reloj del alumno se
+  entera sin recargar.
+- **No borra la nota**, igual que el camino de reanudación que el propio estudiante ya tenía: reabrir
+  «para que termine dos preguntas» no puede costarle la calificación que ya tiene.
+- **Y cancela la calificación por IA que el cierre hubiera encolado.** El worker corre cada hora; si
+  todavía no drenó ese trabajo, el alumno retoma y sigue escribiendo mientras un job pendiente
+  califica respuestas a medio terminar.
+
+#### Y dos cosas que la revisión encontró, ninguna de ellas cosmética
+
+- **Un examen EXTERNO no se puede reabrir.** Su entrega la crea `ExternalGradesEditor` ya en
+  `completado` para colgarle una nota cargada a mano, y su `end_time` se fija igual al inicio, así que
+  su plazo SIEMPRE figura vencido: sin el filtro, «Reabrir» aparecía en **todas** las filas de un
+  examen externo y, si alguien lo pulsaba, la entrega quedaba `en_progreso` con `submitted_at` en NULL
+  y la nota cargada desaparecía del gradebook hasta que alguien lo notara. Se filtra en la RPC —que es
+  la frontera de verdad— y en la pantalla.
+- **El candado sin el cual nada de esto era cierto.** `tg_block_reopen_closed_attempt` dice impedir que
+  el alumno reanude lo cerrado, pero solo salta si `closed_at` sigue puesto — y el alumno PUEDE
+  limpiarlo: la policy `submissions_update` lo deja escribir su propia fila entera y el candado por
+  columna (`tg_guard_exam_submission_grade`) nunca listó las columnas de cierre, porque nacieron
+  después. O sea que con su propio JWT podía mandar un PATCH con `status:'en_progreso'` y `closed_at:
+  null` y reabrir su examen terminado las veces que quisiera, sin docente. Es la misma clase de agujero
+  que este repo ya cerró dos veces (las notas, el perfil). Ahora las cuatro columnas de cierre están en
+  la lista protegida.
+- **Verificado contra PostgreSQL real** (PGlite, 23 comprobaciones), y la que más importa es que
+  después de reabrir se corre `close_expired_exam_attempts()` de verdad y el intento SIGUE abierto.
+  También: el alumno no puede reabrir lo suyo ni por la RPC ni por REST, una llamada negada no deja
+  tiempo concedido, un examen en papelera o externo se rechaza, y el examen sin plazo se reabre sin
+  pedir minutos.
 
 ### 🖊️ El Acuerdo dice «Docente», y los siete ya firmados llevan el nombre completo
 

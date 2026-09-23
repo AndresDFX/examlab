@@ -1304,6 +1304,22 @@
       "not_found": "Ese intento ya no existe.",
       "forbidden": "No podés terminar intentos de este examen.",
       "generic": "No se pudo terminar el intento."
+    },
+    "reopenAttempt": "Reabrir el intento",
+    "reopenAttemptTitle": "¿Reabrir el intento de {{name}}?",
+    "reopenAttemptBody": "El estudiante va a poder retomar el examen donde lo dejó, con las respuestas que ya tenía. Si el intento ya tiene nota, se conserva hasta que vuelva a entregar.",
+    "reopenAttemptConfirm": "Reabrir",
+    "reopenAttemptDone": "Intento reabierto. El estudiante ya puede retomarlo.",
+    "reopenAttemptAlready": "Ese intento ya estaba en curso.",
+    "reopenNeedsTimeTitle": "Al intento de {{name}} le falta tiempo",
+    "reopenNeedsTimeBody": "El plazo de este examen ya venció, así que reabrirlo sin darle tiempo no serviría: el sistema lo volvería a cerrar en menos de un minuto.",
+    "reopenNeedsTimeLabel": "Minutos adicionales",
+    "reopenNeedsTimeHint": "Es el tiempo que le falta para llegar al plazo, más un margen. El estudiante lo ve en su reloj apenas entra.",
+    "reopenAttemptError": {
+      "no_auth": "Tu sesión expiró. Volvé a entrar.",
+      "not_found": "No encontramos ese intento.",
+      "forbidden": "No tenés permiso sobre este examen.",
+      "generic": "No se pudo reabrir el intento."
     }
   },
   "grading": {

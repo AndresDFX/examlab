@@ -44,6 +44,7 @@ import {
   Check,
   Bot,
   SquareCheckBig,
+  Undo2,
   ShieldAlert,
   Users,
   ChevronRight,
@@ -91,6 +92,7 @@ import {
 } from "@/modules/exams/IntegrityReviewDialog";
 import { DecimalInput } from "@/components/ui/decimal-input";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
@@ -182,6 +184,8 @@ type BreakdownItem = {
 type ManualOverride = { score: number; feedback?: string };
 
 const isFinalStatus = (s: string) => s === "completado" || s === "sospechoso";
+/** Tope de minutos que se pueden conceder al reabrir un intento (10 horas). */
+const MAX_MINUTOS_REAPERTURA = 600;
 
 /**
  * Convierte el valor crudo de `submissions.answers[qid]` en un string
@@ -274,6 +278,14 @@ function ExamMonitor() {
   // al final del JSX.
   const aiGate = useAiAuthorizationGate();
   const [exam, setExam] = useState<any>(null);
+  /**
+   * Un examen EXTERNO no se retoma: no tiene pantalla donde hacerlo. Su entrega
+   * la crea `ExternalGradesEditor` ya en `completado` para colgarle una nota
+   * cargada a mano, así que sin este filtro «Reabrir» saldría en TODAS sus filas
+   * y, si alguien lo pulsa, la nota desaparece del gradebook hasta que se note.
+   * La RPC lo rechaza igual —es la frontera de verdad—; esto evita ofrecerlo.
+   */
+  const esExterno = !!(exam as { is_external?: boolean } | null)?.is_external;
   /**
    * Quiénes tienen el examen ASIGNADO. Hace falta aparte de `submissions`: quien
    * no entró no tiene entrega, así que sin esta lista los que faltan son
@@ -1123,6 +1135,12 @@ function ExamMonitor() {
   // contador subir y no tenía forma de perdonar un strike. Y es justo cuando
   // más urge — al tercero el intento se suspende solo.
   const [warningsForId, setWarningsForId] = useState<string | null>(null);
+  /** Reapertura que necesita tiempo: el plazo ya venció y hay que concederlo. */
+  const [reabrirConTiempo, setReabrirConTiempo] = useState<{
+    sub: Submission;
+    nombre: string | null;
+    minutos: string;
+  } | null>(null);
   const warningsSub = useMemo(
     () => submissions.find((s) => s.id === warningsForId) ?? null,
     [submissions, warningsForId],
@@ -2210,6 +2228,63 @@ function ExamMonitor() {
   };
 
   /**
+   * Devuelve un intento terminado a «en curso» para que el estudiante lo retome.
+   *
+   * ── Por qué pide minutos, y solo a veces ──────────────────────────────
+   * `close_expired_exam_attempts()` pasa CADA MINUTO cerrando lo vencido, así que
+   * reabrir un intento cuyo plazo ya pasó se deshace solo antes de que el
+   * estudiante alcance a entrar. La RPC no deja que eso ocurra: si tras el tiempo
+   * concedido el plazo sigue vencido, no reabre y devuelve cuántos minutos
+   * faltan.
+   *
+   * Por eso acá se intenta PRIMERO sin conceder nada —que es el caso del examen
+   * todavía abierto, un clic y listo— y solo si el plazo está vencido se pide el
+   * tiempo, ya con el número exacto que hace falta puesto en el campo. Preguntar
+   * siempre obligaría a pensar en minutos incluso cuando no hacen falta.
+   */
+  const reopenAttempt = async (sub: Submission, nombre?: string | null) => {
+    const ok = await confirm({
+      title: t("monitor.reopenAttemptTitle", { name: nombre ?? "" }),
+      description: t("monitor.reopenAttemptBody"),
+      confirmLabel: t("monitor.reopenAttemptConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    await pedirReapertura(sub, 0, nombre);
+  };
+
+  /** La llamada en sí. Se reusa desde el diálogo de minutos. */
+  const pedirReapertura = async (sub: Submission, minutos: number, nombre?: string | null) => {
+    setLoading(`reopen-${sub.id}`);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any).rpc("teacher_reopen_exam_attempt", {
+      _submission_id: sub.id,
+      _minutos: minutos,
+    });
+    setLoading(null);
+    if (error) return toast.error(friendlyError(error));
+    const r = data as
+      | { ok?: boolean; error?: string; changed?: boolean; minutos_faltantes?: number }
+      | null;
+    if (!r?.ok) {
+      if (r?.error === "plazo_vencido") {
+        // Se ofrece el número que hace falta más un margen: reabrir para que
+        // entregue «justo al filo» es volver a dejarlo sin tiempo.
+        setReabrirConTiempo({
+          sub,
+          nombre: nombre ?? null,
+          minutos: String((r.minutos_faltantes ?? 5) + 10),
+        });
+        return;
+      }
+      return toast.error(t(`monitor.reopenAttemptError.${r?.error ?? "generic"}`));
+    }
+    setReabrirConTiempo(null);
+    toast.success(r.changed ? t("monitor.reopenAttemptDone") : t("monitor.reopenAttemptAlready"));
+    void load();
+  };
+
+  /**
    * Termina TODOS los que siguen en curso. Es lo que el docente quiere al cerrar
    * la sesión de examen: no ir uno por uno.
    *
@@ -2868,6 +2943,17 @@ function ExamMonitor() {
                             onClick={() => void closeAttempt(row.inProgress!, row.profile?.full_name)}
                           />
                         )}
+                        {/* Lo contrario de terminar: devolver el intento a «en
+                            curso» para que lo retome. `Undo2` es el ícono que el
+                            proyecto ya usa para revertir un estado («volver a
+                            borrador»), que es exactamente esto. */}
+                        {!inProg && row.latest && !esExterno && (
+                          <RowAction
+                            label={t("monitor.reopenAttempt")}
+                            icon={Undo2}
+                            onClick={() => void reopenAttempt(row.latest!, row.profile?.full_name)}
+                          />
+                        )}
                         {/* Perdonar strikes SIN esperar a que el intento
                             termine. Se ofrece solo si hay algo que borrar:
                             un botón que abre una lista vacía no ayuda. */}
@@ -2999,15 +3085,26 @@ function ExamMonitor() {
                         </div>
                         <div className="flex items-center gap-1">
                           {isFinal ? (
-                            <RowAction
-                              label={t("hc_routesAppTeacherMonitorExamId.viewAnswersAndGrade")}
-                              icon={Eye}
-                              onClick={() => openView(a)}
-                            />
+                            <>
+                              <RowAction
+                                label={t("hc_routesAppTeacherMonitorExamId.viewAnswersAndGrade")}
+                                icon={Eye}
+                                onClick={() => openView(a)}
+                              />
+                              {!esExterno && (
+                                <RowAction
+                                  label={t("monitor.reopenAttempt")}
+                                  icon={Undo2}
+                                  onClick={() =>
+                                    void reopenAttempt(a, attemptsRow?.profile?.full_name)
+                                  }
+                                />
+                              )}
+                            </>
                           ) : (
                             /* El else que faltaba: acá es donde el docente se
                                queda sin salida con un intento en curso. */
-<>
+                            <>
                               {a.focus_warnings > 0 && (
                                 <RowAction
                                   label={t("monitor.reviewWarnings")}
@@ -3018,7 +3115,7 @@ function ExamMonitor() {
                               <RowAction
                                 label={t("monitor.closeAttempt")}
                                 icon={SquareCheckBig}
-                                onClick={() => void closeAttempt(a)}
+                                onClick={() => void closeAttempt(a, attemptsRow?.profile?.full_name)}
                               />
                             </>
                           )}
@@ -3057,6 +3154,68 @@ function ExamMonitor() {
           {warningsSub && ((warningsSub.answers?.__warning_events ?? []) as WarningEvent[]).length === 0 && (
             <p className="text-sm text-muted-foreground">{t("monitor.noWarningsLeft")}</p>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reabrir cuando el plazo YA venció: sin conceder tiempo, el cron de
+          vencidos cierra el intento otra vez en menos de un minuto. El campo
+          viene con los minutos que de verdad faltan, calculados por el servidor,
+          más un margen — reabrir para que entregue justo al filo es dejarlo sin
+          tiempo de nuevo. */}
+      <Dialog
+        open={reabrirConTiempo != null}
+        onOpenChange={(o) => !o && setReabrirConTiempo(null)}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {t("monitor.reopenNeedsTimeTitle", { name: reabrirConTiempo?.nombre ?? "" })}
+            </DialogTitle>
+            <DialogDescription>{t("monitor.reopenNeedsTimeBody")}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            <Label htmlFor="reabrir-min">{t("monitor.reopenNeedsTimeLabel")}</Label>
+            <Input
+              id="reabrir-min"
+              type="number"
+              min={1}
+              max={MAX_MINUTOS_REAPERTURA}
+              value={reabrirConTiempo?.minutos ?? ""}
+              onChange={(e) =>
+                setReabrirConTiempo((p) => (p ? { ...p, minutos: e.target.value } : p))
+              }
+            />
+            <p className="text-2xs text-muted-foreground">{t("monitor.reopenNeedsTimeHint")}</p>
+          </div>
+          <DialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <Button variant="outline" onClick={() => setReabrirConTiempo(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              disabled={
+                !reabrirConTiempo ||
+                // El `max` del input es decorativo si no se valida acá: el campo
+                // viene pre-cargado desde el servidor y con un examen vencido
+                // hace días ese número pasa 600 sin aviso.
+                !(Number(reabrirConTiempo.minutos) > 0) ||
+                !(Number(reabrirConTiempo.minutos) <= MAX_MINUTOS_REAPERTURA) ||
+                loading === `reopen-${reabrirConTiempo?.sub.id}`
+              }
+              onClick={() => {
+                if (!reabrirConTiempo) return;
+                void pedirReapertura(
+                  reabrirConTiempo.sub,
+                  Math.max(1, Math.round(Number(reabrirConTiempo.minutos))),
+                  reabrirConTiempo.nombre,
+                );
+              }}
+            >
+              {loading === `reopen-${reabrirConTiempo?.sub.id}` && (
+                <Spinner size="sm" className="mr-1" />
+              )}
+              {t("monitor.reopenAttemptConfirm")}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

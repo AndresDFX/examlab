@@ -38,6 +38,16 @@ function auditar(): Array<{ regla: string; archivo: string; linea: number; detal
   }
 }
 
+/**
+ * `auditar()` lee y analiza las ~70 pantallas del proyecto: en una máquina sin
+ * carga tarda unos 3 s, y con el disco ocupado pasa de 6. El default de vitest
+ * son 5 s, así que estos dos casos fallaban por TIEMPO, al azar, sin que nada de
+ * la UI estuviera mal — y una compuerta que se pone en rojo sola deja de creerse,
+ * que es peor que no tenerla. Medido: tres corridas seguidas del mismo árbol
+ * dieron 4/4, 2 fallas y 1 falla.
+ */
+const TIEMPO_AUDITORIA = 60_000;
+
 describe("reglas de UI del proyecto", () => {
   it("ninguna pantalla rompe P1-P9, el design system ni las reglas de 375px", () => {
     const hallazgos = auditar();
@@ -51,7 +61,7 @@ describe("reglas de UI del proyecto", () => {
         : `\n${hallazgos.length} violación(es) de las reglas de UI de CLAUDE.md:\n${legible}\n\n` +
             `Corré \`node scripts/audit-ui.mjs\` para el detalle.`,
     ).toEqual([]);
-  });
+  }, TIEMPO_AUDITORIA);
 
   it("P1 revisa la raíz de la GRAN MAYORÍA de las pantallas", () => {
     /**
@@ -77,7 +87,7 @@ describe("reglas de UI del proyecto", () => {
     for (const s of c.saltadas) {
       expect(s, `salteo sin motivo: ${s}`).toMatch(/: .+/);
     }
-  });
+  }, TIEMPO_AUDITORIA);
 
   it("el auditor de verdad revisa algo: cubre las rutas y los módulos", () => {
     // Un auditor que no encuentra archivos también devuelve cero hallazgos, y
