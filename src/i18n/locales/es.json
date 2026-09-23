@@ -10747,5 +10747,10 @@
   },
   "openAnswer": {
     "limitReached": "llegaste al límite"
+  },
+  "arranque": {
+    "noCargaTitulo": "No pudimos conectar con el servidor",
+    "noCargaCuerpo": "La plataforma está tardando más de lo normal en responder. Tus respuestas guardadas no se pierden. Reintenta en unos segundos.",
+    "reintentar": "Reintentar"
   }
 }

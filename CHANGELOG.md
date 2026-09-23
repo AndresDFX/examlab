@@ -75,6 +75,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🩺 «La página no está disponible»: qué era y qué no
+
+- **Lo que NO era, descartado con medición.** (a) El techo de peticiones diarias de Cloudflare: una
+  visita cuesta ~7 peticiones la primera vez y **cero** las siguientes —hay un service worker
+  controlando y lo verifiqué en un navegador real—, así que llegar a las 100.000 pediría decenas de
+  miles de visitas por día. (b) Las cabeceras de caché: los assets llevan `max-age=0,
+  must-revalidate`, que PARECE obligar a revalidar en cada carga; medido, no pasa. La primera
+  hipótesis era esa y era **incorrecta**.
+- **Lo que sí era**: el sitio lo sirve Cloudflare en 200 y el service worker lo tiene en caché, pero
+  **la app no arranca**. Reproducido en un navegador real, con una sesión de verdad sembrada: con
+  PostgREST COLGADO —un 504 que tarda, que es lo que pasa cuando la base se degrada— el arranque se
+  queda en «Cargando…» a los 5, a los 11 y a los 21 segundos, sin mensaje y sin salida.
+- **Por qué el `.catch` que ya estaba no alcanzaba**: está puesto para un RECHAZO (token corrupto,
+  refresh fallido) y ahí funciona. Una promesa **colgada nunca rechaza**, así que nunca se dispara.
+  Con la conexión rechazada de plano la app se recupera sola en ~11 s; lo que la mata es el cuelgue.
+- **El arreglo**: a los 8 segundos la pantalla deja de prometer que está cargando y dice qué pasa,
+  con un botón de recargar. **NO se deja entrar «sin datos»** al vencer el plazo, que era la salida
+  tentadora: sin los roles cargados el control de acceso manda a «no autorizado», un mensaje falso
+  que además saca a la persona de donde estaba.
+- **Lo que esto no arregla**: que la base se degrade. Eso sigue siendo capacidad de la instancia. Lo
+  que cambia es que dejar de responder ya no se ve como una plataforma rota y sin explicación.
+
 ### 🩺 La base se degradó otra vez, y esta vez hay un número
 
 - **Qué pasó**: el 22-09 a las 20:33 volvieron los `57014` en ráfaga, con una espera de `ShareLock`

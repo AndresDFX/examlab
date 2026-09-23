@@ -10747,5 +10747,10 @@
   },
   "openAnswer": {
     "limitReached": "limit reached"
+  },
+  "arranque": {
+    "noCargaTitulo": "We couldn't reach the server",
+    "noCargaCuerpo": "The platform is taking longer than usual to respond. Your saved answers are safe. Try again in a few seconds.",
+    "reintentar": "Try again"
   }
 }

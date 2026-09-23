@@ -1,4 +1,5 @@
 // El import de React va PRIMERO porque `lazy` se usa en el CUERPO del módulo
+import { ArranqueLento } from "@/shared/components/ArranqueLento";
 // (`const OnboardingTour = lazy(...)`, más abajo), no dentro de un componente.
 // Estaba declarado ~50 líneas DESPUÉS de ese uso: en el build de producción
 // Rollup ordena los imports y funciona, pero el dev server de Vite los ejecuta
@@ -848,13 +849,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
   }, [loading, activeRole, roles, location.pathname, navigate]);
 
-  if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center text-muted-foreground">
-        {t("common.loading")}
-      </div>
-    );
-  }
+  // Un arranque que no termina deja de ser un «Cargando…» eterno: ver
+  // `ArranqueLento`, que a los 8 s dice qué pasa y ofrece recargar.
+  if (loading) return <ArranqueLento />;
   if (!user) return null;
 
   // ── Control de acceso por estado académico del estudiante ──
