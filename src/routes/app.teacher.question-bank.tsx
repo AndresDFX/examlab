@@ -421,9 +421,14 @@ function QuestionBankPage() {
       difficulty: (r) => r.difficulty,
       suggested_points: (r) => r.suggested_points,
       times_used: (r) => r.times_used,
+      created_at: (r) => (r as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "content", dir: "asc" },
-    storageKey: "examlab_sort:teacher_question_bank",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_question_bank_v2",
   });
 
   const sel = useMultiSelect(sort.sorted);

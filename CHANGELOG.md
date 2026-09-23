@@ -75,6 +75,36 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🗂️ Todas las grillas abren por fecha de creación, lo más nuevo arriba
+
+- Pedido: que las grillas de toda la aplicación se vean por fecha. **Nueve ya lo hacían** (auditoría,
+  respaldos, los dos buzones de soporte, videos, contenidos, papelera, certificados y actas — estas
+  tres con su propio nombre para la fecha: `deleted_at`, `issued_at`, `generado`) y **catorce no**:
+  cursos, usuarios, instituciones, exámenes, talleres, proyectos, banco de preguntas, pizarras,
+  encuestas, las dos de plantillas de informe, programas, periodos y mis estudiantes ordenaban
+  alfabéticamente o por una fecha que no era la de creación.
+- **La trampa que casi lo deja en nada**: `useTableSort` guardaba el orden en `localStorage`
+  **siempre**, así que con solo ABRIR una grilla quedaba grabado su default viejo — y lo guardado
+  gana. Cambiar el `defaultSort` no le habría cambiado nada a nadie que ya hubiera entrado alguna
+  vez, y lo peor es que *parecía* aplicado, porque en un navegador limpio sí se veía. Ahora se guarda
+  **solo lo que el usuario eligió** clicando un encabezado, y las claves de las grillas que cambiaron
+  llevan sufijo `_v2` para descartar lo grabado antes del arreglo.
+- **El orden por defecto tenía que quedar ALCANZABLE.** Casi ninguna grilla muestra una columna
+  «Creado» y no se le puede agregar: varias ya están en el tope de 8 columnas (exámenes tiene 11).
+  Sin más, clicar cualquier encabezado dejaba el orden inicial fuera de alcance para siempre. Por eso
+  el clic ahora cicla **asc → desc → el default del grid**, que además borra la elección guardada.
+- **En «Mis estudiantes» la fecha es la de la MATRÍCULA**, no la del perfil: la fila es «un
+  estudiante mío», y alguien puede tener cuenta hace un año y haberse matriculado ayer. Se toma la
+  más antigua de mis cursos — con la última, rematricularlo en un curso nuevo lo mandaría al tope.
+- **Lo fija un test que lee el código del disco** ([grid-sort-defaults.test.ts](src/shared/lib/grid-sort-defaults.test.ts)),
+  porque las dos fallas posibles son mudas: un `defaultSort` que apunta a una columna inexistente deja
+  la grilla sin ordenar sin ningún error (`useTableSort` hace `if (!accessor) return items`), y una
+  grilla **sin** `defaultSort` no la encuentra ningún `grep defaultSort`. Encuestas estaba así y la
+  encontró el test, no yo.
+- **Dos excepciones, con el motivo escrito en el propio test**: el panel de Errores (sus filas son
+  grupos agregados, sin fecha de creación; ordena por frecuencia, que es el criterio de triage) y el
+  de Pendientes por estudiante (es un ranking calculado).
+
 ### 📝 El Acuerdo Pedagógico ya no puede salir a nombre de otro docente
 
 - Reportado: «en el profesor del Acuerdo Pedagógico sale Andrés Castaño aunque cambié el nombre».

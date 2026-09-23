@@ -195,10 +195,14 @@ export function AdminAcademicProgramsPanel() {
       // Boolean: el comparador del hook pone false antes que true en asc, así
       // que "asc" agrupa los inactivos arriba y "desc" los activos.
       active: (r) => r.active,
+      created_at: (r) => (r as { created_at?: string | null }).created_at,
     },
-    // Preserva el orden que traía la query (`.order("name")`).
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:admin_academic_programs",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_academic_programs_v2",
   });
 
   const pagination = usePagination(sort.sorted, {

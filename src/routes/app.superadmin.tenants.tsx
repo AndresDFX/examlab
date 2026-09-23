@@ -310,9 +310,14 @@ function SuperAdminTenantsPage() {
       slug: (r) => r.slug,
       email_domain: (r) => r.email_domain,
       status: (r) => r.is_active,
+      created_at: (r) => (r as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:superadmin_tenants",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:superadmin_tenants_v2",
   });
 
   // Paginación client-side sobre el listado filtrado + ordenado. El resetKey

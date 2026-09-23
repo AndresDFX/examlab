@@ -327,6 +327,40 @@ Vive en `src/components/ui/`. Componentes propios (encima de shadcn):
 | `usePagination` ([use-pagination.ts](src/hooks/use-pagination.ts)) + `DataPagination` ([data-pagination.tsx](src/components/ui/data-pagination.tsx))                        | Paginación client-side para grids. **Hook**: `usePagination(filteredItems, { defaultPageSize: 25, storageKey: "examlab_pag:<route>", resetKey: "<filtros>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     | <concat>" })`retorna`{ paginatedItems, currentPage, setCurrentPage, totalPages, pageSize, setPageSize, totalItems, startIndex, endIndex, pageSizes }`. Persiste page+size en localStorage (key opt-in). Reset a página 1 cuando cambia el `resetKey`(concatenar todos los filtros activos). Clampea automáticamente cuando los items shrinken bajo el page actual. **Componente**:`<DataPagination state={pagination} entityNamePlural="usuarios" />`ANTES del`</CardContent>`que envuelve la tabla. Muestra "X-Y de Z", selector "Por página" y nav prev/next con ellipsis. **Regla`useMultiSelect`**: NO cambiar — debe seguir operando sobre `filteredItems`completos (no`paginatedItems`) para que "seleccionar todos" abarque todas las páginas del filtro activo. Aplicado en historial IA, Usuarios, Cursos, Exámenes, Talleres, Proyectos, Contenidos, Banco de preguntas, Videos, Certificados, Tenants, Errores, Auditoría. **Vistas del estudiante con cards** (Exámenes, Talleres, Proyectos, Cursos, Polls activas/cerradas, Certificados) usan `defaultPageSize: 12`y`pageSizes: [6, 12, 24, 48]` — las cards son más grandes que las filas de tabla. |
 | `useTableSort` ([use-table-sort.ts](src/hooks/use-table-sort.ts)) + `SortableHead` ([table.tsx](src/components/ui/table.tsx)) | Orden por columna (asc/desc) en grids de listado. **Hook**: `useTableSort(filteredItems, { columns: { key: (row) => valor }, defaultSort: { key, dir }, storageKey: "examlab_sort:<route>" })` → `{ sorted, sortKey, sortDir, toggleSort, resetKey }`. Orden client-side estable, collation es-CO (`numeric` + `base`), vacíos SIEMPRE al final (asc y desc). Persiste columna+dir en localStorage. **Componente**: `<SortableHead sortKey="name" sort={sort}>Nombre</SortableHead>` reemplaza al `<TableHead>` en columnas con orden natural (texto/fecha/número/estado); chevron indicador (arriba=asc, abajo=desc, doble-chevron tenue=inactiva); convive con `<Table resizable>`. **Flujo obligatorio**: filtrar → ORDENAR → paginar — `useMultiSelect` y `usePagination` operan sobre `sort.sorted`, y el `resetKey` de `usePagination` appendea `sort.resetKey` (re-ordenar vuelve a página 1). Columnas sin orden natural (checkbox de selección, Acciones) quedan como `<TableHead>`. Aplicado en los 13 grids de listado (Usuarios, Cursos, Exámenes, Talleres, Proyectos, Contenidos, Banco de preguntas, Videos, Certificados, Tenants, Auditoría, Errores, Papelera). NO aplica a vistas de cards del estudiante (ya tienen su `<Select>` de orden) ni a paneles de lista no-tabulares (ej. AiJobsHistoryPanel, `<div>` list). |
 
+#### Orden por defecto de una grilla: fecha de creación, descendente
+
+**Toda grilla de listado abre por la FECHA DE CREACIÓN de la fila, de lo más reciente a lo más
+viejo.** Al entrar a un módulo, lo último que se creó es lo que se está usando. Lo fija
+[`grid-sort-defaults.test.ts`](src/shared/lib/grid-sort-defaults.test.ts), que lee los archivos del
+disco porque acá hay dos fallas que no dan ningún error:
+
+- Un `defaultSort.key` que **no existe** en el mapa `columns`: `useTableSort` hace
+  `if (!accessor) return items` y la grilla sale sin ordenar, conservando el orden de la query —
+  o sea «casi bien», que es lo que hace que nadie lo note.
+- Una grilla **sin `defaultSort`**, que un `grep defaultSort` por definición no encuentra. Encuestas
+  estaba así.
+
+Detalles que no se deducen:
+
+- **La clave de creación no siempre se llama `created_at`**: en certificados es `issued_at` (emitir
+  ES crear), en la papelera `deleted_at` (la fila nace cuando algo se borra), en actas `generado`, y
+  en «Mis estudiantes» **`matriculado_at`** — la fila es «un estudiante MÍO», y alguien puede tener
+  cuenta hace un año y haberse matriculado ayer; se toma la matrícula **más antigua**, porque con la
+  última, rematricularlo en un curso nuevo lo mandaría al tope.
+- **Casi ninguna grilla muestra la columna «Creado»** y no se puede agregar: varias ya están en el
+  tope de 8 columnas de P7 (exámenes tiene 11). Por eso `toggleSort` cicla **asc → desc → el default
+  del grid**: sin ese tercer paso, clicar cualquier encabezado dejaba el orden inicial fuera de
+  alcance para siempre.
+- **`useTableSort` guarda SOLO lo que el usuario eligió**. Antes grababa el default con solo abrir la
+  grilla, así que cambiar un `defaultSort` en el código no le cambiaba nada a quien ya hubiera
+  entrado — y el cambio *parecía* aplicado porque en un navegador limpio sí se veía. Por eso, al
+  cambiar el default de una grilla que ya está en producción, **hay que bumpear su `storageKey`**
+  (sufijo `_v2`): lo guardado desde antes de este arreglo es el default viejo.
+- **Dos excepciones, escritas en el propio test con su motivo**: `ErrorsPanel` (sus filas son grupos
+  de errores, agregados sin fecha de creación; ordena por frecuencia, que es el criterio de triage) y
+  `PendingStudentsPanel` (es un ranking calculado, no hay fecha que ordenar). Agregar a esa lista es
+  una decisión; si una grilla nueva no cumple, casi siempre es que le falta el accessor.
+
 #### Filtros de grid con selección múltiple
 
 `MultiSelectFilter` ([multi-select-filter.tsx](src/components/ui/multi-select-filter.tsx)) acepta

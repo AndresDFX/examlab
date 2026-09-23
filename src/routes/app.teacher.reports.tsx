@@ -600,7 +600,7 @@ function Inner() {
       db
         .from("report_templates")
         .select(
-          "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id, updated_at",
+          "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, owner_id, course_id, parent_id, updated_at, created_at",
         )
         .order("name"),
       // El docente ve SOLO los cursos que dicta (ver course-scope.ts).
@@ -720,9 +720,14 @@ function Inner() {
           : t("hc_routesAppTeacherReports.scopeStudent"),
       description: (tpl) => tpl.description ?? "",
       updated_at: (tpl) => tpl.updated_at,
+      created_at: (tpl) => (tpl as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:teacher_reports_templates",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_reports_templates_v2",
   });
 
   const pagination = usePagination(sort.sorted, {

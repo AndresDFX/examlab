@@ -605,8 +605,18 @@ function TeacherPolls() {
       window: (p) => p.opens_at,
       responses: (p) => p.total_responses ?? 0,
       status: (p) => (pollIsOpen(p) ? "abierta" : "cerrada"),
+      created_at: (p) => (p as { created_at?: string | null }).created_at,
     },
-    storageKey: "examlab_sort:teacher_polls",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    //
+    // Antes NO declaraba `defaultSort` y quedaba con el orden que trajera la
+    // query. Lo encontró el guardrail de `grid-sort-defaults.test.ts`, no una
+    // búsqueda de `defaultSort` — que por definición no podía verlo.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_polls_v2",
   });
 
   // Paginación (flujo filtrar → ordenar → paginar). Era el único grid de

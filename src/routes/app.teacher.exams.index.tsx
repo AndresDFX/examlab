@@ -253,9 +253,14 @@ function TeacherExams() {
       kind: (e) => ((e as any).is_external ? "externo" : "en linea"),
       status: (e) => ((e as any).status ?? "published") as string,
       navigation: (e) => e.navigation_type,
+      created_at: (e) => (e as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "start_time", dir: "desc" },
-    storageKey: "examlab_sort:teacher_exams",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_exams_v2",
   });
 
   const sel = useMultiSelect(sort.sorted);

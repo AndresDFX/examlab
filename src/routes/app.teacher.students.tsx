@@ -59,6 +59,15 @@ type Student = {
   cohorte: string | null;
   courses: string[];
   /**
+   * Cuándo esta persona entró POR PRIMERA VEZ a alguno de mis cursos.
+   *
+   * La fecha de creación que importa en esta grilla es la de la MATRÍCULA, no
+   * la del perfil: la fila es «un estudiante mío», y alguien puede tener cuenta
+   * desde hace un año y haberse matriculado ayer. Se toma la más antigua porque
+   * una persona puede estar en varios de mis cursos.
+   */
+  matriculado_at: string | null;
+  /**
    * Nombres de los cursos donde esta persona es vocero. Es una LISTA, no un
    * booleano: alguien puede ser vocero de un curso y no de otro, y esta pantalla
    * cruza varios cursos a la vez. Con un booleano, el docente vería "Vocero" sin
@@ -227,7 +236,7 @@ function TeacherStudentsInner() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: enrollments, error: enrErr } = await (supabase as any)
       .from("course_enrollments")
-      .select("user_id, course_id, vocero_marcado_at")
+      .select("user_id, course_id, vocero_marcado_at, created_at")
       .in("course_id", courseIds);
     if (!isActive()) return;
     if (enrErr) {
@@ -262,7 +271,15 @@ function TeacherStudentsInner() {
     const courseNameById = new Map(myCourses.map((c) => [c.id, c.name]));
     const coursesByStudent = new Map<string, string[]>();
     const voceroByStudent = new Map<string, string[]>();
+    const matriculaByStudent = new Map<string, string>();
     for (const e of enrollments ?? []) {
+      // La más ANTIGUA: es cuándo apareció por primera vez entre mis
+      // estudiantes. Quedarse con la última haría que rematricularlo en un
+      // curso nuevo lo mandara al tope de la lista.
+      if (e.created_at) {
+        const previa = matriculaByStudent.get(e.user_id);
+        if (!previa || e.created_at < previa) matriculaByStudent.set(e.user_id, e.created_at);
+      }
       const existing = coursesByStudent.get(e.user_id) ?? [];
       const cName = courseNameById.get(e.course_id);
       if (cName) existing.push(cName);
@@ -284,6 +301,7 @@ function TeacherStudentsInner() {
         documento: p.documento ?? null,
         cohorte: p.cohorte ?? null,
         courses: coursesByStudent.get(p.id) ?? [],
+        matriculado_at: matriculaByStudent.get(p.id) ?? null,
         voceroEn: voceroByStudent.get(p.id) ?? [],
       })),
     );
@@ -344,9 +362,13 @@ function TeacherStudentsInner() {
       name: (s) => s.full_name,
       codigo: (s) => s.codigo ?? "",
       email: (s) => s.institutional_email,
+      matriculado_at: (s) => s.matriculado_at,
     },
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:teacher_students",
+    // Por fecha de MATRÍCULA, lo más reciente arriba: es la fecha de creación
+    // de esta fila (ver `Student.matriculado_at`). Convención de todas las
+    // grillas de listado; el orden alfabético sigue a un clic de «Estudiante».
+    defaultSort: { key: "matriculado_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_students_v2",
   });
 
   // Multi-selección para acciones en bloque (cambio masivo de contraseña).

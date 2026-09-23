@@ -406,8 +406,12 @@ function AdminUsers() {
       created_at: (r) => r.created_at,
       last_sign_in_at: (r) => r.last_sign_in_at,
     },
-    defaultSort: { key: "full_name", dir: "asc" },
-    storageKey: "examlab_sort:admin_users",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_users_v2",
   });
 
   // El multi-select trabaja sobre la lista filtrada+ordenada COMPLETA (todas

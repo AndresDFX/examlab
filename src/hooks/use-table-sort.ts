@@ -32,8 +32,12 @@
  *
  * Persistencia: la columna + dirección se persisten en localStorage por
  * `storageKey` (opcional), igual que usePagination. Sin storageKey,
- * sesión-only. Mismo patrón de lectura en el initializer que usePagination
- * (useMemo + useState) para mantener consistencia entre los grids.
+ * sesión-only. Mismo patrón de lectura post-montaje que usePagination, para
+ * mantener consistencia entre los grids.
+ *
+ * Se guarda SOLO lo que el usuario ELIGIÓ clicando un encabezado: el default
+ * del grid no se graba. Antes sí, y eso hacía que cambiar un `defaultSort` no
+ * le cambiara nada a quien ya hubiera abierto ese grid alguna vez.
  *
  * Comparación: locale es-CO con `numeric:true` (así "Taller 2" < "Taller
  * 10") y `sensitivity:"base"` (case/acentos-insensible). Números y fechas
@@ -62,8 +66,12 @@ export interface UseTableSortOptions<T> {
 export interface TableSortState {
   sortKey: string | null;
   sortDir: SortDir;
-  /** Click en un encabezado: misma columna alterna asc↔desc; columna
-   *  nueva arranca en asc. */
+  /** Click en un encabezado. Columna nueva → asc. Misma columna: asc → desc
+   *  → **el orden por defecto del grid**. Ese tercer paso es lo que hace que
+   *  el default sea siempre alcanzable: la mayoría de los grids ordena por
+   *  fecha de creación y NO tiene columna «Creado» (no entra: varios ya están
+   *  en el tope de 8 columnas), así que sin esto, clicar cualquier encabezado
+   *  dejaba el orden inicial fuera de alcance para siempre. */
   toggleSort: (key: string) => void;
   /** Fingerprint `key:dir` para pasar al `resetKey` de usePagination. */
   resetKey: string;
@@ -92,6 +100,16 @@ function readPersisted(storageKey?: string): PersistedSort | null {
     /* corrupto — ignorar */
   }
   return null;
+}
+
+/** Borra la elección guardada: el grid vuelve a su default y se queda ahí. */
+function olvidarGuardado(storageKey?: string): void {
+  if (!storageKey || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(storageKey);
+  } catch {
+    /* quota / modo privado — ignorar */
+  }
 }
 
 function isEmpty(v: SortValue): boolean {
@@ -123,12 +141,24 @@ export function useTableSort<T>(items: T[], opts: UseTableSortOptions<T>): UseTa
   // Ver usePagination: la bandera va en ESTADO para que la escritura no corra en
   // el primer commit y pise el orden guardado con el default.
   const [hydrated, setHydrated] = useState(false);
+  // ¿El usuario ELIGIÓ este orden, o es el default del grid?
+  //
+  // Antes se guardaba siempre al hidratar, así que con solo ABRIR un grid
+  // quedaba grabado su default. Consecuencia: cambiar el `defaultSort` no le
+  // cambiaba nada a quien ya hubiera entrado alguna vez — el valor grabado
+  // ganaba —, y el cambio parecía aplicado porque en una sesión nueva sí se
+  // veía. Guardar solo lo ELEGIDO hace que un default nuevo llegue a todos los
+  // que nunca tocaron el encabezado, que es la mayoría.
+  const elegidoRef = useRef(false);
 
   useEffect(() => {
     const persisted = readPersisted(storageKey);
     if (persisted) {
       setSortKey(persisted.key);
       setSortDir(persisted.dir);
+      // Lo guardado ES una elección previa del usuario: sin esto, el primer
+      // clic después de recargar reiniciaría el ciclo en vez de continuarlo.
+      elegidoRef.current = true;
     }
     setHydrated(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,19 +171,63 @@ export function useTableSort<T>(items: T[], opts: UseTableSortOptions<T>): UseTa
   const columnsRef = useRef(columns);
   columnsRef.current = columns;
 
-  const toggleSort = useCallback((key: string) => {
-    setSortKey((prevKey) => {
-      if (prevKey === key) {
-        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        return prevKey;
+  // El default y el estado vivo se leen por ref dentro del callback: meterlos en
+  // las deps obligaría a recrearlo en cada render (el `defaultSort` es un objeto
+  // literal). Un click ocurre siempre después de un render, así que los refs
+  // están al día.
+  const defaultRef = useRef(defaultSort);
+  defaultRef.current = defaultSort;
+  const sortKeyRef = useRef(sortKey);
+  sortKeyRef.current = sortKey;
+  const sortDirRef = useRef(sortDir);
+  sortDirRef.current = sortDir;
+
+  const toggleSort = useCallback(
+    (key: string) => {
+      // Columna distinta: arranca el ciclo en ascendente.
+      if (sortKeyRef.current !== key) {
+        elegidoRef.current = true;
+        setSortKey(key);
+        setSortDir("asc");
+        return;
       }
-      setSortDir("asc");
-      return key;
-    });
-  }, []);
+      if (sortDirRef.current === "asc") {
+        elegidoRef.current = true;
+        setSortDir("desc");
+        return;
+      }
+      // Descendente. Acá hay DOS casos en los que cerrar el ciclo no haría nada
+      // visible, y un encabezado que no responde se lee como roto:
+      //
+      //  1. El grid todavía está en su default (nadie entró al ciclo): este es
+      //     el PRIMER clic sobre esa columna y lo que se espera es invertir.
+      //  2. Volver al default daría EXACTAMENTE el estado actual — pasa cuando
+      //     la columna clicada es la del default y ese default es `desc`, que
+      //     es el caso de casi todas las grillas desde que ordenan por fecha de
+      //     creación. Sin esta guarda, uno de cada tres clics quedaba muerto; y
+      //     para quien ya tuviera el default viejo guardado en el navegador, el
+      //     muerto era el PRIMERO.
+      const porDefecto = defaultRef.current;
+      const volverNoCambiaNada =
+        porDefecto != null && porDefecto.key === key && porDefecto.dir === "desc";
+      if (!elegidoRef.current || volverNoCambiaNada) {
+        elegidoRef.current = true;
+        setSortDir("asc");
+        return;
+      }
+      // Tercer clic en la misma columna: vuelve al orden por defecto del grid y
+      // OLVIDA la elección, para que lo guardado no la resucite al volver.
+      elegidoRef.current = false;
+      olvidarGuardado(storageKey);
+      setSortKey(defaultRef.current?.key ?? null);
+      setSortDir(defaultRef.current?.dir ?? "asc");
+    },
+    [storageKey],
+  );
 
   useEffect(() => {
     if (!hydrated) return; // ver el efecto de hidratación: no pisar lo guardado
+    if (!elegidoRef.current) return; // el default del grid no se graba
     if (!storageKey || typeof window === "undefined") return;
     try {
       window.localStorage.setItem(storageKey, JSON.stringify({ key: sortKey, dir: sortDir }));

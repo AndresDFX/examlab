@@ -336,9 +336,14 @@ export function AdminCourses() {
         const s = courseStats.get(c.id);
         return s ? s.exams + s.workshops + s.projects : null;
       },
+      created_at: (c) => (c as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:admin_courses",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_courses_v2",
   });
 
   const sel = useMultiSelect(sort.sorted);

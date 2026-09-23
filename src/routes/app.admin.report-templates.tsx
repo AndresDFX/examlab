@@ -140,7 +140,7 @@ function Inner() {
     const { data, error } = await db
       .from("report_templates")
       .select(
-        "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, updated_at",
+        "id, name, description, scope, body_html, header_html, footer_html, css, page_orientation, page_size, updated_at, created_at",
       )
       .is("owner_id", null)
       .is("course_id", null)
@@ -351,9 +351,14 @@ function Inner() {
           : t("adminReportTemplates.scopeStudent"),
       page: (tpl) => `${tpl.page_size} ${tpl.page_orientation}`,
       updated_at: (tpl) => tpl.updated_at,
+      created_at: (tpl) => (tpl as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "name", dir: "asc" },
-    storageKey: "examlab_sort:admin_report_templates",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_report_templates_v2",
   });
 
   const pagination = usePagination(sort.sorted, {

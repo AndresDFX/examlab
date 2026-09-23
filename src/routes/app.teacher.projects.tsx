@@ -351,9 +351,14 @@ function TeacherProjects() {
       status: (p) => p.status,
       start_date: (p) => p.start_date,
       due_date: (p) => p.due_date,
+      created_at: (p) => (p as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "title", dir: "asc" },
-    storageKey: "examlab_sort:teacher_projects",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_projects_v2",
   });
 
   const sel = useMultiSelect(sort.sorted);

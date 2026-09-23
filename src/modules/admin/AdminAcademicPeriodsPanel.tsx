@@ -162,7 +162,7 @@ export function AdminAcademicPeriodsPanel() {
       const { data, error } = await conTenant(
         db
           .from("academic_periods")
-          .select("id, code, name, start_date, end_date, status, closed_at")
+          .select("id, code, name, start_date, end_date, status, closed_at, created_at")
           .order("code", { ascending: false }),
         scope,
       );
@@ -208,11 +208,19 @@ export function AdminAcademicPeriodsPanel() {
       start_date: (r) => r.start_date,
       end_date: (r) => r.end_date,
       status: (r) => STATUS_RANK[r.status],
+      created_at: (r) => (r as { created_at?: string | null }).created_at,
     },
-    // Preserva el orden que traía la query (`.order("code", desc)`): el
-    // periodo más reciente arriba.
-    defaultSort: { key: "code", dir: "desc" },
-    storageKey: "examlab_sort:admin_academic_periods",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    //
+    // Acá `code` descendente ya daba casi lo mismo (2026-2 antes que 2026-1),
+    // pero «casi»: un periodo viejo que se agrega después queda enterrado entre
+    // los de su año en vez de aparecer arriba, que es donde el admin lo busca
+    // justo después de crearlo.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:admin_academic_periods_v2",
   });
 
   const pagination = usePagination(sort.sorted, {

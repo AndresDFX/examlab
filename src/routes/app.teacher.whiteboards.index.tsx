@@ -395,9 +395,14 @@ function TeacherWhiteboards() {
       shared: (w) => w.is_shared_with_course,
       status: (w) => (w.status ?? "published") as string,
       updated_at: (w) => w.updated_at,
+      created_at: (w) => (w as { created_at?: string | null }).created_at,
     },
-    defaultSort: { key: "updated_at", dir: "desc" },
-    storageKey: "examlab_sort:teacher_whiteboards",
+    // Por fecha de creación, lo más reciente arriba. Convención de TODAS las
+    // grillas de listado (ver CLAUDE.md): al entrar, lo último que se creó es
+    // lo que se está usando. El orden alfabético sigue a un clic del
+    // encabezado.
+    defaultSort: { key: "created_at", dir: "desc" },
+    storageKey: "examlab_sort:teacher_whiteboards_v2",
   });
 
   // Stats compactas arriba del listado — mismo patrón que proyectos /
