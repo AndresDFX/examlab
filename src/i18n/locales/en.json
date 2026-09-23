@@ -5475,12 +5475,14 @@
     "tabSecrets": "Infra secrets"
   },
   "codeEditor": {
-    "runButton": "Run",
     "cancelButton": "Cancel",
     "cancelTitle": "Cancel the current execution (frees the UI to switch compiler or retry)",
+    "expand": "Expand the editor",
     "javaHint": "The first Java execution takes longer because the browser downloads the virtual machine once. Subsequent runs are instant.",
+    "outputEmpty": "(no output)",
     "outputTitle": "Output",
-    "outputEmpty": "(no output)"
+    "restore": "Restore size",
+    "runButton": "Run"
   },
   "adminAiConfig": {
     "needsAdmin": "You need the Admin role.",

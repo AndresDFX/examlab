@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, useEffect } from "react";
+import { useCallback, useRef, useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,8 +11,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Play, Terminal, Info, X } from "lucide-react";
+import { Play, Terminal, Info, X, Maximize2, Minimize2 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { RowAction } from "@/components/ui/row-action";
 import { useEditorZoom } from "@/hooks/use-editor-zoom";
 import { useVentana } from "@/hooks/use-ventana";
 import { EditorZoomControls } from "./EditorZoomControls";
@@ -82,6 +83,16 @@ interface CodeEditorProps {
    *  guardado solo acá — ver `useEditorZoom`. Sin esto, cae en la preferencia
    *  compartida de siempre. */
   zoomScopeKey?: string | null;
+  /**
+   * Lo que NO puede desaparecer cuando el editor se amplía. Se dibuja arriba
+   * del todo y SOLO en modo ampliado.
+   *
+   * Existe por un caso concreto: el editor ampliado es un `fixed inset-0`, así
+   * que tapa el encabezado de la pantalla de examen — y ahí vive el RELOJ. Un
+   * alumno que amplía para escribir código y deja de ver cuánto le queda es un
+   * problema peor que el que el modo ampliado resuelve.
+   */
+  barraSuperior?: ReactNode;
 }
 
 const LANGUAGE_CONFIG: Partial<Record<
@@ -126,6 +137,7 @@ export function CodeEditor({
   blockClipboard = false,
   hideHints = false,
   zoomScopeKey = null,
+  barraSuperior,
 }: CodeEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<any>(null);
@@ -185,8 +197,59 @@ export function CodeEditor({
   const ventana = useVentana();
   const angosta = esPantallaAngosta(ventana);
 
+  /**
+   * Modo AMPLIADO: el editor ocupa la pantalla entera.
+   *
+   * ── Por qué hace falta, y por qué no alcanzaba con achicar la decoración ──
+   * Medido en la pantalla real de examen a 390 px: al código le quedan 292 px,
+   * porque entre el shell (`px-4`), el relleno de la tarjeta (`p-5`) y los
+   * bordes se van 74 px — el 19 % del ancho. Con fuente monoespaciada de 13 px
+   * eso son ~30 caracteres por renglón, así que UNA instrucción normal
+   * (`ArrayList<HashMap<String, Object>> personas = new ArrayList<>();`) se
+   * parte en tres. No es un problema de tamaño de letra: es que la pantalla se
+   * comprime en vez de reorganizarse.
+   *
+   * ── Por qué es un overlay y NO la Fullscreen API ─────────────────────
+   * Aunque el design system ya tiene `useFullscreen`/`FullscreenButton`, acá no
+   * sirven, por dos motivos independientes:
+   *   · En un EXAMEN la pantalla ya está en pantalla completa y el proctoring
+   *     cuenta `fullscreenchange` como advertencia. Pedir pantalla completa para
+   *     un elemento de adentro saca de la del examen y le cobra un strike al
+   *     alumno por ampliar su propio editor.
+   *   · En iPhone la pantalla completa de ELEMENTOS no existe, y ese es
+   *     justamente el dispositivo donde esto hace falta. La regla del design
+   *     system dice que ahí no se renderice el botón — o sea, no habría botón
+   *     donde más se necesita.
+   * Un contenedor `fixed inset-0` no toca nada de eso: no hay evento de
+   * pantalla completa, no hay strike, y funciona igual en iOS.
+   *
+   * Monaco se reacomoda solo (`automaticLayout`), así que no hay que avisarle.
+   */
+  const [ampliado, setAmpliado] = useState(false);
+
+  // Con el editor ampliado, el fondo no debe poder desplazarse detrás.
+  useEffect(() => {
+    if (!ampliado) return;
+    const previo = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previo;
+    };
+  }, [ampliado]);
+
   return (
-    <div className="space-y-2">
+    <div
+      className={
+        ampliado
+          ? // `dvh` y no `vh`: en iOS la barra de direcciones se lleva ~80 px y
+            // con `vh` el panel de salida queda cortado abajo.
+            "fixed inset-0 z-50 flex flex-col gap-2 bg-background p-2 pt-[max(env(safe-area-inset-top),0.5rem)] pb-[max(env(safe-area-inset-bottom),0.5rem)] h-[100dvh]"
+          : "space-y-2"
+      }
+    >
+      {ampliado && barraSuperior && (
+        <div className="flex shrink-0 flex-wrap items-center gap-2">{barraSuperior}</div>
+      )}
       {/* La barra ENVUELVE. A 320 px el selector, el zoom (tres botones de 44 px
           en táctil) y «Ejecutar» suman más que el ancho disponible, y sin
           envolver empujaban la página entera a scroll horizontal. */}
@@ -224,6 +287,14 @@ export function CodeEditor({
             atMin={atMin}
             atMax={atMax}
             pct={pct}
+          />
+          {/* Ampliar va al lado del zoom porque resuelven lo mismo —ver el
+              código más grande— y así envuelven juntos en una pantalla angosta. */}
+          <RowAction
+            label={ampliado ? t("codeEditor.restore") : t("codeEditor.expand")}
+            icon={ampliado ? Minimize2 : Maximize2}
+            variant="outline"
+            onClick={() => setAmpliado((v) => !v)}
           />
           {showRunButton && onRun && (
             <div className="flex items-center gap-1.5">
@@ -270,11 +341,21 @@ export function CodeEditor({
         </div>
       )}
 
-      <div className="rounded-md border overflow-hidden">
+      <div
+        className={
+          ampliado
+            ? "flex-1 min-h-0 overflow-hidden rounded-md border"
+            : "rounded-md border overflow-hidden"
+        }
+      >
         <Editor
-          // El alto escala con la fuente: sin eso, subir el zoom no agranda,
-          // solo deja menos líneas a la vista.
-          height={escalarAltoEditor(altoDeEditorEnPantalla(height, ventana), zoom)}
+          // Ampliado el alto lo manda el contenedor (`flex-1`), no el caller:
+          // el sentido del modo es usar TODA la pantalla.
+          height={
+            ampliado
+              ? "100%"
+              : escalarAltoEditor(altoDeEditorEnPantalla(height, ventana), zoom)
+          }
           language={config.monacoLang}
           value={value}
           onChange={(v) => onChange(v ?? "")}
@@ -288,7 +369,7 @@ export function CodeEditor({
       </div>
 
       {output !== undefined && (
-        <Card className="bg-muted/50">
+        <Card className={ampliado ? "shrink-0 bg-muted/50" : "bg-muted/50"}>
           <CardHeader className="py-2 px-3">
             <CardTitle className="text-xs flex items-center gap-1.5">
               <Terminal className="h-3 w-3" /> {t("codeEditor.outputTitle")}

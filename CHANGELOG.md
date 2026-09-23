@@ -143,6 +143,38 @@ matriculado seis días después de que cerrara la Prueba diagnóstica.
   entorno donde ese examen no existe, e ejecutarla dos veces no duplica el `add_time` (duplicarlo
   correría el plazo al doble y eso no se ve hasta que alguien lo mide).
 
+### ↕️ El compilador, ahora sí REORGANIZADO para el teléfono
+
+El primer intento achicó la decoración de Monaco y agrandó el editor. Eso mejoró el tamaño, pero el
+reporte siguiente fue exacto: *«no es tanto el tamaño sino responsive»*. Y tenía razón — medido en la
+pantalla REAL de examen (no en el banco de pruebas aislado que se usó antes, que no tenía la tarjeta
+ni el relleno del shell):
+
+- **A 390 px al código le quedaban 292 px.** Entre el relleno del shell (`px-4`), el de la tarjeta de
+  la pregunta (`p-5` fijo) y los bordes se iban **74 px, el 19 % del ancho**. Con fuente monoespaciada
+  de 13 px eso son ~30 caracteres por renglón: una sola instrucción
+  (`ArrayList<HashMap<String, Object>> personas = new ArrayList<>();`) se parte en tres. La pantalla
+  no desbordaba —eso ya estaba bien— pero se COMPRIMÍA en vez de reorganizarse.
+
+Dos cambios, los dos medidos:
+
+- **El relleno de la tarjeta de pregunta baja en móvil** (`p-5` → `p-3 sm:p-5`): 292 → 308 px. Aplica
+  a toda la pregunta, no solo al código.
+- **Modo AMPLIAR**: el editor pasa a ocupar la pantalla entera. 308 → **350 px de 390 (90 %)** y el
+  alto de 422 a 644. Es lo único que hace viable escribir código en un teléfono.
+
+**Por qué el ampliar es un overlay y NO la Fullscreen API**, aunque el design system ya tenga
+`useFullscreen`/`FullscreenButton`: en un EXAMEN la pantalla ya está en pantalla completa y el
+proctoring cuenta `fullscreenchange` como advertencia — pedirla para un elemento de adentro le cobra
+un strike al alumno por ampliar su propio editor. Y en iPhone la pantalla completa de ELEMENTOS no
+existe, que es justo el aparato donde esto hace falta. Un `fixed inset-0` no dispara ningún evento de
+pantalla completa y funciona igual en iOS.
+
+**Y el defecto que ese overlay introducía, resuelto en el mismo cambio**: tapaba el encabezado del
+examen, donde vive el RELOJ. Un alumno que amplía para escribir y deja de ver cuánto le queda está
+peor que antes de ampliar. El editor acepta ahora un `barraSuperior` que se dibuja solo al ampliar, y
+la pantalla de examen le pasa el reloj y el contador de advertencias.
+
 ### 📱 El compilador, usable en un teléfono
 
 Reporte con captura: en el celular el editor de código del examen quedaba en una cajita con barras de

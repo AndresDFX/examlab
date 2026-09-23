@@ -429,6 +429,27 @@ Los grids de listado aceptan `resizable` además de `fixed`: agrega handles tipo
 - **Solo desktop** (`min-width: 640px`): en mobile los handles se ocultan (`hidden sm:block`) y los anchos pinneados se limpian → layout responsive normal.
 - Aplicado en los 9 grids de listado: Cursos, Usuarios, Exámenes, Talleres, Proyectos, Contenidos, Videos, Banco de preguntas y Auditoría. **NO** en gradebook / asistencia / monitor — son matrices con columna sticky o columnas dinámicas, no grids de listado.
 
+### El editor de código en un teléfono: AMPLIAR, no solo achicar
+
+Medido en la pantalla real de examen a 390 px: entre el relleno del shell (`px-4`), el de la tarjeta
+de la pregunta y los bordes se van **74 px — el 19 % del ancho**, y al código le quedan ~30
+caracteres por renglón. Recortar la decoración de Monaco ayuda pero no alcanza: una instrucción
+normal se sigue partiendo en tres.
+
+`CodeEditor` tiene un botón **Ampliar** (`Maximize2`/`Minimize2`, junto al zoom) que lo lleva a
+`fixed inset-0`: 350 px de 390 (90 %) y el alto de la pantalla entera.
+
+- **NO usa `useFullscreen`/`FullscreenButton`**, aunque estén en el design system, por dos motivos
+  independientes: en un EXAMEN la pantalla ya está en pantalla completa y el proctoring cuenta
+  `fullscreenchange` como advertencia —pedirla para un elemento de adentro le cobra un strike al
+  alumno por ampliar su editor—; y en iPhone la pantalla completa de ELEMENTOS no existe, que es
+  justo el aparato donde hace falta. Un overlay no dispara ningún evento y funciona en iOS.
+- **`barraSuperior` es obligatoria donde algo no puede desaparecer.** El overlay tapa el encabezado
+  de la pantalla que lo contiene; en el examen ahí vive el RELOJ. La pantalla de toma le pasa el
+  tiempo y las advertencias. Al montar el editor en una superficie nueva, preguntarse qué queda
+  tapado.
+- El alto lo manda el contenedor cuando está ampliado (`flex-1`), no el `height` del caller.
+
 ### Responsive (target 375-428px / iPhone Pro / Pixel grandes)
 
 Cuatro reglas universales — aplicar siempre que se añada layout nuevo:

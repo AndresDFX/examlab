@@ -2604,7 +2604,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           const lang = (q.language ?? "java") as CodeLanguage;
           return (
             <Card key={q.id}>
-              <CardContent className="p-5 space-y-3">
+              {/* `p-3` en móvil: con `p-5` fijo, el relleno se llevaba 40 px de
+                  los 390 de un teléfono y el código quedaba en ~30 caracteres
+                  por renglón. En `sm` en adelante se conserva el de siempre. */}
+              <CardContent className="p-3 sm:p-5 space-y-3">
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-3xs">
                     #{idx + 1}
@@ -2727,6 +2730,27 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
                       showRunButton={true}
                       height="250px"
                       zoomScopeKey={q.id}
+                      // El editor ampliado es `fixed inset-0` y tapa el
+                      // encabezado del examen, donde vive el reloj. Un alumno
+                      // que amplía para escribir y deja de ver cuánto le queda
+                      // está peor que antes de ampliar.
+                      barraSuperior={
+                        <>
+                          <Badge
+                            variant={warnings > 0 ? "destructive" : "outline"}
+                            className="text-3xs sm:text-xs"
+                          >
+                            <AlertTriangle className="h-3 w-3 mr-0.5 sm:mr-1" />
+                            {warnings}/{maxWarnings}
+                          </Badge>
+                          <Badge
+                            className={`text-3xs sm:text-xs ${isLowTime ? "bg-destructive text-destructive-foreground" : "bg-primary text-primary-foreground"}`}
+                          >
+                            <Clock className="h-3 w-3 mr-0.5 sm:mr-1" />
+                            {formattedTime}
+                          </Badge>
+                        </>
+                      }
                     />
                   </div>
                 ) : q.type === "diagrama" ? (

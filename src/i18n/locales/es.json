@@ -5475,12 +5475,14 @@
     "tabSecrets": "Secretos infra"
   },
   "codeEditor": {
-    "runButton": "Ejecutar",
     "cancelButton": "Cancelar",
     "cancelTitle": "Cancelar la ejecución actual (libera la UI para cambiar de compilador o reintentar)",
+    "expand": "Ampliar el editor",
     "javaHint": "La primera ejecución de Java tarda más porque el navegador descarga la máquina virtual una sola vez. Las siguientes son inmediatas.",
+    "outputEmpty": "(sin salida)",
     "outputTitle": "Salida",
-    "outputEmpty": "(sin salida)"
+    "restore": "Restaurar el tamaño",
+    "runButton": "Ejecutar"
   },
   "adminAiConfig": {
     "needsAdmin": "Necesitas rol Admin.",
