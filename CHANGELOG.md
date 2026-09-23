@@ -75,6 +75,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🩺 La base se degradó otra vez, y esta vez hay un número
+
+- **Qué pasó**: el 22-09 a las 20:33 volvieron los `57014` en ráfaga, con una espera de `ShareLock`
+  de 2,1 s y un checkpoint que tardó **56 segundos en escribir 378 buffers** (~54 KB/s). Al momento
+  de revisar, la base ya había vuelto a la normalidad (~600 ms por consulta, casi todo latencia de
+  red).
+- **NO es la falla del 19-09.** Aquella era el ciclo «recarga de catálogo cancelada a los 8 s →
+  PostgREST reintenta → se agota el pool → 504 para todos», y su migración (`20262290000000`) está
+  aplicada y verificada. Esta es la restricción de fondo que ese mismo diagnóstico ya había
+  identificado: **la instancia sufre por E/S, no por CPU**.
+- **Lo que la disparó, medido**: **32 exámenes simultáneos** (pico 20:16; la degradación, 20:33). El
+  latido del bloqueo de sesión reescribía la columna `answers` ENTERA cada 5 segundos por alumno
+  —6 KB de mediana— aunque no hubiera cambiado nada. Son ~6 escrituras por segundo sostenidas, unas
+  **52.000 reescrituras de fila** en un examen de dos horas, sobre una base que pesa **197 MB**. A eso
+  se suman los **cuatro** trabajos de cron que corren CADA MINUTO, uno de los cuales
+  (`close-expired-exam-attempts`) hace UPDATE sobre la misma tabla que los 32 alumnos están
+  escribiendo — que es de donde sale la espera de `ShareLock`.
+- **El arreglo**: el latido manda **solo `updated_at`**. El bloqueo de sesión necesita exactamente eso
+  y nada más —lo pone el trigger `submissions_updated` ante cualquier update—, así que la columna
+  pesada sale del camino. Lo que el alumno escribe lo sigue guardando el debounce de 1,5 s, que corre
+  tras cada cambio real.
+- **Lo que esto NO arregla**: el techo de E/S de la instancia sigue ahí. Si vuelve a caerse con el
+  latido liviano, lo que queda es subir de plan — no hay más que recortar del lado de la aplicación
+  sin quitar funcionalidad.
+
 ### 🐞 Cerrar el check-in múltiple cerraba solo una sesión
 
 - La migración anterior ya traía `teacher_close_attendance_check_in_group`, pero **el cliente nunca la

@@ -656,7 +656,9 @@ function TakeExam() {
           );
         }
         // Session lock via answers.__session_id + updated_at (no extra columns needed).
-        // The autosave keeps updated_at fresh every 1.5s while a device is active.
+        // `updated_at` lo mantiene fresco el latido de cada 5 s (y el autosave,
+        // cuando el alumno escribe). El latido manda SOLO esa columna: ver el
+        // efecto del heartbeat más abajo.
         // If another device owns the session and updated_at is <10s old → block.
         const existingAnswers = (resumeTarget.answers as Record<string, any>) ?? {};
         const storedSession = existingAnswers.__session_id as string | undefined;
@@ -1475,17 +1477,41 @@ function TakeExam() {
   // (leyendo una pregunta larga, pensando, una pregunta de código sin tocar)
   // dejaría de refrescar `submissions.updated_at`. El lock usa una ventana de
   // 10s sobre updated_at, así que sin un heartbeat periódico otro dispositivo
-  // podría "robar" el intento tras >10s de inactividad. Este intervalo persiste
-  // periódicamente mientras el examen está activo (y no pausado/entregado),
-  // manteniendo updated_at fresco aunque el alumno no escriba.
+  // podría "robar" el intento tras >10s de inactividad.
+  //
+  // ── Por qué NO llama a `saveAnswersNow` ────────────────────────────────
+  // Lo único que el lock necesita es que `updated_at` esté fresco, y eso lo
+  // pone el trigger `submissions_updated` ante CUALQUIER update. Guardar las
+  // respuestas enteras cada 5 s reescribía la columna `answers` completa
+  // —medida en producción: 6 KB de mediana— aunque el alumno no hubiera tocado
+  // nada. Con 32 exámenes a la vez, que es el pico real de hoy, son unas 6
+  // escrituras por segundo de 6 KB cada una, sostenidas durante las dos horas
+  // del examen: unas 52.000 reescrituras de fila sobre una base que pesa
+  // 197 MB. Esa carga de WAL y de vacío es justo la que la instancia no
+  // aguanta cuando su E/S está estrangulada (los `57014` y el checkpoint de
+  // 56 s del 22-09).
+  //
+  // Mandar solo `updated_at` deja el mismo efecto sobre el lock y saca la
+  // columna pesada del camino. Lo que el alumno escribe lo sigue guardando el
+  // debounce de arriba, que corre 1,5 s después de cada cambio real.
   useEffect(() => {
     if (!started) return;
     const id = setInterval(() => {
       if (submittedRef.current || isPaused || !submissionIdRef.current) return;
-      void saveAnswersNow();
+      void supabase
+        .from("submissions")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", submissionIdRef.current)
+        .then(({ error }) => {
+          // Silencioso a propósito: el latido no es la entrega. Un fallo acá
+          // solo arriesga que otro dispositivo reclame el intento, y el
+          // siguiente latido lo recupera. El badge de "no se pudo guardar" lo
+          // gobierna el autosave, que es el que sí tiene respuestas en juego.
+          if (error) console.error("[ExamLab] heartbeat failed:", error);
+        });
     }, 5000);
     return () => clearInterval(id);
-  }, [started, isPaused, saveAnswersNow]);
+  }, [started, isPaused]);
 
   // Proctoring: focus tracking, contextmenu/key blocking, fullscreen enforcement
   useEffect(() => {
