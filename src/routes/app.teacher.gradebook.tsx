@@ -6,6 +6,7 @@ import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/hooks/use-auth";
 import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
+import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { scopedCourseIds } from "@/modules/courses/course-scope";
 import { isStaffRole } from "@/shared/lib/roles";
@@ -501,7 +502,7 @@ function Gradebook() {
       db
         .from("workshop_courses")
         .select(
-          "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status)",
+          "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status, requires_defense)",
         )
         .eq("course_id", courseId),
     );
@@ -1373,7 +1374,11 @@ function Gradebook() {
               !!s.group_id &&
               !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
           ) ?? wsSubs.find((s) => s.workshop_id === w.id && s.user_id === stu.id);
-        const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+        // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota del
+        // TRABAJO. Este número alimenta el consolidado, el CSV y la EMISIÓN DE
+        // CERTIFICADOS (compara contra `passing_grade`), así que el fallback
+        // podía empujar a alguien sobre el corte por un taller sin sustentar.
+        const raw = notaEfectivaDeTaller(sub, (w as any).requires_defense);
         const wMax = w.is_external ? max : (w.max_score ?? 100);
         allItems.push({
           cutId: w.cut_id ?? null,

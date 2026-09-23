@@ -165,16 +165,24 @@ function attendanceFor(
   return { presentes, ausentes, total, porcentaje };
 }
 
-/** Score efectivo de un item (override del docente gana sobre IA). */
-function effectiveScore(sub: {
-  ai_grade?: number | null;
-  final_grade?: number | null;
-  final_override_grade?: number | null;
-} | null): number | null {
+/** Score efectivo de un item (override del docente gana sobre IA).
+ *
+ *  `requiereSustentacion` corta el fallback a `ai_grade`: esa es la nota del
+ *  TRABAJO y, mientras falte sustentar, la final NO existe. Este número va al
+ *  boletín y al acta, o sea a un documento oficial. */
+function effectiveScore(
+  sub: {
+    ai_grade?: number | null;
+    final_grade?: number | null;
+    final_override_grade?: number | null;
+  } | null,
+  requiereSustentacion?: boolean | null,
+): number | null {
   if (!sub) return null;
   // submissions usa final_override_grade, workshop/project usan final_grade
   const explicit = sub.final_override_grade ?? sub.final_grade;
   if (explicit != null) return Number(explicit);
+  if (requiereSustentacion) return null;
   if (sub.ai_grade != null) return Number(sub.ai_grade);
   return null;
 }
@@ -635,6 +643,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     .from("course_teachers")
     .select("user_id")
     .eq("course_id", courseId)
+    // Orden EXPLÍCITO: un `limit(1)` sin `order` deja que Postgres devuelva
+    // cualquiera de los docentes del curso, y puede devolver uno distinto en
+    // cada generación. En un curso con dos docentes eso hace que el Acuerdo
+    // salga a nombre de uno u otro sin que nadie haya cambiado nada. El primero
+    // asignado es el criterio estable y es el que la gente espera.
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
   let docente = { nombre: "—", email: "—" };
@@ -696,7 +710,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         // un curso secundario del boletín → divergía del gradebook/estudiante/
         // acta. Paridad con proyectos (project_courses) de justo abajo.
         .from("workshop_courses")
-        .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at)")
+        .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, requires_defense)")
         .eq("course_id", courseId),
       db
         .from("project_courses")
@@ -910,7 +924,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     status: string | null;
   }>;
   const resolveWorkshopGrade = (
-    w: { id: string; max_score: number; is_external: boolean | null },
+    w: {
+      id: string;
+      max_score: number;
+      is_external: boolean | null;
+      requires_defense?: boolean | null;
+    },
     userId: string,
   ): number | null => {
     const sub = wsSubsAll.find(
@@ -918,7 +937,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         s.workshop_id === w.id &&
         (s.user_id === userId || (!!s.group_id && !!wsGroupsByUser.get(userId)?.has(s.group_id))),
     );
-    const raw = effectiveScore(sub ?? null);
+    const raw = effectiveScore(sub ?? null, w.requires_defense);
     if (raw == null) return null;
     return toScale(raw, w.is_external ? escalaMax : (w.max_score ?? 100));
   };

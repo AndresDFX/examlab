@@ -47,6 +47,7 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
+import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
 import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
@@ -195,7 +196,7 @@ function StudentGrades() {
           // el join (workshop_courses no tiene status). Espejo de flatProjects.
           db
             .from("workshop_courses")
-            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, group_mode)")
+            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, group_mode, requires_defense)")
             .eq("course_id", courseId),
           // Proyectos via project_courses para incluir secundarios y usar
           // cut_id/weight por curso. El filtro de draft se aplica abajo
@@ -403,7 +404,9 @@ function StudentGrades() {
         // tope mostrado es grade_scale_max y el valor el puntaje normalizado.
         for (const w of flatWorkshops as any[]) {
           const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
-          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
+          // Con sustentación pendiente no hay nota todavía: caer a `ai_grade`
+          // le mostraría al estudiante como definitiva la nota del TRABAJO.
+          const raw = notaEfectivaDeTaller(sub, w.requires_defense);
           const internalMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);
           rows.push({
             id: w.id,

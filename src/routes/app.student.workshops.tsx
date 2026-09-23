@@ -85,6 +85,9 @@ type WorkshopRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    /** Si el taller se sustenta: mientras no haya sustentación no hay nota
+     *  final, aunque el trabajo ya esté calificado. */
+    requires_defense?: boolean | null;
     /** Override de intentos del taller. NULL → usa default global. */
     max_attempts?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
@@ -104,6 +107,9 @@ type WorkshopRow = {
     ai_grade: number | null;
     ai_feedback: string | null;
     final_grade: number | null;
+    /** Nota del TRABAJO, antes de la sustentación. Solo se usa cuando el
+     *  taller la pide; si no, vale lo mismo que `final_grade`. */
+    submission_grade?: number | null;
     teacher_feedback: string | null;
     status: string;
     submitted_at: string | null;
@@ -274,7 +280,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, max_attempts, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, requires_defense, max_attempts, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid)
       .neq("workshop.status", "draft")
@@ -335,7 +341,7 @@ function StudentWorkshops() {
         ? supabase
             .from("workshop_submissions")
             .select(
-              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, submission_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
             )
             .in("workshop_id", indivIds)
             .eq("user_id", uid)
@@ -344,7 +350,7 @@ function StudentWorkshops() {
         ? supabase
             .from("workshop_submissions")
             .select(
-              "id, workshop_id, ai_grade, ai_feedback, final_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
+              "id, workshop_id, ai_grade, ai_feedback, final_grade, submission_grade, teacher_feedback, status, submitted_at, group_id, attempt_count",
             )
             .in("group_id", myGroupIds)
         : Promise.resolve({ data: [] as any[] }),
@@ -664,7 +670,15 @@ function StudentWorkshops() {
         {pagination.paginatedItems.map(({ workshop, submission, groupId }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
           const isUpcoming = workshop.start_date && new Date(workshop.start_date).getTime() > now;
-          const grade = submission?.final_grade ?? submission?.ai_grade;
+          // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota
+          // del TRABAJO y mostrarla como nota del taller sería decirle al
+          // estudiante que ya tiene una nota que todavía no tiene. Es el mismo
+          // criterio que en proyectos.
+          const faltaSustentacion =
+            !!workshop.requires_defense && submission != null && submission.final_grade == null;
+          const grade = faltaSustentacion
+            ? null
+            : (submission?.final_grade ?? submission?.ai_grade);
           const isGraded = submission?.status === "calificado";
           const isOpen = workshop.status === "published" && !isOverdue && !isUpcoming;
           // Modo mixto (teacher_assigned): coexisten estudiantes con grupo y sin
@@ -701,7 +715,15 @@ function StudentWorkshops() {
                     <div className="text-xs text-muted-foreground">{workshop.course?.name}</div>
                     <h3 className="font-semibold truncate">{workshop.title}</h3>
                   </div>
-                  {isGraded ? (
+                  {/* Sustentación pendiente: se dice QUÉ falta, no se deja un
+                      «Entregado» genérico. El alumno ya hizo su parte; lo que
+                      falta es del docente, y sin decirlo va a preguntar por qué
+                      su taller no tiene nota. */}
+                  {faltaSustentacion ? (
+                    <Badge variant="secondary" className="shrink-0" title={t("defense.pendingHint")}>
+                      {t("defense.pending")}
+                    </Badge>
+                  ) : isGraded ? (
                     <Badge className="shrink-0">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       {grade != null

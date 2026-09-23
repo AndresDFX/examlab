@@ -704,6 +704,48 @@ La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentac
 - **Docente**: en el dialog de calificación se muestra el link prominente con borde ámbar y advertencia "verificar fechas vs entrega". Cada submission tiene un `<DefensePanel>` con: nota entrega + input factor 0–1 + preview de nota final + notas + botón "Guardar sustentación". Al guardar persiste `defense_factor`/`defense_notes`/`defense_at` y recalcula `final_grade = submission_grade × factor`.
 - **Verificación de fechas vs commits**: el sistema solo persiste el link y la fecha de entrega — la comparación contra fechas de modificación del repo es manual del docente. La verificación automática vía API de GitHub/Drive queda como mejora futura (requiere OAuth y casos edge).
 
+### Talleres: sustentación (opt-in, homologada con proyectos)
+
+Mig [20262380000000](supabase/migrations/20262380000000_taller_sustentacion.sql). Con
+`workshops.requires_defense` encendido, la nota final del taller es
+`submission_grade × defense_factor`, igual que en proyectos, y **no existe** hasta que el docente
+registre la sustentación.
+
+- **Es OPT-IN y eso NO es negociable.** En proyectos la sustentación es obligatoria para todos; en
+  talleres no puede serlo porque `computeWeightedGrade` cuenta un ítem sin nota como **cero con su
+  peso completo**: encenderla para todos habría desplomado la nota de cada estudiante en todos los
+  talleres ya calificados de las 7 instituciones. Con el interruptor apagado el comportamiento es
+  byte-idéntico al anterior.
+- **La fórmula la impone un trigger `BEFORE`** (`tg_workshop_defense_final_grade`), no el cliente.
+  Hay ~10 caminos que escriben `final_grade` de un taller; repartir la regla entre ellos garantiza
+  que alguno quede afuera. Si alguien escribe `final_grade` «a pelo» sin tocar `submission_grade`, el
+  trigger lo interpreta como la nota del TRABAJO en vez de descartarlo.
+- **El interruptor reconcilia en los dos sentidos** (`tg_workshop_requires_defense_changed`):
+  encenderlo deja las entregas en «falta sustentación», apagarlo las restaura. El formulario avisa
+  antes de guardar.
+- **Al agregar una columna de nota a `workshop_submissions`, sumala al candado**
+  (`tg_guard_workshop_submission_grade`): la RLS de esa tabla es por FILA («el dueño de la entrega»),
+  así que una columna de nota fuera de esa lista es un vector de auto-nota por REST — el mismo que
+  cerró la mig `20261034000000`.
+- **El panel es UNO solo** ([DefensePanel](src/modules/grading/DefensePanel.tsx)), compartido por
+  talleres y proyectos. `subida={{ bucket }}` habilita subir el video; **talleres NO lo pasa** porque
+  `workshop-files` tiene lista blanca de tipos sin video y tope de 50 MB, y subir ese tope afectaría
+  también a lo que suben los estudiantes y al cupo de la institución. En talleres el video va por
+  enlace (la grabación de la videollamada).
+- **La nota de un taller NO se lee con `final_grade ?? ai_grade`**: va por
+  [`notaEfectivaDeTaller`](src/modules/grading/nota-efectiva.ts). Con sustentación pendiente el estado
+  NORMAL es `final_grade` NULL y `ai_grade` con la nota del TRABAJO, así que ese fallback la da por
+  final — y ese número decide la **emisión de certificados** (compara contra `passing_grade`). Estaba
+  escrito a mano en CUATRO lugares (gradebook, notas del estudiante, `statistics.ts` → Alerta
+  temprana, `report-context.ts` → boletín y acta) y por eso se había omitido en los cuatro a la vez.
+  Al agregar una lectura nueva de la nota de un taller, usar el helper.
+- **Tres gaps conocidos, todos de PROYECTOS y todos previos**: `course_pending_grading_count` exige
+  `ai_grade IS NULL` (una sustentación pendiente no cuenta como pendiente de calificación, y el curso
+  se puede finalizar); el `final_grade ?? ai_grade` sigue vivo para proyectos en esos cuatro
+  consumidores; y las pantallas del ESTUDIANTE para proyectos nunca muestran «Falta sustentación».
+  No se tocaron porque en proyectos la sustentación es obligatoria para todos: arreglarlos cambiaría
+  la nota consolidada de cursos que HOY están cerrados en producción. Es decisión de producto.
+
 ### Proyectos: entrega de código completo en ZIP (`type='codigo_zip'`)
 
 Slot adicional en `project_files` para que el estudiante suba un ZIP con todo su código fuente. Diagramas y documentos siguen entregándose en preguntas separadas (tipo `abierta`/`diagrama`/etc).

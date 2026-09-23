@@ -33,6 +33,9 @@ export type SubmissionLike = {
   cut_id: string | null;
   max_score: number;
   is_external: boolean;
+  /** Solo talleres: si el ítem se sustenta. Sin sustentación registrada no hay
+   *  nota, y por eso NO se puede caer a `ai_grade` (ver `effectiveGrade`). */
+  requires_defense?: boolean;
 };
 
 export type AttendanceSession = {
@@ -96,6 +99,8 @@ export type SharedActivityRow = {
   max_score: number;
   is_external: boolean;
   status: string | null;
+  /** Solo talleres: si el ítem se sustenta (`workshops.requires_defense`). */
+  requires_defense?: boolean;
 };
 
 /**
@@ -135,6 +140,9 @@ export function flattenSharedActivities(
       max_score: item.max_score,
       is_external: item.is_external,
       status: item.status ?? null,
+      // Solo los talleres la traen; en proyectos queda `undefined`, que
+      // `notaEfectivaDeTaller` y `effectiveGrade` tratan como «no sustenta».
+      requires_defense: !!item.requires_defense,
     });
   }
   return out;
@@ -192,7 +200,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     (supabase as any)
       .from("workshop_courses")
       .select(
-        "cut_id, weight, workshop:workshops(id, cut_id, max_score, is_external, status, deleted_at)",
+        "cut_id, weight, workshop:workshops(id, cut_id, max_score, is_external, status, deleted_at, requires_defense)",
       )
       .eq("course_id", courseId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -325,6 +333,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       ref_id: String(s.workshop_id),
       course_id: parent?.course_id ?? courseId,
       cut_id: parent?.cut_id ?? null,
+      requires_defense: !!(parent as { requires_defense?: boolean } | undefined)?.requires_defense,
       // Actividad EXTERNA: su nota se registra en la ESCALA DEL CURSO (0..grade_scale_max),
       // no sobre max_score (ver ExternalGradesEditor). Fijar max_score = grade_scale_max hace
       // que el reescalado (g/max)*courseMax sea identidad — igual que exámenes. Sin esto, una
@@ -375,9 +384,14 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
 // ─── Cálculos ─────────────────────────────────────────────────────────
 
 /** Nota efectiva de una submission, en escala del item (0..max_score).
- *  Prioriza override del docente (final_grade) sobre IA. */
+ *  Prioriza override del docente (final_grade) sobre IA.
+ *
+ *  Con `requires_defense` NO se cae a `ai_grade`: esa es la nota del TRABAJO y
+ *  la final todavía no existe. Alimenta la Alerta temprana, así que el fallback
+ *  daba por aprobado un taller que nadie sustentó. */
 export function effectiveGrade(s: SubmissionLike): number | null {
   if (s.final_grade != null) return Number(s.final_grade);
+  if (s.requires_defense) return null;
   if (s.ai_grade != null) return Number(s.ai_grade);
   return null;
 }

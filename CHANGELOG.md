@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **78 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262370000000_checkin_publico_marca_la_sesion_de_hoy`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **79 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262380000000_taller_sustentacion`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,83 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🎓 Los talleres también se sustentan
+
+- Pedido: «revisá si los talleres tienen lo de sustentación que tienen los proyectos; si no, homologalo».
+  No lo tenían. En proyectos la nota final es `nota de la entrega × factor de sustentación` desde hace
+  meses; en talleres la nota de las respuestas ERA la final, aunque un taller de exposición se
+  califica exactamente igual.
+- **La diferencia que NO se podía copiar: acá es OPT-IN** (`workshops.requires_defense`, apagado por
+  defecto). En proyectos la sustentación es obligatoria para todos; hacer lo mismo en talleres habría
+  sido catastrófico, y no por gusto: `computeWeightedGrade` cuenta un ítem sin nota como **cero con su
+  peso completo**, así que el día del despliegue todos los talleres ya calificados de todas las
+  instituciones pasarían a «falta sustentación» y la nota de cada estudiante se desplomaría sin que
+  nadie hubiera tocado nada. Con el interruptor apagado el comportamiento es idéntico al de hoy.
+- **La fórmula vive en el servidor, no en las diez pantallas que escriben la nota.** `final_grade` de
+  un taller se escribe desde ~diez lugares del cliente (a mano, con IA, el lote, el re-grade,
+  reabrir…). Repartir la regla por todos ellos garantiza que alguno quede afuera y produzca una fila
+  con el interruptor encendido y una nota final que no sale de ninguna sustentación. La impone un
+  trigger `BEFORE` sobre la tabla: con sustentación activa `final_grade` es SIEMPRE
+  `submission_grade × factor`, lo escriba quien lo escriba.
+- **Y el interruptor reconcilia en los dos sentidos**: encenderlo sobre un taller ya calificado deja
+  sus entregas en «falta sustentación»; **apagarlo las restaura**. Sin eso la acción no era
+  reversible, y el diálogo se lo dice al docente antes de guardar.
+- **Lo que NO se hizo: rellenar `defense_factor = 1` en lo viejo.** La migración de proyectos sí lo
+  hizo y estuvo bien —allá la sustentación pasaba a ser obligatoria de golpe—. Acá el interruptor
+  apagado ya protege lo existente, así que marcar cada entrega histórica como «sustentada al 100 %»
+  sería escribir en la base un hecho que no ocurrió, y el docente que encienda el interruptor vería
+  que no pasa nada y lo leería como que está roto.
+- **El panel de sustentación ahora es UNO solo** ([DefensePanel](src/modules/grading/DefensePanel.tsx)):
+  se sacó de `app.teacher.projects.tsx` y lo usan los dos flujos. Si cada pantalla tuviera el suyo, la
+  misma sustentación podría redondear distinto según desde dónde se registró.
+- **En talleres el video va por ENLACE, no subido**, y es una decisión, no un olvido: el bucket
+  `workshop-files` tiene lista blanca de tipos —sin video— y tope de 50 MB, y subirle el tope afectaría
+  también a lo que suben los ESTUDIANTES y al cupo de almacenamiento de la institución, para resolver
+  algo que la grabación de la videollamada ya cubre con un enlace. El panel acepta el modo con subida
+  y proyectos lo sigue usando.
+- **El estudiante ve «Falta sustentación», no la nota del trabajo.** El listado caía a `ai_grade`
+  cuando no había nota final: eso habría mostrado la nota del TRABAJO como si fuera la del taller.
+- **Y aparece en el Diagnóstico del curso** con el estado `sin_sustentacion` que ya existía para
+  proyectos — con el cuidado de mirar `requires_defense`: sin eso, una fila vieja con `ai_grade` y sin
+  `final_grade` (las hay en el histórico) quedaría marcada para siempre en un taller que no sustenta.
+- **Verificado contra PostgreSQL real** (PGlite, 20 comprobaciones), empezando por la que más importa:
+  con el interruptor apagado nada cambia. También que el alumno **no** puede escribir su propio
+  `defense_factor` por REST —la RLS de esa tabla es por FILA, así que columnas de nota nuevas sin sumar
+  al candado reabren el vector de auto-nota que cerró la mig `20261034000000`—, que el factor fuera de
+  0..1 lo rechaza la base y no solo la pantalla, y que la IA cierra la nota del trabajo pero no la
+  final.
+- **La revisión de consistencia encontró tres cosas serias, y las tres están arregladas.** Vale
+  escribirlas porque ninguna se veía desde la pantalla nueva:
+  1. **El gate se evaporaba río abajo.** Cuatro lugares leen la nota de un taller como
+     `final_grade ?? ai_grade` —gradebook, notas del estudiante, `statistics.ts` (que alimenta la
+     Alerta temprana) y `report-context.ts` (boletín y acta)—. Con sustentación pendiente el estado
+     NORMAL es `final_grade` NULL y `ai_grade` con la nota del TRABAJO, así que el fallback la daba
+     por final. Y no se quedaba en la pantalla: ese número decide la **emisión de certificados**
+     (compara contra `passing_grade`), o sea que un taller sin sustentar podía empujar a alguien
+     sobre el corte. Ahora la decisión vive en UN helper ([nota-efectiva.ts](src/modules/grading/nota-efectiva.ts),
+     con tests) en vez de escrita a mano en cada sitio — que es exactamente por qué se había omitido
+     en cuatro a la vez.
+  2. **El botón «Guardar calificación» borraba la nota del trabajo.** Manda `final_grade ?? 0`, y con
+     sustentación pendiente eso es un **cero**; el trigger tenía un heurístico que reinterpretaba un
+     `final_grade` suelto como nota del trabajo, así que un clic dejaba una entrega de 85 en 0 —sin
+     error, sin aviso y sin verse hasta reabrir el diálogo—. Se quitó el heurístico (ahora una
+     escritura ingenua se descarta, que falla del lado seguro y SE VE) y el botón no se renderiza
+     cuando el taller se sustenta, porque ahí la nota la persiste el panel.
+  3. **Reabrir una entrega no borraba la sustentación**, así que la reentrega heredaba el factor de la
+     anterior: la IA recalculaba la nota del trabajo y el trigger la multiplicaba por un factor que el
+     docente nunca aprobó para ESA entrega. Proyectos ya lo hacía bien; se copió.
+- **Y dos menores**: `clone_workshop` no copiaba `requires_defense` (la copia de un taller que se
+  sustenta nacía sin sustentar, en silencio), y quedaron 20 claves i18n huérfanas al extraer el panel
+  — borradas.
+- **Tres gaps conocidos, los tres PREVIOS a este cambio y los tres de PROYECTOS**, anotados para que
+  no se pierdan: (a) `course_pending_grading_count` no cuenta una sustentación pendiente (exige
+  `ai_grade IS NULL`), así que un curso se puede finalizar con sustentaciones sin registrar; (b) el
+  mismo `final_grade ?? ai_grade` del punto 1 sigue vivo para proyectos en los cuatro consumidores;
+  (c) las pantallas del ESTUDIANTE para proyectos **nunca** muestran «Falta sustentación» —la nueva
+  implementación de talleres es, de hecho, más correcta que el modelo del que copia—. Ninguno se tocó
+  acá: en proyectos la sustentación es obligatoria para todos, así que arreglarlos cambiaría la nota
+  consolidada de cursos que HOY están cerrados en producción. Es decisión de producto.
 
 ### 🙋 El enlace de asistencia dice qué clases cubre, antes de marcar
 

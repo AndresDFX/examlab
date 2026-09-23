@@ -46,6 +46,8 @@ type WorkshopLoaded = {
   max_score: number;
   status: string;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+  /** Si el taller se sustenta: sin sustentación no hay nota final. */
+  requires_defense?: boolean | null;
   course: { name: string; grade_scale_min: number; grade_scale_max: number };
 };
 
@@ -151,7 +153,7 @@ function StudentWorkshopDetail() {
         const { data: ws, error: wsErr } = await dbAny
           .from("workshops")
           .select(
-            "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, course:courses(name, grade_scale_min, grade_scale_max)",
+            "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, requires_defense, course:courses(name, grade_scale_min, grade_scale_max)",
           )
           .eq("id", workshopId)
           .is("deleted_at", null)
@@ -316,7 +318,12 @@ function StudentWorkshopDetail() {
     );
   }
 
-  const gradeShow = submission?.final_grade ?? submission?.ai_grade;
+  // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota del
+  // TRABAJO, y mostrarla acá sería darle al estudiante una nota que todavía no
+  // tiene. Se dice qué falta, que es lo que él necesita saber.
+  const faltaSustentacion =
+    !!workshop.requires_defense && submission != null && submission.final_grade == null;
+  const gradeShow = faltaSustentacion ? null : (submission?.final_grade ?? submission?.ai_grade);
 
   // Helper: extract the actual answer string for a question.
   const renderAnswer = (q: WorkshopQuestion, ans: AnswerRow | undefined) => {
@@ -544,7 +551,14 @@ function StudentWorkshopDetail() {
                 <div className="text-2xl font-semibold tabular-nums">
                   {gradeShow != null ? `${gradeShow} / ${workshop.max_score}` : "—"}
                 </div>
-                <StatusBadge status={submission.status} className="mt-1" />
+                {faltaSustentacion ? (
+                  <p className="mt-1 max-w-[16rem] text-2xs leading-tight text-muted-foreground">
+                    <span className="font-medium">{t("defense.pending")}</span>{" "}
+                    {t("defense.pendingHint")}
+                  </p>
+                ) : (
+                  <StatusBadge status={submission.status} className="mt-1" />
+                )}
               </div>
             </CardContent>
           </Card>

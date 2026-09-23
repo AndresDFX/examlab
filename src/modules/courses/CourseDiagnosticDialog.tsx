@@ -205,7 +205,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           .is("parent_exam_id", null),
         db
           .from("workshop_courses")
-          .select("weight, cut_id, workshop:workshops(id, title, deleted_at, weight)")
+          .select("weight, cut_id, workshop:workshops(id, title, deleted_at, weight, requires_defense)")
           .eq("course_id", courseId),
         db
           .from("project_courses")
@@ -228,7 +228,13 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       const workshopItems: DiagItem[] = ((wcRows ?? []) as Array<{
         weight: number | null;
         cut_id: string | null;
-        workshop: { id: string; title: string; deleted_at: string | null; weight: number | null } | null;
+        workshop: {
+          id: string;
+          title: string;
+          deleted_at: string | null;
+          weight: number | null;
+          requires_defense?: boolean | null;
+        } | null;
       }>)
         .filter((r) => r.workshop && !r.workshop.deleted_at)
         .map((r) => {
@@ -274,6 +280,14 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       // 3) Submissions de cada tipo.
       const examIds = examItems.map((e) => e.id);
       const workshopIds = workshopItems.map((w) => w.id);
+      // Qué talleres SE SUSTENTAN. Sin este set, una fila vieja con `ai_grade`
+      // y sin `final_grade` —que existe en el histórico— se marcaría «sin
+      // sustentación» para siempre en un taller que no sustenta nada.
+      const talleresConSustentacion = new Set(
+        ((wcRows ?? []) as Array<{ workshop: { id: string; requires_defense?: boolean | null } | null }>)
+          .filter((r) => r.workshop?.requires_defense)
+          .map((r) => r.workshop!.id),
+      );
       const projectIds = projectItems.map((p) => p.id);
 
       const [examSubsRes, wsSubsRes, prjSubsRes] = await Promise.all([
@@ -286,7 +300,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         workshopIds.length
           ? db
               .from("workshop_submissions")
-              .select("id, workshop_id, user_id, ai_grade, final_grade, status")
+              .select("id, workshop_id, user_id, ai_grade, final_grade, status, submission_grade, defense_at")
               .in("workshop_id", workshopIds)
           : Promise.resolve({ data: [] }),
         projectIds.length
@@ -333,8 +347,18 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
         ai_grade: number | null;
         final_grade: number | null;
         status: string;
+        submission_grade: number | null;
+        defense_at: string | null;
       }>) {
         const hasGrade = s.final_grade != null || s.ai_grade != null;
+        // Mismo criterio que en proyectos: el trabajo ya tiene nota pero la
+        // FINAL no cierra porque falta registrar la sustentación. Es acción del
+        // docente, no de la IA, y por eso gana a «calificado» en el diagnóstico.
+        const defensePending =
+          talleresConSustentacion.has(s.workshop_id) &&
+          (s.submission_grade != null || s.ai_grade != null) &&
+          s.final_grade == null &&
+          s.defense_at == null;
         subs.push({
           user_id: s.user_id,
           item_id: s.workshop_id,
@@ -342,6 +366,7 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           status: s.status,
           has_final_grade: hasGrade,
           submission_id: s.id,
+          defense_pending: defensePending,
         });
         submissionIdToRef.set(s.id, {
           ref: `${s.user_id}::workshop::${s.workshop_id}`,

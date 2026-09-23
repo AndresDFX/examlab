@@ -73,6 +73,7 @@ import {
 } from "@/modules/grading/deterministic-scoring";
 import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
+import { DefensePanel } from "@/modules/grading/DefensePanel";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
 import i18n from "@/i18n";
@@ -248,6 +249,10 @@ type Workshop = {
   status: string;
   is_external?: boolean | null;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+  /** Si el taller se SUSTENTA. Apagado por defecto: encenderlo hace que la
+   *  nota final sea `nota de la entrega × factor`, y que no haya nota final
+   *  hasta que el docente registre la sustentación. */
+  requires_defense?: boolean | null;
   /** Intentos máximos para este taller. NULL → usa el default global
    *  (app_settings.default_workshop_max_attempts). */
   max_attempts?: number | null;
@@ -277,6 +282,13 @@ type WsSub = {
   teacher_feedback: string | null;
   status: string;
   submitted_at: string | null;
+  /** Sustentación (solo con `workshops.requires_defense`). La nota final es
+   *  `submission_grade × defense_factor`; sin factor no hay nota final. */
+  submission_grade?: number | null;
+  defense_factor?: number | null;
+  defense_notes?: string | null;
+  defense_at?: string | null;
+  defense_video_url?: string | null;
   /** Señales de IA a nivel submission (fallback cuando la entrega es
    *  monolítica sin preguntas; para preguntas usamos ai_likelihood de
    *  workshop_submission_answers). */
@@ -1250,6 +1262,8 @@ function TeacherWorkshops() {
       cut_id: isMultiCourse ? null : form.cut_id || null,
       is_external: isExternal,
       group_mode: groupMode,
+      // Un taller EXTERNO solo registra notas: no hay entrega que sustentar.
+      requires_defense: isExternal ? false : Boolean((form as any).requires_defense),
     };
     if (!isMultiCourse && form.cut_id && (form as any).weight != null) {
       // Single course (create or edit): validate against the pre-computed cap.
@@ -3327,6 +3341,15 @@ function TeacherWorkshops() {
         ai_grade: null,
         ai_feedback: null,
         submitted_at: null,
+        // La sustentación también se borra, igual que en proyectos
+        // (`app.teacher.projects.tsx`). Si no, la reentrega hereda el factor
+        // de la entrega ANTERIOR: la IA recalcula la nota del trabajo, el
+        // trigger la multiplica por ese factor viejo y el taller queda con nota
+        // final sin que el docente haya sustentado esta entrega.
+        submission_grade: null,
+        defense_factor: null,
+        defense_notes: null,
+        defense_at: null,
       })
       .eq("id", sub.id);
     if (error) {
@@ -3402,6 +3425,97 @@ function TeacherWorkshops() {
         link: "/app/student/workshops",
       })),
     );
+  };
+
+  /**
+   * Persiste la SUSTENTACIÓN de una entrega: factor 0..1 + notas + video.
+   *
+   * La nota final la recalcula el servidor (`trg_workshop_defense_final_grade`,
+   * mig 20262380000000), así que acá NO se manda `final_grade`: mandarlo desde
+   * el cliente abriría la puerta a que una pantalla redondee distinto que otra
+   * para la misma sustentación. Lo que sí se manda es el `submission_grade`
+   * cuando el docente lo corrigió a mano, porque eso es un dato, no un cálculo.
+   */
+  const saveDefense = async (
+    subId: string,
+    factor: number | null,
+    notes: string,
+    videoUrl?: string | null,
+    subGradeOverride?: number | null,
+  ) => {
+    const sub = wsSubs.find((x) => x.id === subId);
+    if (!sub) return;
+    const videoVal = (videoUrl ?? "").trim() || null;
+    const notaDelTrabajo =
+      subGradeOverride != null && !Number.isNaN(subGradeOverride)
+        ? subGradeOverride
+        : (sub.submission_grade ?? sub.ai_grade ?? sub.final_grade);
+    if (notaDelTrabajo == null) {
+      toast.error(t("teacherWorkshops.defenseNeedsSubmissionGrade"));
+      return;
+    }
+    const validFactor =
+      factor != null && !Number.isNaN(factor) ? Math.max(0, Math.min(1, factor)) : null;
+    const payload: Record<string, unknown> = {
+      defense_factor: validFactor,
+      defense_notes: notes || null,
+      defense_at: validFactor != null ? new Date().toISOString() : null,
+      defense_video_url: videoVal,
+      submission_grade: notaDelTrabajo,
+      status: validFactor != null ? "calificado" : "entregado",
+    };
+    // `as any`: `src/integrations/supabase/types.ts` está generado y todavía no
+    // conoce las columnas de sustentación (tampoco conoce otras de migraciones
+    // recientes, ej. `whiteboard_pages.diagram_source`). Es el mismo cast que ya
+    // usa el resto de este archivo para columnas nuevas.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const dbAny = supabase as any;
+    const { data, error } = await dbAny
+      .from("workshop_submissions")
+      .update(payload)
+      .eq("id", subId)
+      // Se relee la fila para tomar la `final_grade` que calculó el TRIGGER.
+      // Sin esto la pantalla mostraría la nota vieja hasta recargar.
+      .select("final_grade, submission_grade, defense_factor, defense_at")
+      .maybeSingle();
+    if (error) {
+      toast.error(friendlyError(error));
+      return;
+    }
+    setWsSubs((prev) =>
+      prev.map((x) =>
+        x.id === subId
+          ? {
+              ...x,
+              defense_factor: validFactor,
+              defense_notes: notes || null,
+              defense_at: (data?.defense_at as string | null) ?? null,
+              defense_video_url: videoVal,
+              submission_grade: (data?.submission_grade as number | null) ?? notaDelTrabajo,
+              final_grade: (data?.final_grade as number | null) ?? null,
+              status: validFactor != null ? "calificado" : "entregado",
+            }
+          : x,
+      ),
+    );
+    toast.success(t("workshop.gradeSaved"));
+    void logEvent({
+      action: "grading.defense_save",
+      category: "grading",
+      actorRole: roles[0],
+      entityType: "workshop_submission",
+      entityId: subId,
+      entityName: gradingWs?.title,
+      courseId: gradingWs?.course_id,
+      courseName: courses.find((c) => c.id === gradingWs?.course_id)?.name,
+      metadata: { factor: validFactor, submission_grade: notaDelTrabajo },
+    });
+    // Con la sustentación guardada ya hay nota final: se avisa al estudiante
+    // igual que al calificar a mano.
+    if (validFactor != null && data?.final_grade != null) {
+      void notifyWorkshopGraded(subId, Number(data.final_grade));
+    }
+    setViewingSubId(null);
   };
 
   const saveGrade = async (subId: string, grade: number) => {
@@ -4395,6 +4509,34 @@ function TeacherWorkshops() {
                       {t("teacherWorkshops.groupModeHint")}
                     </p>
                   </div>
+                  {/* Sustentación. Apagado por defecto a propósito: encenderlo
+                      hace que la nota final sea `entrega × factor`, o sea que
+                      TODAS las entregas ya calificadas de este taller pasan a
+                      «falta sustentación» hasta que el docente las registre.
+                      El aviso de abajo dice eso y dice que se puede volver
+                      atrás, porque apagarlo restaura las notas. */}
+                  <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+                    <div className="space-y-0.5">
+                      <Label htmlFor="ws-requires-defense" className="text-sm">
+                        {t("teacherWorkshops.fieldRequiresDefense")}
+                      </Label>
+                      <p className="text-2xs text-muted-foreground leading-tight">
+                        {t("teacherWorkshops.fieldRequiresDefenseDesc")}
+                      </p>
+                    </div>
+                    <Switch
+                      id="ws-requires-defense"
+                      checked={!!(form as any).requires_defense}
+                      onCheckedChange={(v) =>
+                        setForm({ ...form, requires_defense: v } as any)
+                      }
+                    />
+                  </div>
+                  {(form as any).requires_defense && (form as any).id && (
+                    <p className="rounded-md border border-warning/40 bg-warning/5 px-2.5 py-2 text-2xs leading-tight text-warning-on-subtle">
+                      {t("teacherWorkshops.requiresDefenseWarning")}
+                    </p>
+                  )}
                   <div>
                     <Label className="flex items-center gap-1.5">
                       {t("teacherWorkshops.fieldMaxAttempts")}
@@ -4981,10 +5123,20 @@ function TeacherWorkshops() {
                           copyPairsForUser,
                         );
                         const hasPendingAlerts = integrity.totalPending > 0;
+                        // Con sustentación activa, «sin nota final» no es lo
+                        // mismo que «sin calificar»: el trabajo ya tiene nota y
+                        // lo que falta es la sustentación. Decirlo evita que el
+                        // docente crea que perdió la calificación.
+                        const faltaSustentacion =
+                          !!gradingWs?.requires_defense &&
+                          sub.final_grade == null &&
+                          (sub.submission_grade ?? sub.ai_grade) != null;
                         const grade =
                           sub.final_grade != null
                             ? `${sub.final_grade}/${gradingWs?.max_score ?? 100}`
-                            : "—";
+                            : faltaSustentacion
+                              ? t("teacherWorkshops.defenseMissing")
+                              : "—";
                         return (
                           <TableRow
                             key={sub.id}
@@ -5988,7 +6140,27 @@ function TeacherWorkshops() {
                         El botón "Guardar calificación" persiste la
                         `final_grade` recalculada; "Calificar con IA"
                         dispara la evaluación por preguntas. */}
+                        {/* Sustentación. Solo cuando el taller la pide: en
+                            los demás, la nota de las respuestas ES la final y
+                            un panel de factor no significaría nada. En talleres
+                            el video va por ENLACE (el bucket `workshop-files`
+                            no acepta video y topa en 50 MB) — ver el
+                            encabezado de `DefensePanel`. */}
+                        {gradingWs?.requires_defense && (
+                          <DefensePanel
+                            sub={sub}
+                            maxScore={gradingWs?.max_score ?? 100}
+                            onSave={saveDefense}
+                          />
+                        )}
+
                         <div className="flex flex-wrap gap-2">
+                          {/* Con sustentación activa este botón NO va: la nota
+                              del trabajo se persiste desde el panel de arriba, y
+                              acá el fallback `?? 0` mandaba un CERO justamente en
+                              el estado normal post-IA (donde `final_grade` es
+                              NULL porque falta sustentar). */}
+                          {!gradingWs?.requires_defense && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -6002,6 +6174,7 @@ function TeacherWorkshops() {
                             )}
                             {t("hc_routesAppTeacherWorkshops.saveGrade")}
                           </Button>
+                          )}
                           <Button
                             size="sm"
                             variant="outline"
