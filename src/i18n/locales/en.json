@@ -4411,7 +4411,7 @@
     "weightNoCut": "Assign an evaluation cut above first to configure the weight.",
     "fieldDescription": "Description",
     "fieldInstructions": "Instructions",
-    "fieldExternalLink": "External link (optional)",
+    "fieldExternalLink": "Activity document (link, optional)",
     "fieldVideos": "Mandatory intro videos (optional)",
     "fieldVideosEmpty": "No videos. Click \"+ Add video\" to start.",
     "videoMoveUp": "Move up",
@@ -4490,7 +4490,9 @@
     "sectionHowTitle": "How it is submitted",
     "sectionHowHint": "Work mode, attempts, videos and external link. Already preset.",
     "actionShareLink": "Copy link for students",
-    "shareLinkCopied": "Link copied. Whoever opens it must sign in and be enrolled; otherwise they won't see the workshop."
+    "shareLinkCopied": "Link copied. Whoever opens it must sign in and be enrolled; otherwise they won't see the workshop.",
+    "fieldExternalLinkHelp": "Students see it as a download button. It must be a PUBLIC link: if it's on Drive, set it to “anyone with the link”, or they'll be asked for permission.",
+    "openActivityDoc": "Download the document"
   },
   "adminUsers": {
     "needsRole": "You need the Admin role.",

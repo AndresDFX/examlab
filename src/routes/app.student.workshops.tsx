@@ -35,7 +35,7 @@ import {
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   Clock,
-  ExternalLink,
+  Download,
   CheckCircle2,
   AlertTriangle,
   MessageSquare,
@@ -757,14 +757,27 @@ function StudentWorkshops() {
                 </div>
 
                 {workshop.external_link && (
-                  <a
-                    href={workshop.external_link}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-primary flex items-center gap-1 hover:underline"
+                  /* El documento de la actividad. Va como BOTÓN y no como un
+                     enlace de texto: es lo primero que el estudiante tiene que
+                     abrir, y antes decía «Talleres» —una clave del dashboard
+                     reusada por error— que no anunciaba nada.
+
+                     `variant="outline"` con el color de la marca y no un primario:
+                     el primario de esta pantalla es entregar, y dos botones
+                     llenos compiten por la misma mirada. El color sale de
+                     `--primary`, que es la CSS var que pinta el tema de la
+                     institución, así que se marca solo. */
+                  <Button
+                    asChild
+                    variant="outline"
+                    size="sm"
+                    className="border-primary/40 text-primary hover:text-primary"
                   >
-                    <ExternalLink className="h-3 w-3" /> {t("dashboard.cards.workshopsStudent")}
-                  </a>
+                    <a href={workshop.external_link} target="_blank" rel="noopener noreferrer">
+                      <Download className="h-3.5 w-3.5 mr-1.5" />
+                      {t("teacherWorkshops.openActivityDoc")}
+                    </a>
+                  </Button>
                 )}
 
                 {/* Banner pendiente: cuando la submission ya está

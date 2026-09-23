@@ -117,6 +117,20 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   día ANTERIOR — hay un helper (`formatDateOnlyShort`) y un test que falla si alguien la formatea
   crudo. Revisado a 390 px, sin desbordes.
 
+### 📄 El documento de la actividad, como botón de descarga
+
+- Un taller puede llevar el enunciado en un documento aparte (`external_link`). El estudiante lo veía
+  como un enlace de texto chiquito rotulado **«Talleres»** — una clave del dashboard reusada por error
+  que no anunciaba absolutamente nada. Ahora es un **botón «Descargar el documento»** con el ícono de
+  descarga y el color de la institución.
+- **`variant="outline"` y no un primario**: el primario de esa pantalla es entregar, y dos botones
+  llenos compiten por la misma mirada. El color sale de `--primary`, la CSS var que pinta el tema del
+  tenant, así que cada institución lo ve con su marca sin configurar nada.
+- Del lado del docente el campo dejó de llamarse «Link externo» —que no decía para qué es— y pasó a
+  «Documento de la actividad», con una ayuda que avisa lo único que rompe el flujo en la práctica: el
+  enlace tiene que ser **público**. Un Drive privado se ve perfecto al crearlo y le pide permiso a
+  cada estudiante. El campo sigue estando **solo en las pantallas del docente**.
+
 ### ⚡ Menos escritura sobre la base durante un examen
 
 Las dos fuentes que la degradaron el 22-09, atacadas por separado.

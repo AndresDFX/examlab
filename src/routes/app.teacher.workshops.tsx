@@ -4416,7 +4416,10 @@ function TeacherWorkshops() {
                     />
                   </div>
                   <div>
-                    <Label>{t("teacherWorkshops.fieldExternalLink")}</Label>
+                    <Label>
+                      {t("teacherWorkshops.fieldExternalLink")}{" "}
+                      <HelpHint>{t("teacherWorkshops.fieldExternalLinkHelp")}</HelpHint>
+                    </Label>
                     <Input
                       placeholder="https://..."
                       value={form.external_link ?? ""}

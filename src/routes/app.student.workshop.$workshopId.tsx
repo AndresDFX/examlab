@@ -19,7 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BackButton } from "@/components/ui/back-button";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, MessageSquareText } from "lucide-react";
+import { Download, MessageSquareText } from "lucide-react";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { SectionLoader } from "@/components/ui/loaders";
@@ -512,14 +512,15 @@ function StudentWorkshopDetail() {
       )}
 
       {workshop.external_link && (
-        <a
-          href={workshop.external_link}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
-        >
-          <ExternalLink className="h-4 w-4" /> {t("dashboard.cards.workshopsStudent")}
-        </a>
+        /* Ver el comentario del mismo bloque en la lista de talleres: botón y no
+           enlace de texto, con el color de la institución, y sin robarle el
+           primario a «Entregar». */
+        <Button asChild variant="outline" size="sm" className="border-primary/40 text-primary hover:text-primary">
+          <a href={workshop.external_link} target="_blank" rel="noopener noreferrer">
+            <Download className="h-4 w-4 mr-1.5" />
+            {t("teacherWorkshops.openActivityDoc")}
+          </a>
+        </Button>
       )}
 
       {submission && (

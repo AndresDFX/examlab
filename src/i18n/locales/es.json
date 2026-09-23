@@ -4411,7 +4411,7 @@
     "weightNoCut": "Asigna primero un corte de evaluación arriba para poder configurar el peso.",
     "fieldDescription": "Descripción",
     "fieldInstructions": "Instrucciones",
-    "fieldExternalLink": "Link externo (opcional)",
+    "fieldExternalLink": "Documento de la actividad (enlace, opcional)",
     "fieldVideos": "Videos introductorios obligatorios (opcional)",
     "fieldVideosEmpty": "Sin videos. Click en \"+ Agregar video\" para empezar.",
     "videoMoveUp": "Mover arriba",
@@ -4490,7 +4490,9 @@
     "sectionHowTitle": "Cómo se entrega",
     "sectionHowHint": "Modo de trabajo, intentos, videos y link externo. Ya vienen configurados.",
     "actionShareLink": "Copiar enlace para estudiantes",
-    "shareLinkCopied": "Enlace copiado. Quien lo abra tiene que iniciar sesión y estar matriculado; si no, no ve el taller."
+    "shareLinkCopied": "Enlace copiado. Quien lo abra tiene que iniciar sesión y estar matriculado; si no, no ve el taller.",
+    "fieldExternalLinkHelp": "El estudiante lo ve como un botón de descarga. Tiene que ser un enlace PÚBLICO: si es de Drive, poné «cualquiera con el enlace», o al abrirlo les va a pedir permiso.",
+    "openActivityDoc": "Descargar el documento"
   },
   "adminUsers": {
     "needsRole": "Necesitas rol Admin.",
