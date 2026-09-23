@@ -51,6 +51,45 @@ export function restoreQuestionIndex(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Latido del bloqueo de sesión
+// ─────────────────────────────────────────────────────────────────────────────
+
+/** Ventana del bloqueo: si `submissions.updated_at` tiene MENOS de esto, se
+ *  considera que otro dispositivo sigue vivo en el intento y no se le puede
+ *  robar. Está replicada en la pantalla de toma, que es quien la compara. */
+export const MS_BLOQUEO_SESION = 10_000;
+
+/** Cada cuánto late la pantalla de examen para refrescar `updated_at`. */
+export const MS_ENTRE_LATIDOS = 5_000;
+
+/** Si el autoguardado escribió hace menos de esto, el latido se SALTA. */
+export const MS_GUARDADO_RECIENTE = 3_000;
+
+/**
+ * ¿El latido de este tick es redundante?
+ *
+ * ── Qué ahorra ────────────────────────────────────────────────────────
+ * El autoguardado y el latido escriben la MISMA fila, y el autoguardado ya
+ * refresca `updated_at` — que es lo único que el bloqueo mira. O sea que un
+ * alumno que está respondiendo pagaba las dos escrituras, y la del latido no
+ * aportaba nada. Con 32 exámenes a la vez eran 384 escrituras por minuto solo
+ * de latido, sobre la tabla más pesada y la misma que barre el cron de cierre.
+ * El latido existe para el alumno QUIETO (leyendo, pensando), que es cuando el
+ * autoguardado no dispara.
+ *
+ * ── El margen, que es lo que hay que no romper ────────────────────────
+ * Saltarse un tick retrasa el refresco como máximo `MS_GUARDADO_RECIENTE +
+ * MS_ENTRE_LATIDOS`: el peor caso es que el guardado ocurra justo antes de un
+ * tick (se salta) y no haya más actividad, así que el siguiente tick escribe un
+ * ciclo después. Ese total tiene que quedar POR DEBAJO de `MS_BLOQUEO_SESION`,
+ * o el intento se declararía abandonado y otro dispositivo podría reclamarlo —
+ * al propio alumno, en mitad del examen. Hay un test que lo vigila.
+ */
+export function latidoEsRedundante(msDesdeUltimoGuardado: number): boolean {
+  return msDesdeUltimoGuardado < MS_GUARDADO_RECIENTE;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Borrado de advertencias (usado por el monitor docente). Cuando se borra una
 // advertencia y el conteo cae bajo el umbral, restauramos la submission a
 // "en_progreso" + submitted_at=null para que el estudiante pueda reingresar.

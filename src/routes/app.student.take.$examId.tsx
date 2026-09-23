@@ -88,6 +88,9 @@ import {
   computeExtraSeconds,
   applyExtraTime,
   restoreQuestionIndex,
+  latidoEsRedundante,
+  MS_BLOQUEO_SESION,
+  MS_ENTRE_LATIDOS,
 } from "@/modules/exams/exam-session";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -284,6 +287,9 @@ function TakeExam() {
   // en cada autosave para que el monitor del docente pueda mostrar
   // "Pregunta X de Y" en tiempo real para los intentos en curso.
   const currentIdxRef = useRef(0);
+  // Cuándo escribió por última vez el autoguardado. Lo lee el latido para no
+  // duplicar una escritura que ya se hizo.
+  const ultimoGuardadoRef = useRef(0);
   // Ref para datos del examen necesarios en callbacks (evita closures stale).
   const examRef = useRef<Exam | null>(null);
   const submissionStartedAtRef = useRef<string | null>(null);
@@ -665,7 +671,7 @@ function TakeExam() {
         const updatedAt = new Date((resumeTarget as any).updated_at).getTime();
         const ageMs = Date.now() - updatedAt;
 
-        if (storedSession && storedSession !== localSessionId && ageMs < 10_000) {
+        if (storedSession && storedSession !== localSessionId && ageMs < MS_BLOQUEO_SESION) {
           setExam(e);
           setBlockedBySession(true);
           return;
@@ -787,7 +793,7 @@ function TakeExam() {
         const storedSession = existingAnswers.__session_id as string | undefined;
         const ageMs = Date.now() - new Date((existing as any).updated_at).getTime();
 
-        if (storedSession && storedSession !== sessionIdRef.current && ageMs < 10_000) {
+        if (storedSession && storedSession !== sessionIdRef.current && ageMs < MS_BLOQUEO_SESION) {
           setBlockedBySession(true);
           return;
         }
@@ -1034,6 +1040,11 @@ function TakeExam() {
           .update({ answers: currentAnswers, focus_warnings: currentWarnings })
           .eq("id", submissionIdRef.current);
         setSaveFailed(!!error);
+        // El latido mira esta marca para no repetir una escritura que el
+        // autoguardado ya hizo (ver `latidoEsRedundante`). Solo cuenta si de
+        // verdad se guardó: si falló, `updated_at` no se movió y el latido
+        // TIENE que correr.
+        if (!error) ultimoGuardadoRef.current = Date.now();
         if (error) console.error("[ExamLab] autosave failed:", error);
       } catch (e) {
         setSaveFailed(true);
@@ -1498,6 +1509,11 @@ function TakeExam() {
     if (!started) return;
     const id = setInterval(() => {
       if (submittedRef.current || isPaused || !submissionIdRef.current) return;
+      // Un alumno que está respondiendo ya refresca `updated_at` con cada
+      // autoguardado; latir encima no aporta nada y duplica la escritura sobre
+      // la tabla más caliente. El latido queda para el alumno QUIETO, que es
+      // para quien se hizo.
+      if (latidoEsRedundante(Date.now() - ultimoGuardadoRef.current)) return;
       void supabase
         .from("submissions")
         .update({ updated_at: new Date().toISOString() })
@@ -1509,7 +1525,7 @@ function TakeExam() {
           // gobierna el autosave, que es el que sí tiene respuestas en juego.
           if (error) console.error("[ExamLab] heartbeat failed:", error);
         });
-    }, 5000);
+    }, MS_ENTRE_LATIDOS);
     return () => clearInterval(id);
   }, [started, isPaused]);
 

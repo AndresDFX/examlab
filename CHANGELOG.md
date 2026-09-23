@@ -75,6 +75,36 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ⚡ Menos escritura sobre la base durante un examen
+
+Las dos fuentes que la degradaron el 22-09, atacadas por separado.
+
+- **El latido del bloqueo de sesión ya no repite lo que el autoguardado acaba de hacer.** Un alumno
+  que está respondiendo pagaba las DOS escrituras sobre la misma fila, y la del latido no aportaba
+  nada: el autoguardado ya refresca `updated_at`, que es lo único que el bloqueo mira. El latido
+  queda para el alumno QUIETO, que es para quien se hizo.
+  - **Lo delicado es el margen, no el ahorro.** Saltarse un tick atrasa el refresco como mucho
+    `MS_GUARDADO_RECIENTE + MS_ENTRE_LATIDOS` = **8 s**, y el bloqueo declara abandonado el intento a
+    los **10 s**. Si eso se rompe, a un alumno le roban su propio examen a mitad de camino. Un test
+    fija ese margen con 1,5 s de holgura mínima, y se verificó que falla al subir el umbral.
+  - **Nunca se saltan dos ticks seguidos**: el latido NO marca la referencia, solo el autoguardado,
+    así que el tick siguiente siempre ve ≥5 s y escribe.
+  - La ventana de 10 s vivía como número suelto en la pantalla de examen. Ahora sale de la constante,
+    con un test que lee el archivo y falla si vuelve a escribirse a mano — sin eso, cambiar la
+    constante dejaba el test en verde y rompía el margen en silencio.
+- **El cron de cierre dejó de calcular el plazo exacto de cada intento en curso, cada minuto.**
+  `close_expired_exam_attempts` llamaba, por cada intento, a dos funciones que releen `submissions` y
+  `exams` por clave primaria —datos que el `JOIN` ya traía— y consultan `exam_timer_controls`. Con 32
+  exámenes eran ~128 consultas por minuto sobre la misma tabla que esos 32 alumnos escribían. Ahora
+  descarta primero, con SQL en línea, lo que ni siquiera llegó a su plazo BASE.
+  - **Es una condición NECESARIA, no una aproximación**: el tiempo extra solo SUMA (no existe una
+    acción que reste), así que el plazo efectivo nunca es anterior al base. Verificado además que la
+    única escritura de `add_time` está guardada con `> 0`.
+  - **Verificado de forma DIFERENCIAL contra PostgreSQL real**: la versión vieja y la nueva cierran
+    exactamente los mismos intentos sobre 13 escenarios —vencido, dentro del minuto de gracia,
+    relativo sin límite, con extra individual y global, pausado, en papelera, sin `end_time`—. En un
+    examen en marcha el filtro descarta a todos antes de llamar a nada.
+
 ### 🩺 «La página no está disponible»: qué era y qué no
 
 - **Lo que NO era, descartado con medición.** (a) El techo de peticiones diarias de Cloudflare: una
@@ -110,7 +140,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Lo que la disparó, medido**: **32 exámenes simultáneos** (pico 20:16; la degradación, 20:33). El
   latido del bloqueo de sesión reescribía la columna `answers` ENTERA cada 5 segundos por alumno
   —6 KB de mediana— aunque no hubiera cambiado nada. Son ~6 escrituras por segundo sostenidas, unas
-  **52.000 reescrituras de fila** en un examen de dos horas, sobre una base que pesa **197 MB**. A eso
+  **46.000 reescrituras de fila** en un examen de dos horas, sobre una base que pesa **197 MB**. A eso
   se suman los **cuatro** trabajos de cron que corren CADA MINUTO, uno de los cuales
   (`close-expired-exam-attempts`) hace UPDATE sobre la misma tabla que los 32 alumnos están
   escribiendo — que es de donde sale la espera de `ShareLock`.

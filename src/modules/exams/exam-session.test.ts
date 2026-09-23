@@ -1,13 +1,19 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { isStrikeEvent } from "./proctoring";
 import fs from "node:fs";
 import path from "node:path";
 import {
-  computeExtraSeconds,
-  applyExtraTime,
-  restoreQuestionIndex,
-  applyClearOneWarning,
+  MS_BLOQUEO_SESION,
+  MS_ENTRE_LATIDOS,
+  MS_GUARDADO_RECIENTE,
   applyClearAllWarnings,
+  applyClearOneWarning,
+  applyExtraTime,
+  computeExtraSeconds,
+  latidoEsRedundante,
+  restoreQuestionIndex,
   type WarningEventLike,
 } from "./exam-session";
 
@@ -586,5 +592,53 @@ describe("los tipos que suman strike: SQL ↔ TypeScript", () => {
     for (const blando of ["copiar", "pegar", "cortar", "screenshot_attempt"]) {
       expect(tiposSql, `${blando} NO debería sumar strike`).not.toContain(blando);
     }
+  });
+});
+
+describe("el latido no se repite cuando el autoguardado ya escribió", () => {
+  it("con un guardado reciente se salta; sin actividad, late", () => {
+    expect(latidoEsRedundante(0)).toBe(true);
+    expect(latidoEsRedundante(MS_GUARDADO_RECIENTE - 1)).toBe(true);
+    expect(latidoEsRedundante(MS_GUARDADO_RECIENTE)).toBe(false);
+    // Un alumno leyendo una pregunta larga: hace rato que no guarda nada, así
+    // que el latido TIENE que correr — es justo para lo que existe.
+    expect(latidoEsRedundante(30_000)).toBe(false);
+  });
+
+  it("el retraso máximo que introduce queda por debajo de la ventana del bloqueo", () => {
+    // ESTA es la invariante que no se puede romper. Saltarse un tick atrasa el
+    // refresco de `updated_at` como mucho `MS_GUARDADO_RECIENTE + MS_ENTRE_LATIDOS`
+    // (el guardado cae justo antes de un tick, se salta, y el siguiente escribe
+    // un ciclo después). Si ese total alcanzara la ventana del bloqueo, el
+    // intento se declararía abandonado y otro dispositivo podría reclamárselo
+    // al propio alumno en mitad del examen.
+    const peorCaso = MS_GUARDADO_RECIENTE + MS_ENTRE_LATIDOS;
+    expect(peorCaso).toBeLessThan(MS_BLOQUEO_SESION);
+    // Y con margen de verdad, no por 100 ms: la red real tarda ~600 ms por
+    // consulta en un día bueno.
+    expect(MS_BLOQUEO_SESION - peorCaso).toBeGreaterThanOrEqual(1500);
+  });
+});
+
+describe("la ventana del bloqueo no vive duplicada en la pantalla de examen", () => {
+  /**
+   * El test de arriba compara las constantes ENTRE SÍ, así que si alguien
+   * cambia `MS_BLOQUEO_SESION` y la pantalla sigue comparando contra un
+   * `10_000` escrito a mano, el test queda verde y el margen que protege se
+   * rompe en silencio: el intento se daría por abandonado antes de que el
+   * latido alcance a refrescarlo, y otro dispositivo podría reclamárselo al
+   * propio alumno. Por eso se mira el archivo.
+   */
+  const ruta = readFileSync(
+    resolve(process.cwd(), "src/routes/app.student.take.$examId.tsx"),
+    "utf8",
+  );
+
+  it("la pantalla usa las constantes, no números sueltos", () => {
+    expect(ruta).toContain("MS_BLOQUEO_SESION");
+    expect(ruta).toContain("MS_ENTRE_LATIDOS");
+    // Los literales que había: la comparación de la ventana y el período.
+    expect(ruta).not.toMatch(/ageMs\s*<\s*\d/);
+    expect(ruta).not.toMatch(/\}\s*,\s*5000\s*\)\s*;/);
   });
 });
