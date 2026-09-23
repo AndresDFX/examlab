@@ -75,6 +75,21 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📝 El Acuerdo Pedagógico ya no puede salir a nombre de otro docente
+
+- Reportado: «en el profesor del Acuerdo Pedagógico sale Andrés Castaño aunque cambié el nombre».
+  **El nombre SÍ se resuelve en vivo** desde `profiles.full_name` —la plantilla usa
+  `{{docente.nombre}}`, no un literal—, así que un Acuerdo que se genere hoy ya sale con el nombre
+  nuevo. Lo que no cambia es el documento ya GENERADO: `generated_reports` guarda el HTML como
+  **instantánea**, a propósito, porque es lo que se firma y lo que `signed_hash` protege. Los seis
+  Acuerdos de septiembre tienen entre 18 y 32 firmas de estudiantes cada uno; volver a generarlos
+  crea un documento NUEVO con cero firmas, así que no vale la pena solo por el nombre.
+- **Lo que sí era un defecto y se arregló**: el docente se resolvía con
+  `.limit(1)` **sin `order`**, o sea que Postgres podía devolver cualquiera de los docentes del curso
+  — y uno distinto en cada generación. Con dos docentes, el Acuerdo salía a nombre de uno o de otro
+  sin que nadie hubiera cambiado nada. Ahora ordena por `created_at`: el primero asignado, que es
+  estable y es el que la gente espera. Hoy hay un curso en producción con más de un docente.
+
 ### 🎓 Los talleres también se sustentan
 
 - Pedido: «revisá si los talleres tienen lo de sustentación que tienen los proyectos; si no, homologalo».
