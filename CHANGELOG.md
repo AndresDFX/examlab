@@ -75,6 +75,70 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🐞 Cerrar el check-in múltiple cerraba solo una sesión
+
+- La migración anterior ya traía `teacher_close_attendance_check_in_group`, pero **el cliente nunca la
+  llamaba**: los tres puntos que cierran seguían usando la de una sola sesión. Reportado con captura:
+  al cerrar, las hermanas quedaban con el cartel «Check-in activo».
+- **Y no era cosmético**: seguían compartiendo la MISMA semilla, así que el código proyectado seguía
+  sirviendo para marcar asistencia en ellas y nada lo mostraba.
+- Cambiados los tres caminos (cierre del docente, autocierre al vencer la ventana, y limpieza del
+  check-in vencido al reabrir), con un **test que falla si alguno vuelve a la RPC vieja** —verificado
+  revirtiendo uno a propósito—. Los cierres del lado del servidor (el cron de vencidos y el cascade al
+  finalizar el curso) no necesitaban cambio: operan en bloque, no por sesión.
+- **«Marcar pendientes como ausentes» sigue siendo de UNA sesión**, y ahora el diálogo lo dice cuando
+  el cierre abarcó varias. No se extendió al grupo a propósito: esas sesiones pueden ser de semanas
+  distintas, y poner ausencias de tres clases con una sola confirmación es una acción mucho más grande
+  que la que el docente está pidiendo.
+
+### 🐞 El selector de fecha no se podía abrir, y tres riesgos más
+
+- **El caso reportado**: en «Ajustar el check-in» el calendario no abría. El diálogo se elevaba a
+  `z-[120]` para quedar sobre el proyector (`z-[100]`), pero el calendario es `z-50` — **se abría
+  detrás**. Verificado en un navegador real: el clic donde se pinta el calendario aterrizaba en el
+  proyector.
+- **El arreglo invierte la pila en vez de escalarla**: mientras hay un diálogo encima, el proyector se
+  APARTA. Así desaparecen dos casos especiales (la elevación del diálogo y el velo propio del
+  proyector) y funciona **todo** lo que se abra adentro —los tooltips de ayuda tenían el mismo
+  problema—, incluido lo que se agregue después.
+- **Auditoría de los 44 usos del selector**, que encontró tres cosas más: al **deseleccionar** el día,
+  el formulario de examen propagaba `NaN` y dejaba el campo de fin con la cadena literal
+  `NaN-NaN-NaNTNaN:NaN` (en la pantalla de edición eso además impedía **guardar**, porque la columna
+  es `NOT NULL`); el banner de instalación de iOS era la única capa entre los overlays y el proyector,
+  así que en iPhone tapaba cualquier calendario o menú abierto abajo; y los selectores de cortes no
+  normalizaban su valor como los otros dos del mismo archivo.
+
+### 🙋 La corrección de ortografía en el móvil ya no cuesta una advertencia
+
+- **El arreglo anterior había quedado neutralizado, y los datos lo muestran.** Se dejó de contar el
+  `blur` en móvil, pero la misma corrección dispara DOS eventos: secuencias reales de producción
+  muestran `blur_movil → visibility_hidden` con **0, 1 y 2 segundos** de diferencia. Se dejaba de
+  sumar por un lado y se sumaba por el otro: corregir una palabra seguía costando una advertencia, y
+  con tres el intento se suspende solo.
+- **Lo que distingue «se fue» de «corrigió» no es el evento, es cuánto duró.** Irse a otra aplicación
+  deja el documento oculto hasta que la persona vuelve; una burbuja del sistema lo oculta un instante.
+  Así que en móvil el strike se decide **al volver**, con el tiempo transcurrido: menos de 2,5 s es una
+  superficie del sistema. En computador no cambia nada —ahí ocultarse ES cambiar de pestaña— y en
+  móvil irse de verdad **sigue sumando**.
+- Perder la pantalla completa también pasa a señal blanda en móvil: ahí la suelta el sistema al abrir
+  el teclado o la burbuja, no el estudiante (y en iPhone la pantalla completa de un elemento no
+  existe). Evidencia más flaca: 3 eventos, uno a menos de 5 s de una corrección.
+- Las dos señales blandas del mismo gesto se colapsan en una: si no, el docente veía dos renglones por
+  cada palabra corregida.
+
+### 🙋 El estudiante ve su nota sin tocar los filtros
+
+- El filtro por defecto de **Exámenes, Talleres y Proyectos** mostraba solo lo disponible, así que
+  quien ya presentó todo abría la lista y la veía **vacía** — sin dónde mirar qué sacó, que es
+  justamente lo que va a buscar cuando ya entregó. Ahora el default incluye lo **completado**
+  (entregado y calificado). Lo **cerrado** sigue fuera: eso es lo que ya no se puede hacer ni revisar.
+- Talleres y Proyectos pasan al mismo filtro de selección múltiple que ya usaba Exámenes: con un
+  `Select` de una sola opción, «varios estados por defecto» no se puede ni expresar.
+- El arreglo de estados estaba escrito **dos veces** por pantalla (el estado inicial y «limpiar
+  filtros»), y en Exámenes **tres**. Ahora es una constante por archivo, con un test que falla si
+  alguien vuelve a escribir el arreglo a mano — que es como lo encontró: la tercera copia se me había
+  pasado.
+
 ### 🙋 Borrar advertencias con el examen EN CURSO
 
 - **El caso**: una notificación del sistema saca al alumno de pantalla completa, el contador de

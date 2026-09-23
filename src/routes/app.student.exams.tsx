@@ -89,6 +89,16 @@ type ExamDisplayStatus =
   | "completed" // completado / sospechoso
   | "closed"; // ventana cerrada sin intentos restantes
 
+/** Lo que se muestra al ENTRAR, y a lo que vuelve «limpiar filtros». Una sola
+ *  fuente: estaba escrito dos veces y agregar un estado a uno dejaba al otro
+ *  mostrando una lista distinta. */
+const FILTRO_POR_DEFECTO: ExamDisplayStatus[] = [
+  "available",
+  "in_progress",
+  "upcoming",
+  "completed",
+];
+
 /** Comparador de fechas usado por el sort del listado. Tratamos `null`
  *  como "infinito al final" para ascendente y "menos infinito" para
  *  descendente — así los ítems sin fecha no se mezclan con los
@@ -153,11 +163,11 @@ function StudentExams() {
   //
   // Selección múltiple, como el resto de los filtros. Constante determinista
   // — NO leer storage en el initializer (regla hidratación React #418).
-  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus[]>([
-    "available",
-    "in_progress",
-    "upcoming",
-  ]);
+  // "completed" entra al default por lo mismo: la NOTA vive ahí. Sin él, un
+  // alumno que ya presentó todo veía la lista vacía y no tenía dónde mirar
+  // cuánto sacó — la tarjeta del examen es donde se revisa. "closed" sigue
+  // fuera: eso es lo que ya no se puede hacer ni revisar.
+  const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus[]>(FILTRO_POR_DEFECTO);
   // Filtros adicionales: rango de fechas (sobre la fecha relevante de
   // la entidad — end_time/start_time del examen) y orden. Defaults no
   // afectan la UX vieja: dateFrom="" y dateTo="" no filtran nada;
@@ -457,9 +467,9 @@ function StudentExams() {
         onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
-          // Vuelve al DEFAULT (lo pendiente), no a «todos»: mostrar de golpe lo
-          // cerrado y lo ya calificado no es lo que busca quien limpia filtros.
-          setStatusFilter(["available", "in_progress", "upcoming"]);
+          // Vuelve al DEFAULT, no a «todos»: lo CERRADO —lo que ya no se puede
+          // hacer ni revisar— sigue detrás de un clic.
+          setStatusFilter(FILTRO_POR_DEFECTO);
           setDateFrom("");
           setDateTo("");
           setSortBy("due_asc");
@@ -543,7 +553,7 @@ function StudentExams() {
                     onClick={() => {
                       setSearch("");
                       setCourseFilter([]);
-                      setStatusFilter(["available", "in_progress", "upcoming"]);
+                      setStatusFilter(FILTRO_POR_DEFECTO);
                       setDateFrom("");
                       setDateTo("");
                       setSortBy("due_asc");

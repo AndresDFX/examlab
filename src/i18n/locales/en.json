@@ -1770,7 +1770,8 @@
     "addRecordingNotes": "Add recording / notes",
     "notesUrlLabel": "Notes / minutes link (optional)",
     "notesUrlHelp": "Link to meeting notes or minutes (Google Docs, Notion…). Pulled in automatically when linking with Google Calendar. Opens in a new tab.",
-    "editRecordingNotesTitle": "Edit recording / notes"
+    "editRecordingNotesTitle": "Edit recording / notes",
+    "markAbsentsBodyGroup": "Enrolled students who didn't check in will be marked absent IN THIS SESSION ONLY, not in the others from the same check-in. You can adjust manually afterwards."
   },
   "preferences": {
     "title": "Notification preferences",
@@ -3119,7 +3120,8 @@
       "windowExpired": "The check-in window has expired",
       "closedOk": "Check-in closed",
       "reopenedElsewhere": "The check-in was restarted on another screen. The code here is already updated.",
-      "closedElsewhere": "The check-in was closed from another screen."
+      "closedElsewhere": "The check-in was closed from another screen.",
+      "closedOkMany": "Check-in closed in {{count}} sessions"
     },
     "modules_auth_ChangePasswordDialog": {
       "completeAllFields": "Fill in all fields",
@@ -9922,7 +9924,8 @@
     "cat_system_alerts_desc": "Notifications to admins when a threshold is crossed (storage, errors, etc.). Does NOT affect transactional emails (password reset, email change).",
     "cat_welcome_label": "Welcome (new users)",
     "cat_welcome_desc": "Automatic email with a link to set a password, sent when creating a new user (individual form or bulk CSV import). Turn it off if you hand out passwords manually or use SSO.",
-    "suppressionsIntro": "ExamLab <strong>will not send emails</strong> to these addresses. Useful when a mailbox bounces constantly (Gmail \"mailbox full\" / nonexistent user) and the sender account fills up with \"Mail Delivery Subsystem\" notices. In-app notifications still arrive. Remove the address once the mailbox is freed up."
+    "suppressionsIntro": "ExamLab <strong>will not send emails</strong> to these addresses. Useful when a mailbox bounces constantly (Gmail \"mailbox full\" / nonexistent user) and the sender account fills up with \"Mail Delivery Subsystem\" notices. In-app notifications still arrive. Remove the address once the mailbox is freed up.",
+    "byCategoryHint": "Each switch governs the whole notification: bell, email and phone alert. Turned off, that category stops notifying everywhere. Password recovery and email-change confirmation can't be turned off here."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(untitled)",

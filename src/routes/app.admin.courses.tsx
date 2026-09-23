@@ -3047,7 +3047,11 @@ export function AdminCourses() {
                                 {t("hc_routesAppAdminCourses.cutStart")}
                               </Label>
                               <DatePicker
-                                value={cut.start_date ?? ""}
+                                // Normalizado igual que los otros dos usos de este
+                                // archivo. Hoy la columna es DATE y llega como
+                                // "yyyy-MM-dd", pero si alguna vez llegara un ISO
+                                // completo el selector se vaciaría EN SILENCIO.
+                                value={toDateInput(cut.start_date)}
                                 onChange={(v) => updateDraftCut(idx, { start_date: v || null })}
                                 className="min-w-0 w-full"
                               />
@@ -3057,7 +3061,7 @@ export function AdminCourses() {
                                 {t("hc_routesAppAdminCourses.cutEnd")}
                               </Label>
                               <DatePicker
-                                value={cut.end_date ?? ""}
+                                value={toDateInput(cut.end_date)}
                                 onChange={(v) => updateDraftCut(idx, { end_date: v || null })}
                                 className="min-w-0 w-full"
                               />

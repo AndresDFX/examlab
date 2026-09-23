@@ -1,14 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  GRACIA_OCULTO_MOVIL_MS,
   MAX_WARNINGS,
   blurCuentaComoStrike,
   creaVentanasDeProctoring,
   isStrikeEvent,
+  ocultarCuentaComoStrike,
+  salidaDePantallaCompletaCuentaComoStrike,
   shouldMarkSuspicious,
+  type WarningEvent,
   warningEventTimestamp,
   warningLabel,
-  type WarningEvent,
 } from "./proctoring";
 
 describe("shouldMarkSuspicious", () => {
@@ -165,5 +168,59 @@ describe("creaVentanasDeProctoring", () => {
     expect(v.permiteStrike(1600)).toBe(true);
     expect(v.permiteBlanda(1000)).toBe(true);
     expect(v.permiteBlanda(1200)).toBe(false);
+  });
+});
+
+describe("qué cuenta como strike en un teléfono", () => {
+  const movil = { punteroGrueso: true, punteroFino: false };
+  const computador = { punteroGrueso: false, punteroFino: true };
+  // Un portátil con pantalla táctil: tiene los dos punteros y sigue siendo un
+  // computador (el alt+tab existe).
+  const portatilTactil = { punteroGrueso: true, punteroFino: true };
+
+  it("perder la pantalla completa no suma en un teléfono, sí en un computador", () => {
+    expect(salidaDePantallaCompletaCuentaComoStrike(movil)).toBe(false);
+    expect(salidaDePantallaCompletaCuentaComoStrike(computador)).toBe(true);
+    expect(salidaDePantallaCompletaCuentaComoStrike(portatilTactil)).toBe(true);
+  });
+
+  it("en computador, ocultarse suma siempre — sin esperar", () => {
+    // Ahí ocultarse ES cambiar de pestaña; no hay burbujas del sistema de por
+    // medio y el menú contextual está bloqueado.
+    expect(ocultarCuentaComoStrike(computador, 0)).toBe(true);
+    expect(ocultarCuentaComoStrike(portatilTactil, 10)).toBe(true);
+  });
+
+  it("en móvil, ocultarse un instante NO suma; quedarse oculto SÍ", () => {
+    // Las tres primeras son las diferencias REALES medidas en producción entre
+    // el `blur` de la corrección y el ocultamiento que lo acompaña.
+    expect(ocultarCuentaComoStrike(movil, 0)).toBe(false);
+    expect(ocultarCuentaComoStrike(movil, 1000)).toBe(false);
+    expect(ocultarCuentaComoStrike(movil, 2000)).toBe(false);
+    // Irse a otra aplicación de verdad deja el documento oculto mucho más.
+    expect(ocultarCuentaComoStrike(movil, GRACIA_OCULTO_MOVIL_MS)).toBe(true);
+    expect(ocultarCuentaComoStrike(movil, 30_000)).toBe(true);
+  });
+
+  it("la gracia es corta: no alcanza para mirar nada", () => {
+    // Si alguien la sube, que sea una decisión consciente: con 10 s se puede
+    // leer un mensaje entero y volver sin que quede registro de strike.
+    expect(GRACIA_OCULTO_MOVIL_MS).toBeLessThanOrEqual(3000);
+  });
+
+  it("las señales blandas nuevas NO suman strike", () => {
+    expect(isStrikeEvent("oculto_breve_movil")).toBe(false);
+    expect(isStrikeEvent("fullscreen_exit_movil")).toBe(false);
+    // Y las que sí suman siguen sumando.
+    expect(isStrikeEvent("visibility_hidden")).toBe(true);
+    expect(isStrikeEvent("fullscreen_exit")).toBe(true);
+  });
+
+  it("las señales blandas nuevas tienen etiqueta legible y dicen que no suman", () => {
+    for (const t of ["oculto_breve_movil", "fullscreen_exit_movil"] as const) {
+      const etiqueta = warningLabel(t);
+      expect(etiqueta).not.toBe(t);
+      expect(etiqueta).toContain("no suma");
+    }
   });
 });

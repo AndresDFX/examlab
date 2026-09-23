@@ -95,7 +95,15 @@ export function IosInstallBanner() {
       // ≈ 80px total). En sm+ no hay bottom-nav (sidebar desktop) →
       // banner a bottom-3 como flotante esquina-inferior-derecha.
       // El paddingBottom respeta el notch/home indicator del iPhone.
-      className="fixed inset-x-3 bottom-24 z-[60] rounded-lg border border-primary/30 bg-background/95 backdrop-blur shadow-lg p-3 sm:bottom-3 sm:max-w-md sm:left-auto sm:right-3"
+      // z-40 y no z-[60]: era la ÚNICA capa del proyecto entre los overlays de
+      // Radix (z-50) y el proyector, así que en iOS tapaba cualquier calendario,
+      // menú o select que se abriera en la franja de abajo — el mismo síntoma
+      // del selector de fecha que no se podía usar. Un aviso de instalación va
+      // por DEBAJO de lo que la persona está haciendo.
+      // `sm:bottom-24` y no `bottom-3`: en esa esquina vive el botón flotante de
+      // mensajes (z-50, `bottom-4 right-4`), y desde que este aviso bajó a z-40
+      // quedaría debajo de él. Se suben los dos de rincón en vez de pelear el z.
+      className="fixed inset-x-3 bottom-24 z-40 rounded-lg border border-primary/30 bg-background/95 backdrop-blur shadow-lg p-3 sm:bottom-24 sm:max-w-md sm:left-auto sm:right-3"
       style={{ marginBottom: "env(safe-area-inset-bottom)" }}
       role="dialog"
       aria-label={t("hc_modulesPwaIosInstallBanner.dialogLabel")}

@@ -1525,15 +1525,17 @@ function ExamEditor() {
                     <DateTimePicker
                       value={toLocal(exam.end_time)}
                       onChange={(end) => {
-                        const diffMin = exam.start_time
-                          ? Math.max(
-                              1,
-                              Math.round(
-                                (new Date(end).getTime() - new Date(exam.start_time).getTime()) /
-                                  60000,
-                              ),
-                            )
-                          : exam.time_limit_minutes;
+                        // Misma guardia que el campo de inicio de acá al lado: al
+                        // DESELECCIONAR el día, `end` llega vacío y la resta da NaN.
+                        // Acá además no era solo cosmético: `time_limit_minutes` se
+                        // serializa a null en el PATCH y la columna es NOT NULL, así
+                        // que el examen no se podía guardar (23502).
+                        const ms =
+                          new Date(end).getTime() - new Date(exam.start_time).getTime();
+                        const diffMin =
+                          exam.start_time && Number.isFinite(ms)
+                            ? Math.max(1, Math.round(ms / 60000))
+                            : exam.time_limit_minutes;
                         setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
                       }}
                     />
@@ -2608,6 +2610,12 @@ function ExamEditor() {
 
 function toLocal(iso: string) {
   const d = new Date(iso);
+  // Sin este corte, una fecha vacía o inválida devolvía la cadena literal
+  // "NaN-NaN-NaNTNaN:NaN". El `DateTimePicker` la parte en día y hora, así que
+  // pintaba un `<input type="time" value="NaN:N">` y ni siquiera aplicaba el
+  // estilo de vacío (porque `!value` era false). Pasa al DESELECCIONAR el día
+  // en el calendario, cosa que react-day-picker permite en `mode="single"`.
+  if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

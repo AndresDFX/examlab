@@ -32,6 +32,13 @@ export type WarningType =
   // ocultara. En un teléfono eso lo produce el corrector ortográfico del
   // sistema, así que NO suma strike — se registra para que el docente lo vea.
   | "blur_movil"
+  // Señal blanda de móvil: el documento se ocultó y volvió en menos de la
+  // gracia. Ver `ocultarCuentaComoStrike`.
+  | "oculto_breve_movil"
+  // Señal blanda de móvil: se perdió la pantalla completa. En un teléfono la
+  // suelta el propio sistema al abrir sus superficies (teclado, burbuja del
+  // corrector), no el estudiante.
+  | "fullscreen_exit_movil"
   | (string & {});
 
 export interface WarningEvent {
@@ -67,6 +74,10 @@ export function warningLabel(type: WarningType): string {
       return "Intento de pantallazo";
     case "blur_movil":
       return "Salida momentánea en móvil (no suma)";
+    case "oculto_breve_movil":
+      return "Pantalla oculta un instante en móvil (no suma)";
+    case "fullscreen_exit_movil":
+      return "Salida de pantalla completa en móvil (no suma)";
     default:
       return String(type);
   }
@@ -161,12 +172,74 @@ export function warningEventTimestamp(ev: WarningEvent): number | null {
  * con pantalla táctil tiene los dos, y ahí el alt+tab sigue siendo posible, así
  * que debe seguir contando como en cualquier computador.
  */
-export function blurCuentaComoStrike(entorno: {
+export interface EntornoDePuntero {
   punteroGrueso: boolean;
   punteroFino: boolean;
-}): boolean {
-  const esMovil = entorno.punteroGrueso && !entorno.punteroFino;
-  return !esMovil;
+}
+
+/**
+ * Se exige puntero grueso Y ausencia de puntero fino a propósito: un portátil
+ * con pantalla táctil tiene los dos, y ahí el alt+tab sigue siendo posible.
+ */
+export function esPunteroDeMovil(entorno: EntornoDePuntero): boolean {
+  return entorno.punteroGrueso && !entorno.punteroFino;
+}
+
+export function blurCuentaComoStrike(entorno: EntornoDePuntero): boolean {
+  return !esPunteroDeMovil(entorno);
+}
+
+/**
+ * ¿Perder la PANTALLA COMPLETA debe sumar strike en este dispositivo?
+ *
+ * En un teléfono la suelta el propio sistema: el teclado, la burbuja del
+ * corrector o el menú de selección son superficies nativas y varias versiones
+ * de Android salen de pantalla completa al mostrarlas. Medido en producción:
+ * de los 3 `fullscreen_exit` registrados en dispositivos móviles, uno ocurrió
+ * a menos de 5 s de una corrección ortográfica. Y en iPhone la pantalla
+ * completa de un elemento directamente no existe.
+ *
+ * En un computador sí es una acción del estudiante (Esc, F11, cambiar de
+ * ventana), y ahí se conserva intacta.
+ */
+export function salidaDePantallaCompletaCuentaComoStrike(entorno: EntornoDePuntero): boolean {
+  return !esPunteroDeMovil(entorno);
+}
+
+/**
+ * Cuánto tiene que quedarse OCULTO el documento, en un móvil, para que cuente
+ * como que el estudiante se fue.
+ *
+ * 2,5 s: nadie cambia de aplicación, mira algo y vuelve en menos que eso. Las
+ * superficies del sistema, en cambio, ocultan el documento un instante.
+ */
+export const GRACIA_OCULTO_MOVIL_MS = 2500;
+
+/**
+ * ¿Que el documento se haya OCULTADO debe sumar strike?
+ *
+ * ── Por qué esto existe, y por qué el arreglo del corrector no alcanzó ──
+ * Cuando se dejó de contar el `blur` en móvil, el problema siguió igual: los
+ * datos de producción muestran que en un teléfono la MISMA corrección dispara
+ * `blur` y, entre 0 y 2 segundos después, `visibilitychange` con el documento
+ * oculto. O sea que el strike se dejaba de sumar por un lado y se sumaba por
+ * el otro — corregir una palabra seguía costando una advertencia. Secuencias
+ * reales, medidas: `blur_movil → visibility_hidden (+0s)`,
+ * `blur_movil → visibility_hidden (+1s)`, `blur_movil → visibility_hidden (+2s)`.
+ *
+ * Lo que distingue una cosa de la otra NO es el evento, es CUÁNTO duró:
+ * irse a otra aplicación deja el documento oculto hasta que la persona vuelve;
+ * una burbuja del sistema lo oculta un instante. Por eso el strike se decide
+ * al VOLVER, con el tiempo transcurrido, y no en el momento de ocultarse.
+ *
+ * En computador se mantiene inmediato: ahí ocultarse es cambiar de pestaña.
+ */
+export function ocultarCuentaComoStrike(
+  entorno: EntornoDePuntero,
+  msOculto: number,
+): boolean {
+  if (!esPunteroDeMovil(entorno)) return true;
+  return msOculto >= GRACIA_OCULTO_MOVIL_MS;
 }
 
 /**

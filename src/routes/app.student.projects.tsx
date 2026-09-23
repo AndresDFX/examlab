@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
+import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import {
@@ -107,6 +108,12 @@ type ProjectDisplayStatus =
   | "overdue"
   | "closed";
 
+/** Lo que se muestra al ENTRAR. Vive acá y no inline en el `useState` porque
+ *  «limpiar filtros» tiene que volver exactamente a esto: con el arreglo
+ *  escrito dos veces, el día que alguien agregue un estado al default se
+ *  olvidará del otro y limpiar dejaría una lista distinta de la inicial. */
+const FILTRO_POR_DEFECTO: ProjectDisplayStatus[] = ["available", "upcoming", "submitted", "graded"];
+
 /** Comparador de fechas usado por el sort del listado. Tratamos `null`
  *  como "infinito al final" para ascendente y "menos infinito" para
  *  descendente — así los ítems sin fecha quedan agrupados al final en
@@ -143,7 +150,18 @@ function StudentProjects() {
   // mostramos lo vigente/accionable primero; "Todos" y los estados cerrados
   // siguen disponibles en el Select. Constante determinista (sin storage/URL)
   // para no romper la hidratación.
-  const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus | "all">("available");
+  // Selección MÚLTIPLE, igual que en Exámenes: el default tiene que poder
+  // incluir varios estados a la vez, y con un `Select` de una sola opción eso
+  // no se puede expresar.
+  //
+  // El default es lo PENDIENTE más lo ENTREGADO. Antes era solo "available", y
+  // eso escondía dos cosas que el alumno necesita: lo que todavía no abre, y
+  // —sobre todo— lo que ya entregó, que es donde está la NOTA. Un alumno que
+  // ya presentó todo abría la lista y la veía vacía.
+  //
+  // "overdue" y "closed" quedan fuera a propósito: es lo que ya no se puede
+  // hacer. Siguen a un clic en el filtro.
+  const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus[]>(FILTRO_POR_DEFECTO);
   // Filtros adicionales: rango de fechas (sobre `due_date`) y orden.
   // Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no filtran
   // nada; sortBy="due_asc" replica el orden cronológico natural.
@@ -425,7 +443,7 @@ function StudentProjects() {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (!coincideFiltro(courseFilter, r.project.course_id)) return false;
-      if (statusFilter !== "all" && getProjectDisplayStatus(r, now) !== statusFilter) return false;
+      if (!coincideFiltro(statusFilter, getProjectDisplayStatus(r, now))) return false;
       // Rango de fechas — filtra por due_date (deadline). Vacío = sin
       // tope en ese lado.
       const dueAt = r.project.due_date ? new Date(r.project.due_date) : null;
@@ -469,7 +487,7 @@ function StudentProjects() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_projects",
-    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${dateFrom}|${dateTo}|${sortBy}`,
   });
 
 
@@ -540,42 +558,28 @@ function StudentProjects() {
         onCourseIdsChange={setCourseFilter}
         courses={availableCourses}
         onClearExtra={() => {
-          setStatusFilter("all");
+          setStatusFilter(FILTRO_POR_DEFECTO);
           setDateFrom("");
           setDateTo("");
           setSortBy("due_asc");
         }}
         extra={
           <>
-            <Select
-              value={statusFilter}
-              onValueChange={(v) => setStatusFilter(v as ProjectDisplayStatus | "all")}
-            >
-              <SelectTrigger className="w-full sm:w-44">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">{t("hc_routesAppStudentProjects.statusAll")}</SelectItem>
-                <SelectItem value="available">
-                  {t("hc_routesAppStudentProjects.statusAvailable")}
-                </SelectItem>
-                <SelectItem value="upcoming">
-                  {t("hc_routesAppStudentProjects.statusUpcoming")}
-                </SelectItem>
-                <SelectItem value="submitted">
-                  {t("hc_routesAppStudentProjects.statusSubmitted")}
-                </SelectItem>
-                <SelectItem value="graded">
-                  {t("hc_routesAppStudentProjects.statusGraded")}
-                </SelectItem>
-                <SelectItem value="overdue">
-                  {t("hc_routesAppStudentProjects.statusOverdue")}
-                </SelectItem>
-                <SelectItem value="closed">
-                  {t("hc_routesAppStudentProjects.statusClosed")}
-                </SelectItem>
-              </SelectContent>
-            </Select>
+            <MultiSelectFilter
+              opciones={[
+                { value: "available", label: t("hc_routesAppStudentProjects.statusAvailable") },
+                { value: "upcoming", label: t("hc_routesAppStudentProjects.statusUpcoming") },
+                { value: "submitted", label: t("hc_routesAppStudentProjects.statusSubmitted") },
+                { value: "graded", label: t("hc_routesAppStudentProjects.statusGraded") },
+                { value: "overdue", label: t("hc_routesAppStudentProjects.statusOverdue") },
+                { value: "closed", label: t("hc_routesAppStudentProjects.statusClosed") },
+              ]}
+              seleccion={statusFilter}
+              onChange={(v) => setStatusFilter(v as ProjectDisplayStatus[])}
+              etiquetaTodos={t("hc_routesAppStudentProjects.statusAll")}
+              entidadPlural={t("filtros.nounStatuses")}
+              triggerClassName="w-full sm:w-44"
+            />
             <div className="w-full sm:w-44">
               <DatePicker
                 value={dateFrom}
@@ -641,7 +645,7 @@ function StudentProjects() {
                     onClick={() => {
                       setSearch("");
                       setCourseFilter([]);
-                      setStatusFilter("all");
+                      setStatusFilter(FILTRO_POR_DEFECTO);
                       setDateFrom("");
                       setDateTo("");
                       setSortBy("due_asc");

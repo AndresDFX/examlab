@@ -1505,16 +1505,26 @@ function TeacherExams() {
                     value={form.start_time as string}
                     onChange={(start) => {
                       const startMs = new Date(start).getTime();
+                      // El calendario permite DESELECCIONAR el día ya elegido, y
+                      // entonces `start` llega vacío. Sin este corte, `startMs` es
+                      // NaN, el fin se autocompletaba con la cadena literal
+                      // "NaN-NaN-NaNTNaN:NaN" y la duración con NaN: el formulario
+                      // quedaba en un estado del que no se sale, y los dos campos
+                      // mostraban basura. Al vaciar la fecha solo se vacía la fecha.
+                      if (!Number.isFinite(startMs)) {
+                        setForm({ ...form, start_time: start });
+                        return;
+                      }
                       // Auto-set end to start + 1h if end is empty or not after start
                       const currentEnd = form.end_time ? new Date(form.end_time).getTime() : 0;
                       const autoEnd =
                         currentEnd > startMs
                           ? form.end_time
                           : toLocal(new Date(startMs + 60 * 60 * 1000));
-                      const diffMin = Math.max(
-                        1,
-                        Math.round((new Date(autoEnd!).getTime() - startMs) / 60000),
-                      );
+                      const finMs = new Date(autoEnd!).getTime();
+                      const diffMin = Number.isFinite(finMs)
+                        ? Math.max(1, Math.round((finMs - startMs) / 60000))
+                        : form.time_limit_minutes;
                       setForm({
                         ...form,
                         start_time: start,
@@ -1530,15 +1540,13 @@ function TeacherExams() {
                     <DateTimePicker
                       value={form.end_time as string}
                       onChange={(end) => {
-                        const diffMin = form.start_time
-                          ? Math.max(
-                              1,
-                              Math.round(
-                                (new Date(end).getTime() - new Date(form.start_time!).getTime()) /
-                                  60000,
-                              ),
-                            )
-                          : form.time_limit_minutes;
+                        // Mismo cuidado que en el campo de inicio: al vaciar la
+                        // fecha, `end` llega vacío y la resta daría NaN.
+                        const ms = new Date(end).getTime() - new Date(form.start_time!).getTime();
+                        const diffMin =
+                          form.start_time && Number.isFinite(ms)
+                            ? Math.max(1, Math.round(ms / 60000))
+                            : form.time_limit_minutes;
                         setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
                       }}
                     />
@@ -1783,6 +1791,11 @@ function TeacherExams() {
 }
 
 function toLocal(d: Date) {
+  // Una fecha inválida devolvía la cadena "NaN-NaN-NaNTNaN:NaN", que el
+  // `DateTimePicker` parte en un día y una hora igual de inválidos y termina
+  // pintando un `<input type="time" value="NaN:N">`. Devolver "" deja el campo
+  // vacío, que es lo que el usuario pidió al borrar la fecha.
+  if (!Number.isFinite(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }

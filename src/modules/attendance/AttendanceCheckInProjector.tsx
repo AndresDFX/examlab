@@ -15,6 +15,8 @@
  */
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { useTranslation } from "react-i18next";
+
+import { cn } from "@/shared/lib/utils";
 import { QRCodeSVG } from "qrcode.react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -74,7 +76,9 @@ export type CheckInState = {
 interface Props {
   state: CheckInState;
   /** Llamado cuando el docente cierra el check-in (o expira) */
-  onClose: () => void;
+  /** `cerradas` = cuántas sesiones cerró la operación. El padre lo usa para no
+   *  prometer que el marcado de ausentes abarca todo el grupo cuando no lo hace. */
+  onClose: (info?: { cerradas?: number }) => void;
   /** Llamado al extender la ventana, con el nuevo cierre en ISO. El padre es
    *  dueño de `state`, así que sin esto el contador seguiría con el viejo. */
   onExtended?: (closesAt: string) => void;
@@ -100,9 +104,9 @@ interface Props {
    */
   onAjustar?: () => void;
   /**
-   * True mientras ese diálogo está abierto. El proyector pinta su propio velo
-   * porque el overlay de Radix es `z-50` y esta pantalla es `z-[100]`: sin él,
-   * el fondo del diálogo quedaría por debajo del QR.
+   * True mientras ese diálogo está abierto. Mientras lo esté, esta pantalla se
+   * APARTA (baja su z por debajo de la capa de Radix) en vez de que el diálogo
+   * se suba por encima de ella — ver el comentario del contenedor.
    */
   ajustando?: boolean;
   /**
@@ -280,8 +284,11 @@ export function AttendanceCheckInProjector({
             defaultValue: "La ventana de check-in expiró",
           }),
         );
+        // Cierre de GRUPO: si el check-in abarcaba varias sesiones, la ventana
+        // venció para todas a la vez (comparten `closes_at`). Cerrar solo esta
+        // dejaba a las hermanas marcadas como activas.
         void db
-          .rpc("teacher_close_attendance_check_in", { p_session_id: state.sessionId })
+          .rpc("teacher_close_attendance_check_in_group", { p_session_id: state.sessionId })
           .finally(() => onClose());
       }
     };
@@ -463,21 +470,31 @@ export function AttendanceCheckInProjector({
     // ausentes" sí aparece después porque ya salimos de fullscreen.
     setClosing(true);
     try {
-      const { error } = await db.rpc("teacher_close_attendance_check_in", {
+      // Cierra el GRUPO, no solo esta sesión: si el check-in se abrió para
+      // varias, cerrar el ancla dejaba a las demás con el cartel de «activo» y
+      // —peor— con la misma semilla, o sea que el código seguía sirviendo y
+      // nadie lo veía. La RPC contempla la sesión suelta (cierra una sola).
+      const { data, error } = await db.rpc("teacher_close_attendance_check_in_group", {
         p_session_id: state.sessionId,
       });
       if (error) {
         toast.error(friendlyError(error));
         return;
       }
+      const cerradas = Number((data as { closed?: number } | null)?.closed ?? 1);
       // Fire-and-forget: en algunos browsers exitFullscreen no resuelve
       // hasta el próximo fullscreenchange y eso bloquea el handler.
       void salirFullscreen();
-      onClose();
+      onClose({ cerradas });
       toast.success(
-        i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", {
-          defaultValue: "Check-in cerrado",
-        }),
+        cerradas > 1
+          ? i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOkMany", {
+              defaultValue: "Check-in cerrado en {{count}} sesiones",
+              count: cerradas,
+            })
+          : i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedOk", {
+              defaultValue: "Check-in cerrado",
+            }),
       );
     } finally {
       setClosing(false);
@@ -502,13 +519,26 @@ export function AttendanceCheckInProjector({
   return (
     <div
       ref={containerRef}
-      className="fixed inset-0 z-[100] bg-background text-foreground flex flex-col"
+      className={cn(
+        "fixed inset-0 bg-background text-foreground flex flex-col",
+        // Mientras el diálogo de ajuste está abierto esta pantalla se APARTA:
+        // baja por debajo de la capa de Radix (`z-50`) en vez de obligar al
+        // diálogo a treparse por encima.
+        //
+        // Antes era al revés —el diálogo subía a `z-[120]` y acá se pintaba un
+        // velo propio a `z-[110]`— y eso rompía TODO overlay portalado que se
+        // abriera DENTRO del diálogo: el calendario del selector de fecha y los
+        // tooltips de ayuda son `z-50`, así que quedaban detrás. Se veía como
+        // «el selector de fecha no abre», cuando abría invisible y fuera de
+        // alcance del mouse. Apartando esta pantalla, el diálogo vuelve a su
+        // z por defecto y todo lo que se abra adentro apila normal —incluido
+        // lo que se agregue después, que es lo que evita que el error vuelva.
+        // z-40 y no z-30: el nav inferior de móvil del shell es z-30 y viene
+        // DESPUÉS en el DOM, así que con el mismo z le pintaría encima. Basta con
+        // quedar por debajo de la capa de Radix (z-50).
+        ajustando ? "z-40" : "z-[100]",
+      )}
     >
-      {/* El overlay de Radix es `z-50` y esta pantalla `z-[100]`, así que el
-          fondo oscurecido del diálogo de ajuste quedaría DEBAJO del QR. Este
-          velo lo pone el proyector, en su propio contexto de apilamiento, en
-          vez de subirle el z-index al `Dialog` que usan 100+ pantallas. */}
-      {ajustando && <div className="fixed inset-0 z-[110] bg-black/60" aria-hidden />}
 
       {/* Top bar */}
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b">

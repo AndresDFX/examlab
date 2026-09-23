@@ -71,6 +71,9 @@ import {
 import {
   MAX_WARNINGS,
   blurCuentaComoStrike,
+  salidaDePantallaCompletaCuentaComoStrike,
+  ocultarCuentaComoStrike,
+  GRACIA_OCULTO_MOVIL_MS,
   creaVentanasDeProctoring,
   entornoDePuntero,
   shouldMarkSuspicious,
@@ -1790,11 +1793,15 @@ function TakeExam() {
     const entornoPuntero = entornoDePuntero();
     const blurSuma = blurCuentaComoStrike(entornoPuntero);
 
+    // Última corrección registrada en móvil, para no anotar DOS señales blandas
+    // por el mismo gesto (ver `resolverOculto`).
+    let ultimoBlurMovil = 0;
     const onBlur = () => {
       if (!blurSuma) {
         // No suma, pero no se pierde: el docente lo ve en el monitor. Salir de
         // la app DE VERDAD sigue sumando por `visibilitychange`, que en móvil
         // es la señal confiable.
+        ultimoBlurMovil = Date.now();
         registrarSenalBlanda("blur_movil");
         return;
       }
@@ -1894,7 +1901,16 @@ function TakeExam() {
       } else if (started && !submittedRef.current && requireFullscreen) {
         // Solo cuenta strike por salida de FS si la institución exige FS.
         // En modo depuración (toggle off) el FS no aplica.
-        recordWarning("fullscreen_exit");
+        //
+        // En un teléfono la pantalla completa la suelta el SISTEMA al abrir sus
+        // superficies (teclado, burbuja del corrector), no el estudiante: ahí
+        // queda como señal blanda. El overlay de «volvé a pantalla completa» se
+        // muestra igual, porque el examen sí necesita volver.
+        if (salidaDePantallaCompletaCuentaComoStrike(entornoPuntero)) {
+          recordWarning("fullscreen_exit");
+        } else {
+          registrarSenalBlanda("fullscreen_exit_movil");
+        }
         setFsExited(true);
       }
     };
@@ -1907,8 +1923,47 @@ function TakeExam() {
     // disparan visibilitychange pero NO window blur → sin este listener el alumno
     // escapaba el proctoring. recordWarning ya deduplica con su propia ventana de 500 ms
     // cuando desktop dispara ambos, y usa el tipo dedicado visibility_hidden.
+    // Momento en que el documento se ocultó, para medir cuánto estuvo así.
+    // Solo se usa en móvil: en computador el strike sigue siendo inmediato.
+    let ocultoDesde: number | null = null;
+    const resolverOculto = (ms: number) => {
+      if (ocultarCuentaComoStrike(entornoPuntero, ms)) {
+        recordWarning("visibility_hidden");
+        return;
+      }
+      // El ocultamiento breve que viene pegado a una corrección es el MISMO
+      // gesto que ya quedó anotado como `blur_movil`. Sin esto el docente ve
+      // dos renglones por cada palabra corregida y el listado deja de servir.
+      if (Date.now() - ultimoBlurMovil <= GRACIA_OCULTO_MOVIL_MS + 1000) return;
+      registrarSenalBlanda("oculto_breve_movil");
+    };
     const onVisibility = () => {
-      if (document.visibilityState === "hidden") recordWarning("visibility_hidden");
+      if (document.visibilityState === "hidden") {
+        if (salidaDePantallaCompletaCuentaComoStrike(entornoPuntero)) {
+          // Computador: ocultarse ES cambiar de pestaña. Sin espera.
+          recordWarning("visibility_hidden");
+          return;
+        }
+        // Móvil: la decisión se toma al volver. Lo que distingue «se fue» de
+        // «el sistema abrió una burbuja» no es el evento, es cuánto duró —
+        // los datos de producción muestran la corrección disparando `blur` y
+        // el ocultamiento con 0 a 2 segundos de diferencia, o sea el mismo
+        // gesto. El temporizador cubre el caso de que no vuelva nunca; si el
+        // navegador lo congela, la vuelta lo resuelve igual.
+        ocultoDesde = Date.now();
+        const marca = ocultoDesde;
+        window.setTimeout(() => {
+          if (ocultoDesde !== marca || document.visibilityState !== "hidden") return;
+          ocultoDesde = null;
+          resolverOculto(Date.now() - marca);
+        }, GRACIA_OCULTO_MOVIL_MS + 200);
+        return;
+      }
+      if (ocultoDesde != null) {
+        const ms = Date.now() - ocultoDesde;
+        ocultoDesde = null;
+        resolverOculto(ms);
+      }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
     window.addEventListener("blur", onBlur);

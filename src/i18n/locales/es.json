@@ -1770,7 +1770,8 @@
     "addRecordingNotes": "Agregar grabación / notas",
     "notesUrlLabel": "Enlace de notas / minuta (opcional)",
     "notesUrlHelp": "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
-    "editRecordingNotesTitle": "Editar grabación / notas"
+    "editRecordingNotesTitle": "Editar grabación / notas",
+    "markAbsentsBodyGroup": "Los estudiantes matriculados que no se registraron quedarán como ausentes SOLO en esta sesión, no en las otras del mismo check-in. Puedes ajustar manualmente después."
   },
   "preferences": {
     "title": "Preferencias de notificación",
@@ -3119,7 +3120,8 @@
       "windowExpired": "La ventana de check-in expiró",
       "closedOk": "Check-in cerrado",
       "reopenedElsewhere": "El check-in se reinició en otra pantalla. El código de acá ya se actualizó.",
-      "closedElsewhere": "El check-in se cerró desde otra pantalla."
+      "closedElsewhere": "El check-in se cerró desde otra pantalla.",
+      "closedOkMany": "Check-in cerrado en {{count}} sesiones"
     },
     "modules_auth_ChangePasswordDialog": {
       "completeAllFields": "Completa todos los campos",
@@ -9922,7 +9924,8 @@
     "cat_system_alerts_desc": "Notificaciones a admins cuando se cruza un umbral (almacenamiento, errores, etc.). NO afecta correos transaccionales (reset de contraseña, cambio de email).",
     "cat_welcome_label": "Bienvenida (nuevos usuarios)",
     "cat_welcome_desc": "Correo automático con link para definir contraseña, enviado al crear un usuario nuevo (form individual o bulk import CSV). Apágalo si repartes contraseñas manualmente o usas SSO.",
-    "suppressionsIntro": "ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón rebota constantemente (Gmail \"bandeja llena\" / usuario inexistente) y la cuenta remitente se llena de avisos de \"Mail Delivery Subsystem\". Las notificaciones in-app siguen llegando. Quita la dirección cuando el buzón se libere."
+    "suppressionsIntro": "ExamLab <strong>no enviará correos</strong> a estas direcciones. Útil cuando un buzón rebota constantemente (Gmail \"bandeja llena\" / usuario inexistente) y la cuenta remitente se llena de avisos de \"Mail Delivery Subsystem\". Las notificaciones in-app siguen llegando. Quita la dirección cuando el buzón se libere.",
+    "byCategoryHint": "Cada interruptor gobierna la notificación completa: campanita, correo y aviso al celular. Apagado, esa categoría deja de avisar por todos lados. Recuperar contraseña y confirmar cambio de correo no se pueden apagar acá."
   },
   "hc_modulesMessagingTagTextarea": {
     "noTitle": "(sin título)",

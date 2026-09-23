@@ -121,3 +121,44 @@ describe("mensajes de error del check-in (docente)", () => {
     expect(claveDeErrorCheckIn("closes_in_past")).toBe("teacherAttendance.errClosesInPast");
   });
 });
+
+describe("cerrar el check-in usa la RPC de GRUPO", () => {
+  /**
+   * El bug que ataja, y que pasó de verdad: la migración 20262310000000 agregó
+   * `teacher_close_attendance_check_in_group`, pero los tres puntos del cliente
+   * que cierran siguieron llamando a la de UNA sesión. Resultado: cerrar un
+   * check-in múltiple cerraba solo el ancla y dejaba a las hermanas con el
+   * cartel de «activo» y —peor— con la misma semilla, o sea que el código seguía
+   * sirviendo y nadie lo veía. Nada falla: la RPC vieja existe y responde OK.
+   *
+   * No hay tipo que ate «existe una RPC de grupo» con «el cliente la usa», así
+   * que se mira el código fuente.
+   */
+  const CLIENTE = [
+    "src/routes/app.teacher.attendance.tsx",
+    "src/modules/attendance/AttendanceCheckInProjector.tsx",
+  ];
+
+  it("ningún punto del cliente llama a la versión de una sola sesión", () => {
+    for (const rel of CLIENTE) {
+      const src = readFileSync(resolve(process.cwd(), rel), "utf8");
+      // La de grupo comparte prefijo, así que se exige el cierre de la comilla.
+      const sueltas = [...src.matchAll(/"teacher_close_attendance_check_in"/g)];
+      expect(
+        sueltas.length,
+        `${rel} todavía cierra de a una sesión: usá "…_group", que también\n` +
+          `contempla la sesión suelta (cierra una sola cuando no hay grupo).`,
+      ).toBe(0);
+    }
+  });
+
+  it("los tres puntos de cierre llaman a la de grupo", () => {
+    const total = CLIENTE.reduce((acc, rel) => {
+      const src = readFileSync(resolve(process.cwd(), rel), "utf8");
+      return acc + [...src.matchAll(/teacher_close_attendance_check_in_group/g)].length;
+    }, 0);
+    // Cierre explícito del docente, autocierre por expiración, y limpieza del
+    // check-in vencido al reabrir.
+    expect(total).toBeGreaterThanOrEqual(3);
+  });
+});

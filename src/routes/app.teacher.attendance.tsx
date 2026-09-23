@@ -2298,8 +2298,12 @@ function TeacherAttendance() {
       const stale = !row || new Date(row.closes_at).getTime() <= Date.now();
       if (stale) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        // De GRUPO: si la ventana venció, venció para todas las sesiones que
+        // compartían el código. Limpiar solo esta dejaba a las hermanas con
+        // `check_in_open=true` y sin estado, que es justo la inconsistencia
+        // que este bloque existe para deshacer.
         const { error: closeErr } = await (supabase as any).rpc(
-          "teacher_close_attendance_check_in",
+          "teacher_close_attendance_check_in_group",
           { p_session_id: sess.id },
         );
         if (closeErr) {
@@ -2333,7 +2337,7 @@ function TeacherAttendance() {
   };
 
   /** Llamado por el proyector cuando se cierra (manual o por expiración). */
-  const closeProjector = async () => {
+  const closeProjector = async (info?: { cerradas?: number }) => {
     const closedSessionId = projector?.sessionId;
     if (closedSessionId) {
       void logEvent({
@@ -2349,9 +2353,19 @@ function TeacherAttendance() {
     void loadCourse();
     if (!closedSessionId) return;
     // Ofrecer marcar pendientes como ausentes
+    // Con un check-in de VARIAS sesiones el cierre las abarcó a todas, pero el
+    // marcado de ausentes NO: se aplica solo a la sesión desde la que se cerró.
+    // Y eso hay que decirlo — si no, el docente cree que dejó las tres clases
+    // con sus ausencias puestas y se entera semanas después, al mirar el acta.
+    // No se extiende al grupo a propósito: esas sesiones pueden ser de semanas
+    // distintas, y poner ausencias de tres clases con una sola confirmación es
+    // una acción mucho más grande que la que el docente está pidiendo.
+    const enGrupo = (info?.cerradas ?? 1) > 1;
     const ok = await confirm({
       title: t("attendance.markAbsentsTitle"),
-      description: t("attendance.markAbsentsBody"),
+      description: enGrupo
+        ? t("attendance.markAbsentsBodyGroup")
+        : t("attendance.markAbsentsBody"),
       confirmLabel: t("attendance.markAbsentsConfirm"),
       tone: "warning",
     });
@@ -3410,14 +3424,7 @@ function TeacherAttendance() {
           setCheckInPrev(null);
         }}
       >
-        <DialogContent
-          className={cn(
-            "max-w-[calc(100vw-2rem)] sm:max-w-sm",
-            // El proyector es `z-[100]`: sin esto el diálogo abriría DETRÁS del
-            // QR. El velo del fondo lo pinta el proyector (ver `ajustando`).
-            checkInAjusteSession && "z-[120]",
-          )}
-        >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
           <DialogHeader>
             <DialogTitle>
               {checkInAjusteSession
@@ -3823,7 +3830,12 @@ function TeacherAttendance() {
           // Ajustar el check-in en curso sin cerrarlo: abre el MISMO diálogo de
           // configuración en modo ajuste. La sesión se resuelve del listado
           // porque el proyector solo guarda el id.
-          ajustando={!!checkInAjusteSession}
+          // Las DOS ramas del mismo diálogo, no solo la de ajuste: hoy la de
+          // configuración no se abre desde el proyector, pero si algún día lo
+          // hace, el proyector se quedaría arriba y volvería el bug del
+          // calendario inalcanzable. El flag describe «hay un diálogo encima»,
+          // no «se está ajustando».
+          ajustando={!!checkInAjusteSession || !!checkInConfigSession}
           onAjustar={() => {
             const sess = sessions.find((x) => x.id === projector.sessionId);
             if (!sess) {
