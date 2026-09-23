@@ -57,6 +57,11 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/shared/lib/utils";
 import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { useVentana } from "@/hooks/use-ventana";
+import {
+  esPantallaAngosta,
+  OPCIONES_EN_PANTALLA_ANGOSTA,
+} from "@/modules/code/editor-opciones";
 import { EditorZoomControls } from "@/modules/code/EditorZoomControls";
 import {
   createEphemeralDb,
@@ -186,6 +191,9 @@ export function SqlRunner({
     atMax,
     pct,
   } = useEditorZoom(zoomScopeKey);
+
+  const ventana = useVentana();
+  const angosta = esPantallaAngosta(ventana);
 
   /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
      de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),
@@ -475,6 +483,10 @@ export function SqlRunner({
           scrollBeyondLastLine: false,
           wordWrap: "on",
           automaticLayout: true,
+          // En un teléfono la canaleta de Monaco se comía 76 px de ancho — ver
+          // `editor-opciones.ts`. El ALTO de la hoja de SQL no se toca acá: lo
+          // reparte el divisor de la pizarra o la tabla de resultados de abajo.
+          ...(angosta ? OPCIONES_EN_PANTALLA_ANGOSTA : {}),
         }}
       />
     </div>

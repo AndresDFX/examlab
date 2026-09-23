@@ -3641,7 +3641,6 @@
       "teacherUpdatedExamTime": "The teacher updated the exam time",
       "exitLimitExceeded": "You have exceeded the exit limit. The exam is being suspended.",
       "warningWithLabel": "Warning {{count}}/{{max}}: {{label}}",
-      "screenshotsNotAllowed": "Taking screenshots is not allowed during the exam.",
       "executionCancelled": "Execution cancelled. You can switch compilers and try again.",
       "writeCodeBeforeRunning": "Write some code before running",
       "warningExamExit": "Warning {{count}}/{{max}}: Exam exit",

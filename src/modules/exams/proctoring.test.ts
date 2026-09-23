@@ -1,7 +1,10 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 
 import {
   GRACIA_OCULTO_MOVIL_MS,
+  TIPOS_QUE_SUMAN_STRIKE,
   MAX_WARNINGS,
   blurCuentaComoStrike,
   creaVentanasDeProctoring,
@@ -142,6 +145,59 @@ describe("blurCuentaComoStrike", () => {
     // se mantiene en el set de tipos que suman: el proctoring no se debilita.
     expect(isStrikeEvent("visibility_hidden")).toBe(true);
     expect(isStrikeEvent("fullscreen_exit")).toBe(true);
+  });
+
+  it("el pantallazo y el botón «atrás» SUMAN", () => {
+    // `retroceso` sumaba desde siempre —la pantalla de toma incrementa el
+    // contador al confirmar el diálogo— pero estaba fuera de la lista, así que
+    // perdonarlo desde el monitor borraba la fila y dejaba el strike puesto.
+    expect(isStrikeEvent("retroceso")).toBe(true);
+    expect(isStrikeEvent("pantallazo")).toBe(true);
+  });
+
+  it("copiar y pegar NO suman: en una pregunta de código son parte de responder", () => {
+    for (const t of ["copiar", "pegar", "cortar"]) expect(isStrikeEvent(t)).toBe(false);
+  });
+
+  it("la clave VIEJA del pantallazo sigue sin sumar", () => {
+    // Hay 11 `screenshot_attempt` en producción que nunca sumaron. Si esta clave
+    // pasara a sumar, perdonar uno de esos once DESCONTARÍA un strike que no
+    // existió, y si eso baja del umbral des-suspende a un alumno.
+    expect(isStrikeEvent("screenshot_attempt")).toBe(false);
+  });
+
+  // El mismo set vive en SQL (`_exam_warning_is_strike`), que es lo que usa
+  // `teacher_clear_exam_warnings` para decidir si descuenta. Si divergen, el
+  // monitor muestra una cosa y la base hace otra con el expediente del alumno.
+  it("el set coincide con el espejo en SQL, leído de la migración", () => {
+    // Se busca la ÚLTIMA migración que define la función, no un nombre fijo:
+    // con el archivo escrito a mano, la migración siguiente que cambie el set
+    // dejaría al test leyendo una versión vieja y pasando en verde contra ella
+    // — que es justo el modo de falla que este test existe para tapar. Mismo
+    // patrón que `page-types.test.ts`.
+    const dir = "supabase/migrations";
+    const archivo = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .reverse()
+      .find((f) =>
+        fs.readFileSync(path.join(dir, f), "utf8").includes(
+          "FUNCTION public._exam_warning_is_strike",
+        ),
+      );
+    expect(archivo, "ninguna migración define _exam_warning_is_strike").toBeTruthy();
+
+    const sql = fs.readFileSync(path.join(dir, archivo!), "utf8");
+    const m = sql.match(/_type IN \(([^)]*)\)/);
+    expect(m, "no se encontró la lista en la migración").not.toBeNull();
+    const enSql = [...m![1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+
+    // Contra el set REAL, no contra una copia escrita en el test: si alguien
+    // agrega un tipo de un solo lado, con una copia los dos seguirían
+    // coincidiendo entre sí y nadie se enteraría.
+    expect(enSql).toEqual([...TIPOS_QUE_SUMAN_STRIKE].sort());
+    for (const t of enSql) expect(isStrikeEvent(t), t).toBe(true);
   });
 });
 

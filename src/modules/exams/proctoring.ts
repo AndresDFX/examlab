@@ -18,6 +18,12 @@ export type WarningType =
   | "pegar"
   | "cortar"
   | "menu"
+  // Pulsó «atrás» del navegador y confirmó salir del examen. SUMA strike: lo
+  // incrementa la propia pantalla de toma al confirmar el diálogo.
+  | "retroceso"
+  // Pantallazo detectado por atajo de teclado. SUMA strike. Es distinto de
+  // `screenshot_attempt` a propósito: ver `TIPOS_QUE_SUMAN_STRIKE`.
+  | "pantallazo"
   // English keys (historical / monitor)
   | "blur"
   | "visibility_hidden"
@@ -70,8 +76,14 @@ export function warningLabel(type: WarningType): string {
     case "menu":
     case "context_menu":
       return "Menú contextual";
+    case "pantallazo":
+      return "Pantallazo";
     case "screenshot_attempt":
-      return "Intento de pantallazo";
+      // Los registrados ANTES de que el pantallazo sumara. Se distinguen en la
+      // etiqueta porque el docente los ve mezclados en la misma lista.
+      return "Intento de pantallazo (no suma)";
+    case "retroceso":
+      return "Salió con el botón «atrás»";
     case "blur_movil":
       return "Salida momentánea en móvil (no suma)";
     case "oculto_breve_movil":
@@ -88,14 +100,28 @@ export function warningLabel(type: WarningType): string {
  *
  * `__warning_events` mezcla DOS clases de evento y eso no se ve en el array:
  *
- *   · Los que suman strike, que son EXACTAMENTE los tres con los que se llama
- *     `recordWarning` en la pantalla de toma: `pestaña`, `fullscreen_exit` y
- *     `visibility_hidden`.
+ *   · Los que suman strike: `pestaña`, `fullscreen_exit`, `visibility_hidden`,
+ *     `pantallazo` y `retroceso`.
+ *
+ *     Esta lista decía "EXACTAMENTE los tres con los que se llama
+ *     `recordWarning`", y esa definición es la que la dejó incompleta:
+ *     `retroceso` SUMA pero lo incrementa el botón del diálogo de salida, no
+ *     `recordWarning`, así que no cumplía la regla y quedó afuera. Perdonarlo
+ *     desde el monitor borraba la fila y dejaba el strike. Lo que define la
+ *     lista es si el evento SUMÓ, no por dónde entró.
  *   · Las señales BLANDAS, que se registran solo para que el docente las vea:
- *     `copiar`/`pegar`/`cortar` (por `recordCopyAlert`) y `screenshot_attempt`
- *     (por `recordScreenshotAttempt`). El comentario de esas funciones dice
- *     literal "NO suma strike" — antes sumaban y se cambió a pedido de varios
- *     docentes.
+ *     `copiar`/`pegar`/`cortar` (por `recordCopyAlert`). El comentario de esas
+ *     funciones dice literal "NO suma strike" — antes sumaban y se cambió a
+ *     pedido de varios docentes. Se quedan blandas, y con motivo: en una
+ *     pregunta de CÓDIGO, copiar y pegar dentro del propio editor es parte de
+ *     escribir la respuesta.
+ *
+ * ── Por qué el pantallazo tiene DOS claves ────────────────────────────
+ * `screenshot_attempt` es la histórica y NO sumaba; hay 11 así en producción.
+ * El pantallazo pasa a sumar, pero cambiar el significado de la clave vieja
+ * habría hecho que perdonar uno de esos 11 DESCUENTE un strike que nunca se
+ * sumó —el mismo error que esta allowlist existe para evitar—. Por eso lo
+ * nuevo se emite como `pantallazo` y lo viejo se queda como estaba.
  *
  * Sin esta distinción, borrar una advertencia desde el monitor decrementaba el
  * contador para CUALQUIER evento: perdonar un "Intento de copiar" regalaba un
@@ -112,10 +138,23 @@ export function warningLabel(type: WarningType): string {
  * hacia no-perdonar, porque no perdonar es visible y tiene alternativa,
  * mientras que perdonar de más es invisible y toca el expediente del alumno.
  */
-const TIPOS_QUE_SUMAN_STRIKE = new Set<string>([
+/** Exportado SOLO para que el test lo compare con el espejo en SQL. Para
+ *  preguntar por un tipo suelto está `isStrikeEvent`. */
+export const TIPOS_QUE_SUMAN_STRIKE: ReadonlySet<string> = new Set<string>([
   "pestaña",
   "fullscreen_exit",
   "visibility_hidden",
+  // Salir con el botón «atrás» del navegador. La pantalla de toma incrementa el
+  // contador al confirmar ese diálogo, pero fuera de `recordWarning`, así que
+  // faltaba acá: perdonarlo desde el monitor borraba el evento y dejaba el
+  // strike puesto, sin forma de quitarlo salvo «Limpiar todas». Hay 1 en
+  // producción.
+  "retroceso",
+  // Pantallazo por atajo de teclado. Suma porque nadie pulsa Impr Pant ni
+  // Cmd+Shift+4 sin querer en mitad de un examen: es deliberado y unívoco, al
+  // revés que copiar o pegar, que en una pregunta de código son parte de
+  // responderla.
+  "pantallazo",
 ]);
 
 export function isStrikeEvent(type: string | null | undefined): boolean {

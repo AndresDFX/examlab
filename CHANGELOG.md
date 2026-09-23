@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **82 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262410000000_reabrir_intento_examen`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **83 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262420000000_strike_pantallazo_y_retroceso`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,64 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 📱 El compilador, usable en un teléfono
+
+Reporte con captura: en el celular el editor de código del examen quedaba en una cajita con barras de
+desplazamiento propias y un widget flotante encima del código. Medido con el editor real a 390 px y a
+320 px (no estimado):
+
+- **La decoración de Monaco se comía 76 px de ancho.** La canaleta de la izquierda —números de línea
+  con sitio para 5 dígitos, margen de decoraciones, control de plegado— 62 px, y la regla de la
+  derecha 14. De los 356 px del editor, el código escribía en 294; a 320 px de pantalla, en **224 px**,
+  poco más de veinte caracteres por renglón. Nada de eso se usa en un teléfono: no hay hover para
+  plegar y la regla resume un archivo de quince líneas. Recortado, el código pasa a 334 px a 390 y a
+  264 a 320 (**+21 %**).
+- **El alto fijo de 250 px dejaba siete renglones a la vista** una vez que el ajuste de línea parte las
+  líneas largas. En un teléfono pasa a la mitad de la pantalla (~422 px), que es el programa completo
+  del ejemplo en lugar de la mitad. Nunca ACHICA: con la ventana baja (apaisado, pantalla dividida)
+  queda el alto que pedía la pantalla.
+- **A 320 px la página entera desbordaba en horizontal** (323 px de contenido en 320 de pantalla): la
+  barra del editor no envolvía y el selector + el zoom + «Ejecutar» no entran. Ahora envuelve, y el
+  zoom y «Ejecutar» viajan JUNTOS — si envuelven por separado, «Ejecutar» cae solo a la izquierda de
+  la segunda línea mientras el zoom queda a la derecha de la primera.
+- **A 768 px y más no cambia nada**, verificado: el recorte y el alto solo aplican por debajo del
+  breakpoint `sm`.
+- El mismo bloque de opciones de Monaco estaba escrito **tres veces byte a byte** (compilador de
+  examen/taller, Java gráfico, Python gráfico). Ahora vive en `editor-opciones.ts` y lo comparten los
+  tres, así que el recorte llegó a los tres de una vez. La hoja de SQL toma el recorte de ancho; su
+  ALTO no se toca, porque lo reparte el divisor arrastrable de la pizarra.
+
+**Lo que NO se sacó, aunque sea lo primero que uno querría sacar**: el botón flotante de teclado que
+Monaco dibuja encima del código en un dispositivo táctil. En iOS tocar el editor no siempre abre el
+teclado en pantalla y ese botón es la única forma de abrirlo — sin él el editor queda lindo y no se
+puede escribir. Lo que baja su estorbo es el editor más alto: ahora cae sobre espacio vacío.
+
+### 🚨 Qué acción SUMA un strike de proctoring
+
+- **Tomar un pantallazo no contaba.** `recordScreenshotAttempt` escribía el evento dentro de las
+  respuestas y nunca tocaba el contador: hay **11 en producción**, ninguno sumó. Ahora suma. Nadie
+  pulsa Impr Pant ni Cmd+Shift+4 sin querer en mitad de un examen: es deliberado y unívoco, al revés
+  de copiar y pegar, que en una pregunta de código son parte de responderla y por eso siguen sin sumar.
+- **La clave es NUEVA (`pantallazo`) a propósito.** La histórica `screenshot_attempt` no sumaba;
+  cambiarle el significado haría que perdonar una de esas once **DESCONTARA** un strike que nunca se
+  sumó — exactamente el error que la lista de tipos existe para evitar.
+- **`retroceso` sumaba y no estaba en la lista.** La pantalla de toma incrementa el contador cuando el
+  estudiante pulsa «atrás» y confirma salir, pero lo hace fuera de `recordWarning`, así que se le
+  escapó a una lista escrita como «exactamente los tipos con los que se llama `recordWarning`». Efecto:
+  perdonar ese evento desde el monitor borraba la fila y **dejaba el strike puesto**, sin forma de
+  quitarlo salvo «Limpiar todas». Hay 1 en producción.
+- **Un solo aviso por gesto.** El pantallazo tenía un mensaje propio («No está permitido tomar
+  pantallazos») que ahora sería el SEGUNDO por la misma acción, y al tercer strike quedaría debajo de
+  «el examen se suspende» diciendo que algo no se puede hacer cuando el examen ya terminó. Queda el
+  genérico, que además nombra la acción y la consecuencia: «Advertencia 1/3: Pantallazo».
+- El espejo en SQL (`_exam_warning_is_strike`, mig `20262420000000`) es lo que decide si perdonar
+  descuenta. Un test lee la migración del disco y compara los dos conjuntos, para que no vuelvan a
+  separarse en silencio.
+- **En un TELÉFONO el pantallazo no se puede detectar ni impedir**, y conviene que quede escrito: es
+  Power+Volumen, lo resuelve el sistema operativo y no genera ningún evento web —ni tecla, ni pérdida
+  de foco, ni cambio de visibilidad—. Esto cubre computador, donde el atajo a veces llega al navegador.
+  Prometer lo otro sería peor que no tenerlo.
 
 ### ↩️ Reabrir un intento de examen desde el monitor
 

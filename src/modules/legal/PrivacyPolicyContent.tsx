@@ -37,7 +37,7 @@ import { useTranslation } from "react-i18next";
 /** Fecha de vigencia del documento. Constante (NO `new Date()`) para no
  *  introducir un mismatch de hidratación SSR ni variar entre renders.
  *  Actualizar SIEMPRE que cambie el texto de fondo. */
-export const PRIVACY_LAST_UPDATED = "22 de agosto de 2026";
+export const PRIVACY_LAST_UPDATED = "23 de septiembre de 2026";
 
 interface Section {
   title: string;
@@ -105,7 +105,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
     {
       title: "5. Supervisión de exámenes e integridad académica",
       paragraphs: [
-        "Cuando el docente activa la supervisión de un examen, la plataforma registra señales sobre CÓMO se rindió: salir de pantalla completa, cambiar de pestaña o de ventana, copiar, cortar o pegar, abrir el menú contextual e intentos de captura de pantalla. Al acumular tres advertencias la entrega queda marcada para revisión del docente.",
+        "Cuando el docente activa la supervisión de un examen, la plataforma registra señales sobre CÓMO se rindió: salir de pantalla completa, cambiar de pestaña o de ventana, copiar, cortar o pegar, abrir el menú contextual, intentos de captura de pantalla y salir del examen con el botón «atrás» del navegador. Al acumular tres advertencias la entrega queda marcada para revisión del docente.",
         "Durante un examen NO se activa la cámara ni el micrófono, y no se graba la pantalla. Las señales anteriores son eventos de la ventana del navegador, no imagen ni sonido.",
         "Para detectar copia, la plataforma también puede comparar entre sí las entregas de una misma actividad y señalarle al docente los pares con coincidencias que el enunciado no explica. Eso implica que tu entrega se procesa junto con la de tus compañeros, con la única finalidad de esa comparación.",
         "Ninguna de estas señales decide por sí sola: son insumos para el docente, que es quien evalúa el caso y toma la decisión académica. Tenés derecho a que se te explique el señalamiento y a controvertirlo por los canales de tu institución.",

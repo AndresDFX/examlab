@@ -57,8 +57,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatFileSize } from "@/shared/lib/format";
 import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { useVentana } from "@/hooks/use-ventana";
 import { EditorZoomControls } from "./EditorZoomControls";
 import { escalarAltoEditor } from "./editor-zoom";
+import {
+  altoDeEditorEnPantalla,
+  esPantallaAngosta,
+  opcionesBaseDeEditor,
+  OPCIONES_EN_PANTALLA_ANGOSTA,
+} from "./editor-opciones";
 
 type JavaGuiMode = "cheerp" | "aws_screenshot";
 /** Framework GUI Java. Solo aplica al runner `aws_screenshot` —
@@ -518,6 +525,11 @@ export function JavaGuiRunner({
   // compiladores de la plataforma).
   const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
+  // En un teléfono el editor recorta la decoración de Monaco y crece a la mitad
+  // de la pantalla — ver `editor-opciones.ts`.
+  const ventana = useVentana();
+  const angosta = esPantallaAngosta(ventana);
+
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2 flex-wrap">
@@ -632,22 +644,15 @@ export function JavaGuiRunner({
         <Editor
           // El alto escala con la fuente: sin eso, subir el zoom no
           // agranda, solo deja menos líneas a la vista.
-          height={escalarAltoEditor(height, zoom)}
+          height={escalarAltoEditor(altoDeEditorEnPantalla(height, ventana), zoom)}
           language="java"
           value={value}
           onChange={(v) => onChange(v ?? "")}
           onMount={handleMount}
           theme={isDark ? "vs-dark" : "vs"}
           options={{
-            minimap: { enabled: false },
-            fontSize: Math.round(13 * zoom),
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            tabSize: 4,
-            readOnly,
-            wordWrap: "on",
-            padding: { top: 8 },
+            ...opcionesBaseDeEditor({ zoom, readOnly }),
+            ...(angosta ? OPCIONES_EN_PANTALLA_ANGOSTA : {}),
           }}
         />
       </div>

@@ -14,8 +14,15 @@ import { Badge } from "@/components/ui/badge";
 import { Play, Terminal, Info, X } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { useEditorZoom } from "@/hooks/use-editor-zoom";
+import { useVentana } from "@/hooks/use-ventana";
 import { EditorZoomControls } from "./EditorZoomControls";
 import { escalarAltoEditor } from "./editor-zoom";
+import {
+  altoDeEditorEnPantalla,
+  esPantallaAngosta,
+  opcionesBaseDeEditor,
+  OPCIONES_EN_PANTALLA_ANGOSTA,
+} from "./editor-opciones";
 import {
   LANGUAGE_LABEL,
   MONACO_LANGUAGE,
@@ -173,9 +180,17 @@ export function CodeEditor({
   // Java/Python con interfaz gráfica: una sola preferencia por persona.
   const { zoom, zoomIn, zoomOut, reset: resetZoom, atMin, atMax, pct } = useEditorZoom(zoomScopeKey);
 
+  // En un teléfono el editor recorta la decoración de Monaco y crece a la mitad
+  // de la pantalla — ver `editor-opciones.ts`.
+  const ventana = useVentana();
+  const angosta = esPantallaAngosta(ventana);
+
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      {/* La barra ENVUELVE. A 320 px el selector, el zoom (tres botones de 44 px
+          en táctil) y «Ejecutar» suman más que el ancho disponible, y sin
+          envolver empujaban la página entera a scroll horizontal. */}
+      <div className="flex flex-wrap items-center gap-2">
         {showLanguageSelector && onLanguageChange && (
           <Select value={language} onValueChange={(v) => onLanguageChange(v as CodeLanguage)}>
             <SelectTrigger className="w-[140px] h-8 text-xs">
@@ -195,7 +210,10 @@ export function CodeEditor({
             {config.label}
           </Badge>
         )}
-        <div className="ml-auto flex items-center gap-1.5">
+        {/* El zoom y «Ejecutar» viajan JUNTOS: si envuelven por separado,
+            «Ejecutar» cae solo a la izquierda de la segunda línea mientras el
+            zoom queda a la derecha de la primera. */}
+        <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
           {/* El zoom va SIEMPRE, aunque el editor sea de solo lectura o no
               tenga botón de Ejecutar: en la revisión de una entrega es cuando
               más falta hace poder agrandar la letra. */}
@@ -207,40 +225,40 @@ export function CodeEditor({
             atMax={atMax}
             pct={pct}
           />
-        </div>
-        {showRunButton && onRun && (
-          <div className="flex items-center gap-1.5">
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onRun}
-              disabled={isRunning}
-              className="h-8 text-xs"
-            >
-              {isRunning ? (
-                <Spinner size="xs" className="mr-1" />
-              ) : (
-                <Play className="h-3 w-3 mr-1" />
-              )}
-              {t("codeEditor.runButton")}
-            </Button>
-            {/* Cancelar visible solo mientras hay un run en curso. Si
-                el caller no pasó onCancel, no lo mostramos — algunos
-                callers (review read-only, etc.) no implementan cancel. */}
-            {isRunning && onCancel && (
+          {showRunButton && onRun && (
+            <div className="flex items-center gap-1.5">
               <Button
                 size="sm"
-                variant="ghost"
-                onClick={onCancel}
-                className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
-                title={t("codeEditor.cancelTitle")}
+                variant="outline"
+                onClick={onRun}
+                disabled={isRunning}
+                className="h-8 text-xs"
               >
-                <X className="h-3 w-3 mr-1" />
-                {t("codeEditor.cancelButton")}
+                {isRunning ? (
+                  <Spinner size="xs" className="mr-1" />
+                ) : (
+                  <Play className="h-3 w-3 mr-1" />
+                )}
+                {t("codeEditor.runButton")}
               </Button>
-            )}
-          </div>
-        )}
+              {/* Cancelar visible solo mientras hay un run en curso. Si
+                  el caller no pasó onCancel, no lo mostramos — algunos
+                  callers (review read-only, etc.) no implementan cancel. */}
+              {isRunning && onCancel && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={onCancel}
+                  className="h-8 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                  title={t("codeEditor.cancelTitle")}
+                >
+                  <X className="h-3 w-3 mr-1" />
+                  {t("codeEditor.cancelButton")}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
       {language === "java" && !hideHints && (
@@ -256,22 +274,15 @@ export function CodeEditor({
         <Editor
           // El alto escala con la fuente: sin eso, subir el zoom no agranda,
           // solo deja menos líneas a la vista.
-          height={escalarAltoEditor(height, zoom)}
+          height={escalarAltoEditor(altoDeEditorEnPantalla(height, ventana), zoom)}
           language={config.monacoLang}
           value={value}
           onChange={(v) => onChange(v ?? "")}
           onMount={handleMount}
           theme={isDark ? "vs-dark" : "vs"}
           options={{
-            minimap: { enabled: false },
-            fontSize: Math.round(13 * zoom),
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            tabSize: 4,
-            readOnly,
-            wordWrap: "on",
-            padding: { top: 8 },
+            ...opcionesBaseDeEditor({ zoom, readOnly }),
+            ...(angosta ? OPCIONES_EN_PANTALLA_ANGOSTA : {}),
           }}
         />
       </div>

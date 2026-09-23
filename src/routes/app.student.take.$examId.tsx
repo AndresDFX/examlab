@@ -1677,56 +1677,41 @@ function TakeExam() {
       }
     };
 
-    // Intento de pantallazo: alerta blanda + se registra para el monitor
-    // del docente, pero NO suma strike. La detección es best-effort: el
-    // SO suele interceptar PrintScreen, Win+Shift+S y Cmd+Shift+3/4/5
-    // antes de que llegue al navegador, así que solo capturamos los
-    // casos en que el evento sí se propaga.
+    // Pantallazo: SUMA strike. Nadie pulsa Impr Pant ni Cmd+Shift+4 sin querer
+    // en mitad de un examen — es deliberado y unívoco, al revés que copiar o
+    // pegar, que en una pregunta de código son parte de responderla.
+    //
+    // ── Lo que esto NO alcanza, y conviene tenerlo escrito ──────────────
+    // En un TELÉFONO el pantallazo es Power+Volumen: lo resuelve el sistema
+    // operativo y no genera NINGÚN evento web — ni tecla, ni blur, ni cambio de
+    // visibilidad. No hay API que lo detecte y tampoco forma de impedirlo desde
+    // la web. Así que esto cubre computador, donde el atajo a veces llega; en
+    // móvil no hay nada que contar, y conviene no prometerlo.
+    //
+    // Incluso en computador el SO suele interceptar el atajo antes que el
+    // navegador, así que la detección es best-effort: se capturan los casos en
+    // que el evento sí se propaga.
     let lastScreenshotAt = 0;
     const recordScreenshotAttempt = () => {
       if (submittedRef.current) return;
       const now = Date.now();
+      // El SO puede repetir la tecla: sin esto, un pantallazo sostenido sumaba
+      // varios strikes de golpe.
       if (now - lastScreenshotAt < 800) return;
       lastScreenshotAt = now;
 
-      toast.warning(
-        i18n.t("toast.routes_app_student_take_examId.screenshotsNotAllowed", {
-          defaultValue: "No está permitido tomar pantallazos durante el examen.",
-        }),
-      );
-
-      const event = {
-        type: "screenshot_attempt",
-        at: new Date(now).toISOString(),
-        // currentIdxRef.current (no `currentIdx` del closure): el
-        // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen] —
-        // NO incluye currentIdx, así que al avanzar de pregunta los
-        // listeners seguían registrando el índice viejo. El monitor del
-        // docente veía strikes anclados a la pregunta equivocada.
-        questionIdx:
-          exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
-      };
-      warningEventsRef.current = [...warningEventsRef.current, event];
-
-      const updatedAnswers = {
-        ...answersRef.current,
-        __warning_events: warningEventsRef.current,
-        // Avanza la marca de versión de answers (ver saveAnswersNow) para que un
-        // sync offline rezagado no pise esta escritura del server.
-        __saved_at: Date.now(),
-      };
-      answersRef.current = updatedAnswers;
-      setAnswers(updatedAnswers);
-      if (submissionIdRef.current && isOnline()) {
-        supabase
-          .from("submissions")
-          .update({ answers: updatedAnswers })
-          .eq("id", submissionIdRef.current)
-          .then(({ error }) => {
-            if (error) console.error("recordScreenshotAttempt DB save failed:", error);
-          });
-      }
+      // Se delega en `recordWarning`, que es quien sabe contar: incrementa
+      // `focus_warnings`, persiste las dos cosas en UNA escritura, respeta la
+      // gracia de reanudación y marca la entrega como sospechosa al llegar al
+      // tope. Duplicar eso acá fue justamente lo que dejó el pantallazo sin
+      // contar: esta función escribía `answers` y nunca el contador.
+      //
+      // Y el aviso lo da ÉL, no esta función: antes había uno propio («No está
+      // permitido tomar pantallazos»), que ahora sería el SEGUNDO mensaje por
+      // un mismo gesto — y al tercer strike quedaría debajo de «el examen se
+      // suspende», diciendo que algo no se puede hacer cuando el examen ya
+      // terminó. El genérico nombra la acción: «Advertencia 1/3: Pantallazo».
+      recordWarning("pantallazo");
     };
 
     // Show native "Leave site?" dialog on browser/tab close (full reload/close).
