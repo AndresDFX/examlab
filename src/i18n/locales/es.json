@@ -1252,6 +1252,18 @@
     "clearWarningsTitle": "Limpiar advertencias",
     "clearWarningsBody": "Se eliminarán todas las advertencias de este intento. Si estaba marcado como sospechoso, volverá a estado completado.",
     "clearWarningsConfirm": "Limpiar",
+    "reviewWarnings": "Advertencias",
+    "reviewWarningsHint": "Borra las que no correspondan. Quitarlas baja el contador y evita que el intento se suspenda solo al llegar al tope.",
+    "noWarningsLeft": "No quedan advertencias en este intento.",
+    "clearOneWarningTitle": "¿Borrar esta advertencia?",
+    "clearWarningsInProgressBody": "El examen sigue en curso: esto solo baja el contador, no lo termina ni lo entrega. Al estudiante se le actualiza en el momento.",
+    "clearWarningsError": {
+      "no_auth": "Tu sesión expiró. Vuelve a iniciar sesión.",
+      "not_found": "Ese intento ya no existe.",
+      "forbidden": "No dictas este curso, así que no puedes tocar sus intentos.",
+      "stale_index": "La lista cambió mientras la mirabas. Ciérrala y vuelve a abrirla.",
+      "unknown": "No se pudo borrar la advertencia."
+    },
     "deleteAttemptTitle": "Eliminar intento del {{date}}",
     "deleteAttemptBody": "Se eliminará este intento de forma permanente. La calificación efectiva del examen se recalculará según el modo de reintento.",
     "deleteAllAttemptsTitle": "Eliminar todos los intentos de {{name}}",
@@ -3616,7 +3628,8 @@
       "writeCodeBeforeRunning": "Escribe código antes de ejecutar",
       "warningExamExit": "Advertencia {{count}}/{{max}}: Salida de examen",
       "examLoadFailed": "No se pudo cargar el examen.",
-      "couldNotReenterFullscreen": "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11."
+      "couldNotReenterFullscreen": "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11.",
+      "warningsClearedByTeacher": "El docente revisó tus advertencias. Ahora tienes {{count}}."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversación limpiada"

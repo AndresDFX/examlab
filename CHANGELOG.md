@@ -75,6 +75,52 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🙋 Borrar advertencias con el examen EN CURSO
+
+- **El caso**: una notificación del sistema saca al alumno de pantalla completa, el contador de
+  advertencias sube por algo que no hizo, y al tercero el intento **se suspende solo**. El panel de
+  advertencias del monitor solo se abría para intentos FINALIZADOS, así que el docente lo veía pasar
+  sin poder hacer nada. Ahora se abre también en curso, desde la fila y desde el diálogo de intentos.
+- **Y no alcanzaba con mostrar el botón.** Hacerlo desde el cliente fallaba de dos formas, las dos
+  silenciosas: (1) **le pisaba las respuestas al alumno** —el monitor escribe la columna `answers`
+  ENTERA desde una copia de hasta 60 s (su sondeo), y el alumno autoguarda cada 1,5 s—; y (2) **no
+  quedaba**, porque ese mismo autoguardado reescribe `__warning_events` y `focus_warnings` desde las
+  variables locales del alumno y revertía el borrado en 1,5 s. Peor: el contador con el que el alumno
+  decide suspenderse ni se enteraba, así que la suspensión se disparaba igual. El botón habría
+  parecido funcionar y no habría hecho nada.
+- **Por eso el borrado vive en el servidor** (mig `20262330000000`, RPC `teacher_clear_exam_warnings`):
+  la escritura es atómica y quirúrgica —toca SOLO la clave `__warning_events` sobre el valor ACTUAL
+  de la fila— y el contador se **recalcula** contando strikes en lo que queda, en vez de restarle uno
+  al valor viejo.
+- **El alumno se entera por el canal que ya existe** para las órdenes del docente
+  (`exam_timer_controls`: pausar, reanudar, +5 min), que a diferencia de `submissions` **sí** está
+  publicado en realtime y además se sondea cada 4 s. La orden lleva el estado nuevo en su propio
+  payload en vez de pedirle al alumno que relea su fila: entre el borrado y la relectura cabe un
+  autoguardado que restauraría lo viejo, y el alumno releería justo eso. Adoptando el payload, su
+  siguiente autoguardado escribe lo mismo y la fila converge sola.
+- **Un intento en curso nunca cambia de estado por esto**: perdonar un strike no puede terminarle el
+  examen a nadie. Solo un `sospechoso` que baja del umbral vuelve a `en_progreso` (y ahí se limpian
+  las marcas de cierre, o el trigger anti-reanudación lo dejaría en un limbo).
+- Borrar UNA advertencia ahora **confirma** cuando el intento está en curso, y **queda auditado**
+  (antes solo se auditaba «borrar todas», así que perdonarlas de a una lograba el mismo efecto sin
+  dejar rastro).
+- **17 comprobaciones contra PostgreSQL real**, la mayoría de lo que NO debe pasar: un docente ajeno
+  al curso es rechazado y el intento queda intacto, un examen en la papelera no se toca, un índice
+  viejo no borra «el que quedó ahí», y un intento ya terminado no genera aviso. La que protege las
+  respuestas se verificó rompiendo la escritura a propósito. Un test más fija la lista de tipos que
+  suman strike entre el SQL y el cliente: si divergen, perdonar un «intento de copiar» regalaría un
+  strike inexistente.
+
+### 🐞 Una pregunta de selección múltiple aparecía etiquetada «java»
+
+- La columna `questions.language` quedó en `'java'` en **151 preguntas que no son de código** (67
+  `cerrada`, 47 `abierta`, 27 `cerrada_multi`, 3 `bd_sql`). El editor ya pintaba ese badge solo para
+  el tipo `codigo`; las tres pantallas de revisión —monitor, revisión del estudiante y revisión del
+  taller— lo mostraban tal cual.
+- Se filtró el badge en las tres. Los datos no se tocan: una vez filtrado son inofensivos, y
+  reescribir 151 filas de producción por algo cosmético es más riesgo que beneficio. El formulario ya
+  no genera esto (deriva `language = null` para lo que no es código); son filas heredadas.
+
 ### 🙋 Lo seleccionado sube al principio de la grilla
 
 - **El caso**: en una grilla paginada marcás filas en la página 3, volvés a la 1 y la barra dice

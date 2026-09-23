@@ -584,7 +584,10 @@ function StudentWorkshopDetail() {
                       <Badge variant="outline" className="text-3xs capitalize">
                         {q.type}
                       </Badge>
-                      {q.language && (
+                      {/* Solo en preguntas de CÓDIGO: `language` quedó en 'java' en
+                          muchas que no lo son, y sin el filtro una de selección
+                          múltiple se muestra etiquetada «java». */}
+                      {q.type === "codigo" && q.language && (
                         <Badge variant="secondary" className="text-3xs">
                           {q.language}
                         </Badge>

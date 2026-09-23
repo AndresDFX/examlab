@@ -1252,6 +1252,18 @@
     "clearWarningsTitle": "Clear warnings",
     "clearWarningsBody": "All warnings for this attempt will be removed. If it was flagged as suspicious, it will return to completed status.",
     "clearWarningsConfirm": "Clear",
+    "reviewWarnings": "Warnings",
+    "reviewWarningsHint": "Delete the ones that don't apply. Removing them lowers the counter and prevents the attempt from being suspended automatically when it hits the limit.",
+    "noWarningsLeft": "No warnings left on this attempt.",
+    "clearOneWarningTitle": "Delete this warning?",
+    "clearWarningsInProgressBody": "The exam is still running: this only lowers the counter, it does not end or submit it. The student sees the change right away.",
+    "clearWarningsError": {
+      "no_auth": "Your session expired. Sign in again.",
+      "not_found": "That attempt no longer exists.",
+      "forbidden": "You don't teach this course, so you can't touch its attempts.",
+      "stale_index": "The list changed while you were looking at it. Close it and open it again.",
+      "unknown": "The warning could not be deleted."
+    },
     "deleteAttemptTitle": "Delete attempt from {{date}}",
     "deleteAttemptBody": "This attempt will be permanently deleted. The effective exam grade will be recalculated according to the retry mode.",
     "deleteAllAttemptsTitle": "Delete all attempts by {{name}}",
@@ -3616,7 +3628,8 @@
       "writeCodeBeforeRunning": "Write some code before running",
       "warningExamExit": "Warning {{count}}/{{max}}: Exam exit",
       "examLoadFailed": "Could not load the exam.",
-      "couldNotReenterFullscreen": "Could not return to fullscreen. Try again or press F11."
+      "couldNotReenterFullscreen": "Could not return to fullscreen. Try again or press F11.",
+      "warningsClearedByTeacher": "Your teacher reviewed your warnings. You now have {{count}}."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversation cleared"

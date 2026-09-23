@@ -518,7 +518,10 @@ function StudentExamReview() {
                   <Badge variant="outline" className="text-3xs capitalize">
                     {q.type.replace(/_/g, " ")}
                   </Badge>
-                  {q.language && (
+                  {/* Solo en preguntas de CÓDIGO: `language` viene con 'java' en
+                      muchas que no lo son, así que sin el filtro una de selección
+                      múltiple se muestra etiquetada «java». */}
+                  {q.type === "codigo" && q.language && (
                     <Badge variant="secondary" className="text-3xs">
                       {q.language}
                     </Badge>

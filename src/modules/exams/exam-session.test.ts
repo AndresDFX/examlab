@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import { isStrikeEvent } from "./proctoring";
+import fs from "node:fs";
+import path from "node:path";
 import {
   computeExtraSeconds,
   applyExtraTime,
@@ -495,5 +498,93 @@ describe("applyClearOneWarning — solo descuenta strikes reales", () => {
     expect(r.focusWarnings).toBe(3);
     expect(r.status).toBe("sospechoso");
     expect(r.restoredToInProgress).toBe(false);
+  });
+});
+
+describe("borrar advertencias con el intento EN CURSO", () => {
+  // Es la invariante que hace seguro ofrecer el botón durante el examen: si
+  // alguna de estas ramas tocara el estado, perdonar un strike TERMINARÍA el
+  // intento del alumno a mitad del examen.
+  const enCurso = {
+    status: "en_progreso",
+    focusWarnings: 2,
+    events: [
+      { type: "pestaña", at: "2026-01-01T10:00:00Z" },
+      { type: "fullscreen_exit", at: "2026-01-01T10:05:00Z" },
+      // No suma strike: está en el array para que el docente lo VEA.
+      { type: "copiar", at: "2026-01-01T10:06:00Z" },
+    ],
+    examMaxWarnings: 3,
+    examIsOpen: true,
+  };
+
+  it("borrar una deja el intento en curso y no lo da por entregado", () => {
+    const r = applyClearOneWarning(enCurso, 0);
+    expect(r.status).toBe("en_progreso");
+    expect(r.focusWarnings).toBe(1);
+    expect(r.clearSubmittedAt).toBe(false);
+    expect(r.restoredToInProgress).toBe(false);
+    expect(r.closedAsCompletado).toBe(false);
+  });
+
+  it("perdonar un evento que NO suma strike no baja el contador", () => {
+    // Bajarlo regalaría un strike inexistente — el mismo error que el código
+    // ya evita, pero ahora alcanzable a mitad del examen.
+    const r = applyClearOneWarning(enCurso, 2);
+    expect(r.focusWarnings).toBe(2);
+    expect(r.events).toHaveLength(2);
+  });
+
+  it("borrarlas todas tampoco cambia el estado", () => {
+    const r = applyClearAllWarnings(enCurso);
+    expect(r.status).toBe("en_progreso");
+    expect(r.focusWarnings).toBe(0);
+    expect(r.events).toEqual([]);
+    expect(r.clearSubmittedAt).toBe(false);
+    expect(r.closedAsCompletado).toBe(false);
+  });
+
+  it("con la ventana del examen ya cerrada tampoco lo cierra", () => {
+    // El docente puede estar limpiando después de la hora; eso no debe
+    // convertir un `en_progreso` en `completado` por un camino lateral.
+    const r = applyClearAllWarnings({ ...enCurso, examIsOpen: false });
+    expect(r.status).toBe("en_progreso");
+    expect(r.closedAsCompletado).toBe(false);
+  });
+});
+
+describe("los tipos que suman strike: SQL ↔ TypeScript", () => {
+  // Invariante cross-file. `teacher_clear_exam_warnings` (mig 20262330000000)
+  // RECALCULA `focus_warnings` contando strikes en el array que queda, así que
+  // su lista tiene que ser la misma que la de `proctoring.ts`. Si divergen,
+  // perdonar un evento blando ("intento de copiar") regalaría un strike
+  // inexistente, o al revés dejaría suspendido a alguien que ya no lo está —
+  // y nada falla: el número simplemente queda mal.
+  const migracion = fs.readFileSync(
+    path.join(process.cwd(), "supabase/migrations/20262330000000_borrar_advertencias_examen_en_curso.sql"),
+    "utf8",
+  );
+
+  it("la lista del SQL es exactamente la del cliente", () => {
+    const enSql = migracion
+      .slice(migracion.indexOf("_exam_warning_is_strike"))
+      .match(/_type IN \(([^)]*)\)/)?.[1];
+    expect(enSql, "no encontré la lista en la migración").toBeTruthy();
+    const tiposSql = [...enSql!.matchAll(/'([^']+)'/g)].map((m) => m[1]).sort();
+
+    // Se deriva del comportamiento REAL de `isStrikeEvent`, no de una copia de
+    // la constante: el set no se exporta, y copiarlo acá sería una tercera
+    // lista que también se puede desincronizar.
+    const candidatos = [
+      ...tiposSql,
+      "copiar", "pegar", "cortar", "screenshot_attempt", "blur", "devtools",
+    ];
+    const tiposCliente = candidatos.filter((t) => isStrikeEvent(t)).sort();
+
+    expect(tiposSql).toEqual([...new Set(tiposCliente)].sort());
+    // Y que ninguno de los blandos se haya colado en el SQL.
+    for (const blando of ["copiar", "pegar", "cortar", "screenshot_attempt"]) {
+      expect(tiposSql, `${blando} NO debería sumar strike`).not.toContain(blando);
+    }
   });
 });

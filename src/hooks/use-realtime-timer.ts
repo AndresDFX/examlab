@@ -5,8 +5,13 @@ interface TimerControl {
   id: string;
   exam_id: string;
   target_user_id: string | null;
-  action: "pause" | "resume" | "add_time";
+  action: "pause" | "resume" | "add_time" | "clear_warnings";
   extra_seconds: number;
+  /** Solo en `clear_warnings`: el estado nuevo de las advertencias. Viaja en la
+   *  orden y no se relee de `submissions` a propósito — entre el borrado y una
+   *  relectura cabe un autoguardado del alumno que restauraría lo viejo, y el
+   *  alumno releería justo eso. */
+  payload?: { focus_warnings?: number; warning_events?: unknown[] } | null;
   created_by: string;
   created_at: string;
 }
@@ -20,6 +25,9 @@ interface UseRealtimeTimerOptions {
   onResume?: () => void;
   onTimeAdded?: (seconds: number) => void;
   onEndTimeChanged?: (newSeconds: number) => void;
+  /** El docente borró advertencias de ESTE intento desde el monitor. Llega con
+   *  el estado nuevo para que el alumno lo adopte sin releer nada. */
+  onWarningsCleared?: (estado: { focusWarnings: number; events: unknown[] }) => void;
 }
 
 export function useRealtimeTimer({
@@ -31,6 +39,7 @@ export function useRealtimeTimer({
   onResume,
   onTimeAdded,
   onEndTimeChanged,
+  onWarningsCleared,
 }: UseRealtimeTimerOptions) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const [isPaused, setIsPaused] = useState(false);
@@ -57,11 +66,25 @@ export function useRealtimeTimer({
   const onTimeAddedRef = useRef(onTimeAdded);
   const onPauseRef = useRef(onPause);
   const onResumeRef = useRef(onResume);
+  const onWarningsClearedRef = useRef(onWarningsCleared);
   useEffect(() => {
     onTimeAddedRef.current = onTimeAdded;
     onPauseRef.current = onPause;
     onResumeRef.current = onResume;
-  }, [onTimeAdded, onPause, onResume]);
+    onWarningsClearedRef.current = onWarningsCleared;
+  }, [onTimeAdded, onPause, onResume, onWarningsCleared]);
+
+  // Mismo dedup por id que `add_time`: la orden llega por Realtime y por el
+  // poll de respaldo, y aplicarla dos veces mostraría dos avisos.
+  const appliedClearRef = useRef<Set<string>>(new Set());
+  const aplicarBorradoDeAdvertencias = useCallback((ctrl: TimerControl) => {
+    if (appliedClearRef.current.has(ctrl.id)) return;
+    appliedClearRef.current.add(ctrl.id);
+    onWarningsClearedRef.current?.({
+      focusWarnings: Number(ctrl.payload?.focus_warnings ?? 0),
+      events: Array.isArray(ctrl.payload?.warning_events) ? ctrl.payload!.warning_events! : [],
+    });
+  }, []);
 
   // Initialize secondsLeft once initialSeconds becomes available (exam loaded after mount)
   useEffect(() => {
@@ -133,6 +156,10 @@ export function useRealtimeTimer({
         if (ctrl.action === "pause") paused = true;
         else if (ctrl.action === "resume") paused = false;
         else if (ctrl.action === "add_time") appliedAddTimeRef.current.add(ctrl.id);
+        // El intento ya se cargó con el estado que dejó el borrado, así que la
+        // orden histórica solo se marca vista: re-aplicarla mostraría un aviso
+        // por cada recarga.
+        else if (ctrl.action === "clear_warnings") appliedClearRef.current.add(ctrl.id);
       }
       setIsPaused(paused);
       // Sync: el estado pausado histórico NO es una transición nueva (no toast al
@@ -177,6 +204,9 @@ export function useRealtimeTimer({
                 setSecondsLeft((s) => s + ctrl.extra_seconds);
                 onTimeAddedRef.current?.(ctrl.extra_seconds);
               }
+              break;
+            case "clear_warnings":
+              aplicarBorradoDeAdvertencias(ctrl);
               break;
           }
         },
@@ -237,6 +267,8 @@ export function useRealtimeTimer({
         else if (ctrl.action === "add_time" && !appliedAddTimeRef.current.has(ctrl.id)) {
           appliedAddTimeRef.current.add(ctrl.id);
           newExtra += ctrl.extra_seconds;
+        } else if (ctrl.action === "clear_warnings") {
+          aplicarBorradoDeAdvertencias(ctrl);
         }
       }
       // Notificar pausa/reanudación SOLO en transición (si Realtime perdió el evento
@@ -255,6 +287,10 @@ export function useRealtimeTimer({
 
     const id = setInterval(poll, 4000);
     return () => clearInterval(id);
+    // `aplicarBorradoDeAdvertencias` es estable (useCallback sin deps); se omite
+    // para no recrear el interval, que es el defecto que este archivo ya
+    // documenta arriba.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examId, userId]);
 
   const formattedTime = useCallback(() => {

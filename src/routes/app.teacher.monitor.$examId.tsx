@@ -44,6 +44,7 @@ import {
   Check,
   Bot,
   SquareCheckBig,
+  ShieldAlert,
   Users,
   ChevronRight,
   ChevronDown,
@@ -56,6 +57,7 @@ import {
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { warningLabel, warningEventTimestamp, type WarningEvent, MAX_WARNINGS } from "@/modules/exams/proctoring";
+import { WarningEventsCard } from "@/modules/exams/WarningEventsCard";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { statusLabel } from "@/shared/utils/status-labels";
 import { quienesNoIngresaron, type AsignadoParaEntrada } from "@/modules/exams/pending-entry";
@@ -1115,6 +1117,17 @@ function ExamMonitor() {
 
   // (deleteSubmission ahora vive en deleteOneAttempt / deleteAllAttempts dentro del dialog)
 
+  // Diálogo de advertencias suelto. Existe porque el panel de advertencias
+  // vivía SOLO dentro de «ver y calificar», y ese diálogo se abre únicamente
+  // para intentos finalizados: con el examen en curso el docente veía el
+  // contador subir y no tenía forma de perdonar un strike. Y es justo cuando
+  // más urge — al tercero el intento se suspende solo.
+  const [warningsForId, setWarningsForId] = useState<string | null>(null);
+  const warningsSub = useMemo(
+    () => submissions.find((s) => s.id === warningsForId) ?? null,
+    [submissions, warningsForId],
+  );
+
   const openView = (sub: Submission) => {
     setViewingId(sub.id);
     const manual: Record<string, ManualOverride> = sub.answers?.__manual_overrides ?? {};
@@ -1135,52 +1148,75 @@ function ExamMonitor() {
   // existiendo en `gradebook` cuando el docente edita la nota desde
   // ahí (otra ruta), pero no hay override global desde el monitor.
 
-  // Borra TODAS las advertencias de un intento: focus_warnings=0,
-  // Limpia __warning_events del JSON y pone focus_warnings a 0.
-  // Si el intento estaba en 'sospechoso' (por alcanzar el umbral de strikes)
-  // lo regresa a 'en_progreso' y limpia submitted_at para que el estudiante
-  // pueda reingresar al examen.
-  const clearAllWarnings = async (sub: Submission) => {
-    const prevAnswers = sub.answers ?? {};
-    const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
-    const examOpen = exam
-      ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
-      : false;
-    const result = applyClearAllWarnings({
-      status: sub.status,
-      focusWarnings: sub.focus_warnings ?? 0,
-      events,
-      examMaxWarnings: exam?.max_warnings ?? 3,
-      examIsOpen: examOpen,
+  // ── Borrar advertencias ────────────────────────────────────────────────
+  // Las dos operaciones pasan por la RPC `teacher_clear_exam_warnings` (mig
+  // 20262330000000) y NO por un UPDATE desde acá. El motivo es que ahora esto
+  // se puede hacer con el examen EN CURSO, y escribir desde el cliente falla
+  // de dos formas silenciosas:
+  //
+  //   · Le PISA LAS RESPUESTAS al alumno. El UPDATE mandaba la columna
+  //     `answers` entera armada desde `sub.answers`, que sale del estado de
+  //     esta pantalla; `submissions` no está publicada en realtime, así que su
+  //     única fuente de frescura es el sondeo de 60 s. El alumno autoguarda
+  //     cada 1,5 s: perdonar un strike le borraba hasta un minuto de examen.
+  //   · NO QUEDA. El autoguardado del alumno reescribe `__warning_events` y
+  //     `focus_warnings` desde sus propias variables, así que el borrado se
+  //     revertía en 1,5 s — y su contador local, que es con el que decide
+  //     suspenderse, ni se enteraba.
+  //
+  // La RPC hace la escritura atómica sobre el valor ACTUAL de la fila y avisa
+  // al alumno por `exam_timer_controls`. Los helpers puros se siguen usando,
+  // pero solo para ANTICIPAR el texto de la confirmación; la verdad de lo que
+  // pasó la devuelve el servidor.
+  const pedirBorradoDeAdvertencias = async (
+    sub: Submission,
+    idx: number | null,
+  ): Promise<boolean> => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = supabase as any;
+    const { data, error } = await db.rpc("teacher_clear_exam_warnings", {
+      _submission_id: sub.id,
+      _index: idx,
     });
-    const ok = await confirm({
-      title: t("monitor.clearWarningsTitle"),
-      description: result.restoredToInProgress
-        ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsRestoreBody")
-        : result.closedAsCompletado
-          ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsClosedBody")
-          : t("monitor.clearWarningsBody"),
-      confirmLabel: t("monitor.clearWarningsConfirm"),
-      tone: "warning",
-    });
-    if (!ok) return;
-    const { __warning_events: _evs, ...rest } = prevAnswers;
-    void _evs;
-    const nextAnswers = rest;
-    const updatePayload: Record<string, unknown> = {
-      focus_warnings: result.focusWarnings,
-      answers: nextAnswers,
-      status: result.status,
+    if (error) {
+      toast.error(friendlyError(error));
+      return false;
+    }
+    const r = (data ?? {}) as {
+      ok?: boolean;
+      error?: string;
+      focus_warnings?: number;
+      status?: string;
+      restored?: boolean;
+      events?: WarningEvent[];
     };
-    if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase
-      .from("submissions")
-      .update(updatePayload as never)
-      .eq("id", sub.id);
-    if (error) return toast.error(friendlyError(error));
-    // Auditoría: borrar advertencias es decisión sensible — rastro con before/after.
+    if (!r.ok) {
+      toast.error(
+        t(`monitor.clearWarningsError.${r.error ?? "unknown"}`, {
+          defaultValue: t("monitor.clearWarningsError.unknown"),
+        }),
+      );
+      return false;
+    }
+    const eventos = r.events ?? [];
+    setSubmissions((prev) =>
+      prev.map((s) =>
+        s.id === sub.id
+          ? {
+              ...s,
+              focus_warnings: r.focus_warnings ?? 0,
+              // Solo se toca la clave de eventos, igual que el servidor: el
+              // resto de `answers` de esta pantalla puede estar viejo y no es
+              // asunto nuestro.
+              answers: { ...(s.answers ?? {}), __warning_events: eventos },
+              status: r.status ?? s.status,
+              submitted_at: r.restored ? null : s.submitted_at,
+            }
+          : s,
+      ),
+    );
     void logEvent({
-      action: "fraud.warnings_cleared_all",
+      action: idx == null ? "fraud.warnings_cleared_all" : "fraud.warning_cleared_one",
       category: "fraud",
       severity: "warning",
       entityType: "submission",
@@ -1189,43 +1225,72 @@ function ExamMonitor() {
       metadata: {
         exam_id: exam?.id,
         student_id: sub.user_id,
+        cleared_index: idx,
         previous_warnings: sub.focus_warnings,
+        new_warnings: r.focus_warnings,
         previous_status: sub.status,
-        new_status: result.status,
+        new_status: r.status,
+        exam_in_progress: sub.status === "en_progreso",
       },
     });
-    toast.success(
-      result.restoredToInProgress
-        ? t("hc_routesAppTeacherMonitorExamId.warningsClearedRestored")
-        : t("hc_routesAppTeacherMonitorExamId.warningsCleared"),
-    );
-    setSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === sub.id
-          ? {
-              ...s,
-              focus_warnings: result.focusWarnings,
-              answers: nextAnswers,
-              status: result.status,
-              submitted_at: result.clearSubmittedAt ? null : s.submitted_at,
-            }
-          : s,
-      ),
-    );
+    return true;
   };
 
-  // Borra UNA advertencia puntual del array de eventos. focus_warnings
-  // se decrementa para mantener consistencia con la longitud del array.
-  // Si tras decrementar el intento ya no supera el umbral y estaba en
-  // sospechoso, lo regresamos a en_progreso (+ limpiamos submitted_at)
-  // para que el estudiante pueda reingresar al examen.
-  const clearOneWarning = async (sub: Submission, idx: number) => {
-    const prevAnswers = sub.answers ?? {};
-    const events = (prevAnswers.__warning_events ?? []) as WarningEvent[];
+  const clearAllWarnings = async (sub: Submission) => {
+    const events = ((sub.answers ?? {}).__warning_events ?? []) as WarningEvent[];
     const examOpen = exam
       ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
       : false;
-    const result = applyClearOneWarning(
+    const preview = applyClearAllWarnings({
+      status: sub.status,
+      focusWarnings: sub.focus_warnings ?? 0,
+      events,
+      examMaxWarnings: exam?.max_warnings ?? 3,
+      examIsOpen: examOpen,
+    });
+    const ok = await confirm({
+      title: t("monitor.clearWarningsTitle"),
+      description:
+        sub.status === "en_progreso"
+          ? // El aviso de "volverá a completado" no aplica a un examen que el
+            // alumno está rindiendo, y callarlo dejaría al docente sin saber si
+            // le está cortando el examen.
+            t("monitor.clearWarningsInProgressBody")
+          : preview.restoredToInProgress
+            ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsRestoreBody")
+            : preview.closedAsCompletado
+              ? t("hc_routesAppTeacherMonitorExamId.clearAllWarningsClosedBody")
+              : t("monitor.clearWarningsBody"),
+      confirmLabel: t("monitor.clearWarningsConfirm"),
+      tone: "warning",
+    });
+    if (!ok) return;
+    if (!(await pedirBorradoDeAdvertencias(sub, null))) return;
+    toast.success(
+      preview.restoredToInProgress
+        ? t("hc_routesAppTeacherMonitorExamId.warningsClearedRestored")
+        : t("hc_routesAppTeacherMonitorExamId.warningsCleared"),
+    );
+  };
+
+  const clearOneWarning = async (sub: Submission, idx: number) => {
+    const events = ((sub.answers ?? {}).__warning_events ?? []) as WarningEvent[];
+    if (idx < 0 || idx >= events.length) return;
+    // Con el intento EN CURSO sí se confirma, aunque borrar una suelta nunca
+    // lo pidió: acá se está tocando un examen que la persona está rindiendo.
+    if (sub.status === "en_progreso") {
+      const ok = await confirm({
+        title: t("monitor.clearOneWarningTitle"),
+        description: t("monitor.clearWarningsInProgressBody"),
+        confirmLabel: t("monitor.clearWarningsConfirm"),
+        tone: "warning",
+      });
+      if (!ok) return;
+    }
+    const examOpen = exam
+      ? isExamOpen({ start_time: exam.start_time, end_time: exam.end_time })
+      : false;
+    const preview = applyClearOneWarning(
       {
         status: sub.status,
         focusWarnings: sub.focus_warnings ?? 0,
@@ -1235,38 +1300,13 @@ function ExamMonitor() {
       },
       idx,
     );
-    if (idx < 0 || idx >= events.length) return;
-    const nextAnswers = { ...prevAnswers, __warning_events: result.events };
-    const updatePayload: Record<string, unknown> = {
-      focus_warnings: result.focusWarnings,
-      answers: nextAnswers,
-      status: result.status,
-    };
-    if (result.clearSubmittedAt) updatePayload.submitted_at = null;
-    const { error } = await supabase
-      .from("submissions")
-      .update(updatePayload as never)
-      .eq("id", sub.id);
-    if (error) return toast.error(friendlyError(error));
+    if (!(await pedirBorradoDeAdvertencias(sub, idx))) return;
     toast.success(
-      result.restoredToInProgress
+      preview.restoredToInProgress
         ? t("hc_routesAppTeacherMonitorExamId.warningClearedRestored")
-        : result.closedAsCompletado
+        : preview.closedAsCompletado
           ? t("hc_routesAppTeacherMonitorExamId.warningClearedClosed")
           : t("hc_routesAppTeacherMonitorExamId.warningCleared"),
-    );
-    setSubmissions((prev) =>
-      prev.map((s) =>
-        s.id === sub.id
-          ? {
-              ...s,
-              focus_warnings: result.focusWarnings,
-              answers: nextAnswers,
-              status: result.status,
-              submitted_at: result.clearSubmittedAt ? null : s.submitted_at,
-            }
-          : s,
-      ),
     );
   };
 
@@ -2828,6 +2868,16 @@ function ExamMonitor() {
                             onClick={() => void closeAttempt(row.inProgress!, row.profile?.full_name)}
                           />
                         )}
+                        {/* Perdonar strikes SIN esperar a que el intento
+                            termine. Se ofrece solo si hay algo que borrar:
+                            un botón que abre una lista vacía no ayuda. */}
+                        {inProg && (row.inProgress?.focus_warnings ?? 0) > 0 && (
+                          <RowAction
+                            label={t("monitor.reviewWarnings")}
+                            icon={ShieldAlert}
+                            onClick={() => setWarningsForId(row.inProgress!.id)}
+                          />
+                        )}
                         <RowAction
                           label={t("hc_routesAppTeacherMonitorExamId.viewAttempts")}
                           icon={Eye}
@@ -2957,11 +3007,20 @@ function ExamMonitor() {
                           ) : (
                             /* El else que faltaba: acá es donde el docente se
                                queda sin salida con un intento en curso. */
-                            <RowAction
-                              label={t("monitor.closeAttempt")}
-                              icon={SquareCheckBig}
-                              onClick={() => void closeAttempt(a)}
-                            />
+<>
+                              {a.focus_warnings > 0 && (
+                                <RowAction
+                                  label={t("monitor.reviewWarnings")}
+                                  icon={ShieldAlert}
+                                  onClick={() => setWarningsForId(a.id)}
+                                />
+                              )}
+                              <RowAction
+                                label={t("monitor.closeAttempt")}
+                                icon={SquareCheckBig}
+                                onClick={() => void closeAttempt(a)}
+                              />
+                            </>
                           )}
                           <RowAction
                             label={t("hc_routesAppTeacherMonitorExamId.deleteThisAttempt")}
@@ -2976,6 +3035,27 @@ function ExamMonitor() {
                 </div>
               </ScrollArea>
             </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Advertencias — se abre con el intento EN CURSO, que es cuando el
+          diálogo de «ver y calificar» no está disponible. */}
+      <Dialog open={warningsForId != null} onOpenChange={(o) => !o && setWarningsForId(null)}>
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{t("monitor.reviewWarnings")}</DialogTitle>
+            <DialogDescription>{t("monitor.reviewWarningsHint")}</DialogDescription>
+          </DialogHeader>
+          {warningsSub && (
+            <WarningEventsCard
+              events={(warningsSub.answers?.__warning_events ?? []) as WarningEvent[]}
+              onClearAll={() => void clearAllWarnings(warningsSub)}
+              onClearOne={(i) => void clearOneWarning(warningsSub, i)}
+            />
+          )}
+          {warningsSub && ((warningsSub.answers?.__warning_events ?? []) as WarningEvent[]).length === 0 && (
+            <p className="text-sm text-muted-foreground">{t("monitor.noWarningsLeft")}</p>
           )}
         </DialogContent>
       </Dialog>
@@ -3049,60 +3129,11 @@ function ExamMonitor() {
                 }`}
               >
                 <div className="space-y-4">
-                  {(() => {
-                    const events = (viewingSub.answers?.__warning_events ?? []) as WarningEvent[];
-                    if (!events.length) return null;
-                    return (
-                      <Card className="border-destructive/40 bg-destructive/5">
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-sm flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-2">
-                              <AlertTriangle className="h-4 w-4 text-destructive" />
-                              {t("hc_routesAppTeacherMonitorExamId.warningEventsTitle", {
-                                count: events.length,
-                              })}
-                            </span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => clearAllWarnings(viewingSub)}
-                              title={t("hc_routesAppTeacherMonitorExamId.clearAllWarningsTitle")}
-                            >
-                              <Trash2 className="h-3 w-3 mr-1" />
-                              {t("hc_routesAppTeacherMonitorExamId.clearAll")}
-                            </Button>
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent className="text-xs space-y-1">
-                          {events.map((ev, i) => {
-                            const ts = warningEventTimestamp(ev);
-                            return (
-                              <div key={i} className="flex items-center gap-2">
-                                <span className="text-muted-foreground tabular-nums">
-                                  {formatDateTime(ts)}
-                                </span>
-                                <span className="font-medium">{warningLabel(ev.type)}</span>
-                                {typeof ev.questionIdx === "number" && (
-                                  <span className="text-muted-foreground">
-                                    ·{" "}
-                                    {t("hc_routesAppTeacherMonitorExamId.questionN", {
-                                      n: ev.questionIdx + 1,
-                                    })}
-                                  </span>
-                                )}
-                                <RowAction
-                                  label={t("hc_routesAppTeacherMonitorExamId.deleteThisWarning")}
-                                  icon={Trash2}
-                                  tone="destructive"
-                                  onClick={() => clearOneWarning(viewingSub, i)}
-                                />
-                              </div>
-                            );
-                          })}
-                        </CardContent>
-                      </Card>
-                    );
-                  })()}
+                  <WarningEventsCard
+                    events={(viewingSub.answers?.__warning_events ?? []) as WarningEvent[]}
+                    onClearAll={() => void clearAllWarnings(viewingSub)}
+                    onClearOne={(i) => void clearOneWarning(viewingSub, i)}
+                  />
 
                   {/* Retroalimentación general del examen */}
                   <Card>
@@ -3186,7 +3217,12 @@ function ExamMonitor() {
                               <Badge variant="outline" className="text-3xs">
                                 {q.type}
                               </Badge>
-                              {q.language && (
+{/* Solo para preguntas de CÓDIGO. `language` quedó con 'java' en 151
+                                  preguntas que no lo son (cerrada, abierta, bd_sql…) porque el
+                                  formulario lo manda igual, y sin este filtro una pregunta de
+                                  selección múltiple aparece etiquetada «java». El editor ya
+                                  filtraba así; estas pantallas no. */}
+                              {q.type === "codigo" && q.language && (
                                 <Badge variant="secondary" className="text-3xs">
                                   {q.language}
                                 </Badge>

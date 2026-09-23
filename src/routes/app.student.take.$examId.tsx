@@ -1378,6 +1378,25 @@ function TakeExam() {
           minutes: Math.floor(secs / 60),
         }),
       ),
+    // El docente perdonó advertencias desde el monitor. Adoptar el estado que
+    // viene en la orden es lo que hace que el borrado SIRVA: sin esto el
+    // contador local seguía igual y la suspensión automática se disparaba
+    // igual al siguiente strike, aunque en la base el contador fuera 0. Y el
+    // siguiente autoguardado escribe estos mismos valores, así que la fila
+    // converge sola en vez de que el alumno restaure lo viejo.
+    onWarningsCleared: ({ focusWarnings, events }) => {
+      warningsRef.current = focusWarnings;
+      setWarnings(focusWarnings);
+      warningEventsRef.current = events as typeof warningEventsRef.current;
+      answersRef.current = { ...answersRef.current, __warning_events: events };
+      toast.info(
+        i18n.t("toast.routes_app_student_take_examId.warningsClearedByTeacher", {
+          defaultValue:
+            "El docente revisó tus advertencias. Ahora tienes {{count}}.",
+          count: focusWarnings,
+        }),
+      );
+    },
   });
 
   // Suscripción realtime a cambios en el examen (end_time, time_limit_minutes).
