@@ -75,6 +75,54 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🙋 Lo seleccionado sube al principio de la grilla
+
+- **El caso**: en una grilla paginada marcás filas en la página 3, volvés a la 1 y la barra dice
+  «4 seleccionados» sobre una pantalla sin ninguna casilla marcada. La selección abarca todas las
+  páginas a propósito (para que «seleccionar todos» no se limite a lo visible), pero eso la vuelve
+  invisible justo cuando vas a aplicarle una acción masiva.
+- **Ahora lo seleccionado se reordena al frente de la lista**, así que cae en la primera página y se
+  ve. Vive en `usePagination` —el único que sabe cuándo cambiás de página— con dos opciones nuevas,
+  `selectedIds` + `getId`; sin las dos, el orden no se toca y el arreglo conserva la MISMA identidad
+  que la entrada (el caso normal no cuesta nada).
+- **No reordena en vivo, y eso es lo importante.** Se congela un snapshot de la selección que solo se
+  refresca al cambiar de página o de tamaño de página. Mover la fila en cada clic la saca de abajo
+  del cursor y corre una posición a todas las de abajo: marcar cinco casillas seguidas termina
+  marcando otras, y el modo de falla es silencioso —peor que el problema que se arregla—. Marcar
+  dentro de la página que estás mirando no reordena nada, que es donde ya ves la casilla marcada; el
+  subido pasa al navegar, que es exactamente cuando la selección se volvería invisible.
+- El refresco va **dentro de los setters**, no en un efecto sobre `currentPage`: un efecto corre
+  después del commit y la página nueva se pintaría una vez sin lo subido y otra con ello.
+- Al vaciarse la selección el orden vuelve solo: una grilla reordenada sin nada marcado se lee como
+  un orden roto.
+- Conectado en **12 grillas**. Dos no eran directas: la **papelera** identifica la fila por la clave
+  compuesta `tabla:id` (con solo `id` no coincidiría con nada y no subiría nunca, en silencio), y
+  **Errores** seleciona por EVENTO mientras pagina por GRUPO, así que se traduce a «grupo con algún
+  evento marcado».
+- 8 tests nuevos, la mayoría de lo que NO debe pasar: sin selección el orden no cambia, sin `getId`
+  no sube nada, marcar en la página visible no reordena, un id seleccionado que ya no está en la
+  lista no rompe el conteo, y subir no inventa ni pierde filas.
+
+### 🎨 Diagrama de casos de uso en la pizarra
+
+- Siete figuras nuevas en la paleta de Excalidraw (`actor`, `caso de uso`, `frontera del sistema`,
+  `asociación`, `<<include>>`, `<<extend>>`, `generalización`), en su propia sección **Diagrama de
+  casos de uso (UML)**, tercera, junto a las otras dos de UML.
+- **El actor es un monigote armado con primitivas** porque Excalidraw no trae figura de persona. Sin
+  él la gente terminaba poniendo un rectángulo con la palabra «Usuario», que en UML significa otra
+  cosa.
+- **La asociación NO lleva punta de flecha** (con punta deja de ser una asociación), `include` y
+  `extend` van punteadas con punta abierta, y la generalización sólida con punta triangular. Las dos
+  primeras se dibujan IGUAL a propósito —así es UML—, así que lo único que las separa en la paleta
+  es el estereotipo ya escrito; la dirección la da el docente al ubicar la flecha, la figura no la
+  codifica.
+- Las piernas del actor se trazan con el origen en la esquina de su caja y los puntos adentro, para
+  que ancho y alto queden POSITIVOS: con medidas negativas la miniatura del panel calcula mal la caja
+  y la figura sale recortada. Hay un test que lo vigila.
+- 7 tests nuevos y, además, **se miraron de verdad**: renderizadas a HTML copiando el mapeo exacto de
+  `ShapePreview` y capturadas con Playwright, porque —como ya documenta el repo— que el test pase no
+  alcanza para saber si una figura se ve bien.
+
 ### 🐞 «Cuadrar en N» del examen nunca funcionó, y culpaba al docente
 
 - **Lo que se veía**: «No tienes permisos para realizar esta acción.» al pulsar el botón que reparte

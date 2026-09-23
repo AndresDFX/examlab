@@ -50,6 +50,7 @@ import {
   Binary,
   Cloud,
   Network,
+  PersonStanding,
   AlertTriangle,
   RefreshCw,
   Pointer,
@@ -107,6 +108,7 @@ const CATEGORY_ICONS: Record<string, ComponentType<{ className?: string }>> = {
   Binary,
   Cloud,
   Network,
+  PersonStanding,
 };
 
 /** Miniatura SVG de una figura de la paleta (estilo draw.io: se VE qué es). */

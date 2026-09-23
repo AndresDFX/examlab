@@ -268,10 +268,29 @@ export function ErrorsPanel({ embedded = false }: Props) {
     storageKey: "examlab_sort:admin_errors",
   });
 
+  // La selección de esta pantalla es por EVENTO, pero la grilla pagina GRUPOS:
+  // un grupo no es una unidad seleccionable, así que para subirlo hay que
+  // traducir "tiene algún evento marcado". Pasar `sel.selectedIds` tal cual no
+  // fallaría — simplemente no subiría nada nunca, que es el peor modo de falla.
+  const gruposConSeleccion = useMemo(
+    () =>
+      new Set(
+        sort.sorted
+          .filter((g) => g.events.some((e) => sel.isSelected(e.id)))
+          .map((g) => g.fingerprint),
+      ),
+    // `sel.selectedIds` y no `sel`: el hook devuelve un objeto nuevo por render,
+    // así que con `sel` el memo no memoiza nada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sort.sorted, sel.selectedIds],
+  );
+
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:admin_errors",
     resetKey: `${statusFilter}|${tenantFilter}|${sort.resetKey}`,
+    selectedIds: gruposConSeleccion,
+    getId: (g) => g.fingerprint,
   });
 
   const total = useMemo(

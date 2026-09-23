@@ -426,16 +426,22 @@ function QuestionBankPage() {
     storageKey: "examlab_sort:teacher_question_bank",
   });
 
+  const sel = useMultiSelect(sort.sorted);
+
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_question_bank",
     resetKey: `${search}|${filterType}|${filterDifficulty}|${courseId}|${sort.resetKey}`,
+    // Lo seleccionado sube al principio al cambiar de página, para que la
+    // barra de acciones masivas no diga "N seleccionados" sobre una pantalla
+    // sin ninguna casilla marcada. No reordena mientras se marca (ver el hook).
+    selectedIds: sel.selectedIds,
+    getId: (r) => r.id,
   });
 
   // Multi-selección + bulk delete. Opera sobre `sort.sorted` (todos los
   // items filtrados+ordenados, NO los paginados) para que "seleccionar
   // todos" abarque todas las páginas del filtro activo.
-  const sel = useMultiSelect(sort.sorted);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const selectedBankItems = useMemo(
     () =>

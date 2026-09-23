@@ -23,6 +23,25 @@
  *
  * Page size 0 / null: deshabilita paginación (devuelve todo). Útil para
  * "Ver todo" sin tener que cambiar la API del componente.
+ *
+ * ── Lo seleccionado sube al principio (`selectedIds` + `getId`) ───────
+ * En un grid con acciones masivas, la barra dice "4 seleccionados" y en
+ * pantalla no hay ninguna casilla marcada: los cuatro quedaron en otras
+ * páginas. Con estas dos opciones lo seleccionado se reordena al frente
+ * de la lista, así que cae en la primera página y se VE.
+ *
+ * El reordenamiento NO es en vivo, y eso es lo importante: se congela un
+ * snapshot de la selección y solo se refresca al CAMBIAR de página o de
+ * tamaño de página. Reordenar en cada clic mueve la fila que la persona
+ * acaba de tocar —y corre una posición a todas las de abajo—, así que
+ * marcar cinco casillas seguidas termina marcando otras; el modo de falla
+ * es peor que el problema que se arregla, y encima es silencioso. Marcar
+ * dentro de la página que estás mirando no reordena nada (ahí ya ves la
+ * casilla marcada, que es el objetivo); el subido ocurre al navegar, que
+ * es exactamente cuando la selección se volvería invisible.
+ *
+ * Al vaciarse la selección el snapshot se limpia solo: un grid reordenado
+ * sin nada marcado se lee como un orden roto.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -31,7 +50,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
  *  distinto, pasarlo via `pageSizes`. */
 export const DEFAULT_PAGE_SIZES = [10, 25, 50, 100] as const;
 
-export interface UsePaginationOptions {
+/** Set vacío compartido: evita crear uno nuevo por render y que el memo del
+ *  orden se invalide sin que haya cambiado nada. */
+const SIN_SELECCION: ReadonlySet<string> = new Set<string>();
+
+export interface UsePaginationOptions<T> {
   /** Tamaño de página inicial. Default 25 (balance entre denso y
    *  desplazable). */
   defaultPageSize?: number;
@@ -46,6 +69,15 @@ export interface UsePaginationOptions {
    *  1. Pasa algo como `searchTerm + courseFilter + statusFilter` para
    *  que aplicar un filtro nuevo no deje al usuario en página 7 vacía. */
   resetKey?: string;
+  /** Ids seleccionados del grid (el `selectedIds` de `useMultiSelect`).
+   *  Junto con `getId` activa el SUBIDO de lo seleccionado al principio
+   *  de la lista — ver el bloque «Lo seleccionado sube al principio» en
+   *  la cabecera de este archivo. Sin los dos, el orden no se toca. */
+  selectedIds?: ReadonlySet<string>;
+  /** Cómo sacar el id de un item. Obligatorio para que `selectedIds`
+   *  tenga efecto; no se adivina `item.id` porque no todo grid lo tiene
+   *  con ese nombre (la papelera arma su propia clave compuesta). */
+  getId?: (item: T) => string;
 }
 
 export interface PaginationState<T> {
@@ -102,8 +134,15 @@ function writePersisted(storageKey: string | undefined, state: PersistedState) {
   }
 }
 
-export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): PaginationState<T> {
-  const { defaultPageSize = 25, pageSizes = DEFAULT_PAGE_SIZES, storageKey, resetKey } = opts;
+export function usePagination<T>(items: T[], opts: UsePaginationOptions<T> = {}): PaginationState<T> {
+  const {
+    defaultPageSize = 25,
+    pageSizes = DEFAULT_PAGE_SIZES,
+    storageKey,
+    resetKey,
+    selectedIds,
+    getId,
+  } = opts;
 
   // Estado inicial DETERMINISTA (página 1 + default): NO se lee localStorage
   // acá. Leerlo en el primer render (initializer o useMemo) hace que el árbol
@@ -133,6 +172,46 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storageKey]);
 
+  // Snapshot congelado de la selección — ver «Lo seleccionado sube al
+  // principio» arriba. Vive en estado (no en ref) porque el orden depende de
+  // él y tiene que provocar re-render.
+  const [idsArriba, setIdsArriba] = useState<ReadonlySet<string>>(SIN_SELECCION);
+
+  // La selección más reciente, para leerla desde los setters sin que su
+  // identidad los recree en cada render (`selectedIds` es un Set nuevo por
+  // toggle y volvería a crear los callbacks de paginación todo el tiempo).
+  const selectedIdsRef = useRef(selectedIds);
+  selectedIdsRef.current = selectedIds;
+
+  const refrescarSubida = useCallback(() => {
+    const actual = selectedIdsRef.current;
+    setIdsArriba(actual && actual.size > 0 ? new Set(actual) : SIN_SELECCION);
+  }, []);
+
+  // Selección vaciada (botón "Limpiar", o un bulk que borró las filas) ⇒ nada
+  // sube. Sin esto la lista quedaba reordenada sin ninguna casilla marcada.
+  const haySeleccion = !!selectedIds && selectedIds.size > 0;
+  useEffect(() => {
+    if (!haySeleccion) {
+      setIdsArriba((prev) => (prev.size === 0 ? prev : SIN_SELECCION));
+    }
+  }, [haySeleccion]);
+
+  // `items` cuando no hay nada que subir: MISMA identidad de array que la
+  // entrada, así que el caso normal no cuesta nada ni invalida memos de abajo.
+  const ordenados = useMemo(() => {
+    if (!getId || idsArriba.size === 0) return items;
+    const arriba: T[] = [];
+    const resto: T[] = [];
+    for (const item of items) {
+      (idsArriba.has(getId(item)) ? arriba : resto).push(item);
+    }
+    return arriba.length === 0 ? items : [...arriba, ...resto];
+    // `getId` se omite a propósito: los grids lo pasan como flecha inline, así
+    // que su identidad cambia en cada render y la lista se recrearía siempre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [items, idsArriba]);
+
   const totalItems = items.length;
   const totalPages = pageSize > 0 ? Math.max(1, Math.ceil(totalItems / pageSize)) : 1;
 
@@ -141,8 +220,10 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
   // dejaba el grid vacío.
   useEffect(() => {
     if (currentPage > totalPages) {
+      refrescarSubida();
       setCurrentPageRaw(totalPages);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentPage, totalPages]);
 
   // Reset a página 1 cuando cambia el set de filtros. Distinguimos esto
@@ -163,6 +244,11 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
       resetKeyFirstRunRef.current = false;
       return;
     }
+    // Los TRES caminos que mueven la página refrescan el snapshot, no solo los
+    // dos setters públicos. Filtrar con una selección repartida en varias
+    // páginas es el caso MÁS común, y sin esto la lista volvía a la página 1
+    // dejando lo marcado enterrado: exactamente el problema que esto arregla.
+    refrescarSubida();
     setCurrentPageRaw(1);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resetKey]);
@@ -178,9 +264,13 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
   const setCurrentPage = useCallback(
     (page: number) => {
       const clamped = Math.max(1, Math.min(page, totalPages));
+      // Refrescar ACÁ y no en un efecto sobre `currentPage`: el efecto corre
+      // después del commit, así que la página nueva se pintaría una vez sin lo
+      // subido y otra con ello — un salto visible. Acá entra en el mismo lote.
+      refrescarSubida();
       setCurrentPageRaw(clamped);
     },
-    [totalPages],
+    [totalPages, refrescarSubida],
   );
 
   const setPageSize = useCallback(
@@ -190,6 +280,7 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
       // 21-30) y cambias a size=25 — deberías terminar en page=1
       // (items 1-25, incluye los anteriores).
       const firstVisibleIndex = (currentPage - 1) * pageSize;
+      refrescarSubida();
       setPageSizeRaw(size);
       if (size > 0) {
         const newPage = Math.floor(firstVisibleIndex / size) + 1;
@@ -198,14 +289,14 @@ export function usePagination<T>(items: T[], opts: UsePaginationOptions = {}): P
         setCurrentPageRaw(1);
       }
     },
-    [currentPage, pageSize],
+    [currentPage, pageSize, refrescarSubida],
   );
 
   const paginatedItems = useMemo(() => {
-    if (pageSize <= 0) return items;
+    if (pageSize <= 0) return ordenados;
     const start = (currentPage - 1) * pageSize;
-    return items.slice(start, start + pageSize);
-  }, [items, currentPage, pageSize]);
+    return ordenados.slice(start, start + pageSize);
+  }, [ordenados, currentPage, pageSize]);
 
   const startIndex = totalItems === 0 ? 0 : (currentPage - 1) * pageSize + 1;
   const endIndex = pageSize > 0 ? Math.min(currentPage * pageSize, totalItems) : totalItems;

@@ -339,6 +339,11 @@ function TrashPage() {
     defaultPageSize: 25,
     storageKey: "examlab_pag:trash",
     resetKey: `${filterTable}|${search}|${sort.resetKey}`,
+    // Lo seleccionado sube al principio al cambiar de página. La clave es
+    // compuesta, la MISMA que arma `filteredAsSelectable` — con solo `id` no
+    // coincidiría con nada y no subiría nunca, en silencio.
+    selectedIds: sel.selectedIds,
+    getId: (r) => `${r.table}:${r.id}`,
   });
 
   const handleRestore = async (item: TrashItem) => {

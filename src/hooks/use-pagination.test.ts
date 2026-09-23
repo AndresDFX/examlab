@@ -188,3 +188,155 @@ describe("usePagination", () => {
     expect(result.current.paginatedItems).toEqual([11, 12]);
   });
 });
+
+describe("usePagination — lo seleccionado sube al principio", () => {
+  const filas = (n: number) => Array.from({ length: n }, (_, i) => ({ id: `f${i + 1}` }));
+  const ids = (r: { id: string }[]) => r.map((x) => x.id);
+
+  it("sin selección no toca el orden ni cambia la identidad del arreglo", () => {
+    const datos = filas(60);
+    const { result } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: new Set<string>(), getId: (r) => r.id }),
+    );
+    expect(result.current.paginatedItems).toEqual(datos.slice(0, 25));
+  });
+
+  it("sin `getId` no sube nada, aunque haya selección", () => {
+    const datos = filas(60);
+    const { result } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: new Set(["f58"]) }),
+    );
+    act(() => result.current.setCurrentPage(2));
+    act(() => result.current.setCurrentPage(1));
+    expect(ids(result.current.paginatedItems)[0]).toBe("f1");
+  });
+
+  it("NO reordena mientras se marca en la página que se está mirando", () => {
+    const datos = filas(60);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    // El usuario marca la fila 20, que está a la vista. La fila NO se mueve:
+    // moverla correría una posición a todas las de abajo y el siguiente clic
+    // marcaría otra fila.
+    sel = new Set(["f20"]);
+    rerender();
+    expect(ids(result.current.paginatedItems)).toEqual(ids(datos.slice(0, 25)));
+  });
+
+  it("al cambiar de página, lo seleccionado en otra página queda al principio", () => {
+    const datos = filas(60);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    act(() => result.current.setCurrentPage(3)); // items 51-60
+    sel = new Set(["f55", "f58"]);
+    rerender();
+    act(() => result.current.setCurrentPage(1));
+    expect(ids(result.current.paginatedItems).slice(0, 2)).toEqual(["f55", "f58"]);
+    expect(result.current.totalItems).toBe(60); // subir no inventa ni pierde filas
+    expect(result.current.totalPages).toBe(3);
+  });
+
+  it("conserva el orden relativo de lo subido y del resto", () => {
+    const datos = filas(10);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 10, selectedIds: sel, getId: (r) => r.id }),
+    );
+    sel = new Set(["f7", "f3"]);
+    rerender();
+    act(() => result.current.setCurrentPage(1));
+    expect(ids(result.current.paginatedItems)).toEqual([
+      "f3", "f7", "f1", "f2", "f4", "f5", "f6", "f8", "f9", "f10",
+    ]);
+  });
+
+  it("al limpiar la selección el orden vuelve solo", () => {
+    const datos = filas(30);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    act(() => result.current.setCurrentPage(2));
+    sel = new Set(["f30"]);
+    rerender();
+    act(() => result.current.setCurrentPage(1));
+    expect(ids(result.current.paginatedItems)[0]).toBe("f30");
+    sel = new Set<string>();
+    rerender();
+    expect(ids(result.current.paginatedItems)[0]).toBe("f1");
+  });
+
+  it("un id seleccionado que ya no está en la lista no rompe nada", () => {
+    const datos = filas(5);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    sel = new Set(["fantasma"]);
+    rerender();
+    act(() => result.current.setCurrentPage(1));
+    expect(ids(result.current.paginatedItems)).toEqual(ids(datos));
+    expect(result.current.totalItems).toBe(5);
+  });
+
+  it("al FILTRAR también sube lo marcado (el camino más común)", () => {
+    // El filtro vuelve a página 1 por su propio efecto, sin pasar por
+    // `setCurrentPage`. Sin refrescar ahí, el usuario filtra y lo que había
+    // marcado en otra página queda enterrado — el problema original intacto.
+    const datos = filas(60);
+    let sel = new Set<string>();
+    let clave = "sin-filtro";
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, {
+        defaultPageSize: 25,
+        resetKey: clave,
+        selectedIds: sel,
+        getId: (r) => r.id,
+      }),
+    );
+    act(() => result.current.setCurrentPage(3));
+    sel = new Set(["f57"]);
+    rerender();
+    clave = "buscando algo";
+    rerender();
+    expect(result.current.currentPage).toBe(1);
+    expect(ids(result.current.paginatedItems)[0]).toBe("f57");
+  });
+
+  it("cuando la lista se achica y hay que recortar la página, también sube", () => {
+    let datos = filas(60);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    act(() => result.current.setCurrentPage(3));
+    sel = new Set(["f30"]); // está en la página 2, NO en la 1
+    rerender();
+    datos = filas(40); // 2 páginas: la 3 deja de existir y hay que recortar
+    rerender();
+    expect(result.current.currentPage).toBe(2);
+    // El usuario queda en la última página, no en la primera: el recorte no le
+    // secuestra la navegación. Lo que sí tiene que haber pasado es que f30 se
+    // corriera al frente de la LISTA, y eso mueve el límite de la página 2 un
+    // lugar hacia atrás: empieza en f25 en vez de f26. Subir algo que YA estaba
+    // en la primera página no cambiaría ningún límite, así que no serviría para
+    // distinguir "el snapshot se refrescó" de "no se refrescó".
+    expect(ids(result.current.paginatedItems)[0]).toBe("f25");
+  });
+
+  it("también sube al cambiar el tamaño de página", () => {
+    const datos = filas(60);
+    let sel = new Set<string>();
+    const { result, rerender } = renderHook(() =>
+      usePagination(datos, { defaultPageSize: 25, selectedIds: sel, getId: (r) => r.id }),
+    );
+    sel = new Set(["f59"]);
+    rerender();
+    act(() => result.current.setPageSize(50));
+    expect(ids(result.current.paginatedItems)[0]).toBe("f59");
+  });
+});

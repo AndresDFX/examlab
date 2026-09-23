@@ -375,3 +375,81 @@ describe("libraryItemPreview", () => {
     }
   });
 });
+
+describe("Casos de uso (UML)", () => {
+  const porId = (id: string) => DEFAULT_LIBRARY_ITEMS.find((i) => i.id === id);
+
+  it("incluye el vocabulario mínimo del diagrama", () => {
+    for (const id of [
+      "lib-uc-actor",
+      "lib-uc-usecase",
+      "lib-uc-system",
+      "lib-uc-association",
+      "lib-uc-include",
+      "lib-uc-extend",
+      "lib-uc-generalization",
+    ]) {
+      expect(porId(id), `falta ${id}`).toBeTruthy();
+    }
+  });
+
+  it("el actor es un monigote, no una caja con la palabra «Usuario»", () => {
+    const actor = porId("lib-uc-actor")!;
+    const tipos = actor.elements.map((e: { type: string }) => e.type);
+    // Cabeza redonda + cuerpo, brazos y dos piernas.
+    expect(tipos.filter((t: string) => t === "ellipse")).toHaveLength(1);
+    expect(tipos.filter((t: string) => t === "line").length).toBeGreaterThanOrEqual(4);
+    expect(tipos).not.toContain("rectangle");
+  });
+
+  it("ninguna figura del actor tiene ancho o alto negativo", () => {
+    // Con medidas negativas la miniatura del panel calcula mal la caja y la
+    // figura sale recortada — no lo detecta ningún otro test.
+    for (const el of porId("lib-uc-actor")!.elements as { width: number; height: number }[]) {
+      expect(el.width).toBeGreaterThanOrEqual(0);
+      expect(el.height).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("la asociación NO lleva punta de flecha", () => {
+    // Con punta deja de ser una asociación y el diagrama dice otra cosa.
+    const asoc = porId("lib-uc-association")!;
+    for (const el of asoc.elements as { type: string; endArrowhead?: string }[]) {
+      expect(el.type).not.toBe("arrow");
+      expect(el.endArrowhead ?? null).toBeNull();
+    }
+  });
+
+  it("include y extend son PUNTEADAS con punta abierta; la generalización es sólida y triangular", () => {
+    for (const id of ["lib-uc-include", "lib-uc-extend"]) {
+      const flecha = (porId(id)!.elements as { type: string }[]).find((e) => e.type === "arrow") as
+        | { strokeStyle?: string; endArrowhead?: string }
+        | undefined;
+      expect(flecha, `${id} sin flecha`).toBeTruthy();
+      expect(flecha!.strokeStyle, `${id} debería ser punteada`).toBe("dashed");
+      expect(flecha!.endArrowhead, `${id} debería tener punta abierta`).toBe("arrow");
+    }
+    const gen = (porId("lib-uc-generalization")!.elements as { type: string }[]).find(
+      (e) => e.type === "arrow",
+    ) as { strokeStyle?: string; endArrowhead?: string };
+    expect(gen.strokeStyle ?? "solid").toBe("solid");
+    expect(gen.endArrowhead).toBe("triangle");
+  });
+
+  it("include y extend se distinguen por su estereotipo", () => {
+    // Se dibujan IGUAL a propósito (así es UML); lo único que las separa es el
+    // rótulo, así que si alguno se pierde quedan dos figuras indistinguibles.
+    const texto = (id: string) =>
+      (porId(id)!.elements as { type: string; text?: string }[])
+        .filter((e) => e.type === "text")
+        .map((e) => e.text)
+        .join(" ");
+    expect(texto("lib-uc-include")).toContain("<<include>>");
+    expect(texto("lib-uc-extend")).toContain("<<extend>>");
+  });
+
+  it("los tres diagramas UML quedan juntos al principio del panel", () => {
+    const keys = LIBRARY_CATEGORIES.map((c) => c.key);
+    expect(keys.slice(0, 3)).toEqual(["clases", "componentes", "casos-uso"]);
+  });
+});

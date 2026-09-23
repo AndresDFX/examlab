@@ -420,17 +420,23 @@ function TeacherWhiteboards() {
 
   // Paginación client-side — default de grids de listado (25 / 10-25-50-100),
   // igual que Exámenes/Talleres/Proyectos ahora que es tabla y no cards.
+  const sel = useMultiSelect(sort.sorted);
+
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_whiteboards",
     resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${sort.resetKey}`,
+    // Lo seleccionado sube al principio al cambiar de página, para que la
+    // barra de acciones masivas no diga "N seleccionados" sobre una pantalla
+    // sin ninguna casilla marcada. No reordena mientras se marca (ver el hook).
+    selectedIds: sel.selectedIds,
+    getId: (r) => r.id,
   });
 
   // Multi-selección + bulk delete — mismo patrón que cursos, usuarios,
   // exámenes, talleres y proyectos. Opera sobre `sort.sorted`
   // (no sobre `paginatedItems`) para que "seleccionar todos" abarque
   // todas las páginas del filtro activo.
-  const sel = useMultiSelect(sort.sorted);
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   // Pizarra a duplicar — abre el DuplicateOptionsDialog parametrizable.
   const [duplicateFor, setDuplicateFor] = useState<Whiteboard | null>(null);

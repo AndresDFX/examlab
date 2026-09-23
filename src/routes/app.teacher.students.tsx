@@ -360,6 +360,11 @@ function TeacherStudentsInner() {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_students",
     resetKey: `${search}|${courseFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${soloVoceros}|${sort.resetKey}`,
+    // Lo seleccionado sube al principio al cambiar de página, para que la
+    // barra de acciones masivas no diga "N seleccionados" sobre una pantalla
+    // sin ninguna casilla marcada. No reordena mientras se marca (ver el hook).
+    selectedIds: sel.selectedIds,
+    getId: (r) => r.id,
   });
 
   // Nombre del curso filtrado, si hay uno puntual elegido. Es la referencia

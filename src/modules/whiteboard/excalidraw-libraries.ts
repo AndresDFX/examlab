@@ -22,6 +22,9 @@
  *    interfaz provista (bolita) y requerida (copa) —que juntas forman el
  *    conector de ensamblaje—, puerto, dependencia `<<use>>` punteada y
  *    paquete/subsistema como contenedor.
+ *  - **Casos de uso (UML)**: actor (monigote), caso de uso (óvalo),
+ *    frontera del sistema, asociación sin punta, `<<include>>`,
+ *    `<<extend>>` y generalización.
  *  - **POO**: interfaz (UML con `<<interface>>`), clase abstracta
  *    (`<<abstract>>`), enum y flecha de herencia (extends).
  *  - **AWS**: bloques esquemáticos para EC2, S3, RDS, Lambda, API
@@ -555,6 +558,166 @@ export const DEFAULT_LIBRARY_ITEMS: Array<Record<string, any>> = [
     ],
   },
   // ──────────────────────────────────────────────────────────────────
+  // Casos de uso (UML)
+  // ──────────────────────────────────────────────────────────────────
+  // Es el primer diagrama que se ve en Análisis y Diseño, y el que peor se
+  // dibujaba a mano acá: el ACTOR es un monigote, y sin él la gente terminaba
+  // poniendo un rectángulo con la palabra "Usuario" — que en UML significa
+  // otra cosa. Las tres relaciones van juntas a propósito: <<include>> y
+  // <<extend>> se dibujan IGUAL (punteada, punta abierta) y solo las
+  // distingue el estereotipo y hacia dónde apunta, así que tenerlas como dos
+  // figuras rotuladas evita el error clásico de invertir la flecha.
+  // ── Casos de uso: Actor ──
+  // Monigote armado con primitivas: no hay figura de persona en Excalidraw.
+  // Las piernas se trazan con el origen en la esquina superior izquierda de su
+  // caja y los puntos adentro, para que ancho y alto queden POSITIVOS — con
+  // medidas negativas la miniatura del panel calcula mal la caja y la figura
+  // sale recortada.
+  {
+    id: "lib-uc-actor",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Actor",
+    elements: [
+      makeElement("ellipse", 10, 0, 20, 20, { backgroundColor: FILL_LIGHT }),
+      makeElement("line", 20, 20, 0, 25, {
+        points: [
+          [0, 0],
+          [0, 25],
+        ],
+      }),
+      makeElement("line", 4, 28, 32, 0, {
+        points: [
+          [0, 0],
+          [32, 0],
+        ],
+      }),
+      makeElement("line", 6, 45, 14, 23, {
+        points: [
+          [14, 0],
+          [0, 23],
+        ],
+      }),
+      makeElement("line", 20, 45, 14, 23, {
+        points: [
+          [0, 0],
+          [14, 23],
+        ],
+      }),
+      makeText(-20, 72, 80, 18, "Actor", 13),
+    ],
+  },
+  // ── Casos de uso: Caso de uso ──
+  // El óvalo. El texto va DENTRO y en infinitivo ("Registrar venta"), que es
+  // la convención: un caso de uso es algo que el sistema HACE.
+  {
+    id: "lib-uc-usecase",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Caso de uso",
+    elements: [
+      makeElement("ellipse", 0, 0, 200, 80, { backgroundColor: FILL_LIGHT }),
+      makeText(20, 30, 160, 20, "Registrar venta", 15),
+    ],
+  },
+  // ── Casos de uso: Frontera del sistema ──
+  // La caja que encierra los casos de uso y deja a los actores AFUERA: es lo
+  // que dice qué es responsabilidad del sistema y qué no. Cuerpo vacío a
+  // propósito — se arrastran los óvalos adentro (mismo criterio que el
+  // paquete de componentes).
+  {
+    id: "lib-uc-system",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Frontera del sistema",
+    elements: [
+      makeElement("rectangle", 0, 0, 300, 220, { roundness: null }),
+      makeText(0, 10, 300, 20, "Sistema", 15),
+    ],
+  },
+  // ── Casos de uso: Asociación ──
+  // SIN punta: la línea actor–caso de uso no es una flecha. Dibujarla con
+  // punta la convierte en otra relación y el diagrama pasa a decir algo que
+  // no es.
+  {
+    id: "lib-uc-association",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Asociación",
+    elements: [
+      makeElement("line", 0, 0, 160, 0, {
+        points: [
+          [0, 0],
+          [160, 0],
+        ],
+      }),
+    ],
+  },
+  // ── Casos de uso: <<include>> ──
+  // Punteada, punta abierta, y APUNTA AL INCLUIDO: el caso base siempre
+  // ejecuta al otro.
+  {
+    id: "lib-uc-include",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Incluye (include)",
+    elements: [
+      makeElement("arrow", 0, 0, 180, 0, {
+        points: [
+          [0, 0],
+          [180, 0],
+        ],
+        strokeStyle: "dashed",
+        endArrowhead: "arrow",
+      }),
+      makeText(40, -22, 100, 18, "<<include>>", 13),
+    ],
+  },
+  // ── Casos de uso: <<extend>> ──
+  // Se dibuja IGUAL que include —misma punteada, misma punta— porque en UML
+  // las dos relaciones se trazan así: lo que las distingue es el estereotipo
+  // y hacia dónde apunta la flecha, y eso lo decide el docente al colocarla
+  // (include va del caso base al incluido; extend, del opcional al base).
+  // Son dos figuras y no una para que el rótulo venga escrito y no haya que
+  // tipearlo cada vez. La figura NO codifica la dirección: el trazo es
+  // horizontal y se orienta al ubicarla.
+  {
+    id: "lib-uc-extend",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Extiende (extend)",
+    elements: [
+      makeElement("arrow", 0, 0, 180, 0, {
+        points: [
+          [0, 0],
+          [180, 0],
+        ],
+        strokeStyle: "dashed",
+        endArrowhead: "arrow",
+      }),
+      makeText(40, -22, 100, 18, "<<extend>>", 13),
+    ],
+  },
+  // ── Casos de uso: Generalización ──
+  // Sólida y con punta triangular, igual que la herencia de clases: un actor
+  // (o un caso de uso) que es una especialización de otro.
+  {
+    id: "lib-uc-generalization",
+    status: "published",
+    created: 1_700_000_000_000,
+    name: "Casos de uso · Generalización",
+    elements: [
+      makeElement("arrow", 0, 0, 180, 0, {
+        points: [
+          [0, 0],
+          [180, 0],
+        ],
+        endArrowhead: "triangle",
+      }),
+      makeText(30, -22, 120, 18, "es-un", 13),
+    ],
+  },
+  // ──────────────────────────────────────────────────────────────────
   // AWS — bloques esquemáticos para arquitectura de soluciones
   // ──────────────────────────────────────────────────────────────────
   // Diseño: cajas rectangulares con label arriba (tipo de servicio) +
@@ -1057,6 +1220,13 @@ export const LIBRARY_CATEGORIES: LibraryCategory[] = [
     description: "Componente, interfaz provista y requerida, puerto, dependencia y paquete.",
     icon: "Blocks",
     items: pickByPrefix(["lib-comp-"]),
+  },
+  {
+    key: "casos-uso",
+    label: "Diagrama de casos de uso (UML)",
+    description: "Actor, caso de uso, frontera del sistema, asociación, include, extend y generalización.",
+    icon: "PersonStanding",
+    items: pickByPrefix(["lib-uc-"]),
   },
   {
     key: "flujo",
