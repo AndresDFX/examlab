@@ -75,6 +75,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🙋 El enlace de asistencia dice qué clases cubre, antes de marcar
+
+- Con un check-in que abarca varias sesiones, el enlace y el QR apuntan a UNA —la ancla— y el resto lo
+  marca el servidor. Funcionaba, pero el estudiante no lo veía: la pantalla decía «Sesión 3» y él
+  marcaba creyendo que registraba una sola clase. El aviso de en qué otras quedó llegaba **después**
+  de decidir.
+- Importa porque el caso de uso es justamente ese: el docente abre un código que cubre las clases
+  anteriores para que quien faltó las recupere. Si la pantalla no lo dice, nadie se entera de que se
+  lo están ofreciendo.
+- **Dice «cubre», no «se te va a marcar»**: cada sesión se valida sola al marcar (matrícula,
+  requisitos pendientes, ventana), así que alguna puede quedar afuera. Lo que de verdad quedó lo
+  sigue diciendo la respuesta del check-in, que es la que cuenta.
+- **No expone nada nuevo**: solo el título y la fecha de las otras sesiones del MISMO grupo, que por
+  construcción es de un único curso. Es la misma clase de dato que la función ya devolvía del ancla.
+- Verificado contra PostgreSQL real (8 comprobaciones), y lo que más importaba no era que listara:
+  que la función pública **siga sin ser un oráculo**. Un id inexistente, uno en papelera y uno con el
+  check-in cerrado devuelven exactamente lo mismo; un curso en papelera tampoco filtra nada; y no se
+  cuela una sesión de otro grupo, una borrada ni una fuera de ventana.
+
 ### ⚡ Menos escritura sobre la base durante un examen
 
 Las dos fuentes que la degradaron el 22-09, atacadas por separado.

@@ -10259,7 +10259,9 @@
     "success": "Attendance recorded!",
     "successHint": "You can close this screen now.",
     "title": "Mark attendance",
-    "alsoMarkedIn": "You were also marked in {{count}} more session(s): {{sessions}}."
+    "alsoMarkedIn": "You were also marked in {{count}} more session(s): {{sessions}}.",
+    "groupCovers": "This code marks your attendance in {{count}} sessions:",
+    "sessionWithoutTitle": "Untitled session"
   },
   "actasManager": {
     "searchPlaceholder": "Search by course, term or teacher…",

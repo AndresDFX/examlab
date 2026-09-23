@@ -86,6 +86,9 @@ interface InfoPublica {
   session_date?: string;
   session_type?: string;
   closes_at?: string;
+  /** Las sesiones que este mismo código cubre. Vacío o ausente cuando el
+   *  check-in es de una sola, que es el caso normal. */
+  group_sessions?: Array<{ title?: string | null; session_date?: string | null }>;
 }
 
 export const Route = createFileRoute("/asistencia")({
@@ -339,6 +342,34 @@ function PublicAttendance() {
                 <p className="text-2xs text-muted-foreground">
                   {formatDateOnly(info.session_date)}
                 </p>
+              )}
+              {/* Con un check-in que cubre varias clases, el enlace apunta a UNA
+                  —la ancla— y el resto lo marca el servidor. Sin esta lista el
+                  estudiante marcaba creyendo que registraba una sola sesión y se
+                  enteraba del resto DESPUÉS, que es cuando ya decidió. Y el caso
+                  de uso es justamente ese: el docente abre un código que cubre
+                  las clases anteriores para que quien faltó las recupere.
+
+                  Dice «cubre», no «se te va a marcar»: cada sesión se valida
+                  sola al marcar (matrícula, requisitos pendientes), así que
+                  alguna puede quedar afuera. Lo que de verdad quedó lo dice la
+                  respuesta, que es la que cuenta. */}
+              {(info.group_sessions?.length ?? 0) > 1 && (
+                <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-left">
+                  <p className="text-2xs font-medium">
+                    {t("publicAttendance.groupCovers", {
+                      count: info.group_sessions!.length,
+                    })}
+                  </p>
+                  <ul className="mt-1 space-y-0.5">
+                    {info.group_sessions!.map((x, i) => (
+                      <li key={i} className="text-2xs text-muted-foreground leading-tight">
+                        {x.session_date ? `${formatDateOnly(x.session_date)} · ` : ""}
+                        {x.title || t("publicAttendance.sessionWithoutTitle")}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               )}
             </div>
           )}

@@ -10259,7 +10259,9 @@
     "success": "¡Asistencia registrada!",
     "successHint": "Ya podés cerrar esta pantalla.",
     "title": "Marcar asistencia",
-    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más: {{sessions}}."
+    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más: {{sessions}}.",
+    "groupCovers": "Este código marca tu asistencia en {{count}} sesiones:",
+    "sessionWithoutTitle": "Sesión sin título"
   },
   "actasManager": {
     "searchPlaceholder": "Buscar por curso, período o docente…",
