@@ -84,12 +84,20 @@ END $mig$;
 --
 -- Idempotente (`NOT EXISTS`): la migración no vuelve a correr, pero un `add_time`
 -- duplicado correría el plazo al doble y eso no se ve hasta que alguien lo mide.
--- `created_by` queda NULL: no lo concedió una persona desde el monitor.
+--
+-- `created_by` es NOT NULL y se atribuye al DOCENTE del curso, que es quien lo
+-- habría concedido desde el monitor. El primer intento lo dejó en NULL y la
+-- migración se cayó en el deploy con un 23502 — porque el arnés de verificación
+-- declaró esa columna como nullable en vez de leerla del esquema real. Es
+-- exactamente la trampa que el CHANGELOG ya documenta: un arnés se construye
+-- leyendo el esquema, nunca inventando el CREATE TABLE. Ahora el arnés lo
+-- declara NOT NULL y habría fallado localmente.
 DO $mig$
 DECLARE
   v_examen  uuid := 'd4e093f9-2690-4b49-aa5a-f277dc6191de';  -- Prueba diagnóstica · SB141B
   v_alumno  uuid := 'c2a0eb42-d114-4603-9760-d098d36c4422';
   v_extra   int  := 804540;
+  v_docente uuid;
 BEGIN
   IF to_regclass('public.exam_timer_controls') IS NULL
      OR to_regclass('public.exams') IS NULL
@@ -120,6 +128,20 @@ BEGIN
     RETURN;
   END IF;
 
-  INSERT INTO public.exam_timer_controls (exam_id, target_user_id, action, extra_seconds)
-  VALUES (v_examen, v_alumno, 'add_time', v_extra);
+  SELECT ct.user_id INTO v_docente
+    FROM public.course_teachers ct
+    JOIN public.exams e ON e.id = v_examen
+   WHERE ct.course_id = e.course_id
+   ORDER BY ct.user_id
+   LIMIT 1;
+
+  IF v_docente IS NULL THEN
+    -- Sin docente no hay a quién atribuirlo, y `created_by` no acepta NULL.
+    -- Se omite en vez de inventar un autor.
+    RAISE NOTICE 'el curso no tiene docente; se omite la reapertura.';
+    RETURN;
+  END IF;
+
+  INSERT INTO public.exam_timer_controls (exam_id, target_user_id, action, extra_seconds, created_by)
+  VALUES (v_examen, v_alumno, 'add_time', v_extra, v_docente);
 END $mig$;
