@@ -16,6 +16,10 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useRef, useState, lazy, Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  resumirTituloDeSesion,
+  TITULO_EN_FRASE,
+} from "@/modules/attendance/titulo-sesion";
 import { useAuth } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -595,7 +599,11 @@ function StudentAttendance() {
         // diferencia la nota. Silenciarlo sería marcar asistencia en sesiones
         // que la persona no sabe que tiene.
         if ((result.marcadas ?? 0) > 0) {
-          const nombres = (result.sesiones ?? []).filter(Boolean);
+          // Resumidos: van varios títulos seguidos en la MISMA frase de un
+          // toast, y los títulos reales llegan a 140 caracteres.
+          const nombres = (result.sesiones ?? [])
+            .filter(Boolean)
+            .map((n: string) => resumirTituloDeSesion(n, TITULO_EN_FRASE)?.corto ?? n);
           toast.success(
             t("studentAttendance.alsoMarkedIn", {
               count: result.marcadas,
@@ -890,10 +898,19 @@ function StudentAttendance() {
                               {formatDateOnly(s.session_date)}
                             </TableCell>
                             <TableCell className="text-sm">
-                              <div className="flex items-center gap-1.5 flex-wrap">
-                                <span>
-                                  {s.title ?? <span className="text-muted-foreground">—</span>}
-                                </span>
+                              {/* Resumido y en UNA línea, igual que en la
+                                  pantalla pública: los títulos reales llegan a
+                                  140 caracteres y con `flex-wrap` esta fila
+                                  crecía más que sus vecinas. El título entero
+                                  queda en el `title=`. */}
+                              <div className="flex items-center gap-1.5 min-w-0 overflow-hidden">
+                                {s.title ? (
+                                  <span className="min-w-0 truncate" title={s.title}>
+                                    {resumirTituloDeSesion(s.title)?.corto}
+                                  </span>
+                                ) : (
+                                  <span className="text-muted-foreground">—</span>
+                                )}
                                 <SessionTypeBadge type={s.session_type} />
                               </div>
                               {/* La columna "Nota del docente" se oculta bajo

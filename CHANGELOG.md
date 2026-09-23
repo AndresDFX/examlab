@@ -117,6 +117,38 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   día ANTERIOR — hay un helper (`formatDateOnlyShort`) y un test que falla si alguien la formatea
   crudo. Revisado a 390 px, sin desbordes.
 
+- **Y los títulos van RESUMIDOS, una línea por clase.** Reportado sobre la pantalla en vivo: «aún se
+  ven demasiado texto de cada sesión». No era exageración — en producción hay títulos de **140
+  caracteres** («Sesión 8 — Sesión doble · Documentación y QA (Javadoc y pruebas) + Refactorización
+  con IA y persistencia de archivos (Clases 8 y 9)»), y tres de esos seguidos son un muro de texto en
+  un teléfono. El estudiante entró a marcar asistencia, no a leer el temario.
+- **El resumen es un helper puro con el tope como PARÁMETRO** ([titulo-sesion.ts](src/modules/attendance/titulo-sesion.ts),
+  15 tests), y las reglas se eligieron mirando los **152 títulos reales de tres cursos distintos**,
+  no un formato inventado: cada una es inofensiva para un título que no la cumpla. Se quita un
+  paréntesis FINAL —que es una acotación por definición—, se corta en el primer « + » —que es como se
+  unen dos temas de una misma clase— y recién después se aplica el tope, en borde de palabra. **No**
+  se corta en « · »: ahí se separa la etiqueta del tema («Sesión doble · Introducción a UML») y
+  cortar ahí deja menos información que el título. El «Sesión N —» se conserva: así nombran los
+  estudiantes su clase.
+- **Un `truncate` de CSS a secas no alcanzaba**, y por eso no se hizo así: parte donde caiga, y sobre
+  todo **no se puede fijar con un test** —depende del ancho real y de la fuente—. El `truncate` queda
+  igual, como red de seguridad para un título sin espacios. Y el título entero sigue a un `title=` de
+  distancia: resumir no puede ser perder.
+- La fila de HOY lleva además la etiqueta, que se come parte de la línea, así que usa un tope menor.
+  Ese número está **medido en el navegador** a 390 px (la caja del título pasa de 216 px a 153 px con
+  la etiqueta), no estimado: con el primer valor que probé el CSS volvía a cortar y quedaba un
+  segundo puntito suspensivo.
+- El mismo resumen se aplica al aviso de **después** de marcar («También quedaste marcado en 2
+  sesiones más: …»), donde varios títulos van seguidos en UNA frase y el problema era peor.
+- Y la **tabla de «mis sesiones»** del estudiante recibió el mismo trato: tenía `flex-wrap`, así que
+  un título largo envolvía y esa fila quedaba más alta que sus vecinas —la regla R5 del auditor, que
+  no lo caza porque la celda se arma en un componente y no inline en el `<TableBody>`—. Lo encontró
+  el revisor de consistencia: era el MISMO archivo donde ya había arreglado el aviso.
+- **Y la cabecera dejó de repetir el grupo**: los cursos se llaman
+  `Introduccion a la Ingenieria-2026-2-SB141C` y su grupo es `SB141C`, así que decía
+  «…-SB141C · SB141C». El dato repetido no agrega nada y en un teléfono empujaba el bloque a una
+  línea más.
+
 ### 📄 El documento de la actividad, como botón de descarga
 
 - Un taller puede llevar el enunciado en un documento aparte (`external_link`). El estudiante lo veía

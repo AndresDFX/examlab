@@ -26,6 +26,12 @@ import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { formatDateOnly, formatDateOnlyShort, formatDateTime } from "@/shared/lib/format";
+import {
+  resumirTituloDeSesion,
+  encabezadoDeCurso,
+  TOPE_TITULO_SESION,
+  TITULO_EN_FRASE,
+} from "@/modules/attendance/titulo-sesion";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -336,8 +342,7 @@ function PublicAttendance() {
             <div className="rounded-md border bg-background p-3 space-y-2">
               {info.course_name && (
                 <p className="text-sm font-semibold leading-tight text-center">
-                  {info.course_name}
-                  {info.course_group ? ` · ${info.course_group}` : ""}
+                  {encabezadoDeCurso(info.course_name, info.course_group)}
                 </p>
               )}
 
@@ -358,25 +363,48 @@ function PublicAttendance() {
                     {t("publicAttendance.groupCovers", { count: info.group_sessions!.length })}
                   </p>
                   <ul className="divide-y divide-primary/15">
-                    {info.group_sessions!.map((x, i) => (
-                      <li key={i} className="flex items-baseline gap-2 px-2.5 py-1.5">
-                        {/* La fecha en columna propia, angosta y con cifras de
-                            ancho fijo: así las fechas quedan alineadas entre sí y
-                            se barren de un vistazo. Corta ("8 sep") porque el año
-                            es el mismo en todas y solo robaría lugar al título. */}
-                        <span className="w-14 shrink-0 text-2xs tabular-nums text-muted-foreground">
-                          {x.session_date ? formatDateOnlyShort(x.session_date) : ""}
-                        </span>
-                        <span className="min-w-0 flex-1 text-2xs leading-tight">
-                          {x.title || t("publicAttendance.sessionWithoutTitle")}
-                        </span>
-                        {x.is_anchor && (
-                          <span className="shrink-0 rounded-sm bg-primary/15 px-1.5 py-0.5 text-3xs font-medium text-primary">
-                            {t("publicAttendance.thisClass")}
+                    {info.group_sessions!.map((x, i) => {
+                      // Resumido, UNA línea por clase. Los títulos reales llegan
+                      // a 140 caracteres y tres de esos seguidos son un muro de
+                      // texto en un teléfono: el estudiante vino a marcar
+                      // asistencia, no a leer el temario. El título entero queda
+                      // en el `title=`, así que no se pierde nada.
+                      // La fila de HOY lleva además la etiqueta, que se come
+                      // parte de la línea: se le baja el tope para que el corte
+                      // lo haga el helper en un borde de palabra y no el
+                      // `truncate` a mitad de una. El 16 está MEDIDO en el
+                      // navegador a 390 px: la caja del título pasa de 216 px
+                      // sin etiqueta a 153 px con ella, y con el tope de 34 que
+                      // había probado primero el CSS volvía a cortar.
+                      const titulo = resumirTituloDeSesion(
+                        x.title,
+                        x.is_anchor ? TOPE_TITULO_SESION - 16 : TOPE_TITULO_SESION,
+                      );
+                      return (
+                        <li key={i} className="flex items-baseline gap-2 px-2.5 py-1.5">
+                          {/* La fecha en columna propia, angosta y con cifras de
+                              ancho fijo: así las fechas quedan alineadas entre sí
+                              y se barren de un vistazo. Corta ("8 sep") porque el
+                              año es el mismo en todas y solo robaría lugar. */}
+                          <span className="w-12 shrink-0 text-2xs tabular-nums text-muted-foreground">
+                            {x.session_date ? formatDateOnlyShort(x.session_date) : ""}
                           </span>
-                        )}
-                      </li>
-                    ))}
+                          {/* `truncate` es la red de seguridad del resumen: un
+                              título sin espacios no se puede cortar por palabra. */}
+                          <span
+                            className="min-w-0 flex-1 truncate text-2xs leading-tight"
+                            title={titulo?.completo}
+                          >
+                            {titulo?.corto ?? t("publicAttendance.sessionWithoutTitle")}
+                          </span>
+                          {x.is_anchor && (
+                            <span className="shrink-0 rounded-sm bg-primary/15 px-1.5 py-0.5 text-3xs font-medium text-primary">
+                              {t("publicAttendance.thisClass")}
+                            </span>
+                          )}
+                        </li>
+                      );
+                    })}
                   </ul>
                 </div>
               ) : (
@@ -443,7 +471,11 @@ function PublicAttendance() {
                 <p className="rounded-md border border-emerald-500/40 bg-emerald-500/5 px-2 py-1.5 text-xs">
                   {t("publicAttendance.alsoMarkedIn", {
                     count: tambienEn.length,
-                    sessions: tambienEn.join(", "),
+                    // Resumidos: acá van varios títulos seguidos en UNA
+                    // frase, así que el tope es más corto que en la lista.
+                    sessions: tambienEn
+                      .map((n) => resumirTituloDeSesion(n, TITULO_EN_FRASE)?.corto ?? n)
+                      .join(", "),
                   })}
                 </p>
               )}
