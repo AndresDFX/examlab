@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **79 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262380000000_taller_sustentacion`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **80 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262390000000_acuerdo_firma_con_nombre`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### ✍️ El Acuerdo Pedagógico firma con nombre, no solo con el cargo
+
+- Reportado: «en las firmas del acuerdo pedagógico, si es el vocero debería verse el nombre completo
+  que está en plataforma». El bloque de firmas tiene dos filas —las ranuras y, debajo, los rótulos—
+  y los rótulos decían literalmente «El Docente / Tutor» y «El Vocero», nada más. O sea que el
+  documento que la gente firma no decía QUIÉN firmó: el nombre del vocero aparecía una sola vez, a
+  media página de distancia, en la casilla «Nombre del vocero».
+- **El dato ya estaba**: `report-context.ts` arma `firmantes.vocero` con `{ nombre, ranura }` y lo
+  expone desde que existe la ranura. La plantilla usaba `ranura` y tiraba el nombre. También se puso
+  el del docente: son dos celdas de la misma fila, y poner el nombre bajo una y dejar la otra con el
+  cargo pelado se lee como un error de maquetación.
+- Se parchean **todas** las plantillas con ranura de vocero, no solo la global: hoy hay además una
+  «(personalizada)» por curso, y dejarla afuera haría que el mismo documento saliera distinto según
+  el curso.
+- **Los Acuerdos ya firmados NO cambian**, y está bien: `generated_reports` guarda el HTML como
+  instantánea a propósito, porque es lo que se firma y lo que `signed_hash` protege. Los de
+  septiembre tienen entre 18 y 32 firmas cada uno.
+- **Verificado contra PostgreSQL real con el HTML REAL de las dos plantillas** (15 comprobaciones):
+  el nombre queda una sola vez y DENTRO de la celda de su rótulo, el documento crece exactamente los
+  191 bytes agregados y ni un byte más, las ranuras siguen intactas, una plantilla sin bloque de
+  firmas no se toca, correrla dos veces no duplica nada, y con el ancla rota no inventa nada. Esto
+  último importa porque un `UPDATE` con guarda **aplica en verde sin tocar una fila** — el modo de
+  falla que este CHANGELOG ya documenta —, así que la migración además cuenta lo que cambió y avisa
+  con un `WARNING` si no cambió nada habiendo plantillas que sí tienen la ranura.
 
 ### 🗂️ Todas las grillas abren por fecha de creación, lo más nuevo arriba
 
