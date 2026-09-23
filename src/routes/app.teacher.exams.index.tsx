@@ -66,6 +66,7 @@ import {
   Plus,
   Pencil,
   GitBranch,
+  FlaskConical,
   Monitor,
   Copy,
   Trash2,
@@ -1125,6 +1126,17 @@ function TeacherExams() {
                           label: t("exam.liveMonitor"),
                           icon: Monitor,
                           to: "/app/teacher/monitor/$examId",
+                          params: { examId: e.id },
+                        },
+                        // Simular va ANTES de «Editar»: se prueba lo que se
+                        // acaba de armar, y el orden del menú sigue el del
+                        // trabajo. Un examen EXTERNO no se simula — no tiene
+                        // preguntas ni pantalla de toma, solo registro de notas.
+                        !(e as any).is_external && {
+                          label: t("simulacroExamen.accion"),
+                          icon: FlaskConical,
+                          hint: t("simulacroExamen.accionHint"),
+                          to: "/app/teacher/simulacro/$examId",
                           params: { examId: e.id },
                         },
                         (() => {

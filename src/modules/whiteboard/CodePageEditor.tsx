@@ -200,7 +200,7 @@ export function CodePageEditor({
     }
     // Provider efectivo: override de la hoja o el default global. cheerp corre
     // client-side (solo Java); el resto via edge execute-code. Mismo patrón que
-    // el examen (app.student.take.$examId.tsx runCode).
+    // el examen (TakeExamScreen.tsx runCode).
     const provider = runnerOverride ?? defaultProvider;
     runAbortRef.current?.abort();
     const controller = new AbortController();

@@ -630,7 +630,7 @@ describe("la ventana del bloqueo no vive duplicada en la pantalla de examen", ()
    * propio alumno. Por eso se mira el archivo.
    */
   const ruta = readFileSync(
-    resolve(process.cwd(), "src/routes/app.student.take.$examId.tsx"),
+    resolve(process.cwd(), "src/modules/exams/TakeExamScreen.tsx"),
     "utf8",
   );
 

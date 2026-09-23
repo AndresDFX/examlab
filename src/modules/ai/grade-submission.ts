@@ -285,7 +285,7 @@ export async function enqueueAiGradeForSubmission(opts: {
       const r = await aiGradeOrEnqueue(
         {
           // DEBE ser "exam_submission" (igual que el submit del alumno en
-          // app.student.take.$examId.tsx). El dedup de ai_grading_queue es por
+          // TakeExamScreen.tsx). El dedup de ai_grading_queue es por
           // (target_table, target_row_id, KIND): con "exam_full" un regrade del
           // docente NO deduplicaba contra el job "exam_submission" del alumno
           // → la MISMA entrega se calificaba DOS veces (doble gasto de IA), y

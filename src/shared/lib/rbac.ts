@@ -59,6 +59,10 @@ export const ROUTE_RULES: RouteRule[] = [
   // ya usan isStaffRole y la RLS scopea por tenant. Calendario y kahoot
   // quedan fuera del alcance elegido.
   { prefix: "/app/teacher/exams", roles: ["Docente", "Admin", "SuperAdmin"] },
+  // Simulacro de examen: la pantalla del alumno, sin nota. Ruta HERMANA de
+  // `/app/teacher/exams/$examId` y no hija, porque ese archivo no renderiza
+  // `<Outlet/>` y un hijo suyo nunca aparecería.
+  { prefix: "/app/teacher/simulacro", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/monitor", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/workshops", roles: ["Docente", "Admin", "SuperAdmin"] },
   { prefix: "/app/teacher/projects", roles: ["Docente", "Admin", "SuperAdmin"] },

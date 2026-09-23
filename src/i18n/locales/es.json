@@ -10792,5 +10792,16 @@
     "videoUploaded": "Video subido. Guarda la sustentación para registrarlo.",
     "pending": "Falta sustentación",
     "pendingHint": "Ya tenés la nota del trabajo. La nota final sale cuando el docente registre la sustentación."
+  },
+  "simulacroExamen": {
+    "accion": "Simular como estudiante",
+    "accionHint": "Abre el examen como lo ve el estudiante. No guarda respuestas ni genera nota.",
+    "banner": "Estás simulando este examen",
+    "bannerDetalle": "Es una prueba: no se guardan respuestas, no se registra el intento y no genera nota. Los estudiantes no ven nada de esto.",
+    "sinAcceso": "No puedes simular este examen",
+    "sinAccesoDetalle": "Solo puedes simular exámenes de los cursos que dictas.",
+    "terminado": "Simulación terminada. No se guardó nada ni se generó nota.",
+    "terminadoPorAdvertencias": "Así se cerraría el examen de un estudiante al pasarse de advertencias. En la simulación no se guardó nada.",
+    "volverAExamenes": "Volver a Exámenes"
   }
 }

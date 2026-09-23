@@ -55,6 +55,7 @@ export const PREFIX_TO_MODULE: Array<[string, ModuleKey]> = [
   ["/app/teacher/workshops", "workshops"],
   ["/app/teacher/projects", "projects"],
   ["/app/teacher/exams", "exams"],
+  ["/app/teacher/simulacro", "exams"],
   ["/app/teacher/monitor", "exams"],
   ["/app/teacher/gradebook", "gradebook"],
   ["/app/teacher/grading", "gradebook"],

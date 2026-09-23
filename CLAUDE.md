@@ -483,7 +483,7 @@ Cuatro reglas universales — aplicar siempre que se añada layout nuevo:
 
 | Archivo                                                     | Propósito                                                                                                                                               |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `src/routes/app.student.take.$examId.tsx`                   | Pantalla de toma de examen (estudiante)                                                                                                                 |
+| `src/modules/exams/TakeExamScreen.tsx`                      | Pantalla de toma de examen — la usan la ruta del estudiante y el SIMULACRO del docente. Vive FUERA del archivo de ruta a propósito: un archivo de ruta que exporta algo más que `Route` pierde el code-splitting de TanStack y arrastra `run-java.ts` (que toca `window` al cargarse) al prerender del cascarón → la app entera devuelve 500 |
 | `src/routes/app.student.exams.tsx`                          | Lista de exámenes del estudiante                                                                                                                        |
 | `src/routes/app.student.review.$examId.tsx`                 | Revisión de resultados                                                                                                                                  |
 | `src/routes/app.student.grades.tsx`                         | Vista de notas por curso del estudiante                                                                                                                 |
@@ -1300,7 +1300,7 @@ el alumno ya se fue. El cierre lo hace el SERVIDOR (mig
 
 **Anti-reanudación — lo que evita que el arreglo cree un bug peor.** Hoy "el docente lo cerró" y
 "entregué limpio y falta la nota" son la MISMA fila byte a byte, y la segunda es **reanudable**:
-`app.student.take.$examId.tsx` la detecta y hace `update({status:'en_progreso', submitted_at:null})`,
+`TakeExamScreen.tsx` la detecta y hace `update({status:'en_progreso', submitted_at:null})`,
 o sea que el alumno deshace el cierre **y** cancela la calificación que el cierre existía para
 habilitar. Por eso hay columnas explícitas (`closed_at`, `closed_by`, `close_reason`,
 `close_deadline`) y el bloqueo vive en un **trigger** (`tg_block_reopen_closed_attempt`), no solo en
@@ -1318,6 +1318,48 @@ examen en papelera).
 mismo set (`isFinalStatus`, el `FINAL` de `selectableSubmissions` y una tercera inline). No agregues
 una cuarta.
 
+
+### Simulacro de examen (el docente lo rinde sin que dé nota)
+
+`/app/teacher/simulacro/$examId` — acción **«Simular como estudiante»** (`FlaskConical`) en el
+menú de fila del grid de exámenes, justo antes de «Editar». Abre **la misma pantalla** que ve el
+alumno ([TakeExamScreen.tsx](src/modules/exams/TakeExamScreen.tsx)) y **no guarda ni califica nada**.
+
+- **La garantía NO es un `if` repartido**: la pantalla escribe en ONCE lugares (crear la entrega, el
+  autoguardado de 1,5 s, el latido del bloqueo de sesión, tres caminos de proctoring, la entrega, el
+  aviso al docente, la reanudación y la cancelación de trabajos de IA). Repartir el gate entre los
+  once deja el arreglo a merced de que quien agregue el DOCE se acuerde, y el modo de falla no es un
+  error visible: es una fila real en `submissions` que entra al gradebook, a los pendientes de
+  calificación, al acta y a las estadísticas. La garantía es
+  [`clienteDeSimulacro`](src/modules/exams/cliente-simulacro.ts): un cliente que **lee igual y no
+  sabe escribir** (`insert`/`update`/`upsert`/`delete`/`rpc` devuelven éxito vacío sin tocar la red).
+  Con eso el punto de decisión es UNO.
+- **`functions.invoke` queda intacto a propósito**: ejecutar el código del alumno es justo lo que el
+  docente viene a probar.
+- **Cuatro cortes explícitos que el cliente NO puede dar**, cada uno por un motivo distinto: no se
+  lee la entrega existente (el docente puede estar matriculado y tener una entrega REAL — en UNIAJ el
+  dueño se matricula en todos sus cursos a propósito; además el bloqueo de sesión le quitaría el
+  examen a sí mismo); no se aplican los gates de ventana/estado/asignación (se previsualiza
+  justamente lo que es borrador o ya cerró); no se monta la cola offline (IndexedDB es del alumno); y
+  **terminar el ensayo corta antes de `aiGradeOrEnqueue` y `logEvent`**, que traen su PROPIO cliente
+  y por lo tanto no pasan por el guardián — sin ese corte, un ensayo encolaría una calificación con
+  IA contra una entrega que no existe.
+- **`submissionIdRef` se queda en NULL** en simulacro: es el segundo cinturón, porque las escrituras
+  de proctoring y el latido ya están condicionadas a que tenga valor. Hacen falta dos olvidos, no uno.
+- **El aviso va siempre visible y no se puede cerrar.** Toda la pantalla está hecha para no
+  distinguirse de un examen de verdad; un aviso que se pudiera ocultar deja al docente dictando un
+  parcial creyendo que prueba, o al revés.
+- **Un examen EXTERNO no se simula** (no tiene preguntas ni pantalla de toma), y el docente solo
+  simula exámenes de SUS cursos — el alcance lo decide `course-scope.ts` con el rol ACTIVO, porque la
+  RLS deja ver todos los cursos de la institución a propósito.
+- **Es ruta HERMANA (`/app/teacher/simulacro/$examId`), no hija de `/app/teacher/exams/$examId`.**
+  Ahí sería hija de `app.teacher.exams.$examId.tsx`, que no renderiza `<Outlet/>`: con TanStack, un
+  hijo que su padre no renderiza **no aparece** — la URL cambia y se sigue viendo el formulario de
+  editar, sin ningún error y sin que `tsc` diga nada. Mismo bug que ya documenta
+  `app.teacher.whiteboards.index.tsx`. Por eso su prefijo está en `rbac.ts` y en `PREFIX_TO_MODULE`
+  (apuntando al módulo `exams`, que gobierna su visibilidad).
+- **Al tocar la pantalla de toma, no le agregues un segundo export al archivo de ruta.** Ver la nota
+  de `TakeExamScreen.tsx` en «Archivos clave»: cuesta la app entera, no solo esa pantalla.
 
 ### Papelera (soft-delete) — `/app/trash`
 
@@ -1951,7 +1993,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/routes/app.student.polls.tsx` (el `disabled` de las opciones múltiples) ↔ `supabase/migrations/20261690000000_poll_multi_complete_not_change.sql` (la regla del candado) | Semántica de "permitir cambiar respuesta" en una pregunta MÚLTIPLE: **completar sí, cambiar no** — el RPC solo acepta un array que sea SUPERCONJUNTO del guardado (`v_idx @> v_prev`), y el cliente deshabilita las opciones ya marcadas para no ofrecer un clic que el servidor va a rechazar. | Si el cliente deja destildar, el alumno recibe un error donde esperaba una interacción normal; si el servidor deja de exigir el superconjunto, el candado deja de existir para las múltiples. El bug original fue el inverso: el servidor bloqueaba por EXISTENCIA de la fila, así que el segundo tilde de una pregunta "podés marcar varias" se rebotaba. |
 | `src/modules/database/sql-help.ts` (`LIST_TABLES_SQL`) ↔ `src/modules/database/sql-answer.ts` (`isSqlAnswerBlank`) | Lo que insertó un BOTÓN no cuenta como respuesta: una hoja cuyo único contenido es la consulta de la ayuda "¿qué tablas hay?" sigue estando EN BLANCO. Es el mismo criterio que `starters.ts` ya fija para `codigo` (plantilla intacta = no respondida) | Divergen → pulsar un botón de AYUDA y no contestar nada marca la pregunta como respondida: el aviso de "entregás con N en blanco" no la lista y la columna "Respondidas" del monitor la suma |
 | `src/shared/lib/publicacion.ts` (`HORAS_DE_AVISO_INMEDIATO`, `avisoAlPublicar`) ↔ `supabase/migrations/20262210000000_defer_publish_notifications_future_start.sql` (el umbral del trigger `trg_*_publish_notify`) | El plazo a partir del cual el aviso de «nuevo taller/examen/proyecto publicado» se DIFIERE al cron en vez de salir en el acto (hoy, un día). El cliente lo usa para redactar la confirmación de «Publicar» desde la fila del grid. | Divergen → el diálogo promete «se les avisa ahora mismo» sobre un examen de noviembre y el aviso no sale (o al revés: promete silencio y el correo sale igual, que es el error caro — un aviso no se puede retirar). |
-| `src/modules/exams/answered.ts` (`isQuestionAnswered`) ↔ sus tres consumidores: `app.student.take.$examId.tsx` (aviso de entrega en blanco), `WorkshopQuestions.tsx` (ídem) y `app.teacher.monitor.$examId.tsx` (columna Respondidas) ↔ `src/modules/code/starters.ts` (las plantillas contra las que se compara) | Qué cuenta como pregunta RESPONDIDA. Estuvo duplicado en examen y taller con reglas **opuestas** para una pregunta de código intacta (examen: respondida; taller: en blanco), y por eso el examen no avisaba a quien entregaba sin tocar el editor. Ahora hay un solo módulo; si se agrega un tipo de pregunta, va acá y no en cada pantalla. Las plantillas viven en un módulo PURO para que el monitor no arrastre Monaco ni el runner de Java GUI solo para contar. | Divergen → el alumno recibe un aviso de "tenés N en blanco" y el docente ve otro número para la misma entrega; o una pregunta de código sin tocar vuelve a contarse como respondida y nadie avisa. |
+| `src/modules/exams/answered.ts` (`isQuestionAnswered`) ↔ sus tres consumidores: `TakeExamScreen.tsx` (aviso de entrega en blanco), `WorkshopQuestions.tsx` (ídem) y `app.teacher.monitor.$examId.tsx` (columna Respondidas) ↔ `src/modules/code/starters.ts` (las plantillas contra las que se compara) | Qué cuenta como pregunta RESPONDIDA. Estuvo duplicado en examen y taller con reglas **opuestas** para una pregunta de código intacta (examen: respondida; taller: en blanco), y por eso el examen no avisaba a quien entregaba sin tocar el editor. Ahora hay un solo módulo; si se agrega un tipo de pregunta, va acá y no en cada pantalla. Las plantillas viven en un módulo PURO para que el monitor no arrastre Monaco ni el runner de Java GUI solo para contar. | Divergen → el alumno recibe un aviso de "tenés N en blanco" y el docente ve otro número para la misma entrega; o una pregunta de código sin tocar vuelve a contarse como respondida y nadie avisa. |
 | `src/modules/reports/signature-image.ts` (`MAX_CARACTERES_FIRMA`) ↔ `supabase/migrations/20261940000000_report_signature_drawing.sql` (`chk_report_signatures_drawing`) | El tope de caracteres del PNG de la firma. El cliente recorta y reintenta con lados cada vez menores hasta entrar en ese número; la base lo rechaza con `invalid_drawing`. | Divergen → o el cliente manda un PNG que la base rechaza **después** de que la persona creyó haber firmado (el fallo que ya tuvo la firma dibujada en el celular), o recorta de más sin motivo. Lo fija `signature-image.test.ts`, que lee el tope de la migración del disco. |
 | `src/modules/code/combine-files.ts` (`combineFilesForExec` + `javaHasMain`) ↔ `supabase/functions/execute-code/index.ts` (`combineFiles` + `javaHasMain`)                                                                                                                                                                                                                                                               | Combinación de N archivos en un solo `sourceCode` (Java: clase con `main` primero + degradar `public` y quitar `package` en secundarios; script: encabezado `// ─── file ───` por archivo). El cliente combina y manda **ambos** `files` + `sourceCode` para que un edge SIN soporte multi-archivo (deploy viejo) no responda "Código fuente requerido" | Divergen → el combinado del cliente (fallback edge viejo) difiere del server (edge nuevo) — ej. Java compila distinto según qué clase queda primero, o el alumno ve una salida y otra según el deploy |
 | `src/modules/admin/teacher-student-courses.ts` (`COURSE_NAME_SEPARATOR`, el dedup en minúsculas, y el shape `ImportRowResult` con `ok`/`duplicate`/`enrolledExisting`/`enrollFailed`) ↔ `supabase/functions/bulk-import-users/index.ts` (`course_name.split("|")`, `courseNameToId` keyeado por `name.trim().toLowerCase()`, y los campos que empuja a `result`) | El contrato del alta multi-curso: separador de la lista de cursos, resolución case-insensitive del nombre → id, y qué campos distinguen "creado" de "ya existía y lo matriculé" de "ya existía y la matrícula FALLÓ" | Divergen → el alta multi-curso del docente falla con "el curso no existe" sobre cursos que él ve en su propia lista, o el aviso miente sobre qué pasó (un fallo de matrícula pintado como "ya estaba matriculado"). El separador es `|` porque el campo se comparte con `roles`; migrar el edge a `course_ids` obliga a cambiar el cliente en el mismo commit |

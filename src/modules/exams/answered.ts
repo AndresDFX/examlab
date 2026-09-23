@@ -4,7 +4,7 @@
  * ── Por qué existe: había DOS predicados y se contradecían ────────────
  * El mismo concepto estaba implementado dos veces, con reglas OPUESTAS:
  *
- *   · `isQuestionAnswered` dentro de `app.student.take.$examId.tsx` (examen)
+ *   · `isQuestionAnswered` dentro de `TakeExamScreen.tsx` (examen)
  *   · `getUnansweredNumbers` dentro de `WorkshopQuestions.tsx` (taller)
  *
  * En una pregunta de CÓDIGO cuyo contenido es exactamente la plantilla:
@@ -71,7 +71,7 @@ export interface QuestionForAnswered {
  */
 export function defaultStarterFor(q: QuestionForAnswered): string {
   // `?? "java"` para coincidir con lo que el editor PINTA cuando la pregunta no
-  // tiene lenguaje (`app.student.take.$examId.tsx`: `q.language ?? "java"`).
+  // tiene lenguaje (`TakeExamScreen.tsx`: `q.language ?? "java"`).
   // Sin esto, en una pregunta legacy con `language` NULL el alumno ve la
   // plantilla de Java, el predicado compara contra "" y la plantilla intacta
   // vuelve a contar como respondida — la regla quedaba sin efecto justo ahí.

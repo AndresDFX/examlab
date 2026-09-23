@@ -75,6 +75,47 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🧪 Simular un examen sin que dé nota
+
+El docente abre su propio examen como lo ve el estudiante —el temporizador, la navegación secuencial,
+la mezcla de preguntas, el editor de código con su compilador, la consola de red, la hoja de SQL y el
+proctoring— y **no se guarda ni se califica nada**. Acción «Simular como estudiante» en el menú de
+fila del grid de exámenes.
+
+- **Reusa la pantalla del alumno, no una copia.** Lo que se viene a probar ES esa pantalla; una vista
+  previa aparte se vería parecida y mentiría en el primer detalle que alguien cambie de un lado y no
+  del otro — justo el bug que una vista previa debería atrapar.
+- **La garantía de que no escribe es UN cliente, no once `if`.** La pantalla escribe en once lugares,
+  y repartir el gate entre ellos deja el arreglo a merced de que quien agregue el doce se acuerde. El
+  modo de falla no sería un error visible: sería una fila real en `submissions`, o sea una nota
+  inventada por una prueba, dentro del gradebook, los pendientes de calificación, el acta y las
+  estadísticas. En su lugar hay un cliente que lee igual y **no sabe escribir**.
+- **Cuatro cortes que el cliente no puede dar**, cada uno por un motivo propio: no se lee la entrega
+  existente (el docente puede estar matriculado y tener una REAL, y el bloqueo de sesión le quitaría
+  el examen a sí mismo), no se aplican los gates de ventana ni de estado (se previsualiza justamente
+  lo que es borrador o ya cerró), no se monta la cola offline, y **terminar el ensayo corta antes de
+  la calificación con IA y de la auditoría**, que traen su propio cliente y no pasan por el guardián.
+- **El aviso no se puede cerrar.** La pantalla está hecha para no distinguirse de un examen real.
+
+#### Y un segundo hallazgo: la ruta no se habría visto nunca
+
+Colgada de `/app/teacher/exams/$examId/simulacro` quedaba como ruta HIJA del editor de examen, que no
+renderiza `<Outlet/>`. Con TanStack eso no falla: la URL cambia y se sigue viendo el formulario de
+editar, sin error y sin que `tsc` diga nada — el feature entero habría sido inalcanzable. Es el mismo
+bug que ya está escrito en `app.teacher.whiteboards.index.tsx`. Ahora es ruta hermana
+(`/app/teacher/simulacro/$examId`) con su prefijo en `rbac.ts` y en `PREFIX_TO_MODULE`.
+
+#### Y el hallazgo que casi rompe todo
+
+Exportar el componente desde el archivo de ruta **tira la aplicación entera**, no solo esa pantalla.
+El plugin de TanStack separa el componente de una ruta en su propio chunk **solo si ese archivo no
+exporta nada más**; con un segundo export, `routeTree.gen.ts` lo importa de forma estática y arrastra
+`run-java.ts`, que evalúa `window` al cargarse. Medido: el prerenderizado del cascarón revienta con
+`ReferenceError: window is not defined` y **cualquier** ruta devuelve 500 — incluido `/auth`. Se
+descubrió porque el servidor de desarrollo dejó de responder, y se confirmó quitando y reponiendo el
+archivo. La pantalla pasó a `src/modules/exams/TakeExamScreen.tsx` y cada archivo de ruta volvió a
+exportar solo su `Route`.
+
 ### ⏱️ El SuperAdmin no podía dar tiempo extra en un examen
 
 `exam_timer_controls_write` exigía `exam_in_my_tenant(exam_id) AND (has_role('Docente') OR

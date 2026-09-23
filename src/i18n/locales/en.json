@@ -10792,5 +10792,16 @@
     "videoUploaded": "Video uploaded. Save the defense to record it.",
     "pending": "Defense pending",
     "pendingHint": "Your submission grade is in. The final grade appears once your teacher records the defense."
+  },
+  "simulacroExamen": {
+    "accion": "Preview as a student",
+    "accionHint": "Opens the exam the way students see it. No answers are saved and no grade is created.",
+    "banner": "You are previewing this exam",
+    "bannerDetalle": "This is a rehearsal: no answers are saved, no attempt is recorded and no grade is created. Students see none of this.",
+    "sinAcceso": "You can't preview this exam",
+    "sinAccesoDetalle": "You can only preview exams from the courses you teach.",
+    "terminado": "Preview finished. Nothing was saved and no grade was created.",
+    "terminadoPorAdvertencias": "This is how a student's exam would close after too many warnings. Nothing was saved in the preview.",
+    "volverAExamenes": "Back to Exams"
   }
 }

@@ -82,6 +82,7 @@ import { Route as AppTeacherExamsIndexRouteImport } from './routes/app.teacher.e
 import { Route as AppStudentWhiteboardsIndexRouteImport } from './routes/app.student.whiteboards.index'
 import { Route as AppStudentTutorIndexRouteImport } from './routes/app.student.tutor.index'
 import { Route as AppTeacherWhiteboardsIdRouteImport } from './routes/app.teacher.whiteboards.$id'
+import { Route as AppTeacherSimulacroExamIdRouteImport } from './routes/app.teacher.simulacro.$examId'
 import { Route as AppTeacherMonitorExamIdRouteImport } from './routes/app.teacher.monitor.$examId'
 import { Route as AppTeacherKahootGameIdRouteImport } from './routes/app.teacher.kahoot.$gameId'
 import { Route as AppTeacherGradingCourseIdRouteImport } from './routes/app.teacher.grading.$courseId'
@@ -466,6 +467,12 @@ const AppTeacherWhiteboardsIdRoute = AppTeacherWhiteboardsIdRouteImport.update({
   path: '/teacher/whiteboards/$id',
   getParentRoute: () => AppRoute,
 } as any)
+const AppTeacherSimulacroExamIdRoute =
+  AppTeacherSimulacroExamIdRouteImport.update({
+    id: '/teacher/simulacro/$examId',
+    path: '/teacher/simulacro/$examId',
+    getParentRoute: () => AppRoute,
+  } as any)
 const AppTeacherMonitorExamIdRoute = AppTeacherMonitorExamIdRouteImport.update({
   id: '/teacher/monitor/$examId',
   path: '/teacher/monitor/$examId',
@@ -623,6 +630,7 @@ export interface FileRoutesByFullPath {
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/simulacro/$examId': typeof AppTeacherSimulacroExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/student/whiteboards/': typeof AppStudentWhiteboardsIndexRoute
@@ -710,6 +718,7 @@ export interface FileRoutesByTo {
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/simulacro/$examId': typeof AppTeacherSimulacroExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor': typeof AppStudentTutorIndexRoute
   '/app/student/whiteboards': typeof AppStudentWhiteboardsIndexRoute
@@ -800,6 +809,7 @@ export interface FileRoutesById {
   '/app/teacher/grading/$courseId': typeof AppTeacherGradingCourseIdRoute
   '/app/teacher/kahoot/$gameId': typeof AppTeacherKahootGameIdRoute
   '/app/teacher/monitor/$examId': typeof AppTeacherMonitorExamIdRoute
+  '/app/teacher/simulacro/$examId': typeof AppTeacherSimulacroExamIdRoute
   '/app/teacher/whiteboards/$id': typeof AppTeacherWhiteboardsIdRoute
   '/app/student/tutor/': typeof AppStudentTutorIndexRoute
   '/app/student/whiteboards/': typeof AppStudentWhiteboardsIndexRoute
@@ -891,6 +901,7 @@ export interface FileRouteTypes {
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/simulacro/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/student/whiteboards/'
@@ -978,6 +989,7 @@ export interface FileRouteTypes {
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/simulacro/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor'
     | '/app/student/whiteboards'
@@ -1067,6 +1079,7 @@ export interface FileRouteTypes {
     | '/app/teacher/grading/$courseId'
     | '/app/teacher/kahoot/$gameId'
     | '/app/teacher/monitor/$examId'
+    | '/app/teacher/simulacro/$examId'
     | '/app/teacher/whiteboards/$id'
     | '/app/student/tutor/'
     | '/app/student/whiteboards/'
@@ -1601,6 +1614,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AppTeacherWhiteboardsIdRouteImport
       parentRoute: typeof AppRoute
     }
+    '/app/teacher/simulacro/$examId': {
+      id: '/app/teacher/simulacro/$examId'
+      path: '/teacher/simulacro/$examId'
+      fullPath: '/app/teacher/simulacro/$examId'
+      preLoaderRoute: typeof AppTeacherSimulacroExamIdRouteImport
+      parentRoute: typeof AppRoute
+    }
     '/app/teacher/monitor/$examId': {
       id: '/app/teacher/monitor/$examId'
       path: '/teacher/monitor/$examId'
@@ -1793,6 +1813,7 @@ interface AppRouteChildren {
   AppTeacherGradingCourseIdRoute: typeof AppTeacherGradingCourseIdRoute
   AppTeacherKahootGameIdRoute: typeof AppTeacherKahootGameIdRoute
   AppTeacherMonitorExamIdRoute: typeof AppTeacherMonitorExamIdRoute
+  AppTeacherSimulacroExamIdRoute: typeof AppTeacherSimulacroExamIdRoute
   AppTeacherWhiteboardsIdRoute: typeof AppTeacherWhiteboardsIdRoute
   AppStudentTutorIndexRoute: typeof AppStudentTutorIndexRoute
   AppStudentWhiteboardsIndexRoute: typeof AppStudentWhiteboardsIndexRoute
@@ -1866,6 +1887,7 @@ const AppRouteChildren: AppRouteChildren = {
   AppTeacherGradingCourseIdRoute: AppTeacherGradingCourseIdRoute,
   AppTeacherKahootGameIdRoute: AppTeacherKahootGameIdRoute,
   AppTeacherMonitorExamIdRoute: AppTeacherMonitorExamIdRoute,
+  AppTeacherSimulacroExamIdRoute: AppTeacherSimulacroExamIdRoute,
   AppTeacherWhiteboardsIdRoute: AppTeacherWhiteboardsIdRoute,
   AppStudentTutorIndexRoute: AppStudentTutorIndexRoute,
   AppStudentWhiteboardsIndexRoute: AppStudentWhiteboardsIndexRoute,
