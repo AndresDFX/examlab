@@ -77,6 +77,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ### 🙋 El enlace de asistencia dice qué clases cubre, antes de marcar
 
+- **Y el enlace apunta a la clase de HOY, no a la más vieja.** El ancla —la sesión a la que apuntan el
+  enlace y el QR, y que da el encabezado— se elegía como «la más antigua por fecha». En el caso de uso
+  real eso queda al revés: el docente está dando la Sesión 3 y suma la 1 y la 2 para que quien faltó
+  las recupere, así que el alumno sentado en la clase de hoy abría el enlace y leía «Sesión 1 —
+  Presentación del curso». Ahora el ancla es la sesión **desde la que se abrió**, que es la que el
+  cliente ya mandaba primera en el arreglo; el contrato quedó explícito en la función.
+  Verificado contra PostgreSQL real (10 comprobaciones) con ese escenario exacto, más lo que no debe
+  pasar: una hermana con el check-in vivo sigue rechazándose **con su semilla intacta**, el ancla ya
+  abierta sí se acepta y su semilla es la que el grupo adopta, y los duplicados en el arreglo no
+  cambian ni el ancla ni el conteo.
+
 - Con un check-in que abarca varias sesiones, el enlace y el QR apuntan a UNA —la ancla— y el resto lo
   marca el servidor. Funcionaba, pero el estudiante no lo veía: la pantalla decía «Sesión 3» y él
   marcaba creyendo que registraba una sola clase. El aviso de en qué otras quedó llegaba **después**
