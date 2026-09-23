@@ -175,6 +175,22 @@ export function formatDateOnly(value: string | null | undefined, fallback = "—
 }
 
 /**
+ * Igual que `formatDateOnly` pero CORTO ("22 sep"), para listas angostas donde
+ * el año es el mismo en todas las filas y solo robaría lugar.
+ *
+ * Existe porque `formatDateShort` a secas sobre una columna DATE muestra el día
+ * ANTERIOR: `new Date("2026-09-22")` se interpreta como medianoche UTC, que en
+ * Colombia es el 21 a las 19:00. Acá se ancla al mediodía local, igual que
+ * `formatDateOnly`. Hay un test que falla si una columna DATE se formatea sin
+ * anclar — fue el que atajó este mismo error.
+ */
+export function formatDateOnlyShort(value: string | null | undefined, fallback = "—"): string {
+  if (!value) return fallback;
+  const iso = value.length === 10 ? `${value}T12:00:00` : value;
+  return formatDateShort(iso, fallback);
+}
+
+/**
  * Fecha de HOY como "YYYY-MM-DD" en la zona horaria LOCAL del usuario.
  * Pensado para inicializar `<input type="date">` y otros defaults de
  * fecha visibles al usuario.

@@ -10263,7 +10263,8 @@
     "title": "Marcar asistencia",
     "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más: {{sessions}}.",
     "groupCovers": "Este código marca tu asistencia en {{count}} sesiones:",
-    "sessionWithoutTitle": "Sesión sin título"
+    "sessionWithoutTitle": "Sesión sin título",
+    "thisClass": "esta clase"
   },
   "actasManager": {
     "searchPlaceholder": "Buscar por curso, período o docente…",

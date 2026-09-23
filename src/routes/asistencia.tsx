@@ -25,7 +25,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { formatDateOnly, formatDateTime } from "@/shared/lib/format";
+import { formatDateOnly, formatDateOnlyShort, formatDateTime } from "@/shared/lib/format";
 import { useAuth } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -88,7 +88,12 @@ interface InfoPublica {
   closes_at?: string;
   /** Las sesiones que este mismo código cubre. Vacío o ausente cuando el
    *  check-in es de una sola, que es el caso normal. */
-  group_sessions?: Array<{ title?: string | null; session_date?: string | null }>;
+  group_sessions?: Array<{
+    title?: string | null;
+    session_date?: string | null;
+    /** La clase desde la que se abrió el código: la de hoy. */
+    is_anchor?: boolean;
+  }>;
 }
 
 export const Route = createFileRoute("/asistencia")({
@@ -328,47 +333,64 @@ function PublicAttendance() {
           {/* De qué curso y qué sesión. Solo aparece cuando el servidor lo
               manda, o sea cuando el check-in está realmente abierto. */}
           {info?.open && (info.course_name || info.session_title) && (
-            <div className="rounded-md border bg-background p-3 text-center space-y-0.5">
+            <div className="rounded-md border bg-background p-3 space-y-2">
               {info.course_name && (
-                <p className="text-sm font-semibold leading-tight">
+                <p className="text-sm font-semibold leading-tight text-center">
                   {info.course_name}
                   {info.course_group ? ` · ${info.course_group}` : ""}
                 </p>
               )}
-              {info.session_title && (
-                <p className="text-xs text-muted-foreground leading-tight">{info.session_title}</p>
-              )}
-              {info.session_date && (
-                <p className="text-2xs text-muted-foreground">
-                  {formatDateOnly(info.session_date)}
-                </p>
-              )}
-              {/* Con un check-in que cubre varias clases, el enlace apunta a UNA
-                  —la ancla— y el resto lo marca el servidor. Sin esta lista el
-                  estudiante marcaba creyendo que registraba una sola sesión y se
-                  enteraba del resto DESPUÉS, que es cuando ya decidió. Y el caso
-                  de uso es justamente ese: el docente abre un código que cubre
-                  las clases anteriores para que quien faltó las recupere.
 
-                  Dice «cubre», no «se te va a marcar»: cada sesión se valida
-                  sola al marcar (matrícula, requisitos pendientes), así que
-                  alguna puede quedar afuera. Lo que de verdad quedó lo dice la
-                  respuesta, que es la que cuenta. */}
-              {(info.group_sessions?.length ?? 0) > 1 && (
-                <div className="mt-2 rounded-md border border-primary/30 bg-primary/5 p-2 text-left">
-                  <p className="text-2xs font-medium">
-                    {t("publicAttendance.groupCovers", {
-                      count: info.group_sessions!.length,
-                    })}
+              {/* Con un check-in de varias clases, el enlace apunta a UNA —la de
+                  hoy— y el resto lo marca el servidor. Sin la lista el estudiante
+                  marcaba creyendo que registraba una sola sesión y se enteraba
+                  del resto DESPUÉS, o sea cuando ya decidió. Y el caso de uso es
+                  justamente ese: el docente abre un código que cubre las clases
+                  anteriores para que quien faltó las recupere.
+
+                  La sesión de hoy NO se repite arriba: aparece una sola vez,
+                  dentro de la lista y marcada. Antes salía dos veces —como
+                  encabezado y otra vez en la lista— y nada la distinguía de las
+                  que se están recuperando, que es la diferencia que importa. */}
+              {(info.group_sessions?.length ?? 0) > 1 ? (
+                <div className="rounded-md border border-primary/30 bg-primary/5 overflow-hidden">
+                  <p className="px-2.5 py-1.5 text-2xs font-medium border-b border-primary/20">
+                    {t("publicAttendance.groupCovers", { count: info.group_sessions!.length })}
                   </p>
-                  <ul className="mt-1 space-y-0.5">
+                  <ul className="divide-y divide-primary/15">
                     {info.group_sessions!.map((x, i) => (
-                      <li key={i} className="text-2xs text-muted-foreground leading-tight">
-                        {x.session_date ? `${formatDateOnly(x.session_date)} · ` : ""}
-                        {x.title || t("publicAttendance.sessionWithoutTitle")}
+                      <li key={i} className="flex items-baseline gap-2 px-2.5 py-1.5">
+                        {/* La fecha en columna propia, angosta y con cifras de
+                            ancho fijo: así las fechas quedan alineadas entre sí y
+                            se barren de un vistazo. Corta ("8 sep") porque el año
+                            es el mismo en todas y solo robaría lugar al título. */}
+                        <span className="w-14 shrink-0 text-2xs tabular-nums text-muted-foreground">
+                          {x.session_date ? formatDateOnlyShort(x.session_date) : ""}
+                        </span>
+                        <span className="min-w-0 flex-1 text-2xs leading-tight">
+                          {x.title || t("publicAttendance.sessionWithoutTitle")}
+                        </span>
+                        {x.is_anchor && (
+                          <span className="shrink-0 rounded-sm bg-primary/15 px-1.5 py-0.5 text-3xs font-medium text-primary">
+                            {t("publicAttendance.thisClass")}
+                          </span>
+                        )}
                       </li>
                     ))}
                   </ul>
+                </div>
+              ) : (
+                <div className="text-center space-y-0.5">
+                  {info.session_title && (
+                    <p className="text-xs text-muted-foreground leading-tight">
+                      {info.session_title}
+                    </p>
+                  )}
+                  {info.session_date && (
+                    <p className="text-2xs text-muted-foreground">
+                      {formatDateOnly(info.session_date)}
+                    </p>
+                  )}
                 </div>
               )}
             </div>

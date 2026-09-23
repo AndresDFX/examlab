@@ -10263,7 +10263,8 @@
     "title": "Mark attendance",
     "alsoMarkedIn": "You were also marked in {{count}} more session(s): {{sessions}}.",
     "groupCovers": "This code marks your attendance in {{count}} sessions:",
-    "sessionWithoutTitle": "Untitled session"
+    "sessionWithoutTitle": "Untitled session",
+    "thisClass": "this class"
   },
   "actasManager": {
     "searchPlaceholder": "Search by course, term or teacher…",

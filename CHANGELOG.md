@@ -59,15 +59,15 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **diez migraciones** (`20261600000000_bd_sql_support.sql`,
-> `20261610000000_whiteboard_pages_sql.sql`, `20261620000000_ai_prompt_sql_generation.sql`,
-> `20261640000000_fix_list_error_events_entity_id_text.sql`, `20261650000000_ai_provider_bedrock.sql`,
-> `20261900000000_uniaj_2026_2_alinear_talleres_y_parciales.sql` —de DATOS, sin DDL— y
-> `20261910000000_student_own_whiteboards.sql`, `20261920000000_docente_enrollment_target_guard.sql`
-> `20261930000000_report_signature_slots.sql`, `20261940000000_report_signature_drawing.sql` y
-> `20262110000000_db_backup_cron_dispara_de_verdad.sql`,
-> todas defensivas con `to_regclass`) y **una edge
-> function nueva** (`ai-generate-sql`); el resto es cliente.
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **78 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262370000000_checkin_publico_marca_la_sesion_de_hoy`,
+> todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
+> `ai-read-groups-image`); el resto es cliente. Para verlas:
+> `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
+>
+> Se enumeraban a mano y la lista quedó **parada en once** mientras el número seguía creciendo, o sea
+> que decía lo contrario de lo que un lector necesita antes de un Publish: cuántas van a correr. El
+> rango más el comando no se desactualizan.
 >
 > **La API key de Bedrock se quitó** (2026-09-07, ver «Seguridad» abajo). El proveedor `bedrock`
 > sigue existiendo como opción en el panel, pero **ya no tiene credencial**: activarlo en la fila
@@ -104,6 +104,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   que la función pública **siga sin ser un oráculo**. Un id inexistente, uno en papelera y uno con el
   check-in cerrado devuelven exactamente lo mismo; un curso en papelera tampoco filtra nada; y no se
   cuela una sesión de otro grupo, una borrada ni una fuera de ventana.
+
+- **La clase de hoy va marcada, y una sola vez.** La lista salía debajo de un encabezado que repetía
+  la sesión ancla, así que esa clase aparecía **dos veces** y nada la distinguía de las que se están
+  recuperando — que es justo la diferencia que el estudiante necesita ver. Ahora la función devuelve
+  `is_anchor` por sesión, el encabezado duplicado desaparece cuando el código cubre varias, y la de
+  hoy lleva una etiqueta «esta clase». Con una sola sesión la pantalla se ve exactamente como antes.
+- **Y se lee de un vistazo**: la fecha pasó a una columna angosta con cifras de ancho fijo
+  (`tabular-nums`), así que las fechas quedan alineadas entre sí en vez de correrse según el largo del
+  título. Va corta («8 sep») porque el año es el mismo en todas las filas y solo le robaría lugar al
+  título. Ojo con eso último: `session_date` es una columna DATE y formatearla sin anclar muestra el
+  día ANTERIOR — hay un helper (`formatDateOnlyShort`) y un test que falla si alguien la formatea
+  crudo. Revisado a 390 px, sin desbordes.
 
 ### ⚡ Menos escritura sobre la base durante un examen
 
