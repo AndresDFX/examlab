@@ -144,6 +144,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   un título largo envolvía y esa fila quedaba más alta que sus vecinas —la regla R5 del auditor, que
   no lo caza porque la celda se arma en un componente y no inline en el `<TableBody>`—. Lo encontró
   el revisor de consistencia: era el MISMO archivo donde ya había arreglado el aviso.
+- **Y del lado del DOCENTE, el número de clases que cubre el código pasó arriba y siempre visible.**
+  Estaba al FINAL de la tarjeta, en un párrafo ámbar debajo de una lista que scrollea: para enterarse
+  de en cuántas clases va a quedar asistencia —que es exactamente la decisión que está tomando— había
+  que bajar. Ahora hay un contador «Cubre N clases» al lado del rótulo, cada clase ocupa UNA línea con
+  la fecha en columna alineada (mismo helper que la pantalla pública, porque los títulos reales llegan
+  a 140 caracteres), y hay un «Limpiar» para deshacer la selección de una. Medido a 390 px: las cuatro
+  candidatas se ven de una sin scrollear; antes entraban tres y media.
+- De paso, ese aviso usaba `text-amber-600 dark:text-amber-400` —un hue crudo de Tailwind— y pasó al
+  token semántico `text-warning-on-subtle`. Con el hue crudo, una institución de marca ámbar no
+  distingue el aviso del resto de la tarjeta (P3 del CLAUDE.md; el auditor no lo caza porque solo mira
+  los íconos de `PageHeader`).
 - **Y la cabecera dejó de repetir el grupo**: los cursos se llaman
   `Introduccion a la Ingenieria-2026-2-SB141C` y su grupo es `SB141C`, así que decía
   «…-SB141C · SB141C». El dato repetido no agrega nada y en un teléfono empujaba el bloque a una

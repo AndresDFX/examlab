@@ -6155,7 +6155,9 @@
     "errNoSessions": "Pick at least one session to open the check-in.",
     "errTooManySessions": "That's too many sessions for a single code. A code covering half the subject stops being today's class code.",
     "errMixedCourses": "The sessions must belong to the same course. A code spanning courses would let a student mark attendance in a class they don't attend.",
-    "errSessionAlreadyOpen": "One of the sessions you picked already has its own check-in open. Adding it to the group would change the code that class is using: close that check-in first, then open them together."
+    "errSessionAlreadyOpen": "One of the sessions you picked already has its own check-in open. Adding it to the group would change the code that class is using: close that check-in first, then open them together.",
+    "multiSessionCount_one": "Covers {{count}} class",
+    "multiSessionCount_other": "Covers {{count}} classes"
   },
   "privacy": {
     "contents": "Contents",

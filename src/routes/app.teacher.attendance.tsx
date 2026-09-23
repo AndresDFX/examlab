@@ -89,11 +89,13 @@ import {
 import { toCSV } from "@/shared/lib/csv";
 import {
   formatDateOnly,
+  formatDateOnlyShort,
   formatDateShort,
   formatSessionLabel,
   formatTime,
   todayLocalISO,
 } from "@/shared/lib/format";
+import { resumirTituloDeSesion } from "@/modules/attendance/titulo-sesion";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
@@ -3673,50 +3675,91 @@ function TeacherAttendance() {
                 No se muestra si el curso no tiene otra sesión. */}
             {!checkInAjusteSession && candidatasCheckInMultiple.length > 0 && (
               <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-start gap-1.5">
-                  <Label className="cursor-default">
-                    {t("teacherAttendance.multiSessionLabel")}
-                  </Label>
-                  <HelpHint>{t("teacherAttendance.multiSessionHint")}</HelpHint>
-                </div>
-                <div className="max-h-40 space-y-1 overflow-y-auto">
-                  {candidatasCheckInMultiple.map((s) => (
-                    <label
-                      key={s.id}
-                      className="flex cursor-pointer items-start gap-2 rounded px-1 py-0.5 text-xs hover:bg-accent"
-                    >
-                      <Checkbox
-                        className="mt-0.5"
-                        checked={checkInExtraSessions.has(s.id)}
-                        onCheckedChange={(v) =>
-                          setCheckInExtraSessions((prev) => {
-                            const next = new Set(prev);
-                            if (v) next.add(s.id);
-                            else next.delete(s.id);
-                            return next;
-                          })
-                        }
-                      />
-                      <span className="min-w-0">
-                        <span className="block truncate">
-                          {s.title?.trim() || t("teacherAttendance.sessionNoTitle")}
-                        </span>
-                        <span className="block text-2xs text-muted-foreground">
-                          {formatDateOnly(s.session_date)}
-                          {s.session_date === sesionCheckInActual?.session_date
-                            ? ` · ${t("teacherAttendance.multiSessionSameDay")}`
-                            : ""}
-                        </span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-                {checkInExtraSessions.size > 0 && (
-                  <p className="text-2xs text-amber-600 dark:text-amber-400">
-                    {t("teacherAttendance.multiSessionWarn", {
+                {/* CUÁNTAS clases va a cubrir el código, arriba y siempre
+                    visible. Antes ese número vivía en un párrafo al FINAL,
+                    debajo de una lista que scrollea: el docente tenía que bajar
+                    para enterarse de en cuántas clases va a quedar asistencia,
+                    que es justo la decisión que está tomando. */}
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-1.5 min-w-0">
+                    <Label className="cursor-default">
+                      {t("teacherAttendance.multiSessionLabel")}
+                    </Label>
+                    <HelpHint>{t("teacherAttendance.multiSessionHint")}</HelpHint>
+                  </div>
+                  <span
+                    className={
+                      checkInExtraSessions.size > 0
+                        ? "shrink-0 rounded-md bg-primary/15 px-2 py-0.5 text-2xs font-medium tabular-nums text-primary"
+                        : "shrink-0 text-2xs tabular-nums text-muted-foreground"
+                    }
+                  >
+                    {t("teacherAttendance.multiSessionCount", {
                       count: checkInExtraSessions.size + 1,
                     })}
-                  </p>
+                  </span>
+                </div>
+                <div className="max-h-40 space-y-0.5 overflow-y-auto">
+                  {candidatasCheckInMultiple.map((s) => {
+                    const mismoDia = s.session_date === sesionCheckInActual?.session_date;
+                    // Una línea por clase, con la fecha en columna propia y
+                    // cifras de ancho fijo: así se barren alineadas en vez de
+                    // correrse según el largo del título. Mismo criterio y mismo
+                    // helper que la pantalla pública — los títulos de los cursos
+                    // reales llegan a 140 caracteres.
+                    const titulo = resumirTituloDeSesion(s.title);
+                    return (
+                      <label
+                        key={s.id}
+                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent"
+                      >
+                        <Checkbox
+                          className="shrink-0"
+                          checked={checkInExtraSessions.has(s.id)}
+                          onCheckedChange={(v) =>
+                            setCheckInExtraSessions((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(s.id);
+                              else next.delete(s.id);
+                              return next;
+                            })
+                          }
+                        />
+                        <span className="w-12 shrink-0 text-2xs tabular-nums text-muted-foreground">
+                          {formatDateOnlyShort(s.session_date)}
+                        </span>
+                        <span className="min-w-0 flex-1 truncate" title={titulo?.completo}>
+                          {titulo?.corto ?? t("teacherAttendance.sessionNoTitle")}
+                        </span>
+                        {mismoDia && (
+                          <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
+                            {t("teacherAttendance.multiSessionSameDay")}
+                          </span>
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                {checkInExtraSessions.size > 0 && (
+                  <div className="flex items-start justify-between gap-2">
+                    {/* Token semántico y no un hue crudo de Tailwind: con
+                        `amber-600` una institución de marca ámbar no distingue
+                        el aviso del resto de la tarjeta (P3 del CLAUDE.md). */}
+                    <p className="text-2xs leading-tight text-warning-on-subtle">
+                      {t("teacherAttendance.multiSessionWarn", {
+                        count: checkInExtraSessions.size + 1,
+                      })}
+                    </p>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 shrink-0 px-2 text-2xs"
+                      onClick={() => setCheckInExtraSessions(new Set())}
+                    >
+                      {t("common.clear")}
+                    </Button>
+                  </div>
                 )}
               </div>
             )}
