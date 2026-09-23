@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **80 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262390000000_acuerdo_firma_con_nombre`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **81 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262400000000_acuerdo_docente_rotulo_y_nombre`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,36 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🖊️ El Acuerdo dice «Docente», y los siete ya firmados llevan el nombre completo
+
+- Reportado sobre un enlace concreto: ahí «aún se ve profesor». Eran dos cosas distintas en el mismo
+  documento, con alcances distintos.
+- **El rótulo.** Dentro de la MISMA plantilla convivían «Profesor» (una vez, el rótulo de la cabecera)
+  y «Docente» (cuatro, incluido «El Docente / Tutor» del bloque de firmas). Y en toda la plataforma
+  hay 188 textos visibles con «docente» y ninguno con «profesor» como rótulo: venía del `.docx`
+  original. Se cambia en la plantilla, así que aplica hacia adelante y no toca nada firmado.
+- **El nombre.** Los siete Acuerdos de septiembre siguen diciendo «Andres Castaño» porque
+  `generated_reports` guarda el HTML como instantánea; el perfil hoy dice «Julian Andres Castaño
+  Espinosa» y un Acuerdo generado hoy ya sale bien. Se corrigen los siete.
+- **El alcance del reemplazo es lo delicado, y por poco lo hago mal**: en esos mismos documentos hay
+  **estudiantes apellidados Castaño** (el vocero de Seminario y de Programación II es «Beltran
+  Castaño Josuhan David»), así que un `replace` del nombre en todo el HTML —que es lo obvio— les
+  habría cambiado el nombre a ellos. Se reemplaza solo el texto de la celda del docente, identificada
+  por su marcado.
+- **Lo que esto cuesta, y se aceptó explícitamente**: `signed_hash` es el sha256 del HTML al firmar.
+  Las firmas existentes **no se invalidan** —nada recalcula ese hash contra el HTML actual; el único
+  consumidor es `hashDivergente`, que compara los hashes entre firmas—, pero quien firme DESPUÉS va a
+  firmar una versión distinta de la que firmaron los anteriores y la plataforma marcará ese Acuerdo
+  como «firmas sobre versiones distintas». En el de Bases de Datos II son 19 firmadas de 21 ranuras.
+- **No se re-calculan los hashes viejos para tapar ese aviso**: eso borraría la única evidencia de que
+  el documento se editó después de firmado, que es para lo que la columna existe. En cambio queda el
+  rastro en `audit_logs`, con el nombre anterior y el nuevo por informe.
+- **Verificado contra PostgreSQL real con el HTML REAL de los siete** (12 comprobaciones): los siete
+  quedan con el nombre completo, el único cambio en cada uno es el de esa celda —comprobado
+  revirtiéndolo y comparando byte a byte contra el original—, el estudiante apellidado Castaño sigue
+  intacto en sus dos informes, un informe de otra plantilla no se toca, queda un registro de auditoría
+  por informe y correrla dos veces no cambia ni duplica nada.
 
 ### 📷 La firma también se puede adjuntar como foto, y el fondo lo quita la plataforma
 
