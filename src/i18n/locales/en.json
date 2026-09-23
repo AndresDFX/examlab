@@ -4488,7 +4488,9 @@
     "sectionWhatTitle": "What it assesses",
     "sectionWhenTitle": "When",
     "sectionHowTitle": "How it is submitted",
-    "sectionHowHint": "Work mode, attempts, videos and external link. Already preset."
+    "sectionHowHint": "Work mode, attempts, videos and external link. Already preset.",
+    "actionShareLink": "Copy link for students",
+    "shareLinkCopied": "Link copied. Whoever opens it must sign in and be enrolled; otherwise they won't see the workshop."
   },
   "adminUsers": {
     "needsRole": "You need the Admin role.",

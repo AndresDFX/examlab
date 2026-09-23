@@ -100,6 +100,7 @@ import {
   ListChecks,
   Hammer,
   UsersRound,
+  Link2,
   AlertTriangle,
   Search,
   X,
@@ -754,6 +755,22 @@ function TeacherWorkshops() {
    * para activar el toggle. Los grupos creados aquí son utilizables
    * inmediatamente.
    */
+  /** Copia el enlace directo al taller para el estudiante. Solo ENFOCA la
+   *  tarjeta: la RLS sigue aplicando, así que si le llega a alguien que no está
+   *  matriculado, no ve nada. Mismo comportamiento que el de encuestas. */
+  const compartirEnlace = async (ws: { id: string }) => {
+    const origin = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${origin}/app/student/workshops?workshop=${ws.id}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success(t("teacherWorkshops.shareLinkCopied"));
+    } catch {
+      // Sin gesto del usuario o fuera de https el portapapeles falla: se muestra
+      // el enlace para copiarlo a mano en vez de dejar al docente sin nada.
+      toast.info(url, { duration: 15000 });
+    }
+  };
+
   const openGroupsForWorkshop = async (ws: Workshop) => {
     if (openingGroupsId) return;
     const mode = (ws as any).group_mode ?? "individual";
@@ -3829,6 +3846,11 @@ function TeacherWorkshops() {
                           icon: UsersRound,
                           disabled: openingGroupsId != null,
                           onClick: () => openGroupsForWorkshop(ws),
+                        },
+                        {
+                          label: t("teacherWorkshops.actionShareLink"),
+                          icon: Link2,
+                          onClick: () => void compartirEnlace(ws),
                         },
                         {
                           label: t("teacherWorkshops.actionQuestions"),

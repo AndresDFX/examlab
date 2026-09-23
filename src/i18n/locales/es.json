@@ -4488,7 +4488,9 @@
     "sectionWhatTitle": "Qué evalúa",
     "sectionWhenTitle": "Cuándo",
     "sectionHowTitle": "Cómo se entrega",
-    "sectionHowHint": "Modo de trabajo, intentos, videos y link externo. Ya vienen configurados."
+    "sectionHowHint": "Modo de trabajo, intentos, videos y link externo. Ya vienen configurados.",
+    "actionShareLink": "Copiar enlace para estudiantes",
+    "shareLinkCopied": "Enlace copiado. Quien lo abra tiene que iniciar sesión y estar matriculado; si no, no ve el taller."
   },
   "adminUsers": {
     "needsRole": "Necesitas rol Admin.",

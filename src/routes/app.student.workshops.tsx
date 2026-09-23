@@ -12,7 +12,7 @@
  *    idioma configurado (default español).
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -61,7 +61,16 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
-export const Route = createFileRoute("/app/student/workshops")({ component: StudentWorkshops });
+export const Route = createFileRoute("/app/student/workshops")({
+  // Enlace directo a UN taller: `/app/student/workshops?workshop=<id>`. Solo
+  // ENFOCA — la RLS sigue aplicando igual, así que un enlace que llegue a quien
+  // no está matriculado no le muestra nada. Mismo patrón que `?poll=` en
+  // encuestas, que es de donde se copió.
+  validateSearch: (search: Record<string, unknown>): { workshop?: string } => ({
+    workshop: typeof search.workshop === "string" ? search.workshop : undefined,
+  }),
+  component: StudentWorkshops,
+});
 
 type WorkshopRow = {
   workshop: {
@@ -171,6 +180,19 @@ function StudentWorkshops() {
   //
   // "overdue" y "closed" quedan fuera a propósito: es lo que ya no se puede
   // hacer. Siguen a un clic en el filtro.
+  const { workshop: deepLinkId } = Route.useSearch();
+  // Al entrar por el enlace, llevar la tarjeta al centro. La lista puede tener
+  // varias páginas: si el taller enlazado no está en la visible, el `ref` no se
+  // monta y no pasa nada — el filtro por defecto ya incluye lo entregado y lo
+  // calificado, así que el caso normal es que esté.
+  const cardEnfocadaRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!deepLinkId) return;
+    const id = window.setTimeout(() => {
+      cardEnfocadaRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+    return () => window.clearTimeout(id);
+  }, [deepLinkId, rows]);
   const [statusFilter, setStatusFilter] = useState<WorkshopDisplayStatus[]>(FILTRO_POR_DEFECTO);
   // Filtros adicionales: rango de fechas (sobre `due_date` del taller) y
   // orden. Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no
@@ -664,7 +686,15 @@ function StudentWorkshops() {
               Number(workshop.max_attempts ?? globalWorkshopMax ?? 1) &&
             (submission.status === "calificado" || submission.final_grade != null);
           return (
-            <Card key={workshop.id}>
+            <Card
+              key={workshop.id}
+              ref={workshop.id === deepLinkId ? cardEnfocadaRef : undefined}
+              className={
+                workshop.id === deepLinkId
+                  ? "ring-2 ring-primary ring-offset-2 transition-shadow"
+                  : undefined
+              }
+            >
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0">
