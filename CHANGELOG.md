@@ -59,8 +59,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 
 ## [Sin publicar]
 
-> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **83 migraciones**
-> (de `20261600000000_bd_sql_support` a `20262420000000_strike_pantallazo_y_retroceso`,
+> Se despliega solo al pushear a `main` (GitHub Actions). Incluye **84 migraciones**
+> (de `20261600000000_bd_sql_support` a `20262430000000_timer_controls_superadmin_y_reapertura_puntual`,
 > todas defensivas con `to_regclass`) y **dos edge functions nuevas** (`ai-generate-sql`,
 > `ai-read-groups-image`); el resto es cliente. Para verlas:
 > `ls supabase/migrations/ | awk -F_ '$1>=20261600000000'`.
@@ -74,6 +74,33 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### ⏱️ El SuperAdmin no podía dar tiempo extra en un examen
+
+`exam_timer_controls_write` exigía `exam_in_my_tenant(exam_id) AND (has_role('Docente') OR
+has_role('Admin'))`. La primera mitad ya cubría al SuperAdmin; la segunda no, porque su rol es
+`SuperAdmin` y no ninguno de esos dos. Resultado: pasaba el alcance de institución y lo frenaba el
+rol, con un `42501` que no dice cuál de las dos mitades falló. Es el patrón que ya se pagó en
+`db_backups` (mig `20260903100000`): la rama de rol se escribió cuando el rol SuperAdmin no existía.
+Se suma `is_super_admin()` como tercera alternativa **del rol**, nunca como bypass del `AND` de
+institución.
+
+En la misma migración, la reapertura del caso que lo destapó: un estudiante de SB141B quedó
+matriculado seis días después de que cerrara la Prueba diagnóstica.
+
+- **No se movió `exams.end_time`.** Esa columna es del EXAMEN: correrla lo reabre para los 34,
+  incluidos los 29 que ya entregaron — y una entrega `completado` es REANUDABLE desde la pantalla
+  del alumno (`tg_block_reopen_closed_attempt` solo frena lo que cerró el docente). Habría sido
+  devolverle el examen calificado a 29 personas.
+- **Sí una fila de `exam_timer_controls` con `target_user_id`.** Los dos lados que deciden el plazo
+  la filtran por ese campo —el cliente en la pantalla de toma y el servidor en
+  `exam_attempt_deadline`—, así que el extra existe solo para él y nadie más ve un segundo de
+  diferencia.
+- Va en una migración y no como un INSERT suelto por el SQL Editor, por el precedente de la
+  `20262220000000`: un parche de datos que no queda en el repo es un cambio de producción que
+  después nadie puede explicar. Verificado contra PostgreSQL real (PGlite): no inserta nada en un
+  entorno donde ese examen no existe, e ejecutarla dos veces no duplica el `add_time` (duplicarlo
+  correría el plazo al doble y eso no se ve hasta que alguien lo mide).
 
 ### 📱 El compilador, usable en un teléfono
 
