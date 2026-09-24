@@ -416,6 +416,12 @@ function ExamMonitor() {
   // Se inicializa desde exam_timer_controls al cargar y se actualiza
   // optimísticamente al pausar/reanudar desde el monitor.
   const [pausedUserIds, setPausedUserIds] = useState<Set<string>>(new Set());
+  /** A quién se va a pausar mientras el docente escribe el motivo. El motivo
+   *  se pide ANTES de pausar y no después: una vez pausado, al estudiante ya
+   *  se le tapó la pantalla con un cartel que no explica nada, y ese es
+   *  justamente el momento que hay que evitar. */
+  const [pausaPendiente, setPausaPendiente] = useState<{ userId: string } | null>(null);
+  const [motivoDePausa, setMotivoDePausa] = useState("");
   // Comparación de copia entre dos estudiantes para una pregunta concreta.
   // Cuando está poblado, el modal "Respuestas" se ensancha y muestra un
   // panel lateral con la entrega del compañero a esa misma pregunta —
@@ -769,21 +775,41 @@ function ExamMonitor() {
     };
   }, [load, loadQuestions, examId]);
 
+  const abrirDialogoDePausa = (userId: string) => {
+    setMotivoDePausa("");
+    setPausaPendiente({ userId });
+  };
+
   const sendTimerControl = async (
     action: "pause" | "resume" | "add_time",
     targetUserId: string | null,
     extraSeconds = 0,
+    /** Solo en `pause`: el motivo que verá el estudiante. Opcional. */
+    mensaje: string | null = null,
   ) => {
     if (!user) return;
     const key = `${action}-${targetUserId ?? "global"}`;
     setLoading(key);
-    const { error } = await supabase.from("exam_timer_controls").insert({
+    const orden = {
       exam_id: examId,
       target_user_id: targetUserId,
       action,
       extra_seconds: extraSeconds,
       created_by: user.id,
-    });
+    };
+    let { error } = await supabase
+      .from("exam_timer_controls")
+      .insert({ ...orden, message: action === "pause" ? mensaje : null });
+    // Si la columna del motivo todavía no existe en esta base —el cliente se
+    // publicó antes de que corriera la migración—, la orden se manda igual sin
+    // él. Pausar es una acción urgente en mitad de un examen: que se caiga por
+    // un despliegue a destiempo es mucho peor que perder el texto.
+    if (error && (error.code === "42703" || error.code === "PGRST204")) {
+      ({ error } = await supabase.from("exam_timer_controls").insert(orden));
+      if (!error && mensaje) {
+        toast.warning(t("hc_routesAppTeacherMonitorExamId.pauseReasonUnavailable"));
+      }
+    }
     if (error) {
       setLoading(null);
       return toast.error(friendlyError(error));
@@ -2909,7 +2935,9 @@ function ExamMonitor() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() =>
-                                  sendTimerControl(isPaused ? "resume" : "pause", row.userId)
+                                  isPaused
+                                    ? void sendTimerControl("resume", row.userId)
+                                    : abrirDialogoDePausa(row.userId)
                                 }
                                 disabled={loading === pauseKey}
                                 title={
@@ -5036,6 +5064,60 @@ function ExamMonitor() {
                 <Check className="h-4 w-4 mr-1" />
               )}
               {t("hc_routesAppTeacherMonitorExamId.applyNewGrade")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pausar: se pide el motivo ANTES de mandar la orden. Al estudiante la
+          pausa le TAPA la pantalla, y desde su lado un cartel sin explicación
+          es indistinguible de una falla: no sabe si es algo suyo, si es
+          general ni cuánto dura, y no puede preguntar sin que salir del examen
+          le cueste una advertencia. */}
+      <Dialog
+        open={pausaPendiente !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setPausaPendiente(null);
+        }}
+      >
+        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{t("hc_routesAppTeacherMonitorExamId.pauseDialogTitle")}</DialogTitle>
+            <DialogDescription>
+              {t("hc_routesAppTeacherMonitorExamId.pauseDialogDesc")}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="motivo-de-pausa">
+              {t("hc_routesAppTeacherMonitorExamId.pauseReasonLabel")}
+            </Label>
+            <Textarea
+              id="motivo-de-pausa"
+              value={motivoDePausa}
+              onChange={(e) => setMotivoDePausa(e.target.value.slice(0, 300))}
+              placeholder={t("hc_routesAppTeacherMonitorExamId.pauseReasonPlaceholder")}
+              rows={3}
+              autoFocus
+            />
+            <p className="text-2xs text-muted-foreground text-right tabular-nums">
+              {motivoDePausa.length}/300
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPausaPendiente(null)}>
+              {t("common.cancel")}
+            </Button>
+            <Button
+              onClick={() => {
+                const objetivo = pausaPendiente;
+                setPausaPendiente(null);
+                if (objetivo) {
+                  void sendTimerControl("pause", objetivo.userId, 0, motivoDePausa.trim() || null);
+                }
+              }}
+            >
+              <Pause className="h-4 w-4 mr-1" />
+              {t("hc_routesAppTeacherMonitorExamId.pauseConfirm")}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -1758,6 +1758,7 @@ export type Database = {
           exam_id: string;
           extra_seconds: number | null;
           id: string;
+          message: string | null;
           target_user_id: string | null;
         };
         Insert: {
@@ -1767,6 +1768,7 @@ export type Database = {
           exam_id: string;
           extra_seconds?: number | null;
           id?: string;
+          message?: string | null;
           target_user_id?: string | null;
         };
         Update: {
@@ -1776,6 +1778,7 @@ export type Database = {
           exam_id?: string;
           extra_seconds?: number | null;
           id?: string;
+          message?: string | null;
           target_user_id?: string | null;
         };
         Relationships: [

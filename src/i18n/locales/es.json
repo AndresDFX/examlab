@@ -8429,7 +8429,8 @@
     "submittingOverlaySubtitle": "No cierres esta ventana ni cambies de pestaña.",
     "saveFailedHint": "El último guardado automático falló. Tus respuestas siguen en este dispositivo; revisa tu conexión.",
     "saveFailedBadge": "Sin guardar",
-    "submittingLabel": "Entregando…"
+    "submittingLabel": "Entregando…",
+    "pauseReasonFromTeacher": "Mensaje de tu docente"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "No pudimos cargar el tutor de este curso.",
@@ -9119,7 +9120,13 @@
     "statement": "Enunciado",
     "discard": "Descartar",
     "applyNewGrade": "Aplicar nueva calificación",
-    "estadoTodos": "Todos los estados"
+    "estadoTodos": "Todos los estados",
+    "pauseDialogTitle": "Pausar el examen",
+    "pauseDialogDesc": "Al estudiante se le bloquea la pantalla. Cuéntale por qué: desde su lado, un cartel sin explicación se parece a una falla, y no puede escribirte sin que salir del examen le cueste una advertencia.",
+    "pauseReasonLabel": "Motivo (opcional)",
+    "pauseReasonPlaceholder": "Ej.: Esperen un momento, se cayó el internet del salón. No cierren la página.",
+    "pauseConfirm": "Pausar",
+    "pauseReasonUnavailable": "El examen quedó pausado, pero el motivo no se pudo enviar: falta actualizar la plataforma. Avísale al estudiante por otro medio."
   },
   "hc_routesAppTeacherProjects": {
     "actionAssignStudents": "Asignar estudiantes",

@@ -77,6 +77,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ⏸️ Pausar un examen ahora puede decir POR QUÉ
+
+Pausar desde el monitor le tapaba la pantalla al estudiante con «el docente pausó el examen» y nada
+más. Desde su lado eso es **indistinguible de una falla**: no sabe si es algo suyo, si es general, si
+alguien lo acusó de algo ni cuánto va a durar — y no puede preguntar, porque la pantalla está
+bloqueada y salir a buscar el teléfono le cuesta una advertencia. El silencio en ese momento
+convierte una pausa administrativa («esperen, se cayó el wifi del salón») en un susto.
+
+- **El motivo se pide ANTES de pausar**, no después: una vez pausado, al estudiante ya se le tapó la
+  pantalla con un cartel que no explica nada, y ese es justo el momento que hay que evitar.
+- **Es opcional.** Obligarlo llevaría a que el docente escriba «.» para poder pausar rápido, que es
+  peor que no tenerlo.
+- **Viaja en la MISMA fila que la orden** (`exam_timer_controls.message`, mig
+  [20262450000000](supabase/migrations/20262450000000_mensaje_de_pausa.sql)) y no en una tabla
+  aparte: el alumno ya lee esa tabla por RLS para enterarse de la pausa, así que no hace falta
+  ninguna política nueva ni una segunda consulta, y sobre todo el motivo no puede desincronizarse de
+  la pausa que explica.
+- **El motivo se arrastra junto al estado en los tres caminos** del reloj (carga inicial, realtime y
+  el sondeo de respaldo): gana el de la ÚLTIMA pausa y una reanudación lo limpia. Guardado aparte,
+  una pausa sin motivo heredaría el texto de la anterior y el alumno leería una explicación que no
+  corresponde.
+- **Si la columna todavía no existe** —el cliente publicado antes de que corra la migración— la orden
+  se manda igual sin el motivo y se le avisa al docente. Pausar es urgente en mitad de un examen: que
+  se caiga por un despliegue a destiempo es mucho peor que perder el texto.
+
 ### ✍️ Corregir la ortografía no cuesta una advertencia — y ahora además se puede
 
 El reporte pedía que la corrección ortográfica no sumara strike «en web y móvil, y si no se puede,

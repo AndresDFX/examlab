@@ -8429,7 +8429,8 @@
     "submittingOverlaySubtitle": "Don't close this window or switch tabs.",
     "saveFailedHint": "The last autosave failed. Your answers are still on this device; check your connection.",
     "saveFailedBadge": "Unsaved",
-    "submittingLabel": "Submitting…"
+    "submittingLabel": "Submitting…",
+    "pauseReasonFromTeacher": "Message from your teacher"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "We couldn't load the tutor for this course.",
@@ -9119,7 +9120,13 @@
     "statement": "Statement",
     "discard": "Discard",
     "applyNewGrade": "Apply new grade",
-    "estadoTodos": "All statuses"
+    "estadoTodos": "All statuses",
+    "pauseDialogTitle": "Pause the exam",
+    "pauseDialogDesc": "The student's screen gets blocked. Tell them why: from their side, a notice with no explanation looks like a failure, and they cannot write to you without leaving the exam and earning a warning.",
+    "pauseReasonLabel": "Reason (optional)",
+    "pauseReasonPlaceholder": "E.g.: Hold on, the classroom internet went down. Do not close the page.",
+    "pauseConfirm": "Pause",
+    "pauseReasonUnavailable": "The exam is paused, but the reason could not be sent: the platform needs updating. Let the student know some other way."
   },
   "hc_routesAppTeacherProjects": {
     "actionAssignStudents": "Assign students",

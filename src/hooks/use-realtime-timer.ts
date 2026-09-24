@@ -12,6 +12,10 @@ interface TimerControl {
    *  relectura cabe un autoguardado del alumno que restauraría lo viejo, y el
    *  alumno releería justo eso. */
   payload?: { focus_warnings?: number; warning_events?: unknown[] } | null;
+  /** Solo en `pause`: el motivo que escribió el docente. Viaja en la MISMA
+   *  fila que la orden para que no pueda desincronizarse de la pausa que
+   *  explica, y porque el alumno ya lee esta tabla (sin política nueva). */
+  message?: string | null;
   created_by: string;
   created_at: string;
 }
@@ -43,6 +47,8 @@ export function useRealtimeTimer({
 }: UseRealtimeTimerOptions) {
   const [secondsLeft, setSecondsLeft] = useState(initialSeconds);
   const [isPaused, setIsPaused] = useState(false);
+  /** Motivo de la pausa vigente, si el docente escribió uno. */
+  const [mensajeDePausa, setMensajeDePausa] = useState<string | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const secondsRef = useRef(initialSeconds);
   const initializedRef = useRef(initialSeconds > 0);
@@ -152,9 +158,19 @@ export function useRealtimeTimer({
       // 10 min recibidos por el estudiante). Marcamos sus ids como aplicados
       // para que el poll de respaldo tampoco los re-sume.
       let paused = false;
+      // El motivo se arrastra junto al estado: gana el de la ÚLTIMA pausa, y
+      // una reanudación lo limpia. Si se guardara aparte, una pausa sin motivo
+      // heredaría el texto de la anterior y el alumno leería una explicación
+      // que no corresponde.
+      let motivo: string | null = null;
       for (const ctrl of (data ?? []) as TimerControl[]) {
-        if (ctrl.action === "pause") paused = true;
-        else if (ctrl.action === "resume") paused = false;
+        if (ctrl.action === "pause") {
+          paused = true;
+          motivo = ctrl.message ?? null;
+        } else if (ctrl.action === "resume") {
+          paused = false;
+          motivo = null;
+        }
         else if (ctrl.action === "add_time") appliedAddTimeRef.current.add(ctrl.id);
         // El intento ya se cargó con el estado que dejó el borrado, así que la
         // orden histórica solo se marca vista: re-aplicarla mostraría un aviso
@@ -162,6 +178,7 @@ export function useRealtimeTimer({
         else if (ctrl.action === "clear_warnings") appliedClearRef.current.add(ctrl.id);
       }
       setIsPaused(paused);
+      setMensajeDePausa(motivo);
       // Sync: el estado pausado histórico NO es una transición nueva (no toast al
       // cargar en un examen ya pausado).
       lastPausedNotifiedRef.current = paused;
@@ -189,11 +206,13 @@ export function useRealtimeTimer({
           switch (ctrl.action) {
             case "pause":
               setIsPaused(true);
+              setMensajeDePausa(ctrl.message ?? null);
               onPauseRef.current?.();
               lastPausedNotifiedRef.current = true;
               break;
             case "resume":
               setIsPaused(false);
+              setMensajeDePausa(null);
               onResumeRef.current?.();
               lastPausedNotifiedRef.current = false;
               break;
@@ -261,10 +280,15 @@ export function useRealtimeTimer({
       // el evento, el alumno nunca recibía el tiempo extra concedido y el timer
       // expiraba antes → auto-entrega prematura.
       let newExtra = 0;
+      let motivo: string | null = null;
       for (const ctrl of all as TimerControl[]) {
-        if (ctrl.action === "pause") paused = true;
-        else if (ctrl.action === "resume") paused = false;
-        else if (ctrl.action === "add_time" && !appliedAddTimeRef.current.has(ctrl.id)) {
+        if (ctrl.action === "pause") {
+          paused = true;
+          motivo = ctrl.message ?? null;
+        } else if (ctrl.action === "resume") {
+          paused = false;
+          motivo = null;
+        } else if (ctrl.action === "add_time" && !appliedAddTimeRef.current.has(ctrl.id)) {
           appliedAddTimeRef.current.add(ctrl.id);
           newExtra += ctrl.extra_seconds;
         } else if (ctrl.action === "clear_warnings") {
@@ -279,6 +303,7 @@ export function useRealtimeTimer({
         else onResumeRef.current?.();
       }
       setIsPaused(paused);
+      setMensajeDePausa(motivo);
       if (newExtra > 0) {
         setSecondsLeft((s) => s + newExtra);
         onTimeAddedRef.current?.(newExtra);
@@ -311,6 +336,7 @@ export function useRealtimeTimer({
   return {
     secondsLeft,
     isPaused,
+    mensajeDePausa,
     formattedTime: formattedTime(),
     isLowTime: secondsLeft < 60,
     syncToSeconds,

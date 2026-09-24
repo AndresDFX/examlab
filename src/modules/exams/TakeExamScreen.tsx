@@ -1437,7 +1437,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         )
       : computeSecondsLeft(exam?.end_time);
 
-  const { isPaused, formattedTime, isLowTime, syncToSeconds } = useRealtimeTimer({
+  const { isPaused, mensajeDePausa, formattedTime, isLowTime, syncToSeconds } = useRealtimeTimer({
     examId,
     userId: user?.id ?? "",
     initialSeconds,
@@ -2459,6 +2459,20 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             <p className="text-sm text-muted-foreground">
               {t("hc_routesAppStudentTakeExamId.examPausedDesc")}
             </p>
+            {/* El motivo que escribió el docente. Sin esto, el cartel de pausa
+                es indistinguible de una falla: el estudiante no sabe si es
+                algo suyo, si es general ni cuánto va a durar, y no puede
+                preguntar porque salir del examen le cuesta una advertencia.
+                Va en su propio recuadro y con el rótulo de quién lo escribe,
+                para que no se lea como un texto más de la plataforma. */}
+            {mensajeDePausa && (
+              <div className="rounded-md border bg-muted/50 p-3 text-left space-y-1">
+                <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t("hc_routesAppStudentTakeExamId.pauseReasonFromTeacher")}
+                </p>
+                <p className="text-sm whitespace-pre-wrap break-words">{mensajeDePausa}</p>
+              </div>
+            )}
           </div>
         </div>
       )}
