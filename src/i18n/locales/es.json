@@ -10828,7 +10828,7 @@
     "volverAExamenes": "Volver a Exámenes"
   },
   "seleccion": {
-    "masOpciones_one": "y 1 curso más en el selector de arriba",
+    "masOpciones_one": "y 1 más en el selector de arriba",
     "masOpciones_other": "y {{count}} más en el selector de arriba"
   }
 }

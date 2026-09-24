@@ -98,9 +98,15 @@ quedaron sueltas** por el cambio anterior, tomando el tope de SU examen y no un 
 Además, el fix de «la IA deja de acusar con la plantilla» **no había llegado a los dos caminos de más
 tráfico**: la entrega síncrona del estudiante y el botón de recalificar del docente armaban su propio
 lote sin el campo. Ahora los cuatro lados coinciden, y la fila de invariantes de `CLAUDE.md` los
-nombra a todos.
+nombra a todos. **Y todavía faltaban dos más dentro del propio edge**: los mapeadores de «Calificar todos con IA» del Diagnóstico y el de proyectos copiaban todos los campos menos éste, así que ese flujo seguía mandándole al modelo la respuesta sin separar la plantilla. Ahora la copian los cuatro mapeadores.
 
 ### 🎯 Una pantalla no muestra datos hasta que eliges sobre qué trabajar
+
+> **Corrección posterior**: faltaba el caso «no hay NADA que elegir». Con cero cursos asignados, el
+> docente veía DOS mensajes apilados: el aviso correcto de `NoAssignedCoursesNotice` y, debajo, un
+> «elige un curso» sin nada que elegir — justo el error que el propio componente documenta. Ahora el
+> gate solo aparece con cursos cargados y disponibles, lo que además evita el parpadeo del cartel
+> mientras la lista todavía viaja.
 
 `SelectionRequired` ([selection-required.tsx](src/components/ui/selection-required.tsx)), nuevo en el
 design system, con Asistencia como primer caso.

@@ -2712,7 +2712,12 @@ function TeacherAttendance() {
           eligió — con el riesgo de pasar lista, marcar ausencias o abrir un
           check-in sobre el curso equivocado. Los filtros y el selector del
           encabezado siguen arriba, que es de donde sale la elección. */}
-      {!courseId ? (
+      {/* Con CERO cursos no se pide elegir: `NoAssignedCoursesNotice` de arriba
+          ya explica que falta que el Admin se los asigne, y un «elige un curso»
+          debajo de ese aviso —sin nada que elegir— deja a la persona buscando
+          un selector vacío. Y mientras carga tampoco, o parpadea el cartel con
+          cero opciones antes de que lleguen. */}
+      {!courseId && coursesLoaded && coursesInScope.length > 0 ? (
         <SelectionRequired
           icon={CalendarCheck}
           title={t("teacherAttendance.pickCourseTitle")}
@@ -2724,7 +2729,7 @@ function TeacherAttendance() {
           }))}
           onSelect={setCourseId}
         />
-      ) : (
+      ) : courseId ? (
         <>
 
         {/* Legend (above the grid) */}
@@ -4017,7 +4022,7 @@ function TeacherAttendance() {
           }}
         />
         </>
-      )}
+      ) : null}
     </div>
   );
 }

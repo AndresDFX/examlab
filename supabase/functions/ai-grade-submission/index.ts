@@ -1425,6 +1425,7 @@ Deno.serve(async (req) => {
             language?: string | null;
             framework?: string | null;
             executionOutput?: string | null;
+            plantilla?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -1438,6 +1439,11 @@ Deno.serve(async (req) => {
             // el campo está en el tipo y se inyecta al prompt, pero ningún map
             // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
             executionOutput: it.executionOutput ?? undefined,
+            // La plantilla del docente, aparte de la respuesta: este
+            // camino («Calificar todos con IA» del Diagnóstico) era el
+            // que faltaba, y sin ella el modelo vuelve a usar los
+            // comentarios del enunciado como indicio contra el alumno.
+            plantilla: it.plantilla ?? undefined,
           }),
         );
 
@@ -1832,6 +1838,7 @@ Deno.serve(async (req) => {
             language?: string | null;
             framework?: string | null;
             executionOutput?: string | null;
+            plantilla?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -1845,6 +1852,7 @@ Deno.serve(async (req) => {
             // el campo está en el tipo y se inyecta al prompt, pero ningún map
             // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
             executionOutput: it.executionOutput ?? undefined,
+            plantilla: it.plantilla ?? undefined,
           }),
         );
 
