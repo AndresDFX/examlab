@@ -112,6 +112,7 @@ import {
 } from "@/modules/exams/exam-session";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import { necesitaRefresco } from "@/modules/exams/sesion-fresca";
 import {
   efectoDeRestablecer,
   hayAlgoQueRestablecer,
@@ -425,6 +426,25 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
   const confirm = useConfirm();
+  /**
+   * Renueva la sesión ANTES de que haga falta. La librería de auth solo
+   * refresca con la pestaña en primer plano y dentro de los últimos 90 s de
+   * vida del token; en un examen de dos horas con un token de una, un alumno
+   * que estuvo fuera de la app justo en esa ventana vuelve con el token
+   * vencido y pierde la ejecución de su código. Ver `sesion-fresca.ts`.
+   */
+  const asegurarSesionFresca = useCallback(async () => {
+    if (simulacro) return;
+    try {
+      const { data } = await db.auth.getSession();
+      if (necesitaRefresco(data.session?.expires_at, Date.now())) {
+        await db.auth.refreshSession();
+      }
+    } catch {
+      // Si falla, el reintento de `runCode` sigue siendo la red de seguridad.
+    }
+  }, [db, simulacro]);
+
   const updateAnswer = useCallback((questionId: string, value: any) => {
     const next = { ...answersRef.current, [questionId]: value };
     answersRef.current = next;
@@ -2145,6 +2165,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         }, GRACIA_OCULTO_MOVIL_MS + 200);
         return;
       }
+      // VUELVE a primer plano. Mientras estuvo fuera, la librería de auth tuvo
+      // su renovación DETENIDA (solo refresca con la pestaña visible), así que
+      // este es el momento exacto en que el token puede haber vencido sin que
+      // nadie lo notara. Se renueva acá, antes de que el alumno pulse nada.
+      void asegurarSesionFresca();
       if (ocultoDesde != null) {
         const ms = Date.now() - ocultoDesde;
         ocultoDesde = null;
@@ -2253,6 +2278,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             once: true,
           });
         });
+        // El camino crítico del examen: si el token está por vencer, se
+        // renueva ANTES de salir, en vez de descubrirlo por un «No autenticado».
+        await asegurarSesionFresca();
         const invokePromise = db.functions.invoke("execute-code", {
           body: {
             sourceCode: code,

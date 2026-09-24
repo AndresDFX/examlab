@@ -196,6 +196,21 @@ ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el te
 
 ### 🧯 Lo que se cayó el 2026-09-23 fue el compilador, no la plataforma
 
+> **Causa raíz, y el arreglo de fondo.** Los tres «No autenticado» ocurrieron a los **64 y 83
+> minutos** de sesión. El token dura **60**; el examen, **120**: cruzarlo no es un caso raro, es
+> inevitable. Lo que lo vuelve un fallo está documentado en el código de la propia librería de auth —
+> *«on browsers the refresh process works only when the tab/window is in the FOREGROUND»*— y su
+> ventana de renovación son los últimos **90 segundos** de vida del token. En un teléfono, salir de
+> la app durante ese minuto y medio es cotidiano (lo prueban los `blur_movil` del propio proctoring):
+> nadie renueva, y al volver el primer «Ejecutar» sale con el token vencido.
+>
+> Ahora la sesión se renueva **antes de que haga falta** ([sesion-fresca.ts](src/modules/exams/sesion-fresca.ts)),
+> en los dos momentos exactos donde se rompía: **al volver a primer plano** —justo cuando la librería
+> tuvo su renovación detenida— y **antes de ejecutar código**, que es el camino crítico. No se
+> refresca en cada acción: solo cuando al token le quedan menos de 5 minutos, o sea cuando la
+> librería ya no va a llegar sola. El reintento sigue detrás como red de seguridad.
+
+
 Diagnóstico del reporte «se cayó la plataforma, nuevamente hoy», con los datos del parcial de esa
 noche — el examen más masivo con compilador que tuvo el producto:
 
