@@ -2600,6 +2600,8 @@ function TeacherWorkshops() {
           userAnswer: string;
           maxPoints: number;
           language?: string | null;
+          /** Plantilla del docente, aparte de la respuesta. */
+          plantilla?: string | null;
         }> = [];
         const localScores = new Map<string, { earned: number; feedback: string }>();
         let totalPoints = 0;
@@ -2649,6 +2651,9 @@ function TeacherWorkshops() {
             maxPoints: Number(q.points) || 0,
             language:
               q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
+            // Ver el mismo campo en `grade-submission.ts`: la plantilla del
+            // docente no puede contar como evidencia contra el estudiante.
+            plantilla: q.starter_code ?? undefined,
           });
         }
 

@@ -687,6 +687,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       const finishedCount = allSubs.filter(
         (s: any) =>
           s.status === "sospechoso" ||
+          // Cerrado (por advertencias, por el docente o por vencimiento): el
+          // intento se gastó aunque todavía no tenga nota. Antes esto lo cubría
+          // el estado `sospechoso`; desde que una suspensión se guarda como
+          // `completado`, lo que la distingue es `closed_at`.
+          s.closed_at != null ||
           (s.status === "completado" && (s.ai_grade != null || s.final_override_grade != null)),
       ).length;
       // Solo `completado` SIN calificación es reanudable. `sospechoso`
@@ -1214,6 +1219,20 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         status: "completado",
         focus_warnings: currentWarnings,
         submitted_at: new Date().toISOString(),
+        // Suspender por advertencias CIERRA el intento, y eso hay que marcarlo.
+        // El estado ya no alcanza para distinguirlo: desde que dejó de ser
+        // `sospechoso`, una suspensión y una entrega limpia sin nota son la
+        // MISMA fila, y `resumableUngraded` de más abajo daba la segunda por
+        // reanudable — o sea que el alumno deshacía su propia suspensión con
+        // solo recargar. El bloqueo de verdad lo aplica el trigger
+        // `tg_block_reopen_closed_attempt` en la base; esto es lo que se lo da.
+        ...(markSuspicious
+          ? {
+              closed_at: new Date().toISOString(),
+              close_reason: "advertencias",
+              closed_by: user?.id ?? null,
+            }
+          : {}),
       };
 
       // Persist locally first as a safety net — never lose answers
@@ -1881,9 +1900,13 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       };
       if (shouldMarkSuspicious(warningsToSend, maxWarnings)) {
         // Se cierra la entrega, pero como «completado»: ver el comentario del
-        // estado en `performSubmit`.
+        // estado en `performSubmit`. Y se marca el cierre por el mismo motivo
+        // que allá — sin esto el alumno reabre su propia suspensión.
         body.status = "completado";
         body.submitted_at = new Date().toISOString();
+        body.closed_at = new Date().toISOString();
+        body.close_reason = "advertencias";
+        body.closed_by = user?.id ?? null;
         submittedRef.current = true;
       }
       fetch(

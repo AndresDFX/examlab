@@ -3744,6 +3744,9 @@ export type Database = {
       };
       submissions: {
         Row: {
+          closed_at: string | null;
+          closed_by: string | null;
+          close_reason: string | null;
           ai_detected: boolean;
           ai_detected_reasons: string | null;
           ai_detected_score: number | null;
@@ -3765,6 +3768,9 @@ export type Database = {
           user_id: string;
         };
         Insert: {
+          closed_at?: string | null;
+          closed_by?: string | null;
+          close_reason?: string | null;
           ai_detected?: boolean;
           ai_detected_reasons?: string | null;
           ai_detected_score?: number | null;
@@ -3786,6 +3792,9 @@ export type Database = {
           user_id: string;
         };
         Update: {
+          closed_at?: string | null;
+          closed_by?: string | null;
+          close_reason?: string | null;
           ai_detected?: boolean;
           ai_detected_reasons?: string | null;
           ai_detected_score?: number | null;

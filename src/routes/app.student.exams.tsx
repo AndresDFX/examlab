@@ -263,11 +263,13 @@ function StudentExams() {
         ai_grade: number | null;
         final_override_grade: number | null;
         focus_warnings: number | null;
+        /** Marca de intento terminado (advertencias, docente o vencimiento). */
+        closed_at: string | null;
       };
       const { data: subs } = submissionExamIds.length
         ? await supabase
             .from("submissions")
-            .select("id, exam_id, status, ai_grade, final_override_grade, focus_warnings")
+            .select("id, exam_id, status, ai_grade, final_override_grade, focus_warnings, closed_at")
             .in("exam_id", submissionExamIds)
             .eq("user_id", user.id)
         : { data: [] as SubRow[] };
@@ -292,6 +294,12 @@ function StudentExams() {
           (s) =>
             s.exam_id === examId &&
             (s.status === "sospechoso" ||
+              // Un intento CERRADO se gastó aunque no tenga nota. Antes esto lo
+              // cubría `sospechoso`; desde que una suspensión por advertencias
+              // se guarda como `completado`, lo que la distingue es `closed_at`.
+              // Sin esta línea el listado ofrecía «Reintentar examen» sobre una
+              // entrega suspendida, y el alumno deshacía su propia suspensión.
+              s.closed_at != null ||
               (s.status === "completado" &&
                 (s.ai_grade != null || s.final_override_grade != null))),
         ).length;

@@ -6181,7 +6181,9 @@
     "errMixedCourses": "Las sesiones tienen que ser del mismo curso. Un código que cruza cursos dejaría marcar asistencia en una clase a la que el estudiante no va.",
     "errSessionAlreadyOpen": "Una de las sesiones que elegiste ya tiene su propio check-in abierto. Sumarla al grupo le cambiaría el código que esa clase está usando: cerrá ese check-in primero y volvé a abrirlo en conjunto.",
     "multiSessionCount_other": "Cubre {{count}} clases",
-    "multiSessionCount_one": "Cubre {{count}} clase"
+    "multiSessionCount_one": "Cubre {{count}} clase",
+    "pickCourseTitle": "Elige un curso para empezar",
+    "pickCourseHint": "Usa el selector de arriba —o los filtros de periodo y asignatura— para elegir sobre qué curso vas a trabajar. Así evitas pasar lista en el curso equivocado."
   },
   "privacy": {
     "contents": "Contenido",
@@ -10824,5 +10826,9 @@
     "terminado": "Simulación terminada. No se guardó nada ni se generó nota.",
     "terminadoPorAdvertencias": "Así se cerraría el examen de un estudiante al pasarse de advertencias. En la simulación no se guardó nada.",
     "volverAExamenes": "Volver a Exámenes"
+  },
+  "seleccion": {
+    "masOpciones_one": "y 1 curso más en el selector de arriba",
+    "masOpciones_other": "y {{count}} más en el selector de arriba"
   }
 }

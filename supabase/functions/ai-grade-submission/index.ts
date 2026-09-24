@@ -3767,7 +3767,10 @@ Idioma de salida: ${langName}.`,
     // Si el docente ya marcó la sospecha IA como REVISADA (ai_review_at
     // IS NOT NULL), no volvemos a flagear ni a cambiar el estado por
     // IA — su decisión queda congelada hasta que él la desmarque.
-    // Solo respeta "sospechoso" forzado por proctoring si NO hay review.
+    // El "sospechoso" que se preserva acá solo puede venir de una DETECCIÓN
+    // de IA anterior: desde la mig 20262460000000 el proctoring ya no fuerza
+    // ese estado (una suspensión por advertencias se guarda como `completado`
+    // con `close_reason = 'advertencias'`).
     const aiAlreadyReviewed = (sub as { ai_review_at?: string | null }).ai_review_at != null;
     const newStatus = aiAlreadyReviewed
       ? sub.status // congelado: no tocar

@@ -77,6 +77,51 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🚨 Suspender por advertencias volvía reanudable el intento — cerrado en el mismo movimiento
+
+Lo detectó la revisión de consistencia sobre el cambio anterior, y es el efecto secundario que ese
+cambio no vio. Al reservar `sospechoso` para el fraude detectado, una suspensión por advertencias
+pasó a guardarse como `completado`… y una entrega `completado` **sin nota es reanudable a propósito**
+(«entregué limpio y todavía no hay feedback»). Consecuencia: **el propio estudiante deshacía su
+suspensión con solo volver a entrar**, y el listado hasta le ofrecía «Reintentar examen». Y de paso
+`teacher_clear_exam_warnings` —la herramienta del docente para perdonar advertencias y reabrir—
+quedó inerte, porque preguntaba por `status = 'sospechoso'`.
+
+Lo que distingue una suspensión de una entrega limpia ya no puede ser el estado: es el **cierre**.
+`closed_at` + `close_reason` ya existían para «el docente lo dio por terminado» y «se venció el
+plazo»; se suma el tercer motivo real, **`advertencias`** (mig
+[20262470000000](supabase/migrations/20262470000000_cierre_por_advertencias.sql)), y con él vuelven a
+funcionar las dos defensas que ya estaban escritas: el trigger `tg_block_reopen_closed_attempt` en la
+base y el filtro de reanudables de la pantalla. La misma migración **marca las suspensiones que
+quedaron sueltas** por el cambio anterior, tomando el tope de SU examen y no un 3 fijo.
+
+Además, el fix de «la IA deja de acusar con la plantilla» **no había llegado a los dos caminos de más
+tráfico**: la entrega síncrona del estudiante y el botón de recalificar del docente armaban su propio
+lote sin el campo. Ahora los cuatro lados coinciden, y la fila de invariantes de `CLAUDE.md` los
+nombra a todos.
+
+### 🎯 Una pantalla no muestra datos hasta que eliges sobre qué trabajar
+
+`SelectionRequired` ([selection-required.tsx](src/components/ui/selection-required.tsx)), nuevo en el
+design system, con Asistencia como primer caso.
+
+Asistencia abría autoseleccionando el primer curso de la lista. Eso no es un detalle estético: el
+docente entra, ve una lista de estudiantes y un calendario, y **no tiene por qué notar que son de un
+curso que él no eligió** — pasar lista, marcar ausencias o abrir un check-in sobre el curso
+equivocado es un error que después hay que deshacer a mano. Además cargaba datos que nadie pidió y
+dejaba el selector con pinta de decorativo, porque la pantalla ya mostraba algo.
+
+- **La regla que hace que no moleste**: con UNA sola opción se elige sola —obligar a un clic cuando
+  no hay alternativa es fricción pura—; con varias decide la persona. Vive en
+  `resolverSeleccionInicial`, aparte del componente y con tests.
+- **Los atajos son parte del patrón**: un cartel que solo dice «elige un curso» obliga a subir al
+  selector; con tres o cuatro cursos es más rápido elegir ahí mismo. Se recortan para que la caja no
+  se vuelva una segunda lista.
+- **«No hay nada que elegir» es otro mensaje**, no el mismo: si al docente no le asignaron cursos,
+  decirle «elige uno» lo deja buscando un selector vacío sin entender cuál es el problema.
+- Al montarlo en otra pantalla hay que cortar también la CARGA de datos mientras no haya selección,
+  no solo el render.
+
 ### ↩️ Restablecer la respuesta de una pregunta
 
 Botón «Restablecer» en cada pregunta del examen y del taller, al lado del puntaje. Aparece **solo

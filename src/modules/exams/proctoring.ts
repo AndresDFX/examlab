@@ -198,8 +198,9 @@ export function warningEventTimestamp(ev: WarningEvent): number | null {
  * nativa —la sugerencia de reemplazo al tocar una palabra subrayada, el
  * «Replace…» de iOS— y esa burbuja le quita el foco a la ventana sin que el
  * estudiante salga de ningún lado. El examen lo contaba como «salida de
- * pestaña»: corregir una palabra costaba un strike, y con tres el intento
- * queda marcado como sospechoso. Medido en producción: de 131 advertencias
+ * pestaña»: corregir una palabra costaba un strike, y al llegar al tope el
+ * intento queda SUSPENDIDO (se guarda como `completado`, cerrado con motivo
+ * «advertencias»; ver `shouldMarkSuspicious`). Medido en producción: de 131 advertencias
  * registradas, 80 son de este tipo — el más frecuente con diferencia.
  *
  * ── Por qué distinguir por dispositivo y no intentar detectar el corrector ──

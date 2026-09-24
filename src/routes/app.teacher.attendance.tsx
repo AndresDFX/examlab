@@ -23,6 +23,10 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { PageHeader } from "@/components/ui/page-header";
+import {
+  SelectionRequired,
+  resolverSeleccionInicial,
+} from "@/components/ui/selection-required";
 import { CalendarCheck } from "lucide-react";
 import {
   Select,
@@ -644,7 +648,10 @@ function TeacherAttendance() {
       const rows = (data ?? []) as unknown as Course[];
       setCourses(rows);
       setCoursesLoaded(true);
-      if (rows[0]) setCourseId(rows[0].id);
+      // Con UN solo curso se elige solo —obligar a un clic cuando no hay
+      // alternativa es fricción pura—; con varios, decide el docente.
+      const unico = resolverSeleccionInicial(rows.map((r) => r.id));
+      if (unico) setCourseId(unico);
     })();
     return () => {
       cancelled = true;
@@ -2699,1295 +2706,1318 @@ function TeacherAttendance() {
 
       <NoAssignedCoursesNotice courseCount={courses.length} loading={!coursesLoaded} />
 
-      {/* Legend (above the grid) */}
-      <Card className="bg-muted/30 border-dashed">
-        <CardContent className="p-3 flex flex-wrap items-center gap-4 text-xs">
-          <span className="font-medium text-muted-foreground">{t("teacherAttendance.legend")}</span>
-          {STATUS_OPTIONS.map((opt) => {
-            const Icon = opt.icon;
-            return (
-              <div key={opt.value} className="flex items-center gap-1.5">
-                <span
-                  className={`inline-flex h-6 w-6 items-center justify-center rounded border text-2xs font-bold ${opt.color}`}
-                >
-                  {opt.short}
-                </span>
-                <span className="text-muted-foreground">
-                  <Icon className={`inline h-3 w-3 mr-1 ${opt.color}`} />
-                  {opt.short} = {opt.label}
-                </span>
-              </div>
-            );
-          })}
-          <span className="text-muted-foreground">{t("teacherAttendance.legendNoRecord")}</span>
-        </CardContent>
-      </Card>
-
-      {/* Búsqueda por estudiante — útil cuando un curso tiene 30-40 alumnos
-          y el docente busca uno específico para revisar asistencia. */}
-      {courseId && (
-        <SearchInput
-          value={studentSearch}
-          onChange={setStudentSearch}
-          placeholder={t("teacherAttendance.searchStudentPlaceholder")}
-        />
-      )}
-
-      {/* Attendance grid.
-          Mientras carga el tablero del curso mostramos un skeleton (antes la
-          grilla se pintaba vacía y decía "Sin estudiantes matriculados"), y si
-          la query crítica falla, un ErrorState con reintento. */}
-      {loadingCourse ? (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableBody>
-                <TableSkeleton cols={6} rows={6} />
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
-      ) : courseError ? (
-        <ErrorState
-          message={t("teacherAttendance.loadCoursesError")}
-          hint={courseError}
-          onRetry={() => setCourseRetryNonce((n) => n + 1)}
+      {/* La pantalla abre SIN elegir curso: ver `SelectionRequired`. Antes
+          se autoseleccionaba el primero de la lista y el docente entraba a
+          una lista de estudiantes y un calendario de un curso que él no
+          eligió — con el riesgo de pasar lista, marcar ausencias o abrir un
+          check-in sobre el curso equivocado. Los filtros y el selector del
+          encabezado siguen arriba, que es de donde sale la elección. */}
+      {!courseId ? (
+        <SelectionRequired
+          icon={CalendarCheck}
+          title={t("teacherAttendance.pickCourseTitle")}
+          hint={t("teacherAttendance.pickCourseHint")}
+          options={coursesInScope.map((c) => ({
+            id: c.id,
+            label: c.name,
+            sub: c.period ?? null,
+          }))}
+          onSelect={setCourseId}
         />
       ) : (
-        <Card>
-          <CardContent className="p-0 overflow-x-auto">
-            <Table>
-              <TableHeader>
-                {cutGroups.length > 0 && (
-                  <TableRow>
-                    <TableHead className="sticky left-0 z-10 bg-card" />
-                    {cutGroups.map((g, idx) => (
-                      <TableHead
-                        key={g.cut?.id ?? `orphan-${idx}`}
-                        colSpan={g.sessions.length}
-                        className={`text-center text-xs font-semibold uppercase tracking-wide py-1.5 bg-muted/40 border-b ${
-                          idx > 0 ? "border-l-2 border-l-primary/40" : ""
-                        }`}
-                      >
-                        <span className={g.cut ? "" : "text-muted-foreground italic"}>
-                          {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
-                        </span>
-                        <span className="ml-2 text-3xs font-normal text-muted-foreground">
-                          {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
-                        </span>
-                      </TableHead>
-                    ))}
-                    <TableHead />
-                  </TableRow>
-                )}
-                <TableRow>
-                  <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
-                    {t("teacherAttendance.studentColumn")}
-                  </TableHead>
-                  {sessions.map((sess) => {
-                    // Labels compactos para el resumen de "corte · contenido"
-                    // que aparece debajo del header — evita reservar 2
-                    // selects en cada columna del grid (antes ~6 filas de
-                    // alto; ahora ~4). La edición vive en el Popover.
-                    const cutLabel = sess.cut_id
-                      ? (cuts.find((c) => c.id === sess.cut_id)?.name ??
-                        t("teacherAttendance.cutFallback"))
-                      : null;
-                    const contentLabel = (() => {
-                      if (!sess.content_id) return null;
-                      const c = availableContents.find((x) => x.id === sess.content_id);
-                      if (!c) return t("teacherAttendance.contentFallback");
-                      return sess.content_class_index && sess.content_class_index > 0
-                        ? `${c.topic} · ${t("teacherAttendance.classN", { n: sess.content_class_index })}`
-                        : c.topic;
-                    })();
-                    return (
-                      <TableHead
-                        key={sess.id}
-                        className={`text-center min-w-[6.5rem] align-bottom p-2 ${
-                          cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
-                        }`}
-                      >
-                        <div className="flex flex-col items-stretch gap-1.5">
-                          <div className="flex items-center justify-center gap-1">
-                            <Button
-                              type="button"
-                              variant={sess.check_in_open ? "default" : "outline"}
-                              size="icon"
-                              className="h-8 w-8 shrink-0"
-                              disabled={checkInBusyId === sess.id}
-                              onClick={() =>
-                                sess.check_in_open
-                                  ? void reopenProjector(sess)
-                                  : openCheckInConfig(sess)
-                              }
-                              title={
-                                sess.check_in_open
-                                  ? t("teacherAttendance.checkInActiveOpenProjector")
-                                  : t("teacherAttendance.startCheckInQr")
-                              }
-                            >
-                              {checkInBusyId === sess.id ? (
-                                <Spinner size="sm" />
-                              ) : (
-                                <QrCode className="h-4 w-4" aria-hidden />
-                              )}
-                            </Button>
-                            {/* Configurar sesión: corte + contenido — popover
-                              porque son Selects que necesitan espacio. */}
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0"
-                                  title={t("teacherAttendance.configureCutContentTitle")}
-                                >
-                                  <Settings2
-                                    className="h-4 w-4 text-muted-foreground"
-                                    aria-hidden
-                                  />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-72 p-3 space-y-3" align="end">
-                                <div className="text-xs font-medium">
-                                  {t("teacherAttendance.sessionLabel")}{" "}
-                                  <span className="tabular-nums text-muted-foreground">
-                                    {formatDateShort(sess.session_date + "T12:00:00")}
-                                  </span>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-2xs">{t("sessionType.label")}</Label>
-                                  <Select
-                                    value={sess.session_type ?? "virtual"}
-                                    onValueChange={(v) =>
-                                      updateSessionType(sess.id, v as SessionType)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {SESSION_TYPES.map((st) => (
-                                        <SelectItem key={st} value={st}>
-                                          {t(`sessionType.${st}`)}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-2xs flex items-center gap-1">
-                                    <Scissors className="h-3 w-3" />
-                                    {t("teacherAttendance.cutLabel")}
-                                  </Label>
-                                  <Select
-                                    value={sess.cut_id ?? "__none"}
-                                    onValueChange={(v) =>
-                                      updateSessionCut(sess.id, v === "__none" ? null : v)
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue placeholder={t("teacherAttendance.noCut")} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="__none">
-                                        {t("teacherAttendance.noCut")}
-                                      </SelectItem>
-                                      {cuts.map((c) => (
-                                        <SelectItem key={c.id} value={c.id}>
-                                          {c.name}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="space-y-1.5">
-                                  <Label className="text-2xs flex items-center gap-1">
-                                    <PresentationIcon className="h-3 w-3" />
-                                    {t("teacherAttendance.contentLabel")}
-                                  </Label>
-                                  <ContentPicker
-                                    value={
-                                      sess.content_id
-                                        ? `${sess.content_id}:${sess.content_class_index ?? 0}`
-                                        : "__none"
-                                    }
-                                    contents={availableContents}
-                                    onChange={(v) => updateSessionContent(sess.id, v)}
-                                  />
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                            {/* Menú "Más acciones" — antes había 3 botones inline
-                              (marcar todos / reiniciar / eliminar) que hacían
-                              el header de cada columna muy ancho. Las acciones
-                              menos frecuentes ahora viven en este DropdownMenu;
-                              QR y Settings se quedan inline porque son los más
-                              usados. */}
-                            <DropdownMenu>
-                              <DropdownMenuTrigger asChild>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="icon"
-                                  className="h-8 w-8 shrink-0"
-                                  title={t("teacherAttendance.moreActionsTitle")}
-                                  disabled={sessionBusyId === sess.id}
-                                >
-                                  {sessionBusyId === sess.id ? (
-                                    <Spinner size="sm" />
-                                  ) : (
-                                    <MoreVertical className="h-4 w-4" aria-hidden />
-                                  )}
-                                </Button>
-                              </DropdownMenuTrigger>
-                              <DropdownMenuContent align="end" className="w-56">
-                                {/* Primero, y solo con el check-in abierto: es lo
-                                  urgente cuando lo está (mover el cierre, hacer
-                                  rotar el código que se filtró). Sin proyector a
-                                  la vista, este menú es la única entrada. */}
-                                {sess.check_in_open && (
-                                  <>
-                                    <DropdownMenuItem onSelect={() => void openCheckInAjuste(sess)}>
-                                      <SlidersHorizontal className="h-4 w-4 mr-2 text-primary" />
-                                      {t("teacherAttendance.adjustCheckInAction")}
-                                    </DropdownMenuItem>
-                                    <DropdownMenuSeparator />
-                                  </>
-                                )}
-                                <DropdownMenuItem
-                                  disabled={sessionBusyId !== null}
-                                  onSelect={() => void markAllPresent(sess.id)}
-                                >
-                                  <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
-                                  {t("teacherAttendance.markAllPresent")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem
-                                  disabled={sessionBusyId !== null}
-                                  onSelect={() => void clearSessionAttendance(sess.id)}
-                                >
-                                  <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
-                                  {t("teacherAttendance.resetAttendance")}
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
-                                  <PlayCircle className="h-4 w-4 mr-2 text-primary" />
-                                  {sess.recording_url || sess.recording_video_id || sess.notes_url
-                                    ? t("attendance.editRecordingNotes", {
-                                        defaultValue: "Editar grabación / notas",
-                                      })
-                                    : t("attendance.addRecordingNotes", {
-                                        defaultValue: "Agregar grabación / notas",
-                                      })}
-                                </DropdownMenuItem>
-                                {/* Lanzar encuesta en vivo durante esta
-                                  sesión. El attendance_session_id queda
-                                  ligado a la encuesta (FK en `polls`),
-                                  permite mostrar la encuesta al alumno
-                                  con un badge "Sesión presencial" y a
-                                  futuro destacarla cuando esté dentro
-                                  de la clase. */}
-                                <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
-                                  <Zap className="h-4 w-4 mr-2 text-sky-500" />
-                                  {t("teacherAttendance.launchPoll")}
-                                </DropdownMenuItem>
-                                {/* Pizarra de la sesión — abre el editor
-                                  Excalidraw embebido. Persiste en
-                                  attendance_sessions.whiteboard_scene
-                                  (1:1 con la sesión). El docente reabre
-                                  y su contenido reaparece. */}
-                                <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
-                                  <Palette className="h-4 w-4 mr-2 text-violet-500" />
-                                  {t("teacherAttendance.whiteboard")}
-                                </DropdownMenuItem>
-                                {/* Duplicar la sesión: crea una copia (misma fecha,
-                                  el docente la reubica) con opción de copiar el
-                                  contenido asignado, la pizarra y los snippets. */}
-                                <DropdownMenuItem
-                                  disabled={sessionBusyId !== null}
-                                  onSelect={() => setDuplicateSessionFor(sess)}
-                                >
-                                  <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
-                                  {t("teacherAttendance.duplicateSession")}
-                                </DropdownMenuItem>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem
-                                  disabled={sessionBusyId !== null}
-                                  onSelect={() => void deleteSession(sess.id)}
-                                  className="text-destructive focus:text-destructive"
-                                >
-                                  <Trash2 className="h-4 w-4 mr-2" />
-                                  {t("teacherAttendance.deleteSession")}
-                                </DropdownMenuItem>
-                              </DropdownMenuContent>
-                            </DropdownMenu>
-                          </div>
-                          {sess.check_in_open && (
-                            <Badge variant="default" className="text-3xs py-0 px-1 self-center">
-                              {t("teacherAttendance.checkInActive")}
-                            </Badge>
-                          )}
-                          <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
-                            <span className="text-3xs font-medium leading-tight tabular-nums">
-                              {formatDateShort(sess.session_date + "T12:00:00")}
-                            </span>
-                            {sess.title && (
-                              <span
-                                className="text-3xs text-muted-foreground truncate max-w-[5.5rem]"
-                                title={sess.title ?? undefined}
-                              >
-                                {sess.title}
-                              </span>
-                            )}
-                            {/* Resumen compacto del corte y contenido —
-                              indicador read-only; click en el Settings
-                              de arriba para editar. */}
-                            <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
-                              <SessionTypeBadge
-                                type={sess.session_type}
-                                className="text-3xs py-0 px-1"
-                              />
-                              {cutLabel ? (
-                                <Badge
-                                  variant="outline"
-                                  className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                  title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
-                                >
-                                  <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
-                                  {cutLabel}
-                                </Badge>
-                              ) : (
-                                <span className="text-3xs text-muted-foreground/50">
-                                  {t("teacherAttendance.noCutShort")}
-                                </span>
-                              )}
-                              {contentLabel && (
-                                <Badge
-                                  variant="outline"
-                                  className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
-                                  title={t("teacherAttendance.contentTooltip", {
-                                    content: contentLabel,
-                                  })}
-                                >
-                                  <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
-                                  {contentLabel}
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </TableHead>
-                    );
-                  })}
-                  <TableHead className="text-center min-w-16">
-                    {t("teacherAttendance.percentColumn")}
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStudents.length === 0 && (
-                  <TableRow>
-                    <TableCell
-                      colSpan={sessions.length + 2}
-                      className="text-center text-muted-foreground py-8"
-                    >
-                      {studentSearch.trim() && students.length > 0
-                        ? t("teacherAttendance.noMatches")
-                        : t("teacherAttendance.noStudentsEnrolled")}
-                    </TableCell>
-                  </TableRow>
-                )}
-                {filteredStudents.map((s) => {
-                  const total = sessions.length;
-                  const present = sessions.filter((sess) => {
-                    const st = getStatus(sess.id, s.id);
-                    return st === "presente";
-                  }).length;
-                  const pct = total > 0 ? Math.round((present / total) * 100) : 0;
-                  return (
-                    <TableRow key={s.id}>
-                      <TableCell className="sticky left-0 z-10 bg-card">
-                        <div className="text-sm font-medium truncate">{s.full_name}</div>
-                        <div className="text-xs text-muted-foreground truncate">
-                          {s.institutional_email}
-                        </div>
-                      </TableCell>
-                      {sessions.map((sess) => {
-                        const status = getStatus(sess.id, s.id);
-                        return (
-                          <TableCell
-                            key={sess.id}
-                            className={`text-center p-1 ${
-                              cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
-                            }`}
-                          >
-                            <Select
-                              value={status || "none"}
-                              onValueChange={(v) => setAttendance(sess.id, s.id, v)}
-                            >
-                              <SelectTrigger
-                                className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-success border-success/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
-                              >
-                                <SelectValue placeholder="—" />
-                              </SelectTrigger>
-                              <SelectContent>
-                                <SelectItem value="none">
-                                  <span className="text-muted-foreground text-xs">—</span>
-                                </SelectItem>
-                                {STATUS_OPTIONS.map((opt) => (
-                                  <SelectItem key={opt.value} value={opt.value}>
-                                    <span className={`text-xs font-bold ${opt.color}`}>
-                                      {opt.short}
-                                    </span>
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </TableCell>
-                        );
-                      })}
-                      <TableCell className="text-center">
-                        <Badge
-                          variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
-                          className="text-3xs"
-                        >
-                          {pct}%
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
+        <>
+
+        {/* Legend (above the grid) */}
+        <Card className="bg-muted/30 border-dashed">
+          <CardContent className="p-3 flex flex-wrap items-center gap-4 text-xs">
+            <span className="font-medium text-muted-foreground">{t("teacherAttendance.legend")}</span>
+            {STATUS_OPTIONS.map((opt) => {
+              const Icon = opt.icon;
+              return (
+                <div key={opt.value} className="flex items-center gap-1.5">
+                  <span
+                    className={`inline-flex h-6 w-6 items-center justify-center rounded border text-2xs font-bold ${opt.color}`}
+                  >
+                    {opt.short}
+                  </span>
+                  <span className="text-muted-foreground">
+                    <Icon className={`inline h-3 w-3 mr-1 ${opt.color}`} />
+                    {opt.short} = {opt.label}
+                  </span>
+                </div>
+              );
+            })}
+            <span className="text-muted-foreground">{t("teacherAttendance.legendNoRecord")}</span>
           </CardContent>
         </Card>
-      )}
 
-      {/* New session dialog */}
-      <Dialog
-        open={newSessionOpen}
-        onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}
-      >
-        <DialogContent
-          className="max-w-[calc(100vw-2rem)] sm:max-w-sm"
-          data-tour-id="dialog-session"
-        >
-          <DialogHeader>
-            <DialogTitle>{t("teacherAttendance.newSessionDialogTitle")}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div data-tour-id="session-field-date">
-              <Label required>{t("teacherAttendance.dateLabel")}</Label>
-              <DatePicker value={newDate} onChange={setNewDate} />
-            </div>
-            {/* Hora inicio + fin — el docente piensa en "9:00-10:30",
-                no "90 min". Al guardar derivamos duration = end - start
-                para alimentar la sincronización a Google Calendar (que
-                consume duration_minutes). Mobile-first: 1 col en xs
-                (inputs time se ven completos sin truncar), 2 en sm+. */}
-            <div
-              className="grid grid-cols-1 sm:grid-cols-2 gap-2"
-              data-tour-id="session-field-time"
-            >
-              <div>
-                <Label>
-                  {t("teacherAttendance.startTimeLabel")}{" "}
-                  <HelpHint>{t("help.startTimeTimezoneHint")}</HelpHint>
-                </Label>
-                <Input
-                  type="time"
-                  value={newStartTime}
-                  onChange={(e) => setNewStartTime(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label>{t("teacherAttendance.endTimeLabel")}</Label>
-                <Input
-                  type="time"
-                  value={newEndTime}
-                  onChange={(e) => setNewEndTime(e.target.value)}
-                />
-              </div>
-            </div>
-            <div data-tour-id="session-field-title">
-              <Label>{t("teacherAttendance.titleOptionalLabel")}</Label>
-              <Input
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
-                placeholder={t("teacherAttendance.titlePlaceholder")}
-              />
-            </div>
-            <div data-tour-id="session-field-type">
-              <Label>{t("sessionType.label")}</Label>
-              <Select
-                value={newSessionType}
-                onValueChange={(v) => setNewSessionType(v as SessionType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SESSION_TYPES.map((st) => (
-                    <SelectItem key={st} value={st}>
-                      {t(`sessionType.${st}`)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {newSessionType === "autonoma" && (
-                <p className="text-2xs text-muted-foreground mt-1">
-                  {t("sessionType.autonomaHint")}
-                </p>
-              )}
-            </div>
-            <div data-tour-id="session-field-cut">
-              <Label>
-                {t("teacherAttendance.cutLabel")} <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
-              </Label>
-              <Select
-                value={newCutId || "__none"}
-                onValueChange={(v) => setNewCutId(v === "__none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("teacherAttendance.noCut")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">{t("teacherAttendance.noCut")}</SelectItem>
-                  {cuts.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {cuts.length === 0 && (
-                <p className="text-2xs text-muted-foreground mt-1">
-                  {t("teacherAttendance.noCutsDefined")}
-                </p>
-              )}
-            </div>
-            <div className="border-t pt-3 space-y-2">
-              <Label>
-                {t("teacherAttendance.recordingOptionalLabel")}{" "}
-                <HelpHint>{t("help.recordingOptionsHelp")}</HelpHint>
-              </Label>
-              <Input
-                value={newRecordingUrl}
-                onChange={(e) => setNewRecordingUrl(e.target.value)}
-                placeholder={t("teacherAttendance.recordingUrlPlaceholder")}
-              />
-              <Select
-                value={newRecordingVideoId || "__none"}
-                onValueChange={(v) => setNewRecordingVideoId(v === "__none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("teacherAttendance.libraryVideoPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
-                  {sessionVideos.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="border-t pt-3 space-y-2">
-              <Label>
-                {t("attendance.notesUrlLabel", {
-                  defaultValue: "Enlace de notas / minuta (opcional)",
-                })}{" "}
-                <HelpHint>
-                  {t("attendance.notesUrlHelp", {
-                    defaultValue:
-                      "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
-                  })}
-                </HelpHint>
-              </Label>
-              <Input
-                value={newNotesUrl}
-                onChange={(e) => setNewNotesUrl(e.target.value)}
-                placeholder={t("teacherAttendance.notesUrlPlaceholder")}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setNewSessionOpen(false)}
-              disabled={creatingSession}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={() => void createSession()} disabled={creatingSession}>
-              {creatingSession ? (
-                <Spinner size="sm" className="mr-1" />
-              ) : (
-                <Plus className="h-4 w-4 mr-1" />
-              )}
-              {t("teacherAttendance.create")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Búsqueda por estudiante — útil cuando un curso tiene 30-40 alumnos
+            y el docente busca uno específico para revisar asistencia. */}
+        {courseId && (
+          <SearchInput
+            value={studentSearch}
+            onChange={setStudentSearch}
+            placeholder={t("teacherAttendance.searchStudentPlaceholder")}
+          />
+        )}
 
-      {/* Dialog de edición de grabación para sesiones existentes */}
-      <Dialog
-        open={!!recordingEditSession}
-        onOpenChange={(o) => !o && setRecordingEditSession(null)}
-      >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {t("attendance.editRecordingNotesTitle", {
-                defaultValue: "Editar grabación / notas",
-              })}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div>
-              <Label>{t("teacherAttendance.externalLinkLabel")}</Label>
-              <Input
-                value={recordingEditUrl}
-                onChange={(e) => setRecordingEditUrl(e.target.value)}
-                placeholder="https://…"
-              />
-            </div>
-            <div>
-              <Label>{t("teacherAttendance.libraryVideoLabel")}</Label>
-              <Select
-                value={recordingEditVideoId || "__none"}
-                onValueChange={(v) => setRecordingEditVideoId(v === "__none" ? "" : v)}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder={t("teacherAttendance.noLibraryVideo")} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
-                  {sessionVideos.map((v) => (
-                    <SelectItem key={v.id} value={v.id}>
-                      {v.title}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-2xs text-muted-foreground mt-1">
-                {t("teacherAttendance.uploadVideoHint")}
-              </p>
-            </div>
-            <div className="border-t pt-3">
-              <Label>
-                {t("attendance.notesUrlLabel", {
-                  defaultValue: "Enlace de notas / minuta (opcional)",
-                })}{" "}
-                <HelpHint>
-                  {t("attendance.notesUrlHelp", {
-                    defaultValue:
-                      "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
-                  })}
-                </HelpHint>
-              </Label>
-              <Input
-                value={notesEditUrl}
-                onChange={(e) => setNotesEditUrl(e.target.value)}
-                placeholder={t("teacherAttendance.notesUrlPlaceholder")}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setRecordingEditSession(null)}
-              disabled={savingRecording}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button onClick={() => void saveRecordingEdit()} disabled={savingRecording}>
-              {savingRecording && <Spinner size="sm" className="mr-1" />}
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Check-in config dialog — el MISMO en modo abrir y en modo ajustar.
-          En ajuste desaparece el campo "Abre" (la apertura no se mueve: es el
-          ancla del tope de la ventana y del "todavía no empezó" del alumno) y
-          aparecen los avisos de lo que el cambio le hace a la clase. */}
-      <Dialog
-        open={!!checkInConfigSession || !!checkInAjusteSession}
-        onOpenChange={(o) => {
-          if (o) return;
-          setCheckInConfigSession(null);
-          setCheckInExtraSessions(new Set());
-          setCheckInAjusteSession(null);
-          setCheckInPrev(null);
-        }}
-      >
-        <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>
-              {checkInAjusteSession
-                ? t("teacherAttendance.adjustCheckInTitle")
-                : t("teacherAttendance.startCheckInQr")}
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              {checkInAjusteSession
-                ? t("teacherAttendance.adjustCheckInDescription")
-                : t("teacherAttendance.checkInConfigDescription")}
-            </p>
-            {/* Fechas, no minutos: ver el comentario de `checkInOpensAt`.
-                Vacías = ahora + 10 min, que resuelve el servidor. */}
-            <div
-              className={cn("grid grid-cols-1 gap-2", !checkInAjusteSession && "sm:grid-cols-2")}
-            >
-              {checkInAjusteSession ? (
-                checkInPrev && (
-                  <p className="text-xs text-muted-foreground">
-                    {t("teacherAttendance.adjustOpenedAtLabel", {
-                      time: formatTime(checkInPrev.opensAt),
-                    })}
-                  </p>
-                )
-              ) : (
-                <div>
-                  <Label>
-                    {t("teacherAttendance.checkInOpensAtLabel")}{" "}
-                    <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
-                  </Label>
-                  <DateTimePicker
-                    value={checkInOpensAt}
-                    onChange={(v) => {
-                      setCheckInOpensAt(v);
-                      // El cierre sigue a la apertura solo si el docente no lo
-                      // tocó (ver `checkInClosesTouched`).
-                      if (!checkInClosesTouched) {
-                        const c = recomputeClosesAt(v, checkInHours);
-                        if (c) setCheckInClosesAt(c);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-              <div>
-                <Label>
-                  {t("teacherAttendance.checkInClosesAtLabel")}{" "}
-                  <HelpHint>{t("help.checkinClosesAtHelp")}</HelpHint>
-                </Label>
-                <DateTimePicker
-                  value={checkInClosesAt}
-                  onChange={(v) => {
-                    setCheckInClosesAt(v);
-                    setCheckInClosesTouched(true);
-                  }}
-                />
-                {/* El cierre en el pasado es IRREVERSIBLE: tres mecanismos
-                    distintos borran el estado del check-in cuando la ventana
-                    vence, y con él se va el código. Para terminar ahora está
-                    "Cerrar check-in". */}
-                {checkInAjusteSession && cierreCheckInPasado && (
-                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
-                    {t("teacherAttendance.adjustClosesMustBeFuture")}
-                  </p>
-                )}
-              </div>
-            </div>
-            <div>
-              <Label>
-                {t("teacherAttendance.codeRotationLabel")}{" "}
-                <HelpHint>{t("help.checkinRotationHelp")}</HelpHint>
-              </Label>
-              {/* 0 = código FIJO toda la ventana. No se clampea hacia arriba a
-                  15: escribir 0 ES la forma de pedir el modo fijo. */}
-              {/* El campo está en MINUTOS y el estado sigue en segundos, que es lo
-                  que guarda la columna.
-
-                  Y el texto se mantiene aparte a propósito: antes el valor se
-                  clampeaba en CADA tecla, así que escribir «5» lo convertía en
-                  el mínimo y el siguiente dígito construía otro número. Tipear
-                  500 daba 1500 — no era un tope, era que no se podía escribir.
-                  El clamp corre al salir del campo, cuando el número ya está
-                  completo. */}
-              <Input
-                type="number"
-                min={0}
-                value={rotacionTexto}
-                onChange={(e) => setRotacionTexto(e.target.value)}
-                onBlur={() => {
-                  const min = rotacionTexto.trim() === "" ? 0 : Number(rotacionTexto);
-                  if (!Number.isFinite(min) || min <= 0) {
-                    // 0 = código FIJO toda la ventana. Escribirlo ES pedir ese
-                    // modo, así que no se sube al mínimo.
-                    setCheckInRotation(0);
-                    setRotacionTexto("0");
-                    return;
-                  }
-                  const segundos = Math.min(
-                    ATTENDANCE_CODE_ROTATION_MAX,
-                    Math.max(60, Math.round(min) * 60),
-                  );
-                  setCheckInRotation(segundos);
-                  setRotacionTexto(String(Math.round(segundos / 60)));
-                }}
-              />
-              {checkInRotation === 0 ? (
-                <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
-                  {t("teacherAttendance.rotationZeroWarning")}
-                </p>
-              ) : (
-                rotacionQuedaraFija && (
-                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
-                    {t("teacherAttendance.rotationLongerThanWindow")}
-                  </p>
-                )
-              )}
-              {/* El ÚNICO campo del ajuste que cambia el código proyectado. Se
-                  avisa acá, se vuelve a confirmar al guardar, y el toast final
-                  pide que la clase lo vuelva a leer. Los otros tres campos no
-                  lo tocan, así que no llevan aviso. */}
-              {checkInAjusteSession &&
-                checkInPrev &&
-                checkInRotation !== checkInPrev.rotationSeconds && (
-                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
-                    {t("teacherAttendance.rotationChangeInvalidatesCode")}
-                  </p>
-                )}
-            </div>
-            {/* ── Requisitos para marcar asistencia ─────────────────────────
-                Se pueden exigir VARIOS: el caso real es la encuesta de bienestar Y
-                la firma del acuerdo pedagógico. Los que están en borrador o
-                cerrados se listan DESHABILITADOS — esconderlos deja al docente
-                buscando por qué su taller no aparece, y exigirlos sería un bloqueo
-                que el estudiante no puede resolver. */}
-            <div className="rounded-md border p-3 space-y-2">
-              <Label>
-                {t("teacherAttendance.reqLabel")}{" "}
-                <HelpHint>{t("teacherAttendance.reqHelp")}</HelpHint>
-              </Label>
-              {checkInReqLoading ? (
-                <p className="text-2xs text-muted-foreground">{t("common.loading")}</p>
-              ) : checkInReqItems.length === 0 ? (
-                <p className="text-2xs text-muted-foreground">{t("teacherAttendance.reqEmpty")}</p>
-              ) : (
-                <div className="max-h-48 overflow-y-auto space-y-2">
-                  {(["poll", "report_signature", "workshop", "project", "exam"] as const).map(
-                    (kind) => {
-                      const grupo = checkInReqItems.filter((x) => x.kind === kind);
-                      if (grupo.length === 0) return null;
-                      return (
-                        <div key={kind} className="space-y-1">
-                          <p className="text-2xs font-medium text-muted-foreground">
-                            {t(`teacherAttendance.reqKind_${kind}`)}
-                          </p>
-                          {grupo.map((x) => {
-                            const valor = `${x.kind}:${x.id}`;
-                            return (
-                              <label
-                                key={valor}
-                                className={cn(
-                                  "flex items-start gap-2 rounded p-1 text-sm",
-                                  x.disponible
-                                    ? "cursor-pointer hover:bg-accent"
-                                    : "opacity-60 cursor-not-allowed",
-                                )}
-                              >
-                                <Checkbox
-                                  className="mt-0.5"
-                                  checked={checkInReqs.has(valor)}
-                                  disabled={!x.disponible}
-                                  onCheckedChange={(v) => {
-                                    setCheckInReqs((prev) => {
-                                      const next = new Set(prev);
-                                      if (v) next.add(valor);
-                                      else next.delete(valor);
-                                      return next;
-                                    });
-                                    const sessDialogo =
-                                      checkInAjusteSession ?? checkInConfigSession;
-                                    if (sessDialogo) {
-                                      void contarCumplimiento(
-                                        sessDialogo.course_id,
-                                        v ? valor : "",
-                                      );
-                                    }
-                                  }}
-                                />
-                                <span className="min-w-0">
-                                  <span className="block truncate">{x.title}</span>
-                                  {!x.disponible && x.motivo && (
-                                    <span className="block text-2xs text-muted-foreground">
-                                      {x.motivo}
-                                    </span>
-                                  )}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      );
-                    },
-                  )}
-                </div>
-              )}
-              {checkInReqCumplen && (
-                <p
-                  className={cn(
-                    "text-2xs",
-                    checkInReqCumplen.ok < checkInReqCumplen.total
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-emerald-600 dark:text-emerald-400",
-                  )}
-                >
-                  {t("teacherAttendance.reqProgress", {
-                    ok: checkInReqCumplen.ok,
-                    total: checkInReqCumplen.total,
-                  })}
-                </p>
-              )}
-              {checkInReqs.size > 0 && !checkInAjusteSession && (
-                <label className="flex items-start gap-2 text-xs cursor-pointer">
-                  <Checkbox
-                    checked={checkInReqFuturas}
-                    onCheckedChange={(v) => setCheckInReqFuturas(!!v)}
-                    className="mt-0.5"
-                  />
-                  <span>
-                    {t("teacherAttendance.reqFuturas")}
-                    <span className="block text-2xs text-muted-foreground">
-                      {t("teacherAttendance.reqFuturasHint")}
-                    </span>
-                  </span>
-                </label>
-              )}
-            </div>
-
-            {/* Un solo código para VARIAS sesiones. Solo al ABRIR: ajustar
-                re-abriría las hermanas con otra semilla e invalidaría el código
-                que la clase está mirando.
-
-                Se ofrecen primero las del MISMO DÍA porque ese es el caso real
-                (un bloque de tres horas partido en dos o tres sesiones); el
-                resto del curso queda abajo para el caso de recuperar una clase.
-                No se muestra si el curso no tiene otra sesión. */}
-            {!checkInAjusteSession && candidatasCheckInMultiple.length > 0 && (
-              <div className="rounded-md border p-3 space-y-2">
-                {/* CUÁNTAS clases va a cubrir el código, arriba y siempre
-                    visible. Antes ese número vivía en un párrafo al FINAL,
-                    debajo de una lista que scrollea: el docente tenía que bajar
-                    para enterarse de en cuántas clases va a quedar asistencia,
-                    que es justo la decisión que está tomando. */}
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex items-start gap-1.5 min-w-0">
-                    <Label className="cursor-default">
-                      {t("teacherAttendance.multiSessionLabel")}
-                    </Label>
-                    <HelpHint>{t("teacherAttendance.multiSessionHint")}</HelpHint>
-                  </div>
-                  <span
-                    className={
-                      checkInExtraSessions.size > 0
-                        ? "shrink-0 rounded-md bg-primary/15 px-2 py-0.5 text-2xs font-medium tabular-nums text-primary"
-                        : "shrink-0 text-2xs tabular-nums text-muted-foreground"
-                    }
-                  >
-                    {t("teacherAttendance.multiSessionCount", {
-                      count: checkInExtraSessions.size + 1,
-                    })}
-                  </span>
-                </div>
-                <div className="max-h-40 space-y-0.5 overflow-y-auto">
-                  {candidatasCheckInMultiple.map((s) => {
-                    const mismoDia = s.session_date === sesionCheckInActual?.session_date;
-                    // Una línea por clase, con la fecha en columna propia y
-                    // cifras de ancho fijo: así se barren alineadas en vez de
-                    // correrse según el largo del título. Mismo criterio y mismo
-                    // helper que la pantalla pública — los títulos de los cursos
-                    // reales llegan a 140 caracteres.
-                    const titulo = resumirTituloDeSesion(s.title);
-                    return (
-                      <label
-                        key={s.id}
-                        className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent"
-                      >
-                        <Checkbox
-                          className="shrink-0"
-                          checked={checkInExtraSessions.has(s.id)}
-                          onCheckedChange={(v) =>
-                            setCheckInExtraSessions((prev) => {
-                              const next = new Set(prev);
-                              if (v) next.add(s.id);
-                              else next.delete(s.id);
-                              return next;
-                            })
-                          }
-                        />
-                        <span className="w-12 shrink-0 text-2xs tabular-nums text-muted-foreground">
-                          {formatDateOnlyShort(s.session_date)}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate" title={titulo?.completo}>
-                          {titulo?.corto ?? t("teacherAttendance.sessionNoTitle")}
-                        </span>
-                        {mismoDia && (
-                          <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
-                            {t("teacherAttendance.multiSessionSameDay")}
+        {/* Attendance grid.
+            Mientras carga el tablero del curso mostramos un skeleton (antes la
+            grilla se pintaba vacía y decía "Sin estudiantes matriculados"), y si
+            la query crítica falla, un ErrorState con reintento. */}
+        {loadingCourse ? (
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableBody>
+                  <TableSkeleton cols={6} rows={6} />
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        ) : courseError ? (
+          <ErrorState
+            message={t("teacherAttendance.loadCoursesError")}
+            hint={courseError}
+            onRetry={() => setCourseRetryNonce((n) => n + 1)}
+          />
+        ) : (
+          <Card>
+            <CardContent className="p-0 overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  {cutGroups.length > 0 && (
+                    <TableRow>
+                      <TableHead className="sticky left-0 z-10 bg-card" />
+                      {cutGroups.map((g, idx) => (
+                        <TableHead
+                          key={g.cut?.id ?? `orphan-${idx}`}
+                          colSpan={g.sessions.length}
+                          className={`text-center text-xs font-semibold uppercase tracking-wide py-1.5 bg-muted/40 border-b ${
+                            idx > 0 ? "border-l-2 border-l-primary/40" : ""
+                          }`}
+                        >
+                          <span className={g.cut ? "" : "text-muted-foreground italic"}>
+                            {g.cut ? g.cut.name : t("teacherAttendance.noCut")}
                           </span>
-                        )}
-                      </label>
+                          <span className="ml-2 text-3xs font-normal text-muted-foreground">
+                            {t("teacherAttendance.sessionCount", { count: g.sessions.length })}
+                          </span>
+                        </TableHead>
+                      ))}
+                      <TableHead />
+                    </TableRow>
+                  )}
+                  <TableRow>
+                    <TableHead className="sticky left-0 z-10 bg-card min-w-36 sm:min-w-48">
+                      {t("teacherAttendance.studentColumn")}
+                    </TableHead>
+                    {sessions.map((sess) => {
+                      // Labels compactos para el resumen de "corte · contenido"
+                      // que aparece debajo del header — evita reservar 2
+                      // selects en cada columna del grid (antes ~6 filas de
+                      // alto; ahora ~4). La edición vive en el Popover.
+                      const cutLabel = sess.cut_id
+                        ? (cuts.find((c) => c.id === sess.cut_id)?.name ??
+                          t("teacherAttendance.cutFallback"))
+                        : null;
+                      const contentLabel = (() => {
+                        if (!sess.content_id) return null;
+                        const c = availableContents.find((x) => x.id === sess.content_id);
+                        if (!c) return t("teacherAttendance.contentFallback");
+                        return sess.content_class_index && sess.content_class_index > 0
+                          ? `${c.topic} · ${t("teacherAttendance.classN", { n: sess.content_class_index })}`
+                          : c.topic;
+                      })();
+                      return (
+                        <TableHead
+                          key={sess.id}
+                          className={`text-center min-w-[6.5rem] align-bottom p-2 ${
+                            cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                          }`}
+                        >
+                          <div className="flex flex-col items-stretch gap-1.5">
+                            <div className="flex items-center justify-center gap-1">
+                              <Button
+                                type="button"
+                                variant={sess.check_in_open ? "default" : "outline"}
+                                size="icon"
+                                className="h-8 w-8 shrink-0"
+                                disabled={checkInBusyId === sess.id}
+                                onClick={() =>
+                                  sess.check_in_open
+                                    ? void reopenProjector(sess)
+                                    : openCheckInConfig(sess)
+                                }
+                                title={
+                                  sess.check_in_open
+                                    ? t("teacherAttendance.checkInActiveOpenProjector")
+                                    : t("teacherAttendance.startCheckInQr")
+                                }
+                              >
+                                {checkInBusyId === sess.id ? (
+                                  <Spinner size="sm" />
+                                ) : (
+                                  <QrCode className="h-4 w-4" aria-hidden />
+                                )}
+                              </Button>
+                              {/* Configurar sesión: corte + contenido — popover
+                                porque son Selects que necesitan espacio. */}
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0"
+                                    title={t("teacherAttendance.configureCutContentTitle")}
+                                  >
+                                    <Settings2
+                                      className="h-4 w-4 text-muted-foreground"
+                                      aria-hidden
+                                    />
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-72 p-3 space-y-3" align="end">
+                                  <div className="text-xs font-medium">
+                                    {t("teacherAttendance.sessionLabel")}{" "}
+                                    <span className="tabular-nums text-muted-foreground">
+                                      {formatDateShort(sess.session_date + "T12:00:00")}
+                                    </span>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-2xs">{t("sessionType.label")}</Label>
+                                    <Select
+                                      value={sess.session_type ?? "virtual"}
+                                      onValueChange={(v) =>
+                                        updateSessionType(sess.id, v as SessionType)
+                                      }
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {SESSION_TYPES.map((st) => (
+                                          <SelectItem key={st} value={st}>
+                                            {t(`sessionType.${st}`)}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-2xs flex items-center gap-1">
+                                      <Scissors className="h-3 w-3" />
+                                      {t("teacherAttendance.cutLabel")}
+                                    </Label>
+                                    <Select
+                                      value={sess.cut_id ?? "__none"}
+                                      onValueChange={(v) =>
+                                        updateSessionCut(sess.id, v === "__none" ? null : v)
+                                      }
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder={t("teacherAttendance.noCut")} />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none">
+                                          {t("teacherAttendance.noCut")}
+                                        </SelectItem>
+                                        {cuts.map((c) => (
+                                          <SelectItem key={c.id} value={c.id}>
+                                            {c.name}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="space-y-1.5">
+                                    <Label className="text-2xs flex items-center gap-1">
+                                      <PresentationIcon className="h-3 w-3" />
+                                      {t("teacherAttendance.contentLabel")}
+                                    </Label>
+                                    <ContentPicker
+                                      value={
+                                        sess.content_id
+                                          ? `${sess.content_id}:${sess.content_class_index ?? 0}`
+                                          : "__none"
+                                      }
+                                      contents={availableContents}
+                                      onChange={(v) => updateSessionContent(sess.id, v)}
+                                    />
+                                  </div>
+                                </PopoverContent>
+                              </Popover>
+                              {/* Menú "Más acciones" — antes había 3 botones inline
+                                (marcar todos / reiniciar / eliminar) que hacían
+                                el header de cada columna muy ancho. Las acciones
+                                menos frecuentes ahora viven en este DropdownMenu;
+                                QR y Settings se quedan inline porque son los más
+                                usados. */}
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="icon"
+                                    className="h-8 w-8 shrink-0"
+                                    title={t("teacherAttendance.moreActionsTitle")}
+                                    disabled={sessionBusyId === sess.id}
+                                  >
+                                    {sessionBusyId === sess.id ? (
+                                      <Spinner size="sm" />
+                                    ) : (
+                                      <MoreVertical className="h-4 w-4" aria-hidden />
+                                    )}
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" className="w-56">
+                                  {/* Primero, y solo con el check-in abierto: es lo
+                                    urgente cuando lo está (mover el cierre, hacer
+                                    rotar el código que se filtró). Sin proyector a
+                                    la vista, este menú es la única entrada. */}
+                                  {sess.check_in_open && (
+                                    <>
+                                      <DropdownMenuItem onSelect={() => void openCheckInAjuste(sess)}>
+                                        <SlidersHorizontal className="h-4 w-4 mr-2 text-primary" />
+                                        {t("teacherAttendance.adjustCheckInAction")}
+                                      </DropdownMenuItem>
+                                      <DropdownMenuSeparator />
+                                    </>
+                                  )}
+                                  <DropdownMenuItem
+                                    disabled={sessionBusyId !== null}
+                                    onSelect={() => void markAllPresent(sess.id)}
+                                  >
+                                    <CheckCircle2 className="h-4 w-4 mr-2 text-success" />
+                                    {t("teacherAttendance.markAllPresent")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    disabled={sessionBusyId !== null}
+                                    onSelect={() => void clearSessionAttendance(sess.id)}
+                                  >
+                                    <Eraser className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    {t("teacherAttendance.resetAttendance")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => openRecordingEdit(sess)}>
+                                    <PlayCircle className="h-4 w-4 mr-2 text-primary" />
+                                    {sess.recording_url || sess.recording_video_id || sess.notes_url
+                                      ? t("attendance.editRecordingNotes", {
+                                          defaultValue: "Editar grabación / notas",
+                                        })
+                                      : t("attendance.addRecordingNotes", {
+                                          defaultValue: "Agregar grabación / notas",
+                                        })}
+                                  </DropdownMenuItem>
+                                  {/* Lanzar encuesta en vivo durante esta
+                                    sesión. El attendance_session_id queda
+                                    ligado a la encuesta (FK en `polls`),
+                                    permite mostrar la encuesta al alumno
+                                    con un badge "Sesión presencial" y a
+                                    futuro destacarla cuando esté dentro
+                                    de la clase. */}
+                                  <DropdownMenuItem onSelect={() => setPollLaunchSession(sess)}>
+                                    <Zap className="h-4 w-4 mr-2 text-sky-500" />
+                                    {t("teacherAttendance.launchPoll")}
+                                  </DropdownMenuItem>
+                                  {/* Pizarra de la sesión — abre el editor
+                                    Excalidraw embebido. Persiste en
+                                    attendance_sessions.whiteboard_scene
+                                    (1:1 con la sesión). El docente reabre
+                                    y su contenido reaparece. */}
+                                  <DropdownMenuItem onSelect={() => setWhiteboardSession(sess)}>
+                                    <Palette className="h-4 w-4 mr-2 text-violet-500" />
+                                    {t("teacherAttendance.whiteboard")}
+                                  </DropdownMenuItem>
+                                  {/* Duplicar la sesión: crea una copia (misma fecha,
+                                    el docente la reubica) con opción de copiar el
+                                    contenido asignado, la pizarra y los snippets. */}
+                                  <DropdownMenuItem
+                                    disabled={sessionBusyId !== null}
+                                    onSelect={() => setDuplicateSessionFor(sess)}
+                                  >
+                                    <Copy className="h-4 w-4 mr-2 text-muted-foreground" />
+                                    {t("teacherAttendance.duplicateSession")}
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    disabled={sessionBusyId !== null}
+                                    onSelect={() => void deleteSession(sess.id)}
+                                    className="text-destructive focus:text-destructive"
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    {t("teacherAttendance.deleteSession")}
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
+                            {sess.check_in_open && (
+                              <Badge variant="default" className="text-3xs py-0 px-1 self-center">
+                                {t("teacherAttendance.checkInActive")}
+                              </Badge>
+                            )}
+                            <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
+                              <span className="text-3xs font-medium leading-tight tabular-nums">
+                                {formatDateShort(sess.session_date + "T12:00:00")}
+                              </span>
+                              {sess.title && (
+                                <span
+                                  className="text-3xs text-muted-foreground truncate max-w-[5.5rem]"
+                                  title={sess.title ?? undefined}
+                                >
+                                  {sess.title}
+                                </span>
+                              )}
+                              {/* Resumen compacto del corte y contenido —
+                                indicador read-only; click en el Settings
+                                de arriba para editar. */}
+                              <div className="flex flex-wrap items-center justify-center gap-0.5 pt-0.5">
+                                <SessionTypeBadge
+                                  type={sess.session_type}
+                                  className="text-3xs py-0 px-1"
+                                />
+                                {cutLabel ? (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                    title={t("teacherAttendance.cutTooltip", { cut: cutLabel })}
+                                  >
+                                    <Scissors className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                    {cutLabel}
+                                  </Badge>
+                                ) : (
+                                  <span className="text-3xs text-muted-foreground/50">
+                                    {t("teacherAttendance.noCutShort")}
+                                  </span>
+                                )}
+                                {contentLabel && (
+                                  <Badge
+                                    variant="outline"
+                                    className="text-3xs py-0 px-1 max-w-[5.5rem] truncate font-normal"
+                                    title={t("teacherAttendance.contentTooltip", {
+                                      content: contentLabel,
+                                    })}
+                                  >
+                                    <PresentationIcon className="h-2.5 w-2.5 mr-0.5 shrink-0" />
+                                    {contentLabel}
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </TableHead>
+                      );
+                    })}
+                    <TableHead className="text-center min-w-16">
+                      {t("teacherAttendance.percentColumn")}
+                    </TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredStudents.length === 0 && (
+                    <TableRow>
+                      <TableCell
+                        colSpan={sessions.length + 2}
+                        className="text-center text-muted-foreground py-8"
+                      >
+                        {studentSearch.trim() && students.length > 0
+                          ? t("teacherAttendance.noMatches")
+                          : t("teacherAttendance.noStudentsEnrolled")}
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {filteredStudents.map((s) => {
+                    const total = sessions.length;
+                    const present = sessions.filter((sess) => {
+                      const st = getStatus(sess.id, s.id);
+                      return st === "presente";
+                    }).length;
+                    const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+                    return (
+                      <TableRow key={s.id}>
+                        <TableCell className="sticky left-0 z-10 bg-card">
+                          <div className="text-sm font-medium truncate">{s.full_name}</div>
+                          <div className="text-xs text-muted-foreground truncate">
+                            {s.institutional_email}
+                          </div>
+                        </TableCell>
+                        {sessions.map((sess) => {
+                          const status = getStatus(sess.id, s.id);
+                          return (
+                            <TableCell
+                              key={sess.id}
+                              className={`text-center p-1 ${
+                                cutBoundaryIds.has(sess.id) ? "border-l-2 border-l-primary/40" : ""
+                              }`}
+                            >
+                              <Select
+                                value={status || "none"}
+                                onValueChange={(v) => setAttendance(sess.id, s.id, v)}
+                              >
+                                <SelectTrigger
+                                  className={`h-8 w-12 mx-auto text-xs font-bold px-1.5 [&>svg]:h-3 [&>svg]:w-3 ${status === "presente" ? "text-success border-success/40" : status === "ausente" ? "text-destructive border-destructive/40" : ""}`}
+                                >
+                                  <SelectValue placeholder="—" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">
+                                    <span className="text-muted-foreground text-xs">—</span>
+                                  </SelectItem>
+                                  {STATUS_OPTIONS.map((opt) => (
+                                    <SelectItem key={opt.value} value={opt.value}>
+                                      <span className={`text-xs font-bold ${opt.color}`}>
+                                        {opt.short}
+                                      </span>
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          );
+                        })}
+                        <TableCell className="text-center">
+                          <Badge
+                            variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
+                            className="text-3xs"
+                          >
+                            {pct}%
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* New session dialog */}
+        <Dialog
+          open={newSessionOpen}
+          onOpenChange={newSessionDirty.guardOpenChange(setNewSessionOpen)}
+        >
+          <DialogContent
+            className="max-w-[calc(100vw-2rem)] sm:max-w-sm"
+            data-tour-id="dialog-session"
+          >
+            <DialogHeader>
+              <DialogTitle>{t("teacherAttendance.newSessionDialogTitle")}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div data-tour-id="session-field-date">
+                <Label required>{t("teacherAttendance.dateLabel")}</Label>
+                <DatePicker value={newDate} onChange={setNewDate} />
+              </div>
+              {/* Hora inicio + fin — el docente piensa en "9:00-10:30",
+                  no "90 min". Al guardar derivamos duration = end - start
+                  para alimentar la sincronización a Google Calendar (que
+                  consume duration_minutes). Mobile-first: 1 col en xs
+                  (inputs time se ven completos sin truncar), 2 en sm+. */}
+              <div
+                className="grid grid-cols-1 sm:grid-cols-2 gap-2"
+                data-tour-id="session-field-time"
+              >
+                <div>
+                  <Label>
+                    {t("teacherAttendance.startTimeLabel")}{" "}
+                    <HelpHint>{t("help.startTimeTimezoneHint")}</HelpHint>
+                  </Label>
+                  <Input
+                    type="time"
+                    value={newStartTime}
+                    onChange={(e) => setNewStartTime(e.target.value)}
+                  />
                 </div>
-                {checkInExtraSessions.size > 0 && (
-                  <div className="flex items-start justify-between gap-2">
-                    {/* Token semántico y no un hue crudo de Tailwind: con
-                        `amber-600` una institución de marca ámbar no distingue
-                        el aviso del resto de la tarjeta (P3 del CLAUDE.md). */}
-                    <p className="text-2xs leading-tight text-warning-on-subtle">
-                      {t("teacherAttendance.multiSessionWarn", {
-                        count: checkInExtraSessions.size + 1,
-                      })}
-                    </p>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 shrink-0 px-2 text-2xs"
-                      onClick={() => setCheckInExtraSessions(new Set())}
-                    >
-                      {t("common.clear")}
-                    </Button>
-                  </div>
+                <div>
+                  <Label>{t("teacherAttendance.endTimeLabel")}</Label>
+                  <Input
+                    type="time"
+                    value={newEndTime}
+                    onChange={(e) => setNewEndTime(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div data-tour-id="session-field-title">
+                <Label>{t("teacherAttendance.titleOptionalLabel")}</Label>
+                <Input
+                  value={newTitle}
+                  onChange={(e) => setNewTitle(e.target.value)}
+                  placeholder={t("teacherAttendance.titlePlaceholder")}
+                />
+              </div>
+              <div data-tour-id="session-field-type">
+                <Label>{t("sessionType.label")}</Label>
+                <Select
+                  value={newSessionType}
+                  onValueChange={(v) => setNewSessionType(v as SessionType)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {SESSION_TYPES.map((st) => (
+                      <SelectItem key={st} value={st}>
+                        {t(`sessionType.${st}`)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {newSessionType === "autonoma" && (
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    {t("sessionType.autonomaHint")}
+                  </p>
                 )}
               </div>
-            )}
-
-            {/* Debilita un control de fraude, así que se elige a conciencia y
-                el texto dice exactamente qué se gana y qué se pierde. */}
-            <div className="rounded-md border p-3 flex items-start justify-between gap-3">
-              <div className="min-w-0">
-                <Label htmlFor="checkin-email-only" className="cursor-pointer">
-                  {t("teacherAttendance.emailOnlyLabel")}
+              <div data-tour-id="session-field-cut">
+                <Label>
+                  {t("teacherAttendance.cutLabel")} <HelpHint>{t("help.cutSelectionHelp")}</HelpHint>
                 </Label>
-                <p className="text-xs text-muted-foreground mt-1">
-                  {t("teacherAttendance.emailOnlyHint")}
+                <Select
+                  value={newCutId || "__none"}
+                  onValueChange={(v) => setNewCutId(v === "__none" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("teacherAttendance.noCut")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">{t("teacherAttendance.noCut")}</SelectItem>
+                    {cuts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {cuts.length === 0 && (
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    {t("teacherAttendance.noCutsDefined")}
+                  </p>
+                )}
+              </div>
+              <div className="border-t pt-3 space-y-2">
+                <Label>
+                  {t("teacherAttendance.recordingOptionalLabel")}{" "}
+                  <HelpHint>{t("help.recordingOptionsHelp")}</HelpHint>
+                </Label>
+                <Input
+                  value={newRecordingUrl}
+                  onChange={(e) => setNewRecordingUrl(e.target.value)}
+                  placeholder={t("teacherAttendance.recordingUrlPlaceholder")}
+                />
+                <Select
+                  value={newRecordingVideoId || "__none"}
+                  onValueChange={(v) => setNewRecordingVideoId(v === "__none" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("teacherAttendance.libraryVideoPlaceholder")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
+                    {sessionVideos.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="border-t pt-3 space-y-2">
+                <Label>
+                  {t("attendance.notesUrlLabel", {
+                    defaultValue: "Enlace de notas / minuta (opcional)",
+                  })}{" "}
+                  <HelpHint>
+                    {t("attendance.notesUrlHelp", {
+                      defaultValue:
+                        "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
+                    })}
+                  </HelpHint>
+                </Label>
+                <Input
+                  value={newNotesUrl}
+                  onChange={(e) => setNewNotesUrl(e.target.value)}
+                  placeholder={t("teacherAttendance.notesUrlPlaceholder")}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setNewSessionOpen(false)}
+                disabled={creatingSession}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button onClick={() => void createSession()} disabled={creatingSession}>
+                {creatingSession ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : (
+                  <Plus className="h-4 w-4 mr-1" />
+                )}
+                {t("teacherAttendance.create")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog de edición de grabación para sesiones existentes */}
+        <Dialog
+          open={!!recordingEditSession}
+          onOpenChange={(o) => !o && setRecordingEditSession(null)}
+        >
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {t("attendance.editRecordingNotesTitle", {
+                  defaultValue: "Editar grabación / notas",
+                })}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <Label>{t("teacherAttendance.externalLinkLabel")}</Label>
+                <Input
+                  value={recordingEditUrl}
+                  onChange={(e) => setRecordingEditUrl(e.target.value)}
+                  placeholder="https://…"
+                />
+              </div>
+              <div>
+                <Label>{t("teacherAttendance.libraryVideoLabel")}</Label>
+                <Select
+                  value={recordingEditVideoId || "__none"}
+                  onValueChange={(v) => setRecordingEditVideoId(v === "__none" ? "" : v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder={t("teacherAttendance.noLibraryVideo")} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none">{t("teacherAttendance.noLibraryVideo")}</SelectItem>
+                    {sessionVideos.map((v) => (
+                      <SelectItem key={v.id} value={v.id}>
+                        {v.title}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-2xs text-muted-foreground mt-1">
+                  {t("teacherAttendance.uploadVideoHint")}
                 </p>
+              </div>
+              <div className="border-t pt-3">
+                <Label>
+                  {t("attendance.notesUrlLabel", {
+                    defaultValue: "Enlace de notas / minuta (opcional)",
+                  })}{" "}
+                  <HelpHint>
+                    {t("attendance.notesUrlHelp", {
+                      defaultValue:
+                        "Enlace a las notas de reunión o minuta (Google Docs, Notion…). Al vincular con Google Calendar se trae automáticamente. Se abre en una pestaña nueva.",
+                    })}
+                  </HelpHint>
+                </Label>
+                <Input
+                  value={notesEditUrl}
+                  onChange={(e) => setNotesEditUrl(e.target.value)}
+                  placeholder={t("teacherAttendance.notesUrlPlaceholder")}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setRecordingEditSession(null)}
+                disabled={savingRecording}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button onClick={() => void saveRecordingEdit()} disabled={savingRecording}>
+                {savingRecording && <Spinner size="sm" className="mr-1" />}
+                {t("common.save")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Check-in config dialog — el MISMO en modo abrir y en modo ajustar.
+            En ajuste desaparece el campo "Abre" (la apertura no se mueve: es el
+            ancla del tope de la ventana y del "todavía no empezó" del alumno) y
+            aparecen los avisos de lo que el cambio le hace a la clase. */}
+        <Dialog
+          open={!!checkInConfigSession || !!checkInAjusteSession}
+          onOpenChange={(o) => {
+            if (o) return;
+            setCheckInConfigSession(null);
+            setCheckInExtraSessions(new Set());
+            setCheckInAjusteSession(null);
+            setCheckInPrev(null);
+          }}
+        >
+          <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {checkInAjusteSession
+                  ? t("teacherAttendance.adjustCheckInTitle")
+                  : t("teacherAttendance.startCheckInQr")}
+              </DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {checkInAjusteSession
+                  ? t("teacherAttendance.adjustCheckInDescription")
+                  : t("teacherAttendance.checkInConfigDescription")}
+              </p>
+              {/* Fechas, no minutos: ver el comentario de `checkInOpensAt`.
+                  Vacías = ahora + 10 min, que resuelve el servidor. */}
+              <div
+                className={cn("grid grid-cols-1 gap-2", !checkInAjusteSession && "sm:grid-cols-2")}
+              >
+                {checkInAjusteSession ? (
+                  checkInPrev && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("teacherAttendance.adjustOpenedAtLabel", {
+                        time: formatTime(checkInPrev.opensAt),
+                      })}
+                    </p>
+                  )
+                ) : (
+                  <div>
+                    <Label>
+                      {t("teacherAttendance.checkInOpensAtLabel")}{" "}
+                      <HelpHint>{t("help.checkinOpensAtHelp")}</HelpHint>
+                    </Label>
+                    <DateTimePicker
+                      value={checkInOpensAt}
+                      onChange={(v) => {
+                        setCheckInOpensAt(v);
+                        // El cierre sigue a la apertura solo si el docente no lo
+                        // tocó (ver `checkInClosesTouched`).
+                        if (!checkInClosesTouched) {
+                          const c = recomputeClosesAt(v, checkInHours);
+                          if (c) setCheckInClosesAt(c);
+                        }
+                      }}
+                    />
+                  </div>
+                )}
+                <div>
+                  <Label>
+                    {t("teacherAttendance.checkInClosesAtLabel")}{" "}
+                    <HelpHint>{t("help.checkinClosesAtHelp")}</HelpHint>
+                  </Label>
+                  <DateTimePicker
+                    value={checkInClosesAt}
+                    onChange={(v) => {
+                      setCheckInClosesAt(v);
+                      setCheckInClosesTouched(true);
+                    }}
+                  />
+                  {/* El cierre en el pasado es IRREVERSIBLE: tres mecanismos
+                      distintos borran el estado del check-in cuando la ventana
+                      vence, y con él se va el código. Para terminar ahora está
+                      "Cerrar check-in". */}
+                  {checkInAjusteSession && cierreCheckInPasado && (
+                    <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                      {t("teacherAttendance.adjustClosesMustBeFuture")}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <Label>
+                  {t("teacherAttendance.codeRotationLabel")}{" "}
+                  <HelpHint>{t("help.checkinRotationHelp")}</HelpHint>
+                </Label>
+                {/* 0 = código FIJO toda la ventana. No se clampea hacia arriba a
+                    15: escribir 0 ES la forma de pedir el modo fijo. */}
+                {/* El campo está en MINUTOS y el estado sigue en segundos, que es lo
+                    que guarda la columna.
+
+                    Y el texto se mantiene aparte a propósito: antes el valor se
+                    clampeaba en CADA tecla, así que escribir «5» lo convertía en
+                    el mínimo y el siguiente dígito construía otro número. Tipear
+                    500 daba 1500 — no era un tope, era que no se podía escribir.
+                    El clamp corre al salir del campo, cuando el número ya está
+                    completo. */}
+                <Input
+                  type="number"
+                  min={0}
+                  value={rotacionTexto}
+                  onChange={(e) => setRotacionTexto(e.target.value)}
+                  onBlur={() => {
+                    const min = rotacionTexto.trim() === "" ? 0 : Number(rotacionTexto);
+                    if (!Number.isFinite(min) || min <= 0) {
+                      // 0 = código FIJO toda la ventana. Escribirlo ES pedir ese
+                      // modo, así que no se sube al mínimo.
+                      setCheckInRotation(0);
+                      setRotacionTexto("0");
+                      return;
+                    }
+                    const segundos = Math.min(
+                      ATTENDANCE_CODE_ROTATION_MAX,
+                      Math.max(60, Math.round(min) * 60),
+                    );
+                    setCheckInRotation(segundos);
+                    setRotacionTexto(String(Math.round(segundos / 60)));
+                  }}
+                />
+                {checkInRotation === 0 ? (
+                  <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                    {t("teacherAttendance.rotationZeroWarning")}
+                  </p>
+                ) : (
+                  rotacionQuedaraFija && (
+                    <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                      {t("teacherAttendance.rotationLongerThanWindow")}
+                    </p>
+                  )
+                )}
+                {/* El ÚNICO campo del ajuste que cambia el código proyectado. Se
+                    avisa acá, se vuelve a confirmar al guardar, y el toast final
+                    pide que la clase lo vuelva a leer. Los otros tres campos no
+                    lo tocan, así que no llevan aviso. */}
                 {checkInAjusteSession &&
                   checkInPrev &&
-                  checkInEmailOnly !== checkInPrev.emailOnly && (
+                  checkInRotation !== checkInPrev.rotationSeconds && (
                     <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
-                      {t("teacherAttendance.emailOnlyChangeReloadHint")}
+                      {t("teacherAttendance.rotationChangeInvalidatesCode")}
                     </p>
                   )}
               </div>
-              <Switch
-                id="checkin-email-only"
-                checked={checkInEmailOnly}
-                onCheckedChange={setCheckInEmailOnly}
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setCheckInConfigSession(null);
-                setCheckInExtraSessions(new Set());
-                setCheckInAjusteSession(null);
-                setCheckInPrev(null);
-              }}
-              disabled={startingCheckIn}
-            >
-              {t("common.cancel")}
-            </Button>
-            <Button
-              onClick={() => void startCheckIn()}
-              disabled={
-                startingCheckIn ||
-                // En ajuste: nada que guardar, o un cierre que el servidor va a
-                // rechazar. Al abrir se mantiene tal cual estaba.
-                (!!checkInAjusteSession &&
-                  (!checkInReqsCargados || !checkInHuboCambios || cierreCheckInPasado))
-              }
-              title={
-                checkInAjusteSession && !checkInHuboCambios && !cierreCheckInPasado
-                  ? t("teacherAttendance.adjustNoChanges")
-                  : undefined
-              }
-            >
-              {startingCheckIn ? (
-                <Spinner size="sm" className="mr-1" />
-              ) : checkInAjusteSession ? (
-                <SlidersHorizontal className="h-4 w-4 mr-1" />
-              ) : (
-                <QrCode className="h-4 w-4 mr-1" />
+              {/* ── Requisitos para marcar asistencia ─────────────────────────
+                  Se pueden exigir VARIOS: el caso real es la encuesta de bienestar Y
+                  la firma del acuerdo pedagógico. Los que están en borrador o
+                  cerrados se listan DESHABILITADOS — esconderlos deja al docente
+                  buscando por qué su taller no aparece, y exigirlos sería un bloqueo
+                  que el estudiante no puede resolver. */}
+              <div className="rounded-md border p-3 space-y-2">
+                <Label>
+                  {t("teacherAttendance.reqLabel")}{" "}
+                  <HelpHint>{t("teacherAttendance.reqHelp")}</HelpHint>
+                </Label>
+                {checkInReqLoading ? (
+                  <p className="text-2xs text-muted-foreground">{t("common.loading")}</p>
+                ) : checkInReqItems.length === 0 ? (
+                  <p className="text-2xs text-muted-foreground">{t("teacherAttendance.reqEmpty")}</p>
+                ) : (
+                  <div className="max-h-48 overflow-y-auto space-y-2">
+                    {(["poll", "report_signature", "workshop", "project", "exam"] as const).map(
+                      (kind) => {
+                        const grupo = checkInReqItems.filter((x) => x.kind === kind);
+                        if (grupo.length === 0) return null;
+                        return (
+                          <div key={kind} className="space-y-1">
+                            <p className="text-2xs font-medium text-muted-foreground">
+                              {t(`teacherAttendance.reqKind_${kind}`)}
+                            </p>
+                            {grupo.map((x) => {
+                              const valor = `${x.kind}:${x.id}`;
+                              return (
+                                <label
+                                  key={valor}
+                                  className={cn(
+                                    "flex items-start gap-2 rounded p-1 text-sm",
+                                    x.disponible
+                                      ? "cursor-pointer hover:bg-accent"
+                                      : "opacity-60 cursor-not-allowed",
+                                  )}
+                                >
+                                  <Checkbox
+                                    className="mt-0.5"
+                                    checked={checkInReqs.has(valor)}
+                                    disabled={!x.disponible}
+                                    onCheckedChange={(v) => {
+                                      setCheckInReqs((prev) => {
+                                        const next = new Set(prev);
+                                        if (v) next.add(valor);
+                                        else next.delete(valor);
+                                        return next;
+                                      });
+                                      const sessDialogo =
+                                        checkInAjusteSession ?? checkInConfigSession;
+                                      if (sessDialogo) {
+                                        void contarCumplimiento(
+                                          sessDialogo.course_id,
+                                          v ? valor : "",
+                                        );
+                                      }
+                                    }}
+                                  />
+                                  <span className="min-w-0">
+                                    <span className="block truncate">{x.title}</span>
+                                    {!x.disponible && x.motivo && (
+                                      <span className="block text-2xs text-muted-foreground">
+                                        {x.motivo}
+                                      </span>
+                                    )}
+                                  </span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                )}
+                {checkInReqCumplen && (
+                  <p
+                    className={cn(
+                      "text-2xs",
+                      checkInReqCumplen.ok < checkInReqCumplen.total
+                        ? "text-amber-600 dark:text-amber-400"
+                        : "text-emerald-600 dark:text-emerald-400",
+                    )}
+                  >
+                    {t("teacherAttendance.reqProgress", {
+                      ok: checkInReqCumplen.ok,
+                      total: checkInReqCumplen.total,
+                    })}
+                  </p>
+                )}
+                {checkInReqs.size > 0 && !checkInAjusteSession && (
+                  <label className="flex items-start gap-2 text-xs cursor-pointer">
+                    <Checkbox
+                      checked={checkInReqFuturas}
+                      onCheckedChange={(v) => setCheckInReqFuturas(!!v)}
+                      className="mt-0.5"
+                    />
+                    <span>
+                      {t("teacherAttendance.reqFuturas")}
+                      <span className="block text-2xs text-muted-foreground">
+                        {t("teacherAttendance.reqFuturasHint")}
+                      </span>
+                    </span>
+                  </label>
+                )}
+              </div>
+
+              {/* Un solo código para VARIAS sesiones. Solo al ABRIR: ajustar
+                  re-abriría las hermanas con otra semilla e invalidaría el código
+                  que la clase está mirando.
+
+                  Se ofrecen primero las del MISMO DÍA porque ese es el caso real
+                  (un bloque de tres horas partido en dos o tres sesiones); el
+                  resto del curso queda abajo para el caso de recuperar una clase.
+                  No se muestra si el curso no tiene otra sesión. */}
+              {!checkInAjusteSession && candidatasCheckInMultiple.length > 0 && (
+                <div className="rounded-md border p-3 space-y-2">
+                  {/* CUÁNTAS clases va a cubrir el código, arriba y siempre
+                      visible. Antes ese número vivía en un párrafo al FINAL,
+                      debajo de una lista que scrollea: el docente tenía que bajar
+                      para enterarse de en cuántas clases va a quedar asistencia,
+                      que es justo la decisión que está tomando. */}
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-start gap-1.5 min-w-0">
+                      <Label className="cursor-default">
+                        {t("teacherAttendance.multiSessionLabel")}
+                      </Label>
+                      <HelpHint>{t("teacherAttendance.multiSessionHint")}</HelpHint>
+                    </div>
+                    <span
+                      className={
+                        checkInExtraSessions.size > 0
+                          ? "shrink-0 rounded-md bg-primary/15 px-2 py-0.5 text-2xs font-medium tabular-nums text-primary"
+                          : "shrink-0 text-2xs tabular-nums text-muted-foreground"
+                      }
+                    >
+                      {t("teacherAttendance.multiSessionCount", {
+                        count: checkInExtraSessions.size + 1,
+                      })}
+                    </span>
+                  </div>
+                  <div className="max-h-40 space-y-0.5 overflow-y-auto">
+                    {candidatasCheckInMultiple.map((s) => {
+                      const mismoDia = s.session_date === sesionCheckInActual?.session_date;
+                      // Una línea por clase, con la fecha en columna propia y
+                      // cifras de ancho fijo: así se barren alineadas en vez de
+                      // correrse según el largo del título. Mismo criterio y mismo
+                      // helper que la pantalla pública — los títulos de los cursos
+                      // reales llegan a 140 caracteres.
+                      const titulo = resumirTituloDeSesion(s.title);
+                      return (
+                        <label
+                          key={s.id}
+                          className="flex cursor-pointer items-center gap-2 rounded px-1 py-1 text-xs hover:bg-accent"
+                        >
+                          <Checkbox
+                            className="shrink-0"
+                            checked={checkInExtraSessions.has(s.id)}
+                            onCheckedChange={(v) =>
+                              setCheckInExtraSessions((prev) => {
+                                const next = new Set(prev);
+                                if (v) next.add(s.id);
+                                else next.delete(s.id);
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="w-12 shrink-0 text-2xs tabular-nums text-muted-foreground">
+                            {formatDateOnlyShort(s.session_date)}
+                          </span>
+                          <span className="min-w-0 flex-1 truncate" title={titulo?.completo}>
+                            {titulo?.corto ?? t("teacherAttendance.sessionNoTitle")}
+                          </span>
+                          {mismoDia && (
+                            <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-3xs text-muted-foreground">
+                              {t("teacherAttendance.multiSessionSameDay")}
+                            </span>
+                          )}
+                        </label>
+                      );
+                    })}
+                  </div>
+                  {checkInExtraSessions.size > 0 && (
+                    <div className="flex items-start justify-between gap-2">
+                      {/* Token semántico y no un hue crudo de Tailwind: con
+                          `amber-600` una institución de marca ámbar no distingue
+                          el aviso del resto de la tarjeta (P3 del CLAUDE.md). */}
+                      <p className="text-2xs leading-tight text-warning-on-subtle">
+                        {t("teacherAttendance.multiSessionWarn", {
+                          count: checkInExtraSessions.size + 1,
+                        })}
+                      </p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 shrink-0 px-2 text-2xs"
+                        onClick={() => setCheckInExtraSessions(new Set())}
+                      >
+                        {t("common.clear")}
+                      </Button>
+                    </div>
+                  )}
+                </div>
               )}
-              {checkInAjusteSession
-                ? t("teacherAttendance.adjustSave")
-                : t("teacherAttendance.start")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
-      {/* Programar sesiones del curso — mismo dialog que el módulo de
-          Contenidos, pero abierto SIN contenido (content=null). El
-          docente elige N sesiones, fecha de inicio y días de la semana. */}
-      <GenerateSessionsDialog
-        open={generateSessionsOpen}
-        content={null}
-        courseId={courseId}
-        onClose={() => setGenerateSessionsOpen(false)}
-        onCreated={() => {
-          setGenerateSessionsOpen(false);
-          void loadCourse();
-        }}
-      />
+              {/* Debilita un control de fraude, así que se elige a conciencia y
+                  el texto dice exactamente qué se gana y qué se pierde. */}
+              <div className="rounded-md border p-3 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <Label htmlFor="checkin-email-only" className="cursor-pointer">
+                    {t("teacherAttendance.emailOnlyLabel")}
+                  </Label>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("teacherAttendance.emailOnlyHint")}
+                  </p>
+                  {checkInAjusteSession &&
+                    checkInPrev &&
+                    checkInEmailOnly !== checkInPrev.emailOnly && (
+                      <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                        {t("teacherAttendance.emailOnlyChangeReloadHint")}
+                      </p>
+                    )}
+                </div>
+                <Switch
+                  id="checkin-email-only"
+                  checked={checkInEmailOnly}
+                  onCheckedChange={setCheckInEmailOnly}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setCheckInConfigSession(null);
+                  setCheckInExtraSessions(new Set());
+                  setCheckInAjusteSession(null);
+                  setCheckInPrev(null);
+                }}
+                disabled={startingCheckIn}
+              >
+                {t("common.cancel")}
+              </Button>
+              <Button
+                onClick={() => void startCheckIn()}
+                disabled={
+                  startingCheckIn ||
+                  // En ajuste: nada que guardar, o un cierre que el servidor va a
+                  // rechazar. Al abrir se mantiene tal cual estaba.
+                  (!!checkInAjusteSession &&
+                    (!checkInReqsCargados || !checkInHuboCambios || cierreCheckInPasado))
+                }
+                title={
+                  checkInAjusteSession && !checkInHuboCambios && !cierreCheckInPasado
+                    ? t("teacherAttendance.adjustNoChanges")
+                    : undefined
+                }
+              >
+                {startingCheckIn ? (
+                  <Spinner size="sm" className="mr-1" />
+                ) : checkInAjusteSession ? (
+                  <SlidersHorizontal className="h-4 w-4 mr-1" />
+                ) : (
+                  <QrCode className="h-4 w-4 mr-1" />
+                )}
+                {checkInAjusteSession
+                  ? t("teacherAttendance.adjustSave")
+                  : t("teacherAttendance.start")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
-      {/* Projector overlay */}
-      {projector && (
-        <AttendanceCheckInProjector
-          state={projector}
-          onClose={closeProjector}
-          // El padre es dueño del estado del proyector: sin propagar el nuevo
-          // cierre, extender movería el contador de adentro pero al re-montar
-          // (o al recalcular) volvería el vencimiento viejo.
-          onExtended={(closesAt) => setProjector((p) => (p ? { ...p, closesAt } : p))}
-          // Salir SIN cerrar el check-in: solo se desmonta el proyector. No hay
-          // RPC de cierre ni el diálogo de "marcar ausentes" — el check-in sigue
-          // abierto recibiendo marcaciones y se puede volver a proyectar. Antes
-          // la única salida era el botón rojo, así que el docente tenía que
-          // dejar la pantalla puesta todo el tiempo.
-          onExit={() => {
-            setProjector(null);
+        {/* Programar sesiones del curso — mismo dialog que el módulo de
+            Contenidos, pero abierto SIN contenido (content=null). El
+            docente elige N sesiones, fecha de inicio y días de la semana. */}
+        <GenerateSessionsDialog
+          open={generateSessionsOpen}
+          content={null}
+          courseId={courseId}
+          onClose={() => setGenerateSessionsOpen(false)}
+          onCreated={() => {
+            setGenerateSessionsOpen(false);
             void loadCourse();
-            toast.success(
-              i18n.t("toast.routes_app_teacher_attendance.checkinStillOpen", {
-                defaultValue:
-                  "Saliste de la proyección. El check-in sigue abierto y los estudiantes pueden marcar.",
-              }),
-            );
-          }}
-          // Ajustar el check-in en curso sin cerrarlo: abre el MISMO diálogo de
-          // configuración en modo ajuste. La sesión se resuelve del listado
-          // porque el proyector solo guarda el id.
-          // Las DOS ramas del mismo diálogo, no solo la de ajuste: hoy la de
-          // configuración no se abre desde el proyector, pero si algún día lo
-          // hace, el proyector se quedaría arriba y volvería el bug del
-          // calendario inalcanzable. El flag describe «hay un diálogo encima»,
-          // no «se está ajustando».
-          ajustando={!!checkInAjusteSession || !!checkInConfigSession}
-          onAjustar={() => {
-            const sess = sessions.find((x) => x.id === projector.sessionId);
-            if (!sess) {
-              // El listado no la tiene (se filtró, o se borró en otra pestaña).
-              toast.error(t("teacherAttendance.errSessionNotFound"));
-              return;
-            }
-            void openCheckInAjuste(sess);
-          }}
-          // El sondeo del proyector reconcilia contra la base: si el check-in se
-          // ajustó o se reabrió en otra pantalla, el código de acá se actualiza
-          // en vez de quedarse mostrando uno que el servidor ya rechaza.
-          onEstadoRemoto={(remoto) => {
-            if (!remoto) {
-              // Cerrado en otra pantalla: se desmonta sin el diálogo de
-              // "marcar ausentes", que es una decisión de quien lo cerró.
-              setProjector(null);
-              void loadCourse();
-              toast.info(
-                i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedElsewhere"),
-              );
-              return;
-            }
-            setProjector((p) => {
-              if (!p) return p;
-              const igual =
-                p.seed === remoto.seed &&
-                p.rotationSeconds === remoto.rotationSeconds &&
-                p.closesAt === remoto.closesAt &&
-                p.emailOnly === remoto.emailOnly;
-              if (igual) return p;
-              if (p.seed !== remoto.seed) {
-                toast.info(
-                  i18n.t("toast.modules_attendance_AttendanceCheckInProjector.reopenedElsewhere"),
-                  { duration: 10000 },
-                );
-              }
-              return { ...p, ...remoto };
-            });
           }}
         />
-      )}
 
-      {/* Encuesta en vivo durante una sesión. courseId viene del state
-          del componente (la pantalla siempre opera sobre un curso
-          seleccionado); attendanceSessionId del session seleccionado
-          desde el dropdown. La encuesta queda ligada a la sesión para
-          que el alumno la vea destacada en /app/student/polls. */}
-      <LaunchPollDialog
-        open={Boolean(pollLaunchSession)}
-        onOpenChange={(open) => !open && setPollLaunchSession(null)}
-        courseId={courseId}
-        attendanceSessionId={pollLaunchSession?.id ?? null}
-        sessionLabel={
-          pollLaunchSession
-            ? `${pollLaunchSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(pollLaunchSession.session_date + "T12:00:00")}`
-            : undefined
-        }
-        onCreated={() => setPollLaunchSession(null)}
-      />
-      {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
-          Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
-      <SessionWhiteboardDialog
-        sessionId={whiteboardSession?.id ?? null}
-        sessionLabel={
-          whiteboardSession
-            ? `${whiteboardSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(whiteboardSession.session_date + "T12:00:00")}`
-            : undefined
-        }
-        onOpenChange={(open) => !open && setWhiteboardSession(null)}
-      />
-      {/* Duplicar sesión — elige qué info interna copiar. La copia nace en la
-          misma fecha (el docente la reubica) sin asistencia ni grabación. */}
-      <DuplicateOptionsDialog
-        open={duplicateSessionFor !== null}
-        onOpenChange={(open) => !open && setDuplicateSessionFor(null)}
-        title={t("teacherAttendance.duplicateSession")}
-        description={
-          <Trans
-            i18nKey="teacherAttendance.duplicateDialogDescription"
-            components={{ strong: <strong /> }}
+        {/* Projector overlay */}
+        {projector && (
+          <AttendanceCheckInProjector
+            state={projector}
+            onClose={closeProjector}
+            // El padre es dueño del estado del proyector: sin propagar el nuevo
+            // cierre, extender movería el contador de adentro pero al re-montar
+            // (o al recalcular) volvería el vencimiento viejo.
+            onExtended={(closesAt) => setProjector((p) => (p ? { ...p, closesAt } : p))}
+            // Salir SIN cerrar el check-in: solo se desmonta el proyector. No hay
+            // RPC de cierre ni el diálogo de "marcar ausentes" — el check-in sigue
+            // abierto recibiendo marcaciones y se puede volver a proyectar. Antes
+            // la única salida era el botón rojo, así que el docente tenía que
+            // dejar la pantalla puesta todo el tiempo.
+            onExit={() => {
+              setProjector(null);
+              void loadCourse();
+              toast.success(
+                i18n.t("toast.routes_app_teacher_attendance.checkinStillOpen", {
+                  defaultValue:
+                    "Saliste de la proyección. El check-in sigue abierto y los estudiantes pueden marcar.",
+                }),
+              );
+            }}
+            // Ajustar el check-in en curso sin cerrarlo: abre el MISMO diálogo de
+            // configuración en modo ajuste. La sesión se resuelve del listado
+            // porque el proyector solo guarda el id.
+            // Las DOS ramas del mismo diálogo, no solo la de ajuste: hoy la de
+            // configuración no se abre desde el proyector, pero si algún día lo
+            // hace, el proyector se quedaría arriba y volvería el bug del
+            // calendario inalcanzable. El flag describe «hay un diálogo encima»,
+            // no «se está ajustando».
+            ajustando={!!checkInAjusteSession || !!checkInConfigSession}
+            onAjustar={() => {
+              const sess = sessions.find((x) => x.id === projector.sessionId);
+              if (!sess) {
+                // El listado no la tiene (se filtró, o se borró en otra pestaña).
+                toast.error(t("teacherAttendance.errSessionNotFound"));
+                return;
+              }
+              void openCheckInAjuste(sess);
+            }}
+            // El sondeo del proyector reconcilia contra la base: si el check-in se
+            // ajustó o se reabrió en otra pantalla, el código de acá se actualiza
+            // en vez de quedarse mostrando uno que el servidor ya rechaza.
+            onEstadoRemoto={(remoto) => {
+              if (!remoto) {
+                // Cerrado en otra pantalla: se desmonta sin el diálogo de
+                // "marcar ausentes", que es una decisión de quien lo cerró.
+                setProjector(null);
+                void loadCourse();
+                toast.info(
+                  i18n.t("toast.modules_attendance_AttendanceCheckInProjector.closedElsewhere"),
+                );
+                return;
+              }
+              setProjector((p) => {
+                if (!p) return p;
+                const igual =
+                  p.seed === remoto.seed &&
+                  p.rotationSeconds === remoto.rotationSeconds &&
+                  p.closesAt === remoto.closesAt &&
+                  p.emailOnly === remoto.emailOnly;
+                if (igual) return p;
+                if (p.seed !== remoto.seed) {
+                  toast.info(
+                    i18n.t("toast.modules_attendance_AttendanceCheckInProjector.reopenedElsewhere"),
+                    { duration: 10000 },
+                  );
+                }
+                return { ...p, ...remoto };
+              });
+            }}
           />
-        }
-        options={[
-          {
-            param: "copyContent",
-            label: t("teacherAttendance.duplicateCopyContent"),
-            hint: t("teacherAttendance.duplicateCopyContentHint"),
-          },
-          {
-            param: "copyWhiteboard",
-            label: t("teacherAttendance.duplicateCopyWhiteboard"),
-            hint: t("teacherAttendance.duplicateCopyWhiteboardHint"),
-          },
-          {
-            param: "copySnippets",
-            label: t("teacherAttendance.duplicateCopySnippets"),
-            hint: t("teacherAttendance.duplicateCopySnippetsHint"),
-          },
-        ]}
-        onConfirm={async (flags) => {
-          if (duplicateSessionFor)
-            await duplicateSession(duplicateSessionFor, {
-              copyContent: flags.copyContent !== false,
-              copyWhiteboard: flags.copyWhiteboard !== false,
-              copySnippets: flags.copySnippets !== false,
-            });
-        }}
-      />
+        )}
+
+        {/* Encuesta en vivo durante una sesión. courseId viene del state
+            del componente (la pantalla siempre opera sobre un curso
+            seleccionado); attendanceSessionId del session seleccionado
+            desde el dropdown. La encuesta queda ligada a la sesión para
+            que el alumno la vea destacada en /app/student/polls. */}
+        <LaunchPollDialog
+          open={Boolean(pollLaunchSession)}
+          onOpenChange={(open) => !open && setPollLaunchSession(null)}
+          courseId={courseId}
+          attendanceSessionId={pollLaunchSession?.id ?? null}
+          sessionLabel={
+            pollLaunchSession
+              ? `${pollLaunchSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(pollLaunchSession.session_date + "T12:00:00")}`
+              : undefined
+          }
+          onCreated={() => setPollLaunchSession(null)}
+        />
+        {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
+            Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
+        <SessionWhiteboardDialog
+          sessionId={whiteboardSession?.id ?? null}
+          sessionLabel={
+            whiteboardSession
+              ? `${whiteboardSession.title ?? t("teacherAttendance.defaultSessionTitle")} · ${formatDateShort(whiteboardSession.session_date + "T12:00:00")}`
+              : undefined
+          }
+          onOpenChange={(open) => !open && setWhiteboardSession(null)}
+        />
+        {/* Duplicar sesión — elige qué info interna copiar. La copia nace en la
+            misma fecha (el docente la reubica) sin asistencia ni grabación. */}
+        <DuplicateOptionsDialog
+          open={duplicateSessionFor !== null}
+          onOpenChange={(open) => !open && setDuplicateSessionFor(null)}
+          title={t("teacherAttendance.duplicateSession")}
+          description={
+            <Trans
+              i18nKey="teacherAttendance.duplicateDialogDescription"
+              components={{ strong: <strong /> }}
+            />
+          }
+          options={[
+            {
+              param: "copyContent",
+              label: t("teacherAttendance.duplicateCopyContent"),
+              hint: t("teacherAttendance.duplicateCopyContentHint"),
+            },
+            {
+              param: "copyWhiteboard",
+              label: t("teacherAttendance.duplicateCopyWhiteboard"),
+              hint: t("teacherAttendance.duplicateCopyWhiteboardHint"),
+            },
+            {
+              param: "copySnippets",
+              label: t("teacherAttendance.duplicateCopySnippets"),
+              hint: t("teacherAttendance.duplicateCopySnippetsHint"),
+            },
+          ]}
+          onConfirm={async (flags) => {
+            if (duplicateSessionFor)
+              await duplicateSession(duplicateSessionFor, {
+                copyContent: flags.copyContent !== false,
+                copyWhiteboard: flags.copyWhiteboard !== false,
+                copySnippets: flags.copySnippets !== false,
+              });
+          }}
+        />
+        </>
+      )}
     </div>
   );
 }

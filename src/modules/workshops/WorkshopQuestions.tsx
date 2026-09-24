@@ -2041,6 +2041,8 @@ export function StudentWorkshopTaker({
         /** Salida de ejecución / sesión de consola — se inyecta en el prompt
          *  de calificación (ej. transcript de la consola Linux de so_consola). */
         executionOutput?: string | null;
+    /** Plantilla del docente, aparte de la respuesta. */
+    plantilla?: string | null;
       }> = [];
       // Ceros DECLARADOS al servidor (sin puntaje y sin texto libre: el edge
       // redacta el mensaje a partir del código, así que un cliente manipulado
@@ -2345,6 +2347,11 @@ export function StudentWorkshopTaker({
               language:
                 q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
               framework: q.type === "java_gui" ? (opts?.java_framework ?? "swing") : undefined,
+              // La plantilla viaja APARTE para que el análisis de IA no se la
+              // atribuya al estudiante: sus comentarios («Escriba su solución
+              // aquí») venían subiendo la probabilidad de IA y son idénticos
+              // en la entrega de todo el curso.
+              plantilla: q.starter_code ?? undefined,
             });
           }
         }

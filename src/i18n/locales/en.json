@@ -6181,7 +6181,9 @@
     "errMixedCourses": "The sessions must belong to the same course. A code spanning courses would let a student mark attendance in a class they don't attend.",
     "errSessionAlreadyOpen": "One of the sessions you picked already has its own check-in open. Adding it to the group would change the code that class is using: close that check-in first, then open them together.",
     "multiSessionCount_other": "Covers {{count}} classes",
-    "multiSessionCount_one": "Covers {{count}} class"
+    "multiSessionCount_one": "Covers {{count}} class",
+    "pickCourseTitle": "Pick a course to start",
+    "pickCourseHint": "Use the selector above —or the period and subject filters— to choose which course you are working on. That way you avoid taking attendance in the wrong course."
   },
   "privacy": {
     "contents": "Contents",
@@ -10824,5 +10826,9 @@
     "terminado": "Preview finished. Nothing was saved and no grade was created.",
     "terminadoPorAdvertencias": "This is how a student's exam would close after too many warnings. Nothing was saved in the preview.",
     "volverAExamenes": "Back to Exams"
+  },
+  "seleccion": {
+    "masOpciones_one": "and 1 more in the selector above",
+    "masOpciones_other": "and {{count}} more in the selector above"
   }
 }
