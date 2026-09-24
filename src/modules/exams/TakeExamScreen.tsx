@@ -110,6 +110,11 @@ import {
   MS_ENTRE_LATIDOS,
 } from "@/modules/exams/exam-session";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
+import {
+  clasificarFalloDeEjecucion,
+  esReintentable,
+  esperaAntesDeReintentar,
+} from "@/modules/code/fallo-de-ejecucion";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { retryModeLabel, type RetryMode } from "@/modules/exams/exam-attempts";
 import { aiGradeOrEnqueue } from "@/modules/ai/ai-grading";
@@ -2190,10 +2195,49 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           // `{ error: "detalle..." }`), no el genérico
           // "Edge Function returned a non-2xx status code".
           const real = await extractEdgeError(error, data);
-          throw new Error(real || t("hc_routesAppStudentTakeExamId.errorRunningCode"));
+          const mensaje = real || t("hc_routesAppStudentTakeExamId.errorRunningCode");
+          // UN reintento, y solo para los dos fallos de CARGA que aparecieron
+          // en el parcial del 2026-09-23 (ver `fallo-de-ejecucion.ts`): la
+          // sesión que no se pudo validar y el proveedor sin capacidad. Los
+          // dos se arreglan solos; lo que no se arregla —un error de
+          // compilación, un bucle infinito— no se repite, porque daría lo
+          // mismo y quemaría capacidad que otro alumno necesita.
+          const tipo = clasificarFalloDeEjecucion(mensaje);
+          if (!esReintentable(tipo) || signal.aborted) throw new Error(mensaje);
+
+          if (tipo === "sesion") await db.auth.refreshSession();
+          const espera = esperaAntesDeReintentar(tipo);
+          if (espera > 0) await new Promise((r) => setTimeout(r, espera));
+          if (signal.aborted) throw new Error(CANCELLED_SENTINEL);
+
+          const reintento = await (Promise.race([
+            db.functions.invoke("execute-code", {
+              body: {
+                sourceCode: code,
+                language,
+                questionId,
+                submissionId: submissionIdRef.current,
+                ...(overrideForQuestion ? { provider: overrideForQuestion } : {}),
+              },
+            }),
+            cancelPromise,
+          ]) as Promise<Awaited<typeof invokePromise>>);
+          if (reintento.error) {
+            const realReintento = await extractEdgeError(reintento.error, reintento.data);
+            // Si insiste, se nombra la salida que el alumno tiene y no
+            // descubre solo en mitad de un parcial: cambiar de compilador.
+            throw new Error(
+              `${realReintento || mensaje}
+
+${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
+            );
+          }
+          stdout = reintento.data?.stdout ?? "";
+          stderr = reintento.data?.stderr ?? "";
+        } else {
+          stdout = data?.stdout ?? "";
+          stderr = data?.stderr ?? "";
         }
-        stdout = data?.stdout ?? "";
-        stderr = data?.stderr ?? "";
       }
 
       // Defense-in-depth: si el provider remoto devolvió el mensaje

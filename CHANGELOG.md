@@ -77,6 +77,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🧯 Lo que se cayó el 2026-09-23 fue el compilador, no la plataforma
+
+Diagnóstico del reporte «se cayó la plataforma, nuevamente hoy», con los datos del parcial de esa
+noche — el examen más masivo con compilador que tuvo el producto:
+
+- **340 ejecuciones de código en 90 minutos** (picos de 11 por minuto) con **4 fallos: 1,2%**. Las 22
+  entregas siguieron su curso normal y los Workers y Supabase respondieron todo el tiempo.
+- Los 4 fallos caen en la MISMA ventana de 6 minutos y por dos causas que **nunca habían aparecido**
+  en los 50 fallos previos del histórico —esos eran de configuración: credenciales sin poner, una URL
+  mal copiada—. Estas dos son de CARGA: `not having enough compute resources` de AWS Lambda (1) y
+  `No autenticado` (3).
+- **`No autenticado` no significa que el alumno no tuviera sesión.** El edge valida el token llamando
+  a `auth.getUser()`, o sea una ida a la red en el camino crítico del examen; si esa llamada falla o
+  el token vence justo ahí, el alumno ve «No autenticado» con su sesión perfectamente válida.
+
+Para el alumno en mitad de su parcial, el botón que no responde **es** que se cayó la plataforma. Así
+que ahora hay **un** reintento, solo para esos dos fallos ([fallo-de-ejecucion.ts](src/modules/code/fallo-de-ejecucion.ts)):
+refrescando la sesión en el primer caso y tras una pausa corta en el segundo, que es lo que los dos
+necesitan para resolverse solos. Lo que NO se arregla repitiendo —un error de compilación, un bucle
+infinito que agotó el tiempo— no se reintenta: daría lo mismo y quemaría capacidad que otro alumno
+necesita. Si el reintento también falla, el mensaje nombra la salida que el alumno ya tiene y no
+descubre solo en mitad de un parcial: **cambiar de compilador** con el selector de arriba del editor.
+
 ### ⏸️ Pausar un examen ahora puede decir POR QUÉ
 
 Pausar desde el monitor le tapaba la pantalla al estudiante con «el docente pausó el examen» y nada

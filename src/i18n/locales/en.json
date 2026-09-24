@@ -8430,7 +8430,8 @@
     "saveFailedHint": "The last autosave failed. Your answers are still on this device; check your connection.",
     "saveFailedBadge": "Unsaved",
     "submittingLabel": "Submitting…",
-    "pauseReasonFromTeacher": "Message from your teacher"
+    "pauseReasonFromTeacher": "Message from your teacher",
+    "tryAnotherRunner": "If it fails again, switch compilers using the selector above the editor and run it again. Your code and answers are saved."
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "We couldn't load the tutor for this course.",

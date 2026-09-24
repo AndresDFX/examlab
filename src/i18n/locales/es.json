@@ -8430,7 +8430,8 @@
     "saveFailedHint": "El último guardado automático falló. Tus respuestas siguen en este dispositivo; revisa tu conexión.",
     "saveFailedBadge": "Sin guardar",
     "submittingLabel": "Entregando…",
-    "pauseReasonFromTeacher": "Mensaje de tu docente"
+    "pauseReasonFromTeacher": "Mensaje de tu docente",
+    "tryAnotherRunner": "Si vuelve a fallar, cambia de compilador con el selector que está arriba del editor y ejecuta de nuevo. Tu código y tus respuestas están guardados."
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "No pudimos cargar el tutor de este curso.",

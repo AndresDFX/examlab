@@ -204,8 +204,9 @@ export function warningEventTimestamp(ev: WarningEvent): number | null {
  *  · En un computador, cambiar de ventana con alt+tab dispara `blur` y muchas
  *    veces NO dispara `visibilitychange` (lo documenta el propio listener de
  *    la pantalla de examen). Ahí el blur es la única señal y se conserva
- *    intacta. Además el menú contextual está bloqueado, así que las
- *    sugerencias del corrector ni siquiera se pueden abrir.
+ *    intacta — el corrector no lo dispara, porque sus sugerencias se abren
+ *    dentro de la misma ventana (ver `permiteMenuContextual`, que desde el
+ *    2026-09-23 permite ese menú sobre los campos de respuesta).
  *
  * Se exige puntero grueso Y ausencia de puntero fino a propósito: un portátil
  * con pantalla táctil tiene los dos, y ahí el alt+tab sigue siendo posible, así
