@@ -34,6 +34,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
+- **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
 - **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
@@ -74,6 +75,31 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🧮 Las preguntas de código ya no guardan la plantilla como si fuera la respuesta
+
+Reporte: «en las preguntas con compilador, si no hubo una compilación, el monitor no las está
+contando». **El criterio del monitor nunca fue la compilación** —ni ahí ni en el aviso al alumno se
+mira si ejecutó— sino si el texto **difiere de la plantilla**. Lo que no se contaba era otra cosa, y
+detrás había un bug de datos.
+
+- **`mergeStarterCodeAnswers` rellenaba toda pregunta de código vacía con la plantilla del editor.**
+  Su comentario decía que lo hacía «para que se detecte como respondida», pero esa regla **dejó de
+  existir** cuando el predicado se unificó en `src/modules/exams/answered.ts`: desde entonces la
+  plantilla intacta es lo contrario de una respuesta. O sea que el relleno no lograba su objetivo y
+  sí hacía daño.
+- **Corría al ABRIR el diálogo de entrega, no al entregar.** El alumno que lo abría y cancelaba
+  quedaba con la plantilla persistida por el autoguardado **sin haber escrito una letra**. En el
+  parcial que originó el reporte le pasó a tres alumnos que ni siquiera entregaron.
+- **Y esa plantilla viajaba a la IA como si fuera el código del alumno.** Una pregunta sin tocar
+  ahora llega **sin valor**, que es lo que de verdad pasó.
+- **El monitor distingue los dos modos de «en blanco»**, que para el docente significan cosas
+  opuestas y se veían igual: no haber llegado a la pregunta, o haber visto el editor y no escribir
+  nada. Lo segundo repetido en la MISMA pregunta no habla del alumno — habla del enunciado, del
+  lenguaje o del compilador. Va en el `title` de la celda «Respondidas», vía la función pura
+  `contarPlantillaIntacta`, y **no cambia el número**: contar la plantilla como respondida sería
+  volver al bug que el predicado unificado arregló (entregar con el editor intacto, en cero y sin
+  ninguna advertencia).
 
 ### 🧪 Simular un examen sin que dé nota
 

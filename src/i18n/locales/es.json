@@ -1228,6 +1228,8 @@
     "answeredHintBlank_one": "Entregó con 1 pregunta en blanco",
     "answeredHintBlank_other": "Entregó con {{count}} preguntas en blanco",
     "answeredHintNoBlanks": "Respondió todas",
+    "answeredHintTemplate_one": "1 quedó con la plantilla sin modificar",
+    "answeredHintTemplate_other": "{{count}} quedaron con la plantilla sin modificar",
     "title": "Monitor",
     "inProgress": "En progreso",
     "completed": "Completado",

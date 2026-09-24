@@ -43,10 +43,7 @@ import {
   currentProctoringGate,
 } from "@/shared/lib/fullscreen";
 import { toast } from "sonner";
-import {
-  defaultStarterFor,
-  getUnansweredIndices,
-} from "@/modules/exams/answered";
+import { getUnansweredIndices } from "@/modules/exams/answered";
 import {
   AlertTriangle,
   Clock,
@@ -183,26 +180,20 @@ function getOrCreateLocalSession(examId: string): string {
 // alumno entrega con el editor intacto.
 
 
-/** Persiste plantilla de código como respuesta si el estudiante no escribió nada (para entrega correcta). */
-function mergeStarterCodeAnswers(
-  questions: Question[],
-  answers: Record<string, unknown>,
-): Record<string, unknown> {
-  const next = { ...answers };
-  for (const q of questions) {
-    if (q.type !== "codigo" && q.type !== "java_gui" && q.type !== "python_gui") continue;
-    const cur = next[q.id];
-    const empty = cur === undefined || cur === null || String(cur).trim() === "";
-    if (!empty) continue;
-    // Fallback al starter_code de la pregunta; si no hay, la plantilla por
-    // defecto que ve el alumno en el editor (incluye java_gui/python_gui, no
-    // solo 'codigo') para que la entrega no llegue vacía y se detecte como
-    // respondida igual que 'codigo'.
-    const fallback = (q.starter_code ?? "").trim() ? q.starter_code : defaultStarterFor(q) || null;
-    if (fallback) next[q.id] = fallback;
-  }
-  return next;
-}
+// ── Por qué la plantilla ya NO se guarda como respuesta ───────────────
+// Acá vivía `mergeStarterCodeAnswers`, que rellenaba toda pregunta de código
+// vacía con la plantilla del editor «para que se detecte como respondida». Esa
+// regla dejó de existir cuando el predicado se unificó en `@/modules/exams/
+// answered`: desde entonces la plantilla intacta es lo contrario de una
+// respuesta, así que el relleno no lograba nada y sí hacía daño.
+//
+//  · Corría al ABRIR el diálogo de entrega, no al entregar. El alumno que lo
+//    abría y cancelaba quedaba con la plantilla persistida por el autoguardado
+//    sin haber escrito una letra — en producción le pasó a tres alumnos de un
+//    mismo parcial que ni siquiera entregaron.
+//  · La plantilla llegaba a la IA como si fuera el código del alumno.
+//
+// Una pregunta sin tocar ahora llega SIN valor, que es lo que de verdad pasó.
 
 export interface TakeExamProps {
   examId: string;
@@ -220,10 +211,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // TODA la pantalla habla con la base por acá. En simulacro es un cliente que
   // lee igual y no escribe: el punto de decisión es UNO, no los once sitios
   // donde esta pantalla escribe.
-  const db = useMemo(
-    () => (simulacro ? clienteDeSimulacro(supabase) : supabase),
-    [simulacro],
-  );
+  const db = useMemo(() => (simulacro ? clienteDeSimulacro(supabase) : supabase), [simulacro]);
   const navigate = useNavigate();
   const [exam, setExam] = useState<Exam | null>(null);
   // Force i18n language to the course's configured language while the student
@@ -1152,10 +1140,6 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       }
       if (submittedRef.current || !submissionIdRef.current) return;
 
-      const mergedPlain = mergeStarterCodeAnswers(questions, answersRef.current);
-      answersRef.current = mergedPlain;
-      setAnswers(mergedPlain);
-
       submittedRef.current = true;
       setSubmitting(true);
 
@@ -1376,10 +1360,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     setPreparingSubmit(true);
     try {
       await saveAnswersNow();
-      const merged = mergeStarterCodeAnswers(questions, answersRef.current);
-      answersRef.current = merged;
-      setAnswers(merged);
-      const unanswered = getUnansweredIndices(questions, merged);
+      const unanswered = getUnansweredIndices(questions, answersRef.current);
       // El modal se abre SIEMPRE, también con todo respondido. Antes, un examen
       // completo se entregaba en el mismo clic: la acción menos reversible del
       // producto no tenía ningún paso intermedio, y un clic accidental en
@@ -1436,9 +1417,6 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       } catch (e) {
         console.error("[ExamLab] save before auto-submit failed:", e);
       }
-      const merged = mergeStarterCodeAnswers(questions, answersRef.current);
-      answersRef.current = merged;
-      setAnswers(merged);
       try {
         await performSubmit(false);
       } catch (e) {

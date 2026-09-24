@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  contarPlantillaIntacta,
   countAnswered,
   getUnansweredIndices,
   isQuestionAnswered,
@@ -205,5 +206,62 @@ describe("los casos que encontró la auditoría adversarial", () => {
     const p = q({ type: "codigo", language: null, starter_code: null });
     expect(isQuestionAnswered(p, { q1: getStarterCode("java") })).toBe(false);
     expect(isQuestionAnswered(p, { q1: getStarterCode("java") + " int x;" })).toBe(true);
+  });
+});
+
+describe("contarPlantillaIntacta — separa los dos modos de «en blanco»", () => {
+  // Para el docente «en blanco» significa cosas opuestas: no haber llegado a la
+  // pregunta, o haber visto el editor y no escribir nada. El conteo de
+  // respondidas no puede distinguirlas (las dos son NO respondida), así que el
+  // monitor necesita este segundo número.
+  const preguntas = [
+    q({ id: "a", type: "codigo", starter_code: "PLANTILLA" }),
+    q({ id: "b", type: "codigo", starter_code: "PLANTILLA" }),
+    q({ id: "c", type: "abierta" }),
+  ];
+
+  it("la plantilla intacta cuenta; la pregunta sin valor NO", () => {
+    expect(contarPlantillaIntacta(preguntas, { a: "PLANTILLA" })).toBe(1);
+  });
+
+  it("el código escrito de verdad no cuenta", () => {
+    expect(contarPlantillaIntacta(preguntas, { a: "PLANTILLA", b: "int x = 1;" })).toBe(1);
+  });
+
+  it("ignora el espacio de más, igual que el predicado", () => {
+    // Si difiriera del predicado, una misma respuesta saldría «en blanco» en un
+    // número y «tocada» en el otro — el docente vería dos cifras que se
+    // contradicen sobre la misma entrega.
+    expect(contarPlantillaIntacta(preguntas, { a: "  PLANTILLA  " })).toBe(1);
+  });
+
+  it("solo mira preguntas de código", () => {
+    expect(contarPlantillaIntacta(preguntas, { c: "texto" })).toBe(0);
+  });
+
+  it("sin starter_code propio compara contra la plantilla que el editor MUESTRA", () => {
+    const java = getStarterCode("java");
+    const p = [q({ id: "a", type: "codigo", language: "java", starter_code: null })];
+    expect(contarPlantillaIntacta(p, { a: java })).toBe(1);
+  });
+
+  it("un lenguaje sin plantilla conocida nunca cuenta como intacta", () => {
+    // Sin la guarda, comparar contra "" haría que toda respuesta vacía-pero-no
+    // vacía entrara acá.
+    const p = [q({ id: "a", type: "codigo", language: "rust", starter_code: null })];
+    expect(contarPlantillaIntacta(p, { a: "fn main() {}" })).toBe(0);
+  });
+
+  it("answers nulo o vacío da 0", () => {
+    expect(contarPlantillaIntacta(preguntas, null)).toBe(0);
+    expect(contarPlantillaIntacta(preguntas, {})).toBe(0);
+  });
+
+  it("java_gui y python_gui usan su propia plantilla", () => {
+    const p = [
+      q({ id: "a", type: "java_gui", starter_code: null }),
+      q({ id: "b", type: "python_gui", starter_code: null }),
+    ];
+    expect(contarPlantillaIntacta(p, { a: JAVA_GUI_STARTER, b: PYTHON_GUI_STARTER })).toBe(2);
   });
 });

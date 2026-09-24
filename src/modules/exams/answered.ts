@@ -166,3 +166,31 @@ export function countAnswered(
   if (!answers || typeof answers !== "object") return 0;
   return questions.reduce((n, q) => n + (isQuestionAnswered(q, answers) ? 1 : 0), 0);
 }
+
+/**
+ * De las preguntas de CÓDIGO, cuántas quedaron con la plantilla **sin tocar**.
+ *
+ * No cambia el conteo de respondidas: sirve para que el monitor distinga los dos
+ * modos de "en blanco", que para el docente significan cosas opuestas y hasta
+ * ahora se veían igual:
+ *
+ *   · sin ningún valor  → el alumno nunca llegó a la pregunta.
+ *   · plantilla intacta → llegó, vio el editor y no escribió nada.
+ *
+ * El segundo caso es el que hay que mirar: si le pasa a varios en la misma
+ * pregunta, el problema no es el alumno — es el enunciado, el lenguaje o el
+ * compilador.
+ */
+export function contarPlantillaIntacta(
+  questions: QuestionForAnswered[],
+  answers: Record<string, unknown> | null | undefined,
+): number {
+  if (!answers || typeof answers !== "object") return 0;
+  return questions.reduce((n, q) => {
+    if (q.type !== "codigo" && q.type !== "java_gui" && q.type !== "python_gui") return n;
+    const escrito = (typeof answers[q.id] === "string" ? (answers[q.id] as string) : "").trim();
+    if (!escrito) return n;
+    const plantilla = (q.starter_code ?? "").trim() || defaultStarterFor(q).trim();
+    return plantilla !== "" && escrito === plantilla ? n + 1 : n;
+  }, 0);
+}

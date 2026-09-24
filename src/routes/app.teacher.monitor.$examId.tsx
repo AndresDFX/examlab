@@ -103,6 +103,7 @@ import { coincideFiltro } from "@/shared/lib/filtro-multiple";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import i18n from "@/i18n";
 import {
+  contarPlantillaIntacta,
   countAnswered,
   type QuestionForAnswered,
 } from "@/modules/exams/answered";
@@ -2772,7 +2773,16 @@ function ExamMonitor() {
                           sub.answers as Record<string, unknown> | null,
                         );
                         const enBlanco = questions.length - respondidas;
-                        const pista =
+                        // «En blanco» son dos cosas OPUESTAS para el docente y
+                        // hasta acá se veían igual: no haber llegado a la
+                        // pregunta, o haber visto el editor y no escribir nada.
+                        // Lo segundo repetido en la misma pregunta no habla del
+                        // alumno: habla del enunciado o del compilador.
+                        const sinTocar = contarPlantillaIntacta(
+                          questions as QuestionForAnswered[],
+                          sub.answers as Record<string, unknown> | null,
+                        );
+                        const base =
                           inProg && currentIdx != null
                             ? t("monitor.answeredHintInProgress", {
                                 n: Math.min(currentIdx + 1, questions.length),
@@ -2781,6 +2791,10 @@ function ExamMonitor() {
                             : enBlanco === 0
                               ? t("monitor.answeredHintNoBlanks")
                               : t("monitor.answeredHintBlank", { count: enBlanco });
+                        const pista =
+                          sinTocar > 0
+                            ? `${base} · ${t("monitor.answeredHintTemplate", { count: sinTocar })}`
+                            : base;
                         return (
                           <span
                             title={pista}
