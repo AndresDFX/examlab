@@ -77,6 +77,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ↩️ Restablecer la respuesta de una pregunta
+
+Botón «Restablecer» en cada pregunta del examen y del taller, al lado del puntaje. Aparece **solo
+cuando hay algo que restablecer**: con la pregunta intacta no haría nada, y un botón que no hace nada
+enseña que la pantalla está muerta.
+
+- **No es «borrar» a secas**, y por eso la regla vive en un módulo
+  ([restablecer-respuesta.ts](src/modules/exams/restablecer-respuesta.ts)) y no en cada pantalla. En
+  una pregunta abierta, restablecer es dejarla vacía. En una de **código** no: ahí la caja no arrancó
+  vacía, arrancó con la plantilla del docente —los imports, la clase, el `main`, los comentarios que
+  dicen dónde escribir—. Vaciarla dejaría al estudiante sin el andamiaje que le dio el propio
+  enunciado, obligándolo a reescribir a mano algo que él nunca escribió. El código vuelve a la
+  plantilla; el resto queda sin responder.
+- **Lo restablecido NUNCA puede contar como respondido**, y hay un test que lo fija cruzando los dos
+  módulos: si restableciera y la pregunta siguiera figurando contestada, el aviso de «entregas con N
+  en blanco» mentiría — la misma contradicción que el repo ya pagó cuando la plantilla se guardaba
+  como si fuera la respuesta.
+- **Confirma siempre y en tono destructivo**: lo escrito no se recupera, y el botón vive al lado del
+  enunciado en una pantalla contrarreloj. El texto dice qué va a pasar en ESA pregunta, porque no es
+  lo mismo en todas.
+- Al restablecer una pregunta de código se descarta también la **salida de la ejecución anterior**,
+  que si no quedaría en pantalla contradiciendo al código que ahora se ve.
+
 ### 🕵️ «Sospechoso» vuelve a significar fraude, y el análisis de IA deja de acusar con la plantilla del docente
 
 Tres arreglos del mismo módulo, los tres reportados mirando el parcial de esa noche.

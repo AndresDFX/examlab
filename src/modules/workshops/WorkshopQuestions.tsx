@@ -49,6 +49,7 @@ import {
   ChevronDown,
   Library,
   ScanText,
+  RotateCcw,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
@@ -64,6 +65,11 @@ import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
+import {
+  efectoDeRestablecer,
+  hayAlgoQueRestablecer,
+  respuestaRestablecida,
+} from "@/modules/exams/restablecer-respuesta";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
 import { IntroVideoGate, type IntroVideo } from "@/shared/components/IntroVideoGate";
@@ -1596,6 +1602,24 @@ export function StudentWorkshopTaker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workshopId, user?.id, retryNonce]);
 
+  /** Ver `restablecer-respuesta`: confirma siempre, y el texto dice qué pasa
+   *  en ESTA pregunta porque no es lo mismo en todas. */
+  const restablecerPregunta = async (q: WorkshopQuestion) => {
+    const efecto = efectoDeRestablecer(q);
+    const ok = await confirm({
+      title: t("hc_routesAppStudentTakeExamId.resetTitle"),
+      description:
+        efecto === "plantilla"
+          ? t("hc_routesAppStudentTakeExamId.resetBodyTemplate")
+          : t("hc_routesAppStudentTakeExamId.resetBodyEmpty"),
+      confirmLabel: t("hc_routesAppStudentTakeExamId.resetConfirm"),
+      tone: "destructive",
+    });
+    if (!ok) return;
+    updateAnswer(q.id, respuestaRestablecida(q));
+    toast.success(t("hc_routesAppStudentTakeExamId.resetDone"));
+  };
+
   const updateAnswer = (qid: string, value: any) => {
     setAnswers((prev) => ({ ...prev, [qid]: value }));
   };
@@ -2803,6 +2827,24 @@ export function StudentWorkshopTaker({
                 {questionTypeLabel(q.type, t)}
               </Badge>
               <span className="text-xs text-muted-foreground">{q.points} pts</span>
+              {/* Mismo control que en el examen y con el mismo módulo: una
+                  pregunta de código vuelve a su plantilla y el resto queda sin
+                  responder. Solo aparece cuando hay algo que restablecer. */}
+              {hayAlgoQueRestablecer(q, answers[q.id]) && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-8 px-2 text-muted-foreground hover:text-foreground"
+                  onClick={() => void restablecerPregunta(q)}
+                  title={t("hc_routesAppStudentTakeExamId.resetTitle")}
+                >
+                  <RotateCcw className="h-3.5 w-3.5 sm:mr-1" />
+                  <span className="hidden sm:inline">
+                    {t("hc_routesAppStudentTakeExamId.resetAction")}
+                  </span>
+                </Button>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">

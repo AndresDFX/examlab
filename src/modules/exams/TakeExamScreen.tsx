@@ -48,6 +48,7 @@ import {
   AlertTriangle,
   Clock,
   FlaskConical,
+  RotateCcw,
   Maximize2,
   Minimize2,
   Send,
@@ -110,6 +111,12 @@ import {
   MS_ENTRE_LATIDOS,
 } from "@/modules/exams/exam-session";
 import { runJavaInBrowser, CANCELLED_SENTINEL } from "@/modules/code/run-java";
+import { useConfirm } from "@/shared/components/ConfirmDialog";
+import {
+  efectoDeRestablecer,
+  hayAlgoQueRestablecer,
+  respuestaRestablecida,
+} from "@/modules/exams/restablecer-respuesta";
 import {
   clasificarFalloDeEjecucion,
   esReintentable,
@@ -417,11 +424,49 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
 
   // Update state AND ref synchronously so blur/suspend handlers never read
   // stale answers between a keystroke and the next render commit.
+  const confirm = useConfirm();
   const updateAnswer = useCallback((questionId: string, value: any) => {
     const next = { ...answersRef.current, [questionId]: value };
     answersRef.current = next;
     setAnswers(next);
   }, []);
+
+  /**
+   * Devuelve una pregunta a como estaba al empezar.
+   *
+   * Confirma SIEMPRE y con tono destructivo: lo que el estudiante escribió no
+   * se puede recuperar después, y el botón vive al lado del enunciado en una
+   * pantalla contrarreloj. El texto dice qué va a pasar en ESTA pregunta,
+   * porque no es lo mismo en todas: una de código vuelve a la plantilla del
+   * docente —vaciarla lo dejaría sin el andamiaje que el enunciado le dio— y
+   * el resto queda sin responder.
+   */
+  const restablecerPregunta = useCallback(
+    async (q: Question) => {
+      const efecto = efectoDeRestablecer(q);
+      const ok = await confirm({
+        title: t("hc_routesAppStudentTakeExamId.resetTitle"),
+        description:
+          efecto === "plantilla"
+            ? t("hc_routesAppStudentTakeExamId.resetBodyTemplate")
+            : t("hc_routesAppStudentTakeExamId.resetBodyEmpty"),
+        confirmLabel: t("hc_routesAppStudentTakeExamId.resetConfirm"),
+        tone: "destructive",
+      });
+      if (!ok) return;
+      updateAnswer(q.id, respuestaRestablecida(q));
+      // El editor de código se redibuja por `value`, pero la salida de la
+      // ejecución anterior quedaría en pantalla contradiciendo al código que
+      // ahora se ve.
+      setCodeOutputs((prev) => {
+        const next = { ...prev };
+        delete next[q.id];
+        return next;
+      });
+      toast.success(t("hc_routesAppStudentTakeExamId.resetDone"));
+    },
+    [confirm, t, updateAnswer],
+  );
 
   // Escenarios de red parseados y ESTABLES (memoizados por questions) — pasar
   // un objeto nuevo por render reiniciaría la NetworkConsole (init keyed por
@@ -2682,6 +2727,23 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                   <span className="text-xs text-muted-foreground">
                     {t("hc_routesAppStudentTakeExamId.pointsAbbr", { points: q.points })}
                   </span>
+                  {/* Solo aparece cuando hay algo que restablecer: con la
+                      pregunta intacta no haría nada, y un botón que no hace
+                      nada enseña que la pantalla está muerta. */}
+                  {hayAlgoQueRestablecer(q, answers[q.id]) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="ml-auto h-8 px-2 text-muted-foreground hover:text-foreground"
+                      onClick={() => void restablecerPregunta(q)}
+                      title={t("hc_routesAppStudentTakeExamId.resetTitle")}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 sm:mr-1" />
+                      <span className="hidden sm:inline">
+                        {t("hc_routesAppStudentTakeExamId.resetAction")}
+                      </span>
+                    </Button>
+                  )}
                 </div>
                 <MarkdownInline>{q.content}</MarkdownInline>
 

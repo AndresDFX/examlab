@@ -8433,7 +8433,13 @@
     "saveFailedBadge": "Unsaved",
     "submittingLabel": "Submitting…",
     "pauseReasonFromTeacher": "Message from your teacher",
-    "tryAnotherRunner": "If it fails again, switch compilers using the selector above the editor and run it again. Your code and answers are saved."
+    "tryAnotherRunner": "If it fails again, switch compilers using the selector above the editor and run it again. Your code and answers are saved.",
+    "resetAction": "Reset",
+    "resetTitle": "Reset this question?",
+    "resetBodyTemplate": "The code you wrote will be deleted and the editor will go back to the question's original template. This cannot be undone.",
+    "resetBodyEmpty": "Your answer to this question will be deleted and it will be left unanswered. This cannot be undone.",
+    "resetConfirm": "Yes, reset",
+    "resetDone": "Question reset"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "We couldn't load the tutor for this course.",

@@ -8433,7 +8433,13 @@
     "saveFailedBadge": "Sin guardar",
     "submittingLabel": "Entregando…",
     "pauseReasonFromTeacher": "Mensaje de tu docente",
-    "tryAnotherRunner": "Si vuelve a fallar, cambia de compilador con el selector que está arriba del editor y ejecuta de nuevo. Tu código y tus respuestas están guardados."
+    "tryAnotherRunner": "Si vuelve a fallar, cambia de compilador con el selector que está arriba del editor y ejecuta de nuevo. Tu código y tus respuestas están guardados.",
+    "resetAction": "Restablecer",
+    "resetTitle": "¿Restablecer esta pregunta?",
+    "resetBodyTemplate": "Se borrará el código que escribiste y el editor volverá a la plantilla original de la pregunta. Esta acción no se puede deshacer.",
+    "resetBodyEmpty": "Se borrará tu respuesta a esta pregunta y quedará sin responder. Esta acción no se puede deshacer.",
+    "resetConfirm": "Sí, restablecer",
+    "resetDone": "Pregunta restablecida"
   },
   "hc_routesAppStudentTutorCourseId": {
     "loadTutorError": "No pudimos cargar el tutor de este curso.",
