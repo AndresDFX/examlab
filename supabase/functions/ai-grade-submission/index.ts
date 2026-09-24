@@ -145,6 +145,17 @@ interface BatchItem {
    *  ejecutar (ej. la sesión de terminal Linux de type='so_consola', o el
    *  stdout/stderr de un run de código). Ausente → no se agrega la sección. */
   executionOutput?: string | null;
+  /** La PLANTILLA con la que arrancó la pregunta de código (`starter_code`),
+   *  cuando la hay. Se manda para que el modelo sepa qué parte del archivo NO
+   *  la escribió el estudiante.
+   *
+   *  Sin esto, la detección de IA usaba como evidencia los propios comentarios
+   *  del docente. Caso real: «Los comentarios son genéricos ('Escriba su
+   *  solución aquí', 'Cree la lista con al menos seis números') y parecen
+   *  placeholders del enunciado» — y con eso subía la probabilidad de IA. Son
+   *  placeholders del enunciado: los escribió el docente, están en la plantilla
+   *  de TODOS los estudiantes y no dicen nada sobre quién resolvió el ejercicio. */
+  plantilla?: string | null;
 }
 
 /**
@@ -283,6 +294,10 @@ async function gradeOpenAnswersInBatch(
         (directive ? `${directive}\n` : "") +
         `ENUNCIADO:\n${it.content}\n\n` +
         `RÚBRICA ESPERADA:\n${it.rubric}\n\n` +
+        (it.plantilla && it.plantilla.trim()
+          ? `PLANTILLA DE PARTIDA (la escribió el DOCENTE; viene igual para todos los ` +
+            `estudiantes y NO es obra de quien responde):\n${it.plantilla}\n\n`
+          : "") +
         `RESPUESTA DEL ESTUDIANTE:\n${it.userAnswer}` +
         (it.executionOutput && it.executionOutput.trim()
           ? `\n\nSALIDA DE EJECUCIÓN / SESIÓN DE CONSOLA:\n${it.executionOutput}`
@@ -300,6 +315,7 @@ async function gradeOpenAnswersInBatch(
           `IMPORTANTE: vas a calificar ${items.length} respuestas en una sola llamada. ` +
           `Devuelve UN item por cada qid recibido — no omitas ninguno. El score de cada ` +
           `qid debe respetar SU PROPIO puntaje máximo (declarado en el ítem). ` +
+          `REGLA DE AUTORÍA: si un ítem trae «PLANTILLA DE PARTIDA», eso lo escribió el DOCENTE y es idéntico en la entrega de todos. NO lo uses como evidencia de IA ni en contra ni a favor: sus comentarios, su nomenclatura y su estructura no dicen nada sobre quién resolvió el ejercicio. Evalúa SOLO lo que el estudiante agregó o modificó. En particular, «los comentarios son genéricos y parecen placeholders del enunciado» NO es un indicio de IA cuando esos comentarios vienen en la plantilla. Y que un programa corto compile sin errores tampoco lo es: en un ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema. ` +
           `REGLA DE IDIOMA: responde siempre en ${langName}.`,
       },
       {
@@ -1067,6 +1083,7 @@ Deno.serve(async (req) => {
             language?: string | null;
             framework?: string | null;
             executionOutput?: string | null;
+            plantilla?: string | null;
           }) => ({
             qid: it.qid,
             content: String(it.content ?? ""),
@@ -1080,6 +1097,7 @@ Deno.serve(async (req) => {
             // el campo está en el tipo y se inyecta al prompt, pero ningún map
             // lo copiaba, así que el transcript / el resultado SQL nunca llegaba.
             executionOutput: it.executionOutput ?? undefined,
+            plantilla: it.plantilla ?? undefined,
           }),
         );
 
@@ -3549,6 +3567,11 @@ Idioma de salida: ${langName}.`,
           maxPoints: Number(q.points),
           type: q.type,
           language: impliedLanguage,
+          // La plantilla del docente viaja aparte para que el análisis de IA
+          // no se la atribuya al estudiante: sus comentarios («Escriba su
+          // solución aquí») venían subiendo la probabilidad de IA, y son
+          // idénticos en la entrega de TODOS.
+          plantilla: q.starter_code ?? undefined,
           framework: q.type === "java_gui" ? (fw ?? "swing") : undefined,
         };
       });

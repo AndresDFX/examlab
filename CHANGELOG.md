@@ -77,6 +77,37 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🕵️ «Sospechoso» vuelve a significar fraude, y el análisis de IA deja de acusar con la plantilla del docente
+
+Tres arreglos del mismo módulo, los tres reportados mirando el parcial de esa noche.
+
+**1. El estado `sospechoso` se estaba usando para dos cosas muy distintas**: el fraude que la
+plataforma DETECTA (la señal de IA sobre las respuestas, la copia entre entregas) y haber superado el
+tope de advertencias de proctoring. Lo segundo no es fraude, y llamarlo igual tiene un costo concreto:
+en el teléfono esas advertencias las produce el teclado del sistema, una notificación o el propio
+navegador —por eso ya existen señales blandas específicas de móvil—. Media clase terminaba con una
+etiqueta acusatoria sobre su entrega por algo que muchas veces no hizo. Ahora una entrega suspendida
+por advertencias se guarda como `completado`; **no se pierde ningún dato**, porque `focus_warnings` y
+`__warning_events` son de donde el monitor ya saca su columna y su detalle. En producción había **68
+entregas marcadas: 58 con detección de IA —correctas— y 10 solo por advertencias**, que la mig
+[20262460000000](supabase/migrations/20262460000000_sospechoso_solo_por_fraude.sql) devuelve a
+`completado`.
+
+**2. «65 sospechas de IA» en un curso de 22.** El contador del monitor sumaba RESPUESTAS señaladas,
+no estudiantes, así que mostraba un número que no se corresponde con nada que el docente pueda
+revisar —no hay 65 personas— y que se lee como catástrofe. Ahora dice **cuántos estudiantes**; el
+detalle por respuesta sigue en el título del badge y en el panel de abajo.
+
+**3. El análisis de IA usaba como evidencia los comentarios del propio docente.** Textual de un
+informe real: «Los comentarios son genéricos ('Escriba su solución aquí', 'Cree la lista con al menos
+seis números') y parecen placeholders del enunciado» — y con eso subía la probabilidad de IA. Son
+placeholders del enunciado: los escribió el docente, vienen en la plantilla de TODOS y no dicen nada
+sobre quién resolvió el ejercicio. Ahora la plantilla viaja **aparte** de la respuesta
+(`BatchItem.plantilla`, con su espejo en el cliente para que el re-calificado del docente coincida) y
+el prompt trae una REGLA DE AUTORÍA que prohíbe usarla como indicio. La misma regla desarma el otro
+argumento circular de ese informe: que un programa corto compile sin errores no es señal de IA — en un
+ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema.
+
 ### 🧯 Lo que se cayó el 2026-09-23 fue el compilador, no la plataforma
 
 Diagnóstico del reporte «se cayó la plataforma, nuevamente hoy», con los datos del parcial de esa

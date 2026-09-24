@@ -1691,8 +1691,8 @@
     "detectButton": "Analizar fraudes último intento",
     "detecting": "Analizando…",
     "summaryEmpty": "Sin señales detectadas todavía.",
-    "summaryAi_one": "{{count}} sospecha de IA",
-    "summaryAi_other": "{{count}} sospechas de IA",
+    "summaryAi_one": "1 estudiante con sospecha de IA",
+    "summaryAi_other": "{{count}} estudiantes con sospecha de IA",
     "summaryCopy_one": "{{count}} par con posible copia",
     "summaryCopy_other": "{{count}} pares con posible copia",
     "summaryPending_one": "{{count}} pendiente de revisar",
@@ -1743,7 +1743,9 @@
     "openPeerShort": "Ver entrega",
     "closeCompare": "Cerrar comparación",
     "compareTitle": "Comparación: {{name}}",
-    "compareSubtitle": "Respuesta del compañero a la misma pregunta. Marcar como revisada en cualquiera de los dos modos sincroniza con el otro estudiante."
+    "compareSubtitle": "Respuesta del compañero a la misma pregunta. Marcar como revisada en cualquiera de los dos modos sincroniza con el otro estudiante.",
+    "summaryAiDetail_one": "1 respuesta señalada en total",
+    "summaryAiDetail_other": "{{count}} respuestas señaladas en total"
   },
   "workshop": {
     "startSubmission": "Iniciar entrega",

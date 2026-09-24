@@ -1691,8 +1691,8 @@
     "detectButton": "Analyze last attempt fraud",
     "detecting": "Analyzing…",
     "summaryEmpty": "No signals detected yet.",
-    "summaryAi_one": "{{count}} AI suspicion",
-    "summaryAi_other": "{{count}} AI suspicions",
+    "summaryAi_one": "1 student flagged for AI",
+    "summaryAi_other": "{{count}} students flagged for AI",
     "summaryCopy_one": "{{count}} copy pair",
     "summaryCopy_other": "{{count}} copy pairs",
     "summaryPending_one": "{{count}} pending review",
@@ -1743,7 +1743,9 @@
     "openPeerShort": "View submission",
     "closeCompare": "Close comparison",
     "compareTitle": "Comparison: {{name}}",
-    "compareSubtitle": "Peer's answer to the same question. Marking as reviewed in either side syncs with the other student."
+    "compareSubtitle": "Peer's answer to the same question. Marking as reviewed in either side syncs with the other student.",
+    "summaryAiDetail_one": "1 flagged answer in total",
+    "summaryAiDetail_other": "{{count}} flagged answers in total"
   },
   "workshop": {
     "startSubmission": "Start submission",

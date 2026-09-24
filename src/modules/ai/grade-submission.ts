@@ -40,6 +40,12 @@ export interface GradeBatchItem {
   language?: string | null;
   /** Salida de ejecución / transcript de consola → insumo del prompt de IA. */
   executionOutput?: string | null;
+  /** La plantilla con la que arrancó la pregunta de código. Viaja para que el
+   *  análisis de IA no le atribuya al estudiante lo que escribió el DOCENTE:
+   *  sus comentarios («Escriba su solución aquí») venían subiendo la
+   *  probabilidad de IA, y son idénticos en la entrega de todos. Espejo del
+   *  campo homónimo de `BatchItem` en el edge. */
+  plantilla?: string | null;
 }
 
 // ─────────────────────── Builders puros ───────────────────────
@@ -133,6 +139,7 @@ export function buildWorkshopItems(
       userAnswer: trimmed,
       maxPoints: Number(q.points) || 0,
       language: q.type === "java_gui" ? "java" : q.type === "python_gui" ? "python" : q.language,
+      plantilla: q.starter_code ?? undefined,
     });
   }
   return items;

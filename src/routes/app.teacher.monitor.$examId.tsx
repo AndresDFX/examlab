@@ -2436,8 +2436,22 @@ function ExamMonitor() {
                     );
                   return (
                     <>
-                      <Badge variant="outline" className="text-2xs">
-                        {t("integrity.summaryAi_other", { count: aiSignalsByQuestion.length })}
+                      {/* Se cuentan ESTUDIANTES, no respuestas señaladas. Con
+                          una señal por pregunta, un curso de 22 mostraba «65
+                          sospechas de IA» — un número que no se corresponde con
+                          nada que el docente pueda revisar (no hay 65 personas)
+                          y que lee como catástrofe. El detalle por respuesta
+                          sigue disponible en el título y en el panel de abajo. */}
+                      <Badge
+                        variant="outline"
+                        className="text-2xs"
+                        title={t("integrity.summaryAiDetail", {
+                          count: aiSignalsByQuestion.length,
+                        })}
+                      >
+                        {t("integrity.summaryAi", {
+                          count: new Set(aiSignalsByQuestion.map((x) => x.userId)).size,
+                        })}
                       </Badge>
                       <Badge variant="outline" className="text-2xs">
                         {t("integrity.summaryCopy_other", { count: similarityPairs.length })}

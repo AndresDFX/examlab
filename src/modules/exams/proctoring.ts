@@ -162,8 +162,18 @@ export function isStrikeEvent(type: string | null | undefined): boolean {
 }
 
 /**
- * Single source of truth for "is this submission suspicious?".
- * The UI shows warning N/MAX; a submission crosses into sospechoso at N >= MAX.
+ * ¿Hay que SUSPENDER el examen? La pantalla muestra «advertencia N de MAX» y
+ * al llegar al tope cierra la entrega sola.
+ *
+ * Ojo con el nombre, que quedó de antes: esto **ya no marca la entrega como
+ * `sospechoso`**. Ese estado quedó reservado para el fraude que la plataforma
+ * DETECTA —IA o copia entre entregas—; haberse salido de la pantalla tres
+ * veces no es eso, y marcarlo así ponía a media clase bajo una etiqueta
+ * acusatoria por algo que muchas veces es el teclado del teléfono, una
+ * notificación del sistema o el propio navegador. Una entrega suspendida por
+ * advertencias se guarda como `completado`, y cuántas fueron lo dice
+ * `focus_warnings` —con el detalle en `__warning_events`—, que es de donde el
+ * monitor ya saca la columna de advertencias.
  */
 export function shouldMarkSuspicious(warnings: number, max: number = MAX_WARNINGS): boolean {
   return warnings >= max;

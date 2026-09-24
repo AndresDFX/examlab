@@ -1158,7 +1158,15 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
 
       const updateData = {
         answers: currentAnswers,
-        status: markSuspicious ? "sospechoso" : "completado",
+        // SIEMPRE «completado», aunque el examen se haya suspendido por
+        // advertencias. `sospechoso` quedó reservado para el fraude que la
+        // plataforma DETECTA —IA o copia entre entregas—; haberse salido de
+        // la pantalla tres veces no es eso. Marcarlo así ponía a media clase
+        // bajo una etiqueta acusatoria por algo que muchas veces es el
+        // teclado del teléfono, una notificación o el navegador. El dato NO
+        // se pierde: `focus_warnings` guarda cuántas fueron y los eventos
+        // quedan en `__warning_events`, que es lo que el monitor muestra.
+        status: "completado",
         focus_warnings: currentWarnings,
         submitted_at: new Date().toISOString(),
       };
@@ -1827,7 +1835,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         answers: answersRef.current,
       };
       if (shouldMarkSuspicious(warningsToSend, maxWarnings)) {
-        body.status = "sospechoso";
+        // Se cierra la entrega, pero como «completado»: ver el comentario del
+        // estado en `performSubmit`.
+        body.status = "completado";
         body.submitted_at = new Date().toISOString();
         submittedRef.current = true;
       }
