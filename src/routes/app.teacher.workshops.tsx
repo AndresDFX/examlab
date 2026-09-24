@@ -10,6 +10,7 @@ import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
 import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
 import { useAuth } from "@/hooks/use-auth";
+import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
 import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
 import {
@@ -299,8 +300,14 @@ type WsSub = {
 };
 
 /** Estados que cuentan como entrega REAL para las acciones masivas de IA.
- *  Un borrador vacío no se manda a calificar ni a recalificar. */
-const SUBMITTED_STATUSES = ["entregado", "calificado", "ai_revisado"];
+ *  Un borrador vacío no se manda a calificar ni a recalificar.
+ *
+ *  Sale de `esEstadoDeEntrega` y no de una lista escrita acá: esta era la
+ *  tercera copia del mismo concepto y ya se había quedado sin
+ *  `requiere_revision`, o sea que «Calificar todo con IA» saltaba justo las
+ *  entregas que la IA había marcado para revisar — las que más necesitan una
+ *  segunda pasada. */
+const esEntregaParaIa = (status: string | null | undefined) => esEstadoDeEntrega(status);
 
 /** Par de copia detectado entre dos estudiantes para UNA pregunta. */
 type WsSimilarityPair = {
@@ -2919,7 +2926,7 @@ function TeacherWorkshops() {
         : gradingSearch.trim()
           ? filteredWsSubs
           : wsSubs;
-    return pool.filter((s) => SUBMITTED_STATUSES.includes(s.status));
+    return pool.filter((s) => esEntregaParaIa(s.status));
   }, [wsSubs, filteredWsSubs, gradingSearch, subSel.selectedIds]);
 
   const gradeAllWithAI = async () => {

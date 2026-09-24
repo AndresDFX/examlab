@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { useAuth } from "@/hooks/use-auth";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { useNotifications } from "@/hooks/use-notifications";
 import { formatDate, formatDateOnly } from "@/shared/lib/format";
@@ -1491,15 +1492,9 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
             .eq("user_id", userId)
             .in("workshop_id", candidateWsIds)
         : { data: [] as Array<{ workshop_id: string; status: string }> };
-      const finalSubStates = new Set([
-        "entregado",
-        "calificado",
-        "ai_revisado",
-        "requiere_revision",
-      ]);
       const submittedWsIds = new Set(
         ((doneWsSubs ?? []) as Array<{ workshop_id: string; status: string }>)
-          .filter((s) => finalSubStates.has(s.status))
+          .filter((s) => entregaHecha(s))
           .map((s) => s.workshop_id),
       );
       const ws = candidateWs
@@ -1560,7 +1555,11 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
         : { data: [] as any[] };
       const submittedIds = new Set(
         ((pSubs ?? []) as { project_id: string; status: string }[])
-          .filter((s) => ["entregado", "calificado", "ai_revisado"].includes(s.status))
+          // `entregaHecha` y no una lista escrita acá: la copia de proyectos
+          // se había quedado sin `requiere_revision` mientras la de talleres
+          // sí lo tenía, así que un proyecto que la IA mandó a revisar seguía
+          // contando como «pendiente» para un alumno que YA entregó.
+          .filter((s) => entregaHecha(s))
           .map((s) => s.project_id),
       );
       // Mismo criterio que workshops: published + start_date pasado

@@ -15,6 +15,7 @@ import {
   type WarningEvent,
   warningEventTimestamp,
   warningLabel,
+  permiteMenuContextual,
 } from "./proctoring";
 
 describe("shouldMarkSuspicious", () => {
@@ -278,5 +279,54 @@ describe("qué cuenta como strike en un teléfono", () => {
       expect(etiqueta).not.toBe(t);
       expect(etiqueta).toContain("no suma");
     }
+  });
+});
+
+describe("permiteMenuContextual — el corrector ortográfico vive en ese menú", () => {
+  const hacer = (html: string, selector: string): HTMLElement => {
+    document.body.innerHTML = html;
+    const el = document.body.querySelector(selector);
+    if (!el) throw new Error(`no se encontró ${selector}`);
+    return el as HTMLElement;
+  };
+
+  it("SÍ sobre el área de respuesta abierta", () => {
+    // El caso que originó el cambio: el navegador subrayaba la palabra en rojo
+    // y el estudiante no tenía cómo aceptar la corrección.
+    expect(permiteMenuContextual(hacer("<textarea></textarea>", "textarea"))).toBe(true);
+  });
+
+  it("SÍ sobre un input de texto y sobre uno sin `type`", () => {
+    expect(permiteMenuContextual(hacer('<input type="text">', "input"))).toBe(true);
+    expect(permiteMenuContextual(hacer("<input>", "input"))).toBe(true);
+  });
+
+  it("SÍ dentro del editor de código, incluso en un hijo hondo", () => {
+    const el = hacer(
+      '<div class="monaco-editor"><div><span id="t">x</span></div></div>',
+      "#t",
+    );
+    expect(permiteMenuContextual(el)).toBe(true);
+  });
+
+  it("SÍ sobre un contenteditable", () => {
+    expect(
+      permiteMenuContextual(hacer('<div contenteditable="true"></div>', "div")),
+    ).toBe(true);
+  });
+
+  it("NO sobre el enunciado", () => {
+    // Ahí el menú no aporta nada al examen y sí ofrece «abrir en otra pestaña».
+    expect(permiteMenuContextual(hacer("<p>Enunciado</p>", "p"))).toBe(false);
+  });
+
+  it("NO sobre una imagen del enunciado ni sobre una casilla", () => {
+    expect(permiteMenuContextual(hacer('<img alt="figura">', "img"))).toBe(false);
+    expect(permiteMenuContextual(hacer('<input type="checkbox">', "input"))).toBe(false);
+  });
+
+  it("NO con un target que no es un elemento", () => {
+    expect(permiteMenuContextual(null)).toBe(false);
+    expect(permiteMenuContextual(document as unknown as EventTarget)).toBe(false);
   });
 });

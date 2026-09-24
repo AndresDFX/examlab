@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 
 import { isSubmittedStatus } from "@/modules/courses/diagnostic";
 import {
@@ -87,5 +89,35 @@ describe("una sola lista en todo el proyecto", () => {
     for (const s of ["en_progreso", "iniciado", "borrador", "draft", "pendiente", "no_entregado"]) {
       expect(ESTADOS_SIN_ENTREGAR).toContain(s);
     }
+  });
+});
+
+describe("espejo en SQL", () => {
+  it("`estado_es_entrega` de la migración lista los MISMOS estados", () => {
+    // El cron de «vence pronto» excluye con esta función a quien ya entregó.
+    // Si las listas divergen, el correo del servidor y la pantalla del alumno
+    // se contradicen sobre la misma entrega — el síntoma exacto que el fix
+    // vino a cerrar. Se busca la ÚLTIMA migración que la define, no un nombre
+    // fijo: con un nombre fijo, la migración siguiente que cambie el set
+    // dejaría al test leyendo una versión vieja y pasando en verde contra
+    // ella. Mismo patrón que `proctoring.test.ts`.
+    const dir = "supabase/migrations";
+    const archivo = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .reverse()
+      .find((f) =>
+        fs
+          .readFileSync(path.join(dir, f), "utf8")
+          .includes("FUNCTION public.estado_es_entrega"),
+      );
+    expect(archivo, "ninguna migración define estado_es_entrega").toBeTruthy();
+
+    const sql = fs.readFileSync(path.join(dir, archivo!), "utf8");
+    const m = sql.match(/NOT IN \(([^)]*)\)/);
+    expect(m, "no se encontró la lista de estados en la función").toBeTruthy();
+    const enSql = [...m![1].matchAll(/'([^']+)'/g)].map((x) => x[1]).sort();
+    expect(enSql).toEqual([...ESTADOS_SIN_ENTREGAR].sort());
   });
 });

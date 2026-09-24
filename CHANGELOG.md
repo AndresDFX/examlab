@@ -77,6 +77,49 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ✍️ Corregir la ortografía no cuesta una advertencia — y ahora además se puede
+
+El reporte pedía que la corrección ortográfica no sumara strike «en web y móvil, y si no se puede,
+que al menos lo diga al iniciar el examen». Medido en producción sobre 267 advertencias reales:
+
+- **En el teléfono ya estaba resuelto y funciona**: aparecen 23 `blur_movil` y 1
+  `fullscreen_exit_movil`, que son las señales blandas que el arreglo anterior introdujo — quedan
+  registradas para el docente y **no suman**.
+- **En el computador no sumaba… porque el corrector no se podía usar.** La pantalla bloqueaba el
+  menú contextual en TODA la página con un `preventDefault` a secas, y en un computador las
+  sugerencias del corrector VIVEN en ese menú. El navegador seguía subrayando la palabra en rojo y
+  el estudiante no tenía cómo aceptar la corrección: le quedaba borrarla y reescribirla, contra
+  reloj. La plataforma se comportaba distinto en cada dispositivo sin que eso fuera una decisión.
+
+Ahora el menú se permite **sobre los campos de respuesta** (`permiteMenuContextual`), y **no abre la
+mano con el portapapeles**: el bloqueo de copiar/pegar/cortar nunca estuvo en el menú sino en los
+eventos de portapapeles, así que elegir «Pegar» ahí dispara el mismo evento que se sigue
+previniendo y registrando. Fuera de los campos sigue bloqueado, donde lo único que el menú aporta
+es «abrir en otra pestaña» sobre el enunciado.
+
+**Y el aviso va igual, en todos los exámenes y sin que el docente configure nada**: «corregir la
+ortografía NO cuenta como advertencia», con cómo hacerlo en cada dispositivo. Es la duda que más
+aparece y no se puede deducir mirando la pantalla, porque el examen sí bloquea otras cosas. De paso
+se corrigió el punto que prometía que «el clic derecho está deshabilitado», que dejó de ser cierto.
+
+### 🧹 El criterio de «ya entregó» era una lista suelta en cuatro lugares
+
+Barrido a partir del arreglo de «vencido»: el mismo concepto estaba reimplementado a mano en otros
+tres sitios y a **todos** les faltaba `requiere_revision` —el estado que la plataforma escribe cuando
+la IA marca una entrega para revisar—. Los tres pasaron al helper único.
+
+- **Dashboard del estudiante**: el tile «Proyectos pendientes» contaba como pendiente un proyecto ya
+  entregado. La asimetría lo delataba — el bloque hermano de talleres, en la misma función, sí tenía
+  el estado.
+- **Recordatorio «vence pronto» (cron)**: le mandaba un correo diciéndole que entregara antes del
+  cierre a alumnos que **ya habían entregado**. El dedup es permanente, así que es un solo correo por
+  entrega, pero un solo correo que lo desmiente alcanza para que desconfíe del aviso. Mig
+  [20262440000000](supabase/migrations/20262440000000_estado_es_entrega_recordatorios.sql), que
+  además crea `public.estado_es_entrega` como **espejo en SQL** del helper del cliente, con un test
+  que lee la migración del disco y falla si las listas divergen.
+- **«Calificar todo con IA» del docente**: saltaba justo las entregas marcadas para revisar, que son
+  las que más necesitan una segunda pasada.
+
 ### ⏰ «Vencido» es pasar el plazo **y no haber entregado**
 
 Pedido del usuario: «los talleres, exámenes y todos los elementos vencidos, el criterio debe ser que

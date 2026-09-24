@@ -332,3 +332,40 @@ export function creaVentanasDeProctoring(ventanaMs = 500) {
     },
   };
 }
+
+/**
+ * ¿Hay que dejar abrir el MENÚ CONTEXTUAL sobre este elemento?
+ *
+ * ── Por qué existe ────────────────────────────────────────────────────
+ * La pantalla de examen bloqueaba el menú contextual en TODA la página con
+ * un `preventDefault` a secas. El efecto que nadie midió: en un computador,
+ * las sugerencias del corrector ortográfico VIVEN en ese menú. El navegador
+ * seguía subrayando la palabra mal escrita en rojo y el estudiante no tenía
+ * cómo aceptar la corrección — le quedaba borrar y reescribir a mano, en un
+ * examen contrarreloj. En el teléfono el corrector sí funciona (la burbuja
+ * es del sistema, no el menú del navegador), así que la plataforma se
+ * comportaba distinto en cada dispositivo sin que eso fuera una decisión.
+ *
+ * ── Por qué NO debilita el proctoring ─────────────────────────────────
+ * El bloqueo real de copiar/pegar/cortar no está en el menú: está en el
+ * manejador de los eventos de portapapeles, que hace `preventDefault` del
+ * `paste` fuera del editor de código y lo registra. Elegir «Pegar» en el
+ * menú dispara ese MISMO evento, así que se sigue bloqueando y registrando
+ * igual. Lo único que el menú agrega sobre un campo de respuesta son las
+ * sugerencias de ortografía, deshacer y seleccionar.
+ *
+ * Fuera de los campos de respuesta se mantiene bloqueado: ahí el menú no
+ * aporta nada al examen y sí ofrece «abrir en otra pestaña» sobre el
+ * enunciado.
+ */
+export function permiteMenuContextual(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return (
+    target.closest("textarea") !== null ||
+    target.closest('input[type="text"], input[type="search"], input:not([type])') !== null ||
+    target.closest('[contenteditable="true"], [contenteditable=""]') !== null ||
+    // El editor de código ya permite copiar y pegar dentro de sí mismo; su
+    // menú es parte de cómo se trabaja ahí.
+    target.closest(".monaco-editor") !== null
+  );
+}

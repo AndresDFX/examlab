@@ -94,6 +94,7 @@ import {
   entornoDePuntero,
   shouldMarkSuspicious,
   warningLabel,
+  permiteMenuContextual,
 } from "@/modules/exams/proctoring";
 import { seededShuffle, examShuffleSeed } from "@/modules/exams/shuffle";
 import { useCourseLanguage } from "@/hooks/use-course-language";
@@ -1904,7 +1905,16 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       lastBlurAt = Date.now();
       recordWarning("pestaña");
     };
-    const onContext = (e: Event) => e.preventDefault();
+    // El menú contextual sigue bloqueado en la página, PERO no sobre los
+    // campos de respuesta: ahí es donde viven las sugerencias del corrector
+    // ortográfico, y bloquearlas dejaba al estudiante viendo la palabra
+    // subrayada en rojo sin forma de corregirla salvo reescribirla. No abre
+    // la mano con el portapapeles: elegir «Pegar» en el menú dispara el mismo
+    // evento que `onClipboard` intercepta. Ver `permiteMenuContextual`.
+    const onContext = (e: Event) => {
+      if (permiteMenuContextual(e.target)) return;
+      e.preventDefault();
+    };
     // Política de copiar/pegar/cortar:
     //   - PERMITIDO dentro de editores de código (Monaco) → preguntas
     //     `codigo` y `java_gui`. Esto es necesario porque los estudiantes
@@ -2341,6 +2351,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
                   <strong>{t("hc_routesAppStudentTakeExamId.copyPasteCutRightClick")}</strong>{" "}
                   {t("hc_routesAppStudentTakeExamId.copyPasteCutDisabledRest")}
                 </li>
+                {/* El corrector ortográfico se nombra EXPLÍCITAMENTE: es la
+                    duda que más aparece («si corrijo, ¿me cuenta?») y la
+                    respuesta no es evidente mirando la pantalla, porque el
+                    examen sí bloquea otras cosas. Va en todos los exámenes,
+                    sin depender de que el docente lo configure. */}
+                <li>{t("hc_routesAppStudentTakeExamId.spellcheckAllowed")}</li>
                 <li>{t("hc_routesAppStudentTakeExamId.answersAutoSaved")}</li>
               </ul>
             </div>
