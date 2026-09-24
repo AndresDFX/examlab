@@ -8,6 +8,7 @@ import { isValidDateRange } from "@/shared/lib/date-range";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -1477,6 +1478,61 @@ function ExamEditor() {
                   </SelectContent>
                 </Select>
               </div>
+              {/* Configuración del examen. Esta pantalla ya PERSISTÍA estos tres
+                  campos al guardar —los copiaba del objeto cargado— pero no los
+                  mostraba, así que el docente no tenía dónde verlos ni
+                  cambiarlos y creía que su examen no estaba en aleatorio cuando
+                  sí lo estaba. Un examen EXTERNO no los tiene: no se rinde en la
+                  plataforma. */}
+              {!(exam as any).is_external && (
+                <div className="rounded-md border p-3 space-y-3">
+                  <p className="text-sm font-medium">
+                    {t("hc_routesAppTeacherExamsExamId.sectionBehavior")}
+                  </p>
+                  <div className="flex items-center justify-between gap-3">
+                    <Label htmlFor="exam-shuffle" className="font-normal">
+                      {t("exam.shuffle")}{" "}
+                      <HelpHint>{t("hc_routesAppTeacherExamsExamId.shuffleHint")}</HelpHint>
+                    </Label>
+                    <Switch
+                      id="exam-shuffle"
+                      checked={!!exam.shuffle_enabled}
+                      onCheckedChange={(v) => setExam({ ...exam, shuffle_enabled: v })}
+                    />
+                  </div>
+                  <div>
+                    <Label>{t("exam.navigation")}</Label>
+                    <Select
+                      value={exam.navigation_type ?? "libre"}
+                      onValueChange={(v) => setExam({ ...exam, navigation_type: v } as any)}
+                    >
+                      <SelectTrigger className="mt-1">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="libre">{t("exam.navigationFree")}</SelectItem>
+                        <SelectItem value="secuencial">{t("exam.navigationSequential")}</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>
+                      {t("hc_routesAppTeacherExamsExamId.maxWarningsLabel")}{" "}
+                      <HelpHint>{t("hc_routesAppTeacherExamsExamId.maxWarningsHint")}</HelpHint>
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={50}
+                      className="mt-1"
+                      value={String((exam as any).max_warnings ?? 3)}
+                      onChange={(e) =>
+                        setExam({ ...exam, max_warnings: Number(e.target.value) } as any)
+                      }
+                    />
+                  </div>
+                </div>
+              )}
               {/* Pair Inicio/Fin: DateTimePicker es ancho; en mobile a
                   ~190px se trunca el texto. grid-cols-1 sm:grid-cols-2
                   stack en mobile y fila en sm+. */}

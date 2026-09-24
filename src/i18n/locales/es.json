@@ -8786,7 +8786,10 @@
     "puntajeFalta": "· faltan {{falta}} para {{total}}",
     "puntajeSobra": "· sobran {{sobra}} sobre {{total}}",
     "repartirYaCuadra": "Ya suma {{total}}: no hay nada que repartir.",
-    "repartirTrasBorrar": "Al borrar la pregunta quedaron {{falta}} de diferencia con {{total}}. ¿Cuadrás los puntajes?"
+    "repartirTrasBorrar": "Al borrar la pregunta quedaron {{falta}} de diferencia con {{total}}. ¿Cuadrás los puntajes?",
+    "sectionBehavior": "Comportamiento durante el examen",
+    "shuffleHint": "Cada estudiante recibe las preguntas en un orden distinto, siempre el mismo para él aunque recargue.",
+    "maxWarningsHint": "Al llegar a este número de advertencias, el examen se suspende solo y se cierra la entrega."
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "No pudimos cargar los exámenes.",

@@ -77,6 +77,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 👁️ La pantalla del examen ya muestra la configuración que guardaba a ciegas
+
+Reporte: «no veo en la interfaz del Parcial I el poner las preguntas aleatorias, pero los estudiantes
+me dicen que estaba así». Lo estaba —`shuffle_enabled = true` en la base—, y el docente tenía razón
+en no encontrarlo: el control existe solo en el diálogo «Editar» del grid de Exámenes. La pantalla de
+detalle **persistía ese campo al guardar** (lo copiaba del objeto cargado) pero no lo mostraba, así
+que desde ahí era invisible e inmodificable. Lo mismo pasaba con la navegación secuencial y el
+máximo de advertencias.
+
+Ahora los tres viven en una sección «Comportamiento durante el examen» de esa pantalla. No aparece en
+un examen EXTERNO, que no se rinde en la plataforma.
+
 ### 🚨 Suspender por advertencias volvía reanudable el intento — cerrado en el mismo movimiento
 
 Lo detectó la revisión de consistencia sobre el cambio anterior, y es el efecto secundario que ese

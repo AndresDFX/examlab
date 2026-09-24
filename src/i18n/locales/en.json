@@ -8786,7 +8786,10 @@
     "puntajeFalta": "· {{falta}} short of {{total}}",
     "puntajeSobra": "· {{sobra}} over {{total}}",
     "repartirYaCuadra": "It already adds up to {{total}}: nothing to balance.",
-    "repartirTrasBorrar": "Deleting the question left a {{falta}} gap to {{total}}. Balance the points?"
+    "repartirTrasBorrar": "Deleting the question left a {{falta}} gap to {{total}}. Balance the points?",
+    "sectionBehavior": "Behavior during the exam",
+    "shuffleHint": "Each student gets the questions in a different order, always the same one for them even if they reload.",
+    "maxWarningsHint": "On reaching this number of warnings the exam is suspended automatically and the submission is closed."
   },
   "hc_routesAppTeacherExamsIndex": {
     "loadError": "We couldn't load the exams.",
