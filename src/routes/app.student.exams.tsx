@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,13 @@ function getExamDisplayStatus(row: ExamRow, now: number): ExamDisplayStatus {
   const s = row.submission?.status;
   // Una entrega ya calificada/terminada siempre permite REVISAR (read-only),
   // incluso si el examen luego se cerró → mantener "completed" primero.
-  if (s === "completado" || s === "sospechoso") return "completed";
+  //
+  // Se pregunta por la ENTREGA HECHA y no por dos estados literales: con la
+  // lista blanca, un estado nuevo posterior a la entrega caía en el `closed`
+  // de abajo, que NO está en el filtro por defecto — o sea que al alumno le
+  // desaparecía de la lista un examen que sí había presentado. Es el mismo
+  // fallo que en talleres y proyectos marcaba como «Vencido» lo ya entregado.
+  if (entregaHecha(row.submission)) return "completed";
   // El examen cerrado explícitamente (cierre manual del docente o cascade al
   // finalizar el curso) NO es tomable aunque su ventana de fechas siga abierta
   // — la pantalla de toma lo rechaza con status!=='published'. Reflejar ese

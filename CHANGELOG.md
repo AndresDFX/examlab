@@ -35,6 +35,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
+- **«Vencido» = pasó el plazo Y no entregó.** Pasar el plazo, solo, no vence nada. El predicado es `estaVencido` de **`src/modules/submissions/entrega-hecha.ts`**, que es además el dueño de la ÚNICA lista de «todavía no entregó» del proyecto (`ESTADOS_SIN_ENTREGAR`; `courses/diagnostic.ts` la importa y un test fija que `isSubmittedStatus` sea esa misma función). La lista es **negra, no blanca**: se enumera lo no entregado y cualquier otro estado cuenta como entrega hecha, porque los estados nuevos de estas tablas nacen del pipeline de calificación —aparecen DESPUÉS de entregar— y con lista blanca cada uno se cae al peor default. Así fue como `ai_revisado` dejó 37 entregas reales marcadas «Vencido» y fuera del filtro por defecto del alumno. En una tarjeta, «pasó el plazo» sigue siendo una variable APARTE cuando gobierna si la entrega continúa abierta.
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
 - **Items SIN corte (`cut_id NULL`)**: cuentan en la NOTA FINAL del curso con su peso, tanto en el gradebook docente como en la vista del estudiante (paridad con el número del certificado). La tarjeta "Sin corte" del estudiante es informativa pero su nota SÍ entra al weighted avg. (`app.teacher.gradebook.tsx`, `app.student.grades.tsx`, fix #0)
@@ -75,6 +76,35 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### ⏰ «Vencido» es pasar el plazo **y no haber entregado**
+
+Pedido del usuario: «los talleres, exámenes y todos los elementos vencidos, el criterio debe ser que
+ya pasó el plazo pero no entregó». No era una mejora: la pantalla del estudiante le decía **Vencido a
+entregas reales**.
+
+- **`ai_revisado` no estaba en la lista.** Las listas del estudiante decidían «entregado» con una
+  lista BLANCA de dos estados (`calificado`, `entregado`) y **todo lo demás caía en vencido**. La
+  plataforma escribe `ai_revisado` sola cuando la IA revisa una entrega, así que **37 entregas de
+  producción** quedaban clasificadas como vencidas: el alumno había entregado y su pantalla le
+  mostraba un badge rojo con triángulo de alerta diciendo que no. Peor todavía, el filtro por defecto
+  no incluye lo vencido, así que la tarjeta **desaparecía** de su lista.
+- **Se invirtió la lista: ahora es NEGRA.** Se enumeran los estados en los que TODAVÍA no entregó
+  (`en_progreso`, `iniciado`, `borrador`, `draft`, `pendiente`, `no_entregado`) y cualquier otro
+  cuenta como entrega hecha. Es la única forma de que no vuelva: los estados nuevos de estas tablas
+  nacen del pipeline de CALIFICACIÓN, o sea que aparecen **después** de entregar — con lista blanca
+  cada uno se cae al peor default.
+- **La lista ya existía, en el módulo equivocado.** Vivía dentro de `courses/diagnostic.ts` (el
+  diagnóstico del DOCENTE) con el diseño correcto, y por eso las pantallas del estudiante no la
+  encontraban y se escribieron la suya. Se mudó a `modules/submissions/entrega-hecha.ts`, que es
+  donde el nombre dice de qué se trata; `diagnostic.ts` la importa y un test fija que sean **la
+  misma función**, no dos que se parecen.
+- **En la tarjeta, «pasó el plazo» y «vencido» son variables distintas** y no se unificaron a
+  propósito: la primera gobierna `isOpen`, o sea si la entrega sigue abierta. Redefinirla habría
+  reabierto el botón de entregar sobre un plazo cumplido.
+- **Los exámenes tenían el mismo fallo latente**, sin síntoma todavía: un estado posterior a la
+  entrega caía en `closed`, que tampoco está en el filtro por defecto, así que le habría desaparecido
+  de la lista un examen ya presentado.
 
 ### 🧮 Las preguntas de código ya no guardan la plantilla como si fuera la respuesta
 

@@ -5,6 +5,7 @@
  * resumir entregas pendientes / con error / calificadas, sin
  * dependencias React ni Supabase. Permite test exhaustivo sin mocks.
  */
+import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
 
 /** Un item evaluativo (examen, taller o proyecto) que cuenta para la
  *  matriz "estudiante × actividad" del diagnóstico. */
@@ -91,22 +92,15 @@ export type DiagPendingRow = {
 // no debe contar como "pendiente de calificar". Los exámenes crean la fila al
 // INICIAR (status 'en_progreso') y sólo pasa a 'completado'/'sospechoso' al
 // entregar; talleres/proyectos sólo crean la fila al entregar ('entregado').
-const NOT_SUBMITTED_STATUSES = new Set([
-  "en_progreso",
-  "iniciado",
-  "borrador",
-  "draft",
-  "pendiente",
-  "no_entregado",
-]);
-
 /** ¿La submission representa una entrega REAL del estudiante? Falso para
  *  borradores / en progreso. Status nulo/desconocido → true (no ocultar
- *  pendientes legítimos por un estado inesperado). */
-export function isSubmittedStatus(status: string | null | undefined): boolean {
-  if (!status) return true;
-  return !NOT_SUBMITTED_STATUSES.has(status);
-}
+ *  pendientes legítimos por un estado inesperado).
+ *
+ *  La lista vive en `@/modules/submissions/entrega-hecha`, que es el módulo
+ *  transversal del concepto: acá adentro no la encontraban las pantallas del
+ *  ESTUDIANTE, que terminaron con su propia lista blanca de dos estados y
+ *  marcando «Vencido» sobre entregas reales. */
+export const isSubmittedStatus = esEstadoDeEntrega;
 
 export function summarizePendingGrades(
   students: DiagStudent[],

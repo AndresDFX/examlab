@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { entregaHecha, estaVencido } from "@/modules/submissions/entrega-hecha";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -128,8 +129,17 @@ function cmpDate(a: Date | null, b: Date | null, asc: boolean): number {
 function getProjectDisplayStatus(row: ProjectRow, now: number): ProjectDisplayStatus {
   const s = row.submission?.status;
   if (s === "calificado") return "graded";
-  if (s === "entregado") return "submitted";
-  const isOverdue = row.project.due_date && new Date(row.project.due_date).getTime() < now;
+  // Cualquier ENTREGA HECHA, no solo el literal "entregado". La plataforma
+  // escribe `ai_revisado` sola cuando la IA revisa una entrega, y con la
+  // lista blanca de dos estados que había acá ese caso caía en el
+  // `overdue` de abajo: el alumno había entregado y la pantalla le decía
+  // que no. Ver `@/modules/submissions/entrega-hecha`.
+  if (entregaHecha(row.submission)) return "submitted";
+  const isOverdue = estaVencido({
+    plazo: row.project.due_date,
+    entrega: row.submission,
+    ahora: now,
+  });
   const isUpcoming = row.project.start_date && new Date(row.project.start_date).getTime() > now;
   if (isOverdue) return "overdue";
   if (isUpcoming) return "upcoming";
@@ -660,6 +670,10 @@ function StudentProjects() {
         )}
         {pagination.paginatedItems.map(({ project, submission, groupId }) => {
           const isOverdue = project.due_date && new Date(project.due_date).getTime() < now;
+          // OJO: `isOverdue` de arriba es «pasó el plazo» a secas porque
+          // gobierna `isOpen`, o sea si la entrega sigue abierta. Lo que se
+          // MUESTRA como vencido es otra cosa: pasó el plazo Y no entregó.
+          const vencido = estaVencido({ plazo: project.due_date, entrega: submission, ahora: now });
           const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
@@ -694,11 +708,11 @@ function StudentProjects() {
                           : `${grade}`
                         : t("project.submitted")}
                     </Badge>
-                  ) : submission?.status === "entregado" ? (
+                  ) : entregaHecha(submission) ? (
                     <Badge variant="secondary" className="shrink-0">
                       {t("project.submitted")}
                     </Badge>
-                  ) : isOverdue ? (
+                  ) : vencido ? (
                     <Badge variant="destructive" className="shrink-0">
                       <AlertTriangle className="h-3 w-3 mr-1" />
                       {t("dashboard.overdue")}
