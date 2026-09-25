@@ -1373,9 +1373,15 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       // aplicaba a entregas de examen aunque el admin tuviera 'async'
       // activo. Ver `src/modules/ai/ai-grading.ts` para el helper.
       //
-      // Fire-and-forget: el alumno no espera ni en sync ni en async.
-      // En sync la edge corre en background del Lambda Supabase (~5-15s);
-      // en async el worker la procesará en la próxima ventana hourly.
+      // Fire-and-forget Y SIEMPRE A LA COLA (`soloEncolar`), incluso con el
+      // modo en `sync`. Un alumno no puede usar el camino inmediato: el worker
+      // le responde 401 por permisos, el código cae al edge directo y, si ese
+      // contesta bien, CANCELA el job encolado — retirando la única red de
+      // contención en el momento en que ya no se puede verificar nada. Con eso,
+      // un 429 por cuota o una pestaña que se cierra dejaba la entrega sin nota
+      // y sin nada pendiente que la recuperara. Encolando, el resultado es
+      // determinista: el trabajo queda, el cron lo drena con reintentos y abajo
+      // se le avisa al alumno que su nota llega después.
       void aiGradeOrEnqueue({
         kind: "exam_submission",
         body: { submissionId: submissionIdRef.current },
@@ -1396,7 +1402,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           // dashboard (solo lo vería el admin).
           courseId: exam?.course_id ?? null,
         },
-      })
+      }, { soloEncolar: true })
         .then((result) => {
           // Avisar al estudiante cuando la nota NO va a estar ya. Sin esto ve
           // la pantalla "examen entregado" sin saber por qué su nota tarda. El

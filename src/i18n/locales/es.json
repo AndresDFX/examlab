@@ -1166,7 +1166,7 @@
       "notAnsweredCode": "// Sin responder",
       "notFound": "No se encontró el examen.",
       "pendingFinish": "Cuando completes y entregues el examen, aquí podrás ver tus respuestas y la retroalimentación por pregunta (después de la calificación).",
-      "priorValue": "Valor de referencia anterior: {{value}}",
+      "priorValue": "Nota ajustada por tu docente · la calificación automática era {{value}}",
       "retryModeNote": "Nota {{mode}} de {{count}} intentos · el detalle es el último",
       "rubric": "Criterios de evaluación (referencia)",
       "submittedAt": "Entregado: {{when}}",

@@ -194,6 +194,40 @@ el prompt trae una REGLA DE AUTORÍA que prohíbe usarla como indicio. La misma 
 argumento circular de ese informe: que un programa corto compile sin errores no es señal de IA — en un
 ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema.
 
+### 📥 La nota de un examen SIEMPRE se encola, aunque la institución esté en modo inmediato
+
+Reporte: «cuando el estudiante termina un examen y el tenant está en modo sincrónico, que se encole y
+no deje esperando ahí al estudiante por la nota — porque a veces da fallos».
+
+El camino inmediato **no está disponible para un alumno**, y esa es la raíz. `ai-grading-worker` exige
+Admin/Docente/`service_role`, así que desde su navegador responde **401 siempre**; el código lo detecta,
+cae a invocar el edge directo y, si ese contesta bien, **cancela el job encolado**. O sea que la única
+red de contención se retira justo en el momento en que ya no se puede verificar nada: un 429 por cuota,
+un 5xx o una pestaña que se cierra dejaban la entrega **sin nota y sin trabajo pendiente que la
+recupere**.
+
+Ahora la entrega de examen pide cola explícitamente (`soloEncolar`) y el resultado es determinista: el
+job queda, el cron lo drena con reintentos y el alumno recibe el aviso de que su nota llega después —en
+vez de una promesa que a veces no se cumplía—. La opción se evalúa **antes** de leer el modo y el
+override, así que tampoco consume un cupo de «IA inmediata» en un camino que no puede aprovecharlo.
+Tres tests lo fijan, incluido que un encolado fallido devuelva el error **sin** calificar por detrás: el
+caller necesita saber que no quedó nada pendiente.
+
+Verificado antes de cambiarlo: `ai-grading-worker` **no** lee `processing_mode`, así que no se
+autoexcluye y la cola se drena igual con la institución en `sync`. Sin eso, encolar habría sido peor
+que el problema.
+
+### 🏷️ «Valor de referencia anterior: 0» junto a la nota del estudiante
+
+Ese texto aparece en la revisión del examen cuando el docente **ajusta** una nota que la IA había
+puesto. Al alumno le mostraba un número suelto —un `0` al lado de su `3.5`— sin decirle qué era, y con
+una etiqueta que nombra el mecanismo en vez de lo que pasó. Es justo lo que prohíbe P6. Ahora dice
+**«Nota ajustada por tu docente · la calificación automática era 0»**.
+
+El barrido por los hermanos (el check de P6 sobre los locales) dio **un solo** caso en pantalla de
+estudiante: este. Los demás aciertos —`endpoint`, `Timestamp`, `uuid`— viven en los paneles de
+diagnóstico y secretos del SuperAdmin, donde el término técnico es el correcto y P6 lo permite.
+
 ### 🧯 Lo que se cayó el 2026-09-23 fue el compilador, no la plataforma
 
 > **Causa raíz, y el arreglo de fondo.** Los tres «No autenticado» ocurrieron a los **64 y 83

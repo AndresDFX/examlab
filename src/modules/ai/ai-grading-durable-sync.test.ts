@@ -133,6 +133,37 @@ describe("camino inmediato con job durable", () => {
     expect(res.jobId).toBeUndefined();
   });
 
+  it("`soloEncolar` NO despacha, aunque el modo sea sync", async () => {
+    // La entrega de EXAMEN del alumno. El camino inmediato no está disponible
+    // para él —el worker le responde 401— y el fallback al edge directo CANCELA
+    // el job cuando sale bien, retirando la red de contención justo cuando ya no
+    // se puede verificar nada. Acá se fija que ni siquiera se intente.
+    const res = await aiGradeOrEnqueue(req, { soloEncolar: true });
+    expect(calls).toContain("rpc:enqueue_ai_grading");
+    expect(calls).not.toContain("invoke:ai-grading-worker");
+    expect(calls).not.toContain("invoke:ai-grade-submission");
+    expect(res.jobId).toBe("job-123");
+    // `ranSync:false` es lo que hace que el alumno reciba el aviso de que su
+    // nota llega después; con true se le prometería una nota que no está.
+    expect(res.ranSync).toBe(false);
+  });
+
+  it("`soloEncolar` ni siquiera consulta el modo ni gasta un cupo de IA inmediata", async () => {
+    await aiGradeOrEnqueue(req, { soloEncolar: true });
+    expect(calls).not.toContain("rpc:get_active_processing_mode");
+    expect(calls).not.toContain("rpc:claim_ai_override_message");
+  });
+
+  it("si el encolado falla con `soloEncolar`, se devuelve el error sin calificar por detrás", async () => {
+    // Nada de caer al edge: el caller necesita saber que NO quedó nada pendiente.
+    enqueueResult = { data: null, error: { message: "rls" } };
+    const res = await aiGradeOrEnqueue(req, { soloEncolar: true });
+    expect(calls).not.toContain("invoke:ai-grade-submission");
+    expect(res.ranSync).toBe(false);
+    expect(res.error).toBeTruthy();
+    expect(res.jobId).toBeUndefined();
+  });
+
   it("modo async (sin override) NO despacha: solo encola", async () => {
     // Guard de que el cambio no convirtió la cola en "todo inmediato".
     const { resolveAiGateDecision } = await import("./ai-grading");

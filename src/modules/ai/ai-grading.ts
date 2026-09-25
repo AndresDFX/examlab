@@ -381,9 +381,35 @@ export async function aiGradeOrEnqueue(
      *  un batch que debe ir a la cola. El único flujo siempre-sync es el
      *  Tutor IA (que no pasa por acá). */
     ignoreOverride?: boolean;
+    /**
+     * Encola y NO intenta calificar en el acto, aunque el modo sea `sync`.
+     *
+     * Lo usa la entrega de EXAMEN del estudiante, y no por gusto: el camino
+     * inmediato no está disponible para un alumno. `ai-grading-worker` exige
+     * Admin/Docente/`service_role`, así que desde su navegador responde 401
+     * SIEMPRE; el código cae entonces a invocar el edge directo y, si ese
+     * responde bien, **cancela el job encolado**. O sea que la única red de
+     * contención se retira justo cuando ya no se puede verificar nada, y
+     * cualquier fallo posterior —sin cuota, 429, 5xx, la pestaña que se
+     * cierra— deja la entrega sin nota y sin trabajo pendiente que la
+     * recupere. Encolar de entrada hace el resultado DETERMINISTA: el job
+     * queda, el cron lo drena con reintentos y al alumno se le avisa que su
+     * nota llega después, en vez de prometerle una que quizá no llegue.
+     */
+    soloEncolar?: boolean;
   },
 ): Promise<AiGradeResult> {
   const invokeTarget = req.invokeTarget ?? "ai-grade-submission";
+
+  // Se decide ANTES de leer el modo y el override: quien pide cola la pide
+  // pase lo que pase, y así tampoco se consume un cupo de «IA inmediata» en
+  // un camino que no puede aprovecharlo.
+  if (opts?.soloEncolar) {
+    const { jobId, error } = await enqueueGradingJob(req, invokeTarget);
+    if (error) return { ranSync: false, error };
+    return { ranSync: false, jobId };
+  }
+
   const overrideExp = opts?.ignoreOverride ? null : readOverrideExpiry();
   const mode = await getProcessingMode();
 

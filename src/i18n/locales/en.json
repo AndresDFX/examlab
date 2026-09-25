@@ -1166,7 +1166,7 @@
       "notAnsweredCode": "// Not answered",
       "notFound": "Exam not found.",
       "pendingFinish": "Once you complete and submit the exam, you'll be able to see your answers and per-question feedback here (after grading).",
-      "priorValue": "Previous reference value: {{value}}",
+      "priorValue": "Grade adjusted by your teacher · the automatic grade was {{value}}",
       "retryModeNote": "{{mode}} grade of {{count}} attempts · the detail shows the last one",
       "rubric": "Grading criteria (reference)",
       "submittedAt": "Submitted: {{when}}",
