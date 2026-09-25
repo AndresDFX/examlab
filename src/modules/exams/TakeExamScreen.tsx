@@ -44,6 +44,7 @@ import {
 } from "@/shared/lib/fullscreen";
 import { toast } from "sonner";
 import { getUnansweredIndices } from "@/modules/exams/answered";
+import { caracteresParaTipo } from "@/modules/exams/caracteres-especiales";
 import {
   AlertTriangle,
   Clock,
@@ -1999,7 +2000,21 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // Última corrección registrada en móvil, para no anotar DOS señales blandas
     // por el mismo gesto (ver `resolverOculto`).
     let ultimoBlurMovil = 0;
+    // Momento en que se abrió el menú contextual del corrector. En un
+    // computador, ese menú lo dibuja el SISTEMA y varios navegadores emiten un
+    // `blur` de la ventana al mostrarlo — o sea que aceptar una sugerencia de
+    // ortografía le costaría un strike al estudiante, que es justo lo que el
+    // permiso del menú venía a evitar. La gracia es corta y solo se abre
+    // cuando el menú se permitió de verdad (sobre un campo de respuesta), así
+    // que no da margen para cambiar de ventana sin que se note.
+    let menuDeCorreccionAbiertoEn = 0;
+    const GRACIA_TRAS_MENU_MS = 1500;
+
     const onBlur = () => {
+      if (Date.now() - menuDeCorreccionAbiertoEn <= GRACIA_TRAS_MENU_MS) {
+        registrarSenalBlanda("blur_correccion");
+        return;
+      }
       if (!blurSuma) {
         // No suma, pero no se pierde: el docente lo ve en el monitor. Salir de
         // la app DE VERDAD sigue sumando por `visibilitychange`, que en móvil
@@ -2021,7 +2036,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // la mano con el portapapeles: elegir «Pegar» en el menú dispara el mismo
     // evento que `onClipboard` intercepta. Ver `permiteMenuContextual`.
     const onContext = (e: Event) => {
-      if (permiteMenuContextual(e.target)) return;
+      if (permiteMenuContextual(e.target)) {
+        menuDeCorreccionAbiertoEn = Date.now();
+        return;
+      }
       e.preventDefault();
     };
     // Política de copiar/pegar/cortar:
@@ -2909,6 +2927,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                       isRunning={runningCode[q.id] ?? false}
                       showLanguageSelector={false}
                       showRunButton={true}
+                      caracteresRapidos={caracteresParaTipo(q.type) ?? undefined}
                       height="250px"
                       zoomScopeKey={q.id}
                       // El editor ampliado es `fixed inset-0` y tapa el
@@ -3021,6 +3040,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     onBlur={saveAnswersNow}
                     placeholder={t("hc_routesAppStudentTakeExamId.yourAnswerPlaceholder")}
                     max={maxOpenChars}
+                    caracteresRapidos={caracteresParaTipo(q.type) ?? undefined}
                   />
                 )}
               </CardContent>

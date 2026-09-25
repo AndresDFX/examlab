@@ -38,6 +38,11 @@ export type WarningType =
   // ocultara. En un teléfono eso lo produce el corrector ortográfico del
   // sistema, así que NO suma strike — se registra para que el docente lo vea.
   | "blur_movil"
+  // Señal blanda de ESCRITORIO: la ventana perdió el foco justo después de
+  // abrir el menú contextual sobre un campo de respuesta, o sea el menú del
+  // corrector ortográfico. NO suma strike — aceptar una sugerencia no puede
+  // costar una advertencia.
+  | "blur_correccion"
   // Señal blanda de móvil: el documento se ocultó y volvió en menos de la
   // gracia. Ver `ocultarCuentaComoStrike`.
   | "oculto_breve_movil"
@@ -86,6 +91,8 @@ export function warningLabel(type: WarningType): string {
       return "Salió con el botón «atrás»";
     case "blur_movil":
       return "Salida momentánea en móvil (no suma)";
+    case "blur_correccion":
+      return "Corrección ortográfica (no suma)";
     case "oculto_breve_movil":
       return "Pantalla oculta un instante en móvil (no suma)";
     case "fullscreen_exit_movil":

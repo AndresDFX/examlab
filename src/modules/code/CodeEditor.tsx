@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
+import { CharacterBar } from "@/components/ui/character-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import {
@@ -70,6 +71,15 @@ interface CodeEditorProps {
   showLanguageSelector?: boolean;
   showRunButton?: boolean;
   /**
+   * Caracteres que el alumno puede insertar con un toque (`ñ`, `;`, `<`…).
+   * Ver `@/modules/exams/caracteres-especiales`: el examen bloquea el
+   * portapapeles, así que un teclado sin la tecla dejaba al estudiante
+   * buscando el carácter en otra ventana para copiarlo — justo lo que el
+   * proctoring le marca como intento de trampa. Se inserta por la API del
+   * editor, nunca por el portapapeles.
+   */
+  caracteresRapidos?: readonly string[];
+  /**
    * Bloquea silenciosamente copiar/pegar/cortar dentro del editor.
    * Usado en el flujo de examen — Monaco intercepta los atajos antes
    * que el listener de documento, así que hay que deshabilitarlos
@@ -134,6 +144,7 @@ export function CodeEditor({
   height = "300px",
   showLanguageSelector = true,
   showRunButton = true,
+  caracteresRapidos,
   blockClipboard = false,
   hideHints = false,
   zoomScopeKey = null,
@@ -141,6 +152,23 @@ export function CodeEditor({
 }: CodeEditorProps) {
   const { t } = useTranslation();
   const editorRef = useRef<any>(null);
+
+  /**
+   * Inserta en la POSICIÓN DEL CURSOR con la API del editor, no concatenando
+   * al final del `value`: en un archivo de 30 líneas, un `;` que aterriza al
+   * final no sirve de nada. `executeEdits` además deja el paso en la pila de
+   * deshacer, así que Ctrl+Z lo revierte como cualquier otra escritura.
+   */
+  const insertarCaracterEnCursor = (caracter: string) => {
+    const ed = editorRef.current;
+    if (!ed) return;
+    const sel = ed.getSelection();
+    if (!sel) return;
+    ed.executeEdits("barra-caracteres", [{ range: sel, text: caracter, forceMoveMarkers: true }]);
+    // El foco vuelve al editor para que pueda seguir escribiendo sin tocar la
+    // pantalla otra vez.
+    ed.focus();
+  };
 
   const handleMount: OnMount = useCallback(
     (editor, monaco) => {
@@ -367,6 +395,15 @@ export function CodeEditor({
           }}
         />
       </div>
+
+      {caracteresRapidos && caracteresRapidos.length > 0 && !readOnly ? (
+        <CharacterBar
+          characters={caracteresRapidos}
+          onInsert={insertarCaracterEnCursor}
+          label={t("codeEditor.quickChars")}
+          className={ampliado ? "shrink-0" : undefined}
+        />
+      ) : null}
 
       {output !== undefined && (
         <Card className={ampliado ? "shrink-0 bg-muted/50" : "bg-muted/50"}>

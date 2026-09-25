@@ -194,6 +194,51 @@ el prompt trae una REGLA DE AUTORÍA que prohíbe usarla como indicio. La misma 
 argumento circular de ese informe: que un programa corto compile sin errores no es señal de IA — en un
 ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema.
 
+### ⌨️ Caracteres que el teclado no tiene, sin copiar ni pegar
+
+Barra de caracteres (`ñ`, tildes, `;`, `{`, `<`…) en las preguntas del examen donde el alumno
+ESCRIBE. El examen bloquea el portapapeles, y con razón; pero ese bloqueo dejaba sin salida un caso
+legítimo y frecuente en una sala de cómputo: **el teclado que no tiene la tecla**. Uno en inglés no
+trae `ñ` ni tildes; uno con una tecla rota se queda sin `;` — y en Java, sin `;` no hay programa. Ese
+alumno terminaba buscando el carácter en otra ventana para copiarlo, que es justo lo que el
+proctoring le marca como intento de trampa. Se le convertía un problema de hardware en una acusación.
+
+- **Inserta por código, nunca por portapapeles**: no dispara `copy`/`paste`/`cut` ni deja ninguna
+  señal de proctoring. Y como solo puede insertar los caracteres de su lista, no sirve para traer
+  texto de ningún otro lado.
+- **Dos juegos, elegidos por tipo de pregunta** ([caracteres-especiales.ts](src/modules/exams/caracteres-especiales.ts)):
+  en una respuesta en prosa nadie necesita `{`, y en Java nadie necesita `¡`. En las de **selección
+  no aparece**: ahí no se escribe, y un control que no hace nada enseña que la pantalla está muerta.
+- **Inserta en el CURSOR, no al final.** En el editor de código va por `executeEdits`, así que además
+  queda en la pila de deshacer; en el área de texto se repone la posición después del re-render. Sin
+  eso, un `;` en medio de un archivo de 30 líneas aterrizaba al final.
+- Vive en `OpenAnswerTextarea`, que ya es compartido, así que el taller y el proyecto lo heredan.
+
+### 🟥 Una nota aprobada dejó de pintarse de rojo
+
+Reporte con captura: «Calificación: 4.37/5» en un badge **rojo con triángulo de alerta**. El color no
+miraba la nota: se ponía rojo cuando la ENTREGA estaba marcada como sospechosa. O sea que un 4,37
+sobre 5 —aprobado con holgura— se le mostraba al estudiante como si su calificación estuviera mal.
+
+Son dos informaciones distintas y ahora tienen dos lugares distintos: la nota la dice el badge y su
+color sale del umbral de aprobación del curso ([aprobacion.ts](src/modules/grading/aprobacion.ts)); si
+hubo algo que revisar en la entrega, eso ya se avisa aparte con su propio ícono. `destructive` queda
+**solo** para una nota que se sabe reprobada — sin nota tampoco es rojo, porque teñir de rojo a quien
+está esperando que lo califiquen es el mismo error al revés. El umbral y su default (3) se toman de
+donde ya salían para actas y boletines, para que la pantalla y el acta no se contradigan.
+
+Revisados los hermanos: en talleres y proyectos el badge de nota nunca usó `destructive` (su rojo es
+el de «Vencido», que sí corresponde), así que el falso rojo existía solo en exámenes.
+
+### ✍️ Corregir la ortografía tampoco suma en el computador
+
+Complemento del permiso del menú contextual. En un computador ese menú lo dibuja el SISTEMA, y varios
+navegadores emiten un `blur` de la ventana al mostrarlo: aceptar una sugerencia del corrector le
+habría costado un strike al estudiante, anulando el permiso que se acababa de dar. Ahora un `blur`
+que llega dentro de 1,5 s de haber abierto ese menú **sobre un campo de respuesta** se registra como
+`blur_correccion` y no suma. La gracia es corta y solo se abre cuando el menú se permitió de verdad,
+así que no deja margen para cambiar de ventana sin que se note.
+
 ### 📥 La nota de un examen SIEMPRE se encola, aunque la institución esté en modo inmediato
 
 Reporte: «cuando el estudiante termina un examen y el tenant está en modo sincrónico, que se encole y

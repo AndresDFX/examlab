@@ -5486,7 +5486,8 @@
     "outputEmpty": "(sin salida)",
     "outputTitle": "Salida",
     "restore": "Restaurar el tamaño",
-    "runButton": "Ejecutar"
+    "runButton": "Ejecutar",
+    "quickChars": "Insertar:"
   },
   "adminAiConfig": {
     "needsAdmin": "Necesitas rol Admin.",

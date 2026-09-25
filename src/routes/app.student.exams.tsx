@@ -5,6 +5,7 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
+import { estaAprobada, varianteDeNota } from "@/modules/grading/aprobacion";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -66,6 +67,8 @@ type ExamRow = {
       status?: string | null;
       grade_scale_min: number;
       grade_scale_max: number;
+      /** Umbral de aprobación del curso: decide el COLOR de la nota. */
+      passing_grade?: number | null;
       max_exam_attempts?: number;
     };
   };
@@ -219,7 +222,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, max_exam_attempts))",
+          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, passing_grade, max_exam_attempts))",
         )
         .eq("user_id", user.id)
         .neq("exam.status", "draft")
@@ -599,11 +602,17 @@ function StudentExams() {
                     <h3 className="font-semibold truncate">{exam.title}</h3>
                   </div>
                   {completed ? (
+                    // El color lo decide la NOTA, no el estado de la entrega.
+                    // Antes bastaba con que la entrega estuviera marcada como
+                    // sospechosa para pintar un 4,37 sobre 5 en rojo y con
+                    // triángulo de alerta: el badge dice «tu calificación está
+                    // mal» y no era verdad. Si hubo algo que revisar, eso se
+                    // avisa aparte y con su propio ícono.
                     <Badge
-                      variant={submission?.status === "sospechoso" ? "destructive" : "default"}
+                      variant={varianteDeNota(grade, exam.course?.passing_grade)}
                       className="shrink-0"
                     >
-                      {submission?.status === "sospechoso" ? (
+                      {estaAprobada(grade, exam.course?.passing_grade) === false ? (
                         <AlertTriangle className="h-3 w-3 mr-1" />
                       ) : (
                         <CheckCircle2 className="h-3 w-3 mr-1" />

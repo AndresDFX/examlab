@@ -5486,7 +5486,8 @@
     "outputEmpty": "(no output)",
     "outputTitle": "Output",
     "restore": "Restore size",
-    "runButton": "Run"
+    "runButton": "Run",
+    "quickChars": "Insert:"
   },
   "adminAiConfig": {
     "needsAdmin": "You need the Admin role.",
