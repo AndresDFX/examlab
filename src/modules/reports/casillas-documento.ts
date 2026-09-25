@@ -75,3 +75,78 @@ export function fijarCasilla(
  * el caller no tenga que conocer ese literal.
  */
 export const ROTULO_NOMBRE_VOCERO = "Nombre del vocero";
+
+/**
+ * Escribe el CUERPO de una sección cuyo título vive en la misma celda.
+ *
+ * El Acuerdo tiene secciones de ancho completo —«Acuerdo sobre los aspectos
+ * metodológicos»— donde el título y su texto son dos párrafos dentro del MISMO
+ * `<td>`. `fijarCasilla` no sirve ahí: busca la celda siguiente, y la siguiente
+ * es la de la sección de abajo, así que escribiría el texto de metodología
+ * dentro de la de evaluación. Se comprobó leyendo el HTML real antes de usarla.
+ *
+ * Reemplaza todo lo que sigue al párrafo del título, hasta cerrar la celda, por
+ * un párrafo por cada bloque separado con línea en blanco. El HTML que viene
+ * del `.docx` tiene etiquetas sin cerrar —hay `<span>` que terminan en `</p>`—
+ * así que no se intenta editar los párrafos existentes: se reemplaza el tramo
+ * entero, que es lo único predecible sobre un marcado así.
+ *
+ * Devuelve `null` si no encuentra el título o su celda, o si el valor viene
+ * vacío: borrar el cuerpo de una sección de un documento firmado tiene que ser
+ * una acción explícita.
+ */
+export function fijarCuerpoDeSeccion(
+  html: string | null | undefined,
+  titulo: string,
+  valor: string | null | undefined,
+): string | null {
+  if (!html || !valor || !valor.trim()) return null;
+  const iTitulo = html.indexOf(`>${titulo}<`);
+  if (iTitulo < 0) return null;
+
+  // La celda que contiene el título.
+  const iCelda = html.lastIndexOf("<td", iTitulo);
+  const iFinCelda = html.indexOf("</td>", iTitulo);
+  if (iCelda < 0 || iFinCelda < 0) return null;
+
+  // El párrafo del título termina en el primer `</p>` posterior.
+  const iFinTitulo = html.indexOf("</p>", iTitulo);
+  if (iFinTitulo < 0 || iFinTitulo > iFinCelda) return null;
+  const desde = iFinTitulo + "</p>".length;
+
+  const cuerpo = valor
+    .trim()
+    .split(/\n\s*\n/)
+    .map((b) => b.trim())
+    .filter(Boolean)
+    .map(
+      (b) =>
+        `<p style="text-align:justify"><span style="font-size:9pt">${b
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/\n/g, "<br />")}</span></p>`,
+    )
+    .join("");
+
+  return html.slice(0, desde) + cuerpo + html.slice(iFinCelda);
+}
+
+/** Lo que dice hoy el cuerpo de una sección, en texto plano. */
+export function leerCuerpoDeSeccion(
+  html: string | null | undefined,
+  titulo: string,
+): string | null {
+  if (!html) return null;
+  const iTitulo = html.indexOf(`>${titulo}<`);
+  if (iTitulo < 0) return null;
+  const iFinCelda = html.indexOf("</td>", iTitulo);
+  const iFinTitulo = html.indexOf("</p>", iTitulo);
+  if (iFinCelda < 0 || iFinTitulo < 0 || iFinTitulo > iFinCelda) return null;
+  return html
+    .slice(iFinTitulo + 4, iFinCelda)
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}

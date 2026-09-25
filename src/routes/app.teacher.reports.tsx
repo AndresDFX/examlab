@@ -36,7 +36,12 @@ import { Toggle } from "@/components/ui/toggle";
 import { insertarEnListado } from "@/modules/reports/insertar-filas";
 import { refrescarDatos } from "@/modules/reports/refrescar-datos";
 import { fijarRanuraDeVocero, ordenarListado } from "@/modules/reports/poner-al-dia";
-import { fijarCasilla, leerCasilla } from "@/modules/reports/casillas-documento";
+import {
+  fijarCasilla,
+  fijarCuerpoDeSeccion,
+  leerCasilla,
+  leerCuerpoDeSeccion,
+} from "@/modules/reports/casillas-documento";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -729,17 +734,30 @@ function Inner() {
           subject?: { name?: string | null; metodologia?: string | null } | null;
         } | null;
         const asignatura = c?.subject?.name ?? c?.name ?? null;
-        for (const [rotulo, valor] of [
-          ["Nombre Del Curso", asignatura],
-          ["Acuerdo sobre los aspectos metodológicos", c?.subject?.metodologia ?? null],
-        ] as const) {
-          // Solo si CAMBIA: `fijarCasilla` ignora los vacíos, así que una
-          // metodología sin escribir no borra lo que haya.
-          if (!valor || leerCasilla(html, rotulo) === valor.trim()) continue;
-          const conValor = fijarCasilla(html, rotulo, valor);
-          if (conValor) {
-            html = conValor;
+        // El nombre de la asignatura es una CASILLA (rótulo y valor en celdas
+        // contiguas); la metodología es el CUERPO de una sección de ancho
+        // completo, con el título en la misma celda. Usar `fijarCasilla` para
+        // la segunda escribiría el texto dentro de la sección de evaluación,
+        // que es la celda siguiente — comprobado sobre el HTML real.
+        if (asignatura && leerCasilla(html, "Nombre Del Curso") !== asignatura.trim()) {
+          const conNombre = fijarCasilla(html, "Nombre Del Curso", asignatura);
+          if (conNombre) {
+            html = conNombre;
             tocado = true;
+          }
+        }
+        const metodologia = c?.subject?.metodologia ?? null;
+        const SECCION_METODOLOGIA = "Acuerdo sobre los aspectos metodológicos";
+        if (metodologia && metodologia.trim()) {
+          // Se compara en texto plano: el cuerpo guardado lleva etiquetas.
+          const actual = leerCuerpoDeSeccion(html, SECCION_METODOLOGIA);
+          const esperado = metodologia.trim().replace(/\s+/g, " ");
+          if (actual !== esperado) {
+            const conMetodo = fijarCuerpoDeSeccion(html, SECCION_METODOLOGIA, metodologia);
+            if (conMetodo) {
+              html = conMetodo;
+              tocado = true;
+            }
           }
         }
       }

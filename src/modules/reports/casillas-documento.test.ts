@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { fijarCasilla, leerCasilla } from "./casillas-documento";
+import {
+  fijarCasilla,
+  fijarCuerpoDeSeccion,
+  leerCasilla,
+  leerCuerpoDeSeccion,
+} from "./casillas-documento";
 
 const celda = (v: string) => `<td><p><span style="font-size:9pt">${v}</span></p></td>`;
 /** El bloque del vocero tal como sale de la plantilla: pares rótulo/valor. */
@@ -79,5 +84,80 @@ describe("fijarCasilla", () => {
 
   it("tolera null", () => {
     expect(fijarCasilla(null, "Teléfono", "1")).toBeNull();
+  });
+});
+
+describe("fijarCuerpoDeSeccion", () => {
+  /** Una sección de ancho completo: título y cuerpo en la MISMA celda, tal
+   *  como sale del .docx — con el `<span>` del cuerpo sin cerrar. */
+  const seccion = (cuerpo: string) =>
+    "<table><tr>" +
+    '<td colspan="6"><p><span style="s">Acuerdo sobre los aspectos metodológicos</span></p>' +
+    `<p><span style="s">${cuerpo}</p></td>` +
+    "</tr><tr>" +
+    '<td colspan="6"><p><span style="s">Acuerdo sobre los aspectos de evaluación</span></p>' +
+    '<p><span style="s">La nota final se compone de los siguientes cortes:</p></td>' +
+    "</tr></table>";
+
+  it("reemplaza el cuerpo de SU seccion", () => {
+    const out = fijarCuerpoDeSeccion(seccion("Describa acá…"), "Acuerdo sobre los aspectos metodológicos", "Clases virtuales.")!;
+    expect(out).toContain("Clases virtuales.");
+    expect(out).not.toContain("Describa acá");
+  });
+
+  it("NO toca la seccion de abajo", () => {
+    // El error que motiva esta función: `fijarCasilla` busca la celda
+    // SIGUIENTE, y la siguiente es la de evaluación — habría escrito la
+    // metodología dentro de ella.
+    const out = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "Clases virtuales.")!;
+    expect(out).toContain("Acuerdo sobre los aspectos de evaluación");
+    expect(out).toContain("La nota final se compone de los siguientes cortes:");
+  });
+
+  it("conserva el titulo", () => {
+    const out = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "y")!;
+    expect(out).toContain("Acuerdo sobre los aspectos metodológicos");
+  });
+
+  it("un texto con lineas en blanco se parte en varios parrafos", () => {
+    const out = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "Uno.\n\nDos.\n\nTres.")!;
+    expect((out.match(/<p style="text-align:justify">/g) || []).length).toBe(3);
+  });
+
+  it("un salto simple queda como salto de linea, no como parrafo", () => {
+    const out = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "Uno.\nDos.")!;
+    expect((out.match(/<p style="text-align:justify">/g) || []).length).toBe(1);
+    expect(out).toContain("<br />");
+  });
+
+  it("escapa el HTML del valor", () => {
+    const out = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "a<b>c")!;
+    expect(out).toContain("a&lt;b&gt;c");
+  });
+
+  it("es idempotente", () => {
+    const una = fijarCuerpoDeSeccion(seccion("x"), "Acuerdo sobre los aspectos metodológicos", "Clases virtuales.")!;
+    const dos = fijarCuerpoDeSeccion(una, "Acuerdo sobre los aspectos metodológicos", "Clases virtuales.")!;
+    expect(dos).toBe(una);
+  });
+
+  it("un valor vacio NO borra el cuerpo", () => {
+    expect(fijarCuerpoDeSeccion(seccion("algo"), "Acuerdo sobre los aspectos metodológicos", "")).toBeNull();
+    expect(fijarCuerpoDeSeccion(seccion("algo"), "Acuerdo sobre los aspectos metodológicos", null)).toBeNull();
+  });
+
+  it("devuelve null si el titulo no esta", () => {
+    expect(fijarCuerpoDeSeccion(seccion("x"), "Sección inexistente", "y")).toBeNull();
+  });
+});
+
+describe("leerCuerpoDeSeccion", () => {
+  const sec =
+    '<table><tr><td><p><span>Título</span></p><p><span>El cuerpo.</p></td></tr></table>';
+  it("devuelve el cuerpo en texto plano", () => {
+    expect(leerCuerpoDeSeccion(sec, "Título")).toBe("El cuerpo.");
+  });
+  it("devuelve null si el titulo no esta", () => {
+    expect(leerCuerpoDeSeccion(sec, "Otro")).toBeNull();
   });
 });
