@@ -53,7 +53,6 @@ import {
 } from "./signature-slots";
 import {
   filasDeFirmantes,
-  hashDivergente,
   loteDeSolicitud,
   resumirFirmas,
   type FilaFirmante,
@@ -210,7 +209,6 @@ export function ReportStatusDialog({
 
   const resumen = useMemo(() => resumirFirmas(solicitudes, html), [solicitudes, html]);
   const lote = useMemo(() => loteDeSolicitud(solicitudes), [solicitudes]);
-  const divergente = useMemo(() => hashDivergente(solicitudes), [solicitudes]);
   const sinFirmantes = resumen.clase === "sin-ranuras";
   const hayPuertas = filas.some((f) => f.anclada);
 
@@ -291,11 +289,6 @@ export function ReportStatusDialog({
             {lote && (
               <span className="text-2xs text-muted-foreground">
                 {t("reportStatus.requestedBatch", { date: formatDateTime(lote) })}
-              </span>
-            )}
-            {divergente && (
-              <span className="text-2xs text-amber-600 dark:text-amber-400">
-                {t("reportStatus.hashMismatch")}
               </span>
             )}
           </div>

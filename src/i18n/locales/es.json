@@ -130,7 +130,6 @@
     "cellNotRequested": "Sin pedir",
     "dialogTitle": "Estado del documento",
     "focusHint": "Tocá una fila para ver su casilla en el documento.",
-    "hashMismatch": "Hay firmas puestas sobre versiones distintas del documento. Revisá las fechas antes de darlo por cerrado.",
     "loadError": "No pudimos cargar el estado de las firmas.",
     "noneRequested": "Todavía no le pediste la firma a nadie.",
     "noSlots": "Este documento no tiene casillas de firma: se imprime y se firma a mano.",

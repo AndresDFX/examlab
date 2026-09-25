@@ -130,7 +130,6 @@
     "cellNotRequested": "Not asked",
     "dialogTitle": "Document status",
     "focusHint": "Tap a row to see its box in the document.",
-    "hashMismatch": "Some signatures were placed on different versions of this document. Check the dates before closing it.",
     "loadError": "We couldn't load the signature status.",
     "noneRequested": "You haven't asked anyone to sign yet.",
     "noSlots": "This document has no signature boxes: print it and sign it by hand.",

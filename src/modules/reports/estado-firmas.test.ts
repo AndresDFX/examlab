@@ -9,7 +9,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { filasDeFirmantes, hashDivergente, loteDeSolicitud, resumirFirmas } from "./estado-firmas";
+import { filasDeFirmantes, loteDeSolicitud, resumirFirmas } from "./estado-firmas";
 import { ranuraHtml, renglonManualHtml } from "./signature-slots";
 
 const A = "11111111-1111-4111-8111-111111111111";
@@ -271,35 +271,4 @@ describe("loteDeSolicitud", () => {
   });
 });
 
-describe("hashDivergente", () => {
-  it("un solo hash entre las firmadas: no divergen", () => {
-    expect(
-      hashDivergente([
-        { signed_at: "2026-09-05T10:00:00Z", signed_hash: "8d2a96fe" },
-        { signed_at: "2026-09-06T10:00:00Z", signed_hash: "8d2a96fe" },
-      ]),
-    ).toBe(false);
-  });
 
-  it("dos hashes entre las firmadas: divergen", () => {
-    expect(
-      hashDivergente([
-        { signed_at: "2026-09-05T10:00:00Z", signed_hash: "8d2a96fe" },
-        { signed_at: "2026-09-06T10:00:00Z", signed_hash: "0000ffff" },
-      ]),
-    ).toBe(true);
-  });
-
-  it("hashes distintos en filas PENDIENTES no cuentan", () => {
-    expect(
-      hashDivergente([
-        { signed_at: null, signed_hash: "8d2a96fe" },
-        { signed_at: null, signed_hash: "0000ffff" },
-      ]),
-    ).toBe(false);
-  });
-
-  it("lista vacía no diverge", () => {
-    expect(hashDivergente([])).toBe(false);
-  });
-});

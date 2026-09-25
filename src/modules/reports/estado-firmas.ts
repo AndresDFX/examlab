@@ -245,23 +245,28 @@ export function loteDeSolicitud(
 }
 
 /**
- * ¿Hay firmas puestas sobre versiones DISTINTAS del documento?
+ * `hashDivergente` se RETIRÓ a propósito (2026-09-24).
  *
- * `signed_hash` se calcula sobre el snapshot al momento de firmar. Dos hashes
- * distintos entre las firmadas significan que el documento cambió en el medio, y
- * eso es exactamente lo que el docente tiene que ver antes de dar el documento
- * por cerrado.
+ * Comparaba los `signed_hash` de las firmas puestas y, si no coincidían,
+ * avisaba «hay firmas sobre versiones distintas del documento». La premisa
+ * era que el documento firmado es inmutable y que un cambio posterior es una
+ * anomalía.
  *
- * Solo cuentan las FIRMADAS: una solicitud pendiente no tiene hash de nada, y
- * mirar su columna daría un falso positivo.
+ * Esa premisa no es cierta para el Acuerdo Pedagógico, que es el único
+ * documento del producto que se firma en lote: es un acuerdo VIVO —se corrige
+ * un nombre, se designa el vocero que faltaba, se ajusta una fecha— y sigue
+ * abierto a cambios durante el semestre. Con la alerta puesta, la operación
+ * normal producía una advertencia permanente en el diálogo, y una advertencia
+ * que siempre está encendida no informa: entrena a ignorarla, y de paso
+ * desincentiva corregir un dato mal puesto.
+ *
+ * Lo que se pierde, dicho sin adornos: ya no hay ninguna señal en el producto
+ * de que el HTML cambió después de firmarse. `signed_hash` se sigue guardando
+ * en cada firma (lo calculan las RPC de firmado sobre el snapshot del
+ * momento), así que la evidencia queda en la base para una auditoría puntual;
+ * lo que se quitó es el aviso automático, no el dato.
+ *
+ * Si algún día hay un documento que SÍ deba ser inmutable tras firmarse, la
+ * comprobación va en ese flujo y no acá — no vuelve como alerta global.
  */
-export function hashDivergente(
-  solicitudes: ReadonlyArray<{ signed_at: string | null; signed_hash: string | null }>,
-): boolean {
-  const hashes = new Set<string>();
-  for (const s of solicitudes) {
-    if (!s.signed_at || !s.signed_hash) continue;
-    hashes.add(s.signed_hash);
-  }
-  return hashes.size > 1;
-}
+
