@@ -194,6 +194,18 @@ el prompt trae una REGLA DE AUTORÍA que prohíbe usarla como indicio. La misma 
 argumento circular de ese informe: que un programa corto compile sin errores no es señal de IA — en un
 ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema.
 
+### 👁️ «Ver la plataforma como» queda solo en Mis estudiantes
+
+Estaba también en Calificaciones, y ahí estorbaba: el gradebook es una matriz de notas y su fila es
+una **calificación**, no una persona. Entrar a la sesión de alguien desde una celda de nota es una
+acción de otra naturaleza, y el ojo junto al nombre competía con lo que el docente viene a hacer, que
+es calificar. La acción sigue completa en **Mis estudiantes**, que es la pantalla cuyas filas SÍ son
+personas.
+
+No se toca nada del permiso: el edge `admin-impersonate` revalida server-side que el docente comparta
+curso con el estudiante, así que esto es dónde se ofrece la acción, no quién puede hacerla. Se
+quitaron también el import y las cinco claves de i18n que quedaron sin uso.
+
 ### 📋 La configuración del examen, dentro del monitor
 
 Ficha con lo que NO cambia mientras el examen corre: inicio, fin, duración, navegación, preguntas

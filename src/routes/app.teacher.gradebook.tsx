@@ -60,7 +60,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
-import { startImpersonate } from "@/modules/admin/impersonation";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade, countsAsPresent, type GradedItem } from "@/modules/grading/grade";
@@ -1978,29 +1977,11 @@ function Gradebook() {
     [],
   );
 
-  /**
-   * "Ver como" — el Docente impersonar a un estudiante de uno de sus
-   * cursos. Confirmamos antes para evitar clicks accidentales (el flow
-   * dispara un full reload y deja al docente "dentro" de la sesión del
-   * alumno). El edge function `admin-impersonate` revalida server-side
-   * el overlap de cursos, así que aunque el botón aparezca acá nadie
-   * puede saltarse el gate haciendo otra petición.
-   */
-  const handleImpersonateStudent = async (studentId: string, studentName: string) => {
-    const ok = await confirm({
-      title: t("hc_routesAppTeacherGradebook.impersonateTitle", { name: studentName }),
-      description: t("hc_routesAppTeacherGradebook.impersonateDescription"),
-      confirmLabel: t("hc_routesAppTeacherGradebook.impersonateConfirm"),
-      tone: "warning",
-    });
-    if (!ok) return;
-    try {
-      await startImpersonate(studentId);
-      // startImpersonate dispara window.location.href → no llegamos aquí.
-    } catch (e) {
-      toast.error(friendlyError(e, t("hc_routesAppTeacherGradebook.impersonateError")));
-    }
-  };
+  // «Ver la plataforma como» vive SOLO en Mis estudiantes (rol Docente).
+  // Acá estorbaba: el gradebook es una matriz de notas y su fila es una
+  // CALIFICACIÓN, no una persona — entrar a la sesión de alguien desde una
+  // celda de nota es una acción de otra naturaleza, y el ojo al lado del
+  // nombre competía con lo que se viene a hacer, que es calificar.
 
   if (authLoading) return null;
   if (!isTeacher)
@@ -2397,23 +2378,6 @@ function Gradebook() {
                                 {row.student.institutional_email}
                               </div>
                             </div>
-                            {/* "Ver como" — entra a la plataforma con la
-                                sesión del estudiante. Útil para reproducir
-                                un problema reportado o verificar qué ve el
-                                alumno. Server gate (admin-impersonate)
-                                revalida el overlap de cursos del Docente. */}
-                            <RowAction
-                              label={t("hc_routesAppTeacherGradebook.viewAsStudent", {
-                                name: row.student.full_name,
-                              })}
-                              icon={Eye}
-                              onClick={() =>
-                                void handleImpersonateStudent(
-                                  row.student.id,
-                                  row.student.full_name,
-                                )
-                              }
-                            />
                           </div>
                         </TableCell>
                         {row.cutGrades.map((cg, ci) => {
