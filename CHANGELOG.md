@@ -194,6 +194,22 @@ el prompt trae una REGLA DE AUTORÍA que prohíbe usarla como indicio. La misma 
 argumento circular de ese informe: que un programa corto compile sin errores no es señal de IA — en un
 ejercicio de pocas líneas es el resultado esperado de cualquiera que sepa el tema.
 
+### 📋 La configuración del examen, dentro del monitor
+
+Ficha con lo que NO cambia mientras el examen corre: inicio, fin, duración, navegación, preguntas
+aleatorias, tope de advertencias, notas de apoyo y estado. Antes había que salir a «Editar» para ver
+a qué hora cerraba o si las preguntas iban mezcladas — y salir del monitor en mitad de un parcial es
+perder de vista justo lo que se está vigilando.
+
+- **No hizo falta tocar la consulta**: el monitor ya traía el examen completo.
+- Va en una **tira discreta** (`bg-muted/30 border-dashed`) y no en una Card con peso visual: es
+  material de consulta, y arriba tiene que seguir mandando lo accionable.
+- Las fechas pasan por los helpers de formato del proyecto, y la duración por `formatDuration` —así
+  «120» se lee «2h 0m»—. En un examen **externo** se omite todo lo de la toma: no se rinde en la
+  plataforma, así que navegación o advertencias serían campos vacíos con nombre.
+- Las etiquetas se reusan del formulario de examen en vez de inventar claves nuevas: si mañana
+  cambia el nombre de un campo, cambia en los dos lados a la vez.
+
 ### ⌨️ Caracteres que el teclado no tiene, sin copiar ni pegar
 
 Barra de caracteres (`ñ`, tildes, `;`, `{`, `<`…) en las preguntas del examen donde el alumno

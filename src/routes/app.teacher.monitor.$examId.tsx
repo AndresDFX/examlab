@@ -72,7 +72,7 @@ import {
 } from "@/components/ui/multi-select";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatDuration } from "@/shared/lib/format";
 import {
   computeFinalGrade,
   type BreakdownItem as GradeBreakdown,
@@ -265,6 +265,21 @@ function computeAttemptEnd(
   const examEnd = exam?.end_time ? new Date(exam.end_time).getTime() : Infinity;
   const naturalEnd = Math.min(examEnd, startedAt + timeLimitMs);
   return new Date(naturalEnd + (sub.extra_seconds ?? 0) * 1000);
+}
+
+
+/** Una celda de la ficha del examen. Etiqueta arriba, valor abajo: en cuatro
+ *  columnas, el par en línea se corta y el valor queda huérfano en la fila
+ *  siguiente. */
+function DatoDeExamen({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-2xs text-muted-foreground truncate">{label}</dt>
+      <dd className="font-medium truncate" title={value}>
+        {value}
+      </dd>
+    </div>
+  );
 }
 
 function ExamMonitor() {
@@ -2407,6 +2422,69 @@ function ExamMonitor() {
           </>
         }
       />
+
+      {/* Ficha del examen: lo que NO cambia mientras el examen corre.
+          Antes había que salir a «Editar» para ver a qué hora cerraba, si las
+          preguntas iban mezcladas o cuántas advertencias permitía — y salir
+          del monitor en mitad de un parcial es perder de vista justo lo que se
+          está vigilando. Va en una tira discreta y no en una Card con peso
+          visual: es material de consulta, no lo accionable de la pantalla. */}
+      <Card className="bg-muted/30 border-dashed">
+        <CardContent className="p-3">
+          <dl className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-4 gap-y-2 text-xs">
+            <DatoDeExamen
+              label={t("hc_routesAppTeacherExamsExamId.fieldStart")}
+              value={formatDateTime(exam.start_time)}
+            />
+            <DatoDeExamen
+              label={t("hc_routesAppTeacherExamsExamId.fieldEnd")}
+              value={formatDateTime(exam.end_time)}
+            />
+            {!(exam as any).is_external && (
+              <>
+                <DatoDeExamen
+                  label={t("hc_routesAppTeacherExamsExamId.fieldDuration")}
+                  value={
+                    exam.time_limit_minutes != null
+                      ? formatDuration(Number(exam.time_limit_minutes))
+                      : "—"
+                  }
+                />
+                <DatoDeExamen
+                  label={t("exam.navigation")}
+                  value={
+                    exam.navigation_type === "secuencial"
+                      ? t("exam.navigationSequential")
+                      : t("exam.navigationFree")
+                  }
+                />
+                <DatoDeExamen
+                  label={t("exam.shuffle")}
+                  value={(exam as any).shuffle_enabled ? t("common.yes") : t("common.no")}
+                />
+                <DatoDeExamen
+                  label={t("hc_routesAppTeacherExamsExamId.fieldMaxWarnings")}
+                  value={String((exam as any).max_warnings ?? MAX_WARNINGS)}
+                />
+                <DatoDeExamen
+                  label={t("hc_routesAppTeacherExamsExamId.fieldAllowNotes")}
+                  value={(exam as any).allow_exam_notes ? t("common.yes") : t("common.no")}
+                />
+              </>
+            )}
+            <DatoDeExamen
+              label={t("hc_routesAppTeacherExamsExamId.fieldStatus")}
+              value={
+                (exam as any).status === "draft"
+                  ? t("hc_routesAppTeacherExamsExamId.statusDraft")
+                  : (exam as any).status === "closed"
+                    ? t("hc_routesAppTeacherExamsExamId.statusClosed")
+                    : t("hc_routesAppTeacherExamsExamId.statusPublished")
+              }
+            />
+          </dl>
+        </CardContent>
+      </Card>
 
       {/* Integrity / Fraud detection top card */}
       <Card>
