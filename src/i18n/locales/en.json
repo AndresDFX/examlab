@@ -10860,5 +10860,14 @@
     "alreadySigned_other": "This document already has {{count}} signatures. They stay valid: editing does not remove or invalidate them.",
     "lostSlots_one": "The signature box for 1 person was removed. If they had already signed, their signature would have nowhere to appear. Restore it to save.",
     "lostSlots_other": "The signature boxes for {{count}} people were removed. Any signatures already in place would have nowhere to appear. Restore them to save."
+  },
+  "reportRefresh": {
+    "rowAction": "Refresh data",
+    "done_one": "1 row updated with today's data",
+    "done_other": "{{count}} rows updated with today's data",
+    "alreadyUpToDate": "The document was already up to date",
+    "noRows": "This document has no list with signature boxes",
+    "wouldLoseSlots": "Not updated: the change would have affected the signature boxes",
+    "error": "Could not refresh the data"
   }
 }

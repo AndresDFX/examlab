@@ -10860,5 +10860,14 @@
     "alreadySigned_other": "Este documento ya tiene {{count}} firmas puestas. Siguen siendo válidas: editarlo no las borra ni las invalida.",
     "lostSlots_one": "Se eliminó la casilla de firma de 1 persona. Si ya había firmado, su firma quedaría sin dónde mostrarse. Restaurála para poder guardar.",
     "lostSlots_other": "Se eliminaron las casillas de firma de {{count}} personas. Las firmas que ya estuvieran puestas quedarían sin dónde mostrarse. Restaurálas para poder guardar."
+  },
+  "reportRefresh": {
+    "rowAction": "Actualizar datos",
+    "done_one": "1 fila actualizada con los datos de hoy",
+    "done_other": "{{count}} filas actualizadas con los datos de hoy",
+    "alreadyUpToDate": "El documento ya estaba al día",
+    "noRows": "Este documento no tiene un listado con casillas de firma",
+    "wouldLoseSlots": "No se actualizó: el cambio habría afectado las casillas de firma",
+    "error": "No se pudieron actualizar los datos"
   }
 }

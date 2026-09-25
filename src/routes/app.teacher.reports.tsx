@@ -34,6 +34,7 @@ import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Toggle } from "@/components/ui/toggle";
 import { insertarEnListado } from "@/modules/reports/insertar-filas";
+import { refrescarDatos } from "@/modules/reports/refrescar-datos";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -658,6 +659,58 @@ function Inner() {
   useEffect(() => {
     if (soloMisFirmas && misPendientes.size === 0) setSoloMisFirmas(false);
   }, [soloMisFirmas, misPendientes]);
+
+  /**
+   * Poner al día los datos del documento contra la base.
+   *
+   * El informe es una instantánea, así que una corrección posterior —el nombre
+   * completo de un estudiante, el documento que se cargó después— nunca llega
+   * sola. Esto la trae, sin tocar las firmas: `refrescarDatos` salta las celdas
+   * con ranura y no agrega ni quita filas. Antes de guardar se comprueba que
+   * el conjunto de ranuras sea el mismo; si no, no se escribe nada.
+   */
+  const refrescarDatosDelInforme = async (r: GeneratedReport) => {
+    setHistBusyId(r.id);
+    try {
+      const uids = [...new Set(uidsDeRanuras(r.html))];
+      if (uids.length === 0) {
+        toast.info(i18n.t("reportRefresh.noRows"));
+        return;
+      }
+      const mapa = new Map<string, { nombre?: string | null; documento?: string | null }>();
+      for (let i = 0; i < uids.length; i += 60) {
+        const { data } = await db
+          .from("profiles")
+          .select("id, full_name, documento")
+          .in("id", uids.slice(i, i + 60));
+        for (const pf of (data ?? []) as Array<{ id: string; full_name: string; documento: string | null }>)
+          mapa.set(pf.id, { nombre: pf.full_name, documento: pf.documento });
+      }
+      const { html, filasTocadas } = refrescarDatos(r.html, mapa);
+      if (filasTocadas === 0) {
+        toast.success(i18n.t("reportRefresh.alreadyUpToDate"));
+        return;
+      }
+      // Red de seguridad: el mismo conjunto de ranuras, o no se escribe.
+      const antes = new Set(uidsDeRanuras(r.html));
+      const desp = new Set(uidsDeRanuras(html));
+      if (antes.size !== desp.size || [...antes].some((u) => !desp.has(u))) {
+        toast.error(i18n.t("reportRefresh.wouldLoseSlots"));
+        return;
+      }
+      const { error } = await db.from("generated_reports").update({ html }).eq("id", r.id);
+      if (error) {
+        toast.error(friendlyError(error, i18n.t("reportRefresh.error")));
+        return;
+      }
+      toast.success(i18n.t("reportRefresh.done", { count: filasTocadas }));
+      void loadGenReports();
+    } catch (e) {
+      toast.error(friendlyError(e, i18n.t("reportRefresh.error")));
+    } finally {
+      setHistBusyId(null);
+    }
+  };
 
   const loadMisPendientes = async (isCancelled?: () => boolean) => {
     const { data: u } = await supabase.auth.getUser();
@@ -2673,6 +2726,12 @@ function Inner() {
                                     icon: FileSearch,
                                     disabled: !!histBusyId,
                                     onClick: () => setVerInforme(r),
+                                  },
+                                  {
+                                    label: t("reportRefresh.rowAction"),
+                                    icon: RefreshCw,
+                                    disabled: !!histBusyId,
+                                    onClick: () => void refrescarDatosDelInforme(r),
                                   },
                                   {
                                     label: t("reportEdit.rowAction"),
