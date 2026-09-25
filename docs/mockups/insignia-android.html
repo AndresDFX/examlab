@@ -1,0 +1,404 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Insignia en Android</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --fondo: #f6f5f9;
+    --papel: #ffffff;
+    --tinta: #1a1826;
+    --tinta-2: #565170;
+    --tinta-3: #8b86a5;
+    --linea: #e2dff0;
+    --acento: #5b55e0;
+    --acento-suave: #ece9ff;
+    --alerta: #c2410c;
+    --alerta-suave: #fff1e8;
+    --ok: #15803d;
+    --ok-suave: #e8f7ee;
+    --pantalla: #101014;
+    --pantalla-2: #1e1e26;
+    --pantalla-3: #2b2b36;
+    --pantalla-tinta: #f2f1f6;
+    --pantalla-tinta-2: #a5a2b4;
+    --escritorio: linear-gradient(170deg, #3b3358 0%, #221f39 55%, #15131f 100%);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --fondo: #100f16;
+      --papel: #1a1824;
+      --tinta: #f3f1fa;
+      --tinta-2: #b5b0cc;
+      --tinta-3: #7c7795;
+      --linea: #2e2b3f;
+      --acento: #9a94ff;
+      --acento-suave: #262148;
+      --alerta: #fdba74;
+      --alerta-suave: #3a2113;
+      --ok: #86efac;
+      --ok-suave: #14301f;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --fondo: #100f16;
+    --papel: #1a1824;
+    --tinta: #f3f1fa;
+    --tinta-2: #b5b0cc;
+    --tinta-3: #7c7795;
+    --linea: #2e2b3f;
+    --acento: #9a94ff;
+    --acento-suave: #262148;
+    --alerta: #fdba74;
+    --alerta-suave: #3a2113;
+    --ok: #86efac;
+    --ok-suave: #14301f;
+  }
+
+  body {
+    background: var(--fondo);
+    color: var(--tinta);
+    font-family: "Instrument Sans", system-ui, -apple-system, sans-serif;
+    margin: 0;
+    padding-inline: 20px;
+    padding-block: 40px 56px;
+  }
+  .envoltura { max-width: 1120px; margin-inline: auto; display: flex; flex-direction: column; gap: 38px; }
+
+  .encabezado { display: flex; flex-direction: column; gap: 12px; max-width: 62ch; }
+  .sobretitulo {
+    font-size: 11px; font-weight: 600; letter-spacing: .13em; text-transform: uppercase;
+    color: var(--acento);
+  }
+  h1 { font-size: clamp(25px, 4.4vw, 35px); line-height: 1.12; margin: 0; text-wrap: balance; font-weight: 700; letter-spacing: -.02em; }
+  .bajada { margin: 0; color: var(--tinta-2); font-size: 15.5px; line-height: 1.6; }
+
+  .escenas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; align-items: start; }
+  @media (max-width: 880px) { .escenas { grid-template-columns: 1fr; max-width: 420px; } }
+
+  .escena { display: flex; flex-direction: column; gap: 14px; }
+  .rotulo { display: flex; flex-direction: column; gap: 5px; }
+  .rotulo-titulo { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .chip {
+    font-size: 10.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 999px; white-space: nowrap;
+  }
+  .chip.hoy { background: var(--acento-suave); color: var(--acento); }
+  .chip.malo { background: var(--alerta-suave); color: var(--alerta); }
+  .chip.bueno { background: var(--ok-suave); color: var(--ok); }
+  .rotulo-nota { font-size: 13.5px; color: var(--tinta-2); line-height: 1.5; margin: 0; }
+
+  /* ── El teléfono ───────────────────────────────────────── */
+  .telefono {
+    background: var(--pantalla); border-radius: 26px; overflow: hidden;
+    border: 1px solid var(--linea); box-shadow: 0 14px 34px rgba(20, 16, 45, .16);
+    font-family: Roboto, system-ui, sans-serif;
+  }
+  .barra-estado {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 15px 5px; color: var(--pantalla-tinta);
+    font-size: 11.5px; font-weight: 500;
+  }
+  .barra-iconos { display: flex; gap: 5px; align-items: center; opacity: .82; }
+  .barra-iconos svg { display: block; }
+
+  .escritorio { background: var(--escritorio); padding: 16px 15px 20px; }
+
+  .fila-iconos { display: flex; gap: 20px; align-items: flex-start; }
+  .app { display: flex; flex-direction: column; align-items: center; gap: 6px; width: 60px; }
+  .icono-caja { position: relative; width: 52px; height: 52px; }
+  .icono {
+    width: 52px; height: 52px; border-radius: 15px;
+    background: linear-gradient(150deg, #6f68f5, #4a43c9);
+    display: grid; place-items: center;
+    box-shadow: 0 3px 8px rgba(0,0,0,.34);
+  }
+  .icono span { font-weight: 700; color: #fff; font-size: 21px; letter-spacing: -.5px; }
+  .app-nombre { font-size: 10.5px; color: rgba(255,255,255,.92); text-align: center; }
+  .app.tenue .icono { background: linear-gradient(150deg, #4b5563, #374151); }
+
+  .insignia {
+    position: absolute; top: -5px; right: -5px; min-width: 21px; height: 21px;
+    border-radius: 999px; background: #e2382c; color: #fff;
+    display: grid; place-items: center; padding: 0 5px;
+    font-size: 11.5px; font-weight: 700; font-variant-numeric: tabular-nums;
+    border: 2px solid #23203a;
+  }
+  .insignia.punto { min-width: 11px; width: 11px; height: 11px; padding: 0; top: -2px; right: -2px; }
+
+  /* ── La bandeja de notificaciones ──────────────────────── */
+  .bandeja { padding: 4px 9px 13px; display: flex; flex-direction: column; gap: 7px; }
+  .bandeja-rotulo {
+    font-size: 10.5px; color: var(--pantalla-tinta-2); letter-spacing: .05em;
+    text-transform: uppercase; padding: 8px 6px 2px; font-weight: 500;
+  }
+  .aviso {
+    background: var(--pantalla-2); border-radius: 15px; padding: 10px 12px;
+    display: flex; gap: 10px; align-items: flex-start;
+  }
+  .aviso.fijo { background: var(--pantalla-3); border: 1px solid rgba(155,148,255,.4); }
+  .aviso-icono {
+    width: 20px; height: 20px; border-radius: 6px; flex: none; margin-top: 1px;
+    background: linear-gradient(150deg, #6f68f5, #4a43c9);
+    display: grid; place-items: center; color: #fff; font-size: 10px; font-weight: 700;
+  }
+  .aviso-cuerpo { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+  .aviso-app { font-size: 10.5px; color: var(--pantalla-tinta-2); display: flex; gap: 6px; align-items: center; }
+  .aviso-titulo { font-size: 13px; font-weight: 500; color: var(--pantalla-tinta); line-height: 1.3; }
+  .aviso-texto {
+    font-size: 12px; color: var(--pantalla-tinta-2); line-height: 1.35;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .aviso-texto.dos { white-space: normal; }
+  .fijo-marca {
+    font-size: 9.5px; color: #b4aeff; letter-spacing: .05em; text-transform: uppercase;
+    font-weight: 700;
+  }
+  .vacio {
+    padding: 22px 12px; text-align: center; color: var(--pantalla-tinta-2);
+    font-size: 12.5px; line-height: 1.5;
+  }
+
+  /* ── Lectura de la escena ──────────────────────────────── */
+  .lectura {
+    background: var(--papel); border: 1px solid var(--linea); border-radius: 12px;
+    padding: 12px 14px; display: flex; flex-direction: column; gap: 7px;
+  }
+  .lectura-fila { display: flex; gap: 9px; align-items: baseline; font-size: 13px; line-height: 1.45; }
+  .lectura-clave { color: var(--tinta-3); flex: none; width: 74px; font-size: 12px; }
+  .lectura-valor { color: var(--tinta); font-weight: 500; }
+  .lectura-valor.mal { color: var(--alerta); }
+  .lectura-valor.bien { color: var(--ok); }
+
+  /* ── Cierre ────────────────────────────────────────────── */
+  .cierre {
+    border-top: 1px solid var(--linea); padding-top: 26px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px;
+  }
+  .punto-clave { display: flex; flex-direction: column; gap: 7px; }
+  .punto-clave h2 { font-size: 14px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+  .punto-clave p { margin: 0; font-size: 14px; color: var(--tinta-2); line-height: 1.62; }
+  .punto-clave strong { color: var(--tinta); font-weight: 600; }
+  code {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;
+    background: var(--acento-suave); color: var(--acento); padding: 1px 5px; border-radius: 4px;
+  }
+</style>
+</head>
+<body style="margin:0">
+
+
+<div class="envoltura">
+
+  <header class="encabezado">
+    <div class="sobretitulo">Opción C · notificación de resumen</div>
+    <h1>Cómo se vería la insignia en tu teléfono</h1>
+    <p class="bajada">
+      Las tres escenas son el mismo momento: tenés <strong>8 avisos sin leer</strong> en ExamLab
+      y no abriste la app. Lo único que cambia es qué llega a la bandeja.
+    </p>
+  </header>
+
+  <div class="escenas">
+
+    <!-- ESCENA 1 — hoy, sin descartar -->
+    <section class="escena">
+      <div class="rotulo">
+        <div class="rotulo-titulo">Hoy, sin tocar nada <span class="chip hoy">Ya funciona</span></div>
+        <p class="rotulo-nota">Llegaron tres avisos y los dejaste en la bandeja.</p>
+      </div>
+
+      <div class="telefono">
+        <div class="barra-estado">
+          <span>9:41</span>
+          <span class="barra-iconos">
+            <svg width="13" height="10" viewBox="0 0 13 10" fill="currentColor"><path d="M6.5 9.2 0 2.7A9.2 9.2 0 0 1 13 2.7L6.5 9.2Z"/></svg>
+            <svg width="16" height="9" viewBox="0 0 16 9" fill="currentColor"><rect x="0" y="1" width="12" height="7" rx="2"/><rect x="13.5" y="3" width="2" height="3" rx="1"/></svg>
+          </span>
+        </div>
+
+        <div class="escritorio">
+          <div class="fila-iconos">
+            <div class="app">
+              <div class="icono-caja">
+                <div class="icono"><span>E</span></div>
+                <div class="insignia">3</div>
+              </div>
+              <div class="app-nombre">ExamLab</div>
+            </div>
+            <div class="app tenue">
+              <div class="icono-caja"><div class="icono"><span>·</span></div></div>
+              <div class="app-nombre">Ajustes</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bandeja">
+          <div class="bandeja-rotulo">Bandeja</div>
+          <div class="aviso">
+            <div class="aviso-icono">E</div>
+            <div class="aviso-cuerpo">
+              <div class="aviso-app">ExamLab · ahora</div>
+              <div class="aviso-titulo">Nuevo mensaje de Julian Castaño</div>
+              <div class="aviso-texto">Segunda prueba, con la app cerrada…</div>
+            </div>
+          </div>
+          <div class="aviso">
+            <div class="aviso-icono">E</div>
+            <div class="aviso-cuerpo">
+              <div class="aviso-app">ExamLab · 14 min</div>
+              <div class="aviso-titulo">Nuevo mensaje de Julian Castaño</div>
+              <div class="aviso-texto">Prueba de insignia: si ves un número…</div>
+            </div>
+          </div>
+          <div class="aviso">
+            <div class="aviso-icono">E</div>
+            <div class="aviso-cuerpo">
+              <div class="aviso-app">ExamLab · ayer</div>
+              <div class="aviso-titulo">Taller calificado</div>
+              <div class="aviso-texto">Bases de Datos II · Taller 3</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lectura">
+        <div class="lectura-fila"><span class="lectura-clave">El ícono dice</span><span class="lectura-valor">3</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">Sin leer</span><span class="lectura-valor">8</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">Coincide</span><span class="lectura-valor mal">No — cuenta avisos, no lecturas</span></div>
+      </div>
+    </section>
+
+    <!-- ESCENA 2 — el problema -->
+    <section class="escena">
+      <div class="rotulo">
+        <div class="rotulo-titulo">Hoy, tras deslizarlos <span class="chip malo">El problema</span></div>
+        <p class="rotulo-nota">Descartaste los avisos sin abrirlos. Siguen sin leer.</p>
+      </div>
+
+      <div class="telefono">
+        <div class="barra-estado">
+          <span>9:41</span>
+          <span class="barra-iconos">
+            <svg width="13" height="10" viewBox="0 0 13 10" fill="currentColor"><path d="M6.5 9.2 0 2.7A9.2 9.2 0 0 1 13 2.7L6.5 9.2Z"/></svg>
+            <svg width="16" height="9" viewBox="0 0 16 9" fill="currentColor"><rect x="0" y="1" width="12" height="7" rx="2"/><rect x="13.5" y="3" width="2" height="3" rx="1"/></svg>
+          </span>
+        </div>
+
+        <div class="escritorio">
+          <div class="fila-iconos">
+            <div class="app">
+              <div class="icono-caja">
+                <div class="icono"><span>E</span></div>
+              </div>
+              <div class="app-nombre">ExamLab</div>
+            </div>
+            <div class="app tenue">
+              <div class="icono-caja"><div class="icono"><span>·</span></div></div>
+              <div class="app-nombre">Ajustes</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bandeja">
+          <div class="bandeja-rotulo">Bandeja</div>
+          <div class="vacio">No hay notificaciones</div>
+        </div>
+      </div>
+
+      <div class="lectura">
+        <div class="lectura-fila"><span class="lectura-clave">El ícono dice</span><span class="lectura-valor">nada</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">Sin leer</span><span class="lectura-valor">8</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">Coincide</span><span class="lectura-valor mal">No — el ícono queda limpio</span></div>
+      </div>
+    </section>
+
+    <!-- ESCENA 3 — opción C -->
+    <section class="escena">
+      <div class="rotulo">
+        <div class="rotulo-titulo">Con la opción C <span class="chip bueno">Propuesta</span></div>
+        <p class="rotulo-nota">Un aviso fijo que se reemplaza solo y siempre dice cuántos faltan.</p>
+      </div>
+
+      <div class="telefono">
+        <div class="barra-estado">
+          <span>9:41</span>
+          <span class="barra-iconos">
+            <svg width="13" height="10" viewBox="0 0 13 10" fill="currentColor"><path d="M6.5 9.2 0 2.7A9.2 9.2 0 0 1 13 2.7L6.5 9.2Z"/></svg>
+            <svg width="16" height="9" viewBox="0 0 16 9" fill="currentColor"><rect x="0" y="1" width="12" height="7" rx="2"/><rect x="13.5" y="3" width="2" height="3" rx="1"/></svg>
+          </span>
+        </div>
+
+        <div class="escritorio">
+          <div class="fila-iconos">
+            <div class="app">
+              <div class="icono-caja">
+                <div class="icono"><span>E</span></div>
+                <div class="insignia">1</div>
+              </div>
+              <div class="app-nombre">ExamLab</div>
+            </div>
+            <div class="app tenue">
+              <div class="icono-caja"><div class="icono"><span>·</span></div></div>
+              <div class="app-nombre">Ajustes</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="bandeja">
+          <div class="bandeja-rotulo">Bandeja</div>
+          <div class="aviso fijo">
+            <div class="aviso-icono">E</div>
+            <div class="aviso-cuerpo">
+              <div class="aviso-app">ExamLab <span class="fijo-marca">fijo</span></div>
+              <div class="aviso-titulo">Tenés 8 avisos sin leer</div>
+              <div class="aviso-texto dos">Tocá para abrir ExamLab. Este aviso se actualiza solo y no vuelve a sonar.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="lectura">
+        <div class="lectura-fila"><span class="lectura-clave">El ícono dice</span><span class="lectura-valor">1</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">El texto dice</span><span class="lectura-valor bien">8 sin leer</span></div>
+        <div class="lectura-fila"><span class="lectura-clave">Coincide</span><span class="lectura-valor mal">En el ícono no; en el texto sí</span></div>
+      </div>
+    </section>
+  </div>
+
+  <div class="cierre">
+    <div class="punto-clave">
+      <h2>El número del ícono lo pone Android</h2>
+      <p>
+        Sale de <strong>cuántas notificaciones tenés sin descartar</strong>. La opción C deja
+        una sola, así que el ícono muestra <strong>1</strong> aunque el texto diga 8. Una app
+        nativa puede forzar el número con <code>setNumber()</code>; desde la web no hay equivalente.
+      </p>
+    </div>
+    <div class="punto-clave">
+      <h2>Lo que C sí resuelve</h2>
+      <p>
+        Que el ícono <strong>nunca quede limpio mientras haya algo pendiente</strong>, que es
+        la escena del medio. Y que el número exacto esté a un vistazo de la bandeja, sin abrir
+        la app.
+      </p>
+    </div>
+    <div class="punto-clave">
+      <h2>Lo que cuesta</h2>
+      <p>
+        Un lugar permanente en tu bandeja, que no se puede deslizar para sacarlo hasta que
+        leas todo. Llega en silencio, sin vibrar. En teléfonos Samsung el ícono muestra el
+        número; en Pixel, solo un punto.
+      </p>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
