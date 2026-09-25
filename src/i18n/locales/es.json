@@ -10871,6 +10871,7 @@
     "alreadyUpToDate": "El documento ya estaba al día",
     "noRows": "Este documento no tiene un listado con casillas de firma",
     "wouldLoseSlots": "No se actualizó: el cambio habría afectado las casillas de firma",
-    "error": "No se pudieron actualizar los datos"
+    "error": "No se pudieron actualizar los datos",
+    "doneGeneric": "Documento puesto al día"
   }
 }

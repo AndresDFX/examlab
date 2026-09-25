@@ -10871,6 +10871,7 @@
     "alreadyUpToDate": "The document was already up to date",
     "noRows": "This document has no list with signature boxes",
     "wouldLoseSlots": "Not updated: the change would have affected the signature boxes",
-    "error": "Could not refresh the data"
+    "error": "Could not refresh the data",
+    "doneGeneric": "Document brought up to date"
   }
 }

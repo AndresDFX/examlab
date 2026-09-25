@@ -35,6 +35,7 @@ import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Toggle } from "@/components/ui/toggle";
 import { insertarEnListado } from "@/modules/reports/insertar-filas";
 import { refrescarDatos } from "@/modules/reports/refrescar-datos";
+import { fijarRanuraDeVocero, ordenarListado } from "@/modules/reports/poner-al-dia";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -686,12 +687,51 @@ function Inner() {
         for (const pf of (data ?? []) as Array<{ id: string; full_name: string; documento: string | null }>)
           mapa.set(pf.id, { nombre: pf.full_name, documento: pf.documento });
       }
-      const { html, filasTocadas } = refrescarDatos(r.html, mapa);
-      if (filasTocadas === 0) {
+      let { html, filasTocadas } = refrescarDatos(r.html, mapa);
+      let tocado = filasTocadas > 0;
+
+      // La casilla de firma del vocero. Si al generar el documento el curso
+      // todavía no tenía vocero designado, su recuadro quedó con un renglón
+      // para firmar a mano y su firma no tiene dónde dibujarse. Ser vocero NO
+      // reemplaza ser estudiante: la misma persona conserva su fila en el
+      // listado, y las dos casillas comparten uid — `renderizarRanuras` dibuja
+      // la firma en TODAS las del mismo uid, así que una sola firma aparece en
+      // los dos lugares.
+      if (r.course_id) {
+        const { data: vocRow } = await db
+          .from("course_enrollments")
+          .select("user_id")
+          .eq("course_id", r.course_id)
+          .not("vocero_marcado_at", "is", null)
+          .maybeSingle();
+        const uidVocero = (vocRow as { user_id?: string } | null)?.user_id;
+        const conVocero = uidVocero ? fijarRanuraDeVocero(html, uidVocero) : null;
+        if (conVocero) {
+          html = conVocero;
+          tocado = true;
+        }
+      }
+
+      // Orden y numeración del listado. El documento se generó con el orden de
+      // los nombres de ESE día; al corregir un nombre después, la fila se queda
+      // donde estaba y el listado deja de estar ordenado.
+      const porNombre = [...mapa.entries()]
+        .sort((a, b) => String(a[1].nombre ?? "").localeCompare(String(b[1].nombre ?? ""), "es"))
+        .map(([uid], i) => [uid, i] as const);
+      const orden = ordenarListado(html, new Map(porNombre));
+      if (orden.reordenado) {
+        html = orden.html;
+        tocado = true;
+      }
+
+      if (!tocado) {
         toast.success(i18n.t("reportRefresh.alreadyUpToDate"));
         return;
       }
-      // Red de seguridad: el mismo conjunto de ranuras, o no se escribe.
+      // Red de seguridad: el mismo conjunto de personas con casilla, o no se
+      // escribe. Se compara el CONJUNTO y no la cantidad: el vocero pasa a
+      // tener dos casillas con el mismo uid, así que el total sube y el
+      // conjunto no cambia — que es justo lo correcto.
       const antes = new Set(uidsDeRanuras(r.html));
       const desp = new Set(uidsDeRanuras(html));
       if (antes.size !== desp.size || [...antes].some((u) => !desp.has(u))) {
@@ -703,7 +743,7 @@ function Inner() {
         toast.error(friendlyError(error, i18n.t("reportRefresh.error")));
         return;
       }
-      toast.success(i18n.t("reportRefresh.done", { count: filasTocadas }));
+      toast.success(i18n.t("reportRefresh.doneGeneric"));
       void loadGenReports();
     } catch (e) {
       toast.error(friendlyError(e, i18n.t("reportRefresh.error")));
