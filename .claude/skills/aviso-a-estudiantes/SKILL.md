@@ -24,8 +24,9 @@ confirmar **de la fila real**:
 1. **Que esté abierto de verdad**: `status` publicado, `deleted_at` nulo, y la ventana
    (`start_date`/`due_date`, `start_time`/`end_time`) conteniendo el momento que vas a anunciar.
 2. **Las fechas en hora de Bogotá**, convertidas desde UTC y **con el día de la semana
-   verificado**. Si el usuario dijo «jueves 2» y el 2 cae viernes, **decirlo** — no elegir en
-   silencio: son dos fechas distintas y el curso se presenta el día equivocado.
+   verificado**. Si el usuario dijo «jueves 2» y el 2 cae viernes, **manda el DÍA de la
+   semana**: él piensa en días de clase y de entrega, y el número lo escribe de memoria. Decir
+   en una línea qué fecha resultó y cuál había dicho, y seguir; no bloquear preguntando.
 3. **Los enlaces y códigos, probados.** Un `curl -o /dev/null -w "%{http_code}"` al enlace y,
    si hay código de asistencia, recalcularlo con la función de la propia base
    (`rpc/compute_attendance_code` con `p_seed` y `p_period`) en vez de copiarlo de una nota.
