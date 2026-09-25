@@ -268,8 +268,11 @@ self.addEventListener("push", (event) => {
   // `notifications` la rebotaría la RLS. Y llevar la cuenta a mano ("las que
   // tenía + 1") se desincroniza apenas la persona lee algo en otro aparato.
   //
-  // `setAppBadge` no existe en todos lados (en iOS, solo desde 16.4 y con la
-  // app agregada a la pantalla de inicio), y la promesa RECHAZA cuando no hay
+  // `setAppBadge` no existe en todos lados — en particular **Chrome para
+  // Android NO la implementa**, que es el navegador de casi todos los
+  // estudiantes; ahi el badge que se ve es el PUNTO de notificacion del
+  // sistema, que es otro mecanismo. Donde si existe: escritorio Chrome/Edge y
+  // Safari iOS 16.4+. La promesa ademas RECHAZA cuando no hay
   // permiso — de ahí el `catch` que traga: la insignia es un adorno y su
   // fallo no puede tumbar la entrega de la notificación, que es lo que
   // importa.

@@ -10,11 +10,16 @@
  *
  * Tres cosas que hay que saber antes de tocar esto:
  *
- *  - `navigator.setAppBadge` NO existe en todos lados. Está en Chrome/Edge de
- *    escritorio y en Android con la app instalada, y en iOS solo desde 16.4 y
- *    solo si la app se agregó a la pantalla de inicio Y tiene permiso de
- *    notificaciones. En un navegador común no existe y no va a existir: la
- *    insignia se dibuja sobre el ícono de una app INSTALADA.
+ *  - **Chrome para Android NO la implementa**, y eso hay que tenerlo presente
+ *    antes de prometer la insignia: es el navegador de la mayoría de los
+ *    estudiantes. Verificado contra la tabla de compatibilidad — «Chrome for
+ *    Android: not supported», igual que Samsung Internet. Donde SÍ existe:
+ *    Chrome/Edge de escritorio (81+) y Safari en iOS desde 16.4, con la app
+ *    agregada a la pantalla de inicio y permiso de notificaciones.
+ *  - En Android lo que se ve es el PUNTO de notificación del sistema, que
+ *    depende de que haya una notificación sin descartar — no del número de no
+ *    leídas. Son dos mecanismos distintos y este módulo no puede dar el
+ *    segundo donde el navegador no lo ofrece.
  *  - Devuelve una promesa que RECHAZA (no lanza en línea), por ejemplo cuando
  *    el documento todavía no tiene un service worker controlándolo. Un rechazo
  *    sin `catch` sale por `unhandledrejection`, y este proyecto lo audita: se
