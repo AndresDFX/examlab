@@ -295,7 +295,7 @@ async function leerVocero(courseId: string): Promise<{
 
   const { data: perfil } = await db
     .from("profiles")
-    .select("full_name, institutional_email, personal_email, documento")
+    .select("full_name, institutional_email, personal_email, documento, telefono")
     .eq("id", f.user_id)
     .maybeSingle();
   const pr = perfil as {
@@ -303,13 +303,18 @@ async function leerVocero(courseId: string): Promise<{
     institutional_email?: string | null;
     personal_email?: string | null;
     documento?: string | null;
+    telefono?: string | null;
   } | null;
 
   return {
     nombre: pr?.full_name ?? "",
     // El institucional primero: es el que la institución reconoce en un acta.
     email: pr?.institutional_email ?? pr?.personal_email ?? "",
-    telefono: f.vocero_telefono ?? "",
+    // El teléfono vive en el PERFIL (mig 20262490000000) para que quien sea
+    // vocero de dos cursos no lo tenga que dar dos veces. `vocero_telefono` se
+    // conserva como anulación por curso y GANA: es lo ya cargado a mano, y
+    // además cubre a quien quiera dar otro número para un curso puntual.
+    telefono: f.vocero_telefono ?? pr?.telefono ?? "",
     documento: pr?.documento ?? "",
     user_id: f.user_id,
   };

@@ -4,6 +4,13 @@
  *  - Email institucional (es el que también identifica al usuario en
  *    auth.users.email; un cambio dispara confirmación por correo).
  *  - Email personal (opcional, solo cosmético — no se usa para login).
+ *  - Documento, código y teléfono: los datos que imprime el Acuerdo
+ *    Pedagógico. Antes NO había forma de editarlos sobre uno mismo —
+ *    solo un Admin (o un docente, sobre sus estudiantes) podía tocarlos,
+ *    así que la casilla salía en blanco en el documento y el dueño de la
+ *    cuenta no tenía cómo arreglarla. El teléfono vive en el perfil y no
+ *    en la matrícula (mig 20262490000000) para que quien sea vocero de
+ *    dos cursos lo dé una sola vez.
  *
  * Reglas:
  *  - El UPDATE a profiles lo gobierna la RLS "Users update own profile"
@@ -19,6 +26,12 @@
  *    `auth.updateUser({email})` (donde el profile se actualizaba pero
  *    el login seguía con el viejo). Ver
  *    [supabase/functions/request-email-change](supabase/functions/request-email-change/index.ts).
+ *  - Los tres campos nuevos NO están protegidos por
+ *    `tg_guard_profile_self_escalation` (mig 20261035000000), y eso es
+ *    deliberado: ese trigger blinda is_active / estado / tenant_id, que
+ *    son controles de acceso. Documento, código y teléfono son datos de
+ *    contacto e identificación propios — su fast-path ya los nombra como
+ *    self-update legítimo.
  *  - La contraseña sigue viviendo en ChangePasswordDialog aparte — son
  *    dos flujos distintos y combinarlos forza al usuario a re-escribir
  *    la password aun cuando solo edita su nombre.
@@ -39,7 +52,7 @@ import {
 } from "@/components/ui/dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
-import { UserCog, Mail, AtSign } from "lucide-react";
+import { UserCog, Mail, AtSign, IdCard, Hash, Phone } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 
@@ -56,6 +69,9 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
   const [fullName, setFullName] = useState("");
   const [institutional, setInstitutional] = useState("");
   const [personal, setPersonal] = useState("");
+  const [documento, setDocumento] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [telefono, setTelefono] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Re-hidrata el form cada vez que el dialog se abre — útil cuando el
@@ -65,6 +81,9 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
     setFullName(profile.full_name ?? "");
     setInstitutional(profile.institutional_email ?? "");
     setPersonal(profile.personal_email ?? "");
+    setDocumento(profile.documento ?? "");
+    setCodigo(profile.codigo ?? "");
+    setTelefono(profile.telefono ?? "");
   }, [open, profile]);
 
   if (!profile) return null;
@@ -130,10 +149,19 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
       const profilePatch: {
         full_name: string;
         personal_email: string | null;
+        documento: string | null;
+        codigo: string | null;
+        telefono: string | null;
         institutional_email?: string;
       } = {
         full_name: fullName.trim(),
         personal_email: pers ? pers : null,
+        // Vacío se guarda como NULL, no como "": la cadena vacía haría que
+        // el Acuerdo imprima una casilla en blanco que PARECE tener dato, y
+        // que las auditorías de "a quién le falta el documento" no lo vean.
+        documento: documento.trim() || null,
+        codigo: codigo.trim() || null,
+        telefono: telefono.trim() || null,
       };
       if (!institutionalChanged) {
         profilePatch.institutional_email = inst;
@@ -215,7 +243,10 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
   const dirty =
     fullName.trim() !== (profile.full_name ?? "").trim() ||
     institutionalChanged ||
-    (personal.trim() || "") !== (profile.personal_email ?? "");
+    (personal.trim() || "") !== (profile.personal_email ?? "") ||
+    documento.trim() !== (profile.documento ?? "") ||
+    codigo.trim() !== (profile.codigo ?? "") ||
+    telefono.trim() !== (profile.telefono ?? "");
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -274,6 +305,57 @@ export function EditProfileDialog({ open, onOpenChange }: EditProfileDialogProps
               autoComplete="email"
             />
             <p className="text-2xs text-muted-foreground">{t("profile.personalEmailHint")}</p>
+          </div>
+          {/* Los datos que imprime el Acuerdo Pedagógico. Van en su propia
+              sección porque son de otra naturaleza que el nombre y los
+              correos: nadie entra acá a cambiar su documento, entra a
+              completarlo la única vez que descubre que falta. */}
+          <div className="rounded-md border p-3 space-y-3">
+            <p className="text-xs font-medium">{t("profile.acuerdoSection")}</p>
+            <p className="text-2xs text-muted-foreground">{t("profile.acuerdoSectionHint")}</p>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <IdCard className="h-3.5 w-3.5" />
+                {t("profile.documento")}
+              </Label>
+              <Input
+                value={documento}
+                onChange={(e) => setDocumento(e.target.value)}
+                placeholder={t("profile.documentoPlaceholder")}
+                inputMode="numeric"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Hash className="h-3.5 w-3.5" />
+                {t("profile.codigo")}
+              </Label>
+              <Input
+                value={codigo}
+                onChange={(e) => setCodigo(e.target.value)}
+                placeholder={t("profile.codigoPlaceholder")}
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="flex items-center gap-1.5">
+                <Phone className="h-3.5 w-3.5" />
+                {t("profile.telefono")}
+              </Label>
+              <Input
+                value={telefono}
+                onChange={(e) => setTelefono(e.target.value)}
+                placeholder={t("profile.telefonoPlaceholder")}
+                inputMode="tel"
+                autoComplete="tel"
+                maxLength={40}
+              />
+              <p className="text-2xs text-muted-foreground">{t("profile.telefonoHint")}</p>
+            </div>
           </div>
         </div>
 

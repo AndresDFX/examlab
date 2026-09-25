@@ -2767,6 +2767,7 @@ export type Database = {
           notification_preferences: Json;
           personal_email: string | null;
           programa_id: string | null;
+          telefono: string | null;
           tenant_id: string | null;
           updated_at: string;
         };
@@ -2784,6 +2785,7 @@ export type Database = {
           notification_preferences?: Json;
           personal_email?: string | null;
           programa_id?: string | null;
+          telefono?: string | null;
           tenant_id?: string | null;
           updated_at?: string;
         };
@@ -2801,6 +2803,7 @@ export type Database = {
           notification_preferences?: Json;
           personal_email?: string | null;
           programa_id?: string | null;
+          telefono?: string | null;
           tenant_id?: string | null;
           updated_at?: string;
         };

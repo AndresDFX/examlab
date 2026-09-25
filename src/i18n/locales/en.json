@@ -854,7 +854,16 @@
     "errorPersonalTaken": "Personal email is already in use by another user.",
     "emailSameAsCurrent": "The new email is the same as the current one.",
     "emailChangeRequested": "Request sent",
-    "emailChangeRequestedHint": "We sent an email to the new address. Your current email stays active until you confirm the change (the link is valid for 1 hour)."
+    "emailChangeRequestedHint": "We sent an email to the new address. Your current email stays active until you confirm the change (the link is valid for 1 hour).",
+    "acuerdoSection": "Details for the Pedagogical Agreement",
+    "acuerdoSectionHint": "These print on the Agreement and on course records. Any field left empty shows as a blank box in the document.",
+    "documento": "ID document",
+    "documentoPlaceholder": "1234567890",
+    "codigo": "Student code",
+    "codigoPlaceholder": "If you don't know it, leave the ID document",
+    "telefono": "Phone",
+    "telefonoPlaceholder": "3001234567",
+    "telefonoHint": "Used if you are a course representative. Saving it once covers all your courses."
   },
   "monitorGrid": {
     "student": "Student",

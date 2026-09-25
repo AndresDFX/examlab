@@ -20,6 +20,14 @@ export interface Profile {
    *  cambia (que setea esto en false). Columna mig 20260710000000;
    *  opcional en el type por compat con entornos sin la migración. */
   must_change_password?: boolean;
+  /** Datos que imprime el Acuerdo Pedagógico. Los edita el propio dueño
+   *  desde EditProfileDialog, y también un Admin o el docente del curso.
+   *  `telefono` vive acá y no en la matrícula (mig 20262490000000) para
+   *  que quien sea vocero de dos cursos lo dé una sola vez. Opcionales en
+   *  el type por compat con entornos sin la migración. */
+  documento?: string | null;
+  codigo?: string | null;
+  telefono?: string | null;
   /** Estado académico del estudiante (activo/retirado/graduado/aplazado).
    *  Gobierna el acceso: retirado/aplazado bloquean, graduado = solo
    *  lectura (ver access-control.ts). NULL para staff o estudiantes sin

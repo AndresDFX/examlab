@@ -854,7 +854,16 @@
     "errorPersonalTaken": "El correo personal ya está en uso por otro usuario.",
     "emailSameAsCurrent": "El correo nuevo es igual al actual.",
     "emailChangeRequested": "Solicitud enviada",
-    "emailChangeRequestedHint": "Te enviamos un correo a la nueva dirección. Tu correo actual seguirá activo hasta que confirmes el cambio (el enlace es válido 1 hora)."
+    "emailChangeRequestedHint": "Te enviamos un correo a la nueva dirección. Tu correo actual seguirá activo hasta que confirmes el cambio (el enlace es válido 1 hora).",
+    "acuerdoSection": "Datos para el Acuerdo Pedagógico",
+    "acuerdoSectionHint": "Se imprimen en el Acuerdo y en las actas del curso. Si alguno está vacío, la casilla sale en blanco en el documento.",
+    "documento": "Documento de identidad",
+    "documentoPlaceholder": "1234567890",
+    "codigo": "Código estudiantil",
+    "codigoPlaceholder": "Si no lo sabes, deja el documento",
+    "telefono": "Teléfono",
+    "telefonoPlaceholder": "3001234567",
+    "telefonoHint": "Se usa si eres vocero de un curso. Con guardarlo una vez sirve para todos tus cursos."
   },
   "monitorGrid": {
     "student": "Estudiante",
