@@ -812,6 +812,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
    *  lo nota hasta que alguien abre el acta ya firmada, cuando el HTML ya
    *  quedó congelado y designarlo no lo reescribe. Ver cursos-sin-vocero.ts. */
   const [sinVocero, setSinVocero] = useState<CursoParaAvisoVocero[]>([]);
+  /** Documentos que esperan MI firma. Un docente no tiene pantalla de firmas
+   *  —`/app/student/signatures` es solo del rol Estudiante—, así que hasta
+   *  ahora la única pista de que un Acuerdo lo estaba esperando era la
+   *  notificación del momento. Si se descartaba, el documento quedaba trabado
+   *  sin que nadie lo supiera: en producción había CINCO así. */
+  const [firmasPendientes, setFirmasPendientes] = useState(0);
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   /** Próximas sesiones de asistencia en cursos asignados al docente,
    *  con session_date >= hoy. Top 5 ordenadas por fecha + start_time. */
@@ -954,7 +960,25 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         );
       }
 
+      // Las firmas que ME esperan. El `.eq("user_id", …)` NO es redundante: la
+      // policy de SELECT de `report_signatures` deja al docente ver las filas
+      // de TODOS los firmantes de sus cursos —lo necesita el diálogo de estado
+      // para listar quién firmó y quién no—, así que sin el filtro esto cuenta
+      // las firmas pendientes del curso entero. Medido: decía 31 donde había 5.
+      //
+      // No se acota por curso a propósito: un Acuerdo puede pedirle la firma a
+      // alguien que no dicta ese curso (un coordinador), y filtrar por curso lo
+      // escondería.
+      const { count: pendientes } = userId
+        ? await (supabase as any)
+            .from("report_signatures")
+            .select("report_id", { count: "exact", head: true })
+            .eq("user_id", userId)
+            .is("signed_at", null)
+        : { count: 0 };
+
       if (cancelled) return;
+      setFirmasPendientes(pendientes ?? 0);
       setSinVocero(cursosSinVocero(cursosDocente, conVocero, Date.now()));
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
@@ -1174,6 +1198,23 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
           del semestre. Enlaza a "Mis estudiantes", que es donde se designa:
           el vocero se elige ENTRE los matriculados, no en el formulario del
           curso. */}
+      {/* Firmas que ME esperan. Va ANTES del aviso de vocero porque es lo
+          único de los dos que está trabando un documento: el Acuerdo no
+          queda completo hasta que el docente firma, y sin este banner la
+          única pista era la notificación del momento. */}
+      {!loading && firmasPendientes > 0 && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 py-2.5">
+          <AlertDescription className="text-amber-800 dark:text-amber-300">
+            <Link
+              to="/app/teacher/reports"
+              className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
+            >
+              <FileSignature className="h-4 w-4 shrink-0" />
+              {t("dashboard.teacher.pendingSignatures", { count: firmasPendientes })}
+            </Link>
+          </AlertDescription>
+        </Alert>
+      )}
       {!loading && sinVocero.length > 0 && (
         <Alert className="border-amber-500/40 bg-amber-500/10 py-2.5">
           <AlertDescription className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 text-amber-800 dark:text-amber-300">

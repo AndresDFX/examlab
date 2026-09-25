@@ -30,6 +30,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { FileSearch, PenLine } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,7 @@ import { SectionLoader } from "@/components/ui/loaders";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateTime } from "@/shared/lib/format";
 import { SignableDocument } from "./SignableDocument";
+import { SignaturePadDialog } from "./SignaturePadDialog";
 import {
   codigoVerificacion,
   tieneRanuras,
@@ -88,15 +90,22 @@ export function ReportStatusDialog({
   informe,
   onOpenChange,
   onEnviarAFirmar,
+  onChanged,
 }: {
   /** `null` cierra el diálogo. */
   informe: InformeParaEstado | null;
   onOpenChange: (abierto: boolean) => void;
   /** Salto al diálogo de escritura. Sin curso no hay a quién pedirle la firma. */
   onEnviarAFirmar?: (r: InformeParaEstado) => void;
+  /** Avisa al padre que el estado de firmas cambió (el docente acaba de
+   *  firmar), para que refresque su listado sin recargar la pantalla. */
+  onChanged?: () => void;
 }) {
   const { t } = useTranslation();
   const [cargando, setCargando] = useState(false);
+  const [yoId, setYoId] = useState<string | null>(null);
+  const [firmando, setFirmando] = useState(false);
+  const [lienzoAbierto, setLienzoAbierto] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nonce, setNonce] = useState(0);
   const [solicitudes, setSolicitudes] = useState<SolicitudCruda[]>([]);
@@ -207,6 +216,65 @@ export function ReportStatusDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reportId, courseId, conRanuras, nonce]);
 
+  useEffect(() => {
+    let cancelado = false;
+    void supabase.auth.getUser().then(({ data }) => {
+      if (!cancelado) setYoId(data.user?.id ?? null);
+    });
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  /**
+   * Firmar. Mismo RPC y mismo lienzo que usa el estudiante — `sign_report` no
+   * distingue rol. Se exige el dibujo igual que allá: firmar no puede ser un
+   * clic accidental sobre un documento que después se imprime.
+   */
+  const firmar = async (dibujo: string | null) => {
+    if (firmando || !reportId) return;
+    setFirmando(true);
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data, error: e } = await (supabase as any).rpc("sign_report", {
+        _report_id: reportId,
+        _user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+        _drawing: dibujo,
+      });
+      const r = data as { ok?: boolean; error?: string } | null;
+      if (e || !r?.ok) {
+        toast.error(friendlyError(e, t("reportStatus.signError")));
+        return;
+      }
+      toast.success(t("reportStatus.signedOk"));
+      setLienzoAbierto(false);
+      // Se recarga el estado en vez de cerrar: el docente tiene que VER su
+      // firma aparecer en el renglón, que es la confirmación real.
+      setNonce((n) => n + 1);
+      onChanged?.();
+    } catch (err) {
+      toast.error(friendlyError(err));
+    } finally {
+      setFirmando(false);
+    }
+  };
+
+  /**
+   * ¿Este documento espera MI firma?
+   *
+   * El docente no tenía dónde firmar: `/app/student/signatures` es del rol
+   * Estudiante y este diálogo abría el documento en solo lectura, así que la
+   * única vía era el enlace público. En producción quedaron CINCO Acuerdos
+   * trabados esperando una firma que no se podía dar desde la aplicación.
+   *
+   * `sign_report` no valida rol —solo exige que exista una solicitud a nombre
+   * de quien llama—, así que lo único que faltaba era esta puerta.
+   */
+  const miSolicitud = useMemo(
+    () => (yoId ? solicitudes.find((x) => x.user_id === yoId && !x.signed_at) : undefined),
+    [solicitudes, yoId],
+  );
+
   const resumen = useMemo(() => resumirFirmas(solicitudes, html), [solicitudes, html]);
   const lote = useMemo(() => loteDeSolicitud(solicitudes), [solicitudes]);
   const sinFirmantes = resumen.clase === "sin-ranuras";
@@ -233,9 +301,24 @@ export function ReportStatusDialog({
       title={informe.template_name}
       html={informe.html}
       firmas={firmadas}
-      firmanteId={enfocado}
+      firmanteId={miSolicitud ? yoId : enfocado}
+      onFirmar={miSolicitud && !firmando ? () => setLienzoAbierto(true) : null}
       className="w-full h-[45dvh] md:h-[70dvh] rounded-md border bg-background"
     />
+  ) : null;
+
+  /* El botón vive FUERA del iframe: el documento es un `srcDoc` con sandbox y
+     no hay nada pulsable adentro (ver la cabecera de SignableDocument). */
+  const barraDeFirma = miSolicitud ? (
+    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2">
+      <span className="text-xs text-amber-800 dark:text-amber-300">
+        {t("reportStatus.yourSignaturePending")}
+      </span>
+      <Button size="sm" onClick={() => setLienzoAbierto(true)} disabled={firmando}>
+        <PenLine className="mr-1 h-4 w-4" />
+        {t("reportStatus.signNow")}
+      </Button>
+    </div>
   ) : null;
 
   return (
@@ -409,7 +492,10 @@ export function ReportStatusDialog({
                 <SectionLoader />
               </div>
             ) : (
-              documento
+              <div className="flex flex-col gap-2">
+                {barraDeFirma}
+                {documento}
+              </div>
             )}
           </div>
         </div>
@@ -426,6 +512,15 @@ export function ReportStatusDialog({
           )}
         </DialogFooter>
       </DialogContent>
+
+      {/* El lienzo: firmar exige un gesto deliberado, no un clic. Mismo
+          componente que usa el estudiante. */}
+      <SignaturePadDialog
+        open={lienzoAbierto}
+        onOpenChange={setLienzoAbierto}
+        onConfirmar={(dibujo) => void firmar(dibujo)}
+        firmando={firmando}
+      />
     </Dialog>
   );
 }

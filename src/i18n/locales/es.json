@@ -143,7 +143,11 @@
     "signedOfTotal": "{{signed}} de {{total}} firmadas",
     "viaApp": "Con su cuenta",
     "viaLink": "Por el enlace personal",
-    "withDrawing": "Firma dibujada"
+    "withDrawing": "Firma dibujada",
+    "yourSignaturePending": "Este documento espera tu firma.",
+    "signNow": "Firmar",
+    "signedOk": "Documento firmado",
+    "signError": "No se pudo firmar"
   },
   "pollPrint": {
     "answer": "respuesta",
@@ -1091,7 +1095,9 @@
     "viewAll": "Ver todos",
     "teacher": {
       "coursesWithoutVocero_one": "1 curso sin vocero designado",
-      "coursesWithoutVocero_other": "{{count}} cursos sin vocero designado"
+      "coursesWithoutVocero_other": "{{count}} cursos sin vocero designado",
+      "pendingSignatures_one": "Tenés 1 documento esperando tu firma",
+      "pendingSignatures_other": "Tenés {{count}} documentos esperando tu firma"
     }
   },
   "exam": {

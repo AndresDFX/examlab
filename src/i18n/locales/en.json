@@ -143,7 +143,11 @@
     "signedOfTotal": "{{signed}} of {{total}} signed",
     "viaApp": "With their account",
     "viaLink": "Through their personal link",
-    "withDrawing": "Hand-drawn signature"
+    "withDrawing": "Hand-drawn signature",
+    "yourSignaturePending": "This document is waiting for your signature.",
+    "signNow": "Sign",
+    "signedOk": "Document signed",
+    "signError": "Could not sign"
   },
   "pollPrint": {
     "answer": "answer",
@@ -1091,7 +1095,9 @@
     "viewAll": "View all",
     "teacher": {
       "coursesWithoutVocero_one": "1 course with no representative assigned",
-      "coursesWithoutVocero_other": "{{count}} courses with no representative assigned"
+      "coursesWithoutVocero_other": "{{count}} courses with no representative assigned",
+      "pendingSignatures_one": "1 document is waiting for your signature",
+      "pendingSignatures_other": "{{count}} documents are waiting for your signature"
     }
   },
   "exam": {
