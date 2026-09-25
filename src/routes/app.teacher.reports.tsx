@@ -694,6 +694,12 @@ function Inner() {
           mapa.set(pf.id, { nombre: pf.full_name, documento: pf.documento });
       }
       let { html, filasTocadas } = refrescarDatos(r.html, mapa);
+      // Qué cambió, para poder decirlo. Un «ya estaba al día» a secas no
+      // distingue «lo revisé y estaba bien» de «no revisé eso», y ante un
+      // documento que se ve viejo el docente no tiene forma de saber cuál de
+      // las dos fue.
+      const cambios: string[] = [];
+      if (filasTocadas > 0) cambios.push(i18n.t("reportRefresh.partRows", { count: filasTocadas }));
       let tocado = filasTocadas > 0;
 
       // La casilla de firma del vocero. Si al generar el documento el curso
@@ -715,6 +721,7 @@ function Inner() {
         if (conVocero) {
           html = conVocero;
           tocado = true;
+          cambios.push(i18n.t("reportRefresh.partVocero"));
         }
       }
 
@@ -744,6 +751,7 @@ function Inner() {
           if (conNombre) {
             html = conNombre;
             tocado = true;
+            cambios.push(i18n.t("reportRefresh.partName"));
           }
         }
         const metodologia = c?.subject?.metodologia ?? null;
@@ -757,6 +765,7 @@ function Inner() {
             if (conMetodo) {
               html = conMetodo;
               tocado = true;
+              cambios.push(i18n.t("reportRefresh.partMethod"));
             }
           }
         }
@@ -772,10 +781,14 @@ function Inner() {
       if (orden.reordenado) {
         html = orden.html;
         tocado = true;
+        cambios.push(i18n.t("reportRefresh.partOrder"));
       }
 
       if (!tocado) {
-        toast.success(i18n.t("reportRefresh.alreadyUpToDate"));
+        toast.success(i18n.t("reportRefresh.alreadyUpToDate"), {
+          description: i18n.t("reportRefresh.alreadyUpToDateHint"),
+          duration: 8000,
+        });
         return;
       }
       // Red de seguridad: el mismo conjunto de personas con casilla, o no se
@@ -793,7 +806,15 @@ function Inner() {
         toast.error(friendlyError(error, i18n.t("reportRefresh.error")));
         return;
       }
-      toast.success(i18n.t("reportRefresh.doneGeneric"));
+      toast.success(i18n.t("reportRefresh.doneGeneric"), {
+        description: cambios.join(" · "),
+        duration: 8000,
+      });
+      // Si el documento está abierto, se actualiza EN EL ACTO. `verInforme`
+      // guarda una copia del momento en que se abrió, así que sin esto el
+      // docente ve el documento viejo justo después de que le dijimos que lo
+      // pusimos al día — que es exactamente «le di al botón y no pasó nada».
+      setVerInforme((prev) => (prev && prev.id === r.id ? { ...prev, html } : prev));
       void loadGenReports();
     } catch (e) {
       toast.error(friendlyError(e, i18n.t("reportRefresh.error")));

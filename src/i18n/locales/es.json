@@ -10887,6 +10887,13 @@
     "noRows": "Este documento no tiene un listado con casillas de firma",
     "wouldLoseSlots": "No se actualizó: el cambio habría afectado las casillas de firma",
     "error": "No se pudieron actualizar los datos",
-    "doneGeneric": "Documento puesto al día"
+    "doneGeneric": "Documento puesto al día",
+    "alreadyUpToDateHint": "Se revisaron el nombre de la asignatura, la metodología del sílabo, los nombres y documentos de los estudiantes, la casilla del vocero y el orden del listado.",
+    "partRows_one": "1 fila de estudiante",
+    "partRows_other": "{{count}} filas de estudiantes",
+    "partVocero": "casilla del vocero",
+    "partName": "nombre de la asignatura",
+    "partMethod": "metodología",
+    "partOrder": "orden y numeración"
   }
 }

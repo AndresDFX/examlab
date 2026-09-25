@@ -10887,6 +10887,13 @@
     "noRows": "This document has no list with signature boxes",
     "wouldLoseSlots": "Not updated: the change would have affected the signature boxes",
     "error": "Could not refresh the data",
-    "doneGeneric": "Document brought up to date"
+    "doneGeneric": "Document brought up to date",
+    "alreadyUpToDateHint": "We checked the subject name, the syllabus methodology, student names and IDs, the representative's signature box and the list order.",
+    "partRows_one": "1 student row",
+    "partRows_other": "{{count}} student rows",
+    "partVocero": "representative's box",
+    "partName": "subject name",
+    "partMethod": "methodology",
+    "partOrder": "order and numbering"
   }
 }
