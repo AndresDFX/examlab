@@ -34,6 +34,7 @@ import { ClipboardList } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { loadCourseDataset } from "@/shared/lib/statistics";
 import { pendientesPorCorte, unirPorNombreDeCorte, type PendientesDeCorte } from "./sin-calificar";
+import { DesgloseDeCorte } from "./DesgloseDeCorte";
 
 export function SinCalificarAgregado({
   courses,
@@ -47,6 +48,11 @@ export function SinCalificarAgregado({
   const calcular = async () => {
     if (cargando || courses.length === 0) return;
     setCargando(true);
+    // `Date.now()` se toma UNA vez y se pasa a todos los cursos: si cada uno
+    // leyera el suyo, dos cursos podrían quedar de distinto lado de la
+    // medianoche y el mismo corte saldría «en curso» en uno y «cerrado» en
+    // otro dentro de la misma tabla.
+    const ahora = Date.now();
     try {
       const datasets = await Promise.all(courses.map((c) => loadCourseDataset(c.id)));
       const porCurso = datasets.map((ds) =>
@@ -55,6 +61,7 @@ export function SinCalificarAgregado({
           ds.actividades,
           [...ds.examSubs, ...ds.workshopSubs, ...ds.projectSubs],
           new Set(ds.enrollments.map((e) => e.user_id)).size,
+          ahora,
         ),
       );
       setFilas(unirPorNombreDeCorte(porCurso));
@@ -65,7 +72,7 @@ export function SinCalificarAgregado({
     }
   };
 
-  const conActividades = (filas ?? []).filter((f) => f.pctSinCalificar != null);
+  const hayAlgo = (filas ?? []).some((f) => f.actividades > 0);
 
   return (
     <Card>
@@ -84,34 +91,13 @@ export function SinCalificarAgregado({
             {cargando && <Spinner size="sm" className="mr-1" />}
             {t("statistics.ungradedCompute")}
           </Button>
-        ) : conActividades.length === 0 ? (
+        ) : !hayAlgo ? (
           <p className="text-xs text-muted-foreground">{t("statistics.ungradedNoActivities")}</p>
         ) : (
-          <div className="flex flex-col gap-3">
-            {conActividades.map((f) => {
-              const pct = f.pctSinCalificar ?? 0;
-              const tono =
-                pct === 0 ? "bg-emerald-500" : pct > 50 ? "bg-destructive" : "bg-amber-500";
-              return (
-                <div key={f.cutId} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="font-medium truncate">{f.cutName}</span>
-                    <span className="tabular-nums shrink-0">
-                      {t("statistics.ungradedOf", {
-                        faltan: f.esperadas - f.calificadas,
-                        total: f.esperadas,
-                      })}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full ${tono}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <p className="text-2xs text-muted-foreground">
-                    {t("statistics.ungradedPct", { pct })}
-                  </p>
-                </div>
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {(filas ?? []).map((f) => (
+              <DesgloseDeCorte key={f.cutId} fila={f} />
+            ))}
           </div>
         )}
       </CardContent>

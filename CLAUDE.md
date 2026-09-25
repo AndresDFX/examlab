@@ -1216,6 +1216,41 @@ gráficas** a propósito: es lo accionable de la pantalla.
   "empeoró desde el último snapshot" + cadencia de digest. Se dejó afuera a propósito: sería la 15ª
   invariante cross-file del proyecto y hacerla mal genera spam, que es peor que no tenerla.
 
+### Qué falta del corte (Estadísticas) — cuatro estados, no un porcentaje
+
+[sin-calificar.ts](src/modules/statistics/sin-calificar.ts) + [DesgloseDeCorte.tsx](src/modules/statistics/DesgloseDeCorte.tsx).
+Cada par (actividad, estudiante) del corte cae en **exactamente uno** de cuatro estados, y los cuatro
+**suman siempre las esperadas** (hay un test que falla si dejan de sumar: un total que no coincide
+con sus propias barras es un error que nadie mira dos veces).
+
+| Estado | Qué es | A quién le toca |
+|---|---|---|
+| `calificadas` | Tiene nota (`effectiveGrade`) | — |
+| `porCalificar` | Entregó y falta la nota | **Docente** |
+| `enCurso` | Lo abrió y no lo terminó | Estudiante |
+| `sinEmpezar` | No existe ni la fila | **Estudiante** |
+
+Lo que no se deduce leyendo el código:
+
+- **Partirlo en cuatro es el punto.** Un «40,6% sin calificar» puede ser una cola de calificación o
+  un curso que no abrió nada, y son dos acciones distintas. Medido en producción el 2026-09-25: de
+  139 faltantes del Corte 1, **12** eran del docente y **127** estudiantes sin empezar.
+- **Una actividad EXTERNA sin nota es `porCalificar`, NUNCA `sinEmpezar`.** El estudiante no entrega
+  nada en una externa: la nota la carga el docente. Contarlo como que no empezó es una acusación
+  falsa, y es lo que hace que un docente deje de creerle al panel.
+- **«Entregado» lo decide `entregaHecha`**, la lista NEGRA compartida (ver la invariante de
+  `entrega-hecha.ts`). No reimplementarla acá con una lista blanca.
+- **`estadoDeCorte` compara por DÍA, no por instante.** `start_date`/`end_date` son columnas DATE:
+  `Date.parse("…T12:00:00")` es mediodía LOCAL y en UTC-5 el primer día del corte se lee como futuro
+  — el mismo error que justifica `formatDateOnly`. Los dos extremos son inclusivos. Un corte
+  **futuro NO se pinta de rojo**: el Corte 3 salía «100% sin calificar» un mes antes de empezar, que
+  es cierto e inútil, y un panel que alarma por trabajo inexistente enseña a ignorarlo.
+- **Los cortes sin actividades se MUESTRAN**, diciendo que no tienen nada publicado. Filtrarlos hacía
+  que faltando el Corte 2 entero el panel pareciera decir que ese corte no existe.
+- **La barra la dibuja UN componente**, compartido por el panel de un curso y el agregado de «Todos
+  los cursos». La leyenda repite los números en texto porque el tooltip no existe en un teléfono.
+- Los **borradores nunca entran**: `loadCourseDataset` los descarta antes (`status === "draft"`).
+
 ### Pendientes por estudiante (Estadísticas) — incluye asistencia
 
 `src/modules/statistics/pending-students.ts` responde «qué le falta HACER a cada estudiante, ahora»

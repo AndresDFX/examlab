@@ -56,6 +56,10 @@ export type Cut = {
   course_id: string;
   name: string;
   position: number;
+  /** Ventana del corte. Nullable: un curso puede tener cortes sin fechas, y
+   *  entonces no se puede decir si el corte ya empezó. */
+  start_date?: string | null;
+  end_date?: string | null;
 };
 
 export type Enrollment = { course_id: string; user_id: string };
@@ -96,12 +100,23 @@ export type CourseDataset = {
    * nadie entregó no tiene ni una fila de entrega, y es justamente el caso que
    * hay que contar.
    */
-  actividades: Array<{ id: string; cut_id: string | null }>;
+  actividades: Array<{
+    id: string;
+    cut_id: string | null;
+    /** Externa = la nota la carga el docente a mano; el estudiante no entrega
+     *  nada en la plataforma. Hace falta para no contar a un alumno como «sin
+     *  empezar» algo que nunca tuvo que empezar. */
+    is_external: boolean;
+    /** Tipo, para poder decir QUÉ falta y no solo cuánto. */
+    kind: "exam" | "workshop" | "project";
+    title?: string | null;
+  }>;
 };
 
 /** Fila de una actividad compartida, ya resuelta para UN curso. */
 export type SharedActivityRow = {
   id: string;
+  title?: string | null;
   course_id: string;
   cut_id: string | null;
   /** Peso en ESTE curso (de la tabla M:N). null = usar el legacy del item. */
@@ -144,6 +159,7 @@ export function flattenSharedActivities(
     if (item.status === "draft") continue;
     out.push({
       id: item.id,
+      title: item.title ?? null,
       course_id: courseId,
       cut_id: r.cut_id ?? item.cut_id ?? null,
       weight: r.weight ?? null,
@@ -188,7 +204,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       // estadísticas en silencio. Las notas de examen ya están en la escala del
       // curso, así que abajo fijamos max_score = grade_scale_max (reescalado identidad).
       .from("exams")
-      .select("id, course_id, cut_id, is_external, status")
+      .select("id, course_id, cut_id, is_external, status, title")
       .eq("course_id", courseId)
       .neq("status", "draft")
       .is("deleted_at", null),
@@ -210,20 +226,20 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     (supabase as any)
       .from("workshop_courses")
       .select(
-        "cut_id, weight, workshop:workshops(id, cut_id, max_score, is_external, status, deleted_at, requires_defense)",
+        "cut_id, weight, workshop:workshops(id, title, cut_id, max_score, is_external, status, deleted_at, requires_defense)",
       )
       .eq("course_id", courseId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("project_courses")
       .select(
-        "cut_id, weight, project:projects(id, cut_id, max_score, is_external, status, deleted_at)",
+        "cut_id, weight, project:projects(id, title, cut_id, max_score, is_external, status, deleted_at)",
       )
       .eq("course_id", courseId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (supabase as any)
       .from("grade_cuts")
-      .select("id, course_id, name, position")
+      .select("id, course_id, name, position, start_date, end_date")
       .eq("course_id", courseId)
       .order("position"),
     supabase.from("course_enrollments").select("course_id, user_id").eq("course_id", courseId),
@@ -390,9 +406,27 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     cuts: (cutsRaw ?? []) as Cut[],
     // De las mismas filas ya consultadas: cero consultas nuevas.
     actividades: [
-      ...exams.map((e) => ({ id: e.id, cut_id: e.cut_id ?? null })),
-      ...workshops.map((w) => ({ id: w.id, cut_id: w.cut_id ?? null })),
-      ...projects.map((p) => ({ id: p.id, cut_id: p.cut_id ?? null })),
+      ...exams.map((e) => ({
+        id: e.id,
+        cut_id: e.cut_id ?? null,
+        is_external: !!e.is_external,
+        kind: "exam" as const,
+        title: (e as { title?: string | null }).title ?? null,
+      })),
+      ...workshops.map((w) => ({
+        id: w.id,
+        cut_id: w.cut_id ?? null,
+        is_external: !!w.is_external,
+        kind: "workshop" as const,
+        title: (w as { title?: string | null }).title ?? null,
+      })),
+      ...projects.map((p) => ({
+        id: p.id,
+        cut_id: p.cut_id ?? null,
+        is_external: !!p.is_external,
+        kind: "project" as const,
+        title: (p as { title?: string | null }).title ?? null,
+      })),
     ],
   };
 }

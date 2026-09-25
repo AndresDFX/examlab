@@ -77,6 +77,54 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📋 Estadísticas: «qué falta del corte» separa tu trabajo del de los estudiantes
+
+El panel decía una sola cosa —«40,6% sin calificar»— y ese número solo desinforma de dos maneras,
+las dos vistas en producción el 2026-09-25.
+
+**Confundía dos trabajos distintos.** «Faltan 139 de 342» puede ser una cola de calificación (tuya,
+esta semana) o un curso que no abrió nada (de ellos, y hay que ir a buscarlos). Ahora cada corte se
+parte en cuatro, y cada par (actividad, estudiante) cae en exactamente uno:
+
+| | Qué significa | A quién le toca |
+|---|---|---|
+| **Calificadas** | Listo | — |
+| **Por calificar** | Ya entregó y falta la nota | **Docente** |
+| **Sin terminar** | Lo abrió y lo dejó a medias | Estudiante (el docente puede cerrarlo) |
+| **Sin empezar** | No existe ni la fila | **Estudiante** |
+
+Los cuatro **suman siempre las esperadas**, y hay un test que falla si dejan de sumar: un total que no
+coincide con sus propias barras es el error que nadie mira dos veces.
+
+**Y pintaba de rojo un corte que no había empezado.** El Corte 3 va del 27-oct al 20-nov y salía
+«100% sin calificar» a fines de septiembre: literalmente cierto y completamente inútil, porque nadie
+puede haber entregado todavía. Un panel que alarma por trabajo inexistente entrena al docente a
+ignorarlo, y entonces tampoco ve la alarma del corte que sí está abierto. Ahora un corte futuro sale
+apagado, con su etiqueta y su motivo escrito.
+
+Tres detalles que no se deducen:
+
+- **Una actividad EXTERNA sin nota es «por calificar», nunca «sin empezar».** En una externa el
+  estudiante no entrega nada: la nota la carga el docente. Contarlo como que no empezó es una
+  acusación falsa, y es exactamente lo que hace que un docente deje de creerle al panel.
+- **«Entregado» lo decide `entregaHecha`**, la lista NEGRA compartida con las pantallas del
+  estudiante. Reimplementarla acá con una lista blanca habría repetido el bug que dejó 37 entregas
+  reales marcadas como no entregadas: los estados nuevos de estas tablas nacen del pipeline de
+  calificación, o sea DESPUÉS de entregar.
+- **El estado del corte se compara por DÍA, no por instante.** `start_date`/`end_date` son columnas
+  DATE —un día del calendario, sin hora ni zona— y `Date.parse("…T12:00:00")` es mediodía LOCAL: en
+  UTC-5 el primer día del corte se leía como futuro. Es el mismo error que ya justifica
+  `formatDateOnly`. Los tests corren verdes en UTC, Bogotá, Tokio y Auckland.
+
+Los cortes **sin actividades ya no desaparecen**: se muestran diciendo que no tienen nada publicado.
+Antes se filtraban, y faltando el Corte 2 entero el panel parecía decir que ese corte no existe.
+
+La barra la dibuja un solo componente (`DesgloseDeCorte`), compartido por el panel de un curso y el
+agregado de «Todos los cursos» — antes cada uno tenía su copia, y dos copias divergen sin que nada
+falle. La leyenda repite los números en texto porque el tooltip no existe en un teléfono.
+
+Los borradores nunca entraron y siguen sin entrar: `loadCourseDataset` los descarta antes.
+
 ### 👁️ La pantalla del examen ya muestra la configuración que guardaba a ciegas
 
 Reporte: «no veo en la interfaz del Parcial I el poner las preguntas aleatorias, pero los estudiantes

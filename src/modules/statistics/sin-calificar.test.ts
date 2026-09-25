@@ -1,13 +1,13 @@
 import { describe, it, expect } from "vitest";
-import { pendientesPorCorte, unirPorNombreDeCorte } from "./sin-calificar";
+import { pendientesPorCorte, unirPorNombreDeCorte, estadoDeCorte } from "./sin-calificar";
 import type { Cut, SubmissionLike } from "@/shared/lib/statistics";
 
-const cut = (id: string, name: string): Cut =>
-  ({ id, name, weight: 30 }) as unknown as Cut;
+const cut = (id: string, name: string, start?: string, end?: string): Cut =>
+  ({ id, name, weight: 30, start_date: start ?? null, end_date: end ?? null }) as unknown as Cut;
 
 const entrega = (over: Partial<SubmissionLike>): SubmissionLike =>
   ({
-    id: `s-${Math.random()}`,
+    id: `s-${over.ref_id ?? "x"}-${over.user_id ?? "u1"}-${over.status ?? "entregado"}`,
     user_id: "u1",
     status: "entregado",
     ai_grade: null,
@@ -24,6 +24,11 @@ const entrega = (over: Partial<SubmissionLike>): SubmissionLike =>
 
 const K1 = cut("k1", "Corte 1");
 const K2 = cut("k2", "Corte 2");
+// Mediodía LOCAL del 25-sep-2026. Construido por componentes y no con un
+// literal ISO a propósito: un `...T12:00:00Z` es mediodía UTC, y en un CI con
+// otra zona cae en otro día del calendario — exactamente el fallo que este
+// repo ya tuvo en `cursos-sin-vocero.test.ts`.
+const HOY = new Date(2026, 8, 25, 12, 0, 0).getTime();
 
 describe("pendientesPorCorte", () => {
   it("el denominador son las entregas ESPERADAS, no las existentes", () => {
@@ -44,6 +49,54 @@ describe("pendientesPorCorte", () => {
     expect(r[0].pctSinCalificar).toBe(95);
   });
 
+  it("separa lo que le toca al DOCENTE de lo que le toca al ESTUDIANTE", () => {
+    // La razón de existir del desglose: «falta el 75%» puede ser una cola de
+    // calificación o un curso que no abrió nada, y son dos acciones distintas.
+    const r = pendientesPorCorte(
+      [K1],
+      [{ id: "act1", cut_id: "k1" }],
+      [
+        entrega({ user_id: "u1", final_grade: 4 }),
+        entrega({ user_id: "u2", status: "entregado" }),
+        entrega({ user_id: "u3", status: "en_progreso" }),
+      ],
+      4,
+    );
+    expect(r[0].calificadas).toBe(1);
+    expect(r[0].porCalificar).toBe(1); // u2 entregó y espera nota
+    expect(r[0].enCurso).toBe(1); // u3 lo abrió y lo dejó
+    expect(r[0].sinEmpezar).toBe(1); // u4 no dejó ni fila
+  });
+
+  it("los cuatro estados suman SIEMPRE las esperadas", () => {
+    // Invariante: si no suman, el panel muestra un total que no coincide con
+    // sus propias barras — el error que nadie mira dos veces.
+    const r = pendientesPorCorte(
+      [K1],
+      [
+        { id: "act1", cut_id: "k1" },
+        { id: "act2", cut_id: "k1", is_external: true },
+      ],
+      [
+        entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 }),
+        entrega({ ref_id: "act1", user_id: "u2", status: "en_progreso" }),
+        entrega({ ref_id: "act2", user_id: "u1", final_grade: 3 }),
+      ],
+      3,
+    );
+    const { calificadas, porCalificar, enCurso, sinEmpezar, esperadas } = r[0];
+    expect(calificadas + porCalificar + enCurso + sinEmpezar).toBe(esperadas);
+  });
+
+  it("una actividad EXTERNA sin nota es trabajo del docente, no del estudiante", () => {
+    // En una externa el estudiante no entrega nada: contarlo como «no empezó»
+    // sería acusarlo de no hacer algo que nunca tuvo que hacer.
+    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1", is_external: true }], [], 5);
+    expect(r[0].sinEmpezar).toBe(0);
+    expect(r[0].porCalificar).toBe(5);
+    expect(r[0].estudiantesSinEmpezarNada).toBe(0);
+  });
+
   it("una entrega sin nota NO cuenta como calificada", () => {
     const r = pendientesPorCorte(
       [K1],
@@ -53,6 +106,22 @@ describe("pendientesPorCorte", () => {
     );
     expect(r[0].calificadas).toBe(1);
     expect(r[0].pctSinCalificar).toBe(50);
+  });
+
+  it("ai_revisado es una entrega hecha, no un examen a medias", () => {
+    // La lista NEGRA compartida: los estados nuevos nacen del pipeline de
+    // calificación, o sea DESPUÉS de entregar. Con lista blanca caerían en
+    // «sin empezar» — el bug que dejó 37 entregas reales marcadas como no
+    // entregadas.
+    const r = pendientesPorCorte(
+      [K1],
+      [{ id: "act1", cut_id: "k1" }],
+      [entrega({ user_id: "u1", status: "ai_revisado" })],
+      1,
+    );
+    expect(r[0].porCalificar).toBe(1);
+    expect(r[0].enCurso).toBe(0);
+    expect(r[0].sinEmpezar).toBe(0);
   });
 
   it("un taller con sustentacion pendiente cuenta como SIN calificar", () => {
@@ -65,21 +134,25 @@ describe("pendientesPorCorte", () => {
       1,
     );
     expect(r[0].calificadas).toBe(0);
+    expect(r[0].porCalificar).toBe(1);
     expect(r[0].pctSinCalificar).toBe(100);
   });
 
-  it("varios intentos del mismo examen cuentan UNA sola vez", () => {
-    // La nota es una sola aunque haya varias filas.
+  it("varios intentos del mismo examen cuentan UNA sola vez, y gana el mas avanzado", () => {
+    // La nota es una sola aunque haya varias filas; y un intento abandonado no
+    // puede degradar a un intento ya calificado.
     const r = pendientesPorCorte(
       [K1],
       [{ id: "act1", cut_id: "k1" }],
       [
-        entrega({ ref_id: "act1", user_id: "u1", final_grade: 3 }),
+        entrega({ ref_id: "act1", user_id: "u1", status: "en_progreso" }),
         entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 }),
       ],
       2,
     );
     expect(r[0].calificadas).toBe(1);
+    expect(r[0].enCurso).toBe(0);
+    expect(r[0].sinEmpezar).toBe(1);
   });
 
   it("solo mira las actividades de SU corte", () => {
@@ -89,10 +162,7 @@ describe("pendientesPorCorte", () => {
         { id: "act1", cut_id: "k1" },
         { id: "act2", cut_id: "k2" },
       ],
-      [
-        entrega({ ref_id: "act1", final_grade: 4 }),
-        entrega({ ref_id: "act2", final_grade: 4 }),
-      ],
+      [entrega({ ref_id: "act1", final_grade: 4 }), entrega({ ref_id: "act2", final_grade: 4 })],
       1,
     );
     expect(r[0].calificadas).toBe(1);
@@ -111,6 +181,7 @@ describe("pendientesPorCorte", () => {
     // 100% sobre un corte vacío manda al docente a buscar trabajo inexistente.
     const r = pendientesPorCorte([K1], [], [], 30);
     expect(r[0].pctSinCalificar).toBeNull();
+    expect(r[0].actividades).toBe(0);
     expect(r[0].estudiantesSinNingunaNota).toBe(0);
   });
 
@@ -127,10 +198,46 @@ describe("pendientesPorCorte", () => {
     expect(r[0].estudiantesSinNingunaNota).toBe(2);
   });
 
+  it("cuenta los estudiantes que no empezaron NADA del corte", () => {
+    const r = pendientesPorCorte(
+      [K1],
+      [{ id: "act1", cut_id: "k1" }],
+      [entrega({ user_id: "u1", status: "en_progreso" })],
+      4,
+    );
+    // u1 empezó (aunque no entregó); los otros 3 no aparecieron.
+    expect(r[0].estudiantesSinEmpezarNada).toBe(3);
+  });
+
   it("sin estudiantes matriculados no se esperan notas", () => {
     const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1" }], [], 0);
     expect(r[0].esperadas).toBe(0);
     expect(r[0].pctSinCalificar).toBeNull();
+  });
+});
+
+describe("estadoDeCorte", () => {
+  // El caso que motivó el campo: el Corte 3 salía «100% sin calificar» un mes
+  // antes de empezar. Cierto, y completamente inútil.
+  it("un corte que no ha empezado es futuro", () => {
+    expect(estadoDeCorte(cut("k", "Corte 3", "2026-10-27", "2026-11-20"), HOY)).toBe("futuro");
+  });
+  it("un corte con hoy adentro esta en curso", () => {
+    expect(estadoDeCorte(cut("k", "Corte 1", "2026-09-08", "2026-10-05"), HOY)).toBe("en_curso");
+  });
+  it("el ultimo dia todavia esta en curso", () => {
+    expect(estadoDeCorte(cut("k", "Corte 1", "2026-09-08", "2026-09-25"), HOY)).toBe("en_curso");
+  });
+  it("el primer dia ya esta en curso", () => {
+    expect(estadoDeCorte(cut("k", "Corte 1", "2026-09-25", "2026-10-05"), HOY)).toBe("en_curso");
+  });
+  it("un corte pasado esta terminado", () => {
+    expect(estadoDeCorte(cut("k", "Corte 0", "2026-08-01", "2026-09-01"), HOY)).toBe("terminado");
+  });
+  it("sin fechas no se afirma nada", () => {
+    // Inventar un estado a partir de una fecha ausente sería peor que no
+    // decirlo: el panel decoloraría un corte que sí tiene trabajo vivo.
+    expect(estadoDeCorte(cut("k", "Corte 1"), HOY)).toBe("sin_fechas");
   });
 });
 
@@ -143,6 +250,7 @@ describe("unirPorNombreDeCorte", () => {
     const total = unirPorNombreDeCorte([a, b]);
     expect(total).toHaveLength(1);
     expect(total[0].esperadas).toBe(15);
+    expect(total[0].sinEmpezar).toBe(15);
     expect(total[0].pctSinCalificar).toBe(100);
   });
 
@@ -169,6 +277,39 @@ describe("unirPorNombreDeCorte", () => {
     );
     const b = pendientesPorCorte([cut("b1", "Corte 1")], [{ id: "y", cut_id: "b1" }], [], 99);
     expect(unirPorNombreDeCorte([a, b])[0].pctSinCalificar).toBe(99);
+  });
+
+  it("si a UN curso le queda el corte abierto, el conjunto no esta terminado", () => {
+    // Darlo por cerrado escondería trabajo que todavía se puede hacer.
+    const a = pendientesPorCorte(
+      [cut("a1", "Corte 1", "2026-08-01", "2026-09-01")],
+      [{ id: "x", cut_id: "a1" }],
+      [],
+      1,
+      HOY,
+    );
+    const b = pendientesPorCorte(
+      [cut("b1", "Corte 1", "2026-09-08", "2026-10-05")],
+      [{ id: "y", cut_id: "b1" }],
+      [],
+      1,
+      HOY,
+    );
+    expect(a[0].estado).toBe("terminado");
+    expect(b[0].estado).toBe("en_curso");
+    expect(unirPorNombreDeCorte([a, b])[0].estado).toBe("en_curso");
+  });
+
+  it("dos cursos con el corte igual de futuro siguen siendo futuro", () => {
+    const mk = (id: string) =>
+      pendientesPorCorte(
+        [cut(id, "Corte 3", "2026-10-27", "2026-11-20")],
+        [{ id: `x${id}`, cut_id: id }],
+        [],
+        1,
+        HOY,
+      );
+    expect(unirPorNombreDeCorte([mk("a"), mk("b")])[0].estado).toBe("futuro");
   });
 
   it("sin cursos devuelve vacio", () => {

@@ -76,6 +76,7 @@ import {
 import { EarlyAlertCard } from "@/modules/earlyalert/EarlyAlertCard";
 import { PendingStudentsPanel } from "@/modules/statistics/PendingStudentsPanel";
 import { SinCalificarAgregado } from "@/modules/statistics/SinCalificarAgregado";
+import { DesgloseDeCorte } from "@/modules/statistics/DesgloseDeCorte";
 import { formatDateShort } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/teacher/statistics")({
@@ -732,10 +733,14 @@ function SinCalificarCard({ ds }: { ds: CourseDataset }) {
         ds.actividades,
         [...ds.examSubs, ...ds.workshopSubs, ...ds.projectSubs],
         new Set(ds.enrollments.map((e) => e.user_id)).size,
+        Date.now(),
       ),
     [ds],
   );
-  const conActividades = filas.filter((f) => f.pctSinCalificar != null);
+  // Los cortes SIN actividades se siguen mostrando, con su motivo escrito. La
+  // versión anterior los filtraba, y el resultado era peor que el problema:
+  // faltando el Corte 2 entero, el panel parecía decir que ese corte no existe.
+  const hayAlgo = filas.some((f) => f.actividades > 0);
 
   return (
     <Card>
@@ -749,48 +754,13 @@ function SinCalificarCard({ ds }: { ds: CourseDataset }) {
       <CardContent>
         {ds.cuts.length === 0 ? (
           <EmptyChart text={t("statistics.cutNoCuts")} />
-        ) : conActividades.length === 0 ? (
+        ) : !hayAlgo ? (
           <EmptyChart text={t("statistics.ungradedNoActivities")} />
         ) : (
-          <div className="flex flex-col gap-3">
-            {conActividades.map((f) => {
-              const pct = f.pctSinCalificar ?? 0;
-              // Verde / ámbar / rojo por cuánto falta. El umbral no es una
-              // opinión: con más de la mitad sin calificar el corte no se
-              // puede cerrar, y eso es lo que el color tiene que gritar.
-              const tono =
-                pct === 0
-                  ? "bg-emerald-500"
-                  : pct > 50
-                    ? "bg-destructive"
-                    : "bg-amber-500";
-              return (
-                <div key={f.cutId} className="flex flex-col gap-1">
-                  <div className="flex items-baseline justify-between gap-2 text-xs">
-                    <span className="font-medium truncate">{f.cutName}</span>
-                    <span className="tabular-nums shrink-0">
-                      {t("statistics.ungradedOf", {
-                        faltan: f.esperadas - f.calificadas,
-                        total: f.esperadas,
-                      })}
-                    </span>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
-                    <div className={`h-full ${tono}`} style={{ width: `${pct}%` }} />
-                  </div>
-                  <div className="flex items-baseline justify-between gap-2 text-2xs text-muted-foreground">
-                    <span>{t("statistics.ungradedPct", { pct })}</span>
-                    {f.estudiantesSinNingunaNota > 0 && (
-                      <span>
-                        {t("statistics.ungradedNoneAtAll", {
-                          count: f.estudiantesSinNingunaNota,
-                        })}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="flex flex-col gap-4">
+            {filas.map((f) => (
+              <DesgloseDeCorte key={f.cutId} fila={f} />
+            ))}
           </div>
         )}
       </CardContent>
