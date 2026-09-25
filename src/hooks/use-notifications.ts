@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { aplicarInsignia } from "@/modules/notifications/app-badge";
 
 // Dedup global de toasts: useNotifications está siendo invocado en
 // 3 lugares simultáneos (NotificationBell sidebar, NotificationBell
@@ -302,6 +303,17 @@ export function useNotifications(userId: string | undefined, viewerRole?: string
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
     setUnreadCount(0);
   }, [userId]);
+
+  // La insignia sobre el icono de la app instalada sigue al conteo de no
+  // leidas. Va en el hook y no en un componente porque el numero vive aca: si
+  // se montara en la campanita, quedaria desactualizado en las pantallas que
+  // no la renderizan, y ademas hay varias instancias del hook a la vez
+  // (campanita del sidebar, la del header movil, el tablero) — todas
+  // convergen al mismo valor, asi que escribir la misma cifra varias veces es
+  // inofensivo. Sin `await`: es un adorno, no puede demorar un render.
+  useEffect(() => {
+    void aplicarInsignia(unreadCount);
+  }, [unreadCount]);
 
   return { notifications, unreadCount, markAsRead, markAllAsRead, reload: load };
 }

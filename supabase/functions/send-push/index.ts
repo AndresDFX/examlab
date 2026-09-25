@@ -202,12 +202,34 @@ Deno.serve(async (req: Request) => {
 
   // Payload que recibe el SW. Debe ser texto plano (lo que el SW
   // parseará como JSON en su handler `push`).
+  // Cuántos avisos sin leer tiene la persona, para que el SW pinte la
+  // insignia sobre el ícono de la app instalada. Va en el PAYLOAD y no lo
+  // calcula el SW porque el SW no tiene sesión: corre sin el JWT del usuario,
+  // así que una consulta suya a `notifications` la rebotaría la RLS. Y contar
+  // "los que ya tenía + 1" en el SW se desincroniza apenas la persona lee algo
+  // desde otro dispositivo.
+  //
+  // El +1 es deliberado: esta notificación se está enviando AHORA y su fila ya
+  // existe, pero el push viaja tan pegado al INSERT que la cuenta puede salir
+  // sin incluirla. Se toma el mayor de los dos para no mostrar un número
+  // menor que el real.
+  let sinLeer: number | undefined;
+  {
+    const { count } = await adminClient
+      .from("notifications")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", body.user_id)
+      .eq("read", false);
+    if (typeof count === "number") sinLeer = Math.max(count, 1);
+  }
+
   const payloadJson = JSON.stringify({
     title: body.title ?? "ExamLab",
     body: body.body ?? "",
     link: body.link ?? "/app",
     kind: body.kind ?? "info",
     id: body.notification_id, // se usa como tag único en el SW
+    unread: sinLeer,
   });
 
   // Opciones HTTP del push. CRÍTICAS para Android (FCM):

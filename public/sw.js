@@ -260,7 +260,28 @@ self.addEventListener("push", (event) => {
   } catch {
     payload = { title: "ExamLab", body: event.data.text() };
   }
-  const { title = "ExamLab", body = "", link = "/app", id } = payload;
+  const { title = "ExamLab", body = "", link = "/app", id, unread } = payload;
+
+  // La insignia con el número de pendientes sobre el ícono de la app
+  // instalada. El conteo lo manda el SERVIDOR en el payload: acá no hay
+  // sesión —el SW corre sin el JWT del usuario— así que una consulta propia a
+  // `notifications` la rebotaría la RLS. Y llevar la cuenta a mano ("las que
+  // tenía + 1") se desincroniza apenas la persona lee algo en otro aparato.
+  //
+  // `setAppBadge` no existe en todos lados (en iOS, solo desde 16.4 y con la
+  // app agregada a la pantalla de inicio), y la promesa RECHAZA cuando no hay
+  // permiso — de ahí el `catch` que traga: la insignia es un adorno y su
+  // fallo no puede tumbar la entrega de la notificación, que es lo que
+  // importa.
+  if (typeof unread === "number" && typeof self.navigator?.setAppBadge === "function") {
+    event.waitUntil(
+      (unread > 0
+        ? self.navigator.setAppBadge(unread)
+        : self.navigator.clearAppBadge()
+      ).catch(() => {}),
+    );
+  }
+
   event.waitUntil(
     self.registration.showNotification(title, {
       body,
