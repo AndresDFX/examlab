@@ -2567,7 +2567,9 @@
       "placeholderNoProgram": "Sin programa (transversal)",
       "partialLoadPrograms": "carreras",
       "partialLoadCourseCounts": "conteo de cursos",
-      "partialLoadWarning": "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar."
+      "partialLoadWarning": "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+      "labelMetodologia": "Metodología",
+      "placeholderMetodologia": "Modalidad de las clases y dinámica de cada sesión. Sale en el Acuerdo Pedagógico."
     },
     "periods": {
       "title": "Periodos académicos",

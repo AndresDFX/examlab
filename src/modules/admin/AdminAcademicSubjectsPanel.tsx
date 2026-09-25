@@ -81,6 +81,7 @@ interface Subject {
   active: boolean;
   // Campos de definición (lo que se dicta) — todos opcionales.
   objetivos: string | null;
+  metodologia: string | null;
   contenidos: string | null;
   sistema_evaluacion: EvalWeights | null;
   bibliografia: string | null;
@@ -103,6 +104,7 @@ interface Draft {
   description: string;
   active: boolean;
   objetivos: string;
+  metodologia: string;
   contenidos: string;
   bibliografia: string;
   intensidad_horaria: number | null;
@@ -130,6 +132,7 @@ const EMPTY_DRAFT: Draft = {
   description: "",
   active: true,
   objetivos: "",
+  metodologia: "",
   contenidos: "",
   bibliografia: "",
   intensidad_horaria: null,
@@ -196,7 +199,7 @@ export function AdminAcademicSubjectsPanel() {
           db
             .from("academic_subjects")
             .select(
-              "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria",
+              "id, name, code, program_id, semestre, credits, description, active, objetivos, contenidos, sistema_evaluacion, bibliografia, intensidad_horaria, metodologia",
             )
             .order("name"),
           scope,
@@ -303,6 +306,7 @@ export function AdminAcademicSubjectsPanel() {
       description: r.description ?? "",
       active: r.active,
       objetivos: r.objetivos ?? "",
+      metodologia: r.metodologia ?? "",
       contenidos: r.contenidos ?? "",
       bibliografia: r.bibliografia ?? "",
       intensidad_horaria: r.intensidad_horaria,
@@ -335,6 +339,7 @@ export function AdminAcademicSubjectsPanel() {
       description: r.description ?? "",
       active: r.active,
       objetivos: r.objetivos ?? "",
+      metodologia: r.metodologia ?? "",
       contenidos: r.contenidos ?? "",
       bibliografia: r.bibliografia ?? "",
       intensidad_horaria: r.intensidad_horaria,
@@ -386,6 +391,7 @@ export function AdminAcademicSubjectsPanel() {
         description: draft.description.trim() || null,
         active: draft.active,
         objetivos: draft.objetivos.trim() || null,
+        metodologia: draft.metodologia.trim() || null,
         contenidos: draft.contenidos.trim() || null,
         bibliografia: draft.bibliografia.trim() || null,
         intensidad_horaria: draft.intensidad_horaria,
@@ -739,6 +745,21 @@ export function AdminAcademicSubjectsPanel() {
                   value={draft.objetivos}
                   onChange={(e) => setDraft({ ...draft, objetivos: e.target.value })}
                   placeholder={t("hc_modulesAdminAdminAcademicSubjectsPanel.placeholderObjetivos")}
+                  rows={3}
+                />
+              </div>
+              {/* La imprime el Acuerdo Pedagógico en «Acuerdo sobre los
+                  aspectos metodológicos». Antes esa sección llevaba texto fijo
+                  de la plantilla —una instrucción al lector dentro de un
+                  documento firmado—, así que va acá por el mismo camino que
+                  los objetivos: se escribe una vez y la reflejan todos los
+                  cursos de la asignatura. */}
+              <div className="space-y-1">
+                <Label className="text-xs">{t("academic.subjects.labelMetodologia")}</Label>
+                <Textarea
+                  value={draft.metodologia}
+                  onChange={(e) => setDraft({ ...draft, metodologia: e.target.value })}
+                  placeholder={t("academic.subjects.placeholderMetodologia")}
                   rows={3}
                 />
               </div>

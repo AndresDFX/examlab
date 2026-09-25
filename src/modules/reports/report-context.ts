@@ -635,7 +635,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, ciudad, period, period_id, tenant_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
+      "id, name, code, semestre, grupo, ciudad, period, period_id, tenant_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion, metodologia)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -1123,7 +1123,13 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // Asignatura del plan (FK subject_id). Si está asociado, exponemos
       // el nombre + código + créditos para el header de informes
       // (útil cuando el plan curricular dicta nombres específicos).
-      asignatura: courseRow.subject?.name ?? "",
+      // Cae al nombre del curso cuando no hay asignatura del plan enlazada. El
+      // Acuerdo imprime esta variable en su casilla «Nombre del curso» —el
+      // nombre del curso trae el periodo y el grupo pegados
+      // («Introduccion a la Ingenieria-2026-2-SB141C»), y la asignatura los
+      // trae bien escritos y sin ese ruido—, así que dejarla vacía pondría un
+      // hueco en un documento firmado.
+      asignatura: courseRow.subject?.name ?? courseRow.name ?? "",
       asignatura_codigo: courseRow.subject?.code ?? "",
       creditos: courseRow.subject?.credits ?? "",
       // Sílabo de la asignatura del plan. Se expone para que documentos como el
@@ -1134,6 +1140,11 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // plantillas escapa el HTML, así que un salto de línea se ve como tal solo
       // si la plantilla usa `white-space: pre-line`.
       objetivos: courseRow.subject?.objetivos ?? "",
+      // Igual que los objetivos: se edita una vez en Académico → Asignaturas y
+      // todos los cursos de esa asignatura la reflejan. Hasta que alguien la
+      // escriba sale vacía, que es mejor que la instrucción «Describa acá…»
+      // que la plantilla imprimía dentro de un documento firmado.
+      metodologia: courseRow.subject?.metodologia ?? "",
       contenidos: courseRow.subject?.contenidos ?? "",
       bibliografia: courseRow.subject?.bibliografia ?? "",
       intensidad_horaria: courseRow.subject?.intensidad_horaria ?? "",

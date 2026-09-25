@@ -2567,7 +2567,9 @@
       "placeholderNoProgram": "No program (cross-curricular)",
       "partialLoadPrograms": "programs",
       "partialLoadCourseCounts": "course counts",
-      "partialLoadWarning": "Subjects loaded, but this complementary data didn't: {{fields}}. Reload to retry."
+      "partialLoadWarning": "Subjects loaded, but this complementary data didn't: {{fields}}. Reload to retry.",
+      "labelMetodologia": "Methodology",
+      "placeholderMetodologia": "Class format and how each session runs. Appears on the Pedagogical Agreement."
     },
     "periods": {
       "title": "Academic periods",

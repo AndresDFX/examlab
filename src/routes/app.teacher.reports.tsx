@@ -36,6 +36,7 @@ import { Toggle } from "@/components/ui/toggle";
 import { insertarEnListado } from "@/modules/reports/insertar-filas";
 import { refrescarDatos } from "@/modules/reports/refrescar-datos";
 import { fijarRanuraDeVocero, ordenarListado } from "@/modules/reports/poner-al-dia";
+import { fijarCasilla, leerCasilla } from "@/modules/reports/casillas-documento";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -709,6 +710,37 @@ function Inner() {
         if (conVocero) {
           html = conVocero;
           tocado = true;
+        }
+      }
+
+      // Las casillas que salen del sílabo y del curso: el nombre de la
+      // asignatura y la metodología. La sección «Acuerdo sobre los aspectos
+      // metodológicos» llevaba texto FIJO de la plantilla —una instrucción al
+      // lector dentro de un documento firmado— hasta que se agregó el campo;
+      // acá es donde llega a los Acuerdos ya generados.
+      if (r.course_id) {
+        const { data: cRow } = await db
+          .from("courses")
+          .select("name, subject:academic_subjects(name, metodologia)")
+          .eq("id", r.course_id)
+          .maybeSingle();
+        const c = cRow as {
+          name?: string | null;
+          subject?: { name?: string | null; metodologia?: string | null } | null;
+        } | null;
+        const asignatura = c?.subject?.name ?? c?.name ?? null;
+        for (const [rotulo, valor] of [
+          ["Nombre Del Curso", asignatura],
+          ["Acuerdo sobre los aspectos metodológicos", c?.subject?.metodologia ?? null],
+        ] as const) {
+          // Solo si CAMBIA: `fijarCasilla` ignora los vacíos, así que una
+          // metodología sin escribir no borra lo que haya.
+          if (!valor || leerCasilla(html, rotulo) === valor.trim()) continue;
+          const conValor = fijarCasilla(html, rotulo, valor);
+          if (conValor) {
+            html = conValor;
+            tocado = true;
+          }
         }
       }
 
