@@ -57,7 +57,9 @@ import {
   UserX,
   CalendarCheck,
   TrendingUp,
+  ClipboardList,
 } from "lucide-react";
+import { pendientesPorCorte } from "@/modules/statistics/sin-calificar";
 import {
   loadCourseDataset,
   computeApproval,
@@ -73,6 +75,7 @@ import {
 } from "@/shared/lib/statistics";
 import { EarlyAlertCard } from "@/modules/earlyalert/EarlyAlertCard";
 import { PendingStudentsPanel } from "@/modules/statistics/PendingStudentsPanel";
+import { SinCalificarAgregado } from "@/modules/statistics/SinCalificarAgregado";
 import { formatDateShort } from "@/shared/lib/format";
 
 export const Route = createFileRoute("/app/teacher/statistics")({
@@ -388,6 +391,10 @@ function TeacherStatistics() {
               </CardContent>
             </Card>
           )}
+          {/* El mismo cálculo que la vista por curso, sumado por nombre de
+              corte. No arranca solo: carga el dataset completo de cada curso
+              marcado, que es lo que garantiza que los dos números coincidan. */}
+          <SinCalificarAgregado courses={pendingCourses} />
           <PendingStudentsPanel
             courses={pendingCourses}
             scopeLabel={[t("statistics.allCourses"), subjectFilter, periodFilter].filter(Boolean).join(" — ")}
@@ -507,6 +514,7 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
         <GradeDistributionCard ds={ds} subs={allSubs} />
         <ApprovalByKindCard ds={ds} />
         <CutTrendCard ds={ds} />
+        <SinCalificarCard ds={ds} />
         <AttendanceCard sessions={attendance} />
         <FraudCard ds={ds} fraud={fraud} />
       </div>
@@ -701,6 +709,89 @@ function ApprovalByKindCard({ ds }: { ds: CourseDataset }) {
               />
             </BarChart>
           </ChartContainer>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/**
+ * Cuánto falta calificar, por corte.
+ *
+ * Es la pregunta con la que el docente entra acá cuando se acerca el cierre:
+ * «del Corte 1, ¿qué porcentaje de mis estudiantes todavía no tiene nota?».
+ * La tendencia por corte de al lado muestra el PROMEDIO, que dice cómo le va a
+ * quien ya tiene nota y calla justamente lo que hay que hacer.
+ */
+function SinCalificarCard({ ds }: { ds: CourseDataset }) {
+  const { t } = useTranslation();
+  const filas = useMemo(
+    () =>
+      pendientesPorCorte(
+        ds.cuts,
+        ds.actividades,
+        [...ds.examSubs, ...ds.workshopSubs, ...ds.projectSubs],
+        new Set(ds.enrollments.map((e) => e.user_id)).size,
+      ),
+    [ds],
+  );
+  const conActividades = filas.filter((f) => f.pctSinCalificar != null);
+
+  return (
+    <Card>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <ClipboardList className="h-4 w-4 text-amber-500" />
+          {t("statistics.ungradedTitle")}
+        </CardTitle>
+        <CardDescription>{t("statistics.ungradedDesc")}</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {ds.cuts.length === 0 ? (
+          <EmptyChart text={t("statistics.cutNoCuts")} />
+        ) : conActividades.length === 0 ? (
+          <EmptyChart text={t("statistics.ungradedNoActivities")} />
+        ) : (
+          <div className="flex flex-col gap-3">
+            {conActividades.map((f) => {
+              const pct = f.pctSinCalificar ?? 0;
+              // Verde / ámbar / rojo por cuánto falta. El umbral no es una
+              // opinión: con más de la mitad sin calificar el corte no se
+              // puede cerrar, y eso es lo que el color tiene que gritar.
+              const tono =
+                pct === 0
+                  ? "bg-emerald-500"
+                  : pct > 50
+                    ? "bg-destructive"
+                    : "bg-amber-500";
+              return (
+                <div key={f.cutId} className="flex flex-col gap-1">
+                  <div className="flex items-baseline justify-between gap-2 text-xs">
+                    <span className="font-medium truncate">{f.cutName}</span>
+                    <span className="tabular-nums shrink-0">
+                      {t("statistics.ungradedOf", {
+                        faltan: f.esperadas - f.calificadas,
+                        total: f.esperadas,
+                      })}
+                    </span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className={`h-full ${tono}`} style={{ width: `${pct}%` }} />
+                  </div>
+                  <div className="flex items-baseline justify-between gap-2 text-2xs text-muted-foreground">
+                    <span>{t("statistics.ungradedPct", { pct })}</span>
+                    {f.estudiantesSinNingunaNota > 0 && (
+                      <span>
+                        {t("statistics.ungradedNoneAtAll", {
+                          count: f.estudiantesSinNingunaNota,
+                        })}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         )}
       </CardContent>
     </Card>

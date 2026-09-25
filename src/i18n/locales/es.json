@@ -2867,7 +2867,18 @@
     "pendingExportDocGeneratedAt": "Generado el",
     "pendingExportExcludedNote_one": "Se excluyó {{count}} estudiante a pedido del docente.",
     "pendingExportExcludedNote_other": "Se excluyeron {{count}} estudiantes a pedido del docente.",
-    "pendingCoursesRefine": "Cursos incluidos en Pendientes"
+    "pendingCoursesRefine": "Cursos incluidos en Pendientes",
+    "ungradedTitle": "Falta calificar, por corte",
+    "ungradedDesc": "Sobre las notas que se esperan: una por estudiante y por actividad del corte.",
+    "ungradedNoActivities": "Ningún corte tiene actividades todavía",
+    "ungradedOf": "faltan {{faltan}} de {{total}}",
+    "ungradedPct": "{{pct}}% sin calificar",
+    "ungradedNoneAtAll_one": "1 estudiante sin ninguna nota",
+    "ungradedNoneAtAll_other": "{{count}} estudiantes sin ninguna nota",
+    "ungradedAggDesc_one": "Sumando 1 curso. Los cortes se agrupan por nombre.",
+    "ungradedAggDesc_other": "Sumando {{count}} cursos. Los cortes se agrupan por nombre.",
+    "ungradedCompute": "Calcular",
+    "ungradedError": "No pudimos calcular lo que falta calificar"
   },
   "studentWhiteboards": {
     "allCourses": "Todos los cursos",
@@ -6206,7 +6217,9 @@
     "multiSessionCount_other": "Cubre {{count}} clases",
     "multiSessionCount_one": "Cubre {{count}} clase",
     "pickCourseTitle": "Elige un curso para empezar",
-    "pickCourseHint": "Usa el selector de arriba —o los filtros de periodo y asignatura— para elegir sobre qué curso vas a trabajar. Así evitas pasar lista en el curso equivocado."
+    "pickCourseHint": "Usa el selector de arriba —o los filtros de periodo y asignatura— para elegir sobre qué curso vas a trabajar. Así evitas pasar lista en el curso equivocado.",
+    "filterCutLabel": "Corte:",
+    "filterCutAll": "Todos los cortes"
   },
   "privacy": {
     "contents": "Contenido",

@@ -87,6 +87,16 @@ export type CourseDataset = {
   similarityPairs: SimilarityPair[];
   enrollments: Enrollment[];
   cuts: Cut[];
+  /**
+   * Las actividades del curso (examen, taller, proyecto) con su corte.
+   *
+   * Sale de las MISMAS filas que ya se consultan para armar las entregas, así
+   * que exponerla no agrega ninguna consulta. Hace falta porque las entregas
+   * solas no alcanzan para saber cuánto FALTA calificar: una actividad que
+   * nadie entregó no tiene ni una fila de entrega, y es justamente el caso que
+   * hay que contar.
+   */
+  actividades: Array<{ id: string; cut_id: string | null }>;
 };
 
 /** Fila de una actividad compartida, ya resuelta para UN curso. */
@@ -378,6 +388,12 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     similarityPairs: (similarityRaw ?? []) as SimilarityPair[],
     enrollments: (enrollmentsRaw ?? []) as Enrollment[],
     cuts: (cutsRaw ?? []) as Cut[],
+    // De las mismas filas ya consultadas: cero consultas nuevas.
+    actividades: [
+      ...exams.map((e) => ({ id: e.id, cut_id: e.cut_id ?? null })),
+      ...workshops.map((w) => ({ id: w.id, cut_id: w.cut_id ?? null })),
+      ...projects.map((p) => ({ id: p.id, cut_id: p.cut_id ?? null })),
+    ],
   };
 }
 

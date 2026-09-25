@@ -2867,7 +2867,18 @@
     "pendingExportDocGeneratedAt": "Generated on",
     "pendingExportExcludedNote_one": "{{count}} student was excluded at the teacher's request.",
     "pendingExportExcludedNote_other": "{{count}} students were excluded at the teacher's request.",
-    "pendingCoursesRefine": "Courses included in Pending"
+    "pendingCoursesRefine": "Courses included in Pending",
+    "ungradedTitle": "Left to grade, by term",
+    "ungradedDesc": "Out of the grades expected: one per student per activity in the term.",
+    "ungradedNoActivities": "No term has activities yet",
+    "ungradedOf": "{{faltan}} of {{total}} left",
+    "ungradedPct": "{{pct}}% not graded",
+    "ungradedNoneAtAll_one": "1 student with no grade at all",
+    "ungradedNoneAtAll_other": "{{count}} students with no grade at all",
+    "ungradedAggDesc_one": "Across 1 course. Terms are grouped by name.",
+    "ungradedAggDesc_other": "Across {{count}} courses. Terms are grouped by name.",
+    "ungradedCompute": "Calculate",
+    "ungradedError": "We couldn't work out what is left to grade"
   },
   "studentWhiteboards": {
     "allCourses": "All courses",
@@ -6206,7 +6217,9 @@
     "multiSessionCount_other": "Covers {{count}} classes",
     "multiSessionCount_one": "Covers {{count}} class",
     "pickCourseTitle": "Pick a course to start",
-    "pickCourseHint": "Use the selector above —or the period and subject filters— to choose which course you are working on. That way you avoid taking attendance in the wrong course."
+    "pickCourseHint": "Use the selector above —or the period and subject filters— to choose which course you are working on. That way you avoid taking attendance in the wrong course.",
+    "filterCutLabel": "Term:",
+    "filterCutAll": "All terms"
   },
   "privacy": {
     "contents": "Contents",

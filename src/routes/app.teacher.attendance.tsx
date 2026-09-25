@@ -290,6 +290,10 @@ function TeacherAttendance() {
   const [subjectFilter, setSubjectFilter] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
+  /** Corte al que se acota la matriz. `null` = todos. El selector solo se
+   *  dibuja si el curso TIENE cortes: son opcionales, y un filtro con una sola
+   *  opción («Todos») es ruido en la barra. */
+  const [filtroCorte, setFiltroCorte] = useState<string | null>(null);
   // Contenidos generados disponibles para asignar (filtrados al curso
   // actual cuando aplica). Se carga junto con sessions/students en
   // loadCourse — no añade un round-trip extra perceptible.
@@ -2473,9 +2477,14 @@ function TeacherAttendance() {
   type CutGroup = { cut: Cut | null; sessions: Session[] };
   const cutGroups: CutGroup[] = (() => {
     if (sessions.length === 0) return [];
+    // Con un corte elegido en el filtro, la matriz muestra SOLO sus sesiones.
+    // No se ocultan las columnas después de armar los grupos: hacerlo así
+    // deja el divisor entre cortes apuntando a una sesión que ya no está.
+    const visibles = filtroCorte ? sessions.filter((x) => x.cut_id === filtroCorte) : sessions;
+    if (visibles.length === 0) return [];
     const groups: CutGroup[] = cuts.map((c) => ({ cut: c, sessions: [] }));
     const orphan: CutGroup = { cut: null, sessions: [] };
-    for (const sess of sessions) {
+    for (const sess of visibles) {
       const target = sess.cut_id ? groups.find((g) => g.cut?.id === sess.cut_id) : null;
       if (target) {
         target.sessions.push(sess);
@@ -2788,6 +2797,33 @@ function TeacherAttendance() {
           />
         ) : (
           <Card>
+            {/* Filtro por corte. Solo si el curso TIENE cortes: son opcionales,
+                y un selector con una sola opción («Todos») es ruido. Acota las
+                COLUMNAS de la matriz, no las filas: las personas siguen siendo
+                las mismas, lo que cambia es qué clases se miran. */}
+            {cuts.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2 px-4 pt-3">
+                <span className="text-2xs text-muted-foreground">
+                  {t("teacherAttendance.filterCutLabel")}
+                </span>
+                <Select
+                  value={filtroCorte ?? "__all"}
+                  onValueChange={(v) => setFiltroCorte(v === "__all" ? null : v)}
+                >
+                  <SelectTrigger className="h-8 w-auto min-w-40 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all">{t("teacherAttendance.filterCutAll")}</SelectItem>
+                    {cuts.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <CardContent className="p-0 overflow-x-auto">
               <Table>
                 <TableHeader>
