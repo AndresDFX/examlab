@@ -1089,7 +1089,11 @@
       "relativeHours": "Hace {{hour}} h",
       "relativeYesterday": "Ayer"
     },
-    "viewAll": "Ver todos"
+    "viewAll": "Ver todos",
+    "teacher": {
+      "coursesWithoutVocero_one": "1 curso sin vocero designado",
+      "coursesWithoutVocero_other": "{{count}} cursos sin vocero designado"
+    }
   },
   "exam": {
     "title": "Exámenes",

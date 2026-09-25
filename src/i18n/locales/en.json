@@ -1089,7 +1089,11 @@
       "relativeHours": "{{hour}} h ago",
       "relativeYesterday": "Yesterday"
     },
-    "viewAll": "View all"
+    "viewAll": "View all",
+    "teacher": {
+      "coursesWithoutVocero_one": "1 course with no representative assigned",
+      "coursesWithoutVocero_other": "{{count}} courses with no representative assigned"
+    }
   },
   "exam": {
     "title": "Exams",

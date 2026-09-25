@@ -12,6 +12,10 @@ import { consumeBootLastRoute } from "@/shared/lib/last-route";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  cursosSinVocero,
+  type CursoParaAvisoVocero,
+} from "@/modules/courses/cursos-sin-vocero";
 import { ErrorState } from "@/components/ui/empty-state";
 import { fetchTeacherCourseIds } from "@/modules/courses/course-scope";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -47,6 +51,7 @@ import {
   Stethoscope,
   FileSignature,
   ListChecks,
+  Mic,
 } from "lucide-react";
 import {
   Dialog,
@@ -801,6 +806,12 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
      *  dashboard es "cuánto trabajo IA tengo pendiente". */
     aiPendingJobs: 0,
   });
+  /** Cursos MÍOS que están en marcha y todavía sin vocero designado. El
+   *  vocero es una casilla del Acuerdo Pedagógico y el Acuerdo se firma al
+   *  arrancar: si falta, el documento sale con esa casilla en blanco y nadie
+   *  lo nota hasta que alguien abre el acta ya firmada, cuando el HTML ya
+   *  quedó congelado y designarlo no lo reescribe. Ver cursos-sin-vocero.ts. */
+  const [sinVocero, setSinVocero] = useState<CursoParaAvisoVocero[]>([]);
   const [upcomingExams, setUpcomingExams] = useState<any[]>([]);
   /** Próximas sesiones de asistencia en cursos asignados al docente,
    *  con session_date >= hoy. Top 5 ordenadas por fecha + start_time. */
@@ -918,7 +929,33 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         .from("ai_grading_queue")
         .select("id", { count: "exact", head: true })
         .eq("status", "pending");
+      // Cursos en marcha sin vocero. Dos consultas y no un embed: la marca
+      // vive en `course_enrollments.vocero_marcado_at`, o sea en la MATRÍCULA,
+      // así que un embed traería una fila por estudiante para resolver un
+      // booleano por curso.
+      let cursosDocente: CursoParaAvisoVocero[] = [];
+      let conVocero = new Set<string>();
+      if (!sinCursos) {
+        const [resCursos, resVoceros] = await Promise.all([
+          (supabase as any)
+            .from("courses")
+            .select("id, name, status, start_date, end_date")
+            .in("id", misCursos)
+            .is("deleted_at", null),
+          (supabase as any)
+            .from("course_enrollments")
+            .select("course_id")
+            .in("course_id", misCursos)
+            .not("vocero_marcado_at", "is", null),
+        ]);
+        cursosDocente = (resCursos.data ?? []) as CursoParaAvisoVocero[];
+        conVocero = new Set<string>(
+          ((resVoceros.data ?? []) as Array<{ course_id: string }>).map((r) => r.course_id),
+        );
+      }
+
       if (cancelled) return;
+      setSinVocero(cursosSinVocero(cursosDocente, conVocero, Date.now()));
       setCounts({
         pendingExamNotes: pendingNotes.count ?? 0,
         unansweredMessages: unansweredCount,
@@ -1130,6 +1167,31 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
     // automáticamente (cada card scrollea internamente). min-h-0
     // permite el shrinking dentro del padre flex.
     <div className="flex flex-col gap-4 flex-1 min-h-0">
+      {/* Cursos en marcha sin vocero. Mismo patrón que el banner de
+          pendientes del estudiante: una sola línea sobre el grid, fuera del
+          "4 stats + 2 cards" —que es rígido (ver CLAUDE.md)— y renderizado
+          solo cuando hay algo que hacer, así que no ocupa espacio el resto
+          del semestre. Enlaza a "Mis estudiantes", que es donde se designa:
+          el vocero se elige ENTRE los matriculados, no en el formulario del
+          curso. */}
+      {!loading && sinVocero.length > 0 && (
+        <Alert className="border-amber-500/40 bg-amber-500/10 py-2.5">
+          <AlertDescription className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 text-amber-800 dark:text-amber-300">
+            <Link
+              to="/app/teacher/students"
+              className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
+            >
+              <Mic className="h-4 w-4 shrink-0" />
+              {t("dashboard.teacher.coursesWithoutVocero", { count: sinVocero.length })}
+            </Link>
+            {/* Los nombres, no solo el conteo: con varios cursos, "2 cursos
+                sin vocero" obliga a abrir la pantalla para saber CUÁLES. */}
+            <span className="text-2xs text-amber-700/80 dark:text-amber-400/80">
+              {sinVocero.map((c) => c.name).join(" · ")}
+            </span>
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat
           icon={FileText}
