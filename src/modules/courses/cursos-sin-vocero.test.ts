@@ -1,7 +1,14 @@
 import { describe, it, expect } from "vitest";
 import { cursosSinVocero, dentroDeFechas } from "./cursos-sin-vocero";
 
-const AHORA = new Date("2026-09-24T15:00:00-05:00").getTime();
+// Las fechas se construyen en hora LOCAL (constructor de componentes) y no
+// con un ISO que lleve desfase fijo. El helper ancla las columnas DATE a
+// mediodía local —misma defensa que `course-status` contra el bug de restar un
+// día por UTC—, así que un `-05:00` escrito a mano solo coincide si la máquina
+// está en UTC-5. CI corre en UTC y por eso «el día de fin se cuenta ENTERO»
+// fallaba allá y pasaba acá.
+const local = (a: number, m: number, d: number, h = 0) => new Date(a, m - 1, d, h).getTime();
+const AHORA = local(2026, 9, 24, 15);
 const curso = (over: Partial<Parameters<typeof cursosSinVocero>[0][number]> = {}) => ({
   id: "c1",
   name: "Curso",
@@ -28,14 +35,12 @@ describe("dentroDeFechas", () => {
     // El ancla es mediodía: sin correr al cierre de la jornada, el último día
     // del curso el aviso desaparecería a mitad de la mañana.
     const finHoy = { end_date: "2026-09-24" };
-    expect(dentroDeFechas(finHoy, new Date("2026-09-24T08:00:00-05:00").getTime())).toBe(true);
-    expect(dentroDeFechas(finHoy, new Date("2026-09-24T22:00:00-05:00").getTime())).toBe(true);
+    expect(dentroDeFechas(finHoy, local(2026, 9, 24, 8))).toBe(true);
+    expect(dentroDeFechas(finHoy, local(2026, 9, 24, 22))).toBe(true);
   });
 
   it("pasado el dia de fin deja de estar vigente", () => {
-    expect(
-      dentroDeFechas({ end_date: "2026-09-24" }, new Date("2026-09-26T08:00:00-05:00").getTime()),
-    ).toBe(false);
+    expect(dentroDeFechas({ end_date: "2026-09-24" }, local(2026, 9, 26, 8))).toBe(false);
   });
 });
 
