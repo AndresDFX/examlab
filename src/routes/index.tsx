@@ -20,6 +20,8 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client";
+import { readLastRoute } from "@/shared/lib/last-route";
 import { ThemeToggle } from "@/shared/components/ThemeToggle";
 import { GraduationCap, ShieldCheck, Sparkles, Eye, Code2, Wifi, Clock } from "lucide-react";
 
@@ -60,6 +62,32 @@ export const Route = createFileRoute("/")({
 
 function Home() {
   const { t } = useTranslation();
+
+  // Con sesión viva, esta pantalla no tiene nada que ofrecer: es la cara de
+  // marketing de antes del login, y quien ya entró la lee como «la app me
+  // volvió a pedir acceso». Lo reportado fue exactamente eso — «siempre que
+  // entro me sale la página para acceder, no directamente logueado».
+  //
+  // Va en un efecto POST-MONTAJE y no en un `beforeLoad`: leer la sesión
+  // durante el render rompe la hidratación (React #418), porque el HTML
+  // pre-renderizado no tiene ni IndexedDB ni localStorage. Por lo mismo no se
+  // esconde la landing mientras se resuelve: taparla con un loader le pondría
+  // una pantalla en blanco a CUALQUIER visitante —incluido el que nunca se
+  // registró— para resolver algo que solo le pasa a quien ya tiene cuenta.
+  //
+  // `window.location.href` y no `navigate`: es el mismo salto duro que usa
+  // /auth cuando ya hay sesión, y deja que `TenantUrlGuard` prefije la
+  // institución en el arranque limpio.
+  useEffect(() => {
+    let cancelado = false;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (cancelado || !data.session) return;
+      window.location.href = readLastRoute() ?? "/app";
+    }).catch(() => {
+      // Sin sesión legible se queda en la landing, que es el destino correcto.
+    });
+    return () => { cancelado = true; };
+  }, []);
   const features = [
     {
       icon: ShieldCheck,
