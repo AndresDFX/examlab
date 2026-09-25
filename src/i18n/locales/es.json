@@ -72,7 +72,8 @@
     "blockTitle": "Estudiantes matriculados con posterioridad",
     "done_one": "Se agregó 1 estudiante al documento.",
     "done_other": "Se agregaron {{count}} estudiantes al documento.",
-    "error": "No se pudo actualizar el documento."
+    "error": "No se pudo actualizar el documento.",
+    "noList": "No encontramos el listado de estudiantes en este documento, así que no agregamos nada. Revisá que la plantilla tenga una tabla con casilla de firma por estudiante."
   },
   "reportSign": {
     "clearAction": "Borrar esta firma",

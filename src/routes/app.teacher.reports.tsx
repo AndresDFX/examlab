@@ -33,6 +33,7 @@ import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { Toggle } from "@/components/ui/toggle";
+import { insertarEnListado } from "@/modules/reports/insertar-filas";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -82,7 +83,6 @@ import {
   uidsDeRanuras,
   faltantesParaAgregar,
   filasConRanura,
-  envolverFilasComoTabla,
   type FirmaDeInforme,
 } from "@/modules/reports/signature-slots";
 import { toast } from "sonner";
@@ -2139,15 +2139,28 @@ function Inner() {
         );
         return;
       }
-      const bloque = envolverFilasComoTabla(
-        filas.join(""),
-        i18n.t("reportAppend.blockTitle", {
-          defaultValue: "Estudiantes matriculados con posterioridad",
-        }),
-      );
-      const { data, error } = await db.rpc("report_append_students", {
+      // Las filas van DENTRO del listado que ya existe, no en una tabla
+      // aparte: un acta partida en dos —33 estudiantes en una tabla y uno en
+      // otra, debajo de las firmas y renumerando desde 1— se lee como un
+      // documento incompleto. `insertarEnListado` ubica el listado por ser la
+      // tabla con más casillas de firma (el bloque docente/vocero tiene dos o
+      // tres; el listado, una por estudiante) y devuelve `null` si no encuentra
+      // dónde, en vez de escribir a ciegas en un documento firmado.
+      const filasNuevas = filas.join("");
+      const htmlCompleto = insertarEnListado(r.html, filasNuevas);
+      if (!htmlCompleto) {
+        toast.error(
+          i18n.t("reportAppend.noList", {
+            defaultValue:
+              "No encontramos el listado de estudiantes en este documento, así que no agregamos nada. Revisá que la plantilla tenga una tabla con casilla de firma por estudiante.",
+          }),
+        );
+        return;
+      }
+      const { data, error } = await db.rpc("report_add_students_inline", {
         _report_id: r.id,
-        _new_html: bloque,
+        _full_html: htmlCompleto,
+        _new_rows: filasNuevas,
         _user_ids: seleccionados.map((f) => f.id),
       });
       const res = data as { ok?: boolean; appended?: number; error?: string } | null;

@@ -72,7 +72,8 @@
     "blockTitle": "Students enrolled afterwards",
     "done_one": "1 student was added to the document.",
     "done_other": "{{count}} students were added to the document.",
-    "error": "The document could not be updated."
+    "error": "The document could not be updated.",
+    "noList": "We couldn't find the student list in this document, so nothing was added. Check that the template has a table with a signature box per student."
   },
   "reportSign": {
     "clearAction": "Delete this signature",
