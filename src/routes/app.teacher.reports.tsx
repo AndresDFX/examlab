@@ -32,6 +32,7 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import { Toggle } from "@/components/ui/toggle";
 import {
   EditReportHtmlDialog,
   type InformeEditable,
@@ -439,6 +440,11 @@ function Inner() {
    */
   const [verInforme, setVerInforme] = useState<GeneratedReport | null>(null);
   const [editarInforme, setEditarInforme] = useState<InformeEditable | null>(null);
+  /** Informes que esperan MI firma. Se guarda el conjunto de ids y no un
+   *  booleano por fila porque la marca se consulta en dos lugares: el chip de
+   *  la fila y el filtro. */
+  const [misPendientes, setMisPendientes] = useState<Set<string>>(new Set());
+  const [soloMisFirmas, setSoloMisFirmas] = useState(false);
   /** Informe elegido para enviar a firmar. `null` = diálogo cerrado. */
   const [firmarInforme, setFirmarInforme] = useState<{
     id: string;
@@ -632,6 +638,40 @@ function Inner() {
   // (migración 20260975 sin Publish) o la RLS rechaza, mostramos ErrorState
   // con "Reintentar" en el área del historial — antes fallaba en silencio y
   // parecía "todavía no generaste informes".
+  /**
+   * Los informes que esperan MI firma.
+   *
+   * El `.eq("user_id", …)` NO es redundante: la policy de SELECT de
+   * `report_signatures` deja al docente ver las filas de TODOS los firmantes de
+   * sus cursos —lo necesita el diálogo de estado para listar quién firmó— así
+   * que sin el filtro esto marcaría como «te falta firmar» cualquier informe
+   * con una firma pendiente de un estudiante.
+   */
+  /** El historial, acotado al filtro «solo los que espero firmar». Si el
+   *  filtro queda encendido y después se firma todo, se apaga solo — dejarlo
+   *  prendido sobre una lista vacía se lee como «no hay informes». */
+  const genReportsVisibles = useMemo(
+    () => (soloMisFirmas ? genReports.filter((r) => misPendientes.has(r.id)) : genReports),
+    [genReports, misPendientes, soloMisFirmas],
+  );
+
+  useEffect(() => {
+    if (soloMisFirmas && misPendientes.size === 0) setSoloMisFirmas(false);
+  }, [soloMisFirmas, misPendientes]);
+
+  const loadMisPendientes = async (isCancelled?: () => boolean) => {
+    const { data: u } = await supabase.auth.getUser();
+    const uid = u.user?.id;
+    if (!uid) return;
+    const { data } = await db
+      .from("report_signatures")
+      .select("report_id")
+      .eq("user_id", uid)
+      .is("signed_at", null);
+    if (isCancelled?.()) return;
+    setMisPendientes(new Set(((data ?? []) as Array<{ report_id: string }>).map((x) => x.report_id)));
+  };
+
   const loadGenReports = async (isCancelled?: () => boolean) => {
     if (!user) return;
     setGenReportsLoading(true);
@@ -669,6 +709,7 @@ function Inner() {
     const isCancelled = () => cancelled;
     void load(isCancelled);
     void loadGenReports(isCancelled);
+    void loadMisPendientes(isCancelled);
     return () => {
       cancelled = true;
     };
@@ -2473,6 +2514,23 @@ function Inner() {
                   })}
                 </p>
               </div>
+              {/* Solo aparece si hay algo pendiente: un filtro que siempre
+                  devuelve cero no es un filtro, es ruido. Es `Toggle` y no un
+                  Badge pulsable — 32px de alto, con estado on/off real (regla
+                  R6 del auditor). */}
+              {misPendientes.size > 0 && (
+                <div className="flex items-center gap-2">
+                  <Toggle
+                    size="sm"
+                    pressed={soloMisFirmas}
+                    onPressedChange={setSoloMisFirmas}
+                    aria-label={t("reportStatus.filterOnlyMine")}
+                  >
+                    <PenLine className="mr-1 h-4 w-4" />
+                    {t("reportStatus.filterOnlyMine", { count: misPendientes.size })}
+                  </Toggle>
+                </div>
+              )}
               <div className="overflow-x-auto -mx-4 sm:mx-0 px-4 sm:px-0">
                 {genReportsLoading ? (
                   /* TableSkeleton son <tr>: necesita ir dentro de una tabla. */
@@ -2504,19 +2562,34 @@ function Inner() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {genReports.length === 0 ? (
+                      {genReportsVisibles.length === 0 ? (
                         <TableEmpty
                           colSpan={6}
-                          text={t("hc_routesAppTeacherReports.genEmptyTitle", { defaultValue: "Aún no generaste informes" })}
+                          text={
+                            soloMisFirmas
+                              ? t("reportStatus.emptyOnlyMine")
+                              : t("hc_routesAppTeacherReports.genEmptyTitle", { defaultValue: "Aún no generaste informes" })
+                          }
                           hint={t("hc_routesAppTeacherReports.genEmptyHint", {
                             defaultValue: "Generá uno desde una plantilla (tab “Plantillas” → Generar).",
                           })}
                         />
                       ) : (
-                        genReports.map((r) => (
+                        genReportsVisibles.map((r) => (
                           <TableRow key={r.id}>
                             <TableCell className="font-medium">
                               <div className="truncate" title={nombrePlantillaViva(r)}>{nombrePlantillaViva(r)}</div>
+                              {/* La marca va acá, bajo el nombre, y no en una
+                                  columna nueva: el grid ya tiene 6 y la de
+                                  Firmas mide w-20, donde no entra un texto.
+                                  Además así se ve a 375px, que es donde el
+                                  resto de las columnas están ocultas. */}
+                              {misPendientes.has(r.id) && (
+                                <span className="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-3xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300">
+                                  <PenLine className="h-3 w-3 shrink-0" />
+                                  {t("reportStatus.rowPendingMine")}
+                                </span>
+                              )}
                               {/* En móvil las columnas Curso / Estudiante / Generado
                                   están ocultas (`hidden sm:table-cell`), así que dos
                                   informes de la misma plantilla se leen IGUALES y no

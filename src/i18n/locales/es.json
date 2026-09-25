@@ -147,7 +147,10 @@
     "yourSignaturePending": "Este documento espera tu firma.",
     "signNow": "Firmar",
     "signedOk": "Documento firmado",
-    "signError": "No se pudo firmar"
+    "signError": "No se pudo firmar",
+    "rowPendingMine": "Falta tu firma",
+    "filterOnlyMine": "Esperan tu firma ({{count}})",
+    "emptyOnlyMine": "No te falta firmar ninguno"
   },
   "pollPrint": {
     "answer": "respuesta",

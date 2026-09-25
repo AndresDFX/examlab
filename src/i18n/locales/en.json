@@ -147,7 +147,10 @@
     "yourSignaturePending": "This document is waiting for your signature.",
     "signNow": "Sign",
     "signedOk": "Document signed",
-    "signError": "Could not sign"
+    "signError": "Could not sign",
+    "rowPendingMine": "Your signature is missing",
+    "filterOnlyMine": "Waiting for your signature ({{count}})",
+    "emptyOnlyMine": "You have nothing left to sign"
   },
   "pollPrint": {
     "answer": "answer",
