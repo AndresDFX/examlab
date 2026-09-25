@@ -8184,7 +8184,10 @@
     "statusFilterActiveAndDrafts": "Activos y borradores",
     "actionDiagnostic": "Diagnóstico del curso",
     "duplicateNameSuffix": "{{name}} (copia)",
-    "bulkDeleteExtraWarning": "El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso."
+    "bulkDeleteExtraWarning": "El contenido de cada curso (exámenes, talleres, proyectos, sesiones, pizarras, contenidos y encuestas) también se moverá a la papelera, y se restaurará junto con el curso.",
+    "fieldCity": "Ciudad",
+    "placeholderCity": "Cali",
+    "hintCity": "Sale en el Acuerdo Pedagógico. Si la dejás vacía se usa la de la institución."
   },
   "hc_routesAppMessages": {
     "pageTitle": "Mensajes",

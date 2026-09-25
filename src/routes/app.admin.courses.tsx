@@ -132,6 +132,9 @@ type Course = {
   semestre: number | null;
   /** Identificador del grupo / sección (opcional). Ej: "341-C". */
   grupo: string | null;
+  /** Ciudad donde se dicta (opcional). La usa la casilla del Acuerdo
+   *  Pedagógico; vacía toma la de la institución. */
+  ciudad?: string | null;
   /** FK al programa académico (opcional). NULL si el curso no está
    *  asociado a ningún programa todavía. */
   program_id: string | null;
@@ -1148,6 +1151,10 @@ export function AdminCourses() {
       semestre:
         selectedSubject?.semestre ?? (editing.semestre == null ? null : Number(editing.semestre)),
       grupo: editing.grupo?.trim() || null,
+      // Vacía se guarda como NULL, no como "": el Acuerdo cae a la ciudad de
+      // la institución solo cuando es NULL, y una cadena vacía dejaría la
+      // casilla en blanco sin que se note por qué.
+      ciudad: (editing as { ciudad?: string | null }).ciudad?.trim() || null,
       program_id: selectedSubject?.program_id ?? editing.program_id ?? null,
       subject_id: editing.subject_id || null,
       // Si hay period_id, denormalizamos el code al campo legacy `period`
@@ -2765,6 +2772,25 @@ export function AdminCourses() {
                     onChange={(e) => setEditing({ ...editing, grupo: e.target.value || null })}
                     placeholder={t("hc_routesAppAdminCourses.placeholderGroup")}
                   />
+                </div>
+                {/* Ciudad: la usa la casilla del Acuerdo Pedagógico. Es del
+                    CURSO y no de la institución porque el Acuerdo lo firma un
+                    grupo concreto, en un lugar concreto — apenas hay sedes, la
+                    ciudad del tenant deja de ser la del documento. Vacía toma
+                    la de la institución, así que dejarla en blanco es válido. */}
+                <div>
+                  <Label>{t("hc_routesAppAdminCourses.fieldCity")}</Label>
+                  <Input
+                    value={(editing as { ciudad?: string | null }).ciudad ?? ""}
+                    onChange={(e) =>
+                      setEditing({ ...editing, ciudad: e.target.value || null } as typeof editing)
+                    }
+                    placeholder={t("hc_routesAppAdminCourses.placeholderCity")}
+                    maxLength={80}
+                  />
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    {t("hc_routesAppAdminCourses.hintCity")}
+                  </p>
                 </div>
               </div>
               <div

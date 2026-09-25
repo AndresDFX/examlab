@@ -8184,7 +8184,10 @@
     "statusFilterActiveAndDrafts": "Active and drafts",
     "actionDiagnostic": "Course diagnostic",
     "duplicateNameSuffix": "{{name}} (copy)",
-    "bulkDeleteExtraWarning": "Each course's content (exams, workshops, projects, sessions, whiteboards, contents and polls) will also be moved to the trash, and will be restored together with the course."
+    "bulkDeleteExtraWarning": "Each course's content (exams, workshops, projects, sessions, whiteboards, contents and polls) will also be moved to the trash, and will be restored together with the course.",
+    "fieldCity": "City",
+    "placeholderCity": "Cali",
+    "hintCity": "Appears on the Pedagogical Agreement. Leave it empty to use the institution's city."
   },
   "hc_routesAppMessages": {
     "pageTitle": "Messages",

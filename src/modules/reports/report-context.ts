@@ -635,7 +635,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const { data: courseRow } = await db
     .from("courses")
     .select(
-      "id, name, code, semestre, grupo, period, period_id, tenant_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
+      "id, name, code, semestre, grupo, ciudad, period, period_id, tenant_id, grade_scale_min, grade_scale_max, passing_grade, program_id, subject_id, program:academic_programs(name, code, faculty), periodo_obj:academic_periods!courses_period_id_fkey(code, name, start_date, end_date, status), subject:academic_subjects(name, code, semestre, credits, objetivos, contenidos, bibliografia, intensidad_horaria, sistema_evaluacion)",
     )
     .eq("id", courseId)
     .maybeSingle();
@@ -1141,6 +1141,12 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
       // Horario semanal formateado: "Lun 10:00–12:00 (Aula 301) · Jue 14:00–16:00 (virtual)".
       // Vacío si el curso no tiene bloques definidos todavía.
       horario: scheduleText,
+      // Ciudad donde se dicta. Es del CURSO y no de la institución porque el
+      // Acuerdo lo firma un grupo concreto, en un lugar concreto: apenas hay
+      // sedes, la ciudad del tenant deja de ser la del documento. Si el curso
+      // no la tiene, se cae a la de la institución, así que ningún curso ya
+      // creado cambia de comportamiento.
+      ciudad: courseRow.ciudad ?? institucion.ciudad ?? "",
       vocero: voceroPublico,
     },
     docente,
