@@ -32,6 +32,10 @@ import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
 import { LoadingOverlay } from "@/components/ui/loading-overlay";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
+import {
+  EditReportHtmlDialog,
+  type InformeEditable,
+} from "@/modules/reports/EditReportHtmlDialog";
 import { Badge } from "@/components/ui/badge";
 import { SearchInput } from "@/components/ui/search-input";
 import { Label } from "@/components/ui/label";
@@ -105,6 +109,7 @@ import {
   Search,
   FileSearch,
   UserPlus,
+  FilePenLine,
 } from "lucide-react";
 import { StatCard } from "@/components/ui/stat-card";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -433,6 +438,7 @@ function Inner() {
    * ni publicar su enlace público.
    */
   const [verInforme, setVerInforme] = useState<GeneratedReport | null>(null);
+  const [editarInforme, setEditarInforme] = useState<InformeEditable | null>(null);
   /** Informe elegido para enviar a firmar. `null` = diálogo cerrado. */
   const [firmarInforme, setFirmarInforme] = useState<{
     id: string;
@@ -2583,6 +2589,18 @@ function Inner() {
                                     onClick: () => setVerInforme(r),
                                   },
                                   {
+                                    label: t("reportEdit.rowAction"),
+                                    icon: FilePenLine,
+                                    disabled: !!histBusyId,
+                                    onClick: () =>
+                                      setEditarInforme({
+                                        id: r.id,
+                                        html: r.html,
+                                        nombre: nombrePlantillaViva(r),
+                                        firmasPuestas: resumenPorInforme.get(r.id)?.firmadas ?? 0,
+                                      }),
+                                  },
+                                  {
                                     label: t("hc_routesAppTeacherReports.downloadWord", { defaultValue: "Descargar Word" }),
                                     icon: FileType,
                                     disabled: !!histBusyId,
@@ -3098,6 +3116,11 @@ function Inner() {
 
       {/* Ver el documento y el estado de sus firmas. Es de SOLO LECTURA: su
           único primario salta al diálogo de abajo, que es el que escribe. */}
+      <EditReportHtmlDialog
+        informe={editarInforme}
+        onOpenChange={(o) => { if (!o) setEditarInforme(null); }}
+        onSaved={() => void loadGenReports()}
+      />
       <ReportStatusDialog
         informe={verInforme}
         onOpenChange={(abierto) => {

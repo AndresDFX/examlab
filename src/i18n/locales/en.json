@@ -10841,5 +10841,14 @@
   "seleccion": {
     "masOpciones_one": "and 1 more in the selector above",
     "masOpciones_other": "and {{count}} more in the selector above"
+  },
+  "reportEdit": {
+    "rowAction": "Edit content",
+    "title": "Edit the document's content",
+    "saved": "Document updated",
+    "alreadySigned_one": "This document already has 1 signature. It stays valid: editing does not remove or invalidate it.",
+    "alreadySigned_other": "This document already has {{count}} signatures. They stay valid: editing does not remove or invalidate them.",
+    "lostSlots_one": "The signature box for 1 person was removed. If they had already signed, their signature would have nowhere to appear. Restore it to save.",
+    "lostSlots_other": "The signature boxes for {{count}} people were removed. Any signatures already in place would have nowhere to appear. Restore them to save."
   }
 }

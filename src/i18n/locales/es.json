@@ -10841,5 +10841,14 @@
   "seleccion": {
     "masOpciones_one": "y 1 más en el selector de arriba",
     "masOpciones_other": "y {{count}} más en el selector de arriba"
+  },
+  "reportEdit": {
+    "rowAction": "Editar contenido",
+    "title": "Editar el contenido del documento",
+    "saved": "Documento actualizado",
+    "alreadySigned_one": "Este documento ya tiene 1 firma puesta. Sigue siendo válida: editarlo no la borra ni la invalida.",
+    "alreadySigned_other": "Este documento ya tiene {{count}} firmas puestas. Siguen siendo válidas: editarlo no las borra ni las invalida.",
+    "lostSlots_one": "Se eliminó la casilla de firma de 1 persona. Si ya había firmado, su firma quedaría sin dónde mostrarse. Restaurála para poder guardar.",
+    "lostSlots_other": "Se eliminaron las casillas de firma de {{count}} personas. Las firmas que ya estuvieran puestas quedarían sin dónde mostrarse. Restaurálas para poder guardar."
   }
 }
