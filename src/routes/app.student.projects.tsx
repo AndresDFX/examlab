@@ -6,6 +6,13 @@
  * cada archivo y al enviar la IA califica caja por caja. La calificación final se
  * calcula sobre `max_score` del proyecto.
  */
+import { CortePesoBadges } from "@/components/ui/corte-peso";
+import {
+  filaQueManda,
+  indiceDeCortes,
+  indicePorActividad,
+  resolverCorteYPeso,
+} from "@/modules/grading/corte-y-peso";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -74,6 +81,11 @@ type ProjectRow = {
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
     /** Override de intentos del proyecto. NULL → usa default global. */
     max_attempts?: number | null;
+    /** Corte y peso de la fila de la actividad. NO es necesariamente el que
+     *  cuenta: cuando existe la fila de `workshop_courses`/`project_courses`
+     *  para el curso del estudiante, esa gana. Lo decide `filaQueManda`. */
+    cut_id?: string | null;
+    weight?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
     course: {
@@ -152,6 +164,10 @@ function StudentProjects() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<ProjectRow[]>([]);
+  const [nombreDeCorte, setNombreDeCorte] = useState<Map<string, string>>(new Map());
+  const [cortePesoPorProyecto, setCortePesoPorProyecto] = useState<
+    Map<string, { cut_id: string | null; weight: number | null }>
+  >(new Map());
   // Arranca en true para no mostrar el empty ("no hay proyectos") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -240,15 +256,37 @@ function StudentProjects() {
     let linkedProjectIds: string[] = [];
     if (enrolledCourseIds.length) {
       try {
+        // `cut_id, weight` salen de ACÁ y no de `projects`: es la fila del
+        // curso en el que está ESTE estudiante. Un proyecto compartido a dos
+        // cursos puede pesar distinto en cada uno, y `projects.cut_id` es el
+        // del curso ancla — el de otro.
         const { data, error } = await db
           .from("project_courses")
-          .select("project_id")
+          .select("project_id, cut_id, weight")
           .in("course_id", enrolledCourseIds);
         if (error) throw new Error(`project_courses: ${error.message}`);
-        linkedProjectIds = ((data ?? []) as { project_id: string }[]).map((r) => r.project_id);
+        const filas = (data ?? []) as {
+          project_id: string;
+          cut_id: string | null;
+          weight: number | null;
+        }[];
+        linkedProjectIds = filas.map((r) => r.project_id);
+        setCortePesoPorProyecto(
+          indicePorActividad(
+            filas.map((r) => ({ actividadId: r.project_id, cut_id: r.cut_id, weight: r.weight })),
+          ),
+        );
       } catch (e) {
         console.error("[student-projects] project_courses load failed", e);
       }
+    }
+
+    if (enrolledCourseIds.length) {
+      const { data: cutRows } = await db
+        .from("grade_cuts")
+        .select("id, name")
+        .in("course_id", enrolledCourseIds);
+      setNombreDeCorte(indiceDeCortes((cutRows ?? []) as { id: string; name: string | null }[]));
     }
 
     let assignedProjectIds: string[] = [];
@@ -278,7 +316,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .is("deleted_at", null)
@@ -288,7 +326,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, max_attempts, course_id",
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, max_attempts, course_id, cut_id, weight",
           )
           .in("id", allIds)
           .is("deleted_at", null)
@@ -695,9 +733,15 @@ function StudentProjects() {
             <Card key={project.id}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-1">
                     <div className="text-xs text-muted-foreground">{project.course?.name}</div>
                     <h3 className="font-semibold truncate">{project.title}</h3>
+                    <CortePesoBadges
+                      valor={(() => {
+                        const f = filaQueManda(cortePesoPorProyecto.get(project.id), project);
+                        return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
+                      })()}
+                    />
                   </div>
                   {isGraded ? (
                     <Badge className="shrink-0">

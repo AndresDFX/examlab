@@ -53,7 +53,9 @@
  * estudiante que no entregó nada desaparecería de la cuenta y el corte se
  * vería «100% calificado» teniendo media clase sin nota. Los borradores no
  * entran: `loadCourseDataset` ya los descarta, así que acá toda actividad está
- * publicada o cerrada.
+ * publicada o cerrada. Y **solo cuentan las actividades con porcentaje
+ * asignado** (ver `cuentaParaElCorte`): una que pesa 0 no mueve ninguna nota,
+ * y contarla llenaba el panel de trabajo pendiente que a nadie le importa.
  *
  * Sin React ni consultas: consume el `CourseDataset` que la pantalla ya carga.
  */
@@ -95,6 +97,27 @@ export interface ActividadDeCorte {
   id: string;
   cut_id: string | null;
   is_external?: boolean;
+  /** Porcentaje de la nota final. Ver `cuentaParaElCorte`. */
+  weight?: number | null;
+}
+
+/**
+ * ¿Esta actividad cuenta como trabajo del corte?
+ *
+ * **Solo si tiene un porcentaje asignado.** Una actividad con peso 0 —o sin
+ * peso— no mueve ninguna nota: contarla infla el trabajo pendiente con algo
+ * que, esté calificado o no, da exactamente lo mismo. En producción eso no es
+ * un caso de borde: los cursos de Introducción tienen 17 talleres «Clase N»
+ * con peso 0 que hacían que el panel reportara decenas de notas faltantes
+ * sobre actividades que no afectan a nadie, y el docente dejaba de mirarlo.
+ *
+ * El corte también hace falta: sin él no hay a qué corte atribuirla.
+ */
+export function cuentaParaElCorte(a: ActividadDeCorte): boolean {
+  if (!a.cut_id) return false;
+  if (a.weight == null) return false;
+  const w = Number(a.weight);
+  return Number.isFinite(w) && w > 0;
 }
 
 /**
@@ -149,7 +172,7 @@ export function pendientesPorCorte(
 ): PendientesDeCorte[] {
   const alumnos = Math.max(0, estudiantes);
   return cuts.map((cut) => {
-    const delCorte = actividades.filter((a) => a.cut_id === cut.id);
+    const delCorte = actividades.filter((a) => a.cut_id === cut.id && cuentaParaElCorte(a));
     const porId = new Map(delCorte.map((a) => [a.id, a]));
     const esperadas = delCorte.length * alumnos;
 

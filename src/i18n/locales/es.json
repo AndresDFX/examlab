@@ -10911,5 +10911,10 @@
     "partName": "nombre de la asignatura",
     "partMethod": "metodología",
     "partOrder": "orden y numeración"
+  },
+  "cortePeso": {
+    "weightOfFinal": "{{pct}}% de la nota final",
+    "weightOfFinalHint": "Lo que esta actividad aporta a la nota final del curso.",
+    "cutHint": "Corte al que va esta nota."
   }
 }

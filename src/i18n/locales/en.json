@@ -10911,5 +10911,10 @@
     "partName": "subject name",
     "partMethod": "methodology",
     "partOrder": "order and numbering"
+  },
+  "cortePeso": {
+    "weightOfFinal": "{{pct}}% of the final grade",
+    "weightOfFinalHint": "What this activity contributes to the course final grade.",
+    "cutHint": "Term this grade counts towards."
   }
 }

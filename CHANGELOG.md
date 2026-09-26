@@ -77,6 +77,55 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📋 Estadísticas: el panel del corte cuenta solo lo que tiene porcentaje
+
+«Falta calificar 139 de 342» contaba TODAS las actividades del corte, tuvieran peso o no. Y no es un
+caso de borde: los tres cursos de Introducción tienen 17 talleres «Clase N» con peso 0 cada uno, así
+que el panel reportaba decenas de notas faltantes sobre actividades que no mueven la nota de nadie —
+que es la forma más rápida de que un docente deje de mirar un panel.
+
+Ahora una actividad entra solo si tiene corte **y** un porcentaje mayor que 0. Medido en producción
+el 2026-09-26 sobre los 7 cursos: el Corte 1 pasó de **15 actividades / 361 entregas esperadas a 7 /
+153**. El Corte 3 no cambia (sus 6 proyectos sí tienen su 20 % asignado) y sigue apagado por futuro,
+así que las dos correcciones del panel componen sin pisarse.
+
+Un corte donde NINGUNA actividad tiene peso ahora se comporta como vacío —«sin actividades
+publicadas»— y no como «falta todo»: pintarlo al 100 % mandaba al docente a buscar trabajo que no
+cambia ninguna nota.
+
+### 🎓 El estudiante ve a qué corte va cada actividad y cuánto vale
+
+El docente veía el corte y el porcentaje en su grilla; el estudiante no veía ninguna de las dos
+cosas. Su lista era una fila de tareas sin jerarquía: no podía saber si el taller del jueves pesa lo
+mismo que el parcial, ni a qué corte va a parar la nota. Ahora las tres listas del estudiante
+—exámenes, talleres y proyectos— lo muestran en la tarjeta.
+
+**El texto dice «de la nota final» completo**, no un «10%» a secas. El peso es porcentaje de la nota
+FINAL del curso, no del corte; un «10%» suelto se lee como «10% del corte» —otro número— y manda al
+estudiante a una cuenta equivocada justo antes de un parcial.
+
+**Lo que no se deduce leyendo el código**, y es donde estuvo el trabajo:
+
+- **Talleres y proyectos son M:N**, así que su corte y su peso PARA ESTE CURSO viven en
+  `workshop_courses` / `project_courses`, no en la fila de la actividad. Pero medido en producción
+  sobre las 7 asignaturas en curso, **57 de los 66 talleres publicados NO tienen esa fila**: con solo
+  la tabla de unión, el 86 % de las tarjetas habría salido en blanco. Por eso se cae a la fila de la
+  actividad cuando la de unión no está.
+- **Cuando existen las dos, gana la de unión** — y no por preferencia: es la que usan el gradebook y
+  la pantalla de notas para CALCULAR. Hay 3 talleres donde difieren; en uno la fila del taller dice
+  10 % y la de unión 2,5 %, y mostrarle el 10 % al alumno sería contradecir su propia nota.
+- **Eso deja al descubierto un defecto previo**: la grilla del DOCENTE lee la fila de la actividad,
+  así que en esos 3 talleres el docente ve 10 % y el estudiante 2,5 %. El número del estudiante es el
+  correcto. No se tocó la grilla del docente en este cambio.
+- **Falla cerrado**: sin corte, o con un corte que no se puede resolver (casi siempre de OTRO curso,
+  porque un taller compartido puede tener otro corte allá), no se muestra nada. Mostrar un porcentaje
+  mal atribuido es peor que no mostrar ninguno.
+- **Un 0 % SÍ se muestra.** «No cuenta para la nota» y «no sé cuánto vale» son cosas distintas, y la
+  primera es justo lo que el alumno quiere saber de un quiz de práctica.
+
+Verificado contra producción simulando lo que verá un estudiante real: 52 de 58 talleres, 11 de 12
+exámenes y los 7 proyectos salen con su corte y su porcentaje; los que no, no tienen corte asignado.
+
 ### 📋 Estadísticas: «qué falta del corte» separa tu trabajo del de los estudiantes
 
 El panel decía una sola cosa —«40,6% sin calificar»— y ese número solo desinforma de dos maneras,

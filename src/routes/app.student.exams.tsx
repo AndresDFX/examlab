@@ -35,6 +35,8 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
+import { CortePesoBadges } from "@/components/ui/corte-peso";
+import { indiceDeCortes, resolverCorteYPeso } from "@/modules/grading/corte-y-peso";
 import { formatDateTime } from "@/shared/lib/format";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
@@ -55,6 +57,11 @@ type ExamRow = {
     max_attempts?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
+    /** Corte al que aporta la nota, y cuánto vale de la nota FINAL del curso.
+     *  Los exámenes los llevan en su propia fila; talleres y proyectos no (son
+     *  M:N y su peso vive en la tabla de unión). */
+    cut_id?: string | null;
+    weight?: number | null;
     /** Estado del examen: draft/published/closed. Un `closed` (cierre manual
      *  o cascade al finalizar el curso) no es tomable aunque la ventana siga
      *  abierta — lo refleja getExamDisplayStatus. */
@@ -145,6 +152,10 @@ function StudentExams() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
+  // `cut_id` → nombre. Se carga aparte y no por embed porque el embed de
+  // `grade_cuts` desde `exams` obligaría a pedirlo dentro del `!inner` de
+  // `exam_assignments`, que ya tiene tres niveles; y son pocas filas.
+  const [nombreDeCorte, setNombreDeCorte] = useState<Map<string, string>>(new Map());
   // Reloj para clasificar el estado de cada examen (próximo / abierto / cerrado).
   // Arranca en 0 y NO en Date.now(): el initializer de useState corre también en
   // el pre-render del servidor, y dos relojes distintos a ambos lados de un borde
@@ -222,7 +233,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, passing_grade, max_exam_attempts))",
+          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, passing_grade, max_exam_attempts))",
         )
         .eq("user_id", user.id)
         .neq("exam.status", "draft")
@@ -307,6 +318,19 @@ function StudentExams() {
                 (s.ai_grade != null || s.final_override_grade != null))),
         ).length;
       };
+
+      // Los cortes de los cursos que realmente aparecen en la lista. Sin esto
+      // `resolverCorteYPeso` falla cerrado y no se muestra ningún porcentaje.
+      const courseIds = [...new Set(exams.map((e: any) => e.course_id).filter(Boolean))];
+      if (courseIds.length) {
+        const { data: cutRows } = await supabase
+          .from("grade_cuts")
+          .select("id, name")
+          .in("course_id", courseIds);
+        setNombreDeCorte(indiceDeCortes((cutRows ?? []) as { id: string; name: string | null }[]));
+      } else {
+        setNombreDeCorte(new Map());
+      }
 
       setRows(
         exams.map((e: any) => {
@@ -597,9 +621,12 @@ function StudentExams() {
             <Card key={exam.id}>
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-1">
                     <div className="text-xs text-muted-foreground">{exam.course?.name}</div>
                     <h3 className="font-semibold truncate">{exam.title}</h3>
+                    <CortePesoBadges
+                      valor={resolverCorteYPeso(exam.cut_id, exam.weight, nombreDeCorte)}
+                    />
                   </div>
                   {completed ? (
                     // El color lo decide la NOTA, no el estado de la entrega.

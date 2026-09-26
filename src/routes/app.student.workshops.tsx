@@ -11,6 +11,13 @@
  *  - El idioma del curso se pasa al Taker para que la IA responda en el
  *    idioma configurado (default español).
  */
+import { CortePesoBadges } from "@/components/ui/corte-peso";
+import {
+  filaQueManda,
+  indiceDeCortes,
+  indicePorActividad,
+  resolverCorteYPeso,
+} from "@/modules/grading/corte-y-peso";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -91,6 +98,11 @@ type WorkshopRow = {
     requires_defense?: boolean | null;
     /** Override de intentos del taller. NULL → usa default global. */
     max_attempts?: number | null;
+    /** Corte y peso de la fila de la actividad. NO es necesariamente el que
+     *  cuenta: cuando existe la fila de `workshop_courses`/`project_courses`
+     *  para el curso del estudiante, esa gana. Lo decide `filaQueManda`. */
+    cut_id?: string | null;
+    weight?: number | null;
     /** Necesario para el filtro por curso del listado del estudiante. */
     course_id: string;
     course: {
@@ -177,6 +189,10 @@ function StudentWorkshops() {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const [rows, setRows] = useState<WorkshopRow[]>([]);
+  const [nombreDeCorte, setNombreDeCorte] = useState<Map<string, string>>(new Map());
+  const [cortePesoPorTaller, setCortePesoPorTaller] = useState<
+    Map<string, { cut_id: string | null; weight: number | null }>
+  >(new Map());
   // Arranca en true para no mostrar el empty ("no hay talleres") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -290,7 +306,7 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, requires_defense, max_attempts, deleted_at, course_id, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
+        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, requires_defense, max_attempts, deleted_at, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid)
       .neq("workshop.status", "draft")
@@ -366,6 +382,36 @@ function StudentWorkshops() {
         : Promise.resolve({ data: [] as any[] }),
     ]);
     const subs = [...(indivSubs ?? []), ...(groupSubs ?? [])];
+
+    // Corte y peso POR CURSO DEL ESTUDIANTE. Un taller compartido a dos cursos
+    // puede pesar distinto en cada uno, así que leer `workshops.weight` (el del
+    // curso ancla) le mostraría al alumno el peso que ese taller tiene en el
+    // curso de otro. El valor bueno vive en `workshop_courses`.
+    const { data: enrol } = await client
+      .from("course_enrollments")
+      .select("course_id")
+      .eq("user_id", uid);
+    const misCursos = [...new Set(((enrol ?? []) as { course_id: string }[]).map((e) => e.course_id))];
+    let pesoPorTaller = new Map<string, { cut_id: string | null; weight: number | null }>();
+    let cortes = new Map<string, string>();
+    if (ids.length && misCursos.length) {
+      const [{ data: wc }, { data: cutRows }] = await Promise.all([
+        client
+          .from("workshop_courses")
+          .select("workshop_id, cut_id, weight")
+          .in("workshop_id", ids)
+          .in("course_id", misCursos),
+        client.from("grade_cuts").select("id, name").in("course_id", misCursos),
+      ]);
+      pesoPorTaller = indicePorActividad(
+        ((wc ?? []) as { workshop_id: string; cut_id: string | null; weight: number | null }[]).map(
+          (r) => ({ actividadId: r.workshop_id, cut_id: r.cut_id, weight: r.weight }),
+        ),
+      );
+      cortes = indiceDeCortes((cutRows ?? []) as { id: string; name: string | null }[]);
+    }
+    setNombreDeCorte(cortes);
+    setCortePesoPorTaller(pesoPorTaller);
 
     setRows(
       workshops.map((w: any) => ({
@@ -725,9 +771,15 @@ function StudentWorkshops() {
             >
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0">
+                  <div className="min-w-0 space-y-1">
                     <div className="text-xs text-muted-foreground">{workshop.course?.name}</div>
                     <h3 className="font-semibold truncate">{workshop.title}</h3>
+                    <CortePesoBadges
+                      valor={(() => {
+                        const f = filaQueManda(cortePesoPorTaller.get(workshop.id), workshop);
+                        return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
+                      })()}
+                    />
                   </div>
                   {/* Sustentación pendiente: se dice QUÉ falta, no se deja un
                       «Entregado» genérico. El alumno ya hizo su parte; lo que

@@ -109,6 +109,10 @@ export type CourseDataset = {
     is_external: boolean;
     /** Tipo, para poder decir QUÉ falta y no solo cuánto. */
     kind: "exam" | "workshop" | "project";
+    /** Porcentaje de la nota final. `null` o 0 = no se le asignó peso, y
+     *  entonces la actividad NO entra en «qué falta del corte»: contarla
+     *  infla el trabajo pendiente con algo que no mueve ninguna nota. */
+    weight: number | null;
     title?: string | null;
   }>;
 };
@@ -204,7 +208,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       // estadísticas en silencio. Las notas de examen ya están en la escala del
       // curso, así que abajo fijamos max_score = grade_scale_max (reescalado identidad).
       .from("exams")
-      .select("id, course_id, cut_id, is_external, status, title")
+      .select("id, course_id, cut_id, is_external, status, title, weight")
       .eq("course_id", courseId)
       .neq("status", "draft")
       .is("deleted_at", null),
@@ -411,6 +415,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         cut_id: e.cut_id ?? null,
         is_external: !!e.is_external,
         kind: "exam" as const,
+        weight: e.weight == null ? null : Number(e.weight),
         title: (e as { title?: string | null }).title ?? null,
       })),
       ...workshops.map((w) => ({
@@ -418,6 +423,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         cut_id: w.cut_id ?? null,
         is_external: !!w.is_external,
         kind: "workshop" as const,
+        weight: w.weight == null ? null : Number(w.weight),
         title: (w as { title?: string | null }).title ?? null,
       })),
       ...projects.map((p) => ({
@@ -425,6 +431,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         cut_id: p.cut_id ?? null,
         is_external: !!p.is_external,
         kind: "project" as const,
+        weight: p.weight == null ? null : Number(p.weight),
         title: (p as { title?: string | null }).title ?? null,
       })),
     ],

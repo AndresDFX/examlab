@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { pendientesPorCorte, unirPorNombreDeCorte, estadoDeCorte } from "./sin-calificar";
+import {
+  pendientesPorCorte,
+  unirPorNombreDeCorte,
+  estadoDeCorte,
+  cuentaParaElCorte,
+} from "./sin-calificar";
 import type { Cut, SubmissionLike } from "@/shared/lib/statistics";
 
 const cut = (id: string, name: string, start?: string, end?: string): Cut =>
@@ -38,8 +43,8 @@ describe("pendientesPorCorte", () => {
     const r = pendientesPorCorte(
       [K1],
       [
-        { id: "act1", cut_id: "k1" },
-        { id: "act2", cut_id: "k1" },
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k1", weight: 10 },
       ],
       [entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 })],
       10,
@@ -54,7 +59,7 @@ describe("pendientesPorCorte", () => {
     // calificación o un curso que no abrió nada, y son dos acciones distintas.
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [
         entrega({ user_id: "u1", final_grade: 4 }),
         entrega({ user_id: "u2", status: "entregado" }),
@@ -74,8 +79,8 @@ describe("pendientesPorCorte", () => {
     const r = pendientesPorCorte(
       [K1],
       [
-        { id: "act1", cut_id: "k1" },
-        { id: "act2", cut_id: "k1", is_external: true },
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k1", is_external: true, weight: 10 },
       ],
       [
         entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 }),
@@ -91,7 +96,7 @@ describe("pendientesPorCorte", () => {
   it("una actividad EXTERNA sin nota es trabajo del docente, no del estudiante", () => {
     // En una externa el estudiante no entrega nada: contarlo como «no empezó»
     // sería acusarlo de no hacer algo que nunca tuvo que hacer.
-    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1", is_external: true }], [], 5);
+    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1", is_external: true, weight: 10 }], [], 5);
     expect(r[0].sinEmpezar).toBe(0);
     expect(r[0].porCalificar).toBe(5);
     expect(r[0].estudiantesSinEmpezarNada).toBe(0);
@@ -100,7 +105,7 @@ describe("pendientesPorCorte", () => {
   it("una entrega sin nota NO cuenta como calificada", () => {
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [entrega({ user_id: "u1" }), entrega({ user_id: "u2", final_grade: 3 })],
       2,
     );
@@ -115,7 +120,7 @@ describe("pendientesPorCorte", () => {
     // entregadas.
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [entrega({ user_id: "u1", status: "ai_revisado" })],
       1,
     );
@@ -129,7 +134,7 @@ describe("pendientesPorCorte", () => {
     // tratarla como nota daría por calificado algo que no lo está.
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [entrega({ requires_defense: true, ai_grade: 4.5, final_grade: null })],
       1,
     );
@@ -143,7 +148,7 @@ describe("pendientesPorCorte", () => {
     // puede degradar a un intento ya calificado.
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [
         entrega({ ref_id: "act1", user_id: "u1", status: "en_progreso" }),
         entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 }),
@@ -159,8 +164,8 @@ describe("pendientesPorCorte", () => {
     const r = pendientesPorCorte(
       [K1, K2],
       [
-        { id: "act1", cut_id: "k1" },
-        { id: "act2", cut_id: "k2" },
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k2", weight: 10 },
       ],
       [entrega({ ref_id: "act1", final_grade: 4 }), entrega({ ref_id: "act2", final_grade: 4 })],
       1,
@@ -171,7 +176,7 @@ describe("pendientesPorCorte", () => {
   });
 
   it("una actividad SIN corte no entra en ninguno", () => {
-    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: null }], [], 5);
+    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: null, weight: 10 }], [], 5);
     expect(r[0].esperadas).toBe(0);
     expect(r[0].pctSinCalificar).toBeNull();
   });
@@ -189,8 +194,8 @@ describe("pendientesPorCorte", () => {
     const r = pendientesPorCorte(
       [K1],
       [
-        { id: "act1", cut_id: "k1" },
-        { id: "act2", cut_id: "k1" },
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k1", weight: 10 },
       ],
       [entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 })],
       3,
@@ -201,7 +206,7 @@ describe("pendientesPorCorte", () => {
   it("cuenta los estudiantes que no empezaron NADA del corte", () => {
     const r = pendientesPorCorte(
       [K1],
-      [{ id: "act1", cut_id: "k1" }],
+      [{ id: "act1", cut_id: "k1", weight: 10 }],
       [entrega({ user_id: "u1", status: "en_progreso" })],
       4,
     );
@@ -210,7 +215,7 @@ describe("pendientesPorCorte", () => {
   });
 
   it("sin estudiantes matriculados no se esperan notas", () => {
-    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1" }], [], 0);
+    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1", weight: 10 }], [], 0);
     expect(r[0].esperadas).toBe(0);
     expect(r[0].pctSinCalificar).toBeNull();
   });
@@ -245,8 +250,8 @@ describe("unirPorNombreDeCorte", () => {
   it("suma el mismo corte de cursos distintos", () => {
     // Cada curso tiene sus propios `grade_cuts`, pero «Corte 1» es la misma
     // pregunta para el docente.
-    const a = pendientesPorCorte([cut("a1", "Corte 1")], [{ id: "x", cut_id: "a1" }], [], 10);
-    const b = pendientesPorCorte([cut("b1", "Corte 1")], [{ id: "y", cut_id: "b1" }], [], 5);
+    const a = pendientesPorCorte([cut("a1", "Corte 1")], [{ id: "x", cut_id: "a1", weight: 10 }], [], 10);
+    const b = pendientesPorCorte([cut("b1", "Corte 1")], [{ id: "y", cut_id: "b1", weight: 10 }], [], 5);
     const total = unirPorNombreDeCorte([a, b]);
     expect(total).toHaveLength(1);
     expect(total[0].esperadas).toBe(15);
@@ -255,13 +260,13 @@ describe("unirPorNombreDeCorte", () => {
   });
 
   it("agrupa sin distinguir mayusculas ni espacios de mas", () => {
-    const a = pendientesPorCorte([cut("a1", "Corte 1")], [{ id: "x", cut_id: "a1" }], [], 1);
-    const b = pendientesPorCorte([cut("b1", " corte 1 ")], [{ id: "y", cut_id: "b1" }], [], 1);
+    const a = pendientesPorCorte([cut("a1", "Corte 1")], [{ id: "x", cut_id: "a1", weight: 10 }], [], 1);
+    const b = pendientesPorCorte([cut("b1", " corte 1 ")], [{ id: "y", cut_id: "b1", weight: 10 }], [], 1);
     expect(unirPorNombreDeCorte([a, b])).toHaveLength(1);
   });
 
   it("ordena numericamente: Corte 10 va despues de Corte 2", () => {
-    const mk = (n: string) => pendientesPorCorte([cut(n, n)], [{ id: "x", cut_id: n }], [], 1);
+    const mk = (n: string) => pendientesPorCorte([cut(n, n)], [{ id: "x", cut_id: n, weight: 10 }], [], 1);
     const total = unirPorNombreDeCorte([mk("Corte 10"), mk("Corte 2"), mk("Corte 1")]);
     expect(total.map((t) => t.cutName)).toEqual(["Corte 1", "Corte 2", "Corte 10"]);
   });
@@ -271,11 +276,11 @@ describe("unirPorNombreDeCorte", () => {
     // no 50%.
     const a = pendientesPorCorte(
       [cut("a1", "Corte 1")],
-      [{ id: "x", cut_id: "a1" }],
+      [{ id: "x", cut_id: "a1", weight: 10 }],
       [entrega({ ref_id: "x", final_grade: 4 })],
       1,
     );
-    const b = pendientesPorCorte([cut("b1", "Corte 1")], [{ id: "y", cut_id: "b1" }], [], 99);
+    const b = pendientesPorCorte([cut("b1", "Corte 1")], [{ id: "y", cut_id: "b1", weight: 10 }], [], 99);
     expect(unirPorNombreDeCorte([a, b])[0].pctSinCalificar).toBe(99);
   });
 
@@ -283,14 +288,14 @@ describe("unirPorNombreDeCorte", () => {
     // Darlo por cerrado escondería trabajo que todavía se puede hacer.
     const a = pendientesPorCorte(
       [cut("a1", "Corte 1", "2026-08-01", "2026-09-01")],
-      [{ id: "x", cut_id: "a1" }],
+      [{ id: "x", cut_id: "a1", weight: 10 }],
       [],
       1,
       HOY,
     );
     const b = pendientesPorCorte(
       [cut("b1", "Corte 1", "2026-09-08", "2026-10-05")],
-      [{ id: "y", cut_id: "b1" }],
+      [{ id: "y", cut_id: "b1", weight: 10 }],
       [],
       1,
       HOY,
@@ -314,5 +319,79 @@ describe("unirPorNombreDeCorte", () => {
 
   it("sin cursos devuelve vacio", () => {
     expect(unirPorNombreDeCorte([])).toEqual([]);
+  });
+});
+
+describe("cuentaParaElCorte", () => {
+  // La regla que el docente pidió: el panel cuenta SOLO lo que tiene
+  // porcentaje asignado.
+  it("cuenta una actividad con porcentaje", () => {
+    expect(cuentaParaElCorte({ id: "a", cut_id: "k1", weight: 2.4 })).toBe(true);
+  });
+
+  it("NO cuenta una actividad con peso 0", () => {
+    // En producción los cursos de Introducción tienen 17 talleres «Clase N»
+    // con peso 0: contarlos llenaba el panel de notas faltantes sobre
+    // actividades que no mueven ninguna nota, y el docente dejaba de mirarlo.
+    expect(cuentaParaElCorte({ id: "a", cut_id: "k1", weight: 0 })).toBe(false);
+  });
+
+  it("NO cuenta una actividad SIN peso asignado", () => {
+    expect(cuentaParaElCorte({ id: "a", cut_id: "k1", weight: null })).toBe(false);
+    expect(cuentaParaElCorte({ id: "a", cut_id: "k1" })).toBe(false);
+  });
+
+  it("NO cuenta una actividad sin corte", () => {
+    expect(cuentaParaElCorte({ id: "a", cut_id: null, weight: 10 })).toBe(false);
+  });
+
+  it("NO cuenta un peso que no es un numero", () => {
+    expect(cuentaParaElCorte({ id: "a", cut_id: "k1", weight: Number.NaN })).toBe(false);
+  });
+});
+
+describe("pendientesPorCorte: solo lo que tiene porcentaje", () => {
+  it("las actividades sin peso NO inflan el denominador", () => {
+    const r = pendientesPorCorte(
+      [K1],
+      [
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k1", weight: 0 },
+        { id: "act3", cut_id: "k1", weight: null },
+      ],
+      [],
+      10,
+    );
+    // Solo act1 cuenta: 1 actividad × 10 estudiantes.
+    expect(r[0].actividades).toBe(1);
+    expect(r[0].esperadas).toBe(10);
+  });
+
+  it("un corte donde NINGUNA actividad tiene peso se comporta como vacio", () => {
+    // No es «falta todo»: es «no hay nada que mueva la nota». Pintarlo al 100%
+    // mandaría al docente a buscar trabajo que no cambia ninguna nota.
+    const r = pendientesPorCorte([K1], [{ id: "act1", cut_id: "k1", weight: 0 }], [], 30);
+    expect(r[0].actividades).toBe(0);
+    expect(r[0].pctSinCalificar).toBeNull();
+  });
+
+  it("una entrega de una actividad SIN peso no se cuenta como calificada", () => {
+    // Si se contara, el numerador subiría sobre un denominador que la excluye
+    // y el panel podría mostrar más calificadas que esperadas.
+    const r = pendientesPorCorte(
+      [K1],
+      [
+        { id: "act1", cut_id: "k1", weight: 10 },
+        { id: "act2", cut_id: "k1", weight: 0 },
+      ],
+      [
+        entrega({ ref_id: "act1", user_id: "u1", final_grade: 4 }),
+        entrega({ ref_id: "act2", user_id: "u1", final_grade: 4 }),
+      ],
+      2,
+    );
+    expect(r[0].esperadas).toBe(2);
+    expect(r[0].calificadas).toBe(1);
+    expect(r[0].calificadas).toBeLessThanOrEqual(r[0].esperadas);
   });
 });
