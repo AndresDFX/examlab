@@ -106,6 +106,16 @@ export const Route = createRootRoute({
       { rel: "apple-touch-icon", href: "/icons/apple-touch-icon.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      // jsDelivr sirve lo pesado que NO va en el bundle y se pide recién cuando
+      // hace falta: el editor de código (Monaco, 1,05 MB comprimidos) y el motor
+      // de base de datos de las preguntas SQL (PGlite, ~16 MB). Adelantar el DNS
+      // y el TLS ahorra un ida y vuelta completo en el peor momento posible.
+      //
+      // SIN `crossOrigin` a propósito: esos archivos entran como `<script src>`
+      // normales (el loader de Monaco los inyecta así), y una conexión abierta en
+      // modo CORS no se reutiliza para una petición que no lo es — sería un
+      // saludo de más, no un ahorro.
+      { rel: "preconnect", href: "https://cdn.jsdelivr.net" },
       {
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap",

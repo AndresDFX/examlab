@@ -1,6 +1,7 @@
 import { useCallback, useRef, useState, useEffect, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import Editor, { type OnMount } from "@monaco-editor/react";
+import { EditorCargando } from "@/modules/code/EditorCargando";
 import { CharacterBar } from "@/components/ui/character-bar";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -377,6 +378,7 @@ export function CodeEditor({
         }
       >
         <Editor
+          loading={<EditorCargando />}
           // Ampliado el alto lo manda el contenedor (`flex-1`), no el caller:
           // el sentido del modo es usar TODA la pantalla.
           height={

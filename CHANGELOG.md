@@ -77,6 +77,57 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🗄️ Una pregunta de SQL siempre tiene dónde responder
+
+Reportado desde el simulacro del docente: la pantalla «se está demorando bastante». Lo que se veía
+era un recuadro vacío con **`Loading...`** —así, en inglés y sin spinner— donde tenía que estar el
+editor de SQL.
+
+**Qué se estaba esperando, medido** (2026-09-28, `monaco-editor@0.55.1` desde jsDelivr): el editor
+son **1,05 MB comprimidos / 4,1 MB sin comprimir**, casi todo en un archivo (`editor.api-*.js`,
+918 KB comprimidos). No viaja en el bundle: se pide recién cuando la pregunta aparece, o sea con el
+cronómetro corriendo. Y el service worker hace bypass de jsdelivr, así que no queda en su caché.
+
+**Y el peor caso no era la espera, era que no terminaba.** `@monaco-editor/react` inicializa con
+`loader.init().then(...).catch(e => console.error(e))`: **si la carga falla solo escribe en la
+consola**. Su bandera `isEditorReady` queda en `false` para siempre y el componente sigue pintando
+`Loading...` sin decir que pasó nada. En una pregunta `bd_sql` esa caja es el ÚNICO lugar donde se
+contesta, así que la pregunta quedaba incontestable —sin error, sin salida— hasta que se acababa el
+examen. Tampoco hay «reintentar» posible: `loader.init()` marca `isInitialized` en la primera
+llamada y después devuelve siempre la misma promesa ya rechazada.
+
+**Ahora hay una caja de texto plano de respaldo.** No descarga nada, escribe en el mismo estado que
+el editor y se persiste con el mismo formato, así que lo escrito ahí cuenta igual: lo ve el aviso de
+«entregás con N en blanco», lo ve el monitor del docente y lo califica la IA — su propia directiva ya
+manda calificar leyendo un SQL que no se ejecutó. Aparece **sola** si el editor falla o si pasan 8 s
+sin llegar, y hay un botón para pedirla desde el primer segundo. El plazo es lo que importa: con red
+lenta el loader **no rechaza nunca**, se queda cargando, así que esperar el error era esperar para
+siempre. Cuando el editor llega no se vuelve solo —cambiarle la caja debajo del cursor a quien está
+escribiendo es peor que la espera— pero se ofrece «Usar el editor».
+
+**Lo que el respaldo promete depende de dónde está montado.** El mismo componente se usa en el
+examen, en el taller y en la **hoja SQL de la pizarra**, y esa tercera no es una entrega: es una
+demostración en vivo del docente. Decirle ahí a alguien «se guarda igual y se califica leyendo la
+consulta» es prometer una nota que no existe, así que la frase la habilita una marca explícita
+(`graded`) que **falla cerrado**: una superficie nueva que se olvide de pasarla dice de menos, nunca
+de más. Y en solo lectura no se habla ni de guardar ni de calificar —ahí no se escribe nada— ni se
+muestra un «escribí acá» sobre una caja que no acepta escritura.
+
+**Y la espera se movió de lugar.** El editor ahora se empieza a bajar en la pantalla de «Antes de
+comenzar», mientras se leen las reglas, y solo si el examen tiene alguna pregunta que lo necesite
+(un parcial de puras cerradas no baja 1 MB para nada). Los bytes son los mismos; lo que cambia es
+que no se pagan del examen. Se suma un `preconnect` a jsDelivr, que también ahorra el saludo del
+motor de base de datos de las preguntas SQL (~16 MB).
+
+Si el motor no carga, el mensaje ahora dice además que el SQL queda guardado y se califica leyendo
+la consulta: antes se leía «no se pudo cargar el motor» y la conclusión natural era que la pregunta
+se había perdido.
+
+**Lo que NO se hizo, a propósito:** las preguntas de `codigo`, `java_gui` y `python_gui` tienen el
+mismo agujero —si Monaco no carga, tampoco hay dónde escribir— y por ahora solo estrenaron el
+mensaje traducido con spinner en lugar del `Loading...` eterno. Darles la caja de texto es el mismo
+mecanismo, pero toca un componente que se monta en muchas más pantallas y no fue lo que se pidió.
+
 ### 📋 Estadísticas: el panel del corte cuenta solo lo que tiene porcentaje
 
 «Falta calificar 139 de 342» contaba TODAS las actividades del corte, tuvieran peso o no. Y no es un

@@ -1509,6 +1509,27 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   total de jsdelivr**, así que los cachea el navegador por HTTP, no el SW: primera carga costosa,
   siguientes instantáneas, **sin offline**. Por eso la base se crea al pulsar **Ejecutar y no al montar**:
   un examen con 5 preguntas SQL no debe bajar 16 MB antes de que el alumno escriba una letra.
+- **El EDITOR también se baja de un CDN, y si no llega hay una caja de texto plano**
+  ([use-monaco-listo.ts](src/modules/code/use-monaco-listo.ts) + [tipos-con-editor.ts](src/modules/code/tipos-con-editor.ts)).
+  Monaco son **1,05 MB comprimidos / 4,1 MB sin comprimir** (medido el 2026-09-28) que
+  `@monaco-editor/loader` pide a jsDelivr al montar el editor. Lo que obliga al respaldo no es el
+  peso sino el modo de falla: `@monaco-editor/react` hace `loader.init().catch(e => console.error(e))`
+  y **deja su nodo `Loading...` puesto para siempre** — en una `bd_sql`, que no tiene otra caja donde
+  responder, la pregunta queda incontestable sin error y sin salida. Tampoco hay reintento posible:
+  `loader.init()` marca `isInitialized` una vez y después devuelve siempre la misma promesa ya
+  rechazada. La caja de texto escribe en el MISMO estado y se persiste con el MISMO formato, así que
+  cuenta igual para `isSqlAnswerBlank`, el monitor y la IA. Entra **sola** por `error` o por el plazo
+  de `ESPERA_EDITOR_MS` (8 s) — el plazo es lo que importa, porque una red lenta no rechaza nunca—, y
+  al llegar el editor **no se vuelve sola**: cambiarle la caja debajo del cursor a quien está
+  escribiendo es peor que la espera (la regla es `decidirModoTexto`, pura y con tests). El editor se
+  PRECALIENTA en la pantalla previa al examen si alguna pregunta lo necesita; si esa lista se
+  desactualiza lo único que pasa es que no se precalienta, y un test avisa cuando aparece un editor de
+  Monaco nuevo. **Lo que el respaldo PROMETE depende del montaje**: la frase «se califica leyendo la
+  consulta» la habilita la prop `graded`, que **falla cerrado** (default `false`) porque la hoja SQL de
+  la pizarra monta el mismo runner y ahí no hay entrega ni nota — prometer una calificación inexistente
+  es peor que omitir la tranquilidad. En `readOnly` no se habla de guardar ni de calificar (ahí
+  `onSqlChange` ni corre) y el marcador de posición desaparece: invitar a escribir en una caja que no
+  acepta escritura es una instrucción imposible de seguir.
 - **Cada corrida arranca una base LIMPIA** (se cierra la anterior). Es lo contrario de una consola: en
   SQL, dejar estado entre corridas hace que un `INSERT` ejecutado dos veces duplique filas y el alumno
   vea resultados que su script no explica. Base limpia + `setupSql` ⇒ ejecutar dos veces da el MISMO

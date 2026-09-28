@@ -3029,6 +3029,7 @@ export function StudentWorkshopTaker({
                 setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
                 starterSql={q.starter_code}
                 zoomScopeKey={q.id}
+                graded
               />
             )}
             {q.type === "so_consola" && (

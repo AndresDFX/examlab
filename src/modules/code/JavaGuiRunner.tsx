@@ -31,6 +31,7 @@ import { JAVAFX_STARTER, JAVA_GUI_STARTER } from "./starters";
 import { useTranslation, Trans } from "react-i18next";
 import i18n from "@/i18n";
 import Editor, { type OnMount } from "@monaco-editor/react";
+import { EditorCargando } from "@/modules/code/EditorCargando";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -642,6 +643,7 @@ export function JavaGuiRunner({
 
       <div className="rounded-md border overflow-hidden">
         <Editor
+          loading={<EditorCargando />}
           // El alto escala con la fuente: sin eso, subir el zoom no
           // agranda, solo deja menos líneas a la vista.
           height={escalarAltoEditor(altoDeEditorEnPantalla(height, ventana), zoom)}

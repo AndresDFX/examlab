@@ -69,6 +69,8 @@ import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import { SqlRunner } from "@/modules/database/SqlRunner";
 import { type NetworkScenario, parseScenario } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
+import { necesitaEditorDeCodigo } from "@/modules/code/tipos-con-editor";
+import { precalentarMonaco } from "@/modules/code/use-monaco-listo";
 import { DiagramEditor } from "@/modules/code/DiagramEditor";
 import { JavaGuiRunner, JAVA_GUI_STARTER, JAVAFX_STARTER } from "@/modules/code/JavaGuiRunner";
 import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRunner";
@@ -1589,6 +1591,23 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     },
   });
 
+  /**
+   * Se empieza a bajar el editor de código MIENTRAS se leen las reglas.
+   *
+   * Monaco no va en el bundle: son 1,05 MB comprimidos que `@monaco-editor/loader`
+   * pide a jsDelivr cuando se monta el editor — o sea, hoy, en el instante en que
+   * aparece la pregunta, con el cronómetro corriendo y el alumno mirando un
+   * recuadro vacío. La pantalla de «Antes de comenzar» es tiempo que ya se está
+   * gastando en leer: los bytes son los mismos, pero no se pagan del examen.
+   *
+   * Solo si el examen TIENE alguna pregunta que lo necesite — un parcial de 30
+   * preguntas de selección múltiple no debe bajar 1 MB para nada.
+   */
+  useEffect(() => {
+    if (started || questions.length === 0) return;
+    if (necesitaEditorDeCodigo(questions.map((q) => q.type))) precalentarMonaco();
+  }, [started, questions]);
+
   // Suscripción realtime a cambios en el examen (end_time, time_limit_minutes).
   // Si el docente modifica el horario mientras el examen está en curso,
   // el temporizador del estudiante se sincroniza automáticamente.
@@ -3031,6 +3050,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                       setupSql={(q.options as { db?: { setupSql?: string } } | null)?.db?.setupSql ?? null}
                       starterSql={q.starter_code}
                       zoomScopeKey={q.id}
+                      graded
                     />
                   </div>
                 ) : q.type === "red_gui" ? (

@@ -53,6 +53,7 @@ import { Play, Database, AlertTriangle } from "lucide-react";
 import Editor, { type OnMount } from "@monaco-editor/react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
+import { Textarea } from "@/components/ui/textarea";
 import { HelpHint } from "@/components/ui/help-hint";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { cn } from "@/shared/lib/utils";
@@ -62,7 +63,13 @@ import {
   esPantallaAngosta,
   OPCIONES_EN_PANTALLA_ANGOSTA,
 } from "@/modules/code/editor-opciones";
+import { EditorCargando } from "@/modules/code/EditorCargando";
 import { EditorZoomControls } from "@/modules/code/EditorZoomControls";
+import {
+  decidirModoTexto,
+  useMonacoListo,
+  type MotivoTextoPlano,
+} from "@/modules/code/use-monaco-listo";
 import {
   createEphemeralDb,
   type PgliteDb,
@@ -126,6 +133,18 @@ interface Props {
    * subir, que es exactamente lo que se reportó.
    */
   fillHeight?: boolean;
+  /**
+   * ¿Lo que se escribe acá es una ENTREGA que alguien va a calificar?
+   *
+   * **Default `false`, o sea que falla cerrado.** El respaldo de texto plano
+   * tranquiliza diciendo «se guarda igual y se califica leyendo la consulta», y
+   * eso es cierto en un examen y en un taller pero **falso en la hoja SQL de la
+   * pizarra**, donde el runner es una demostración en vivo y no hay entrega ni
+   * nota. Prometer una calificación que no existe es peor que omitir la
+   * tranquilidad, así que hay que pedirla explícitamente: una superficie nueva
+   * que se olvide de pasarla dice de menos, nunca de más.
+   */
+  graded?: boolean;
 }
 
 /** Reparto editor/resultados del divisor. UNA clave para todas las hojas: la
@@ -160,6 +179,7 @@ export function SqlRunner({
   queryLabel,
   zoomScopeKey = null,
   fillHeight,
+  graded,
 }: Props) {
   const { t } = useTranslation();
   const parsed = parseSqlAnswer(value);
@@ -194,6 +214,40 @@ export function SqlRunner({
 
   const ventana = useVentana();
   const angosta = esPantallaAngosta(ventana);
+
+  /**
+   * Respaldo cuando el editor no está: una caja de texto plano.
+   *
+   * Monaco no viaja en el bundle — son 1,05 MB comprimidos que se bajan de
+   * jsDelivr al montar el editor (ver `use-monaco-listo.ts`). Mientras tanto,
+   * una pregunta `bd_sql` NO tiene ningún otro lugar donde responder: sin esto,
+   * una red lenta o un CDN bloqueado dejan al alumno mirando un recuadro con
+   * «Loading...» hasta que se acaba el examen, sin error y sin salida.
+   *
+   * La caja de texto no descarga nada y escribe en el MISMO estado (`sql`), así
+   * que la respuesta se guarda y se califica exactamente igual — la propia
+   * directiva de la IA dice que un SQL sin ejecutar se califica leyéndolo.
+   */
+  const { estado: estadoEditor, lento: editorLento } = useMonacoListo();
+  const [modoTexto, setModoTexto] = useState<MotivoTextoPlano | null>(null);
+
+  // El cambio automático es lo que destraba al alumno: el loader NO rechaza
+  // cuando la red está lenta, solo se queda cargando, así que esperar un error
+  // sería esperar para siempre. La regla vive en `decidirModoTexto` —con sus
+  // tests— porque sus dos condiciones se ven triviales y no lo son.
+  useEffect(() => {
+    const siguiente = decidirModoTexto(modoTexto, estadoEditor, editorLento);
+    if (siguiente !== modoTexto) setModoTexto(siguiente);
+  }, [estadoEditor, editorLento, modoTexto]);
+
+  // Al pasar a texto plano, la instancia de Monaco deja de existir para este
+  // runner: sin esto `selectedSql()` seguiría leyendo un editor desmontado y el
+  // botón diría «Ejecutar selección» sobre una selección que ya no existe.
+  useEffect(() => {
+    if (!modoTexto) return;
+    editorRef.current = null;
+    setHasSelection(false);
+  }, [modoTexto]);
 
   /* Inline style porque es una DIMENSIÓN de runtime — excepción (b) de la regla
      de inline styles. El valor sale del TOKEN de P2 (`--text-2xs`/`--text-3xs`),
@@ -466,7 +520,7 @@ export function SqlRunner({
   // El editor: en modo herramienta llena su panel y el alto lo decide el
   // divisor que arrastra el usuario; si no, conserva el alto fijo que escala
   // con la fuente.
-  const bloqueEditor = (
+  const bloqueMonaco = (
     <div className={cn("overflow-hidden rounded-md border", fillHeight && "h-full min-h-0")}>
       <Editor
         // Sin `fillHeight` el alto escala con la fuente: si no, subir el
@@ -492,13 +546,125 @@ export function SqlRunner({
     </div>
   );
 
+  /* Mientras el editor baja. Reemplaza al literal «Loading...» que trae
+     `@monaco-editor/react`: sin traducir, sin spinner y —lo importante— sin
+     final, porque si la carga falla la librería solo escribe en la consola y
+     deja ese nodo puesto para siempre (ver `use-monaco-listo.ts`).
+
+     El botón de escribir sin el editor está desde el primer segundo y no
+     después del plazo: quien ya sabe que su conexión es mala no tiene por qué
+     esperar 8 s para descubrir que había una salida. En solo lectura no va —
+     ahí no hay nada que escribir y el cambio automático ya evita la espera
+     infinita.
+
+     `minHeight` es una DIMENSIÓN de runtime (excepción (b) de la regla de
+     estilos en línea): el mismo alto que tendría Monaco, para que la caja no
+     salte de tamaño al llegar el editor. */
+  const bloqueCargandoEditor = (
+    <EditorCargando
+      texto={t("bdSql.editorLoading")}
+      className={cn("rounded-md border", fillHeight && "h-full min-h-0")}
+      style={fillHeight ? undefined : { minHeight: `${14 * zoom}rem` }}
+    >
+      {!readOnly && (
+        <Button variant="outline" size="sm" onClick={() => setModoTexto("manual")}>
+          {t("bdSql.writeWithoutEditor")}
+        </Button>
+      )}
+    </EditorCargando>
+  );
+
+  /* El aviso de la caja se arma en dos partes: POR QUÉ se está viendo y QUÉ pasa
+     con lo que se escriba. La segunda depende del contexto y por eso no puede ser
+     una sola cadena: en solo lectura no hay nada que guardar (`onSqlChange` ni
+     siquiera corre), y fuera de una entrega no hay nada que calificar. */
+  const motivoDelTextoPlano =
+    modoTexto === "error"
+      ? t("bdSql.plainBecauseError")
+      : modoTexto === "lento"
+        ? t("bdSql.plainBecauseSlow")
+        : t("bdSql.plainManual");
+  const consecuenciaDelTextoPlano = readOnly
+    ? null
+    : graded
+      ? t("bdSql.plainSavedGraded")
+      : t("bdSql.plainSaved");
+
+  /* La caja de texto plano: el piso que SIEMPRE funciona, sin descargar nada.
+     Escribe en el mismo `sql` que Monaco, así que cambiar de una a otra no
+     pierde una letra y lo persistido es idéntico.
+
+     El corrector y la mayúscula automática van APAGADOS: en un teléfono
+     convierten `select` en `Select` y subrayan cada identificador, que es
+     justo lo que hace impracticable escribir SQL ahí. */
+  const bloqueTextoPlano = (
+    <div className={cn("space-y-1.5", fillHeight && "flex h-full min-h-0 flex-col")}>
+      <Textarea
+        value={sql}
+        onChange={(e) => onSqlChange(e.target.value)}
+        readOnly={!!readOnly}
+        spellCheck={false}
+        autoCapitalize="off"
+        autoCorrect="off"
+        autoComplete="off"
+        placeholder={readOnly ? undefined : t("bdSql.plainPlaceholder")}
+        className={cn("font-mono", fillHeight && "min-h-0 flex-1 resize-none")}
+        style={{
+          // Dimensiones de runtime: el alto iguala al de Monaco y el tamaño de
+          // letra sigue al zoom. Solo se emite por encima de 1 (el mínimo del
+          // control), así que en la vista por defecto la caja conserva los
+          // 16 px de `text-base` en móvil — bajarlos hace que iOS agrande la
+          // página al enfocar el campo.
+          ...(zoom === 1 ? {} : { fontSize: `calc(1rem * ${zoom})` }),
+          ...(fillHeight ? {} : { minHeight: `${14 * zoom}rem` }),
+        }}
+      />
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <p className="flex min-w-0 flex-1 items-start gap-1.5 text-2xs text-muted-foreground">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          {[motivoDelTextoPlano, consecuenciaDelTextoPlano].filter(Boolean).join(" ")}
+        </p>
+        {/* Volver solo se ofrece cuando el editor DE VERDAD está disponible:
+            un botón que reintenta no serviría, porque `loader.init()` devuelve
+            siempre la misma promesa ya rechazada. */}
+        {estadoEditor === "listo" && !readOnly && (
+          <Button variant="outline" size="sm" onClick={() => setModoTexto(null)}>
+            {t("bdSql.useEditor")}
+          </Button>
+        )}
+      </div>
+    </div>
+  );
+
+  const bloqueEditor = modoTexto
+    ? bloqueTextoPlano
+    : estadoEditor === "listo"
+      ? bloqueMonaco
+      : bloqueCargandoEditor;
+
   const bloqueResultados = (
     <>
       {loadError && (
-        <p className="flex items-start gap-1.5 text-2xs text-destructive">
-          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-          {t("bdSql.engineLoadError", { error: loadError })}
-        </p>
+        /* Que el motor no cargue NO es quedarse sin responder, y hay que
+           decirlo: el SQL escrito se guarda igual y la propia directiva de
+           calificación manda leerlo («si NO hay salida de ejecución… calificá
+           el SQL leyéndolo — NO pongas 0 por no haber ejecutado»). Sin esta
+           segunda línea, el alumno lee «no se pudo cargar el motor» y concluye
+           que la pregunta se perdió. */
+        <div className="space-y-1">
+          <p className="flex items-start gap-1.5 text-2xs text-destructive">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {t("bdSql.engineLoadError", { error: loadError })}
+          </p>
+          {/* En solo lectura no se persiste nada, así que hablar de que «queda
+              guardado» sería inventar; y fuera de una entrega no hay calificación
+              que prometer. */}
+          {!readOnly && (
+            <p className="text-2xs text-muted-foreground">
+              {graded ? t("bdSql.engineLoadErrorKeep") : t("bdSql.engineLoadErrorKeepPlain")}
+            </p>
+          )}
+        </div>
       )}
 
       {setupError && (
@@ -598,7 +764,11 @@ export function SqlRunner({
                   size="sm"
                   onClick={() => void run()}
                   disabled={running || !sql.trim()}
-                  title={t("bdSql.runShortcut")}
+                  // Ctrl+Enter y «correr solo la selección» son capacidades de
+                  // Monaco: sin él, el botón corre la hoja entera de un clic y el
+                  // rótulo ya lo dice. Un tooltip que repite el rótulo no aporta;
+                  // uno que promete un atajo inexistente, miente.
+                  title={modoTexto ? undefined : t("bdSql.runShortcut")}
                 >
                   {running ? (
                     <Spinner size="xs" className="mr-1" />
