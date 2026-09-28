@@ -93,6 +93,47 @@ Un corte donde NINGUNA actividad tiene peso ahora se comporta como vacío —«s
 publicadas»— y no como «falta todo»: pintarlo al 100 % mandaba al docente a buscar trabajo que no
 cambia ninguna nota.
 
+### 📆 Filtrar por fecha exacta o por rango, y el que ya existía estaba roto
+
+Los grids del docente (exámenes, talleres, proyectos) no tenían filtro de fecha. Las tres listas del
+estudiante sí, pero **escrito a mano en cada una y con un error de zona horaria**: los dos extremos
+del mismo filtro usaban husos distintos. `new Date("2026-10-01")` es medianoche **UTC** —el 30 de
+septiembre a las 19:00 en Bogotá— mientras el otro extremo se construía en hora local, así que
+«desde el 1 de octubre» dejaba pasar un examen que vencía **el 30 a las 20:00**. Está reproducido en
+el commit.
+
+Ahora la regla vive en un solo módulo (`rango-de-fechas.ts`, 20 tests) y el control en uno solo
+(`DateRangeFilter`), integrado dentro de `ListFilters` — la barra que docente y estudiante ya
+compartían. Seis pantallas, mismo comportamiento.
+
+Lo que no se deduce:
+
+- **Una fecha exacta no es un modo aparte**: es el rango con los dos extremos iguales, y el botón
+  «Un solo día» los iguala de un clic. Un selector «exacta / rango» sería un control más que decidir
+  *antes* de poder filtrar, para algo que el rango ya expresa.
+- **Los dos extremos son inclusivos.** «Del 1 al 5» incluye el 5; excluirlo no se lee como un error
+  de borde, se lee como que el filtro no sirve.
+- **Se compara por día local, nunca por instante** — es justo lo que estaba mal.
+- **Una fila sin fecha se oculta** mientras el filtro esté puesto, igual que un item sin curso con el
+  filtro de periodo: no se le puede atribuir una fecha, así que no se puede afirmar que cae dentro.
+  Es un cambio respecto de lo que hacían las listas del estudiante, que la dejaban pasar.
+- **Un rango invertido se da vuelta** en vez de devolver una tabla vacía: quien elige «del 5 al 1»
+  quiso decir del 1 al 5, y el vacío literal no tiene nada en pantalla que lo explique.
+- En talleres, proyectos y exámenes del docente se mira **inicio O cierre** (`algunaEnRango`): quien
+  filtra «esta semana» espera ver el taller que empezó antes y vence dentro.
+
+De paso, la fila de filtros del estudiante pasa de dos selectores sueltos a uno.
+
+### 🏷️ Un label que mostraba su propio identificador
+
+El formulario de examen mostraba `hc_routesAppTeacherExamsExamId.maxWarningsLabel` encima del campo
+de máximo de advertencias: la clave no existía en ningún locale. **i18next no falla cuando falta una
+clave** — devuelve la clave misma, así que la pantalla se ve entera, no hay error en consola y solo
+queda mal.
+
+Barrí las ~4.900 llamadas literales a `t("…")` de todo el repositorio: esa era la única rota. Y quedó
+un test (`claves-usadas.test.ts`) que falla si vuelve a faltar una, en cualquiera de los dos idiomas.
+
 ### 🔢 El código de asistencia lo puede elegir el docente
 
 El código salía siempre de la semilla, así que el docente no podía elegirlo: para dictarlo en clase

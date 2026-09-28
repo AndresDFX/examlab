@@ -1,3 +1,9 @@
+import {
+  RANGO_VACIO,
+  algunaEnRango,
+  claveDeRango,
+  type RangoFechas,
+} from "@/shared/lib/rango-de-fechas";
 import { createFileRoute } from "@tanstack/react-router";
 import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
 import { transicionDeFila } from "@/shared/lib/publicacion";
@@ -458,6 +464,7 @@ function TeacherWorkshops() {
   );
 
   const [cutFilter, setCutFilter] = useState<string | null>(null);
+  const [rangoFechas, setRangoFechas] = useState<RangoFechas>(RANGO_VACIO);
   // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
   // el filtro de estado a "Cerrados" o "Todos".
   const [statusFilter, setStatusFilter] = useState<ActivityStatusValue[]>([...DEFAULT_ACTIVITY_STATUS_FILTER]);
@@ -484,11 +491,14 @@ function TeacherWorkshops() {
         if (!coincideAlgunFiltro(courseFilter, allCourseIds)) return false;
       }
       if (cutFilter && (w as any).cut_id !== cutFilter) return false;
+      // Inicio O entrega: el docente que filtra «esta semana» espera ver el
+      // taller que empezó antes y vence dentro, no solo los que empiezan dentro.
+      if (!algunaEnRango([(w as any).start_date, (w as any).due_date], rangoFechas)) return false;
       if (q && !w.title.toLowerCase().includes(q)) return false;
       if (!matchesActivityStatus(w.status, statusFilter)) return false;
       return true;
     });
-  }, [workshops, search, courseFilter, cutFilter, statusFilter, workshopCourses, filterScope]);
+  }, [workshops, search, courseFilter, cutFilter, statusFilter, rangoFechas, workshopCourses, filterScope]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. La idea
@@ -548,7 +558,7 @@ function TeacherWorkshops() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_workshops",
-    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${claveDeRango(rangoFechas)}|${sort.resetKey}`,
     // Lo seleccionado sube al principio al cambiar de página, para que la
     // barra de acciones masivas no diga "N seleccionados" sobre una pantalla
     // sin ninguna casilla marcada. No reordena mientras se marca (ver el hook).
@@ -3776,6 +3786,9 @@ function TeacherWorkshops() {
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
+        dateRange={rangoFechas}
+        onDateRangeChange={setRangoFechas}
+        dateLabel={t("teacherWorkshops.dateFilterLabel")}
         extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
         onClearExtra={() => setStatusFilter([...DEFAULT_ACTIVITY_STATUS_FILTER])}
       />

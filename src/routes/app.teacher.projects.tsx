@@ -10,6 +10,12 @@
  * La generación con IA crea N rows en `project_files` con título, descripción
  * y rúbrica para que la calificación sea consistente.
  */
+import {
+  RANGO_VACIO,
+  algunaEnRango,
+  claveDeRango,
+  type RangoFechas,
+} from "@/shared/lib/rango-de-fechas";
 import { createFileRoute } from "@tanstack/react-router";
 import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
 import { transicionDeFila } from "@/shared/lib/publicacion";
@@ -293,6 +299,7 @@ function TeacherProjects() {
   );
 
   const [cutFilter, setCutFilter] = useState<string | null>(null);
+  const [rangoFechas, setRangoFechas] = useState<RangoFechas>(RANGO_VACIO);
   // Por defecto: activos + borradores; los cerrados se ocultan hasta cambiar
   // el filtro de estado a "Cerrados" o "Todos".
   const [statusFilter, setStatusFilter] = useState<ActivityStatusValue[]>([...DEFAULT_ACTIVITY_STATUS_FILTER]);
@@ -313,11 +320,12 @@ function TeacherProjects() {
         if (!coincideAlgunFiltro(courseFilter, linked)) return false;
       }
       if (cutFilter && p.cut_id !== cutFilter) return false;
+      if (!algunaEnRango([p.start_date, p.due_date], rangoFechas)) return false;
       if (q && !p.title.toLowerCase().includes(q)) return false;
       if (!matchesActivityStatus(p.status, statusFilter)) return false;
       return true;
     });
-  }, [projects, search, courseFilter, cutFilter, statusFilter, filterScope]);
+  }, [projects, search, courseFilter, cutFilter, statusFilter, rangoFechas, filterScope]);
 
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Mismos cuatro tiles que talleres/exámenes — pulso rápido del estado
@@ -371,7 +379,7 @@ function TeacherProjects() {
   const pagination = usePagination(sort.sorted, {
     defaultPageSize: 25,
     storageKey: "examlab_pag:teacher_projects",
-    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${sort.resetKey}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${cutFilter ?? ""}|${statusFilter.join(",")}|${periodFilter.join(",")}|${subjectFilter.join(",")}|${claveDeRango(rangoFechas)}|${sort.resetKey}`,
     // Lo seleccionado sube al principio al cambiar de página, para que la
     // barra de acciones masivas no diga "N seleccionados" sobre una pantalla
     // sin ninguna casilla marcada. No reordena mientras se marca (ver el hook).
@@ -2669,6 +2677,9 @@ function TeacherProjects() {
         cuts={cuts}
         cutId={cutFilter}
         onCutChange={setCutFilter}
+        dateRange={rangoFechas}
+        onDateRangeChange={setRangoFechas}
+        dateLabel={t("hc_routesAppTeacherProjects.dateFilterLabel")}
         extra={<ActivityStatusSelect value={statusFilter} onChange={setStatusFilter} />}
         onClearExtra={() => setStatusFilter([...DEFAULT_ACTIVITY_STATUS_FILTER])}
       />

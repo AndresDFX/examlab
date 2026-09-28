@@ -6,6 +6,13 @@
  * cada archivo y al enviar la IA califica caja por caja. La calificación final se
  * calcula sobre `max_score` del proyecto.
  */
+import {
+  RANGO_VACIO,
+  claveDeRango,
+  enRangoDeFechas,
+  type RangoFechas,
+} from "@/shared/lib/rango-de-fechas";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { CortePesoBadges } from "@/components/ui/corte-peso";
 import {
   filaQueManda,
@@ -188,11 +195,10 @@ function StudentProjects() {
   // "overdue" y "closed" quedan fuera a propósito: es lo que ya no se puede
   // hacer. Siguen a un clic en el filtro.
   const [statusFilter, setStatusFilter] = useState<ProjectDisplayStatus[]>(FILTRO_POR_DEFECTO);
-  // Filtros adicionales: rango de fechas (sobre `due_date`) y orden.
-  // Defaults no afectan la UX vieja: dateFrom="" y dateTo="" no filtran
-  // nada; sortBy="due_asc" replica el orden cronológico natural.
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  // Rango de fechas sobre due_date (la entrega) + orden. El rango vacío no filtra, y
+  // `sortBy` arranca en el orden cronológico natural (lo próximo a cerrar
+  // primero). La regla del rango vive en `rango-de-fechas.ts`.
+  const [rangoFechas, setRangoFechas] = useState<RangoFechas>(RANGO_VACIO);
   const [sortBy, setSortBy] = useState<
     "due_asc" | "due_desc" | "start_asc" | "start_desc" | "title_asc"
   >("due_asc");
@@ -485,20 +491,18 @@ function StudentProjects() {
   }, [rows, now]);
 
   // Filtros combinados: búsqueda + curso + estado + rango de fechas, y
-  // luego ordenamiento. Items sin `due_date` no se filtran fuera por el
-  // rango — siguen visibles incluso con dateFrom/dateTo activos.
+  // luego ordenamiento.
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (!coincideFiltro(courseFilter, r.project.course_id)) return false;
       if (!coincideFiltro(statusFilter, getProjectDisplayStatus(r, now))) return false;
-      // Rango de fechas — filtra por due_date (deadline). Vacío = sin
-      // tope en ese lado.
-      const dueAt = r.project.due_date ? new Date(r.project.due_date) : null;
-      if (dueAt) {
-        if (dateFrom && dueAt < new Date(dateFrom)) return false;
-        if (dateTo && dueAt > new Date(`${dateTo}T23:59:59.999`)) return false;
-      }
+      // El rango lo resuelve `enRangoDeFechas`: compara por DIA local, con los
+      // dos extremos inclusivos. Antes estaba escrito a mano acá y los dos
+      // extremos usaban zonas distintas — `new Date("2026-10-01")` es medianoche
+      // UTC (30 de septiembre a las 19:00 en Bogotá), así que «desde el 1 de
+      // octubre» dejaba pasar algo que vencía el 30 a las 20:00.
+      if (!enRangoDeFechas(r.project.due_date, rangoFechas)) return false;
       if (!q) return true;
       return (
         r.project.title.toLowerCase().includes(q) ||
@@ -526,7 +530,7 @@ function StudentProjects() {
       }
     });
     return sorted;
-  }, [rows, search, courseFilter, statusFilter, now, dateFrom, dateTo, sortBy]);
+  }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
 
   // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
   // del grid de 2 columnas. resetKey concatena TODOS los filtros activos
@@ -535,7 +539,7 @@ function StudentProjects() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_projects",
-    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${claveDeRango(rangoFechas)}|${sortBy}`,
   });
 
 
@@ -607,8 +611,7 @@ function StudentProjects() {
         courses={availableCourses}
         onClearExtra={() => {
           setStatusFilter(FILTRO_POR_DEFECTO);
-          setDateFrom("");
-          setDateTo("");
+          setRangoFechas(RANGO_VACIO);
           setSortBy("due_asc");
         }}
         extra={
@@ -628,20 +631,11 @@ function StudentProjects() {
               entidadPlural={t("filtros.nounStatuses")}
               triggerClassName="w-full sm:w-44"
             />
-            <div className="w-full sm:w-44">
-              <DatePicker
-                value={dateFrom}
-                onChange={setDateFrom}
-                placeholder={t("hc_routesAppStudentProjects.dateFromPlaceholder")}
-              />
-            </div>
-            <div className="w-full sm:w-44">
-              <DatePicker
-                value={dateTo}
-                onChange={setDateTo}
-                placeholder={t("hc_routesAppStudentProjects.dateToPlaceholder")}
-              />
-            </div>
+            <DateRangeFilter
+              rango={rangoFechas}
+              onChange={setRangoFechas}
+              label={t("hc_routesAppStudentProjects.dateFilterLabel")}
+            />
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
@@ -694,8 +688,7 @@ function StudentProjects() {
                       setSearch("");
                       setCourseFilter([]);
                       setStatusFilter(FILTRO_POR_DEFECTO);
-                      setDateFrom("");
-                      setDateTo("");
+                      setRangoFechas(RANGO_VACIO);
                       setSortBy("due_asc");
                     }}
                   >

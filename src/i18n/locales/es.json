@@ -4565,7 +4565,8 @@
     "fieldRequiresDefenseDesc": "La nota final es la del trabajo multiplicada por el factor de sustentación. Sin sustentación registrada, el taller queda sin nota final.",
     "requiresDefenseWarning": "Ojo: al guardar, las entregas de este taller que ya tenían nota pasan a «Falta sustentación» hasta que registres la sustentación de cada una. Si apagás la opción, las notas vuelven como estaban.",
     "defenseMissing": "Falta sustentación",
-    "defenseNeedsSubmissionGrade": "La entrega todavía no tiene nota del trabajo. Calificá primero las respuestas."
+    "defenseNeedsSubmissionGrade": "La entrega todavía no tiene nota del trabajo. Calificá primero las respuestas.",
+    "dateFilterLabel": "Filtrar por inicio o entrega"
   },
   "adminUsers": {
     "needsRole": "Necesitas rol Admin.",
@@ -7995,7 +7996,8 @@
     "notYetAvailableHelp": "Este examen está próximo a empezar. Podrás acceder cuando abra la ventana.",
     "examClosed": "Examen cerrado",
     "examClosedHelp": "El periodo de este examen ya finalizó.",
-    "entityNamePlural": "exámenes"
+    "entityNamePlural": "exámenes",
+    "dateFilterLabel": "Filtrar por fecha de cierre"
   },
   "hc_modulesProjectsProjectFiles": {
     "deleteQuestionTitle": "Eliminar pregunta",
@@ -8410,7 +8412,8 @@
     "groupModeNoGroupBody": "Tu docente configuró este proyecto como grupal. Aún no perteneces a ningún grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.",
     "deleteMySubmission": "Eliminar mi entrega",
     "attemptsExhausted": "Ya consumiste todos tus intentos — la entrega no se puede borrar.",
-    "entityNamePlural": "proyectos"
+    "entityNamePlural": "proyectos",
+    "dateFilterLabel": "Filtrar por fecha de entrega"
   },
   "hc_routesAppStudentTakeExamId": {
     "fullscreenHelpIOS": "Permite la pantalla completa cuando el navegador la pida y vuelve a intentar. Si no te la ofrece, instala la app desde Safari (Compartir → 'Añadir a pantalla de inicio') y abre el examen desde el ícono.",
@@ -8568,7 +8571,8 @@
     "attemptsExhaustedNoDelete": "Ya consumiste todos tus intentos — la entrega no se puede borrar.",
     "restoreSize": "Restaurar tamaño",
     "fullSize": "Tamaño completo",
-    "entityNamePlural": "talleres"
+    "entityNamePlural": "talleres",
+    "dateFilterLabel": "Filtrar por fecha de entrega"
   },
   "hc_routesAppSuperadminTenants": {
     "errLoadTenants": "No pudimos cargar las instituciones.",
@@ -8853,6 +8857,7 @@
     "repartirTrasBorrar": "Al borrar la pregunta quedaron {{falta}} de diferencia con {{total}}. ¿Cuadrás los puntajes?",
     "sectionBehavior": "Comportamiento durante el examen",
     "shuffleHint": "Cada estudiante recibe las preguntas en un orden distinto, siempre el mismo para él aunque recargue.",
+    "maxWarningsLabel": "Máximo de advertencias",
     "maxWarningsHint": "Al llegar a este número de advertencias, el examen se suspende solo y se cierra la entrega."
   },
   "hc_routesAppTeacherExamsIndex": {
@@ -8924,7 +8929,8 @@
     "sectionWhatTitle": "Qué evalúa",
     "sectionWhenTitle": "Cuándo",
     "sectionHowTitle": "Cómo se toma",
-    "sectionHowHint": "Duración, navegación, mezcla y advertencias. Ya vienen configuradas."
+    "sectionHowHint": "Duración, navegación, mezcla y advertencias. Ya vienen configuradas.",
+    "dateFilterLabel": "Filtrar por apertura o cierre"
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "No pudimos cargar tus cursos.",
@@ -9364,7 +9370,8 @@
     "workModeMixed": "Mixto — quien tenga grupo entrega en grupo, los demás individual",
     "zipLegacy": "(ZIP legacy)",
     "zipTruncatedBadge": "ZIP truncado · revisa manualmente",
-    "zipTruncatedTooltip": "La IA analizó {{chars}} de los caracteres del ZIP. Archivos individuales > 50KB se truncaron y/o el total excedió 200KB."
+    "zipTruncatedTooltip": "La IA analizó {{chars}} de los caracteres del ZIP. Archivos individuales > 50KB se truncaron y/o el total excedió 200KB.",
+    "dateFilterLabel": "Filtrar por inicio o entrega"
   },
   "hc_routesAppTeacherReports": {
     "actionCustomize": "Personalizar para un curso",
@@ -10923,5 +10930,14 @@
     "weightOfFinal": "{{pct}}% de la nota final",
     "weightOfFinalHint": "Lo que esta actividad aporta a la nota final del curso.",
     "cutHint": "Corte al que va esta nota."
+  },
+  "filtroFechas": {
+    "todas": "Todas las fechas",
+    "desde": "Desde",
+    "hasta": "Hasta",
+    "desdeResumen": "Desde {{fecha}}",
+    "hastaResumen": "Hasta {{fecha}}",
+    "unSoloDia": "Un solo día",
+    "limpiar": "Quitar fechas"
   }
 }

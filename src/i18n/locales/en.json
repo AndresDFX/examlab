@@ -4565,7 +4565,8 @@
     "fieldRequiresDefenseDesc": "The final grade is the submission grade times the defense factor. With no defense recorded, the workshop has no final grade.",
     "requiresDefenseWarning": "Heads up: on save, submissions of this workshop that already had a grade move to “Defense pending” until you record each defense. Turning the option off restores the grades.",
     "defenseMissing": "Defense pending",
-    "defenseNeedsSubmissionGrade": "This submission has no work grade yet. Grade the answers first."
+    "defenseNeedsSubmissionGrade": "This submission has no work grade yet. Grade the answers first.",
+    "dateFilterLabel": "Filter by start or due date"
   },
   "adminUsers": {
     "needsRole": "You need the Admin role.",
@@ -7995,7 +7996,8 @@
     "notYetAvailableHelp": "This exam is about to start. You'll be able to access it once the window opens.",
     "examClosed": "Exam closed",
     "examClosedHelp": "The period for this exam has ended.",
-    "entityNamePlural": "exams"
+    "entityNamePlural": "exams",
+    "dateFilterLabel": "Filter by closing date"
   },
   "hc_modulesProjectsProjectFiles": {
     "deleteQuestionTitle": "Delete question",
@@ -8410,7 +8412,8 @@
     "groupModeNoGroupBody": "Your teacher set up this project as group work. You don't belong to any group yet, so you can't submit. Ask your teacher to assign you to one.",
     "deleteMySubmission": "Delete my submission",
     "attemptsExhausted": "You've used all your attempts — the submission can't be deleted.",
-    "entityNamePlural": "projects"
+    "entityNamePlural": "projects",
+    "dateFilterLabel": "Filter by due date"
   },
   "hc_routesAppStudentTakeExamId": {
     "fullscreenHelpIOS": "Allow full screen when your browser asks, then try again. If it isn't offered, install the app from Safari (Share → 'Add to Home Screen') and open the exam from the icon.",
@@ -8568,7 +8571,8 @@
     "attemptsExhaustedNoDelete": "You've used all your attempts — the submission can't be deleted.",
     "restoreSize": "Restore size",
     "fullSize": "Full size",
-    "entityNamePlural": "workshops"
+    "entityNamePlural": "workshops",
+    "dateFilterLabel": "Filter by due date"
   },
   "hc_routesAppSuperadminTenants": {
     "errLoadTenants": "We couldn't load the institutions.",
@@ -8853,6 +8857,7 @@
     "repartirTrasBorrar": "Deleting the question left a {{falta}} gap to {{total}}. Balance the points?",
     "sectionBehavior": "Behavior during the exam",
     "shuffleHint": "Each student gets the questions in a different order, always the same one for them even if they reload.",
+    "maxWarningsLabel": "Maximum warnings",
     "maxWarningsHint": "On reaching this number of warnings the exam is suspended automatically and the submission is closed."
   },
   "hc_routesAppTeacherExamsIndex": {
@@ -8924,7 +8929,8 @@
     "sectionWhatTitle": "What it assesses",
     "sectionWhenTitle": "When",
     "sectionHowTitle": "How it is taken",
-    "sectionHowHint": "Duration, navigation, shuffling and warnings. Already preset."
+    "sectionHowHint": "Duration, navigation, shuffling and warnings. Already preset.",
+    "dateFilterLabel": "Filter by opening or closing date"
   },
   "hc_routesAppTeacherGradebook": {
     "couldNotLoadCourses": "We couldn't load your courses.",
@@ -9364,7 +9370,8 @@
     "workModeMixed": "Mixed — those with a group submit as a group, the rest individually",
     "zipLegacy": "(legacy ZIP)",
     "zipTruncatedBadge": "ZIP truncated · review manually",
-    "zipTruncatedTooltip": "The AI analyzed {{chars}} of the ZIP's characters. Individual files > 50KB were truncated and/or the total exceeded 200KB."
+    "zipTruncatedTooltip": "The AI analyzed {{chars}} of the ZIP's characters. Individual files > 50KB were truncated and/or the total exceeded 200KB.",
+    "dateFilterLabel": "Filter by start or due date"
   },
   "hc_routesAppTeacherReports": {
     "actionCustomize": "Customize for a course",
@@ -10923,5 +10930,14 @@
     "weightOfFinal": "{{pct}}% of the final grade",
     "weightOfFinalHint": "What this activity contributes to the course final grade.",
     "cutHint": "Term this grade counts towards."
+  },
+  "filtroFechas": {
+    "todas": "All dates",
+    "desde": "From",
+    "hasta": "To",
+    "desdeResumen": "From {{fecha}}",
+    "hastaResumen": "Until {{fecha}}",
+    "unSoloDia": "Single day",
+    "limpiar": "Clear dates"
   }
 }

@@ -44,6 +44,8 @@ import {
 import { partitionCoursesByLifecycle } from "@/modules/courses/course-status";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { limpiarSeleccionInvalida } from "@/shared/lib/filtro-multiple";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
+import { RANGO_VACIO, rangoVacio, type RangoFechas } from "@/shared/lib/rango-de-fechas";
 
 const ALL_CUTS = "__all_cuts__";
 
@@ -99,6 +101,19 @@ interface ListFiltersProps {
   onPeriodsChange?: (v: string[]) => void;
   subjects?: readonly string[];
   onSubjectsChange?: (v: string[]) => void;
+  /**
+   * Filtro por fecha exacta o rango. **OPT-IN**: aparece solo si el padre pasa
+   * el handler, porque no toda lista tiene una fecha por la que filtrar tenga
+   * sentido, y un filtro que no filtra nada ocupa lugar.
+   *
+   * El padre decide CONTRA QUÉ fecha se compara (con `enRangoDeFechas` o
+   * `algunaEnRango`): en un taller puede ser la entrega, en una sesión la
+   * fecha de clase. `dateLabel` lo dice en el panel — sin eso, con dos grids
+   * distintos el usuario no sabe si está filtrando por inicio o por cierre.
+   */
+  dateRange?: RangoFechas;
+  onDateRangeChange?: (r: RangoFechas) => void;
+  dateLabel?: string;
   /** Slot opcional al lado de los selects internos. Útil para filtros
    *  específicos del contexto (ej. estado de entrega en listas del
    *  estudiante) sin tener que envolver `ListFilters` con un wrapper
@@ -125,6 +140,9 @@ export function ListFilters({
   onPeriodsChange,
   subjects,
   onSubjectsChange,
+  dateRange,
+  onDateRangeChange,
+  dateLabel,
   extra,
   onClearExtra,
 }: ListFiltersProps) {
@@ -199,7 +217,8 @@ export function ListFilters({
     courseIds.length > 0 ||
     cutId != null ||
     selectedPeriods.length > 0 ||
-    selectedSubjects.length > 0;
+    selectedSubjects.length > 0 ||
+    !rangoVacio(dateRange);
   return (
     <div className="flex flex-wrap items-center gap-2">
       <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
@@ -274,6 +293,13 @@ export function ListFilters({
           </SelectContent>
         </Select>
       )}
+      {onDateRangeChange && (
+        <DateRangeFilter
+          rango={dateRange ?? RANGO_VACIO}
+          onChange={onDateRangeChange}
+          label={dateLabel}
+        />
+      )}
       {extra}
       {hasFilters && (
         <Button
@@ -285,6 +311,7 @@ export function ListFilters({
             onCutChange?.(null);
             onPeriodsChange?.([]);
             onSubjectsChange?.([]);
+            onDateRangeChange?.(RANGO_VACIO);
             onClearExtra?.();
           }}
           title={t("hc_componentsUiListFilters.clearFiltersTitle", { defaultValue: "Limpiar filtros" })}

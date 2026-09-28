@@ -1,3 +1,10 @@
+import {
+  RANGO_VACIO,
+  claveDeRango,
+  enRangoDeFechas,
+  type RangoFechas,
+} from "@/shared/lib/rango-de-fechas";
+import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -189,13 +196,10 @@ function StudentExams() {
   // cuánto sacó — la tarjeta del examen es donde se revisa. "closed" sigue
   // fuera: eso es lo que ya no se puede hacer ni revisar.
   const [statusFilter, setStatusFilter] = useState<ExamDisplayStatus[]>(FILTRO_POR_DEFECTO);
-  // Filtros adicionales: rango de fechas (sobre la fecha relevante de
-  // la entidad — end_time/start_time del examen) y orden. Defaults no
-  // afectan la UX vieja: dateFrom="" y dateTo="" no filtran nada;
-  // sortBy="due_asc" replica el orden cronológico natural (los próximos
-  // a cerrar primero).
-  const [dateFrom, setDateFrom] = useState<string>("");
-  const [dateTo, setDateTo] = useState<string>("");
+  // Rango de fechas sobre end_time (cierre de la ventana) + orden. El rango vacío no filtra, y
+  // `sortBy` arranca en el orden cronológico natural (lo próximo a cerrar
+  // primero). La regla del rango vive en `rango-de-fechas.ts`.
+  const [rangoFechas, setRangoFechas] = useState<RangoFechas>(RANGO_VACIO);
   const [sortBy, setSortBy] = useState<
     "due_asc" | "due_desc" | "start_asc" | "start_desc" | "title_asc"
   >("due_asc");
@@ -397,23 +401,18 @@ function StudentExams() {
   }, [rows, now]);
 
   // Filtros combinados: búsqueda + curso + estado + rango de fechas, y
-  // luego ordenamiento. La "fecha due" del examen es `end_time` (cierre
-  // de la ventana) y la "fecha start" es `start_time` (apertura). Ítems
-  // sin fecha (nunca debería pasar con exams, pero por defensividad)
-  // no se filtran fuera por el rango — siguen visibles incluso con
-  // dateFrom/dateTo activos.
+  // luego ordenamiento.
   const visibleRows = useMemo(() => {
     const q = search.trim().toLowerCase();
     const filtered = rows.filter((r) => {
       if (!coincideFiltro(courseFilter, r.exam.course_id)) return false;
       if (!coincideFiltro(statusFilter, getExamDisplayStatus(r, now))) return false;
-      // Rango de fechas — filtra por end_time (deadline). Una fecha
-      // vacía significa sin tope en ese lado.
-      const dueAt = r.exam.end_time ? new Date(r.exam.end_time) : null;
-      if (dueAt) {
-        if (dateFrom && dueAt < new Date(dateFrom)) return false;
-        if (dateTo && dueAt > new Date(`${dateTo}T23:59:59.999`)) return false;
-      }
+      // El rango lo resuelve `enRangoDeFechas`: compara por DIA local, con los
+      // dos extremos inclusivos. Antes estaba escrito a mano acá y los dos
+      // extremos usaban zonas distintas — `new Date("2026-10-01")` es medianoche
+      // UTC (30 de septiembre a las 19:00 en Bogotá), así que «desde el 1 de
+      // octubre» dejaba pasar algo que vencía el 30 a las 20:00.
+      if (!enRangoDeFechas(r.exam.end_time, rangoFechas)) return false;
       if (!q) return true;
       return (
         r.exam.title.toLowerCase().includes(q) ||
@@ -441,7 +440,7 @@ function StudentExams() {
       }
     });
     return sorted;
-  }, [rows, search, courseFilter, statusFilter, now, dateFrom, dateTo, sortBy]);
+  }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
 
   // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
   // del grid de 2 columnas (6 filas en mobile). El resetKey concatena
@@ -451,7 +450,7 @@ function StudentExams() {
     defaultPageSize: 12,
     pageSizes: [6, 12, 24, 48],
     storageKey: "examlab_pag:student_exams",
-    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${dateFrom}|${dateTo}|${sortBy}`,
+    resetKey: `${search}|${courseFilter.join(",")}|${statusFilter.join(",")}|${claveDeRango(rangoFechas)}|${sortBy}`,
   });
 
   if (loadError) {
@@ -512,8 +511,7 @@ function StudentExams() {
           // Vuelve al DEFAULT, no a «todos»: lo CERRADO —lo que ya no se puede
           // hacer ni revisar— sigue detrás de un clic.
           setStatusFilter(FILTRO_POR_DEFECTO);
-          setDateFrom("");
-          setDateTo("");
+          setRangoFechas(RANGO_VACIO);
           setSortBy("due_asc");
         }}
         extra={
@@ -532,20 +530,11 @@ function StudentExams() {
               entidadPlural={t("filtros.nounStatuses")}
               triggerClassName="w-full sm:w-44"
             />
-            <div className="w-full sm:w-44">
-              <DatePicker
-                value={dateFrom}
-                onChange={setDateFrom}
-                placeholder={t("hc_routesAppStudentExams.dateFromPlaceholder")}
-              />
-            </div>
-            <div className="w-full sm:w-44">
-              <DatePicker
-                value={dateTo}
-                onChange={setDateTo}
-                placeholder={t("hc_routesAppStudentExams.dateToPlaceholder")}
-              />
-            </div>
+            <DateRangeFilter
+              rango={rangoFechas}
+              onChange={setRangoFechas}
+              label={t("hc_routesAppStudentExams.dateFilterLabel")}
+            />
             <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
               <SelectTrigger className="w-full sm:w-60">
                 <SelectValue />
@@ -596,8 +585,7 @@ function StudentExams() {
                       setSearch("");
                       setCourseFilter([]);
                       setStatusFilter(FILTRO_POR_DEFECTO);
-                      setDateFrom("");
-                      setDateTo("");
+                      setRangoFechas(RANGO_VACIO);
                       setSortBy("due_asc");
                     }}
                   >
