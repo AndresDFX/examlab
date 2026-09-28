@@ -6,7 +6,10 @@ import {
   GRACIA_OCULTO_MOVIL_MS,
   TIPOS_QUE_SUMAN_STRIKE,
   MAX_WARNINGS,
+  avisaDelLimite,
   blurCuentaComoStrike,
+  contarAdvertencia,
+  suspendePorAdvertencias,
   creaVentanasDeProctoring,
   isStrikeEvent,
   ocultarCuentaComoStrike,
@@ -328,5 +331,52 @@ describe("permiteMenuContextual — el corrector ortográfico vive en ese menú"
   it("NO con un target que no es un elemento", () => {
     expect(permiteMenuContextual(null)).toBe(false);
     expect(permiteMenuContextual(document as unknown as EventTarget)).toBe(false);
+  });
+});
+
+describe("el simulacro del docente NO se cierra por advertencias", () => {
+  // Reporte: «desde el simular como docente no debería cerrar el examen si se
+  // cumplen los strikes; el objetivo es ver lo similar al estudiante». Antes,
+  // AVISAR y CERRAR eran la misma condición, así que el docente que probaba el
+  // proctoring se quedaba sin la pantalla justo cuando estaba probándola —
+  // y el proctoring es lo único que no puede ver de otra forma.
+
+  it("en un examen REAL se suspende al llegar al tope", () => {
+    expect(suspendePorAdvertencias(3, 3, false)).toBe(true);
+    expect(suspendePorAdvertencias(4, 3, false)).toBe(true);
+  });
+
+  it("en SIMULACRO nunca se suspende", () => {
+    expect(suspendePorAdvertencias(3, 3, true)).toBe(false);
+    expect(suspendePorAdvertencias(99, 3, true)).toBe(false);
+  });
+
+  it("pero SÍ se avisa en los dos modos: el docente ve lo mismo que el alumno", () => {
+    expect(avisaDelLimite(3, 3)).toBe(true);
+    expect(avisaDelLimite(2, 3)).toBe(false);
+  });
+
+  it("por debajo del tope no pasa nada en ninguno de los dos", () => {
+    expect(suspendePorAdvertencias(2, 3, false)).toBe(false);
+    expect(suspendePorAdvertencias(2, 3, true)).toBe(false);
+  });
+
+  it("el contador del simulacro NO pasa del tope", () => {
+    // Sin esto la barra mostraría «4/3», un estado que el alumno nunca ve.
+    expect(contarAdvertencia(2, 3, true)).toBe(3);
+    expect(contarAdvertencia(3, 3, true)).toBe(3);
+    expect(contarAdvertencia(10, 3, true)).toBe(3);
+  });
+
+  it("el contador de un examen real sí sube (el tope lo pone la suspensión)", () => {
+    expect(contarAdvertencia(0, 3, false)).toBe(1);
+    expect(contarAdvertencia(2, 3, false)).toBe(3);
+  });
+
+  it("respeta el maximo configurado del examen, no solo el default", () => {
+    expect(suspendePorAdvertencias(5, 10, false)).toBe(false);
+    expect(suspendePorAdvertencias(10, 10, false)).toBe(true);
+    expect(contarAdvertencia(9, 10, true)).toBe(10);
+    expect(contarAdvertencia(10, 10, true)).toBe(10);
   });
 });

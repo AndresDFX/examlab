@@ -186,6 +186,50 @@ export function shouldMarkSuspicious(warnings: number, max: number = MAX_WARNING
   return warnings >= max;
 }
 
+/**
+ * Cuánto vale la advertencia número N cuando se está SIMULANDO.
+ *
+ * En un examen real el contador nunca pasa del tope porque al alcanzarlo la
+ * entrega se suspende. En el simulacro del docente no se suspende —ese es el
+ * punto, ver el proctoring sin quedarse sin pantalla—, así que sin tope el
+ * contador seguiría subiendo y la barra mostraría «4/3»: un estado que el
+ * alumno no puede ver nunca, en una pantalla cuyo objetivo es mostrar lo que
+ * él ve.
+ */
+export function contarAdvertencia(
+  actuales: number,
+  max: number = MAX_WARNINGS,
+  simulacro = false,
+): number {
+  const siguiente = actuales + 1;
+  return simulacro ? Math.min(siguiente, max) : siguiente;
+}
+
+/**
+ * ¿Hay que CERRAR la entrega por pasarse de advertencias?
+ *
+ * En el simulacro NO. El docente entra a ver lo que ve el alumno, y suspenderle
+ * el ensayo lo echa de la pantalla justo cuando está probando el proctoring —
+ * que es lo único que no puede probar de otra forma. Sigue viendo el aviso; lo
+ * que no pasa es que se le acabe la simulación.
+ *
+ * Se separa de `avisaDelLimite` a propósito: son dos decisiones distintas
+ * —avisar y cerrar— y tenerlas en una sola condición fue lo que hizo que el
+ * simulacro terminara solo.
+ */
+export function suspendePorAdvertencias(
+  warnings: number,
+  max: number = MAX_WARNINGS,
+  simulacro = false,
+): boolean {
+  return shouldMarkSuspicious(warnings, max) && !simulacro;
+}
+
+/** ¿Hay que avisar que se llegó al límite? Sí en los dos modos. */
+export function avisaDelLimite(warnings: number, max: number = MAX_WARNINGS): boolean {
+  return shouldMarkSuspicious(warnings, max);
+}
+
 /** Normalizes either `ev.at` (ISO/ms) or `ev.ts` (ms) to epoch ms for display. */
 export function warningEventTimestamp(ev: WarningEvent): number | null {
   if (typeof ev.ts === "number") return ev.ts;

@@ -1425,6 +1425,13 @@ alumno ([TakeExamScreen.tsx](src/modules/exams/TakeExamScreen.tsx)) y **no guard
   IA contra una entrega que no existe.
 - **`submissionIdRef` se queda en NULL** en simulacro: es el segundo cinturón, porque las escrituras
   de proctoring y el latido ya están condicionadas a que tenga valor. Hacen falta dos olvidos, no uno.
+- **Las advertencias del proctoring AVISAN pero no cierran el ensayo.** «Avisar» y «cerrar» son dos
+  decisiones distintas (`avisaDelLimite` / `suspendePorAdvertencias` en `proctoring.ts`), y tenerlas
+  en una sola condición hacía que el docente se quedara sin pantalla justo cuando estaba probando el
+  proctoring — que es lo único que no puede probar de otra forma. El contador **no pasa del tope** en
+  simulacro (`contarAdvertencia`): sin eso la barra mostraría «4/3», un estado que el alumno no ve
+  nunca. Los tests incluyen que un examen REAL sí se suspenda, para que el arreglo no se vuelva un
+  agujero del proctoring de verdad.
 - **El aviso va siempre visible y no se puede cerrar.** Toda la pantalla está hecha para no
   distinguirse de un examen de verdad; un aviso que se pudiera ocultar deja al docente dictando un
   parcial creyendo que prueba, o al revés.

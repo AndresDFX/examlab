@@ -10894,7 +10894,8 @@
     "sinAccesoDetalle": "Solo puedes simular exámenes de los cursos que dictas.",
     "terminado": "Simulación terminada. No se guardó nada ni se generó nota.",
     "terminadoPorAdvertencias": "Así se cerraría el examen de un estudiante al pasarse de advertencias. En la simulación no se guardó nada.",
-    "volverAExamenes": "Volver a Exámenes"
+    "volverAExamenes": "Volver a Exámenes",
+    "limiteAdvertenciasEnsayo": "Aquí el examen de un estudiante se habría suspendido por pasarse de advertencias. En la simulación sigue abierto para que puedas verlo completo."
   },
   "seleccion": {
     "masOpciones_one": "y 1 más en el selector de arriba",

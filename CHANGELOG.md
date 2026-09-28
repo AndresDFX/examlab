@@ -93,6 +93,30 @@ Un corte donde NINGUNA actividad tiene peso ahora se comporta como vacío —«s
 publicadas»— y no como «falta todo»: pintarlo al 100 % mandaba al docente a buscar trabajo que no
 cambia ninguna nota.
 
+### 🧪 El simulacro ya no se cierra solo al pasarse de advertencias
+
+El docente entra a «Simular como estudiante» justo para ver el proctoring —es lo único que no puede
+probar de otra forma— y al tercer strike el ensayo se suspendía y lo sacaba de la pantalla. Reportado
+tal cual: *«desde el simular como docente no debería cerrar el examen si se cumplen los strikes; el
+objetivo es ver lo similar al estudiante»*.
+
+La causa: **avisar** y **cerrar** eran la misma condición. Ahora son dos
+(`avisaDelLimite` / `suspendePorAdvertencias`), y en simulacro solo se avisa: el docente ve el mismo
+aviso que vería el alumno, con una línea que dice qué habría pasado en un examen real, y sigue
+navegando.
+
+Dos detalles que no se deducen:
+
+- **El contador no pasa del tope en simulacro** (`contarAdvertencia`). Como el ensayo ya no termina,
+  sin tope seguiría subiendo y la barra mostraría «4/3» — un estado que el alumno no puede ver nunca,
+  en una pantalla cuyo único objetivo es mostrar lo que él ve.
+- **Salir a mano desde el simulacro ya no cae en la lista de exámenes del ESTUDIANTE.** El diálogo de
+  salida no suma strike en simulacro (su bloque está detrás de `submissionIdRef`, que ahí es NULL),
+  pero navegaba igual a `/app/student/exams`.
+
+La regla vive en `proctoring.ts` con 7 tests, incluido que un examen real **sí** se suspenda: el
+arreglo no puede convertirse en un agujero del proctoring de verdad.
+
 ### 📆 Filtrar por fecha exacta o por rango, y el que ya existía estaba roto
 
 Los grids del docente (exámenes, talleres, proyectos) no tenían filtro de fecha. Las tres listas del

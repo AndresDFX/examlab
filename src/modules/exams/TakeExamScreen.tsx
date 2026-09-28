@@ -95,6 +95,9 @@ import {
   creaVentanasDeProctoring,
   entornoDePuntero,
   shouldMarkSuspicious,
+  avisaDelLimite,
+  contarAdvertencia,
+  suspendePorAdvertencias,
   warningLabel,
   permiteMenuContextual,
 } from "@/modules/exams/proctoring";
@@ -1734,7 +1737,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       const now = Date.now();
       if (!ventanas.permiteStrike(now)) return;
 
-      const nw = warningsRef.current + 1;
+      // En SIMULACRO el contador no pasa del tope. El ensayo no termina al
+      // llegar al límite —ese es justo el punto—, así que sin el tope seguiría
+      // subiendo y la barra mostraría «4/3»: un estado que el alumno no puede
+      // ver nunca, en una pantalla cuyo objetivo es mostrar lo que él ve.
+      const nw = contarAdvertencia(warningsRef.current, maxWarnings, simulacro);
       warningsRef.current = nw;
       setWarnings(nw);
 
@@ -1743,7 +1750,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
         // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen] —
+        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t] —
         // NO incluye currentIdx, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
@@ -1772,13 +1779,22 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           });
       }
 
-      if (shouldMarkSuspicious(nw, maxWarnings)) {
-        toast.error(
-          i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
-            defaultValue: "Has superado el límite de salidas. El examen se suspende.",
-          }),
-        );
-        performSubmit(true);
+      if (avisaDelLimite(nw, maxWarnings)) {
+        // En SIMULACRO se AVISA pero no se cierra. El docente entra acá para ver
+        // lo que ve el alumno, y suspenderle el ensayo lo echa de la pantalla
+        // justo cuando está probando el proctoring — que es lo único que no
+        // puede probar de otra forma. Sigue viendo el mismo mensaje, con una
+        // línea que dice qué habría pasado de verdad.
+        if (!suspendePorAdvertencias(nw, maxWarnings, simulacro)) {
+          toast.error(t("simulacroExamen.limiteAdvertenciasEnsayo"), { duration: 10000 });
+        } else {
+          toast.error(
+            i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
+              defaultValue: "Has superado el límite de salidas. El examen se suspende.",
+            }),
+          );
+          performSubmit(true);
+        }
       } else {
         toast.warning(
           i18n.t("toast.routes_app_student_take_examId.warningWithLabel", {
@@ -1819,7 +1835,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
         // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen] —
+        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t] —
         // NO incluye currentIdx, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
@@ -2228,7 +2244,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       document.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, performSubmit, maxWarnings, requireFullscreen]);
+  }, [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t]);
 
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; edge function ya está corriendo server-side),
@@ -3242,7 +3258,9 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     }
                   }
                   setManualLeaveOpen(false);
-                  navigate({ to: "/app/student/exams" });
+                  // En simulacro el docente no tiene por qué caer en la lista de
+                  // exámenes del ESTUDIANTE: vuelve a la suya.
+                  navigate({ to: simulacro ? "/app/teacher/exams" : "/app/student/exams" });
                 } catch (e) {
                   toast.error(friendlyError(e));
                 } finally {

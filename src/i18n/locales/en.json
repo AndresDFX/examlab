@@ -10894,7 +10894,8 @@
     "sinAccesoDetalle": "You can only preview exams from the courses you teach.",
     "terminado": "Preview finished. Nothing was saved and no grade was created.",
     "terminadoPorAdvertencias": "This is how a student's exam would close after too many warnings. Nothing was saved in the preview.",
-    "volverAExamenes": "Back to Exams"
+    "volverAExamenes": "Back to Exams",
+    "limiteAdvertenciasEnsayo": "A student exam would have been suspended here for exceeding the warning limit. The simulation stays open so you can see the whole thing."
   },
   "seleccion": {
     "masOpciones_one": "and 1 more in the selector above",
