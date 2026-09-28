@@ -6237,7 +6237,14 @@
     "pickCourseTitle": "Elige un curso para empezar",
     "pickCourseHint": "Usa el selector de arriba —o los filtros de periodo y asignatura— para elegir sobre qué curso vas a trabajar. Así evitas pasar lista en el curso equivocado.",
     "filterCutLabel": "Corte:",
-    "filterCutAll": "Todos los cortes"
+    "filterCutAll": "Todos los cortes",
+    "manualCodeLabel": "Código elegido por ti (opcional)",
+    "manualCodeHelp": "Seis dígitos que tú decides, para dictarlos en clase o repetir el mismo entre sesiones. Si lo dejas vacío, la plataforma genera uno.",
+    "manualCodePlaceholder": "Ej. 246810",
+    "manualCodeInvalid": "El código debe ser de 6 dígitos.",
+    "manualCodeFixesRotation": "Un código elegido no rota: vale igual toda la ventana.",
+    "manualCodeChangeInvalidates": "Cambiar el código deja sin efecto el que la clase está mirando.",
+    "errInvalidManualCode": "El código que elegiste debe ser de 6 dígitos (solo números). Déjalo vacío si prefieres que la plataforma lo genere."
   },
   "privacy": {
     "contents": "Contenido",

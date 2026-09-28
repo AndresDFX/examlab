@@ -93,6 +93,47 @@ Un corte donde NINGUNA actividad tiene peso ahora se comporta como vacío —«s
 publicadas»— y no como «falta todo»: pintarlo al 100 % mandaba al docente a buscar trabajo que no
 cambia ninguna nota.
 
+### 🔢 El código de asistencia lo puede elegir el docente
+
+El código salía siempre de la semilla, así que el docente no podía elegirlo: para dictarlo en clase
+tenía que leer el que le tocara, y no podía repetir el mismo entre sesiones. Ahora el diálogo de
+check-in tiene un campo opcional de seis dígitos. Vacío = como siempre (lo genera la plataforma), y
+**ninguna de las filas que hoy existen en producción cambia**.
+
+**La comparación del código pasó a estar en UN solo lugar.** Estaba copiada, byte a byte, en
+`student_check_in_attendance` y en `public_check_in_attendance`. Un código elegido honrado en uno y
+no en el otro habría funcionado desde el QR y fallado desde el enlace por correo: el alumno cree que
+marcó, no marcó, y no tiene cómo enterarse. Es el mismo motivo por el que `attendance_marcar_grupo`
+es el único lugar de la propagación.
+
+Lo que no se deduce:
+
+- **Seis dígitos, no texto libre.** El guard de las dos RPC es `^[0-9]{6}$`, el campo del estudiante
+  acepta seis dígitos y el QR codifica `?code=`. Un código con letras se vería perfecto en el
+  proyector y la base lo rechazaría — lo peor posible, porque se descubre con el curso entero
+  tecleándolo. La regla vive en `codigo-manual.ts` y un test **lee la migración del disco** para que
+  la CHECK de la columna, el guard de la RPC y el campo no puedan separarse.
+- **Un código elegido apaga la rotación.** No puede rotar; dejarla encendida pondría un contador en
+  el proyector que no cambia nada, y el alumno que lo ve llegar a cero cree que su código venció.
+- **Las hermanas del grupo lo copian**, igual que la semilla. Copiar solo la semilla dejaría al ancla
+  validando contra el elegido y a las hermanas contra el derivado.
+- **Al ajustar se aplica tal cual llega, incluido vacío** — o sea que vaciar el campo vuelve al
+  generado. Se diferencia a propósito de `p_requirements`, donde `NULL` significa «no tocar»: ahí el
+  dato es una lista que el cliente puede no haber cargado y borrarla costó la configuración de un
+  semestre; acá es un campo que la pantalla siempre manda.
+
+**Un error que el propio repo atajó.** Derivé la función de apertura de `20262070000000`, que está
+**tres migraciones atrás**: habría revertido el arreglo de «ajustar un check-in abierto no cambia el
+código proyectado». Lo cazó `checkin-preserva-semilla.test.ts`, que existe exactamente para eso — y
+`checkin-errors.test.ts` cazó que el error nuevo `invalid_manual_code` no tenía mensaje, así que el
+docente habría leído el identificador crudo.
+
+Verificado contra un PostgreSQL real (PGlite) con **20 comprobaciones**, la mayoría de lo que NO debe
+pasar: el código derivado deja de valer cuando hay uno elegido, cinco y siete dígitos se rechazan, un
+campo en blanco no es un código vacío, las hermanas copian el elegido, la columna rechaza por CHECK
+aunque se escriba directo, y queda una sola firma de la función (dos dejarían a PostgREST sin saber
+cuál llamar).
+
 ### 🎓 El estudiante ve a qué corte va cada actividad y cuánto vale
 
 El docente veía el corte y el porcentaje en su grilla; el estudiante no veía ninguna de las dos

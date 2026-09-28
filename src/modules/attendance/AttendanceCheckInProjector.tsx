@@ -55,6 +55,9 @@ const db = supabase as any;
 
 export type CheckInState = {
   sessionId: string;
+  /** Codigo ELEGIDO por el docente. Cuando viene, es EL codigo: no se deriva
+   *  nada de la semilla y no rota. */
+  manualCode?: string | null;
   seed: string;
   rotationSeconds: number;
   closesAt: string; // ISO
@@ -114,7 +117,13 @@ interface Props {
    * difiere del que tiene; `null` = ya no hay check-in abierto.
    */
   onEstadoRemoto?: (
-    estado: { seed: string; rotationSeconds: number; closesAt: string; emailOnly: boolean } | null,
+    estado: {
+      seed: string;
+      manualCode?: string | null;
+      rotationSeconds: number;
+      closesAt: string;
+      emailOnly: boolean;
+    } | null,
   ) => void;
 }
 
@@ -248,10 +257,17 @@ export function AttendanceCheckInProjector({
 
   // Recalcula el código cuando cambia el período actual.
   const recomputeCode = useCallback(async () => {
+    // Un codigo elegido por el docente es EL codigo. Derivar igual y mostrar el
+    // derivado pondria en el proyector un numero distinto del que la base
+    // acepta: la clase entera teclearia el equivocado.
+    if (state.manualCode) {
+      setCode(state.manualCode);
+      return;
+    }
     const period = attendancePeriod(state.rotationSeconds);
     const c = await computeAttendanceCode(state.seed, period);
     setCode(c);
-  }, [state.seed, state.rotationSeconds]);
+  }, [state.seed, state.rotationSeconds, state.manualCode]);
 
   useEffect(() => {
     void recomputeCode();
@@ -368,7 +384,7 @@ export function AttendanceCheckInProjector({
       if (!avisar) return;
       const { data, error } = await db
         .from("attendance_check_in_state")
-        .select("seed, rotation_seconds, closes_at, email_only")
+        .select("seed, rotation_seconds, closes_at, email_only, manual_code")
         .eq("session_id", state.sessionId)
         .maybeSingle();
       // Un error de red NO se interpreta como "se cerró": eso desmontaría el
@@ -379,6 +395,7 @@ export function AttendanceCheckInProjector({
         rotation_seconds: number;
         closes_at: string;
         email_only: boolean;
+        manual_code: string | null;
       } | null;
       if (!fila) {
         avisar(null);
@@ -386,6 +403,7 @@ export function AttendanceCheckInProjector({
       }
       avisar({
         seed: fila.seed,
+        manualCode: fila.manual_code,
         rotationSeconds: fila.rotation_seconds,
         closesAt: fila.closes_at,
         emailOnly: fila.email_only,

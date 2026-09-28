@@ -28,6 +28,8 @@ export const CHECKIN_TEACHER_ERRORS: Record<string, string> = {
   closes_in_past: "teacherAttendance.errClosesInPast",
   invalid_duration: "teacherAttendance.errInvalidDuration",
   invalid_rotation: "teacherAttendance.errInvalidRotation",
+  // Codigo elegido por el docente (mig 20262570000000)
+  invalid_manual_code: "teacherAttendance.errInvalidManualCode",
   invalid_extra: "teacherAttendance.errInvalidExtra",
   max_window: "teacherAttendance.errMaxWindow",
   not_open: "teacherAttendance.errNotOpen",

@@ -1,3 +1,9 @@
+import {
+  LARGO_CODIGO_MANUAL,
+  codigoManualCompleto,
+  codigoManualParaEnviar,
+  normalizarCodigoManual,
+} from "@/modules/attendance/codigo-manual";
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -390,6 +396,8 @@ function TeacherAttendance() {
     closesAt: string;
     rotationSeconds: number;
     emailOnly: boolean;
+    /** Codigo elegido que YA tenia. `null` = lo generaba la plataforma. */
+    manualCode: string | null;
   } | null>(null);
   // Sesión seleccionada para lanzar una encuesta in-class. Cuando es
   // != null se abre `LaunchPollDialog` con el attendance_session_id
@@ -502,6 +510,12 @@ function TeacherAttendance() {
    *  APAGADO en cada apertura a propósito — recordarlo haría que una sesión
    *  con la asistencia en la nota herede el modo flojo de la clase anterior. */
   const [checkInEmailOnly, setCheckInEmailOnly] = useState(false);
+  // Codigo ELEGIDO por el docente. Cadena vacia = "el que genere la plataforma",
+  // que es el comportamiento historico. Se guarda como TEXTO y no como numero
+  // porque «024681» es un codigo valido y un `number` se come el cero de
+  // adelante — el docente lo dictaria con seis digitos y la pantalla mostraria
+  // cinco.
+  const [checkInManualCode, setCheckInManualCode] = useState("");
   /**
    * La sesión del diálogo de check-in, sea que se esté abriendo o ajustando.
    * Ya existía como `checkInAjusteSession ?? checkInConfigSession` calculado
@@ -1861,7 +1875,7 @@ function TeacherAttendance() {
   const openCheckInAjuste = async (sess: Session) => {
     const { data, error } = await supabase
       .from("attendance_check_in_state" as never)
-      .select("opened_at, closes_at, rotation_seconds, email_only")
+      .select("opened_at, closes_at, rotation_seconds, email_only, manual_code")
       .eq("session_id", sess.id)
       .maybeSingle();
     if (error) {
@@ -1872,6 +1886,7 @@ function TeacherAttendance() {
       opened_at: string;
       closes_at: string;
       rotation_seconds: number;
+      manual_code: string | null;
       email_only: boolean;
     } | null;
     if (!row) {
@@ -1884,6 +1899,7 @@ function TeacherAttendance() {
       opensAt: row.opened_at,
       closesAt: row.closes_at,
       rotationSeconds: row.rotation_seconds,
+      manualCode: row.manual_code ?? null,
       emailOnly: row.email_only,
     });
     setCheckInOpensAt(toLocalDateTimeInput(new Date(row.opened_at)));
@@ -1892,6 +1908,7 @@ function TeacherAttendance() {
     // ajuste la apertura ni se muestra.
     setCheckInClosesTouched(true);
     setCheckInRotation(row.rotation_seconds);
+    setCheckInManualCode(row.manual_code ?? "");
     setRotacionTexto(
       row.rotation_seconds === 0 ? "0" : String(Math.round(row.rotation_seconds / 60)),
     );
@@ -2049,6 +2066,9 @@ function TeacherAttendance() {
           p_opens_at: esAjuste ? null : checkInOpensAt ? localToIso(checkInOpensAt) : null,
           p_closes_at: checkInClosesAt ? localToIso(checkInClosesAt) : null,
           p_rotation_seconds: checkInRotation,
+          // Vacio va como `null`: el servidor distingue "sin codigo elegido" de
+          // "codigo vacio", y mandar "" haria que rechazara la apertura entera.
+          p_manual_code: codigoManualParaEnviar(checkInManualCode),
           p_email_only: checkInEmailOnly,
           // `null` = "no toques los requisitos". Solo se manda el arreglo cuando se
           // leyó lo que la sesión ya tenía; si no, abrir el check-in apurado los
@@ -2079,6 +2099,7 @@ function TeacherAttendance() {
         adjusted?: boolean;
         seed?: string;
         rotation_seconds?: number;
+        manual_code?: string | null;
         rotation_fixed_by_window?: boolean;
         opened_at?: string;
         closes_at?: string;
@@ -2132,6 +2153,7 @@ function TeacherAttendance() {
                 // re-apertura (la ventana había vencido entre medias) viene la
                 // nueva, y la pantalla tiene que mostrar el código que vale.
                 seed: result.seed!,
+                manualCode: result.manual_code ?? null,
               }
             : p,
         );
@@ -2165,6 +2187,7 @@ function TeacherAttendance() {
       setProjector({
         sessionId: sess.id,
         seed: result.seed,
+        manualCode: result.manual_code ?? null,
         rotationSeconds: result.rotation_seconds,
         closesAt: result.closes_at,
         opensAt: result.opened_at ?? new Date().toISOString(),
@@ -2300,6 +2323,7 @@ function TeacherAttendance() {
       }
       const row = data as {
         seed: string;
+        manual_code: string | null;
         rotation_seconds: number;
         closes_at: string;
         opened_at: string;
@@ -2335,6 +2359,7 @@ function TeacherAttendance() {
       setProjector({
         sessionId: sess.id,
         seed: row!.seed,
+        manualCode: row!.manual_code,
         rotationSeconds: row!.rotation_seconds,
         closesAt: row!.closes_at,
         opensAt: row!.opened_at,
@@ -3493,6 +3518,9 @@ function TeacherAttendance() {
             setCheckInExtraSessions(new Set());
             setCheckInAjusteSession(null);
             setCheckInPrev(null);
+            // Sin esto el codigo elegido de una sesion se arrastra a la siguiente
+            // que el docente abra, y lo abriria sin darse cuenta.
+            setCheckInManualCode("");
           }}
         >
           <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-sm">
@@ -3623,6 +3651,50 @@ function TeacherAttendance() {
                   checkInRotation !== checkInPrev.rotationSeconds && (
                     <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
                       {t("teacherAttendance.rotationChangeInvalidatesCode")}
+                    </p>
+                  )}
+              </div>
+              {/* ── Codigo elegido por el docente ────────────────────────────
+                  Va DESPUES de la rotacion a proposito: es la excepcion a ese
+                  campo. Con un codigo elegido la rotacion deja de aplicar, y
+                  ponerlo antes haria configurar una rotacion que despues se
+                  ignora. */}
+              <div>
+                <Label htmlFor="checkin-manual-code">
+                  {t("teacherAttendance.manualCodeLabel")}{" "}
+                  <HelpHint>{t("teacherAttendance.manualCodeHelp")}</HelpHint>
+                </Label>
+                <Input
+                  id="checkin-manual-code"
+                  // `inputMode` numerico SIN `type="number"`: el teclado del
+                  // telefono sale numerico, pero el valor sigue siendo texto y
+                  // «024681» conserva su cero de adelante.
+                  inputMode="numeric"
+                  maxLength={LARGO_CODIGO_MANUAL}
+                  autoComplete="off"
+                  placeholder={t("teacherAttendance.manualCodePlaceholder")}
+                  value={checkInManualCode}
+                  onChange={(e) =>
+                    setCheckInManualCode(normalizarCodigoManual(e.target.value))
+                  }
+                />
+                {!codigoManualCompleto(checkInManualCode) && (
+                  <p className="text-2xs text-destructive mt-1">
+                    {t("teacherAttendance.manualCodeInvalid")}
+                  </p>
+                )}
+                {checkInManualCode !== "" && codigoManualCompleto(checkInManualCode) && (
+                  <p className="text-2xs text-muted-foreground mt-1">
+                    {t("teacherAttendance.manualCodeFixesRotation")}
+                  </p>
+                )}
+                {/* Mismo aviso que la rotacion, por el mismo motivo: en un AJUSTE
+                    este campo cambia el codigo que la clase esta mirando. */}
+                {checkInAjusteSession &&
+                  checkInPrev &&
+                  checkInManualCode !== (checkInPrev.manualCode ?? "") && (
+                    <p className="text-2xs text-amber-600 dark:text-amber-400 mt-1">
+                      {t("teacherAttendance.manualCodeChangeInvalidates")}
                     </p>
                   )}
               </div>
@@ -3866,6 +3938,7 @@ function TeacherAttendance() {
                   setCheckInExtraSessions(new Set());
                   setCheckInAjusteSession(null);
                   setCheckInPrev(null);
+                  setCheckInManualCode("");
                 }}
                 disabled={startingCheckIn}
               >

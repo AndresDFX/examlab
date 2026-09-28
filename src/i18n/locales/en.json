@@ -6237,7 +6237,14 @@
     "pickCourseTitle": "Pick a course to start",
     "pickCourseHint": "Use the selector above —or the period and subject filters— to choose which course you are working on. That way you avoid taking attendance in the wrong course.",
     "filterCutLabel": "Term:",
-    "filterCutAll": "All terms"
+    "filterCutAll": "All terms",
+    "manualCodeLabel": "Code you choose (optional)",
+    "manualCodeHelp": "Six digits you decide, so you can read them out in class or reuse the same one across sessions. Leave it empty and the platform generates one.",
+    "manualCodePlaceholder": "e.g. 246810",
+    "manualCodeInvalid": "The code must be 6 digits.",
+    "manualCodeFixesRotation": "A code you choose does not rotate: it stays valid for the whole window.",
+    "manualCodeChangeInvalidates": "Changing the code invalidates the one the class is looking at.",
+    "errInvalidManualCode": "The code you chose must be 6 digits (numbers only). Leave it empty to let the platform generate one."
   },
   "privacy": {
     "contents": "Contents",
