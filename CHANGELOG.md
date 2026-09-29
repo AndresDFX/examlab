@@ -77,6 +77,87 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🛑 La suspensión por advertencias volvió a cerrar el intento
+
+**Cinco días sin que un solo examen se suspendiera**, y nadie se enteró hasta que un docente vio un
+intento con 4 advertencias sobre un tope de 3, todavía en curso.
+
+La mig `20262410000000` cerró un agujero real: el alumno podía **reabrir** su examen terminado por
+REST limpiando las marcas de cierre. Para eso sumó `closed_at` / `closed_by` / `close_reason` /
+`close_deadline` al candado `tg_guard_exam_submission_grade`. Pero lo hizo con `IS DISTINCT FROM`,
+que es **simétrico**: atrapa quitarlas —que es lo que se quería prohibir— y también **ponerlas**. Y
+ponerlas es exactamente lo que hace el navegador del alumno al pasarse del tope.
+
+Lo que lo volvió invisible: el cliente reintenta dos veces y, al fallar, **restaura su bandera** para
+no dejar a nadie con un spinner eterno. O sea que el examen seguía y el contador seguía subiendo.
+
+Evidencia (parcial de UNIAJ, 2026-09-28): la última suspensión por advertencias de toda la historia
+de producción es del **23-sep 03:22Z**; el candado entró ese mismo día a las **19:34Z**. Cero
+suspensiones después. En ese parcial hubo intentos con **4 y 7** advertencias sobre un tope de 3, y
+**17 borrados manuales en 50 minutos** — el docente se pasó el examen limpiando a mano lo que el
+sistema tenía que haber cerrado solo.
+
+Ahora el candado separa dos familias: la **nota y los metadatos de revisión** (intocables para el
+alumno, como siempre) y las **marcas de cierre**, que puede poner **una sola vez, sobre su propia
+fila, firmando con su propio id y saliendo de `en_progreso`**. Limpiarlas, cambiarlas o firmar como
+otro sigue siendo solo del docente: el agujero que la `20262410000000` cerró no se reabre.
+
+### 🔍 Cada advertencia dice dónde fue, lo perdonado queda, y pegar puede sumar
+
+Tres cosas que el mismo parcial dejó a la vista.
+
+**Dónde fue.** Un «Intento de pegar» llegaba al monitor sin decir en qué pregunta: el índice solo se
+guardaba en exámenes secuenciales. El motivo era bueno —con la mezcla activada el orden es distinto
+para cada alumno, así que «Pregunta 4» del alumno no es la 4 del docente— pero la solución era el
+**ID**, no el índice. Ahora todos los eventos lo llevan y la tarjeta lo resuelve contra el orden del
+docente.
+
+**Lo perdonado.** `teacher_clear_exam_warnings` reescribía la lista con lo que quedaba y **no
+guardaba copia**; la auditoría solo anotaba el número. De un estudiante con dos advertencias
+borradas se sabía que existieron y nada más: ni el tipo, ni la hora. Ahora se acumulan en
+`submissions.cleared_warning_events` y se ven tachadas debajo de la lista. Va en una **columna
+propia y no dentro de `answers`**: esa la reescribe el autoguardado del alumno cada 1,5 s desde su
+copia local, que no conoce claves nuevas — guardarlo ahí lo borraría al instante, y justo en el caso
+que importa, que es un examen EN CURSO.
+
+**Pegar.** Que el portapapeles no sume fue una decisión buena por un motivo concreto: en una pregunta
+de CÓDIGO, mover una línea dentro del propio editor es escribir la respuesta. Pero se aplicó a todos
+los exámenes, incluidos los que no tienen ni una pregunta de código —el caso real: 5 cerradas, 3 de
+SQL y 2 abiertas—. Ahora hay un interruptor **por examen**, y aun encendido respeta la excepción
+original: en preguntas con editor sigue sin sumar.
+
+**Es OPT-IN y no es negociable**: con el interruptor apagado el comportamiento es byte-idéntico. Al
+revés, el día que la suspensión vuelve a funcionar media clase se suspendería por pegar — un cambio
+enorme, silencioso y retroactivo sobre siete instituciones.
+
+Detalle que no se deduce: el conteo de strikes ahora mira **el evento** (`suma`) y no su tipo, porque
+desde que pegar puede contar o no según la pregunta, el tipo dejó de alcanzar. Los eventos viejos se
+siguen resolviendo por tipo, así que ningún expediente cambia de significado.
+
+### 🔑 El error del proveedor de IA llega a quien puede arreglarlo
+
+Un docente intentó recalificar 17 entregas y las 17 fallaron mostrando **«Fallo al calificar en
+bloque»** — una frase interna del edge que no dice nada. Lo que el proveedor había respondido, y que
+sí quedó en la auditoría, era:
+
+```
+http_status: 403
+{"Message":"Authentication failed: Please make sure your API Key is valid."}
+```
+
+La clave de IA de esa institución estaba vencida. Arreglarlo eran treinta segundos de configuración,
+y el docente no tenía forma de saberlo.
+
+El edge ya devolvía `http_status` y `response_snippet`; **el cliente los descartaba** y se quedaba
+con `error`. Ahora el fallo del proveedor gana y se traduce a algo accionable por status: clave
+rechazada, sin créditos, límite de uso, modelo inexistente, error temporal. El volcado crudo del
+proveedor **no** se muestra —está en inglés y no dice qué hacer— y sigue en la auditoría, que es
+donde soporte lo busca. El arreglo vive en `extractEdgeError`, así que alcanza a todas las
+superficies de IA, no solo a la recalificación.
+
+Ojo con el que estaba al revés: el respaldo por status traducía 401/403 como «No autorizado para esta
+acción», que culpa al usuario de un permiso que no le falta.
+
 ### 🚪 Del simulacro se puede salir
 
 Reportado: *«desde el rol docente, al simular un examen, el proctoring bloquea cerrarlo sin salirse
