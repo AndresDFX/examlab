@@ -2650,6 +2650,7 @@
     "attachFiles": "Attach files"
   },
   "externalGrades": {
+    "applyToGroup": "Apply the grade to the whole group {{group}}",
     "title": "External grades",
     "helpHint": "This activity already happened outside the platform. Enter each student's grade (0–{{max}}) so it counts in the grading period calculation. Use a period for decimals (e.g. 4.5).",
     "gradedBadge": "{{graded}}/{{total}} graded",

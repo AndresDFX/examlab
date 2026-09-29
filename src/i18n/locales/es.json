@@ -2650,6 +2650,7 @@
     "attachFiles": "Adjuntar archivos"
   },
   "externalGrades": {
+    "applyToGroup": "Aplicar la nota a todo el grupo {{group}}",
     "title": "Notas externas",
     "helpHint": "Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada estudiante (0–{{max}}) para que cuente en el cálculo del corte. Usa coma para decimales (ej. 4,5).",
     "gradedBadge": "{{graded}}/{{total}} con nota",

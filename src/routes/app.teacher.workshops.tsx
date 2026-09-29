@@ -4041,7 +4041,9 @@ function TeacherWorkshops() {
                           disabled: openingAssignId != null,
                           onClick: () => openAssign(ws),
                         },
-                        !ws.is_external && {
+                        // También en externos: una exposición por grupos se
+                        // arma acá y se califica por grupo en «Notas externas».
+                        {
                           label: t("teacherWorkshops.actionGroups"),
                           icon: UsersRound,
                           disabled: openingGroupsId != null,

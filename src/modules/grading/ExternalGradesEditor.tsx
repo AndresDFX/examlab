@@ -16,7 +16,8 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, ClipboardList, Save, Search, X } from "lucide-react";
+import { CheckCircle2, ClipboardList, Save, Search, UsersRound, X } from "lucide-react";
+import { RowAction } from "@/components/ui/row-action";
 import { Spinner } from "@/components/ui/spinner";
 import { HelpHint } from "@/components/ui/help-hint";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -69,6 +70,9 @@ interface Row {
    *  y omitir saves redundantes en `Guardar todo`. */
   originalGrade: number | null;
   originalFeedback: string;
+  /** Solo talleres/proyectos con grupos: la exposición se califica por grupo. */
+  grupoId: string | null;
+  grupoNombre: string | null;
 }
 
 export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
@@ -129,6 +133,28 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
         .in("id", userIds);
       if (pErr) throw pErr;
 
+      // Grupos (talleres y proyectos): una actividad externa por grupos —la
+      // exposición— se califica una vez por grupo; el editor la replica.
+      const grupoDe = new Map<string, { id: string; name: string }>();
+      if (kind !== "exam") {
+        const gt = kind === "workshop" ? "workshop_groups" : "project_groups";
+        const mt = kind === "workshop" ? "workshop_group_members" : "project_group_members";
+        const fk = kind === "workshop" ? "workshop_id" : "project_id";
+        const { data: gs } = await db.from(gt).select("id, name").eq(fk, refId);
+        const grupos = (gs ?? []) as Array<{ id: string; name: string }>;
+        if (grupos.length) {
+          const { data: ms } = await db
+            .from(mt)
+            .select("group_id, user_id")
+            .in("group_id", grupos.map((g) => g.id));
+          const porId = new Map(grupos.map((g) => [g.id, g]));
+          for (const m of (ms ?? []) as Array<{ group_id: string; user_id: string }>) {
+            const g = porId.get(m.group_id);
+            if (g) grupoDe.set(m.user_id, g);
+          }
+        }
+      }
+
       const subByUser = new Map<string, any>();
       for (const s of (subs ?? []) as any[]) subByUser.set(s.user_id, s);
 
@@ -147,9 +173,17 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           hasGrade: grade != null,
           originalGrade: grade,
           originalFeedback: feedback,
+          grupoId: grupoDe.get(p.id)?.id ?? null,
+          grupoNombre: grupoDe.get(p.id)?.name ?? null,
         };
       });
-      newRows.sort((a, b) => a.fullName.localeCompare(b.fullName));
+      // Con grupos, los integrantes quedan juntos (los sin grupo, al final).
+      newRows.sort(
+        (a, b) =>
+          (a.grupoNombre ?? "￿").localeCompare(b.grupoNombre ?? "￿", "es", {
+            numeric: true,
+          }) || a.fullName.localeCompare(b.fullName),
+      );
       setRows(newRows);
     } catch (e) {
       toast.error(
@@ -169,6 +203,16 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
 
   const updateRow = (userId: string, patch: Partial<Row>) => {
     setRows((prev) => prev.map((r) => (r.userId === userId ? { ...r, ...patch } : r)));
+  };
+
+  /** Copia nota y observación a los demás integrantes (quedan sin guardar). */
+  const aplicarAlGrupo = (row: Row) => {
+    if (!row.grupoId) return;
+    setRows((prev) =>
+      prev.map((r) =>
+        r.grupoId === row.grupoId ? { ...r, grade: row.grade, feedback: row.feedback } : r,
+      ),
+    );
   };
 
   const validateGrade = (
@@ -486,6 +530,11 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                       >
                         {row.email}
                       </div>
+                      {row.grupoNombre && (
+                        <Badge variant="secondary" className="text-3xs mt-0.5 max-w-full truncate">
+                          {row.grupoNombre}
+                        </Badge>
+                      )}
                     </TableCell>
                     <TableCell>
                       <DecimalInput
@@ -507,6 +556,15 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                       />
                     </TableCell>
                     <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-1">
+                      {row.grupoId && (
+                        <RowAction
+                          label={t("externalGrades.applyToGroup", { group: row.grupoNombre })}
+                          icon={UsersRound}
+                          onClick={() => aplicarAlGrupo(row)}
+                          disabled={bulkSaving}
+                        />
+                      )}
                       <Button
                         size="sm"
                         variant="outline"
@@ -523,6 +581,7 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
                         )}
                         {t("externalGrades.saveButton")}
                       </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
