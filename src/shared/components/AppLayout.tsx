@@ -1832,8 +1832,25 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           (mobile o sidebar de desktop colapsado). En mobile va por
           encima del bottom-nav nativo (`bottom-20`); en desktop pega
           a la esquina inferior (`md:bottom-4`). El bell del header
-          sigue cumpliendo el rol en desktop con sidebar expandido. */}
-      <MessagesFab sidebarCollapsed={sidebarCollapsed} />
+          sigue cumpliendo el rol en desktop con sidebar expandido.
+
+          ── Durante un examen NO se monta, y era el único agujero ──────
+          Las otras cuatro superficies de mensajería y notificaciones ya
+          estaban cerradas (las dos del pie del sidebar y las dos del
+          encabezado móvil). Esta se había quedado afuera, y de la peor
+          manera: el propio examen COLAPSA el sidebar al empezar, que es
+          justo la condición que hace aparecer el FAB. O sea que empezar
+          el examen lo invocaba.
+
+          Lo que abría no era cosmético. Es `fixed z-50`, así que flota
+          sobre la pantalla del examen incluso en pantalla completa, y su
+          contenido son `<Link>` del router: abrir el panel y saltar a
+          /app/messages es navegación del SPA, sin recarga. Sin recarga no
+          hay `beforeunload` y sin `popstate` no hay diálogo de salida, así
+          que el alumno leía y escribía mensajes en mitad del examen sin
+          que se registrara una sola advertencia. Escribir la URL a mano sí
+          cuesta strike; esto no costaba nada. */}
+      {!isTakingExam && <MessagesFab sidebarCollapsed={sidebarCollapsed} />}
     </div>
   );
 }

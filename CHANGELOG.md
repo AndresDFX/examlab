@@ -77,6 +77,28 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 💬 Durante un examen ya no hay puerta a los mensajes
+
+El shell monta cinco superficies de mensajería y notificaciones: las dos del pie del sidebar, las dos
+del encabezado móvil y un botón flotante. Cuatro estaban cerradas durante el examen. **La quinta se
+había quedado afuera**, y de la peor manera posible: el propio examen **colapsa el sidebar** al
+empezar, que es justo la condición que hace aparecer ese botón flotante. O sea que empezar el examen
+lo invocaba.
+
+Y lo que abría no era cosmético. Es `fixed z-50`, así que flota sobre la pantalla del examen
+**incluso en pantalla completa**, y su contenido son `<Link>` del router: abrir el panel y saltar a
+`/app/messages` es navegación del SPA, sin recarga. **Sin recarga no hay `beforeunload`, y sin
+`popstate` no hay diálogo de salida** — así que el alumno leía y escribía mensajes en mitad del
+examen sin que se registrara una sola advertencia. Escribir la URL a mano sí cuesta strike; esto no
+costaba nada.
+
+Queda un test que lee `AppLayout.tsx` del disco y exige que **cada** montaje de las tres piezas esté
+dentro de un bloque `{!isTakingExam && …}`. No comprueba con una ventana de N líneas —el guard del
+pie del sidebar está a quince del suyo, y agrandarla hasta que entre la vuelve tan laxa que un
+`!isTakingExam` de otro bloque la haría pasar en falso—: mira hacia arriba hasta encontrar el guard o
+un `)}`, que es el cierre de la expresión de al lado. Verificado quitando el guard a propósito: falla
+y nombra la línea.
+
 ### 🛑 La suspensión por advertencias volvió a cerrar el intento
 
 **Cinco días sin que un solo examen se suspendiera**, y nadie se enteró hasta que un docente vio un

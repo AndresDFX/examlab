@@ -609,6 +609,26 @@ Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. 
 
 **IMPORTANTE:** Para el botón "Atrás" del navegador, el modal de confirmación hace `await supabase.update(...)` antes de `navigate()` — esto es crítico porque el componente se desmonta al navegar y el autosave timer se cancela.
 
+### Nada que comunique con otra persona se monta durante el examen
+
+El shell monta CINCO superficies de mensajería y notificaciones —las dos del pie del sidebar, las dos
+del encabezado móvil y `MessagesFab`— y **todas** van detrás de `!isTakingExam`. La quinta se había
+quedado afuera, y de la peor manera: el examen **colapsa el sidebar** al empezar
+(`if (isTakingExam) setSidebarCollapsed(true)`), que es justo la condición que hace aparecer el
+flotante. Empezar el examen lo invocaba.
+
+Lo que lo hace un agujero de proctoring y no un detalle visual: es `fixed z-50` —flota sobre el
+examen incluso en pantalla completa— y su contenido son `<Link>` del router. Salir por ahí es
+navegación del SPA: **sin recarga no hay `beforeunload` y sin `popstate` no hay diálogo de salida**,
+así que no cuesta ninguna advertencia. Escribir la URL a mano sí cuesta strike (recarga → el
+`beforeunload` del examen suma y cierra si corresponde); un `<Link>` no.
+
+**Al agregar cualquier superficie nueva al shell que lleve fuera del examen o comunique con otra
+persona, va detrás del mismo guard.** Lo cuida `mensajeria-en-examen.test.ts`, que lee `AppLayout.tsx`
+del disco. Ojo con el simulacro: `isTakingExam` matchea SOLO `/app/student/take/$examId`, así que ahí
+el flotante sigue apareciendo — es una diferencia de fidelidad aceptada a cambio de no encerrar al
+docente (ver la sección del simulacro).
+
 ### Esc bloqueado durante el examen
 
 El listener `onKeyDown` global (capture phase) intercepta Escape con `preventDefault + stopPropagation`. Eso impide que cierre dialogs del SPA o cancele otros defaults del navegador. **NO evita que el navegador salga de fullscreen al pulsar Esc** — esa salida la maneja el SO/browser y JavaScript no puede interceptarla. Cuando ocurre, `fullscreenchange` dispara y `recordWarning("fullscreen_exit")` suma el strike.
