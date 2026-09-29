@@ -220,8 +220,15 @@ export function ListFilters({
     selectedSubjects.length > 0 ||
     !rangoVacio(dateRange);
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <div className="relative flex-1 min-w-[180px] sm:max-w-xs">
+    // UNA fila en escritorio, sea cual sea la cantidad de filtros: cada control
+    // se reparte el ancho (`flex-1 min-w-0`) y su texto trunca, en vez de que
+    // los anchos fijos de cada trigger sumen más que la fila y el último filtro
+    // caiga solo a una segunda línea. Las reglas van sobre los hijos DIRECTOS
+    // porque `extra` lo arma cada pantalla con su propio `triggerClassName`.
+    // Debajo de `lg` no entra una fila: grilla de 1 columna en el teléfono y de
+    // 2 en tablet, con cada control ocupando su celda entera.
+    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 sm:[&>*]:!w-full lg:flex lg:flex-nowrap lg:items-center lg:[&>*]:min-w-0 lg:[&>*]:flex-1 lg:[&>*]:!w-auto">
+      <div className="relative sm:col-span-2 lg:!flex-[1.6]">
         <Search className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
         <Input
           value={search}
@@ -305,6 +312,7 @@ export function ListFilters({
         <Button
           variant="ghost"
           size="sm"
+          className="justify-self-start lg:!flex-none"
           onClick={() => {
             onSearchChange("");
             onCourseIdsChange([]);
