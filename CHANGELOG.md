@@ -77,6 +77,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ⏰ El recordatorio de examen «inicia pronto» vuelve, solo, y solo para publicados
+
+Los dos avisos automáticos de examen al estudiante («inicia pronto» una hora antes y «ya está
+disponible» al abrir la ventana) elegían por fecha y asignación **sin mirar el estado**: con 6
+borradores con asignados, encender la categoría habría avisado de exámenes que el alumno no ve
+(mig `20262620000000`, que además excluye los externos). Y compartían el kind `exam` con «nuevo
+examen publicado» y el aviso al asignar, así que no había forma de prender uno solo.
+
+`20262630000000` le da a «inicia pronto» su categoría (`exam_reminder`, emailable, interruptor
+«Recordatorio de examen» en el panel, ya encendido), desagenda el cron `exam-window-opens` y deja el
+resto de `exam` apagado. `exam_reminder` entra a los tres lados del invariante de kinds emailables.
+
 ### 📝 Skill para calificar un parcial cuando la cola no drena
 
 `.claude/skills/calificar-parcial/` deja escrito el procedimiento que hubo que improvisar el

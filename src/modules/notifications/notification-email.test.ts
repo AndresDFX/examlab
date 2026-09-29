@@ -235,6 +235,7 @@ describe("CRITICAL_KINDS export", () => {
       "report_signature",
       "course_welcome",
       "session_start",
+      "exam_reminder",
     ]);
   });
 

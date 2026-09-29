@@ -74,6 +74,11 @@ const CRITICAL_KINDS = [
   // el material. Toggle en email_settings.enabled_kinds.session_start.
   // Sincronizado con SQL `_notification_kind_emails` y notification-email.ts.
   "session_start",
+  // exam_reminder: «Tu examen inicia pronto» (cron exam-reminders-1h), con
+  // categoría propia para encenderlo sin prender el resto de avisos de examen
+  // (mig 20262630000000). Sincronizado con el SQL `_notification_kind_emails`
+  // y con el otro CRITICAL_KINDS.
+  "exam_reminder",
 ];
 const MESSAGE_LINK_PREFIX = "/app/messages";
 const SYSTEM_ALERT_LINK_PREFIX = "/app/admin/system";

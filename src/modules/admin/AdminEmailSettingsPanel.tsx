@@ -41,6 +41,7 @@ import {
   Trash2,
   CalendarCheck,
   PenLine,
+  AlarmClock,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -80,6 +81,9 @@ interface EnabledKinds {
    *  el documento tiene fecha y al alumno que no entra a la app no le llega
    *  por ningún otro lado. */
   report_signature?: boolean;
+  /** «Tu examen inicia pronto»: una hora antes, solo exámenes publicados
+   *  (mig 20262630000000). Categoría aparte de `exam` a propósito. */
+  exam_reminder?: boolean;
 }
 
 interface EmailSettings {
@@ -187,6 +191,13 @@ const CATEGORIES: Array<{
     desc: "Aviso cuando el docente envía un documento a firmar (Acuerdo Pedagógico). Al apagarlo, el estudiante que no entra a la app no se entera de que tiene algo pendiente con fecha.",
     icon: PenLine,
     color: "text-orange-500",
+  },
+  {
+    key: "exam_reminder",
+    label: "Recordatorio de examen",
+    desc: "Aviso a los estudiantes asignados una hora antes de que empiece un examen publicado. Independiente de «Exámenes»: se puede tener encendido con el resto apagado.",
+    icon: AlarmClock,
+    color: "text-rose-500",
   },
   {
     key: "session_start",
