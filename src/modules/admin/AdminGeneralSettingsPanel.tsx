@@ -33,7 +33,16 @@ import {
   CHECKIN_DEFAULT_WINDOW_HOURS,
   CHECKIN_MAX_WINDOW_HOURS,
 } from "@/modules/attendance/checkin-window";
-import { Save, Info, Mail, FileText, GraduationCap, BellRing, TrendingDown } from "lucide-react";
+import {
+  Save,
+  Info,
+  Mail,
+  FileText,
+  GraduationCap,
+  BellRing,
+  TrendingDown,
+  ListTodo,
+} from "lucide-react";
 import { DEFAULT_RISK_THRESHOLDS } from "@/shared/lib/early-alert";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
@@ -75,6 +84,10 @@ interface AppSettings {
    *  Pedagógico salía en blanco porque el dato no existía en ninguna tabla). Se
    *  escribe una vez por institución; no cambia por curso ni por documento. */
   ciudad: string;
+  /** Pendientes para la próxima sesión: el check-in los pide y el tablero del
+   *  curso los muestra a docentes y estudiantes (mig 20262640000000). Apagado
+   *  por defecto. */
+  session_pending_enabled: boolean;
   updated_at: string;
 }
 
@@ -87,6 +100,9 @@ export function AdminGeneralSettingsPanel() {
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
+  // ¿Ya existe la columna del interruptor? Sin la migración aplicada, mandarla
+  // en el UPDATE haría fallar el guardado de TODO el panel.
+  const [hayColumnaPendientes, setHayColumnaPendientes] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -105,6 +121,7 @@ export function AdminGeneralSettingsPanel() {
       return;
     }
     if (data) {
+      setHayColumnaPendientes("session_pending_enabled" in data);
       // Coalesce de campos que pueden faltar si la migración aún no se publicó
       // (mantiene el Input controlado y no rompe el panel pre-Publish).
       const r = {
@@ -125,6 +142,7 @@ export function AdminGeneralSettingsPanel() {
         early_alert_max_missing:
           data.early_alert_max_missing ??
           DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
+        session_pending_enabled: data.session_pending_enabled === true,
       } as AppSettings;
       setRow(r);
       setDraft(r);
@@ -237,6 +255,9 @@ export function AdminGeneralSettingsPanel() {
           // Vacío se guarda como NULL: una cadena vacía haría que el documento
           // imprima "" en vez de dejar la casilla para llenar a mano.
           ciudad: draft.ciudad.trim() || null,
+          ...(hayColumnaPendientes
+            ? { session_pending_enabled: draft.session_pending_enabled }
+            : {}),
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -553,6 +574,28 @@ export function AdminGeneralSettingsPanel() {
               {t("adminGeneralSettings.hintCheckinHours")}
             </p>
           </div>
+
+          {hayColumnaPendientes && (
+            <label className="flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={draft.session_pending_enabled}
+                onChange={(e) => setDraft({ ...draft, session_pending_enabled: e.target.checked })}
+              />
+              <div className="flex-1">
+                <div className="flex items-center gap-1.5 text-sm font-medium">
+                  <ListTodo className="h-4 w-4 text-warning-on-subtle" />
+                  {t("pendientesSesion.adminLabel")}
+                </div>
+                <p className="text-2xs text-muted-foreground mt-0.5">
+                  {draft.session_pending_enabled
+                    ? t("pendientesSesion.adminOn")
+                    : t("pendientesSesion.adminOff")}
+                </p>
+              </div>
+            </label>
+          )}
 
           {/* La ciudad de la sede. La piden los INFORMES: la casilla "Ciudad"
               del Acuerdo Pedagógico salía en blanco porque el dato no existía en

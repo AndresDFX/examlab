@@ -9,6 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { groupCohortWeights, type CohortWeightGroup } from "@/modules/courses/cohort-weights";
 import { Badge } from "@/components/ui/badge";
 import { BackButton } from "@/components/ui/back-button";
+import { PendientesProximaSesionCard } from "@/modules/attendance/PendientesProximaSesionCard";
 import { Button } from "@/components/ui/button";
 import {
   CalendarDays,
@@ -1072,6 +1073,10 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
           </div>
         </CardHeader>
       </Card>
+
+      {/* Lo que el docente dejó para la próxima clase (si la institución activó
+          la función). Va arriba: es lo accionable del tablero. */}
+      <PendientesProximaSesionCard courseId={course.id} modo="estudiante" />
 
       {/* #33 — Desglose de evaluación POR COHORTE: qué actividades y % aplican
           a cada cohorte (las cohortes pueden tener actividades asignadas

@@ -32,6 +32,7 @@ import {
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
 import { GenerateSessionsDialog } from "@/modules/contents/GenerateSessionsDialog";
 import { CourseScheduleEditor } from "@/modules/schedules/CourseScheduleEditor";
+import { PendientesProximaSesionCard } from "@/modules/attendance/PendientesProximaSesionCard";
 import {
   formatBlockShort,
   compareBlocks,
@@ -1245,6 +1246,10 @@ function CourseBoardPage() {
           </div>
         }
       />
+
+      {/* Pendientes para la próxima sesión (si la institución lo activó). Los
+          mismos que ve el estudiante en su tablero; acá se pueden tachar. */}
+      <PendientesProximaSesionCard courseId={course.id} modo="docente" />
 
       {/* Horario del curso — bloques semanales de course_schedules. Prefija
           hora/duración al crear una sesión y alimenta "Generar sesiones". */}

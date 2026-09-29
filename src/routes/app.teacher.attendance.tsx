@@ -95,6 +95,7 @@ import {
   Zap,
   Palette,
   Copy,
+  ListTodo,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
 import {
@@ -106,6 +107,18 @@ import {
   todayLocalISO,
 } from "@/shared/lib/format";
 import { resumirTituloDeSesion } from "@/modules/attendance/titulo-sesion";
+import { PendientesSesionDialog } from "@/modules/attendance/PendientesSesionDialog";
+import { usePendientesDeSesiones } from "@/modules/attendance/use-pendientes-sesion";
+import { usePendientesHabilitados } from "@/modules/attendance/use-pendientes-habilitados";
+import {
+  lineasDePendientes,
+  pendientesAnotadosEn,
+  pendientesPorSesionDestino,
+  pendientesQueNoEntran,
+  sesionSiguiente,
+  MAX_PENDIENTES_POR_LOTE,
+} from "@/modules/attendance/pendientes-sesion";
+import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/shared/lib/utils";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation, Trans } from "react-i18next";
@@ -413,6 +426,21 @@ function TeacherAttendance() {
   // Sesión seleccionada para DUPLICAR. Abre un dialog con opciones de qué
   // info interna copiar (contenido asignado, pizarra, snippets de código).
   const [duplicateSessionFor, setDuplicateSessionFor] = useState<Session | null>(null);
+  // Pendientes para la próxima sesión: el diálogo abierto y los de todo el curso.
+  // Todo depende del interruptor de la institución (Configuración → General):
+  // apagado, ni se consultan.
+  const pendientesHabilitados = usePendientesHabilitados();
+  const [pendientesSession, setPendientesSession] = useState<Session | null>(null);
+  const pendientes = usePendientesDeSesiones(
+    pendientesHabilitados ? sessions.map((x) => x.id) : [],
+  );
+  /** Lo que el docente escribe en el diálogo de ABRIR el check-in, uno por línea. */
+  const [checkInPendientesTexto, setCheckInPendientesTexto] = useState("");
+  const hoyLocal = todayLocalISO();
+  const pendientesPorDestino = useMemo(
+    () => pendientesPorSesionDestino(sessions, pendientes.items, hoyLocal),
+    [sessions, pendientes.items, hoyLocal],
+  );
   /** Abre el dialog "Programar sesiones del curso". Se usa SIN contenido
    *  pre-asociado — el dialog calcula N sesiones a partir de fecha
    *  inicio + días de la semana, las crea con `course_id = courseId` y
@@ -1855,6 +1883,7 @@ function TeacherAttendance() {
     // Sin esto la selección queda pegada y el check-in siguiente abriría
     // sesiones de la clase anterior.
     setCheckInExtraSessions(new Set());
+    setCheckInPendientesTexto("");
     setCheckInConfigSession(sess);
   };
 
@@ -2034,6 +2063,29 @@ function TeacherAttendance() {
       }
     }
 
+    /**
+     * Guarda lo escrito en el campo «Pendientes para la próxima sesión». Solo
+     * se llama con el check-in YA abierto: si la apertura falla, no quedan
+     * anotados pendientes de algo que no ocurrió; si fallan ellos, se avisa sin
+     * deshacer el check-in.
+     */
+    const guardarPendientesDelCheckIn = async () => {
+      if (!pendientesHabilitados || esAjuste) return;
+      const lineas = lineasDePendientes(checkInPendientesTexto);
+      const afuera = pendientesQueNoEntran(checkInPendientesTexto);
+      setCheckInPendientesTexto("");
+      if (lineas.length === 0) return;
+      const errPend = await pendientes.agregarVarios(sess.id, lineas);
+      if (errPend) {
+        toast.warning(t("pendientesSesion.checkInSaveFailed", { error: errPend }));
+      } else if (afuera > 0) {
+        toast.warning(
+          t("pendientesSesion.checkInTruncated", { max: MAX_PENDIENTES_POR_LOTE, count: afuera }),
+          { duration: 10000 },
+        );
+      }
+    };
+
     setStartingCheckIn(true);
     try {
       // Con sesiones extra va la RPC MÚLTIPLE, que abre todas con la misma
@@ -2180,6 +2232,7 @@ function TeacherAttendance() {
         });
         setCheckInAjusteSession(null);
         setCheckInPrev(null);
+        await guardarPendientesDelCheckIn();
         await loadCourse();
         return;
       }
@@ -2211,6 +2264,8 @@ function TeacherAttendance() {
           requirement_futuras: checkInReqFuturas,
         },
       });
+
+      await guardarPendientesDelCheckIn();
 
       // ── Aplicar el requisito a las sesiones que VIENEN ──────────────────
       // Es el pedido textual ("para las asistencias de las siguientes sesiones").
@@ -3075,6 +3130,23 @@ function TeacherAttendance() {
                                           defaultValue: "Agregar grabación / notas",
                                         })}
                                   </DropdownMenuItem>
+                                  {pendientesHabilitados && (
+                                  <DropdownMenuItem onSelect={() => setPendientesSession(sess)}>
+                                    <ListTodo className="h-4 w-4 mr-2 text-warning-on-subtle" />
+                                    <span className="flex-1">{t("pendientesSesion.menuItem")}</span>
+                                    {(() => {
+                                      const abiertos = pendientesAnotadosEn(
+                                        pendientes.items,
+                                        sess.id,
+                                      ).filter((p) => !p.done_at).length;
+                                      return abiertos > 0 ? (
+                                        <span className="ml-2 text-2xs tabular-nums text-muted-foreground">
+                                          {abiertos}
+                                        </span>
+                                      ) : null;
+                                    })()}
+                                  </DropdownMenuItem>
+                                  )}
                                   {/* Lanzar encuesta en vivo durante esta
                                     sesión. El attendance_session_id queda
                                     ligado a la encuesta (FK en `polls`),
@@ -3121,6 +3193,30 @@ function TeacherAttendance() {
                               <Badge variant="default" className="text-3xs py-0 px-1 self-center">
                                 {t("teacherAttendance.checkInActive")}
                               </Badge>
+                            )}
+                            {/* Lo que quedó pendiente de clases anteriores y le
+                              toca a ESTA. Se pinta en la columna donde se va a
+                              tratar, no en la que se anotó. */}
+                            {pendientesHabilitados &&
+                              (pendientesPorDestino.get(sess.id)?.length ?? 0) > 0 && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-8 w-full gap-1 px-1.5 text-2xs font-normal border-warning/50 bg-warning/10 hover:bg-warning/20"
+                                onClick={() => setPendientesSession(sess)}
+                                title={t("pendientesSesion.dueBadgeTitle")}
+                              >
+                                <ListTodo
+                                  className="h-3.5 w-3.5 shrink-0 text-warning-on-subtle"
+                                  aria-hidden
+                                />
+                                <span className="truncate">
+                                  {t("pendientesSesion.dueBadge", {
+                                    count: pendientesPorDestino.get(sess.id)?.length ?? 0,
+                                  })}
+                                </span>
+                              </Button>
                             )}
                             <div className="flex flex-col items-center gap-0.5 border-t border-border/70 pt-1.5">
                               <span className="text-3xs font-medium leading-tight tabular-nums">
@@ -3905,6 +4001,22 @@ function TeacherAttendance() {
                 </div>
               )}
 
+              {/* Pendientes para la próxima sesión: los pide la APERTURA (no el
+                  ajuste), que es cuando el docente tiene la clase delante. Se
+                  guardan recién si el check-in abre. */}
+              {pendientesHabilitados && !checkInAjusteSession && checkInConfigSession && (
+                <PendientesEnCheckIn
+                  siguienteFecha={
+                    sesionSiguiente(sessions, checkInConfigSession.id)?.session_date ?? null
+                  }
+                  yaAnotados={pendientesAnotadosEn(pendientes.items, checkInConfigSession.id)
+                    .filter((p) => !p.done_at)
+                    .map((p) => ({ id: p.id, body: p.body }))}
+                  texto={checkInPendientesTexto}
+                  onTexto={setCheckInPendientesTexto}
+                />
+              )}
+
               {/* Debilita un control de fraude, así que se elige a conciencia y
                   el texto dice exactamente qué se gana y qué se pierde. */}
               <div className="rounded-md border p-3 flex items-start justify-between gap-3">
@@ -4092,6 +4204,13 @@ function TeacherAttendance() {
           }
           onOpenChange={(open) => !open && setWhiteboardSession(null)}
         />
+        <PendientesSesionDialog
+          session={pendientesHabilitados ? pendientesSession : null}
+          sesiones={sessions}
+          pendientes={pendientes}
+          hoy={hoyLocal}
+          onClose={() => setPendientesSession(null)}
+        />
         {/* Duplicar sesión — elige qué info interna copiar. La copia nace en la
             misma fecha (el docente la reubica) sin asistencia ni grabación. */}
         <DuplicateOptionsDialog
@@ -4151,6 +4270,66 @@ interface ContentPickerProps {
   value: string;
   contents: AvailableContent[];
   onChange: (value: string) => void;
+}
+
+/** El campo de pendientes dentro del diálogo de ABRIR el check-in. */
+function PendientesEnCheckIn({
+  siguienteFecha,
+  yaAnotados,
+  texto,
+  onTexto,
+}: {
+  siguienteFecha: string | null;
+  yaAnotados: Array<{ id: string; body: string }>;
+  texto: string;
+  onTexto: (v: string) => void;
+}) {
+  const { t } = useTranslation();
+  return (
+    <div className="rounded-md border p-3 space-y-2">
+      <Label htmlFor="checkin-pendientes" className="flex items-center gap-1.5">
+        <ListTodo className="h-4 w-4 text-warning-on-subtle" />
+        {t("pendientesSesion.menuItem")}
+      </Label>
+      <p className="text-xs text-muted-foreground">
+        {siguienteFecha
+          ? t("pendientesSesion.checkInHint", {
+              date: formatDateShort(siguienteFecha + "T12:00:00"),
+            })
+          : t("pendientesSesion.checkInHintNoNext")}
+      </p>
+      {yaAnotados.length > 0 && (
+        <div className="space-y-0.5">
+          <p className="text-2xs font-medium text-muted-foreground">
+            {t("pendientesSesion.checkInAlready")}
+          </p>
+          <ul className="space-y-0.5 text-xs">
+            {yaAnotados.map((p) => (
+              <li key={p.id} className="flex items-start gap-1.5">
+                <span aria-hidden className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-warning" />
+                <span className="break-words">{p.body}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      <Textarea
+        id="checkin-pendientes"
+        rows={3}
+        value={texto}
+        onChange={(e) => onTexto(e.target.value)}
+        placeholder={t("pendientesSesion.checkInPlaceholder")}
+      />
+      {pendientesQueNoEntran(texto) > 0 && (
+        <p className="text-2xs text-warning-on-subtle">
+          {t("pendientesSesion.checkInTooMany", {
+            max: MAX_PENDIENTES_POR_LOTE,
+            count: pendientesQueNoEntran(texto),
+          })}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function ContentPicker({ value, contents, onChange }: ContentPickerProps) {

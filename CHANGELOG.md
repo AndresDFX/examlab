@@ -77,6 +77,40 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📝 Pendientes para la próxima sesión
+
+Se activa **por institución** en Configuración → General (`app_settings.session_pending_enabled`,
+apagado por defecto). Con la función encendida:
+
+- **Abrir el check-in de una sesión pide los pendientes para la siguiente** («traigan el taller
+  impreso», «lean el capítulo 3»), uno por línea y opcional. Se guardan recién cuando el check-in
+  abre: si la apertura falla no quedan anotados, y si fallan ellos el check-in ya está abierto y
+  solo se avisa. Ajustar un check-in abierto no los pide.
+- **El tablero del curso los muestra al docente y a los estudiantes** (`PendientesProximaSesionCard`,
+  la misma tarjeta en `/app/teacher/board/$courseId` y en `/app/student/courses`). El estudiante solo
+  lee; el docente puede tacharlos desde ahí. Sin nada vigente, la tarjeta no se dibuja.
+- En Asistencia, cada sesión tiene «Pendientes para la próxima sesión» en su menú (agregar, editar,
+  tachar, borrar) y la columna de la clase donde tocan muestra el aviso.
+
+Tabla `session_pending_items` (mig `20262640000000`), validada contra PGlite con 27 comprobaciones.
+Lo que no se deduce del código:
+
+- **El estudiante lee solo si la institución la activó**, y eso lo decide la POLÍTICA, no la
+  pantalla (`session_pending_visible_to_student`): apagar la función tiene que apagarla también
+  para quien consulte por REST. Además tiene que estar matriculado, y ni la sesión ni el curso en
+  la papelera. Nunca escribe. El staff (docente del curso, Admin de la institución con scope de
+  tenant, SuperAdmin) gestiona.
+- **El pendiente se guarda donde se ANOTÓ y la sesión donde toca se resuelve en el cliente**
+  (`pendientes-sesion.ts`, puro y con tests). «La próxima sesión» es la del **siguiente DÍA de
+  clase**: un bloque partido del mismo día —el que la asistencia múltiple abre con un solo
+  código— es la misma clase.
+- **Un pendiente se muestra hasta el día de su próxima clase y ahí caduca**, aunque nadie lo haya
+  tachado. No se arrastra: lo ven los estudiantes, y un «traigan el taller impreso» de hace dos
+  semanas es ruido que enseña a no leer la tarjeta. El día de una clase el tablero muestra dos
+  grupos —«Para hoy» y lo recién anotado para la siguiente—, que es lo que hace que el docente vea
+  al instante lo que escribió al abrir el check-in.
+- Duplicar una sesión **no** copia sus pendientes.
+
 ### ⏰ El recordatorio de examen «inicia pronto» vuelve, solo, y solo para publicados
 
 Los dos avisos automáticos de examen al estudiante («inicia pronto» una hora antes y «ya está
