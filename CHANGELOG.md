@@ -77,6 +77,44 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🚪 Del simulacro se puede salir
+
+Reportado: *«desde el rol docente, al simular un examen, el proctoring bloquea cerrarlo sin salirse
+de la interfaz»*. Era literal — el docente quedaba encerrado.
+
+El simulacro reusa la pantalla del alumno TAL CUAL, y lo que encierra son **dos capas que tapan la
+pantalla entera**: la de «volvé a pantalla completa», cuyo único botón devuelve a pantalla completa,
+y la de «el docente pausó el examen», que **no tiene ningún botón**. Esa segunda además es
+alcanzable: la pausa se lee por EXAMEN y no por entrega (`target_user_id IS NULL`), así que un examen
+pausado para el curso deja pausado también el ensayo de su propio docente.
+
+Se llega ahí por el gesto más natural: Esc está interceptada por el examen, así que lo único que hace
+es soltar la pantalla completa — que es justamente lo que levanta la primera capa.
+
+**Precisión que conviene no dar por hecha**: el menú lateral NO queda inerte en el simulacro
+(`isTakingExam` de `AppLayout` matchea solo `/app/student/take/$examId`), así que fuera de las capas
+el docente ya podía salir con un clic. Pero las capas tapan todo, incluido el menú — y dentro de
+ellas la única salida era el botón **«Atrás» del navegador**, que no está en la página y nadie
+busca.
+
+Ahora hay un **«Salir de la simulación»** visible, y está en los tres lugares: el aviso permanente y
+DENTRO de cada una de las dos capas —que se mantienen, porque el docente vino justamente a ver que
+existen—. Y «Atrás» ya no abre el diálogo que advierte que salir «registra una advertencia»: en un
+ensayo no hay entrega, ni nota, ni advertencia que cobrar, así que hace lo obvio.
+
+Dos cosas que no se deducen:
+
+- **Salir apaga el proctoring ANTES de soltar la pantalla completa**, reusando la misma marca con la
+  que termina un ensayo entregado. Sin ese orden, el propio gesto de salir se cobraría un aviso y
+  levantaría la capa que se está abandonando, y el aviso quedaría colgado en la pantalla siguiente —
+  que ya no es el examen.
+- **No pregunta nada.** Toda la queja es no poder salir; poner una confirmación en la salida es el
+  instinto contrario, y no hay nada que confirmar porque en un ensayo no se guarda una sola letra.
+
+Queda un test que cuenta las capas que bloquean la pantalla contra el disco: si aparece una nueva,
+falla y obliga a decidir si le falta la salida. Es el modo de falla que vuelve — no rompe nada y
+nadie se entera hasta que a alguien le pasa.
+
 ### 🗄️ Una pregunta de SQL siempre tiene dónde responder
 
 Reportado desde el simulacro del docente: la pantalla «se está demorando bastante». Lo que se veía

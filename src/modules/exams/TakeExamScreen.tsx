@@ -67,6 +67,7 @@ import { CodeEditor, type CodeLanguage, getStarterCode } from "@/modules/code/Co
 import { NetworkConsole } from "@/modules/network/NetworkConsole";
 import { NetworkTopologyEditor } from "@/modules/network/NetworkTopologyEditor";
 import { SqlRunner } from "@/modules/database/SqlRunner";
+import { SalirDelEnsayo } from "@/modules/exams/SalirDelEnsayo";
 import { type NetworkScenario, parseScenario } from "@/modules/network/scenario";
 import { CodeRunnerPicker, type CodeRunnerProvider } from "@/modules/code/CodeRunnerPicker";
 import { necesitaEditorDeCodigo } from "@/modules/code/tipos-con-editor";
@@ -1092,6 +1093,33 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     }
   }, [started, requireFullscreen]);
 
+  /**
+   * Salir del ENSAYO, desde cualquier parte y sin dejar rastro.
+   *
+   * Reusa la misma marca con la que termina un ensayo entregado
+   * (`submittedRef`), y eso no es un atajo: **es lo que apaga el proctoring**.
+   * `recordWarning` corta en su primera línea con esa bandera, y la rama de
+   * `fullscreenchange` que levanta la capa de «volvé a pantalla completa» pide
+   * `!submittedRef.current`. Sin marcarlo ANTES de soltar la pantalla completa,
+   * el propio gesto de salir se cobraría un aviso y levantaría la capa que se
+   * está intentando abandonar — y el aviso quedaría colgado en la pantalla
+   * siguiente, que ya no es el examen.
+   *
+   * No pregunta nada. Toda la queja es no poder salir; poner una confirmación
+   * en la salida es el instinto contrario, y no hay nada que confirmar: en un
+   * ensayo no se guarda una sola letra.
+   */
+  const salirDelEnsayo = useCallback(async () => {
+    if (!simulacro || submittedRef.current) return;
+    submittedRef.current = true;
+    try {
+      await exitFullscreen();
+    } catch {
+      // El navegador puede negarse a soltarla; salir igual, que es lo pedido.
+    }
+    navigate({ to: "/app/teacher/exams" });
+  }, [simulacro, navigate]);
+
   // Estado del overlay de re-entrada a pantalla completa
   const [fsExited, setFsExited] = useState(false);
   const reenterFullscreen = async () => {
@@ -1735,6 +1763,14 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       if (submittedRef.current) return;
       e.stopImmediatePropagation();
       history.pushState(null, "", window.location.href);
+      // En un ENSAYO «Atrás» sale y ya. El diálogo existe para que el ALUMNO se
+      // lo piense, porque salir le cuesta una advertencia; acá no hay entrega,
+      // ni nota, ni advertencia que cobrar, así que preguntar es fricción sobre
+      // el único gesto que hoy funciona para escapar.
+      if (simulacro) {
+        void salirDelEnsayo();
+        return;
+      }
       setManualLeaveOpen(true);
     };
     window.addEventListener("popstate", onPopstate, true);
@@ -1769,7 +1805,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
         // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t] —
+        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro,
+        // salirDelEnsayo, t] —
         // NO incluye currentIdx, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
@@ -1854,7 +1891,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
         // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t] —
+        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro,
+        // salirDelEnsayo, t] —
         // NO incluye currentIdx, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
@@ -2263,7 +2301,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       document.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, performSubmit, maxWarnings, requireFullscreen, simulacro, t]);
+  }, [started, performSubmit, maxWarnings, requireFullscreen, simulacro, salirDelEnsayo, t]);
 
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; edge function ya está corriendo server-side),
@@ -2616,12 +2654,15 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
           docente podría dictar un parcial creyendo que está probando, o al
           revés, probar creyendo que su respuesta contó. */}
       {simulacro && (
-        <div className="mb-3 flex items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
+        <div className="mb-3 flex flex-wrap items-start gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200">
           <FlaskConical className="mt-0.5 h-4 w-4 shrink-0" />
-          <div className="min-w-0">
+          {/* `min-w-0 flex-1`: el texto cede el ancho y a 375 px la salida baja a
+              su propia línea en vez de empujar el aviso fuera de la pantalla. */}
+          <div className="min-w-0 flex-1">
             <p className="font-semibold">{t("simulacroExamen.banner")}</p>
             <p className="text-2xs opacity-90">{t("simulacroExamen.bannerDetalle")}</p>
           </div>
+          <SalirDelEnsayo onSalir={() => void salirDelEnsayo()} className="shrink-0" />
         </div>
       )}
       {/* Entrega en curso: bloqueo visual explícito. El botón deshabilitado
@@ -2655,6 +2696,14 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
               {reenteringFs ? <Spinner size="md" className="mr-2" /> : null}
               {t("hc_routesAppStudentTakeExamId.returnToFullscreen")}
             </Button>
+            {/* Esta capa tapa la pantalla entera y su único botón devuelve a
+                pantalla completa: para el alumno es justo lo que se busca, para
+                quien está probando es la trampa que se reportó. La capa se
+                mantiene —el docente vino a VER que existe— y se le suma la
+                salida. */}
+            {simulacro && (
+              <SalirDelEnsayo onSalir={() => void salirDelEnsayo()} className="w-full" />
+            )}
           </div>
         </div>
       )}
@@ -2681,6 +2730,13 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                 </p>
                 <p className="text-sm whitespace-pre-wrap break-words">{mensajeDePausa}</p>
               </div>
+            )}
+            {/* La pausa la lee `useRealtimeTimer` por EXAMEN, no por entrega, así
+                que un examen pausado para el curso deja también pausado el
+                ensayo de su propio docente — en una capa que no tiene ni un
+                botón. Sin esto, la única salida era el «Atrás» del navegador. */}
+            {simulacro && (
+              <SalirDelEnsayo onSalir={() => void salirDelEnsayo()} className="w-full" />
             )}
           </div>
         </div>

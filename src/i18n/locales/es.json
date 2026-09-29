@@ -10907,7 +10907,8 @@
     "terminado": "Simulación terminada. No se guardó nada ni se generó nota.",
     "terminadoPorAdvertencias": "Así se cerraría el examen de un estudiante al pasarse de advertencias. En la simulación no se guardó nada.",
     "volverAExamenes": "Volver a Exámenes",
-    "limiteAdvertenciasEnsayo": "Aquí el examen de un estudiante se habría suspendido por pasarse de advertencias. En la simulación sigue abierto para que puedas verlo completo."
+    "limiteAdvertenciasEnsayo": "Aquí el examen de un estudiante se habría suspendido por pasarse de advertencias. En la simulación sigue abierto para que puedas verlo completo.",
+    "salirDelEnsayo": "Salir de la simulación"
   },
   "seleccion": {
     "masOpciones_one": "y 1 más en el selector de arriba",

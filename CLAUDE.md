@@ -1432,6 +1432,21 @@ alumno ([TakeExamScreen.tsx](src/modules/exams/TakeExamScreen.tsx)) y **no guard
   simulacro (`contarAdvertencia`): sin eso la barra mostraría «4/3», un estado que el alumno no ve
   nunca. Los tests incluyen que un examen REAL sí se suspenda, para que el arreglo no se vuelva un
   agujero del proctoring de verdad.
+- **Del ensayo se PUEDE salir, y esa salida se monta en tres lugares**
+  ([SalirDelEnsayo.tsx](src/modules/exams/SalirDelEnsayo.tsx)). Lo que encierra son **dos capas que
+  tapan la pantalla entera**: la de «volvé a pantalla completa» (un botón, que vuelve a pantalla
+  completa) y la de «examen pausado» (**ningún** botón). La segunda es alcanzable en un ensayo porque
+  la pausa se lee por EXAMEN y no por entrega (`target_user_id IS NULL`). Se llega ahí por el gesto
+  natural: Esc está interceptada, así que solo suelta la pantalla completa — que es lo que levanta la
+  primera capa. **El menú lateral NO queda inerte en el simulacro** (`isTakingExam` matchea solo
+  `/app/student/take/$examId`), así que fuera de las capas el docente ya podía salir con un clic; pero
+  las capas tapan todo, incluido el menú, y ahí dentro la única salida era el «Atrás» del NAVEGADOR. Las capas **se mantienen** —el docente vino a ver que existen— y se les suma
+  `<SalirDelEnsayo>`, que también va en el aviso permanente. **Salir marca `submittedRef` ANTES de
+  soltar la pantalla completa**: es lo que apaga el proctoring, y al revés el propio gesto de salir se
+  cobraría un aviso, levantaría la capa que se está abandonando y dejaría el aviso colgado en la
+  pantalla siguiente. No confirma nada: no hay nada que confirmar. Y «Atrás» en un ensayo **sale**, en
+  vez de abrir el diálogo que advierte que salir cuesta una advertencia. Lo cuida
+  `salida-del-ensayo.test.ts`, que cuenta las capas contra el disco: si aparece otra, falla.
 - **El aviso va siempre visible y no se puede cerrar.** Toda la pantalla está hecha para no
   distinguirse de un examen de verdad; un aviso que se pudiera ocultar deja al docente dictando un
   parcial creyendo que prueba, o al revés.
