@@ -5,7 +5,7 @@
  * (con/sin grupo coexistiendo en el mismo proyecto). Las queries van
  * contra `project_groups` y `project_group_members`.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -42,6 +42,10 @@ interface Props {
 
 const UNASSIGNED = "__unassigned__";
 
+/** «Grupo 2» antes que «Grupo 10»: el orden de la base es alfabético puro. */
+const ordenarGrupos = (gs: Group[]) =>
+  [...gs].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+
 export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const { t } = useTranslation();
   const confirm = useConfirm();
@@ -54,8 +58,27 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const [draggingUserId, setDraggingUserId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Cambiar un grupo NO recarga la pantalla (ver el mismo comentario en
+   * WorkshopGroupsEditor): los cambios van al estado en el acto y la base se
+   * escribe detrás, en cola.
+   *
+   * La carga depende de una CLAVE de cursos y no del arreglo: el padre arma
+   * `[groupsProject.course_id]` en cada render, así que con el arreglo como
+   * dependencia cualquier render del padre volvía a cargar todo con spinner.
+   */
+  const claveCursos = courseIds.join(",");
+  const primeraCarga = useRef(true);
+  const cola = useRef<Promise<void>>(Promise.resolve());
+  const encolar = (tarea: () => Promise<void>) => {
+    cola.current = cola.current.then(tarea, tarea);
+    return cola.current;
+  };
+
+  const load = useCallback(async (opts?: { silencioso?: boolean }) => {
+    const silencioso = opts?.silencioso === true && !primeraCarga.current;
+    if (!silencioso) setLoading(true);
+    const courseIds = claveCursos ? claveCursos.split(",") : [];
     try {
       let userIds: string[] = [];
       if (courseIds.length > 0) {
@@ -82,7 +105,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         .select("id, name, signup_code")
         .eq("project_id", projectId)
         .order("name");
-      setGroups((gs ?? []) as Group[]);
+      setGroups(ordenarGrupos((gs ?? []) as Group[]));
 
       const groupIds = ((gs ?? []) as Group[]).map((g) => g.id);
       if (groupIds.length > 0) {
@@ -95,11 +118,13 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         setMembers([]);
       }
     } finally {
+      primeraCarga.current = false;
       setLoading(false);
     }
-  }, [projectId, courseIds]);
+  }, [projectId, claveCursos]);
 
   useEffect(() => {
+    primeraCarga.current = true;
     void load();
   }, [load]);
 
@@ -132,13 +157,17 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     }
     setCreating(true);
     try {
-      const { error } = await db.from("project_groups").insert({ project_id: projectId, name });
-      if (error) {
+      const { data: creado, error } = await db
+        .from("project_groups")
+        .insert({ project_id: projectId, name })
+        .select("id, name, signup_code")
+        .single();
+      if (error || !creado) {
         toast.error(friendlyError(error));
         return;
       }
       setNewGroupName("");
-      await load();
+      setGroups((prev) => ordenarGrupos([...prev, creado as Group]));
     } finally {
       setCreating(false);
     }
@@ -158,49 +187,54 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
       tone: "destructive",
     });
     if (!ok) return;
+    setGroups((prev) => prev.filter((x) => x.id !== g.id));
+    setMembers((prev) => prev.filter((m) => m.group_id !== g.id));
     const { error } = await db.from("project_groups").delete().eq("id", g.id);
     if (error) {
       toast.error(friendlyError(error));
-      return;
+      await load({ silencioso: true });
     }
-    await load();
   };
 
   const moveUser = async (userId: string, target: string) => {
     const currentGroupId = memberByUser.get(userId);
     if (currentGroupId === target) return;
-    if (target === UNASSIGNED) {
-      if (!currentGroupId) return;
-      const { error } = await db
-        .from("project_group_members")
-        .delete()
-        .eq("group_id", currentGroupId)
-        .eq("user_id", userId);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-    } else {
+    if (target === UNASSIGNED && !currentGroupId) return;
+
+    setMembers((prev) => {
+      const sin = prev.filter((m) => m.user_id !== userId);
+      return target === UNASSIGNED ? sin : [...sin, { group_id: target, user_id: userId }];
+    });
+    // Deshace SOLO este movimiento (revertir a una foto vieja pisaría otros).
+    const deshacer = (e: unknown) => {
+      setMembers((prev) => {
+        const sin = prev.filter((m) => m.user_id !== userId);
+        return currentGroupId ? [...sin, { group_id: currentGroupId, user_id: userId }] : sin;
+      });
+      toast.error(friendlyError(e));
+    };
+
+    await encolar(async () => {
+      // Borrar la membresía previa primero: el trigger no permite estar en dos
+      // grupos del mismo proyecto, así que el INSERT solo no es seguro.
       if (currentGroupId) {
-        const { error: dErr } = await db
+        const { error } = await db
           .from("project_group_members")
           .delete()
           .eq("group_id", currentGroupId)
           .eq("user_id", userId);
-        if (dErr) {
-          toast.error(friendlyError(dErr));
-          return;
+        if (error) return deshacer(error);
+      }
+      if (target !== UNASSIGNED) {
+        const { error } = await db
+          .from("project_group_members")
+          .insert({ group_id: target, user_id: userId });
+        if (error) {
+          toast.error(friendlyError(error));
+          await load({ silencioso: true });
         }
       }
-      const { error } = await db
-        .from("project_group_members")
-        .insert({ group_id: target, user_id: userId });
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-    }
-    await load();
+    });
   };
 
   // ── Drag & drop handlers ──

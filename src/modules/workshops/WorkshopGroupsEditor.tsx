@@ -11,7 +11,7 @@
  * trigger de DB sigue garantizando que cada user esté en MÁXIMO un
  * grupo del taller.
  */
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -65,6 +65,10 @@ interface Props {
 
 const UNASSIGNED = "__unassigned__";
 
+/** «Grupo 2» antes que «Grupo 10»: el orden de la base es alfabético puro. */
+const ordenarGrupos = (gs: Group[]) =>
+  [...gs].sort((a, b) => a.name.localeCompare(b.name, "es", { numeric: true }));
+
 export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const { t } = useTranslation();
   const confirm = useConfirm();
@@ -101,8 +105,26 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const [groupSizeMax, setGroupSizeMax] = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  /**
+   * Cambiar un grupo NO recarga la pantalla. Antes cada movimiento hacía
+   * `await load()`, y `load` ponía el spinner en lugar de las columnas: la
+   * pantalla parpadeaba, el scroll saltaba al principio y, además, «Repartir al
+   * azar» volvía a incluir a los que el docente había destildado. Ahora los
+   * cambios se aplican en el estado en el acto (optimista) y la base se escribe
+   * detrás; solo se relee —sin spinner— después de operaciones en lote.
+   */
+  const primeraCarga = useRef(true);
+  const idsCargados = useRef<Set<string>>(new Set());
+  /** Serializa las escrituras: dos movimientos rápidos no se pisan en la base. */
+  const cola = useRef<Promise<void>>(Promise.resolve());
+  const encolar = (tarea: () => Promise<void>) => {
+    cola.current = cola.current.then(tarea, tarea);
+    return cola.current;
+  };
+
+  const load = useCallback(async (opts?: { silencioso?: boolean }) => {
+    const silencioso = opts?.silencioso === true && !primeraCarga.current;
+    if (!silencioso) setLoading(true);
     try {
       // Matrícula de TODOS los cursos del taller (workshop_courses M:N), no solo
       // el curso ancla: un taller compartido a un curso secundario debe permitir
@@ -147,15 +169,27 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
 
       setStudents(profs);
       // Todos incluidos por defecto: el caso normal es "vino el curso". Destildar
-      // es la excepción (quien faltó a la sesión donde se reparte el taller).
-      setIncluidos(new Set(profs.map((x) => x.id)));
+      // es la excepción (quien faltó a la sesión donde se reparte el taller). Al
+      // releer se CONSERVA lo destildado y solo entra quien aparece por primera vez.
+      const actuales = new Set(profs.map((x) => x.id));
+      if (!silencioso) {
+        setIncluidos(new Set(actuales));
+      } else {
+        const antes = idsCargados.current;
+        setIncluidos((prev) => {
+          const next = new Set([...prev].filter((id) => actuales.has(id)));
+          for (const id of actuales) if (!antes.has(id)) next.add(id);
+          return next;
+        });
+      }
+      idsCargados.current = actuales;
 
       const { data: gs } = await db
         .from("workshop_groups")
         .select("id, name, signup_code")
         .eq("workshop_id", workshopId)
         .order("name");
-      setGroups((gs ?? []) as Group[]);
+      setGroups(ordenarGrupos((gs ?? []) as Group[]));
 
       const groupIds = ((gs ?? []) as Group[]).map((g) => g.id);
       if (groupIds.length > 0) {
@@ -198,11 +232,14 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         new Set(((indiv ?? []) as { user_id: string }[]).map((x) => x.user_id)),
       );
     } finally {
+      primeraCarga.current = false;
       setLoading(false);
     }
   }, [workshopId, courseId]);
 
   useEffect(() => {
+    // Otro taller = carga completa, con spinner y con todos incluidos.
+    primeraCarga.current = true;
     void load();
   }, [load]);
 
@@ -239,15 +276,17 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
     }
     setCreating(true);
     try {
-      const { error } = await db
+      const { data: creado, error } = await db
         .from("workshop_groups")
-        .insert({ workshop_id: workshopId, name });
-      if (error) {
+        .insert({ workshop_id: workshopId, name })
+        .select("id, name, signup_code")
+        .single();
+      if (error || !creado) {
         toast.error(friendlyError(error));
         return;
       }
       setNewGroupName("");
-      await load();
+      setGroups((prev) => ordenarGrupos([...prev, creado as Group]));
     } finally {
       setCreating(false);
     }
@@ -401,7 +440,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       setAzarAbierto(false);
     } finally {
       setRepartiendo(false);
-      await load();
+      await load({ silencioso: true });
     }
   };
 
@@ -419,12 +458,13 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       tone: "destructive",
     });
     if (!ok) return;
+    setGroups((prev) => prev.filter((x) => x.id !== g.id));
+    setMembers((prev) => prev.filter((m) => m.group_id !== g.id));
     const { error } = await db.from("workshop_groups").delete().eq("id", g.id);
     if (error) {
       toast.error(friendlyError(error));
-      return;
+      await load({ silencioso: true });
     }
-    await load();
   };
 
   /**
@@ -435,40 +475,45 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const moveUser = async (userId: string, target: string) => {
     const currentGroupId = memberByUser.get(userId);
     if (currentGroupId === target) return;
-    if (target === UNASSIGNED) {
-      if (!currentGroupId) return;
-      const { error } = await db
-        .from("workshop_group_members")
-        .delete()
-        .eq("group_id", currentGroupId)
-        .eq("user_id", userId);
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-    } else {
-      // Borrar membresía previa primero (el trigger no permite >1 grupo
-      // por taller, así que el INSERT solo no es seguro).
+    if (target === UNASSIGNED && !currentGroupId) return;
+
+    // En el acto: sin spinner, sin perder el scroll.
+    setMembers((prev) => {
+      const sin = prev.filter((m) => m.user_id !== userId);
+      return target === UNASSIGNED ? sin : [...sin, { group_id: target, user_id: userId }];
+    });
+    // Si la base lo rechaza (p. ej. ya entregó individual), se deshace SOLO este
+    // movimiento: revertir a una foto vieja pisaría otros que sí se guardaron.
+    const deshacer = (e: unknown) => {
+      setMembers((prev) => {
+        const sin = prev.filter((m) => m.user_id !== userId);
+        return currentGroupId ? [...sin, { group_id: currentGroupId, user_id: userId }] : sin;
+      });
+      toast.error(friendlyError(e));
+    };
+
+    await encolar(async () => {
+      // Borrar la membresía previa primero: el trigger no permite estar en dos
+      // grupos del mismo taller, así que el INSERT solo no es seguro.
       if (currentGroupId) {
-        const { error: dErr } = await db
+        const { error } = await db
           .from("workshop_group_members")
           .delete()
           .eq("group_id", currentGroupId)
           .eq("user_id", userId);
-        if (dErr) {
-          toast.error(friendlyError(dErr));
-          return;
+        if (error) return deshacer(error);
+      }
+      if (target !== UNASSIGNED) {
+        const { error } = await db
+          .from("workshop_group_members")
+          .insert({ group_id: target, user_id: userId });
+        if (error) {
+          // La membresía vieja ya se borró: se relee lo real en vez de adivinar.
+          toast.error(friendlyError(error));
+          await load({ silencioso: true });
         }
       }
-      const { error } = await db
-        .from("workshop_group_members")
-        .insert({ group_id: target, user_id: userId });
-      if (error) {
-        toast.error(friendlyError(error));
-        return;
-      }
-    }
-    await load();
+    });
   };
 
   // ── Drag & drop handlers ──
@@ -827,7 +872,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         conEntregaIndividual={conEntregaIndividual}
         groupSizeMin={groupSizeMin}
         groupSizeMax={groupSizeMax}
-        onAplicado={() => void load()}
+        onAplicado={() => void load({ silencioso: true })}
       />
     </div>
   );

@@ -119,6 +119,18 @@ Lo que no se deduce del código:
 - **Carrera de despliegue**: las pantallas piden `workshops` con `select("*")` / `workshops(*)` en los
   embeds, no las columnas nuevas por nombre; el diálogo no deja crear mientras la columna no exista.
 
+### 🧩 Armar grupos ya no recarga la pantalla (talleres y proyectos)
+
+Cada movimiento en el editor de grupos —arrastrar, ⇄, crear o borrar un grupo— hacía `await load()`,
+y `load` ponía el spinner EN LUGAR de las columnas: la pantalla parpadeaba, el scroll volvía arriba y
+«Repartir al azar» volvía a incluir a quien el docente había destildado. Ahora los cambios se aplican
+en el estado en el acto y la base se escribe detrás, **en cola** (dos movimientos rápidos no se pisan).
+Si la base rechaza un movimiento —p. ej. quien ya entregó individual— se deshace SOLO ese y se avisa;
+después de operaciones en lote (reparto al azar, grupos desde imagen) se relee sin spinner. Los grupos
+se ordenan natural («Grupo 2» antes que «Grupo 10»). En proyectos había además otra causa: el padre
+arma `[course_id]` en cada render y el editor dependía del ARREGLO, así que cualquier render del padre
+recargaba todo; ahora depende de una clave de cursos.
+
 ### 👥 Talleres externos por grupos (la exposición)
 
 Un taller EXTERNO no dejaba armar grupos: la acción «Grupos» del grid estaba oculta para externos,
