@@ -79,6 +79,59 @@ function mejorMensaje(obj: Record<string, unknown>): string {
   return err || msg;
 }
 /**
+ * Traduce el fallo del PROVEEDOR de IA a algo que se pueda accionar.
+ *
+ * ── El caso que lo pidió ─────────────────────────────────────────────────
+ *
+ * Los edges de IA, cuando el proveedor rechaza la llamada, responden
+ * `{ error, kind: "http", http_status, response_snippet }`. Pero `mejorMensaje`
+ * se queda con `error` —una frase interna del edge, «Fallo al calificar en
+ * bloque»— y descarta los otros dos campos, que son los únicos que dicen QUÉ
+ * pasó y qué hacer.
+ *
+ * Medido en producción el 2026-09-28: un docente intentó recalificar 17
+ * entregas y las 17 fallaron. La pantalla decía «Fallo al calificar en bloque»
+ * en cada fila. Lo que el proveedor había respondido —y que sí quedó en la
+ * auditoría— era:
+ *
+ *     http_status: 403
+ *     {"Message":"Authentication failed: Please make sure your API Key is valid."}
+ *
+ * O sea: la clave de IA de esa institución estaba vencida, y arreglarlo era un
+ * cambio de configuración de treinta segundos. El docente no tenía forma de
+ * saberlo y quedó bloqueado con un examen entero sin calificar.
+ *
+ * ── Lo que NO devuelve ───────────────────────────────────────────────────
+ *
+ * El `response_snippet` crudo no se muestra: está en inglés, es un JSON del
+ * proveedor y no dice qué hacer (regla P6). Sigue quedando en `audit_logs`, que
+ * es donde soporte lo busca.
+ *
+ * Devuelve `null` cuando no puede afirmar nada, para que el caller conserve el
+ * mensaje que ya tenía en vez de reemplazarlo por una suposición.
+ */
+export function mensajeDeFalloDeProveedor(obj: Record<string, unknown>): string | null {
+  const status = typeof obj.http_status === "number" ? obj.http_status : null;
+  if (status === null) return null;
+  // 401/403: la clave. Es el caso que se vio, y el fallback por status de más
+  // abajo lo leía al revés —«No autorizado para esta acción»— culpando al
+  // usuario de un permiso que no le falta.
+  if (status === 401 || status === 403)
+    return "El proveedor de IA rechazó la clave configurada para esta institución. Revisa Configuración → Modelo IA, o pídeselo a quien la administre.";
+  if (status === 402)
+    return "La cuenta del proveedor de IA se quedó sin créditos. Revisa Configuración → Modelo IA, o pídeselo a quien la administre.";
+  if (status === 429)
+    return "Se alcanzó el límite de uso del proveedor de IA. Espera unos minutos y vuelve a intentar.";
+  if (status === 404)
+    return "El modelo de IA configurado no existe o no acepta este tipo de llamada. Revisa Configuración → Modelo IA.";
+  if (status === 400)
+    return "El proveedor de IA rechazó la petición. Suele ser el modelo configurado: revisa Configuración → Modelo IA.";
+  if (status >= 500)
+    return "El proveedor de IA tuvo un error temporal. Vuelve a intentar en unos minutos.";
+  return null;
+}
+
+/**
  * Recupera el mensaje real de error de un edge function. Acepta:
  *  - FunctionsHttpError de supabase-js (con `.context.response`)
  *  - El segundo argumento `data` que invoke devuelve junto con el error
@@ -96,6 +149,10 @@ export async function extractEdgeError(
   // 1) Si supabase-js ya parseó el body como `data` y tiene `error`,
   //    usar eso (no consume el Response stream).
   if (data && typeof data === "object") {
+    // El fallo del proveedor gana: `error` acá es una frase interna del edge
+    // («Fallo al calificar en bloque») y el motivo real viaja en `http_status`.
+    const delProveedor = mensajeDeFalloDeProveedor(data as Record<string, unknown>);
+    if (delProveedor) return delProveedor;
     const elegido = mejorMensaje(data as Record<string, unknown>);
     if (elegido) return elegido;
   }
@@ -119,6 +176,8 @@ export async function extractEdgeError(
         try {
           const parsed = JSON.parse(text);
           if (parsed && typeof parsed === "object") {
+            const delProveedor = mensajeDeFalloDeProveedor(parsed as Record<string, unknown>);
+            if (delProveedor) return delProveedor;
             const elegido = mejorMensaje(parsed as Record<string, unknown>);
             if (elegido) return elegido;
           }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractEdgeError, partirMensajeDeError } from "./edge-error";
+import { mensajeDeFalloDeProveedor, extractEdgeError, partirMensajeDeError } from "./edge-error";
 
 // Helper para construir un FunctionsHttpError-like sin tener que importar
 // la clase real de supabase-js. Solo necesitamos el shape:
@@ -184,3 +184,64 @@ describe("partirMensajeDeError", () => {
     expect(partirMensajeDeError("   ")).toEqual({ visible: null, detalle: null });
   });
 });
+
+describe("mensajeDeFalloDeProveedor", () => {
+  it("una clave rechazada se lee como clave rechazada, no como falta de permiso", () => {
+    // El caso real: 17 recalificaciones fallidas mostrando «Fallo al calificar
+    // en bloque». El proveedor había dicho 403 «Authentication failed: Please
+    // make sure your API Key is valid», y arreglarlo eran 30 segundos de
+    // configuración. El fallback por status decía «No autorizado para esta
+    // acción», que culpa al usuario de un permiso que no le falta.
+    const m = mensajeDeFalloDeProveedor({ http_status: 403 });
+    expect(m).toMatch(/clave/i);
+    expect(m).toMatch(/Modelo IA/);
+    expect(m).not.toMatch(/No autorizado/i);
+  });
+
+  it("distingue sin créditos, límite de uso y modelo inexistente", () => {
+    expect(mensajeDeFalloDeProveedor({ http_status: 402 })).toMatch(/créditos/i);
+    expect(mensajeDeFalloDeProveedor({ http_status: 429 })).toMatch(/límite/i);
+    expect(mensajeDeFalloDeProveedor({ http_status: 404 })).toMatch(/modelo/i);
+    expect(mensajeDeFalloDeProveedor({ http_status: 503 })).toMatch(/temporal/i);
+  });
+
+  it("no inventa nada cuando el cuerpo no trae el status del proveedor", () => {
+    // Devolver null deja que el caller conserve el mensaje que ya tenía.
+    expect(mensajeDeFalloDeProveedor({ error: "Cualquier otra cosa" })).toBeNull();
+    expect(mensajeDeFalloDeProveedor({})).toBeNull();
+    expect(mensajeDeFalloDeProveedor({ http_status: "403" })).toBeNull();
+  });
+
+  it("NO filtra el volcado del proveedor al texto visible", () => {
+    // Está en inglés, es un JSON y no dice qué hacer (P6). Queda en la
+    // auditoría, que es donde soporte lo busca.
+    const m = mensajeDeFalloDeProveedor({
+      http_status: 403,
+      response_snippet: '{"Message":"Authentication failed: Please make sure your API Key is valid."}',
+    });
+    expect(m).not.toMatch(/Authentication failed/);
+  });
+});
+
+describe("extractEdgeError con un fallo del proveedor", () => {
+  it("le gana a la frase interna del edge", async () => {
+    // `error` acá es de la edge, no del proveedor: sin esto el docente leía
+    // «Fallo al calificar en bloque» 17 veces y no sabía qué hacer.
+    const detalle = await extractEdgeError(null, {
+      error: "Fallo al calificar en bloque",
+      kind: "http",
+      http_status: 403,
+      response_snippet: '{"Message":"Authentication failed: Please make sure your API Key is valid."}',
+    });
+    expect(detalle).toMatch(/clave/i);
+    expect(detalle).not.toMatch(/Fallo al calificar en bloque/);
+  });
+
+  it("y también cuando viene por el cuerpo del Response", async () => {
+    const err = makeFunctionsHttpError(
+      JSON.stringify({ error: "Fallo al calificar en bloque", http_status: 429 }),
+    );
+    expect(await extractEdgeError(err)).toMatch(/límite/i);
+  });
+});
+
