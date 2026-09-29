@@ -618,6 +618,8 @@ function TeacherExams() {
         1,
         Math.min(50, Number((form as any).max_warnings ?? 3) || 3),
       );
+      basePayload.clipboard_counts_as_warning =
+        (form as { clipboard_counts_as_warning?: boolean }).clipboard_counts_as_warning === true;
     }
     // Single-course weight validation
     if (!isMultiCourse && form.cut_id && (form as any).weight != null) {
@@ -1752,6 +1754,23 @@ function TeacherExams() {
                         } as any)
                       }
                     />
+                  </div>
+                  {/* Va desde el ALTA y no solo al editar: su campo hermano
+                      (máximo de advertencias) ya está acá, y obligar a crear el
+                      examen y volver a entrar para activarlo es fricción sin
+                      motivo. */}
+                  <div className="sm:col-span-2 flex items-start gap-2">
+                    <Switch
+                      id="clipboard-counts-new"
+                      checked={(form as any).clipboard_counts_as_warning === true}
+                      onCheckedChange={(v) =>
+                        setForm({ ...form, clipboard_counts_as_warning: v } as any)
+                      }
+                    />
+                    <Label htmlFor="clipboard-counts-new" className="font-normal">
+                      {t("hc_routesAppTeacherExamsExamId.clipboardCountsLabel")}{" "}
+                      <HelpHint>{t("hc_routesAppTeacherExamsExamId.clipboardCountsHint")}</HelpHint>
+                    </Label>
                   </div>
                   <div>
                     <Label>{t("exam.parentExam")}</Label>

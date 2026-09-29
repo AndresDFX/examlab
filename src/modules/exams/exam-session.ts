@@ -1,4 +1,4 @@
-import { isStrikeEvent } from "./proctoring";
+import { eventoSumoStrike } from "./proctoring";
 /**
  * Utilidades puras para el ciclo de vida de una sesión de examen estudiantil.
  * Extraídas del componente TakeExam para que sean testeables sin renderizar.
@@ -100,6 +100,9 @@ export type WarningEventLike = {
   at?: string | number;
   ts?: number;
   questionIdx?: number | null;
+  questionId?: string | null;
+  /** ¿Sumó strike? Lo escribe quien registró el evento. Ver `eventoSumoStrike`. */
+  suma?: boolean;
 };
 
 export interface ClearWarningInput {
@@ -150,11 +153,16 @@ export function applyClearOneWarning(
   // El contador baja SOLO si el evento borrado había sumado un strike. El array
   // mezcla los strikes reales con señales blandas (`copiar`, `pegar`, `cortar`,
   // `screenshot_attempt`) que se registran para que el docente las vea pero no
-  // suman — ver `isStrikeEvent`. Antes se decrementaba para cualquier índice,
+  // suman — ver `eventoSumoStrike`. Antes se decrementaba para cualquier índice,
   // así que perdonar un "Intento de copiar" regalaba un strike inexistente y,
   // si eso cruzaba el umbral hacia abajo, DES-SUSPENDÍA al alumno.
-  const borrado = safe.events[idx] as { type?: string } | undefined;
-  const nextWarnings = isStrikeEvent(borrado?.type)
+  //
+  // Se pregunta por el EVENTO y no por su tipo: desde que pegar puede sumar o no
+  // según la pregunta, el tipo dejó de alcanzar. El servidor ya decide así
+  // (`_exam_warning_event_is_strike`); si acá se decidiera distinto, el docente
+  // vería un aviso que no coincide con lo que la fila hizo de verdad.
+  const borrado = safe.events[idx];
+  const nextWarnings = borrado && eventoSumoStrike(borrado)
     ? Math.max(0, safe.focusWarnings - 1)
     : safe.focusWarnings;
   const belowThreshold = safe.status === "sospechoso" && nextWarnings < safe.examMaxWarnings;

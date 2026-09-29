@@ -3384,7 +3384,17 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     warningsRef.current = nw;
                     warningEventsRef.current = [
                       ...warningEventsRef.current,
-                      { type: "retroceso", at: new Date().toISOString(), questionIdx: currentIdx },
+                      {
+                        type: "retroceso",
+                        at: new Date().toISOString(),
+                        questionIdx: currentIdx,
+                        // El cuarto registrador. Sin el ID, la tarjeta del
+                        // monitor cae al índice —que acá va SIN condicionar a
+                        // navegación secuencial, al revés que los otros tres— y
+                        // con la mezcla activada le muestra al docente una
+                        // pregunta que no es.
+                        questionId: questions[currentIdx]?.id ?? null,
+                      },
                     ];
                     const updatedAnswers = {
                       ...answersRef.current,

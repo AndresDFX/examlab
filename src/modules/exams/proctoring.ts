@@ -202,7 +202,10 @@ export function isStrikeEvent(type: string | null | undefined): boolean {
  * —sin la marca— se resuelve por tipo, exactamente como antes: la allowlist
  * sigue gobernando el histórico, que es lo que hay en producción.
  */
-export function eventoSumoStrike(ev: WarningEvent): boolean {
+export function eventoSumoStrike(ev: {
+  type?: string | null;
+  suma?: boolean;
+}): boolean {
   if (typeof ev.suma === "boolean") return ev.suma;
   return isStrikeEvent(ev.type);
 }

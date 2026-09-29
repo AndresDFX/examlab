@@ -20,10 +20,28 @@ import fs from "node:fs";
  * visible: la escritura se rechaza, el cliente reintenta, restaura su bandera
  * para no dejar un spinner colgado, y el examen sigue como si nada.
  */
-const SQL = fs.readFileSync(
-  "supabase/migrations/20262580000000_alumno_puede_cerrar_su_propio_intento.sql",
-  "utf8",
-);
+/**
+ * La ÚLTIMA migración que define el candado, no un nombre fijo.
+ *
+ * Apuntar a un archivo concreto es el modo de falla que `proctoring.test.ts` ya
+ * documenta para su propio espejo: la siguiente migración que toque la función
+ * deja al test leyendo una versión vieja y pasando en verde contra ella. Pasó
+ * de entrada — la 20262590000000 redefine esta misma función para sumarle
+ * `cleared_warning_events`, y este test no la estaba mirando.
+ */
+const DIR = "supabase/migrations";
+const ARCHIVO = fs
+  .readdirSync(DIR)
+  .filter((f) => f.endsWith(".sql"))
+  .sort()
+  .reverse()
+  .find((f) =>
+    fs.readFileSync(`${DIR}/${f}`, "utf8").includes(
+      "CREATE OR REPLACE FUNCTION public.tg_guard_exam_submission_grade",
+    ),
+  );
+if (!ARCHIVO) throw new Error("ninguna migración define tg_guard_exam_submission_grade");
+const SQL = fs.readFileSync(`${DIR}/${ARCHIVO}`, "utf8");
 
 describe("candado de cierre del intento", () => {
   it("separa las columnas de NOTA de las de CIERRE en dos banderas", () => {

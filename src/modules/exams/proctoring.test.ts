@@ -206,6 +206,39 @@ describe("blurCuentaComoStrike", () => {
     expect(enSql).toEqual([...TIPOS_QUE_SUMAN_STRIKE].sort());
     for (const t of enSql) expect(isStrikeEvent(t), t).toBe(true);
   });
+
+  it("y `eventoSumoStrike` coincide con SU espejo: la marca gana, el tipo respalda", () => {
+    // La hermana del espejo de arriba. Desde que pegar puede sumar o no según la
+    // pregunta, el tipo dejó de alcanzar y la decisión pasó a mirar el EVENTO.
+    // Si el cliente y el servidor no la toman igual, perdonar una advertencia
+    // descuenta distinto de lo que la pantalla acaba de mostrar.
+    const dir = "supabase/migrations";
+    const archivo = fs
+      .readdirSync(dir)
+      .filter((f) => f.endsWith(".sql"))
+      .sort()
+      .reverse()
+      .find((f) =>
+        fs.readFileSync(path.join(dir, f), "utf8").includes(
+          "FUNCTION public._exam_warning_event_is_strike",
+        ),
+      );
+    expect(archivo, "ninguna migración define _exam_warning_event_is_strike").toBeTruthy();
+
+    const sql = fs.readFileSync(path.join(dir, archivo!), "utf8");
+    // El orden importa: `suma` PRIMERO dentro del COALESCE. Al revés, el tipo
+    // ganaría siempre y la marca no serviría para nada.
+    const cuerpo = /_exam_warning_event_is_strike[\s\S]*?COALESCE\(([\s\S]*?)\);/.exec(sql);
+    expect(cuerpo, "no se encontró el cuerpo de la función").not.toBeNull();
+    const dentro = cuerpo![1];
+    expect(dentro.indexOf("'suma'")).toBeGreaterThan(-1);
+    expect(dentro.indexOf("_exam_warning_is_strike")).toBeGreaterThan(dentro.indexOf("'suma'"));
+
+    // Y el lado TS se comporta igual, contra la función real.
+    expect(eventoSumoStrike({ type: "copiar", suma: true })).toBe(true);
+    expect(eventoSumoStrike({ type: "pestaña", suma: false })).toBe(false);
+    expect(eventoSumoStrike({ type: "pestaña" })).toBe(true);
+  });
 });
 
 describe("creaVentanasDeProctoring", () => {
