@@ -72,7 +72,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { notaDeExamenParaEstudiante, type TipoRecuperacion } from "@/modules/grading/nota-con-recuperacion";
+import {
+  notaDeExamenParaEstudiante,
+  notaDeTallerConRecuperaciones,
+  type FilaDeTaller,
+  type TipoRecuperacion,
+} from "@/modules/grading/nota-con-recuperacion";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import {
   downloadCertificate,
   downloadCertificatesZip,
@@ -148,6 +154,12 @@ type Workshop = {
   weight?: number | null;
   is_external?: boolean | null;
   status?: string | null;
+  requires_defense?: boolean | null;
+  /** Recuperación de otro taller (mig 20262660000000). */
+  parent_workshop_id?: string | null;
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
 };
 type Project = {
   id: string;
@@ -508,9 +520,10 @@ function Gradebook() {
       "workshop_courses",
       db
         .from("workshop_courses")
-        .select(
-          "cut_id, weight, workshop:workshops(id, title, course_id, max_score, is_external, deleted_at, status, requires_defense)",
-        )
+        // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
+        // columnas de recuperación (mig 20262660000000) pueden llegar después
+        // que el frontend; pedirlas por nombre haría fallar la consulta entera.
+        .select("cut_id, weight, workshop:workshops(*)")
         .eq("course_id", courseId),
     );
     const workshops = (wcData ?? [])
@@ -593,15 +606,19 @@ function Gradebook() {
         cutId: e.cut_id ?? null,
       }));
 
-    const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[]).map((w) => ({
-      id: w.id,
-      title: w.title,
-      kind: "workshop" as const,
-      maxScore: w.max_score,
-      isExternal: !!w.is_external,
-      weight: w.weight ?? null,
-      cutId: w.cut_id ?? null,
-    }));
+    // Solo talleres ORIGINALES tienen columna: la nota de una recuperación se
+    // pliega en la del original (getGrade), con la insignia S/R.
+    const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[])
+      .filter((w) => !w.parent_workshop_id)
+      .map((w) => ({
+        id: w.id,
+        title: w.title,
+        kind: "workshop" as const,
+        maxScore: w.max_score,
+        isExternal: !!w.is_external,
+        weight: w.weight ?? null,
+        cutId: w.cut_id ?? null,
+      }));
 
     const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
       id: p.id,
@@ -804,25 +821,52 @@ function Gradebook() {
         subId: latest?.id,
       };
     } else if (col.kind === "workshop") {
+      const wMeta = allWorkshops.find((w) => w.id === col.id);
+      if (!wMeta) return { grade: null, isMakeup: false };
       // Precedencia de GRUPO sobre la entrega individual obsoleta (modo mixto):
       // si el alumno entregó individual ANTES de ser agrupado, esa fila vieja
       // coexiste con la del grupo. La vista del estudiante ya prioriza la grupal
       // (app.student.grades.tsx); acá replicamos para no divergir docente↔alumno.
-      const sub =
+      const subDe = (wid: string) =>
         wsSubs.find(
-          (s) =>
-            s.workshop_id === col.id &&
-            !!s.group_id &&
-            !!wsGroupsByUser.get(studentId)?.has(s.group_id),
-        ) ?? wsSubs.find((s) => s.workshop_id === col.id && s.user_id === studentId);
-      if (sub)
+          (s) => s.workshop_id === wid && !!s.group_id && !!wsGroupsByUser.get(studentId)?.has(s.group_id),
+        ) ?? wsSubs.find((s) => s.workshop_id === wid && s.user_id === studentId);
+      const wById = new Map(allWorkshops.map((w) => [w.id, w]));
+      // Supletorio y recuperatorio: la regla es UNA (nota-con-recuperacion.ts),
+      // con su espejo SQL para el acta (`workshop_effective_raw_grade`). La nota
+      // usa `notaEfectivaDeTaller` (respeta la sustentación).
+      const notaDe = (wid: string) => {
+        const w = wById.get(wid);
+        const sub = subDe(wid);
         return {
-          grade: sub.final_grade ?? sub.ai_grade,
-          isMakeup: false,
-          status: sub.status,
-          subId: sub.id,
+          id: wid,
+          presento: entregaHecha(sub ?? null),
+          nota: notaEfectivaDeTaller(sub ?? null, w?.requires_defense),
         };
-      return { grade: null, isMakeup: false };
+      };
+      const filas: FilaDeTaller[] = allWorkshops.map((w) => ({
+        id: w.id,
+        parent_workshop_id: w.parent_workshop_id ?? null,
+        makeup_kind: w.makeup_kind ?? null,
+        recovery_rule: w.recovery_rule ?? null,
+        created_at: w.created_at ?? null,
+        status: w.status ?? null,
+        deleted_at: null,
+      }));
+      const r = notaDeTallerConRecuperaciones(
+        { id: col.id, parent_workshop_id: null },
+        filas,
+        notaDe,
+      );
+      const subFuente = subDe(r.idFuente ?? col.id);
+      const esRecuperacion = r.fuente === "supletorio" || r.fuente === "recuperatorio";
+      return {
+        grade: r.nota,
+        isMakeup: esRecuperacion,
+        makeupKind: esRecuperacion ? (r.fuente as TipoRecuperacion) : undefined,
+        status: subFuente?.status,
+        subId: subFuente?.id,
+      };
     } else {
       // project — misma precedencia de GRUPO sobre individual que en talleres.
       const sub =
@@ -1361,25 +1405,39 @@ function Gradebook() {
 
       // Workshops — para is_external la nota está en escala del curso
       // (la captura ExternalGradesEditor con cap = grade_scale_max).
-      for (const w of allWorkshops) {
-        // Precedencia de GRUPO sobre individual obsoleta (igual que getGrade).
-        const sub =
-          wsSubs.find(
-            (s) =>
-              s.workshop_id === w.id &&
-              !!s.group_id &&
-              !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
-          ) ?? wsSubs.find((s) => s.workshop_id === w.id && s.user_id === stu.id);
+      // Solo ORIGINALES: una recuperación no suma aparte, su nota se pliega en
+      // la del original (misma regla que la celda getGrade). Se pliega en la
+      // ESCALA DEL CURSO para comparar peras con peras aunque difieran max_score.
+      const wsById = new Map(allWorkshops.map((w) => [w.id, w]));
+      const subDeW = (wid: string) =>
+        wsSubs.find(
+          (s) => s.workshop_id === wid && !!s.group_id && !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
+        ) ?? wsSubs.find((s) => s.workshop_id === wid && s.user_id === stu.id);
+      const notaDeW = (wid: string) => {
+        const w = wsById.get(wid);
+        const sub = subDeW(wid);
         // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota del
         // TRABAJO. Este número alimenta el consolidado, el CSV y la EMISIÓN DE
-        // CERTIFICADOS (compara contra `passing_grade`), así que el fallback
-        // podía empujar a alguien sobre el corte por un taller sin sustentar.
-        const raw = notaEfectivaDeTaller(sub, (w as any).requires_defense);
-        const wMax = w.is_external ? max : (w.max_score ?? 100);
+        // CERTIFICADOS (compara contra `passing_grade`).
+        const raw = notaEfectivaDeTaller(sub, (w as any)?.requires_defense);
+        const wMax = w?.is_external ? max : (w?.max_score ?? 100);
+        return { id: wid, presento: entregaHecha(sub ?? null), nota: raw != null ? toScale(Number(raw), wMax) : null };
+      };
+      const wsFilasG: FilaDeTaller[] = allWorkshops.map((w) => ({
+        id: w.id,
+        parent_workshop_id: w.parent_workshop_id ?? null,
+        makeup_kind: w.makeup_kind ?? null,
+        recovery_rule: w.recovery_rule ?? null,
+        created_at: w.created_at ?? null,
+        status: w.status ?? null,
+        deleted_at: null,
+      }));
+      for (const w of allWorkshops.filter((x) => !x.parent_workshop_id)) {
+        const score = notaDeTallerConRecuperaciones({ id: w.id, parent_workshop_id: null }, wsFilasG, notaDeW).nota;
         allItems.push({
           cutId: w.cut_id ?? null,
           weight: Math.max(0, Number((w as any).weight ?? 1) || 0),
-          score: raw != null ? toScale(Number(raw), wMax) : null,
+          score,
         });
       }
 

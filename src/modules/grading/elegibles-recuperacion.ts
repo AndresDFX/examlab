@@ -24,7 +24,10 @@
 import type { AttemptForGrade } from "@/modules/exams/exam-attempts";
 import {
   notaDeExamenParaEstudiante,
+  notaDeTallerConRecuperaciones,
   type FilaDeExamen,
+  type FilaDeTaller,
+  type ItemResuelto,
   type TipoRecuperacion,
 } from "./nota-con-recuperacion";
 
@@ -104,6 +107,54 @@ export function candidatosParaRecuperacion(args: {
 
   // Primero los que perdieron (el caso del que se trata), después los que no
   // presentaron y al final los que todavía no tienen nota.
+  const orden: Record<MotivoDeRecuperacion, number> = { perdio: 0, no_presento: 1, sin_nota: 2 };
+  candidatos.sort((a, b) => orden[a.motivo] - orden[b.motivo]);
+  return { candidatos, presentaron, aprobaron };
+}
+
+/**
+ * Igual que `candidatosParaRecuperacion` pero para TALLERES. La diferencia es
+ * cómo se resuelve la nota de cada estudiante: un taller no tiene intentos, así
+ * que el llamador pasa `notaDe(tallerId, userId)` que ya devuelve el
+ * `ItemResuelto` (presentó + nota YA en la escala del curso, vía
+ * `notaEfectivaDeTaller`). El pliegue de recuperaciones es el mismo.
+ */
+export function candidatosDeTallerParaRecuperacion(args: {
+  tipo: TipoRecuperacion;
+  estudiantes: readonly string[];
+  taller: FilaDeTaller;
+  talleres: readonly FilaDeTaller[];
+  /** Presentó + nota EN ESCALA DEL CURSO de un (taller, estudiante). */
+  notaDe: (tallerId: string, userId: string) => ItemResuelto;
+  escala: EscalaDelCurso;
+}): ResultadoDeCandidatos {
+  const candidatos: Candidato[] = [];
+  let presentaron = 0;
+  let aprobaron = 0;
+
+  for (const userId of args.estudiantes) {
+    const r = notaDeTallerConRecuperaciones(args.taller, args.talleres, (id) =>
+      args.notaDe(id, userId),
+    );
+    if (r.fuente === null) {
+      candidatos.push({ userId, motivo: "no_presento", nota: null, sugerido: true });
+      continue;
+    }
+    presentaron++;
+    if (args.tipo === "supletorio") continue;
+    if (r.nota == null) {
+      candidatos.push({ userId, motivo: "sin_nota", nota: null, sugerido: false });
+      continue;
+    }
+    // La nota ya viene en la escala del curso (a diferencia de exámenes, que la
+    // reescalan acá): comparar directo contra la de aprobación.
+    if (r.nota < args.escala.aprobacion) {
+      candidatos.push({ userId, motivo: "perdio", nota: r.nota, sugerido: true });
+    } else {
+      aprobaron++;
+    }
+  }
+
   const orden: Record<MotivoDeRecuperacion, number> = { perdio: 0, no_presento: 1, sin_nota: 2 };
   candidatos.sort((a, b) => orden[a.motivo] - orden[b.motivo]);
   return { candidatos, presentaron, aprobaron };

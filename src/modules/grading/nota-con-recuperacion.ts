@@ -83,37 +83,94 @@ export function presento(intentos: readonly AttemptForGrade[]): boolean {
   return intentos.some(esIntentoFinalizado);
 }
 
-export function resolverNotaConRecuperacion(
-  original: ExamenConIntentos,
-  recuperaciones: readonly Recuperacion[],
-): NotaResuelta {
-  let base: NotaResuelta | null = presento(original.intentos)
-    ? {
-        nota: computeAttemptGrade(original.intentos, original.retryMode),
-        fuente: "original",
-        examIdFuente: original.id,
-      }
+// ── Núcleo GENÉRICO (examen o taller) ──────────────────────────────────
+//
+// El pliegue de recuperaciones es el mismo para exámenes y talleres; lo único
+// que cambia es CÓMO se resuelve el «presentó» y la «nota» de cada ítem (un
+// examen combina intentos por `retry_mode`; un taller usa una sola entrega vía
+// `notaEfectivaDeTaller`). Por eso el núcleo recibe los ítems con su nota YA
+// resuelta y no sabe de intentos ni de entregas: los wrappers de examen y de
+// taller le dan de comer `ItemResuelto`.
+
+/** Un examen/taller ya reducido a «¿presentó?» y «¿qué nota?». */
+export interface ItemResuelto {
+  id: string;
+  presento: boolean;
+  /** Nota cruda en la escala del ítem. null = presentó pero todavía sin nota. */
+  nota: number | null;
+}
+
+export interface RecuperacionResuelta extends ItemResuelto {
+  tipo: TipoRecuperacion;
+  regla: ReglaRecuperatorio;
+  /** Para aplicarlas en el orden en que se crearon (ver el encabezado). */
+  creadoEn: string;
+}
+
+/**
+ * Nota resuelta de forma genérica. `idFuente` es el id del examen/taller de
+ * donde salió la nota (enlace a la revisión / entrega correctas).
+ */
+export interface NotaResueltaGenerica {
+  nota: number | null;
+  fuente: FuenteDeNota | null;
+  idFuente: string | null;
+}
+
+/**
+ * El pliegue en orden de creación (ver el encabezado del módulo). La primera
+ * recuperación presentada llena la ausencia del original; cada recuperatorio
+ * posterior combina con lo acumulado según su regla. Es la regla que espeja el
+ * SQL de las actas (`exam_effective_raw_grade` / `workshop_effective_raw_grade`).
+ */
+export function plegarRecuperaciones(
+  original: ItemResuelto,
+  recuperaciones: readonly RecuperacionResuelta[],
+): NotaResueltaGenerica {
+  let base: NotaResueltaGenerica | null = original.presento
+    ? { nota: original.nota, fuente: "original", idFuente: original.id }
     : null;
 
   const enOrden = [...recuperaciones].sort(
     (a, b) => a.creadoEn.localeCompare(b.creadoEn) || a.id.localeCompare(b.id),
   );
   for (const r of enOrden) {
-    if (!presento(r.intentos)) continue;
-    const nota = computeAttemptGrade(r.intentos, r.retryMode);
+    if (!r.presento) continue;
     if (base === null) {
       // No presentó el original: la primera recuperación presentada llena la
       // ausencia, sea supletorio o recuperatorio.
-      base = { nota, fuente: r.tipo, examIdFuente: r.id };
+      base = { nota: r.nota, fuente: r.tipo, idFuente: r.id };
       continue;
     }
     // Con una nota de base ya puesta, el supletorio no tiene nada que llenar.
-    if (r.tipo !== "recuperatorio" || nota == null) continue;
-    if (r.regla === "reemplaza" || base.nota == null || nota > base.nota) {
-      base = { nota, fuente: "recuperatorio", examIdFuente: r.id };
+    if (r.tipo !== "recuperatorio" || r.nota == null) continue;
+    if (r.regla === "reemplaza" || base.nota == null || r.nota > base.nota) {
+      base = { nota: r.nota, fuente: "recuperatorio", idFuente: r.id };
     }
   }
-  return base ?? { nota: null, fuente: null, examIdFuente: null };
+  return base ?? { nota: null, fuente: null, idFuente: null };
+}
+
+export function resolverNotaConRecuperacion(
+  original: ExamenConIntentos,
+  recuperaciones: readonly Recuperacion[],
+): NotaResuelta {
+  const r = plegarRecuperaciones(
+    {
+      id: original.id,
+      presento: presento(original.intentos),
+      nota: computeAttemptGrade(original.intentos, original.retryMode),
+    },
+    recuperaciones.map((rec) => ({
+      id: rec.id,
+      presento: presento(rec.intentos),
+      nota: computeAttemptGrade(rec.intentos, rec.retryMode),
+      tipo: rec.tipo,
+      regla: rec.regla,
+      creadoEn: rec.creadoEn,
+    })),
+  );
+  return { nota: r.nota, fuente: r.fuente, examIdFuente: r.idFuente };
 }
 
 /**
@@ -206,6 +263,103 @@ export function entregasQueDecidenLaNota<
     const fuente = notaDeExamenParaEstudiante(original, examenes, filas).examIdFuente;
     for (const entrega of fuente ? filas.filter((f) => f.exam_id === fuente) : filas) {
       out.push({ examenOriginal: original.id, entrega });
+    }
+  }
+  return out;
+}
+
+// ══════════════════════════════════════════════════════════════════════
+// TALLERES con recuperaciones (`workshops.parent_workshop_id`).
+//
+// Mismo modelo que los exámenes, con dos diferencias que vienen del taller:
+//  - Un taller tiene UNA entrega (individual o de grupo), no varios intentos:
+//    la nota sale de `notaEfectivaDeTaller` (respeta la sustentación) y
+//    «presentó» sale de `entregaHecha`. Por eso el llamador resuelve cada
+//    (taller, estudiante) a un `ItemResuelto` y este módulo solo pliega.
+//  - Talleres son M:N (`workshop_courses` lleva peso/corte POR CURSO). La
+//    recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de
+//    las sumas de bucket; su nota ocupa el lugar de la del original.
+//
+// Espejo SQL: `public.workshop_effective_raw_grade` (mig 20262660000000).
+// ══════════════════════════════════════════════════════════════════════
+
+export interface FilaDeTaller {
+  id: string;
+  parent_workshop_id?: string | null;
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
+  status?: string | null;
+  deleted_at?: string | null;
+}
+
+const recuperacionDeTallerVigente = (w: FilaDeTaller) => w.status !== "draft" && !w.deleted_at;
+
+/**
+ * La nota de un taller con sus recuperaciones. El llamador pasa `notaDe`, que
+ * dado un id de taller devuelve su `ItemResuelto` (presentó + nota YA en la
+ * escala en la que se comparan las notas — típicamente la del curso, para que
+ * la regla «mayor» compare peras con peras aunque los `max_score` difieran).
+ *
+ * `idFuente` es el taller de donde salió la nota: sirve para el enlace de
+ * revisión y para atribuir la entrega al original en Estadísticas.
+ */
+export function notaDeTallerConRecuperaciones(
+  taller: FilaDeTaller,
+  todosLosTalleres: readonly FilaDeTaller[],
+  notaDe: (tallerId: string) => ItemResuelto,
+): NotaResueltaGenerica {
+  const recuperaciones = todosLosTalleres
+    .filter((w) => w.parent_workshop_id === taller.id && recuperacionDeTallerVigente(w))
+    .map((w) => {
+      const r = notaDe(w.id);
+      return {
+        id: w.id,
+        presento: r.presento,
+        nota: r.nota,
+        tipo: tipoDeRecuperacion(w.makeup_kind),
+        regla: reglaDeRecuperatorio(w.recovery_rule),
+        creadoEn: w.created_at ?? "",
+      };
+    });
+  return plegarRecuperaciones(notaDe(taller.id), recuperaciones);
+}
+
+/**
+ * Para las pantallas que cuentan ENTREGAS de talleres y no notas (Estadísticas,
+ * Alerta temprana, «qué falta del corte»): de todas las entregas de talleres de
+ * un curso, las que DECIDEN la nota de cada (taller original, estudiante),
+ * atribuidas al original. Espejo de `entregasQueDecidenLaNota` de exámenes.
+ *
+ * `notaDe(tallerId, userId)` resuelve el `ItemResuelto` de esa celda.
+ */
+export function entregasDeTallerQueDecidenLaNota<
+  E extends { workshop_id: string; user_id: string },
+>(
+  talleres: readonly FilaDeTaller[],
+  entregas: readonly E[],
+  notaDe: (tallerId: string, userId: string) => ItemResuelto,
+): Array<{ tallerOriginal: string; entrega: E }> {
+  const porId = new Map(talleres.map((w) => [w.id, w]));
+  const grupos = new Map<string, { original: FilaDeTaller; filas: E[] }>();
+  for (const s of entregas) {
+    const taller = porId.get(s.workshop_id);
+    if (!taller) continue;
+    const original = taller.parent_workshop_id ? porId.get(taller.parent_workshop_id) : taller;
+    if (!original) continue;
+    const clave = `${original.id}::${s.user_id}`;
+    const g = grupos.get(clave);
+    if (g) g.filas.push(s);
+    else grupos.set(clave, { original, filas: [s] });
+  }
+  const out: Array<{ tallerOriginal: string; entrega: E }> = [];
+  for (const { original, filas } of grupos.values()) {
+    const userId = filas[0].user_id;
+    const fuente = notaDeTallerConRecuperaciones(original, talleres, (id) =>
+      notaDe(id, userId),
+    ).idFuente;
+    for (const entrega of fuente ? filas.filter((f) => f.workshop_id === fuente) : filas) {
+      out.push({ tallerOriginal: original.id, entrega });
     }
   }
   return out;

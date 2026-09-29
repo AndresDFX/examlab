@@ -312,7 +312,10 @@ function StudentWorkshops() {
     const { data: asg, error: asgErr } = await client
       .from("workshop_assignments")
       .select(
-        "workshop:workshops!inner(id, title, description, instructions, external_link, due_date, start_date, max_score, status, is_external, group_mode, requires_defense, max_attempts, deleted_at, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
+        // `workshops!inner(*)` y no la lista: `parent_workshop_id` (mig
+        // 20262660000000) puede llegar después que el frontend; pedirla por
+        // nombre haría fallar la consulta entera y el alumno no vería talleres.
+        "workshop:workshops!inner(*, course:courses(id, name, status, grade_scale_min, grade_scale_max, language))",
       )
       .eq("user_id", uid)
       .neq("workshop.status", "draft")
@@ -765,12 +768,15 @@ function StudentWorkshops() {
                   <div className="min-w-0 space-y-1">
                     <div className="text-xs text-muted-foreground">{workshop.course?.name}</div>
                     <h3 className="font-semibold truncate">{workshop.title}</h3>
-                    <CortePesoBadges
-                      valor={(() => {
-                        const f = filaQueManda(cortePesoPorTaller.get(workshop.id), workshop);
-                        return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
-                      })()}
-                    />
+                    {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
+                    {!(workshop as { parent_workshop_id?: string | null }).parent_workshop_id && (
+                      <CortePesoBadges
+                        valor={(() => {
+                          const f = filaQueManda(cortePesoPorTaller.get(workshop.id), workshop);
+                          return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
+                        })()}
+                      />
+                    )}
                   </div>
                   {/* Sustentación pendiente: se dice QUÉ falta, no se deja un
                       «Entregado» genérico. El alumno ya hizo su parte; lo que

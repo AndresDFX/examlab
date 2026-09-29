@@ -447,10 +447,13 @@ async function loadPendingData(
   // ── Talleres sin entregar (M:N vía workshop_courses) ────────────────
   await collectActivityPending({
     joinTable: "workshop_courses",
-    embed: "workshop:workshops(id, status, deleted_at)",
+    // `workshop:workshops(*)` — necesita `parent_workshop_id` (mig
+    // 20262660000000), que puede llegar después que el frontend.
+    embed: "workshop:workshops(*)",
     subTable: "workshop_submissions",
     subFk: "workshop_id",
     kind: "taller",
+    parentField: "parent_workshop_id",
     courseIds,
     studentsByCourse,
     items,
@@ -703,6 +706,8 @@ async function collectActivityPending(opts: {
   subTable: string;
   subFk: string;
   kind: PendingKind;
+  /** Columna del padre (recuperación → original). Solo talleres la usan. */
+  parentField?: string;
   courseIds: string[];
   studentsByCourse: Map<string, Set<string>>;
   items: PendingItem[];
@@ -712,24 +717,36 @@ async function collectActivityPending(opts: {
     .select(`course_id, ${opts.embed}`)
     .in("course_id", opts.courseIds);
   const key = opts.embed.split(":")[0]; // "workshop" / "project"
-  // (courseId, activityId) que cuentan: no borrador, no papelera.
+  // Recuperación → original: una recuperación NO es una actividad pendiente
+  // más (solo la presentan sus asignados; listarla contra todo el curso ponía
+  // «pendiente» a los que aprobaron). Cuenta del lado del original: quien no
+  // entregó el original pero sí una recuperación ya no lo tiene pendiente.
+  const parentField = opts.parentField;
+  const originalOf = new Map<string, string>(); // activityId → originalId
+  // (courseId, activityId ORIGINAL) que cuentan: no borrador, no papelera.
   const activities: Array<{ id: string; courseId: string }> = [];
   for (const r of (joinRaw ?? []) as Array<Record<string, unknown>>) {
-    const item = r[key] as { id?: string; status?: string; deleted_at?: string | null } | null;
+    const item = r[key] as
+      | { id?: string; status?: string; deleted_at?: string | null; [k: string]: unknown }
+      | null;
     if (!item?.id) continue;
     if (item.deleted_at) continue;
     if (item.status === "draft") continue;
+    const parent = parentField ? (item[parentField] as string | null) : null;
+    originalOf.set(item.id, parent ?? item.id);
+    if (parent) continue; // las recuperaciones no se listan como pendientes
     activities.push({ id: item.id, courseId: String(r.course_id) });
   }
-  const activityIds = Array.from(new Set(activities.map((a) => a.id)));
-  const submitted = new Set<string>(); // `${activity_id}::${user_id}`
+  const activityIds = Array.from(originalOf.keys());
+  const submitted = new Set<string>(); // `${activity_id ORIGINAL}::${user_id}`
   if (activityIds.length > 0) {
     const { data: subRaw } = await dbAny
       .from(opts.subTable)
       .select(`${opts.subFk}, user_id`)
       .in(opts.subFk, activityIds);
     for (const s of (subRaw ?? []) as Array<Record<string, unknown>>) {
-      submitted.add(`${String(s[opts.subFk])}::${String(s.user_id)}`);
+      const orig = originalOf.get(String(s[opts.subFk])) ?? String(s[opts.subFk]);
+      submitted.add(`${orig}::${String(s.user_id)}`);
     }
   }
   for (const a of activities) {

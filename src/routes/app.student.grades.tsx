@@ -48,7 +48,11 @@ import {
 } from "lucide-react";
 import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
-import { notaDeExamenParaEstudiante } from "@/modules/grading/nota-con-recuperacion";
+import {
+  notaDeExamenParaEstudiante,
+  notaDeTallerConRecuperaciones,
+} from "@/modules/grading/nota-con-recuperacion";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -198,8 +202,11 @@ function StudentGrades() {
           // dejaba invisible aquí. El filtro de draft se aplica abajo sobre
           // el join (workshop_courses no tiene status). Espejo de flatProjects.
           db
+            // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
+            // columnas de recuperación (mig 20262660000000) pueden llegar
+            // después que el frontend.
             .from("workshop_courses")
-            .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, group_mode, requires_defense)")
+            .select("cut_id, weight, workshop:workshops(*)")
             .eq("course_id", courseId),
           // Proyectos via project_courses para incluir secundarios y usar
           // cut_id/weight por curso. El filtro de draft se aplica abajo
@@ -402,26 +409,50 @@ function StudentGrades() {
         // SOLO para calcular `grade` (no cambia la nota). La columna
         // "Puntaje" SIEMPRE se presenta en la escala del curso (#19): el
         // tope mostrado es grade_scale_max y el valor el puntaje normalizado.
-        for (const w of flatWorkshops as any[]) {
-          const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === w.id);
-          // Con sustentación pendiente no hay nota todavía: caer a `ai_grade`
-          // le mostraría al estudiante como definitiva la nota del TRABAJO.
-          const raw = notaEfectivaDeTaller(sub, w.requires_defense);
-          const internalMax = w.is_external ? course.grade_scale_max : (w.max_score ?? 100);
+        // Solo talleres ORIGINALES: una recuperación no suma aparte, su nota se
+        // pliega en la del original (supletorio/recuperatorio) — la MISMA regla
+        // que el gradebook y el acta (`workshop_effective_raw_grade`). Se pliega
+        // en la ESCALA DEL CURSO para comparar peras con peras aunque los
+        // `max_score` difieran entre original y recuperación.
+        const wsFilas = (flatWorkshops as any[]).map((w) => ({
+          id: w.id,
+          parent_workshop_id: w.parent_workshop_id ?? null,
+          makeup_kind: w.makeup_kind ?? null,
+          recovery_rule: w.recovery_rule ?? null,
+          created_at: w.created_at ?? null,
+          status: w.status ?? null,
+          deleted_at: null,
+        }));
+        const wById = new Map((flatWorkshops as any[]).map((w) => [w.id, w]));
+        const notaDeW = (wid: string) => {
+          const w = wById.get(wid);
+          const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === wid);
+          const raw = notaEfectivaDeTaller(sub, w?.requires_defense);
+          const internalMax = w?.is_external ? course.grade_scale_max : (w?.max_score ?? 100);
+          return {
+            id: wid,
+            presento: entregaHecha(sub),
+            nota: raw != null ? toScale(raw, internalMax) : null,
+          };
+        };
+        for (const w of (flatWorkshops as any[]).filter((x) => !x.parent_workshop_id)) {
+          const r = notaDeTallerConRecuperaciones({ id: w.id, parent_workshop_id: null }, wsFilas, notaDeW);
+          const gradeCourse = r.nota; // ya en escala del curso
+          const wFuente = wById.get(r.idFuente ?? w.id);
+          const subFuente = (wsSubs ?? []).find((s: any) => s.workshop_id === (r.idFuente ?? w.id));
           rows.push({
             id: w.id,
             title: w.title,
             kind: "workshop",
             cut_id: w.cut_id ?? null,
-            // Puntaje en escala del curso: normaliza raw (0..internalMax) a
-            // 0..grade_scale_max. Para items ya en escala del curso
-            // (internalMax === grade_scale_max) es no-op.
-            rawGrade: raw != null ? rescaleScore(raw, internalMax, course.grade_scale_max) : null,
+            // La nota ya viene en escala del curso; el "Puntaje" mostrado y la
+            // nota final coinciden (rescaleScore identidad sobre grade_scale_max).
+            rawGrade: gradeCourse != null ? rescaleScore(gradeCourse, course.grade_scale_max, course.grade_scale_max) : null,
             rawMax: course.grade_scale_max,
-            grade: raw != null ? toScale(raw, internalMax) : null,
-            status: sub?.status ?? "pendiente",
+            grade: gradeCourse,
+            status: subFuente?.status ?? "pendiente",
             weight: Number(w.weight ?? 1),
-            reviewWorkshopId: sub ? w.id : null,
+            reviewWorkshopId: subFuente ? (wFuente?.id ?? w.id) : null,
           });
         }
 

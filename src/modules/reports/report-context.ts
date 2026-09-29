@@ -24,7 +24,11 @@ import {
   type GradedItem,
 } from "@/modules/grading/grade";
 import { type AttemptForGrade, type RetryMode } from "@/modules/exams/exam-attempts";
-import { notaDeExamenParaEstudiante } from "@/modules/grading/nota-con-recuperacion";
+import {
+  notaDeExamenParaEstudiante,
+  notaDeTallerConRecuperaciones,
+} from "@/modules/grading/nota-con-recuperacion";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import {
@@ -714,7 +718,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         // un curso secundario del boletín → divergía del gradebook/estudiante/
         // acta. Paridad con proyectos (project_courses) de justo abajo.
         .from("workshop_courses")
-        .select("cut_id, weight, workshop:workshops(id, title, max_score, is_external, status, deleted_at, requires_defense)")
+        // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
+        // columnas de recuperación (mig 20262660000000) pueden llegar después
+        // que el frontend.
+        .select("cut_id, weight, workshop:workshops(*)")
         .eq("course_id", courseId),
       db
         .from("project_courses")
@@ -746,9 +753,39 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     recovery_rule?: string | null;
     created_at?: string | null;
   }>).filter((e) => !isDraft(e.status));
-  const workshops = ((wcRows ?? []) as Array<{ cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } | null }>)
-    .filter((r): r is { cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } } => r.workshop != null && !r.workshop.deleted_at && !isDraft(r.workshop.status))
-    .map((r) => ({ id: r.workshop.id, title: r.workshop.title, cut_id: r.cut_id, weight: r.weight, max_score: r.workshop.max_score, is_external: r.workshop.is_external }));
+  type WsRaw = {
+    id: string;
+    title: string;
+    max_score: number;
+    is_external: boolean | null;
+    deleted_at: string | null;
+    status: string | null;
+    requires_defense?: boolean | null;
+    parent_workshop_id?: string | null;
+    makeup_kind?: string | null;
+    recovery_rule?: string | null;
+    created_at?: string | null;
+  };
+  // TODOS los talleres vigentes del curso, incluidas las recuperaciones: sirven
+  // para plegar la nota (notaDeTallerConRecuperaciones). El listado y los pesos
+  // usan solo los ORIGINALES (`workshops`, abajo).
+  const workshopsAll = ((wcRows ?? []) as Array<{ cut_id: string | null; weight: number; workshop: WsRaw | null }>)
+    .filter((r): r is { cut_id: string | null; weight: number; workshop: WsRaw } => r.workshop != null && !r.workshop.deleted_at && !isDraft(r.workshop.status))
+    .map((r) => ({
+      id: r.workshop.id,
+      title: r.workshop.title,
+      cut_id: r.cut_id,
+      weight: r.weight,
+      max_score: r.workshop.max_score,
+      is_external: r.workshop.is_external,
+      requires_defense: r.workshop.requires_defense ?? null,
+      parent_workshop_id: r.workshop.parent_workshop_id ?? null,
+      makeup_kind: r.workshop.makeup_kind ?? null,
+      recovery_rule: r.workshop.recovery_rule ?? null,
+      created_at: r.workshop.created_at ?? null,
+    }));
+  // Una recuperación no suma aparte: su nota ocupa el lugar de la del original.
+  const workshops = workshopsAll.filter((w) => !w.parent_workshop_id);
 
   const projects = ((pcRows ?? []) as Array<{ cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } | null }>)
     .filter((r): r is { cut_id: string | null; weight: number; project: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } } => r.project != null && !r.project.deleted_at && !isDraft(r.project.status))
@@ -926,6 +963,20 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     final_grade: number | null;
     status: string | null;
   }>;
+  // Nota YA en la escala del curso de un taller para un alumno (sin plegar).
+  const notaDeTallerEscala = (w: (typeof workshopsAll)[number], userId: string) => {
+    const sub = wsSubsAll.find(
+      (s) =>
+        s.workshop_id === w.id &&
+        (s.user_id === userId || (!!s.group_id && !!wsGroupsByUser.get(userId)?.has(s.group_id))),
+    );
+    const raw = effectiveScore(sub ?? null, w.requires_defense);
+    return {
+      id: w.id,
+      presento: entregaHecha(sub ?? null),
+      nota: raw == null ? null : toScale(raw, w.is_external ? escalaMax : (w.max_score ?? 100)),
+    };
+  };
   const resolveWorkshopGrade = (
     w: {
       id: string;
@@ -935,14 +986,24 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     },
     userId: string,
   ): number | null => {
-    const sub = wsSubsAll.find(
-      (s) =>
-        s.workshop_id === w.id &&
-        (s.user_id === userId || (!!s.group_id && !!wsGroupsByUser.get(userId)?.has(s.group_id))),
-    );
-    const raw = effectiveScore(sub ?? null, w.requires_defense);
-    if (raw == null) return null;
-    return toScale(raw, w.is_external ? escalaMax : (w.max_score ?? 100));
+    // Supletorio y recuperatorio: la regla es UNA (nota-con-recuperacion.ts),
+    // la misma del gradebook y del acta (`workshop_effective_raw_grade`).
+    const filas = workshopsAll.map((x) => ({
+      id: x.id,
+      parent_workshop_id: x.parent_workshop_id,
+      makeup_kind: x.makeup_kind,
+      recovery_rule: x.recovery_rule,
+      created_at: x.created_at,
+    }));
+    const wAll = workshopsAll.find((x) => x.id === w.id);
+    if (!wAll) return null;
+    const notaDe = (id: string) => {
+      const wx = workshopsAll.find((x) => x.id === id);
+      return wx
+        ? notaDeTallerEscala(wx, userId)
+        : { id, presento: false, nota: null as number | null };
+    };
+    return notaDeTallerConRecuperaciones(wAll, filas, notaDe).nota;
   };
   const resolveProjectGrade = (
     p2: { id: string; max_score: number; is_external: boolean | null },

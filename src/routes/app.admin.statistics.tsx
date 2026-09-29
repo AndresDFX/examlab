@@ -241,7 +241,7 @@ function AdminStatistics() {
             );
             // Integridad mira el intento, no la nota: sin plegar recuperaciones.
             const fraud = computeFraudStats(
-              [...ds.examSubsIntegridad, ...ds.workshopSubs, ...ds.projectSubs],
+              [...ds.examSubsIntegridad, ...ds.workshopSubsIntegridad, ...ds.projectSubs],
               ds.similarityPairs,
             );
             const totalActivities =

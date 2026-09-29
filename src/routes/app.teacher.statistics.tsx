@@ -432,7 +432,7 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
   // Integridad mira el INTENTO, no la nota: con las entregas de exámenes sin
   // plegar las recuperaciones (ver `examSubsIntegridad`).
   const integritySubs = useMemo(
-    () => [...ds.examSubsIntegridad, ...ds.workshopSubs, ...ds.projectSubs],
+    () => [...ds.examSubsIntegridad, ...ds.workshopSubsIntegridad, ...ds.projectSubs],
     [ds],
   );
   const fraud = useMemo(
@@ -907,7 +907,7 @@ function FraudCard({
   const data = useMemo(() => {
     const rows = [
       { kind: t("statistics.fraudKindExams"), subs: ds.examSubsIntegridad },
-      { kind: t("statistics.fraudKindWorkshops"), subs: ds.workshopSubs },
+      { kind: t("statistics.fraudKindWorkshops"), subs: ds.workshopSubsIntegridad },
       { kind: t("statistics.fraudKindProjects"), subs: ds.projectSubs },
     ];
     return rows.map(({ kind, subs }) => {

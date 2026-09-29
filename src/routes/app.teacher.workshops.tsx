@@ -119,8 +119,11 @@ import {
   Check,
   Eye,
   ClipboardList,
+  GitBranch,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { CrearRecuperacionTallerDialog } from "@/modules/workshops/CrearRecuperacionTallerDialog";
+import { tipoDeRecuperacion, type FilaDeTaller } from "@/modules/grading/nota-con-recuperacion";
 import { formatPercent } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -263,6 +266,12 @@ type Workshop = {
   /** Intentos máximos para este taller. NULL → usa el default global
    *  (app_settings.default_workshop_max_attempts). */
   max_attempts?: number | null;
+  /** Recuperación de otro taller (mig 20262660000000): su nota ocupa el lugar
+   *  de la del original y no suma aparte. */
+  parent_workshop_id?: string | null;
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
   course?: { name: string; period: string | null };
 };
 type Cut = {
@@ -531,8 +540,10 @@ function TeacherWorkshops() {
         return courses.find((c) => c.id === cid)?.name ?? null;
       },
       cut: (w) => cuts.find((c) => c.id === (w as any).cut_id)?.name ?? null,
+      // Una recuperación no tiene peso propio: su nota ocupa el lugar de la del
+      // original, así que no suma aparte (ver nota-con-recuperacion.ts).
       weight: (w) =>
-        (w as any).cut_id != null && (w as any).weight != null
+        !w.parent_workshop_id && (w as any).cut_id != null && (w as any).weight != null
           ? Number((w as any).weight)
           : null,
       start_date: (w) => w.start_date,
@@ -709,8 +720,9 @@ function TeacherWorkshops() {
     if (!cut) return null;
     const bucket = Number(cut.workshop_weight ?? 0);
     const editingId = (form as any).id as string | undefined;
+    // Las recuperaciones no ocupan bucket: su nota va sobre la del original.
     const sumOthers = workshops
-      .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId)
+      .filter((w) => (w as any).cut_id === form.cut_id && w.id !== editingId && !w.parent_workshop_id)
       .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
     return Math.max(0, bucket - sumOthers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1287,7 +1299,11 @@ function TeacherWorkshops() {
       // Un taller EXTERNO solo registra notas: no hay entrega que sustentar.
       requires_defense: isExternal ? false : Boolean((form as any).requires_defense),
     };
-    if (!isMultiCourse && form.cut_id && (form as any).weight != null) {
+    // Una recuperación no ocupa bucket: su nota va sobre la del original, así
+    // que no se valida su peso contra el bucket (heredó el del original, que ya
+    // lo ocupa). Su corte/peso viene del original y no se toca desde acá.
+    const esRecuperacion = !!(form as any).parent_workshop_id;
+    if (!esRecuperacion && !isMultiCourse && form.cut_id && (form as any).weight != null) {
       // Single course (create or edit): validate against the pre-computed cap.
       const requested = Math.max(0, Number((form as any).weight));
       const cap = workshopWeightMax ?? 0;
@@ -1304,7 +1320,7 @@ function TeacherWorkshops() {
       }
       basePayload.weight = requested;
     }
-    if (isMultiCourse) {
+    if (isMultiCourse && !esRecuperacion) {
       // Validate bucket for each course independently.
       for (const cid of courseIds) {
         const cc = courseCuts[cid];
@@ -1312,9 +1328,10 @@ function TeacherWorkshops() {
         const requested = Math.max(0, Number(cc.weight ?? 1));
         const cut = cuts.find((c) => c.id === cc.cut_id);
         const bucket = Number(cut?.workshop_weight ?? 0);
-        // Excluir el taller en edición (sino su peso se contaría doble).
+        // Excluir el taller en edición (sino su peso se contaría doble) y las
+        // recuperaciones (no ocupan bucket).
         const sumOthers = workshops
-          .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id)
+          .filter((w) => (w as any).cut_id === cc.cut_id && w.id !== form.id && !w.parent_workshop_id)
           .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
         const available = Math.max(0, bucket - sumOthers);
         if (requested > available + 0.01) {
@@ -1565,6 +1582,31 @@ function TeacherWorkshops() {
   const duplicateWorkshop = (ws: Workshop) => {
     setDuplicateSource({ id: ws.id, title: ws.title, courseId: ws.course_id });
   };
+
+  // «Crear recuperatorio»: la copia enlazada para quienes perdieron o no
+  // presentaron. Los talleres del curso van memoizados: el diálogo calcula la
+  // lista de candidatos con ellos (M:N por workshop_courses).
+  const [recuperacionDe, setRecuperacionDe] = useState<Workshop | null>(null);
+  const talleresDelCursoDeRecuperacion: FilaDeTaller[] = useMemo(() => {
+    if (!recuperacionDe) return [];
+    const cursoIds = workshopCourses.get(recuperacionDe.id);
+    const cursoAncla = cursoIds && cursoIds.length > 0 ? cursoIds[0] : recuperacionDe.course_id;
+    // Talleres que comparten curso con el origen (por workshop_courses o ancla).
+    return workshops
+      .filter((w) => {
+        const ids = workshopCourses.get(w.id);
+        return (ids && ids.includes(cursoAncla)) || w.course_id === cursoAncla;
+      })
+      .map((w) => ({
+        id: w.id,
+        parent_workshop_id: w.parent_workshop_id ?? null,
+        makeup_kind: w.makeup_kind ?? null,
+        recovery_rule: w.recovery_rule ?? null,
+        created_at: w.created_at ?? null,
+        status: w.status ?? null,
+        deleted_at: null,
+      }));
+  }, [recuperacionDe, workshops, workshopCourses]);
 
   const remove = async (id: string) => {
     if (deletingId) return;
@@ -3808,7 +3850,10 @@ function TeacherWorkshops() {
         (() => {
           const cut = cuts.find((c) => c.id === cutFilter);
           if (!cut) return null;
-          const sum = filteredWorkshops.reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
+          // Las recuperaciones no ocupan bucket: su nota va sobre la del original.
+          const sum = filteredWorkshops
+            .filter((w) => !w.parent_workshop_id)
+            .reduce((s, w) => s + Number((w as any).weight ?? 0), 0);
           const bucket = Number(cut.workshop_weight ?? 0);
           const ok = Math.abs(sum - bucket) < 0.01;
           return (
@@ -3905,10 +3950,18 @@ function TeacherWorkshops() {
                   </TableCell>
                   <TableCell className="font-medium">
                     <div className="flex flex-col gap-0.5">
-                      <span className="truncate max-w-[18rem]">
-                        {ws.title}
+                      <span className="truncate max-w-[18rem] inline-flex items-center gap-1">
+                        <span className="truncate">{ws.title}</span>
                         {ws.external_link && (
-                          <ExternalLink className="inline h-3 w-3 ml-1 text-muted-foreground" />
+                          <ExternalLink className="inline h-3 w-3 ml-1 text-muted-foreground shrink-0" />
+                        )}
+                        {ws.parent_workshop_id && (
+                          <Badge variant="outline" className="text-3xs shrink-0">
+                            <GitBranch className="h-3 w-3 mr-1" />
+                            {tipoDeRecuperacion(ws.makeup_kind) === "recuperatorio"
+                              ? t("recuperaciones.badgeRecuperatorio")
+                              : t("recuperaciones.badgeSupletorio")}
+                          </Badge>
                         )}
                       </span>
                       <span className="text-xs text-muted-foreground sm:hidden truncate">
@@ -3962,8 +4015,11 @@ function TeacherWorkshops() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right hidden xl:table-cell">
-                    {(ws as any).cut_id != null && (ws as any).weight != null
+                  <TableCell
+                    className="text-sm tabular-nums text-right hidden xl:table-cell"
+                    title={ws.parent_workshop_id ? t("recuperaciones.weightOfOriginal") : undefined}
+                  >
+                    {!ws.parent_workshop_id && (ws as any).cut_id != null && (ws as any).weight != null
                       ? `${formatPercent(Number((ws as any).weight))}%`
                       : "—"}
                   </TableCell>
@@ -4078,6 +4134,12 @@ function TeacherWorkshops() {
                           },
                         },
                         { label: t("teacherWorkshops.actionDuplicate"), icon: Copy, onClick: () => duplicateWorkshop(ws) },
+                        !ws.parent_workshop_id && {
+                          label: t("recuperaciones.action"),
+                          icon: GitBranch,
+                          hint: t("recuperaciones.actionHint"),
+                          onClick: () => setRecuperacionDe(ws),
+                        },
                         {
                           label: t("teacherWorkshops.actionDelete"),
                           icon: Trash2,
@@ -6294,6 +6356,26 @@ function TeacherWorkshops() {
           target="workshop"
           onDuplicated={() => {
             setDuplicateSource(null);
+            void load();
+          }}
+        />
+      )}
+
+      {recuperacionDe && (
+        <CrearRecuperacionTallerDialog
+          open={!!recuperacionDe}
+          onOpenChange={(o) => !o && setRecuperacionDe(null)}
+          origen={{
+            ...recuperacionDe,
+            // Curso ancla de la recuperación (M:N: el primero de workshop_courses).
+            course_id:
+              workshopCourses.get(recuperacionDe.id)?.[0] ?? recuperacionDe.course_id,
+          }}
+          talleresDelCurso={talleresDelCursoDeRecuperacion}
+          onCreated={() => {
+            setRecuperacionDe(null);
+            // La copia nace en borrador; el toast pide revisar preguntas y
+            // fechas. Se recarga para que aparezca en la grilla con su insignia.
             void load();
           }}
         />

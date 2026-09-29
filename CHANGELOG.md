@@ -33,6 +33,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
 - **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados.
+- **Recuperaciones de TALLER: mismo modelo, mismo núcleo** (`workshops.parent_workshop_id` + `makeup_kind` + `recovery_rule`, mig `20262660000000`). El pliegue lo hace el mismo módulo que exámenes (`plegarRecuperaciones` + `notaDeTallerConRecuperaciones`); su espejo SQL es `workshop_effective_raw_grade`, que el acta usa y que —a diferencia del de exámenes— **respeta la sustentación** (usa la regla de `notaEfectivaDeTaller`, no `final_grade ?? ai_grade`), alineando el acta con el gradebook/estudiante/boletín (solo afecta actas futuras). Dos diferencias con exámenes, ambas del taller: la nota sale de UNA entrega (grupo con precedencia) vía `notaEfectivaDeTaller`, y como los talleres son **M:N** (`workshop_courses`, peso/corte por curso) la recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. El estudiante ve la recuperación como un taller asignado por `workshop_assignments` (solo los elegidos), sin insignia de corte/peso. Publicar una recuperación avisa solo a sus asignados (`_notify_workshop_publication`). Verificado en PGlite.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
@@ -77,6 +78,46 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🔁 Talleres recuperatorios (además de los supletorios)
+
+Se extiende a TALLERES la funcionalidad que la mig `20262650000000` trajo para exámenes, reusando el
+mismo núcleo de nota (mig `20262660000000`):
+
+- **`workshops.parent_workshop_id`** (FK a `workshops`, `ON DELETE SET NULL`) marca la recuperación;
+  **`makeup_kind`** (`supletorio` | `recuperatorio`) y **`recovery_rule`** (`mayor` | `reemplaza`)
+  con la misma semántica que en exámenes.
+- **Acción de fila «Crear recuperatorio»** (`GitBranch`, en el grid de Talleres, solo en talleres
+  originales) → `CrearRecuperacionTallerDialog`: `clone_workshop` (con `_copy_groups=true` + fechas
+  explícitas, o falla 23502), enlaza la copia en borrador, le crea su fila `workshop_courses` con el
+  MISMO peso y corte del original en ese curso, y la asigna por `workshop_assignments` a quienes
+  perdieron o no presentaron. En el grid la recuperación lleva insignia Supletorio/Recuperatorio y su
+  peso sale «—»; no ocupa bucket.
+
+Lo que no se deduce del código:
+
+- **El núcleo del pliegue es UNO, compartido con exámenes**: `plegarRecuperaciones` recibe cada
+  ítem ya reducido a «¿presentó? / ¿qué nota?», así que `resolverNotaConRecuperacion` (examen, con
+  `computeAttemptGrade`) y `notaDeTallerConRecuperaciones` (taller, con `notaEfectivaDeTaller`) usan
+  la MISMA regla. Su espejo SQL es `workshop_effective_raw_grade`, verificado contra `nota-con-recuperacion.ts` en PGlite.
+- **El acta ahora RESPETA la sustentación del taller.** Antes usaba `final_grade ?? ai_grade`
+  ignorando `requires_defense`; ahora `workshop_effective_raw_grade` aplica la regla de
+  `notaEfectivaDeTaller`, alineando el acta con el gradebook/estudiante/boletín. Solo afecta actas
+  FUTURAS.
+- **Talleres son M:N.** La recuperación toma peso/corte del ORIGINAL en ESE curso (`workshop_courses`)
+  y se EXCLUYE de las sumas de bucket (grilla, validación de guardado, consolidado). La nota se pliega
+  en la ESCALA DEL CURSO para comparar «mayor» aunque original y recuperación tengan `max_score`
+  distinto.
+- **Estadísticas / Alerta temprana / Pendientes** ya no cuentan la recuperación como actividad
+  aparte: `entregasDeTallerQueDecidenLaNota` atribuye al original, integridad/plagio usan el campo
+  nuevo `workshopSubsIntegridad` (sin plegar), y una recuperación no figura como «taller sin
+  entregar» para todo el curso.
+- **El estudiante ve la recuperación por `workshop_assignments`** (como todos los talleres): solo los
+  elegidos la ven. La tarjeta esconde la insignia de corte/peso. Publicarla avisa **solo a sus
+  asignados** (`_notify_workshop_publication`, también en el diferido del cron) — antes anunciaría el
+  taller a los que aprobaron y de paso revelaría quiénes perdieron.
+- **Carrera de despliegue**: las pantallas piden `workshops` con `select("*")` / `workshops(*)` en los
+  embeds, no las columnas nuevas por nombre; el diálogo no deja crear mientras la columna no exista.
 
 ### 🔁 Exámenes recuperatorios (además de los supletorios)
 

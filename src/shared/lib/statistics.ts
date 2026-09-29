@@ -1,5 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
-import { entregasQueDecidenLaNota } from "@/modules/grading/nota-con-recuperacion";
+import {
+  entregasQueDecidenLaNota,
+  entregasDeTallerQueDecidenLaNota,
+  type FilaDeTaller,
+} from "@/modules/grading/nota-con-recuperacion";
+import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 
 /**
  * Helpers compartidos para el módulo de Estadísticas (docente + admin).
@@ -99,6 +105,12 @@ export type CourseDataset = {
    */
   examSubsIntegridad: SubmissionLike[];
   workshopSubs: SubmissionLike[];
+  /**
+   * TODAS las entregas de talleres, cada una con su propio taller. Para lo que
+   * mira el INTENTO y no la nota (integridad y plagio): una entrega sospechosa
+   * del taller original sigue siéndolo aunque la nota salga del recuperatorio.
+   */
+  workshopSubsIntegridad: SubmissionLike[];
   projectSubs: SubmissionLike[];
   attendanceSessions: AttendanceSession[];
   attendanceRecords: AttendanceRecord[];
@@ -144,6 +156,11 @@ export type SharedActivityRow = {
   status: string | null;
   /** Solo talleres: si el ítem se sustenta (`workshops.requires_defense`). */
   requires_defense?: boolean;
+  /** Solo talleres: recuperación de otro taller (mig 20262660000000). */
+  parent_workshop_id?: string | null;
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
 };
 
 /**
@@ -187,6 +204,12 @@ export function flattenSharedActivities(
       // Solo los talleres la traen; en proyectos queda `undefined`, que
       // `notaEfectivaDeTaller` y `effectiveGrade` tratan como «no sustenta».
       requires_defense: !!item.requires_defense,
+      // Solo talleres (proyectos no tienen recuperación): `undefined` en
+      // proyectos, que el pliegue trata como «no es recuperación».
+      parent_workshop_id: (item.parent_workshop_id as string | null) ?? null,
+      makeup_kind: (item.makeup_kind as string | null) ?? null,
+      recovery_rule: (item.recovery_rule as string | null) ?? null,
+      created_at: (item.created_at as string | null) ?? null,
     });
   }
   return out;
@@ -248,7 +271,10 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     (supabase as any)
       .from("workshop_courses")
       .select(
-        "cut_id, weight, workshop:workshops(id, title, cut_id, max_score, is_external, status, deleted_at, requires_defense)",
+        // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
+        // columnas de recuperación (mig 20262660000000) pueden llegar DESPUÉS
+        // que el frontend; pedirlas por nombre haría fallar la consulta entera.
+        "cut_id, weight, workshop:workshops(*)",
       )
       .eq("course_id", courseId),
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -382,10 +408,10 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     toExamSub(s, String(s.exam_id)),
   );
 
-  const workshopSubs: SubmissionLike[] = (
-    (workshopSubsRaw ?? []) as Array<Record<string, unknown>>
-  ).map((s) => {
-    const parent = wsMap.get(s.workshop_id as string);
+  // `refId` es el taller al que se ATRIBUYE la entrega: el suyo propio, o el
+  // original cuando la entrega es de una recuperación que decide la nota.
+  const toWorkshopSub = (s: Record<string, unknown>, refId: string): SubmissionLike => {
+    const parent = wsMap.get(refId);
     return {
       id: String(s.id),
       user_id: String(s.user_id),
@@ -394,7 +420,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       final_grade: (s.final_grade as number | null) ?? null,
       ai_detected: (s.ai_detected as boolean | null) ?? null,
       ai_detected_score: (s.ai_detected_score as number | null) ?? null,
-      ref_id: String(s.workshop_id),
+      ref_id: refId,
       course_id: parent?.course_id ?? courseId,
       cut_id: parent?.cut_id ?? null,
       requires_defense: !!(parent as { requires_defense?: boolean } | undefined)?.requires_defense,
@@ -407,7 +433,40 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         : Number(parent?.max_score ?? 100),
       is_external: !!parent?.is_external,
     };
-  });
+  };
+  const workshopSubsRows = (workshopSubsRaw ?? []) as Array<
+    Record<string, unknown> & { workshop_id: string; user_id: string }
+  >;
+  // Filas de taller para el pliegue de recuperaciones + la nota efectiva por
+  // (taller, estudiante) — respeta la sustentación, igual que el gradebook.
+  const wsFilas: FilaDeTaller[] = workshops.map((w) => ({
+    id: w.id,
+    parent_workshop_id: w.parent_workshop_id ?? null,
+    makeup_kind: w.makeup_kind ?? null,
+    recovery_rule: w.recovery_rule ?? null,
+    created_at: w.created_at ?? null,
+    status: w.status ?? null,
+    deleted_at: null, // los borrados ya se filtraron en flattenSharedActivities
+  }));
+  const notaDeTaller = (wid: string, uid: string) => {
+    const w = wsMap.get(wid);
+    const sub = workshopSubsRows.find((s) => s.workshop_id === wid && s.user_id === uid) as
+      | { status?: string | null; final_grade?: number | null; ai_grade?: number | null }
+      | undefined;
+    return {
+      id: wid,
+      presento: entregaHecha(sub),
+      nota: notaEfectivaDeTaller(sub, (w as { requires_defense?: boolean } | undefined)?.requires_defense),
+    };
+  };
+  const workshopSubs: SubmissionLike[] = entregasDeTallerQueDecidenLaNota(
+    wsFilas,
+    workshopSubsRows,
+    notaDeTaller,
+  ).map(({ tallerOriginal, entrega }) => toWorkshopSub(entrega, tallerOriginal));
+  const workshopSubsIntegridad: SubmissionLike[] = workshopSubsRows.map((s) =>
+    toWorkshopSub(s, String(s.workshop_id)),
+  );
 
   const projectSubs: SubmissionLike[] = (
     (projectSubsRaw ?? []) as Array<Record<string, unknown>>
@@ -437,6 +496,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     examSubs,
     examSubsIntegridad,
     workshopSubs,
+    workshopSubsIntegridad,
     projectSubs,
     attendanceSessions: (attendanceSessionsRaw ?? []) as AttendanceSession[],
     attendanceRecords: (attendanceRecordsRaw ?? []) as AttendanceRecord[],
@@ -456,7 +516,9 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         weight: e.weight == null ? null : Number(e.weight),
         title: (e as { title?: string | null }).title ?? null,
       })),
-      ...workshops.map((w) => ({
+      // Igual que en exámenes: una recuperación de taller no es una actividad
+      // más del corte, su nota ocupa el lugar de la del original.
+      ...workshops.filter((w) => !w.parent_workshop_id).map((w) => ({
         id: w.id,
         cut_id: w.cut_id ?? null,
         is_external: !!w.is_external,
