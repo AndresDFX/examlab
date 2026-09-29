@@ -72,7 +72,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
+import { notaDeExamenParaEstudiante, type TipoRecuperacion } from "@/modules/grading/nota-con-recuperacion";
 import {
   downloadCertificate,
   downloadCertificatesZip,
@@ -134,6 +134,10 @@ type Exam = {
   weight?: number | null;
   retry_mode?: string | null;
   status?: string | null;
+  /** Solo en recuperaciones: supletorio | recuperatorio (mig 20262650000000). */
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
 };
 type Workshop = {
   id: string;
@@ -477,7 +481,11 @@ function Gradebook() {
       "exams",
       (supabase as any)
         .from("exams")
-        .select("id, title, parent_exam_id, course_id, cut_id, weight, retry_mode, status")
+        // `*` y no la lista de columnas: `makeup_kind`/`recovery_rule` llegan con
+        // la mig 20262650000000, y el frontend puede desplegarse ANTES que ella.
+        // Pedirlas por nombre haría fallar la consulta entera; sin ellas la regla
+        // cae al supletorio de siempre.
+        .select("*")
         .eq("course_id", courseId)
         .is("deleted_at", null)
         .order("start_time"),
@@ -770,37 +778,31 @@ function Gradebook() {
   ): {
     grade: number | null;
     isMakeup: boolean;
+    makeupKind?: TipoRecuperacion;
     status?: string;
     subId?: string;
   } => {
     if (col.kind === "exam") {
       const examMeta = allExams.find((e) => e.id === col.id);
-      const mode = (examMeta?.retry_mode as RetryMode) ?? "last";
-
-      // Todos los intentos directos del estudiante en este examen
-      const own = examSubs.filter((s) => s.user_id === studentId && s.exam_id === col.id);
-      if (own.length) {
-        const grade = computeAttemptGrade(own, mode);
-        // Para edición / referencia, usar el más reciente
-        const latest = [...own].sort(
-          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-        )[0];
-        return { grade, isMakeup: false, status: latest.status, subId: latest.id };
-      }
-      // Recuperaciones (parent_exam_id)
-      const makeups = allExams.filter((e) => e.parent_exam_id === col.id);
-      for (const m of makeups) {
-        const subs = examSubs.filter((s) => s.user_id === studentId && s.exam_id === m.id);
-        if (subs.length) {
-          const mMode = (m.retry_mode as RetryMode) ?? "last";
-          const grade = computeAttemptGrade(subs, mMode);
-          const latest = [...subs].sort(
-            (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-          )[0];
-          return { grade, isMakeup: true, status: latest.status, subId: latest.id };
-        }
-      }
-      return { grade: null, isMakeup: false };
+      if (!examMeta) return { grade: null, isMakeup: false };
+      const propios = examSubs.filter((s) => s.user_id === studentId);
+      // Supletorio y recuperatorio: la regla es UNA y vive en
+      // nota-con-recuperacion.ts (con su espejo SQL para el acta).
+      const r = notaDeExamenParaEstudiante(examMeta, allExams, propios);
+      // Para editar la celda, el intento del examen de donde salió la nota; sin
+      // nota, el más reciente del original (aunque esté en curso), como antes.
+      const examenDelIntento = r.examIdFuente ?? col.id;
+      const latest = propios
+        .filter((s) => s.exam_id === examenDelIntento)
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+      const esRecuperacion = r.fuente === "supletorio" || r.fuente === "recuperatorio";
+      return {
+        grade: r.nota,
+        isMakeup: esRecuperacion,
+        makeupKind: esRecuperacion ? (r.fuente as TipoRecuperacion) : undefined,
+        status: latest?.status,
+        subId: latest?.id,
+      };
     } else if (col.kind === "workshop") {
       // Precedencia de GRUPO sobre la entrega individual obsoleta (modo mixto):
       // si el alumno entregó individual ANTES de ser agrupado, esa fila vieja
@@ -1168,7 +1170,13 @@ function Gradebook() {
           const g = getGrade(s.id, ec.col);
           row[ec.key] =
             g.grade != null
-              ? `${g.grade}${g.isMakeup ? t("hc_routesAppTeacherGradebook.csvMakeupSuffix") : ""}`
+              ? `${g.grade}${
+                  g.isMakeup
+                    ? g.makeupKind === "recuperatorio"
+                      ? t("recuperaciones.csvRecuperatorioSuffix")
+                      : t("hc_routesAppTeacherGradebook.csvMakeupSuffix")
+                    : ""
+                }`
               : "";
         } else {
           const score = stuConsolidated?.attByCut.find((a) => a.cutId === ec.cutId)?.score ?? null;
@@ -1340,21 +1348,10 @@ function Gradebook() {
       // arbitrario con .find() ignorando retry_mode, así que la nota
       // consolidada, la nota por corte y el CERTIFICADO que se emite desde
       // este consolidado podían basarse en el intento equivocado.
+      const intentosDelEstudiante = examSubs.filter((s) => s.user_id === stu.id);
       for (const e of allExams.filter((x) => !x.parent_exam_id)) {
-        const mode = ((e as any).retry_mode as RetryMode) ?? "last";
-        const own = examSubs.filter((s) => s.user_id === stu.id && s.exam_id === e.id);
-        let raw: number | null = own.length ? computeAttemptGrade(own, mode) : null;
-        if (raw == null && !own.length) {
-          // Sin intentos directos → recuperaciones (parent_exam_id), cada una
-          // con su propio retry_mode.
-          for (const m of allExams.filter((mk) => mk.parent_exam_id === e.id)) {
-            const subs = examSubs.filter((s) => s.user_id === stu.id && s.exam_id === m.id);
-            if (subs.length) {
-              raw = computeAttemptGrade(subs, ((m as any).retry_mode as RetryMode) ?? "last");
-              break;
-            }
-          }
-        }
+        // Supletorio y recuperatorio: misma regla que la celda (getGrade).
+        const raw = notaDeExamenParaEstudiante(e, allExams, intentosDelEstudiante).nota;
         allItems.push({
           cutId: e.cut_id ?? null,
           weight: Math.max(0, Number((e as any).weight ?? 1) || 0),
@@ -2630,7 +2627,13 @@ function renderCutDetailGrouped({
   getGrade: (
     studentId: string,
     col: GradeColumn,
-  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  ) => {
+    grade: number | null;
+    isMakeup: boolean;
+    makeupKind?: TipoRecuperacion;
+    status?: string;
+    subId?: string;
+  };
   selectedCourse: Course | undefined;
   attSessions: AttSession[];
   attRecords: AttRecord[];
@@ -2900,7 +2903,13 @@ function renderStudentCutDetail({
   getGrade: (
     studentId: string,
     col: GradeColumn,
-  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  ) => {
+    grade: number | null;
+    isMakeup: boolean;
+    makeupKind?: TipoRecuperacion;
+    status?: string;
+    subId?: string;
+  };
   edits: EditMap;
   handleEdit: (studentId: string, colId: string, value: string) => void;
   cellKey: (studentId: string, colId: string) => string;
@@ -3048,8 +3057,17 @@ function renderStudentCutDetail({
                       <TableCell className="text-center">
                         <div className="inline-flex items-center justify-center gap-1">
                           {g.isMakeup && (
-                            <Badge variant="outline" className="text-3xs py-0 h-4 px-1">
-                              <GitBranch className="h-2.5 w-2.5 mr-0.5" /> S
+                            <Badge
+                              variant="outline"
+                              className="text-3xs py-0 h-4 px-1"
+                              title={
+                                g.makeupKind === "recuperatorio"
+                                  ? i18n.t("recuperaciones.fromRecuperatorio")
+                                  : i18n.t("recuperaciones.fromSupletorio")
+                              }
+                            >
+                              <GitBranch className="h-2.5 w-2.5 mr-0.5" />{" "}
+                              {g.makeupKind === "recuperatorio" ? "R" : "S"}
                             </Badge>
                           )}
                           {g.status === "sospechoso" && (
@@ -3169,7 +3187,13 @@ function renderEditableGrid({
   getGrade: (
     studentId: string,
     col: GradeColumn,
-  ) => { grade: number | null; isMakeup: boolean; status?: string; subId?: string };
+  ) => {
+    grade: number | null;
+    isMakeup: boolean;
+    makeupKind?: TipoRecuperacion;
+    status?: string;
+    subId?: string;
+  };
   edits: EditMap;
   handleEdit: (studentId: string, colId: string, value: string) => void;
   cellKey: (studentId: string, colId: string) => string;
@@ -3284,8 +3308,14 @@ function renderEditableGrid({
                             <Badge
                               variant="outline"
                               className="text-3xs py-0 h-4 px-1 inline-flex items-center gap-0.5"
+                              title={
+                                g.makeupKind === "recuperatorio"
+                                  ? i18n.t("recuperaciones.fromRecuperatorio")
+                                  : i18n.t("recuperaciones.fromSupletorio")
+                              }
                             >
-                              <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />S
+                              <GitBranch className="h-2.5 w-2.5 shrink-0" aria-hidden />
+                              {g.makeupKind === "recuperatorio" ? "R" : "S"}
                             </Badge>
                           )}
                           {g.status === "sospechoso" && (

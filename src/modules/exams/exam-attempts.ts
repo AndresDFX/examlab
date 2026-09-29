@@ -24,6 +24,10 @@ export interface AttemptForGrade {
 
 const FINAL_STATUSES = new Set(["completado", "sospechoso"]);
 
+/** ¿El intento cuenta para la nota? Es la definición que usa `computeAttemptGrade`. */
+export const esIntentoFinalizado = (a: Pick<AttemptForGrade, "status">): boolean =>
+  a.status == null ? true : FINAL_STATUSES.has(a.status);
+
 const effective = (a: AttemptForGrade): number | null =>
   a.final_override_grade ?? a.ai_grade ?? null;
 
@@ -33,9 +37,7 @@ export function computeAttemptGrade(
 ): number | null {
   if (!attempts?.length) return null;
 
-  const finished = attempts.filter((a) =>
-    a.status == null ? true : FINAL_STATUSES.has(a.status),
-  );
+  const finished = attempts.filter(esIntentoFinalizado);
   if (!finished.length) return null;
 
   const withGrade = finished.filter((a) => effective(a) != null);

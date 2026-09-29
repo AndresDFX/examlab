@@ -23,11 +23,8 @@ import {
   scaleAttendance,
   type GradedItem,
 } from "@/modules/grading/grade";
-import {
-  computeAttemptGrade,
-  type AttemptForGrade,
-  type RetryMode,
-} from "@/modules/exams/exam-attempts";
+import { type AttemptForGrade, type RetryMode } from "@/modules/exams/exam-attempts";
+import { notaDeExamenParaEstudiante } from "@/modules/grading/nota-con-recuperacion";
 import { formatDate, formatDateOnly } from "@/shared/lib/format";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import {
@@ -706,7 +703,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
         .order("position"),
       db
         .from("exams")
-        .select("id, title, cut_id, weight, parent_exam_id, retry_mode, status")
+        // `*` y no la lista: ver el mismo comentario en app.student.grades.tsx
+        // (las columnas de recuperación pueden llegar después que el frontend).
+        .select("*")
         .eq("course_id", courseId)
         .is("deleted_at", null),
       db
@@ -743,6 +742,9 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     parent_exam_id: string | null;
     retry_mode: string | null;
     status: string | null;
+    makeup_kind?: string | null;
+    recovery_rule?: string | null;
+    created_at?: string | null;
   }>).filter((e) => !isDraft(e.status));
   const workshops = ((wcRows ?? []) as Array<{ cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } | null }>)
     .filter((r): r is { cut_id: string | null; weight: number; workshop: { id: string; title: string; max_score: number; is_external: boolean | null; deleted_at: string | null; status: string | null } } => r.workshop != null && !r.workshop.deleted_at && !isDraft(r.workshop.status))
@@ -870,9 +872,10 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
   const passingGrade = Number(courseRow.passing_grade ?? 3);
 
   // Nota efectiva de un examen para un alumno, RESPETANDO retry_mode
-  // (last/average/highest) sobre TODOS sus intentos + fallback a las
-  // recuperaciones (parent_exam_id) cuando no hay intentos directos. Es el
-  // MISMO algoritmo del gradebook (getGrade + consolidado) y del acta SQL.
+  // (last/average/highest) sobre TODOS sus intentos, combinada con sus
+  // recuperaciones (supletorio llena la ausencia; recuperatorio compite con la
+  // nota según su regla). Es el MISMO algoritmo del gradebook (getGrade +
+  // consolidado) y del acta SQL (`exam_effective_raw_grade`).
   // Antes el boletín tomaba un intento arbitrario con `.find()` ignorando
   // retry_mode → la nota impresa podía basarse en el intento equivocado
   // (ej. un examen "highest" con un reintento mejor mostraba el peor).
@@ -893,20 +896,15 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     // gradebook/estudiante la re-escalan a [min,max] con toScale(raw, max). Sin
     // este toScale, en cursos con min>0 el examen del acta/boletín usaba la nota
     // cruda (0-based) mientras la pantalla mostraba la escalada → divergencia.
-    const own = allExamSubs.filter((s) => s.exam_id === examId && s.user_id === userId);
-    if (own.length) {
-      const raw = computeAttemptGrade(own as AttemptForGrade[], retryMode);
-      return raw == null ? null : toScale(raw, escalaMax);
-    }
-    // Sin intentos directos → recuperaciones, cada una con su propio retry_mode.
-    for (const m of exams.filter((mk) => mk.parent_exam_id === examId)) {
-      const subs = allExamSubs.filter((s) => s.exam_id === m.id && s.user_id === userId);
-      if (subs.length) {
-        const raw = computeAttemptGrade(subs as AttemptForGrade[], (m.retry_mode as RetryMode) ?? "last");
-        return raw == null ? null : toScale(raw, escalaMax);
-      }
-    }
-    return null;
+    // Supletorio y recuperatorio: la regla es UNA (nota-con-recuperacion.ts),
+    // la misma del gradebook y —por su espejo SQL— del acta.
+    const examen = exams.find((x) => x.id === examId) ?? { id: examId, retry_mode: retryMode };
+    const raw = notaDeExamenParaEstudiante(
+      examen,
+      exams,
+      allExamSubs.filter((s) => s.user_id === userId) as Array<AttemptForGrade & { exam_id: string }>,
+    ).nota;
+    return raw == null ? null : toScale(raw, escalaMax);
   };
 
   // Nota efectiva de un taller/proyecto para un alumno, resolviendo por

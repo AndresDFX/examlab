@@ -612,9 +612,12 @@ function StudentExams() {
                   <div className="min-w-0 space-y-1">
                     <div className="text-xs text-muted-foreground">{exam.course?.name}</div>
                     <h3 className="font-semibold truncate">{exam.title}</h3>
-                    <CortePesoBadges
-                      valor={resolverCorteYPeso(exam.cut_id, exam.weight, nombreDeCorte)}
-                    />
+                    {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
+                    {!exam.parent_exam_id && (
+                      <CortePesoBadges
+                        valor={resolverCorteYPeso(exam.cut_id, exam.weight, nombreDeCorte)}
+                      />
+                    )}
                   </div>
                   {completed ? (
                     // El color lo decide la NOTA, no el estado de la entrega.

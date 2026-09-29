@@ -429,9 +429,15 @@ export function CourseDashboard({ ds }: { ds: CourseDataset }) {
     () => computeApproval(allSubs, enrolledIds, ds.course),
     [allSubs, enrolledIds, ds.course],
   );
+  // Integridad mira el INTENTO, no la nota: con las entregas de exámenes sin
+  // plegar las recuperaciones (ver `examSubsIntegridad`).
+  const integritySubs = useMemo(
+    () => [...ds.examSubsIntegridad, ...ds.workshopSubs, ...ds.projectSubs],
+    [ds],
+  );
   const fraud = useMemo(
-    () => computeFraudStats(allSubs, ds.similarityPairs),
-    [allSubs, ds.similarityPairs],
+    () => computeFraudStats(integritySubs, ds.similarityPairs),
+    [integritySubs, ds.similarityPairs],
   );
   const attendance = useMemo(
     () => computeAttendanceBySession(ds.attendanceSessions, ds.attendanceRecords, totalEnrolled),
@@ -900,7 +906,7 @@ function FraudCard({
   // Distribución de fraude por tipo de actividad
   const data = useMemo(() => {
     const rows = [
-      { kind: t("statistics.fraudKindExams"), subs: ds.examSubs },
+      { kind: t("statistics.fraudKindExams"), subs: ds.examSubsIntegridad },
       { kind: t("statistics.fraudKindWorkshops"), subs: ds.workshopSubs },
       { kind: t("statistics.fraudKindProjects"), subs: ds.projectSubs },
     ];

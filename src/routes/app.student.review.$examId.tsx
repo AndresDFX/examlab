@@ -1,3 +1,4 @@
+import { notaDeExamenParaEstudiante, type FilaDeExamen } from "@/modules/grading/nota-con-recuperacion";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -132,20 +133,18 @@ function StudentExamReview() {
           .eq("id", examId)
           .is("deleted_at", null)
           .maybeSingle();
+        // `*`: la regla de recuperación necesita `makeup_kind`/`recovery_rule`,
+        // que pueden llegar después que el frontend (mig 20262650000000).
         const { data: makeupRows } = await supabase
           .from("exams")
-          .select("id")
+          .select("*")
           .eq("parent_exam_id", examId)
           .is("deleted_at", null);
-        const relatedExamIds = Array.from(
-          new Set<string>([
-            examId,
-            ...((examRow as { parent_exam_id?: string | null } | null)?.parent_exam_id
-              ? [(examRow as { parent_exam_id: string }).parent_exam_id]
-              : []),
-            ...((makeupRows ?? []) as { id: string }[]).map((m) => m.id),
-          ]),
-        );
+        void examRow;
+        // Solo los intentos de ESTE examen: los enlaces («Revisar» de la tarjeta
+        // y de «Mis notas») ya apuntan al examen dueño del intento. Juntar el
+        // árbol abría el intento del recuperatorio desde la revisión del parcial.
+        const relatedExamIds = [examId];
 
         // limit(1): un examen con varios intentos tiene VARIAS filas en
         // `submissions` para el mismo (exam_id, user_id). Sin el limit,
@@ -248,18 +247,29 @@ function StudentExamReview() {
 
         // Nota efectiva por retry_mode: TODOS los intentos del alumno en los
         // exam_ids relacionados (no solo el último). Espeja app.student.grades.
+        const arbol = [examId, ...((makeupRows ?? []) as { id: string }[]).map((m) => m.id)];
         const { data: allSubs } = await supabase
           .from("submissions")
-          .select("status, ai_grade, final_override_grade, created_at")
-          .in("exam_id", relatedExamIds)
+          .select("exam_id, status, ai_grade, final_override_grade, created_at")
+          .in("exam_id", arbol)
           .eq("user_id", user.id);
+        const propios = ((allSubs ?? []) as Array<AttemptForGrade & { exam_id: string }>).filter(
+          (a) => a.exam_id === examId,
+        );
         const mode = ((ex as { retry_mode?: string | null }).retry_mode ?? "last") as RetryMode;
-        const finished = ((allSubs ?? []) as AttemptForGrade[]).filter((a) =>
+        const finished = propios.filter((a) =>
           a.status == null ? true : isFinalStatus(a.status),
         );
         setRetryMode(mode);
         setAttemptCount(finished.length);
-        setEffectiveGrade(computeAttemptGrade((allSubs ?? []) as AttemptForGrade[], mode));
+        // Nota global = la MISMA regla de «Mis notas» (supletorio/recuperatorio).
+        setEffectiveGrade(
+          notaDeExamenParaEstudiante(
+            { ...(ex as object), id: examId } as FilaDeExamen,
+            [{ ...(ex as object), id: examId } as FilaDeExamen, ...((makeupRows ?? []) as FilaDeExamen[])],
+            (allSubs ?? []) as Array<AttemptForGrade & { exam_id: string }>,
+          ).nota,
+        );
 
         setExam(ex as ExamLoaded);
         setSubmission(

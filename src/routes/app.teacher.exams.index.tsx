@@ -85,6 +85,8 @@ import {
 } from "lucide-react";
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
+import { CrearRecuperacionDialog } from "@/modules/exams/CrearRecuperacionDialog";
+import { tipoDeRecuperacion } from "@/modules/grading/nota-con-recuperacion";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
@@ -148,6 +150,11 @@ type Exam = {
   navigation_type: string;
   shuffle_enabled: boolean;
   parent_exam_id: string | null;
+  /** Solo en recuperaciones: supletorio | recuperatorio (mig 20262650000000). */
+  makeup_kind?: string | null;
+  recovery_rule?: string | null;
+  created_at?: string | null;
+  is_external?: boolean | null;
   schedule_type?: string | null;
   weight?: number | null;
   /** Estado manual (draft|published|closed). Default published si la
@@ -254,7 +261,10 @@ function TeacherExams() {
       title: (e) => e.title,
       course: (e) => e.course?.name ?? courses.find((c) => c.id === e.course_id)?.name ?? "",
       cut: (e) => cuts.find((c) => c.id === e.cut_id)?.name ?? "",
-      weight: (e) => (e.cut_id != null && e.weight != null ? Number(e.weight) : null),
+      // Una recuperación no tiene peso propio: su nota ocupa el lugar de la del
+      // original, así que no suma aparte (ver nota-con-recuperacion.ts).
+      weight: (e) =>
+        !e.parent_exam_id && e.cut_id != null && e.weight != null ? Number(e.weight) : null,
       start_time: (e) => e.start_time,
       // Espeja la celda: `end_time` tal cual. Los sin fecha van al final.
       end_time: (e) => ((e as any).end_time ? new Date((e as any).end_time) : null),
@@ -418,6 +428,15 @@ function TeacherExams() {
   const openDuplicate = (exam: Exam) => {
     setDuplicateSource({ id: exam.id, title: exam.title, courseId: exam.course_id });
   };
+
+  // «Crear recuperatorio»: la copia enlazada para quienes perdieron o no
+  // presentaron. Los exámenes del curso van memoizados: el diálogo calcula la
+  // lista de candidatos con ellos y no debe recalcularla en cada render.
+  const [recuperacionDe, setRecuperacionDe] = useState<Exam | null>(null);
+  const examenesDelCursoDeRecuperacion = useMemo(
+    () => (recuperacionDe ? exams.filter((x) => x.course_id === recuperacionDe.course_id) : []),
+    [exams, recuperacionDe],
+  );
 
   const [loadError, setLoadError] = useState<string | null>(null);
   const [retryNonce, setRetryNonce] = useState(0);
@@ -1038,7 +1057,9 @@ function TeacherExams() {
                         {e.parent_exam_id && (
                           <Badge variant="outline" className="text-3xs shrink-0">
                             <GitBranch className="h-3 w-3 mr-1" />
-                            {t("exam.supletorio")}
+                            {tipoDeRecuperacion(e.makeup_kind) === "recuperatorio"
+                              ? t("recuperaciones.badgeRecuperatorio")
+                              : t("exam.supletorio")}
                           </Badge>
                         )}
                       </div>
@@ -1078,8 +1099,11 @@ function TeacherExams() {
                       );
                     })()}
                   </TableCell>
-                  <TableCell className="text-sm tabular-nums text-right hidden xl:table-cell">
-                    {e.cut_id != null && e.weight != null
+                  <TableCell
+                    className="text-sm tabular-nums text-right hidden xl:table-cell"
+                    title={e.parent_exam_id ? t("recuperaciones.weightOfOriginal") : undefined}
+                  >
+                    {!e.parent_exam_id && e.cut_id != null && e.weight != null
                       ? `${formatPercent(Number(e.weight))}%`
                       : "—"}
                   </TableCell>
@@ -1179,6 +1203,12 @@ function TeacherExams() {
                           label: t("hc_routesAppTeacherExamsIndex.duplicate"),
                           icon: Copy,
                           onClick: () => openDuplicate(e),
+                        },
+                        !e.parent_exam_id && {
+                          label: t("recuperaciones.action"),
+                          icon: GitBranch,
+                          hint: t("recuperaciones.actionHint"),
+                          onClick: () => setRecuperacionDe(e),
                         },
                         {
                           label: t("common.delete", { defaultValue: "Eliminar" }),
@@ -1820,6 +1850,22 @@ function TeacherExams() {
         extraWarning={t("hc_routesAppTeacherExamsIndex.bulkDeleteWarning")}
         onConfirm={handleBulkDelete}
       />
+
+      {recuperacionDe && (
+        <CrearRecuperacionDialog
+          open={!!recuperacionDe}
+          onOpenChange={(o) => !o && setRecuperacionDe(null)}
+          origen={recuperacionDe}
+          examenesDelCurso={examenesDelCursoDeRecuperacion}
+          onCreated={(newId) => {
+            setRecuperacionDe(null);
+            void load();
+            // Al editor de la copia: lo primero que se hace con un recuperatorio
+            // es cambiarle las preguntas.
+            navigate({ to: "/app/teacher/exams/$examId", params: { examId: newId } });
+          }}
+        />
+      )}
 
       {duplicateSource && (
         <DuplicateAssessmentDialog

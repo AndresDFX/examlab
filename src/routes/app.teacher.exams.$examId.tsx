@@ -38,6 +38,7 @@ import {
   X,
   ChevronUp,
   ChevronDown,
+  GitBranch,
 } from "lucide-react";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useTranslation } from "react-i18next";
@@ -65,6 +66,12 @@ import { HelpHint } from "@/components/ui/help-hint";
 import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { IdentifyQuestionsDialog } from "@/modules/questions/IdentifyQuestionsDialog";
+import {
+  REGLAS_RECUPERATORIO,
+  TIPOS_RECUPERACION,
+  reglaDeRecuperatorio,
+  tipoDeRecuperacion,
+} from "@/modules/grading/nota-con-recuperacion";
 import { Equal, Library, ScanText } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
@@ -446,11 +453,17 @@ function ExamEditor() {
     const requestedWeight = Math.max(0, Number((exam as any).weight ?? 1) || 0);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cutId = (exam as any).cut_id ?? null;
+    // Una recuperación (supletorio o recuperatorio) no tiene peso propio: su
+    // nota ocupa el lugar de la del original. Validarla contra el bucket la
+    // dejaba sin poder guardarse —hereda el peso del original, y el bucket ya
+    // está ocupado justamente por él—, y su corte/peso no se tocan desde acá.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const esRecuperacion = !!(exam as any).parent_exam_id;
     // Validación dura del bucket: si el peso del examen supera lo
     // disponible en el bucket de exámenes del corte (exam_weight -
     // sum(otros exámenes del corte, sin contar supletorios)), no
     // dejamos guardar.
-    if (cutId) {
+    if (cutId && !esRecuperacion) {
       const selectedCut = cuts.find((c) => c.id === cutId);
       const examBucket = Number(selectedCut?.exam_weight ?? 0);
       const otherExamsSum = examsInCourse
@@ -506,10 +519,19 @@ function ExamEditor() {
       start_time: safeIso(exam.start_time),
       end_time: safeIso(exam.end_time),
       max_attempts: normalizedAttempts,
-      cut_id: cutId,
-      weight: requestedWeight,
       status: ((exam as any).status ?? "published") as string,
     };
+    if (!esRecuperacion) {
+      payload.cut_id = cutId;
+      payload.weight = requestedWeight;
+    } else if ("makeup_kind" in exam) {
+      // Solo si la fila ya trae las columnas (mig 20262650000000): mandarlas
+      // antes de que exista la migración haría fallar el guardado entero.
+      payload.makeup_kind = tipoDeRecuperacion((exam as { makeup_kind?: unknown }).makeup_kind);
+      payload.recovery_rule = reglaDeRecuperatorio(
+        (exam as { recovery_rule?: unknown }).recovery_rule,
+      );
+    }
     if (!isExternal) {
       payload.time_limit_minutes = Number(exam.time_limit_minutes);
       payload.navigation_type = exam.navigation_type;
@@ -589,7 +611,13 @@ function ExamEditor() {
         }
       }
       // Notificar a los estudiantes del curso (nuevo). Para externos no aplica.
-      if (!isExternal) {
+      // Una recuperación no se anuncia al curso (el trigger avisa a sus asignados
+      // al publicarla), y un borrador no se anuncia a nadie.
+      if (
+        !isExternal &&
+        !esRecuperacion &&
+        ((exam as any).status ?? "published") !== "draft"
+      ) {
         await supabase.rpc("notify_course_students", {
           _course_id: newCourseId,
           _title: courseChanged
@@ -1817,96 +1845,186 @@ function ExamEditor() {
                   </div>
                 </>
               )}
-              <div>
-                <Label>{t("hc_routesAppTeacherExamsExamId.fieldCut")}</Label>
-                <Select
-                  value={(exam as any).cut_id ?? "__none__"}
-                  onValueChange={(v) =>
-                    setExam({ ...exam, cut_id: v === "__none__" ? null : v } as any)
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder={t("hc_routesAppTeacherExamsExamId.noCutAssigned")} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">{t("hc_routesAppTeacherExamsExamId.noCutAssigned")}</SelectItem>
-                    {cuts.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                {cuts.length === 0 && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {t("hc_routesAppTeacherExamsExamId.noCutsDefined")}
-                  </p>
-                )}
-              </div>
-              <div>
-                {(() => {
-                  const cutId = (exam as any).cut_id as string | null | undefined;
-                  const selectedCut = cutId ? cuts.find((c) => c.id === cutId) : null;
-                  // Bucket de exámenes en el corte. Suma actual del bucket =
-                  // pesos de los OTROS exámenes del corte (no el actual).
-                  const examBucket = Number(selectedCut?.exam_weight ?? 0);
-                  const otherExamsSum = examsInCourse
-                    .filter((x) => x.id !== examId && x.cut_id === cutId)
-                    .reduce((s, x) => s + x.weight, 0);
-                  const examMax = Math.max(0, examBucket - otherExamsSum);
-                  const currentWeight = Number((exam as any).weight ?? 1) || 0;
-                  const overBucket = currentWeight > examMax + 0.01;
-                  return (
-                    <>
-                      <Label>{t("hc_routesAppTeacherExamsExamId.fieldWeight")}</Label>
-                      <div className="relative w-32">
-                        <DecimalInput
-                          min={0}
-                          max={examMax || undefined}
-                          placeholder="1,0"
-                          className="pr-7"
-                          disabled={!selectedCut}
-                          value={(exam as any).weight ?? 1}
-                          onChange={(v) => {
-                            const raw = v == null ? 1 : v;
-                            // Cap al remanente del bucket de exámenes del corte
-                            // (no del cut.weight global).
-                            const capped = examMax > 0 ? Math.min(raw, examMax) : raw;
-                            setExam({ ...exam, weight: capped } as any);
-                          }}
-                        />
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
-                          %
-                        </span>
-                      </div>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {selectedCut ? (
-                          <>
-                            {t("hc_routesAppTeacherExamsExamId.weightHintPart1")}{" "}
-                            <strong>{t("hc_routesAppTeacherExamsExamId.weightHintFinalGrade")}</strong>
-                            {t("hc_routesAppTeacherExamsExamId.weightHintPart2")}{" "}
-                            <span className="font-medium">{selectedCut.name}</span>: {examBucket}%.{" "}
-                            {t("hc_routesAppTeacherExamsExamId.weightHintOthers", {
-                              others: otherExamsSum.toFixed(1),
-                            })}{" "}
-                            <strong>{examMax.toFixed(1)}%</strong>{" "}
-                            {t("hc_routesAppTeacherExamsExamId.weightHintAvailable")}
-                            {overBucket && (
-                              <span className="block text-destructive mt-1">
-                                {t("hc_routesAppTeacherExamsExamId.weightOverBucket", {
-                                  current: currentWeight.toFixed(1),
-                                })}
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          t("hc_routesAppTeacherExamsExamId.weightNoCut")
-                        )}
-                      </p>
-                    </>
+              {(exam as any).parent_exam_id ? (
+                (() => {
+                  const tipo = tipoDeRecuperacion((exam as { makeup_kind?: unknown }).makeup_kind);
+                  const regla = reglaDeRecuperatorio(
+                    (exam as { recovery_rule?: unknown }).recovery_rule,
                   );
-                })()}
-              </div>
+                  const original =
+                    examsInCourse.find((x) => x.id === (exam as any).parent_exam_id)?.title ?? "";
+                  return (
+                    <div className="rounded-md border p-3 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        <GitBranch className="h-4 w-4" />
+                        {t("recuperaciones.sectionEdit")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("recuperaciones.editHint", { title: original })}
+                      </p>
+                      {"makeup_kind" in exam && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label>{t("recuperaciones.kindLabel")}</Label>
+                            <Select
+                              value={tipo}
+                              onValueChange={(v) => setExam({ ...exam, makeup_kind: v } as any)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TIPOS_RECUPERACION.map((v) => (
+                                  <SelectItem key={v} value={v}>
+                                    {t(
+                                      v === "recuperatorio"
+                                        ? "recuperaciones.kindRecuperatorio"
+                                        : "recuperaciones.kindSupletorio",
+                                    )}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-2xs text-muted-foreground">
+                              {t(
+                                tipo === "recuperatorio"
+                                  ? "recuperaciones.kindRecuperatorioHint"
+                                  : "recuperaciones.kindSupletorioHint",
+                              )}
+                            </p>
+                          </div>
+                          {tipo === "recuperatorio" && (
+                            <div className="space-y-1">
+                              <Label>{t("recuperaciones.ruleLabel")}</Label>
+                              <Select
+                                value={regla}
+                                onValueChange={(v) =>
+                                  setExam({ ...exam, recovery_rule: v } as any)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {REGLAS_RECUPERATORIO.map((v) => (
+                                    <SelectItem key={v} value={v}>
+                                      {t(
+                                        v === "mayor"
+                                          ? "recuperaciones.ruleMayor"
+                                          : "recuperaciones.ruleReemplaza",
+                                      )}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-2xs text-muted-foreground">
+                                {t(
+                                  regla === "mayor"
+                                    ? "recuperaciones.ruleMayorHint"
+                                    : "recuperaciones.ruleReemplazaHint",
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()
+              ) : (
+                <>
+                  <div>
+                    <Label>{t("hc_routesAppTeacherExamsExamId.fieldCut")}</Label>
+                    <Select
+                      value={(exam as any).cut_id ?? "__none__"}
+                      onValueChange={(v) =>
+                        setExam({ ...exam, cut_id: v === "__none__" ? null : v } as any)
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={t("hc_routesAppTeacherExamsExamId.noCutAssigned")} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">{t("hc_routesAppTeacherExamsExamId.noCutAssigned")}</SelectItem>
+                        {cuts.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {cuts.length === 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {t("hc_routesAppTeacherExamsExamId.noCutsDefined")}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    {(() => {
+                      const cutId = (exam as any).cut_id as string | null | undefined;
+                      const selectedCut = cutId ? cuts.find((c) => c.id === cutId) : null;
+                      // Bucket de exámenes en el corte. Suma actual del bucket =
+                      // pesos de los OTROS exámenes del corte (no el actual).
+                      const examBucket = Number(selectedCut?.exam_weight ?? 0);
+                      const otherExamsSum = examsInCourse
+                        .filter((x) => x.id !== examId && x.cut_id === cutId)
+                        .reduce((s, x) => s + x.weight, 0);
+                      const examMax = Math.max(0, examBucket - otherExamsSum);
+                      const currentWeight = Number((exam as any).weight ?? 1) || 0;
+                      const overBucket = currentWeight > examMax + 0.01;
+                      return (
+                        <>
+                          <Label>{t("hc_routesAppTeacherExamsExamId.fieldWeight")}</Label>
+                          <div className="relative w-32">
+                            <DecimalInput
+                              min={0}
+                              max={examMax || undefined}
+                              placeholder="1,0"
+                              className="pr-7"
+                              disabled={!selectedCut}
+                              value={(exam as any).weight ?? 1}
+                              onChange={(v) => {
+                                const raw = v == null ? 1 : v;
+                                // Cap al remanente del bucket de exámenes del corte
+                                // (no del cut.weight global).
+                                const capped = examMax > 0 ? Math.min(raw, examMax) : raw;
+                                setExam({ ...exam, weight: capped } as any);
+                              }}
+                            />
+                            <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground pointer-events-none">
+                              %
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {selectedCut ? (
+                              <>
+                                {t("hc_routesAppTeacherExamsExamId.weightHintPart1")}{" "}
+                                <strong>{t("hc_routesAppTeacherExamsExamId.weightHintFinalGrade")}</strong>
+                                {t("hc_routesAppTeacherExamsExamId.weightHintPart2")}{" "}
+                                <span className="font-medium">{selectedCut.name}</span>: {examBucket}%.{" "}
+                                {t("hc_routesAppTeacherExamsExamId.weightHintOthers", {
+                                  others: otherExamsSum.toFixed(1),
+                                })}{" "}
+                                <strong>{examMax.toFixed(1)}%</strong>{" "}
+                                {t("hc_routesAppTeacherExamsExamId.weightHintAvailable")}
+                                {overBucket && (
+                                  <span className="block text-destructive mt-1">
+                                    {t("hc_routesAppTeacherExamsExamId.weightOverBucket", {
+                                      current: currentWeight.toFixed(1),
+                                    })}
+                                  </span>
+                                )}
+                              </>
+                            ) : (
+                              t("hc_routesAppTeacherExamsExamId.weightNoCut")
+                            )}
+                          </p>
+                        </>
+                      );
+                    })()}
+                  </div>
+                </>
+              )}
               <Button onClick={saveExam} disabled={savingExam}>
                 {savingExam ? (
                   <Spinner size="sm" className="mr-2" />

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { entregasQueDecidenLaNota } from "@/modules/grading/nota-con-recuperacion";
 
 /**
  * Helpers compartidos para el módulo de Estadísticas (docente + admin).
@@ -83,7 +84,20 @@ export type CourseInfo = {
 
 export type CourseDataset = {
   course: CourseInfo;
+  /**
+   * Entregas de exámenes que DECIDEN la nota, una actividad por examen
+   * ORIGINAL: las de un supletorio o recuperatorio se atribuyen a su original
+   * y solo cuentan si de ahí salió la nota (ver `entregasQueDecidenLaNota`).
+   * Es lo que usan aprobación, reprobados, la Alerta temprana y «qué falta».
+   */
   examSubs: SubmissionLike[];
+  /**
+   * TODAS las entregas de exámenes, cada una con su propio examen. Para lo que
+   * mira el INTENTO y no la nota —integridad y plagio—: una entrega
+   * sospechosa del parcial sigue siéndolo aunque la nota salga del
+   * recuperatorio.
+   */
+  examSubsIntegridad: SubmissionLike[];
   workshopSubs: SubmissionLike[];
   projectSubs: SubmissionLike[];
   attendanceSessions: AttendanceSession[];
@@ -208,7 +222,11 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       // estadísticas en silencio. Las notas de examen ya están en la escala del
       // curso, así que abajo fijamos max_score = grade_scale_max (reescalado identidad).
       .from("exams")
-      .select("id, course_id, cut_id, is_external, status, title, weight")
+      // `*` y no la lista: hacen falta `parent_exam_id`, `retry_mode`,
+      // `created_at` y las columnas de la recuperación (mig 20262650000000),
+      // que pueden llegar DESPUÉS que el frontend — pedirlas por nombre haría
+      // fallar la consulta entera y el panel quedaría sin exámenes.
+      .select("*")
       .eq("course_id", courseId)
       .neq("status", "draft")
       .is("deleted_at", null),
@@ -281,7 +299,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
       ? supabase
           .from("submissions")
           .select(
-            "id, exam_id, user_id, status, ai_grade, final_override_grade, ai_detected, ai_detected_score",
+            "id, exam_id, user_id, status, ai_grade, final_override_grade, ai_detected, ai_detected_score, created_at",
           )
           .in("exam_id", examIds)
       : Promise.resolve({ data: [] }),
@@ -326,26 +344,42 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
   const wsMap = new Map(workshops.map((w) => [w.id, w]));
   const prMap = new Map(projects.map((p) => [p.id, p]));
 
-  const examSubs: SubmissionLike[] = ((examSubsRaw ?? []) as Array<Record<string, unknown>>).map(
-    (s) => {
-      const parent = examMap.get(s.exam_id as string);
-      return {
-        id: String(s.id),
-        user_id: String(s.user_id),
-        status: (s.status as string) ?? null,
-        ai_grade: (s.ai_grade as number | null) ?? null,
-        final_grade: (s.final_override_grade as number | null) ?? null,
-        ai_detected: (s.ai_detected as boolean | null) ?? null,
-        ai_detected_score: (s.ai_detected_score as number | null) ?? null,
-        ref_id: String(s.exam_id),
-        course_id: parent?.course_id ?? courseId,
-        cut_id: parent?.cut_id ?? null,
-        // Examen no tiene max_score propio; su nota ya está en la escala del curso.
-        // Fijar a grade_scale_max hace que el reescalado (g/max)*scale sea identidad.
-        max_score: Number(course?.grade_scale_max ?? 1),
-        is_external: !!parent?.is_external,
-      };
-    },
+  // `refId` es el examen al que se ATRIBUYE la entrega: el suyo propio, o el
+  // original cuando la entrega es de una recuperación que decide la nota.
+  const toExamSub = (s: Record<string, unknown>, refId: string): SubmissionLike => {
+    const parent = examMap.get(refId);
+    return {
+      id: String(s.id),
+      user_id: String(s.user_id),
+      status: (s.status as string) ?? null,
+      ai_grade: (s.ai_grade as number | null) ?? null,
+      final_grade: (s.final_override_grade as number | null) ?? null,
+      ai_detected: (s.ai_detected as boolean | null) ?? null,
+      ai_detected_score: (s.ai_detected_score as number | null) ?? null,
+      ref_id: refId,
+      course_id: parent?.course_id ?? courseId,
+      cut_id: parent?.cut_id ?? null,
+      // Examen no tiene max_score propio; su nota ya está en la escala del curso.
+      // Fijar a grade_scale_max hace que el reescalado (g/max)*scale sea identidad.
+      max_score: Number(course?.grade_scale_max ?? 1),
+      is_external: !!parent?.is_external,
+    };
+  };
+  const examSubsRows = (examSubsRaw ?? []) as Array<
+    Record<string, unknown> & {
+      exam_id: string;
+      user_id: string;
+      status: string | null;
+      ai_grade: number | null;
+      final_override_grade: number | null;
+      created_at: string;
+    }
+  >;
+  const examSubs: SubmissionLike[] = entregasQueDecidenLaNota(exams, examSubsRows).map(
+    ({ examenOriginal, entrega }) => toExamSub(entrega, examenOriginal),
+  );
+  const examSubsIntegridad: SubmissionLike[] = examSubsRows.map((s) =>
+    toExamSub(s, String(s.exam_id)),
   );
 
   const workshopSubs: SubmissionLike[] = (
@@ -401,6 +435,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
   return {
     course: course as CourseInfo,
     examSubs,
+    examSubsIntegridad,
     workshopSubs,
     projectSubs,
     attendanceSessions: (attendanceSessionsRaw ?? []) as AttendanceSession[],
@@ -410,7 +445,10 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     cuts: (cutsRaw ?? []) as Cut[],
     // De las mismas filas ya consultadas: cero consultas nuevas.
     actividades: [
-      ...exams.map((e) => ({
+      // Una recuperación no es una actividad más del corte: su nota ocupa el
+      // lugar de la del original. Contarla aparte la volvía «sin empezar» para
+      // todos los que no tenían que presentarla.
+      ...exams.filter((e) => !e.parent_exam_id).map((e) => ({
         id: e.id,
         cut_id: e.cut_id ?? null,
         is_external: !!e.is_external,

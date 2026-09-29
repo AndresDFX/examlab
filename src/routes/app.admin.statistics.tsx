@@ -239,7 +239,11 @@ function AdminStatistics() {
               ds.attendanceRecords,
               totalEnrolled,
             );
-            const fraud = computeFraudStats(allSubs, ds.similarityPairs);
+            // Integridad mira el intento, no la nota: sin plegar recuperaciones.
+            const fraud = computeFraudStats(
+              [...ds.examSubsIntegridad, ...ds.workshopSubs, ...ds.projectSubs],
+              ds.similarityPairs,
+            );
             const totalActivities =
               new Set(ds.examSubs.map((s) => s.ref_id)).size +
               new Set(ds.workshopSubs.map((s) => s.ref_id)).size +

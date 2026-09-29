@@ -48,7 +48,7 @@ import {
 } from "lucide-react";
 import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
-import { computeAttemptGrade, type RetryMode } from "@/modules/exams/exam-attempts";
+import { notaDeExamenParaEstudiante } from "@/modules/grading/nota-con-recuperacion";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -183,7 +183,10 @@ function StudentGrades() {
           // join después (project_courses no tiene status), ver flatProjects.
           (supabase as any)
             .from("exams")
-            .select("id, title, parent_exam_id, cut_id, weight, retry_mode, status")
+            // `*` y no la lista: `makeup_kind`/`recovery_rule` (mig 20262650000000)
+            // pueden no existir todavía si el frontend se despliega antes que la
+            // migración, y pedirlas por nombre haría fallar la consulta entera.
+            .select("*")
             .eq("course_id", courseId)
             .neq("status", "draft")
             .is("deleted_at", null),
@@ -362,17 +365,14 @@ function StudentGrades() {
         // Exámenes (solo originales, no makeups)
         const originalExams = (exams ?? []).filter((e: any) => !e.parent_exam_id);
         for (const e of originalExams as any[]) {
-          const mode = (e.retry_mode as RetryMode) ?? "last";
-          let attempts = (examSubs ?? []).filter((s: any) => s.exam_id === e.id);
-          let usedFromMakeup = false;
-          if (!attempts.length) {
-            const makeupIds = (exams ?? [])
-              .filter((x: any) => x.parent_exam_id === e.id)
-              .map((x: any) => x.id);
-            attempts = (examSubs ?? []).filter((s: any) => makeupIds.includes(s.exam_id));
-            usedFromMakeup = attempts.length > 0;
-          }
-          const raw = computeAttemptGrade(attempts as any, mode);
+          // Supletorio y recuperatorio: la regla es UNA (nota-con-recuperacion.ts),
+          // la misma del gradebook del docente y del acta.
+          const r = notaDeExamenParaEstudiante(e, (exams ?? []) as any[], (examSubs ?? []) as any[]);
+          const raw = r.nota;
+          // Los intentos del examen de donde salió la nota: de ahí salen el
+          // estado y el enlace a la revisión correcta.
+          const examIdFuente = r.examIdFuente ?? e.id;
+          const attempts = (examSubs ?? []).filter((s: any) => s.exam_id === examIdFuente);
           // Para "review" link: el intento más reciente finalizado
           const sortedFinished = [...attempts]
             .filter((s: any) => s.status === "completado" || s.status === "sospechoso")
@@ -391,7 +391,7 @@ function StudentGrades() {
             grade: raw != null ? toScale(raw, course.grade_scale_max) : null,
             status: latest?.status ?? (attempts.length ? "en_progreso" : "sin_entrega"),
             weight: Number(e.weight ?? 1),
-            reviewExamId: latest ? (usedFromMakeup ? latest.exam_id : e.id) : null,
+            reviewExamId: latest ? examIdFuente : null,
           });
         }
 

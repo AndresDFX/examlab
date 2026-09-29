@@ -406,22 +406,32 @@ async function loadPendingData(
   const items: PendingItem[] = [];
 
   // ── Exámenes sin presentar ──────────────────────────────────────────
+  // Un supletorio o recuperatorio NO es un examen pendiente más: lo presenta
+  // solo a quien se le asignó, así que listarlo contra todo el curso ponía
+  // «examen pendiente» a los que aprobaron. Cuenta del lado del ORIGINAL:
+  // quien no presentó el parcial y sí su supletorio ya no lo tiene pendiente.
   const { data: examRaw } = await dbAny
     .from("exams")
-    .select("id, course_id")
+    .select("id, course_id, parent_exam_id")
     .in("course_id", courseIds)
     .neq("status", "draft")
     .is("deleted_at", null);
-  const exams = (examRaw ?? []) as Array<{ id: string; course_id: string }>;
-  const examIds = exams.map((e) => e.id);
-  const examPresented = new Set<string>(); // `${exam_id}::${user_id}`
+  const allExams = (examRaw ?? []) as Array<{
+    id: string;
+    course_id: string;
+    parent_exam_id: string | null;
+  }>;
+  const originalOf = new Map(allExams.map((e) => [e.id, e.parent_exam_id ?? e.id]));
+  const exams = allExams.filter((e) => !e.parent_exam_id);
+  const examIds = allExams.map((e) => e.id);
+  const examPresented = new Set<string>(); // `${exam_id ORIGINAL}::${user_id}`
   if (examIds.length > 0) {
     const { data: subRaw } = await dbAny
       .from("submissions")
       .select("exam_id, user_id")
       .in("exam_id", examIds);
     for (const s of (subRaw ?? []) as Array<{ exam_id: string; user_id: string }>) {
-      examPresented.add(`${s.exam_id}::${s.user_id}`);
+      examPresented.add(`${originalOf.get(s.exam_id) ?? s.exam_id}::${s.user_id}`);
     }
   }
   for (const ex of exams) {

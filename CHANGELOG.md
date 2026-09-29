@@ -32,6 +32,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **Contraseña temporal FIJA `Temporal#123` para todos** (no aleatoria por usuario). Decisión explícita del usuario (2026-07-14): prefiere una clave uniforme conocida —que el docente dicta en clase— aunque sea insegura, en vez de una temporal única por estudiante que nunca se comunica. El default del edge `bulk-import-users` es `Temporal#123` (era `Cambiar#123`); el template CSV del UI ya lo sugiere. Guardada en claro en `admin_visible_passwords`. Login = correo institucional + `Temporal#123`.
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
+- **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
@@ -76,6 +77,58 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🔁 Exámenes recuperatorios (además de los supletorios)
+
+`exams.parent_exam_id` ya colgaba un examen de otro, pero con UNA sola regla, la del supletorio: la
+nota del hijo cuenta solo si el estudiante **no** presentó el original. Un recuperatorio es para
+quien sí lo presentó y lo perdió, así que con esa regla su nota se **ignoraba** en el libro de notas,
+en «Mis notas», en el boletín y en el acta. Ahora hay dos tipos (mig `20262650000000`):
+
+- **`exams.makeup_kind`** — `supletorio` (default: los hijos que ya existían se comportan igual) o
+  `recuperatorio`.
+- **`exams.recovery_rule`** — cómo combina un recuperatorio: `mayor` (default; presentarlo nunca le
+  baja la nota a nadie) o `reemplaza` (sustituye a la del original aunque sea menor).
+- **Acción de fila «Crear recuperatorio»** (`GitBranch`, en el grid de Exámenes, solo en exámenes
+  originales) → `CrearRecuperacionDialog`: copia en borrador enlazada, con fechas sugeridas (las del
+  original corridas de a semanas: misma franja de clase), y la lista de **a quién asignarlo** ya
+  armada — perdieron o no presentaron, marcados; los que todavía no tienen nota, listados sin marcar.
+  Sirve también para un supletorio (entonces solo lista a quien no presentó). Al crear, lleva al
+  editor de la copia: lo primero que se hace con un recuperatorio es cambiarle las preguntas.
+- En el detalle de una recuperación, **corte y peso se reemplazan por su tipo y su regla**: no tiene
+  peso propio. Antes el formulario la validaba contra el bucket del corte, que ya ocupaba el
+  original, y **no dejaba guardarla**.
+
+Lo que no se deduce del código:
+
+- **La regla es UNA** — `resolverNotaConRecuperacion` en `nota-con-recuperacion.ts` — y la usan el
+  libro de notas (celda + consolidado), «Mis notas», el boletín y, por su espejo SQL
+  `exam_effective_raw_grade`, el acta. **El acta ignoraba las recuperaciones POR COMPLETO** —ni el
+  supletorio que las demás pantallas sí aplicaban—, así que acta y certificado podían diferir para
+  quien presentó un supletorio. Solo afecta actas futuras. La paridad TS↔SQL está verificada en
+  PGlite (25 casos) y es invariante cross-file: si cambia una, cambia la otra.
+- **Pliegue en orden de creación**: la primera recuperación presentada llena la ausencia; cada
+  recuperatorio posterior combina con lo acumulado según su regla. «Presentó» = un intento
+  FINALIZADO (la misma definición de `computeAttemptGrade`). Un recuperatorio presentado sin nota
+  todavía no cambia nada; uno en borrador o en la papelera no cuenta.
+- **Estadísticas contaban la recuperación como una actividad más del corte**: un recuperatorio de 4
+  estudiantes quedaba «sin empezar» para los otros 25, y en la **Alerta temprana** les sumaba una «no
+  entregada» — que con cualquier otra señal los pone en rojo. Ahora `entregasQueDecidenLaNota`
+  atribuye al original solo la entrega de donde salió la nota (`examSubs`), y las recuperaciones
+  salen de `actividades`. Integridad y plagio miran el INTENTO, no la nota, y usan el campo nuevo
+  `examSubsIntegridad`, sin plegar. En Pendientes, una recuperación ya no figura como «examen sin
+  presentar» para todo el curso.
+- **Avisos**: publicar un examen avisa a todo el curso; una recuperación ahora avisa **solo a sus
+  asignados** (`_notify_exam_publication`, también en el diferido del cron) — antes le anunciaba el
+  recuperatorio a los que aprobaron y de paso le contaba al curso quiénes perdieron. Y **asignar un
+  examen en borrador ya no avisa** (`_notify_exam_assigned`): el formulario de crear asigna al curso
+  entero en el acto, así que un borrador que el docente seguía armando llegaba como aviso a todos.
+  Es lo que permite que el diálogo asigne al crear —publicar no re-asigna— sin mandarle nada a
+  nadie. Hoy la categoría `exam` está apagada en el panel, así que el efecto es para cuando se
+  encienda. Verificado en PGlite (13 casos, incluido el diferido y el asignado desmatriculado).
+- **Carrera de despliegue**: las pantallas piden `exams` con `select("*")`, no las columnas nuevas
+  por nombre, porque el frontend puede publicarse antes que la migración. El diálogo no deja crear
+  mientras la columna no exista: un recuperatorio sin ella se comportaría como supletorio sin avisar.
 
 ### 📝 Pendientes para la próxima sesión
 
