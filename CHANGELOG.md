@@ -119,6 +119,14 @@ Lo que no se deduce del código:
 - **Carrera de despliegue**: las pantallas piden `workshops` con `select("*")` / `workshops(*)` en los
   embeds, no las columnas nuevas por nombre; el diálogo no deja crear mientras la columna no exista.
 
+### 👥 Talleres externos por grupos (la exposición)
+
+Un taller EXTERNO no dejaba armar grupos: la acción «Grupos» del grid estaba oculta para externos,
+así que una exposición por grupos se calificaba estudiante por estudiante. Ahora «Grupos» aparece
+también en externos, y en «Notas externas» cada fila muestra su grupo con la acción «Aplicar la nota
+a todo el grupo», que copia nota y observación a los integrantes (quedan pendientes de «Guardar
+todo»: nada se guarda solo). Primer uso: la exposición del corte 1 de Introducción SB141B.
+
 ### 🔁 Exámenes recuperatorios (además de los supletorios)
 
 `exams.parent_exam_id` ya colgaba un examen de otro, pero con UNA sola regla, la del supletorio: la
