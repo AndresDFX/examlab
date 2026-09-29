@@ -520,6 +520,7 @@ function ExamEditor() {
       end_time: safeIso(exam.end_time),
       max_attempts: normalizedAttempts,
       status: ((exam as any).status ?? "published") as string,
+      parent_exam_id: (exam as any).parent_exam_id ?? null,
     };
     if (!esRecuperacion) {
       payload.cut_id = cutId;
@@ -1487,6 +1488,118 @@ function ExamEditor() {
                   }}
                 />
               )}
+              {/* Enlace EXPLÍCITO con el examen original: el título es solo texto,
+                  esto es lo que decide que su nota ocupe el lugar de la del
+                  original (mismo corte y peso). */}
+              <div className="space-y-1">
+                <Label>{t("recuperaciones.parentLabel")}</Label>
+                <Select
+                  value={(exam as any).parent_exam_id ?? "__none__"}
+                  onValueChange={(v) =>
+                    setExam({ ...exam, parent_exam_id: v === "__none__" ? null : v } as any)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">{t("recuperaciones.parentNone")}</SelectItem>
+                    {examsInCourse
+                      .filter((x) => x.id !== examId)
+                      .map((x) => (
+                        <SelectItem key={x.id} value={x.id}>
+                          {x.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {(exam as any).parent_exam_id &&
+                (() => {
+                  const tipo = tipoDeRecuperacion((exam as { makeup_kind?: unknown }).makeup_kind);
+                  const regla = reglaDeRecuperatorio(
+                    (exam as { recovery_rule?: unknown }).recovery_rule,
+                  );
+                  const original =
+                    examsInCourse.find((x) => x.id === (exam as any).parent_exam_id)?.title ?? "";
+                  return (
+                    <div className="rounded-md border p-3 space-y-3">
+                      <p className="text-sm font-medium flex items-center gap-1.5">
+                        <GitBranch className="h-4 w-4" />
+                        {t("recuperaciones.sectionEdit")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {t("recuperaciones.editHint", { title: original })}
+                      </p>
+                      {"makeup_kind" in exam && (
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <Label>{t("recuperaciones.kindLabel")}</Label>
+                            <Select
+                              value={tipo}
+                              onValueChange={(v) => setExam({ ...exam, makeup_kind: v } as any)}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {TIPOS_RECUPERACION.map((v) => (
+                                  <SelectItem key={v} value={v}>
+                                    {t(
+                                      v === "recuperatorio"
+                                        ? "recuperaciones.kindRecuperatorio"
+                                        : "recuperaciones.kindSupletorio",
+                                    )}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-2xs text-muted-foreground">
+                              {t(
+                                tipo === "recuperatorio"
+                                  ? "recuperaciones.kindRecuperatorioHint"
+                                  : "recuperaciones.kindSupletorioHint",
+                              )}
+                            </p>
+                          </div>
+                          {tipo === "recuperatorio" && (
+                            <div className="space-y-1">
+                              <Label>{t("recuperaciones.ruleLabel")}</Label>
+                              <Select
+                                value={regla}
+                                onValueChange={(v) =>
+                                  setExam({ ...exam, recovery_rule: v } as any)
+                                }
+                              >
+                                <SelectTrigger>
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {REGLAS_RECUPERATORIO.map((v) => (
+                                    <SelectItem key={v} value={v}>
+                                      {t(
+                                        v === "mayor"
+                                          ? "recuperaciones.ruleMayor"
+                                          : "recuperaciones.ruleReemplaza",
+                                      )}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <p className="text-2xs text-muted-foreground">
+                                {t(
+                                  regla === "mayor"
+                                    ? "recuperaciones.ruleMayorHint"
+                                    : "recuperaciones.ruleReemplazaHint",
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               {/* Estado del examen. draft=oculto para alumnos, published=visible,
                   closed=cerrado manualmente. Independiente de la ventana
                   start_time/end_time (un examen "published" fuera de ventana
@@ -1845,93 +1958,7 @@ function ExamEditor() {
                   </div>
                 </>
               )}
-              {(exam as any).parent_exam_id ? (
-                (() => {
-                  const tipo = tipoDeRecuperacion((exam as { makeup_kind?: unknown }).makeup_kind);
-                  const regla = reglaDeRecuperatorio(
-                    (exam as { recovery_rule?: unknown }).recovery_rule,
-                  );
-                  const original =
-                    examsInCourse.find((x) => x.id === (exam as any).parent_exam_id)?.title ?? "";
-                  return (
-                    <div className="rounded-md border p-3 space-y-3">
-                      <p className="text-sm font-medium flex items-center gap-1.5">
-                        <GitBranch className="h-4 w-4" />
-                        {t("recuperaciones.sectionEdit")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {t("recuperaciones.editHint", { title: original })}
-                      </p>
-                      {"makeup_kind" in exam && (
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <Label>{t("recuperaciones.kindLabel")}</Label>
-                            <Select
-                              value={tipo}
-                              onValueChange={(v) => setExam({ ...exam, makeup_kind: v } as any)}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {TIPOS_RECUPERACION.map((v) => (
-                                  <SelectItem key={v} value={v}>
-                                    {t(
-                                      v === "recuperatorio"
-                                        ? "recuperaciones.kindRecuperatorio"
-                                        : "recuperaciones.kindSupletorio",
-                                    )}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                            <p className="text-2xs text-muted-foreground">
-                              {t(
-                                tipo === "recuperatorio"
-                                  ? "recuperaciones.kindRecuperatorioHint"
-                                  : "recuperaciones.kindSupletorioHint",
-                              )}
-                            </p>
-                          </div>
-                          {tipo === "recuperatorio" && (
-                            <div className="space-y-1">
-                              <Label>{t("recuperaciones.ruleLabel")}</Label>
-                              <Select
-                                value={regla}
-                                onValueChange={(v) =>
-                                  setExam({ ...exam, recovery_rule: v } as any)
-                                }
-                              >
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {REGLAS_RECUPERATORIO.map((v) => (
-                                    <SelectItem key={v} value={v}>
-                                      {t(
-                                        v === "mayor"
-                                          ? "recuperaciones.ruleMayor"
-                                          : "recuperaciones.ruleReemplaza",
-                                      )}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <p className="text-2xs text-muted-foreground">
-                                {t(
-                                  regla === "mayor"
-                                    ? "recuperaciones.ruleMayorHint"
-                                    : "recuperaciones.ruleReemplazaHint",
-                                )}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()
-              ) : (
+              {!(exam as any).parent_exam_id && (
                 <>
                   <div>
                     <Label>{t("hc_routesAppTeacherExamsExamId.fieldCut")}</Label>

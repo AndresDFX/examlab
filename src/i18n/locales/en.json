@@ -11054,6 +11054,8 @@
     "linkErrorNoRow": "the platform did not confirm the change",
     "assignError": "It was created, but the students could not be assigned: {{error}}. Assign them from the exam detail.",
     "afterCourseEnd": "The retake starts after the course ends. Pick a date within the course or extend its end date.",
+    "parentLabel": "Retake or makeup of",
+    "parentNone": "None — regular exam",
     "sectionEdit": "Retake or makeup",
     "editHint": "This is a retake or makeup of “{{title}}”. It does not add up on its own in the gradebook: its grade takes the place of the original's, with its grading period and weight."
   }

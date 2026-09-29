@@ -11054,6 +11054,8 @@
     "linkErrorNoRow": "la plataforma no confirmó el cambio",
     "assignError": "Se creó, pero no se pudo asignar a los estudiantes: {{error}}. Asígnalos desde el detalle del examen.",
     "afterCourseEnd": "La recuperación empieza después de que termina el curso. Elige una fecha dentro del curso o amplía su fecha de fin.",
+    "parentLabel": "Es recuperación de",
+    "parentNone": "Ninguno — examen normal",
     "sectionEdit": "Recuperación",
     "editHint": "Es una recuperación de «{{title}}». No suma aparte en Calificaciones: su nota ocupa el lugar de la del original, con su corte y su peso."
   }
