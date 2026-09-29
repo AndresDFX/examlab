@@ -77,6 +77,39 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 📝 Skill para calificar un parcial cuando la cola no drena
+
+`.claude/skills/calificar-parcial/` deja escrito el procedimiento que hubo que improvisar el
+2026-09-28, cuando el Parcial 1 de Bases de Datos II (UNIAJ, 17 entregas) llevaba dos dias sin
+nota: `ai-grading-worker-hourly` no drenaba desde el 25-sep y el re-grade del docente rebotaba
+con **403 «Authentication failed: Please make sure your API Key is valid»** — la institucion
+resuelve a `bedrock` y esa credencial se quito el 2026-09-07.
+
+Lo que el skill fija, y que no se deduce de ningun archivo:
+
+- **El criterio sale de `ai_prompts` (`use_case = 'exam_question'`), no de la costumbre.** Con
+  `service_role` la RLS esta bypaseada y vienen las filas de TODAS las instituciones: hay que
+  filtrar por el tenant del curso a mano, o se califica con el prompt de otra universidad.
+- **Se califica de a UNA pregunta con todo el curso a la vista**, no estudiante por estudiante:
+  es lo que hace que la misma respuesta valga igual en la fila 3 que en la 15.
+- **Las deterministas no se leen**: las puntua `scoreDeterministic` del edge, reusado con vitest.
+  Reimplementarlo es exactamente como la misma entrega termino valiendo distinto segun quien
+  apreto el boton, dos veces ya.
+- **Una `bd_sql` sin resultado guardado no es un cero**: el motor arranca una base limpia por
+  corrida y persiste solo la ultima ejecucion, asi que una respuesta correcta puede dejar una
+  sola fila de salida. Se lee el SQL, no solo el resultado.
+- **La plantilla que puso el docente no es autoria del estudiante**, asi que cuando el enunciado
+  entrega el esqueleto no se aplica penalizacion por sospecha de IA — es la misma razon por la
+  que `plantilla` viaja aparte de la respuesta en el prompt del grader.
+- **El paso que se olvida**: cancelar los jobs que quedaron `pending`. Si no, el dia que alguien
+  pulse «Procesar todos» el modelo recalifica y pisa el trabajo revisado. Se cancelaron los 17.
+
+El resultado se persiste con el MISMO payload que escribe `ai-grade-submission` (`ai_grade` +
+`answers.__breakdown` con una fila por pregunta, tambien las deterministas), por el JWT de la
+cuenta SuperAdmin y no por la `service_role`, y con las tres guardas que el 204 mudo de PostgREST
+hace obligatorias: cuadrar el total antes de escribir, exigir la fila de vuelta en el PATCH, y
+releer con una consulta aparte.
+
 ### 💬 Durante un examen ya no hay puerta a los mensajes
 
 El shell monta cinco superficies de mensajería y notificaciones: las dos del pie del sidebar, las dos
