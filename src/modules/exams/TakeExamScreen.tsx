@@ -102,6 +102,7 @@ import {
   contarAdvertencia,
   suspendePorAdvertencias,
   warningLabel,
+  pegarCuentaComoStrike,
   permiteMenuContextual,
 } from "@/modules/exams/proctoring";
 import { seededShuffle, examShuffleSeed } from "@/modules/exams/shuffle";
@@ -176,6 +177,9 @@ type Exam = {
   schedule_type?: string | null;
   /** Cantidad de strikes antes de marcar el intento como sospechoso. */
   max_warnings?: number | null;
+  /** Opcional en el tipo por compatibilidad con entornos sin la migración
+   *  20262600000000, igual que `must_change_password` en el perfil. */
+  clipboard_counts_as_warning?: boolean | null;
   /** Máximo de intentos permitidos (>=1). Si es 1 o null, no se muestra contador. */
   max_attempts?: number | null;
   /** Modo de cálculo de la nota final entre intentos: last_only / average / highest. */
@@ -241,6 +245,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // Configuración del examen para advertencias. Si el docente no
   // personalizó max_warnings cae al default de proctoring (3).
   const maxWarnings = exam?.max_warnings ?? MAX_WARNINGS;
+  /** ¿En ESTE examen el portapapeles suma advertencia? OPT-IN: sin la columna
+   *  —o con ella apagada— el comportamiento es el de siempre. */
+  const portapapelesSuma = exam?.clipboard_counts_as_warning === true;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
@@ -311,7 +318,15 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   const answersRef = useRef<Record<string, any>>({});
   // Cache the Supabase access token so beforeunload can use it in a keepalive fetch
   const authTokenRef = useRef<string | null>(null);
-  const warningEventsRef = useRef<Array<{ type: string; at: string; questionIdx: number | null }>>(
+  const warningEventsRef = useRef<
+    Array<{
+      type: string;
+      at: string;
+      questionIdx: number | null;
+      questionId?: string | null;
+      suma?: boolean;
+    }>
+  >(
     [],
   );
   // Bandera de "el estudiante ya está properly dentro del examen". Se
@@ -329,6 +344,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // en cada autosave para que el monitor del docente pueda mostrar
   // "Pregunta X de Y" en tiempo real para los intentos en curso.
   const currentIdxRef = useRef(0);
+  /** Las preguntas, para los listeners de proctoring: su `useEffect` no tiene
+   *  `questions` en las deps, así que leerlas del closure daría la lista vacía
+   *  del primer render y ningún evento sabría en qué pregunta ocurrió. */
+  const questionsRef = useRef<Question[]>([]);
   // Cuándo escribió por última vez el autoguardado. Lo lee el latido para no
   // duplicar una escritura que ya se hizo.
   const ultimoGuardadoRef = useRef(0);
@@ -419,6 +438,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   useEffect(() => {
     currentIdxRef.current = currentIdx;
   }, [currentIdx]);
+  useEffect(() => {
+    questionsRef.current = questions;
+  }, [questions]);
   useEffect(() => {
     examRef.current = exam;
   }, [exam]);
@@ -1781,6 +1803,17 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // `creaVentanasDeProctoring`.
     const ventanas = creaVentanasDeProctoring(500);
     let lastBlurAt = 0;
+
+    /**
+     * La pregunta en la que el alumno está parado, por ID.
+     *
+     * El ID y no el índice: con la mezcla activada el orden es distinto para
+     * cada estudiante, así que «Pregunta 4» del alumno no es la 4 del docente.
+     * Por eso el índice solo se guardaba en los secuenciales — y por eso un
+     * «Intento de pegar» en un examen libre llegaba al monitor sin decir dónde,
+     * que es el dato que separa copiar la respuesta de mover el propio SQL.
+     */
+    const preguntaActual = () => questionsRef.current[currentIdxRef.current] ?? null;
     const recordWarning = (type: string) => {
       if (submittedRef.current) return;
       // Grace period de reanudación: si el estudiante todavía no ha
@@ -1812,6 +1845,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // docente veía strikes anclados a la pregunta equivocada.
         questionIdx:
           exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
+        // En QUÉ pregunta fue. Estable frente a la mezcla por alumno, al revés
+        // que el índice de arriba — ver `WarningEvent.questionId`.
+        questionId: preguntaActual()?.id ?? null,
+        suma: true,
       };
       warningEventsRef.current = [...warningEventsRef.current, event];
 
@@ -1878,13 +1915,39 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       if (now - lastClipboardAt < 800) return;
       lastClipboardAt = now;
 
+      // ¿Suma strike ESTE pegado? Dos condiciones: que el examen lo pida y que
+      // la pregunta no sea de las que tienen editor, donde mover una línea de
+      // un lado a otro ES escribir la respuesta. La regla vive en
+      // `pegarCuentaComoStrike`, con tests, porque es la que decide si alguien
+      // se queda sin examen.
+      const pregunta = preguntaActual();
+      const suma = pegarCuentaComoStrike(pregunta?.type, portapapelesSuma);
+
       const msg =
         eventType === "pegar"
           ? t("hc_routesAppStudentTakeExamId.pasteNotAllowed")
           : eventType === "cortar"
             ? t("hc_routesAppStudentTakeExamId.cutNotAllowed")
             : t("hc_routesAppStudentTakeExamId.copyNotAllowed");
-      toast.warning(msg);
+
+      // Cuando SUMA, el aviso tiene que decirlo: un «no está permitido» igual
+      // al de siempre, mientras por detrás se descuenta un intento, es la peor
+      // combinación — el alumno se entera del strike cuando ya no le quedan.
+      const nw = suma ? contarAdvertencia(warningsRef.current, maxWarnings, simulacro) : null;
+      if (nw !== null) {
+        warningsRef.current = nw;
+        setWarnings(nw);
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.warningWithLabel", {
+            defaultValue: "Advertencia {{count}}/{{max}}: {{label}}",
+            count: nw,
+            max: maxWarnings,
+            label: warningLabel(eventType),
+          }),
+        );
+      } else {
+        toast.warning(msg);
+      }
 
       const event = {
         type: eventType,
@@ -1898,6 +1961,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // docente veía strikes anclados a la pregunta equivocada.
         questionIdx:
           exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
+        questionId: pregunta?.id ?? null,
+        suma,
       };
       warningEventsRef.current = [...warningEventsRef.current, event];
 
@@ -1913,11 +1978,30 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       if (submissionIdRef.current && isOnline()) {
         db
           .from("submissions")
-          .update({ answers: updatedAnswers })
+          // Cuando el pegado sumó, el contador viaja en la MISMA escritura que
+          // el evento: separarlos deja una ventana donde la base tiene el
+          // evento y no el strike, y el autoguardado de 1,5 s decide cuál gana.
+          .update(nw !== null ? { answers: updatedAnswers, focus_warnings: nw } : { answers: updatedAnswers })
           .eq("id", submissionIdRef.current)
           .then(({ error }) => {
             if (error) console.error("recordCopyAlert DB save failed:", error);
           });
+      }
+
+      // Si este pegado llegó al tope, se cierra igual que cualquier otro
+      // strike. Sumar sin cerrar es el estado que ya costó un parcial entero:
+      // el contador marca 3/3 y no pasa nada.
+      if (nw !== null && avisaDelLimite(nw, maxWarnings)) {
+        if (!suspendePorAdvertencias(nw, maxWarnings, simulacro)) {
+          toast.error(t("simulacroExamen.limiteAdvertenciasEnsayo"), { duration: 10000 });
+        } else {
+          toast.error(
+            i18n.t("toast.routes_app_student_take_examId.exitLimitExceeded", {
+              defaultValue: "Has superado el límite de salidas. El examen se suspende.",
+            }),
+          );
+          performSubmit(true);
+        }
       }
     };
 
@@ -2044,6 +2128,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           at: new Date(now).toISOString(),
           questionIdx:
             exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
+          questionId: preguntaActual()?.id ?? null,
+          suma: false,
         },
       ];
       const updatedAnswers = {

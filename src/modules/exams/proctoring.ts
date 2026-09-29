@@ -57,7 +57,33 @@ export interface WarningEvent {
   /** ISO string or epoch ms — take flow writes ISO, older records wrote ms */
   at?: string | number;
   ts?: number;
+  /**
+   * Posición de la pregunta EN EL ORDEN DEL ALUMNO. Solo se escribía —y se
+   * sigue escribiendo— en exámenes secuenciales, y hay un motivo para no
+   * extenderla: con `shuffle_enabled` el orden es distinto para cada
+   * estudiante, así que «Pregunta 4» en su pantalla es otra pregunta que la 4
+   * del docente. Para ubicar el evento está `questionId`.
+   */
   questionIdx?: number | null;
+  /**
+   * En QUÉ pregunta ocurrió. Es lo que el índice no podía ser: estable frente
+   * a la mezcla por alumno y frente a que el docente reordene después.
+   *
+   * Sin esto, un «Intento de pegar» en un examen de navegación libre llegaba
+   * al monitor sin ningún lugar — el docente sabía que alguien pegó algo y no
+   * dónde, que es justo el dato que decide si fue copiar la respuesta o mover
+   * su propio SQL de una línea a otra.
+   */
+  questionId?: string | null;
+  /**
+   * ¿Este evento SUMÓ un strike?
+   *
+   * Lo escribe quien lo registra, y hace falta desde que pegar puede sumar o
+   * no SEGÚN la pregunta: el tipo dejó de alcanzar para saberlo. Los eventos
+   * viejos no lo traen y se resuelven por tipo (`isStrikeEvent`), que es como
+   * se resolvía antes. Ver `eventoSumoStrike`.
+   */
+  suma?: boolean;
 }
 
 /** Human-readable Spanish label for a warning type. */
@@ -166,6 +192,62 @@ export const TIPOS_QUE_SUMAN_STRIKE: ReadonlySet<string> = new Set<string>([
 
 export function isStrikeEvent(type: string | null | undefined): boolean {
   return !!type && TIPOS_QUE_SUMAN_STRIKE.has(type);
+}
+
+/**
+ * ¿Este evento CONCRETO sumó un strike?
+ *
+ * Preferir lo que quedó escrito en el evento y no deducirlo del tipo es lo que
+ * permite que un mismo tipo cuente o no según dónde ocurrió. Un evento viejo
+ * —sin la marca— se resuelve por tipo, exactamente como antes: la allowlist
+ * sigue gobernando el histórico, que es lo que hay en producción.
+ */
+export function eventoSumoStrike(ev: WarningEvent): boolean {
+  if (typeof ev.suma === "boolean") return ev.suma;
+  return isStrikeEvent(ev.type);
+}
+
+/**
+ * Tipos de pregunta donde COPIAR Y PEGAR es parte de responder.
+ *
+ * Es la razón entera por la que el portapapeles dejó de sumar: en una pregunta
+ * de código, mover una línea de un lado a otro del propio editor es escribir la
+ * respuesta, y sumaba strike. Pero la excepción se aplicó a TODOS los exámenes,
+ * también a los que no tienen una sola pregunta de código — y ahí pegar en una
+ * respuesta abierta es justo lo que el docente quiere ver.
+ */
+export const TIPOS_DONDE_PEGAR_ES_NORMAL: ReadonlySet<string> = new Set([
+  "codigo",
+  "codigo_zip",
+  "bd_sql",
+  "java_gui",
+  "python_gui",
+  "so_consola",
+]);
+
+/**
+ * ¿El portapapeles suma strike en ESTA pregunta?
+ *
+ * Dos condiciones, y las dos tienen que darse:
+ *
+ *  1. Que el examen lo pida (`cuentaEnEsteExamen`). Es OPT-IN y no negociable:
+ *     con el interruptor apagado el comportamiento es byte-idéntico al de hoy.
+ *     Encenderlo para todos haría que, el día que la suspensión vuelva a
+ *     funcionar, media clase se suspenda por pegar — un cambio enorme y
+ *     silencioso sobre siete instituciones.
+ *  2. Que la pregunta NO sea de las que tienen editor. Ahí pegar es normal y la
+ *     excepción original se mantiene intacta.
+ *
+ * **Sin saber en qué pregunta fue, NO suma.** Falla cerrado a propósito: una
+ * acusación que no se puede ubicar no se puede defender.
+ */
+export function pegarCuentaComoStrike(
+  tipoDePregunta: string | null | undefined,
+  cuentaEnEsteExamen: boolean,
+): boolean {
+  if (!cuentaEnEsteExamen) return false;
+  if (!tipoDePregunta) return false;
+  return !TIPOS_DONDE_PEGAR_ES_NORMAL.has(tipoDePregunta);
 }
 
 /**

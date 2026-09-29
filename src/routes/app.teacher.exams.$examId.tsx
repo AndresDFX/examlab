@@ -518,6 +518,10 @@ function ExamEditor() {
         1,
         Math.min(50, Number((exam as any).max_warnings ?? 3) || 3),
       );
+      // Default false: el examen que nunca tocó el interruptor conserva el
+      // comportamiento histórico (pegar se anota y no penaliza).
+      payload.clipboard_counts_as_warning =
+        (exam as { clipboard_counts_as_warning?: boolean }).clipboard_counts_as_warning === true;
       payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
       payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
       // Default true: si el docente nunca tocó el toggle, asume el
@@ -1530,6 +1534,23 @@ function ExamEditor() {
                         setExam({ ...exam, max_warnings: Number(e.target.value) } as any)
                       }
                     />
+                  </div>
+                  {/* OPT-IN. Apagado el comportamiento es el de siempre: pegar
+                      queda anotado y no penaliza. La excepción de las preguntas
+                      con editor se respeta aunque esté encendido — la decide
+                      `pegarCuentaComoStrike`, no este interruptor. */}
+                  <div className="sm:col-span-2 flex items-start gap-2">
+                    <Switch
+                      id="clipboard-counts"
+                      checked={(exam as any).clipboard_counts_as_warning === true}
+                      onCheckedChange={(v) =>
+                        setExam({ ...exam, clipboard_counts_as_warning: v } as any)
+                      }
+                    />
+                    <Label htmlFor="clipboard-counts" className="font-normal">
+                      {t("hc_routesAppTeacherExamsExamId.clipboardCountsLabel")}{" "}
+                      <HelpHint>{t("hc_routesAppTeacherExamsExamId.clipboardCountsHint")}</HelpHint>
+                    </Label>
                   </div>
                 </div>
               )}

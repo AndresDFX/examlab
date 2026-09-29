@@ -122,6 +122,9 @@ type Submission = {
   user_id: string;
   status: string;
   focus_warnings: number;
+  /** Las advertencias que el docente ya perdonó. Antes se perdían al borrarlas
+   *  y el expediente quedaba diciendo «0» sin explicar qué se había quitado. */
+  cleared_warning_events?: WarningEvent[] | null;
   answers: any;
   ai_grade: number | null;
   final_override_grade: number | null;
@@ -501,7 +504,7 @@ function ExamMonitor() {
     const { data: subs } = await (supabase as any)
       .from("submissions")
       .select(
-        "id, user_id, status, focus_warnings, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at, created_at, started_at, submitted_at, extra_seconds, teacher_feedback",
+        "id, user_id, status, focus_warnings, cleared_warning_events, answers, ai_grade, final_override_grade, ai_detected, ai_detected_score, ai_detected_reasons, ai_review_at, created_at, started_at, submitted_at, extra_seconds, teacher_feedback",
       )
       .eq("exam_id", examId)
       .order("created_at", { ascending: true });
@@ -1249,6 +1252,7 @@ function ExamMonitor() {
       status?: string;
       restored?: boolean;
       events?: WarningEvent[];
+      cleared?: WarningEvent[];
     };
     if (!r.ok) {
       toast.error(
@@ -1269,6 +1273,13 @@ function ExamMonitor() {
               // resto de `answers` de esta pantalla puede estar viejo y no es
               // asunto nuestro.
               answers: { ...(s.answers ?? {}), __warning_events: eventos },
+              // Lo perdonado se acumula en la fila; el servidor devuelve lo que
+              // acaba de quitar, así la lista de la pantalla no espera al
+              // próximo sondeo para mostrarlo.
+              cleared_warning_events: [
+                ...(s.cleared_warning_events ?? []),
+                ...((r.cleared ?? []) as WarningEvent[]),
+              ],
               status: r.status ?? s.status,
               submitted_at: r.restored ? null : s.submitted_at,
             }
@@ -3283,6 +3294,8 @@ function ExamMonitor() {
               events={(warningsSub.answers?.__warning_events ?? []) as WarningEvent[]}
               onClearAll={() => void clearAllWarnings(warningsSub)}
               onClearOne={(i) => void clearOneWarning(warningsSub, i)}
+              questions={questions}
+              cleared={warningsSub.cleared_warning_events ?? []}
             />
           )}
           {warningsSub && ((warningsSub.answers?.__warning_events ?? []) as WarningEvent[]).length === 0 && (
@@ -3426,6 +3439,8 @@ function ExamMonitor() {
                     events={(viewingSub.answers?.__warning_events ?? []) as WarningEvent[]}
                     onClearAll={() => void clearAllWarnings(viewingSub)}
                     onClearOne={(i) => void clearOneWarning(viewingSub, i)}
+                    questions={questions}
+                    cleared={viewingSub.cleared_warning_events ?? []}
                   />
 
                   {/* Retroalimentación general del examen */}

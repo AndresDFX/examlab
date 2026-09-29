@@ -18,20 +18,46 @@ import { formatDateTime } from "@/shared/lib/format";
 import {
   warningLabel,
   warningEventTimestamp,
+  eventoSumoStrike,
   type WarningEvent,
 } from "@/modules/exams/proctoring";
+import { Badge } from "@/components/ui/badge";
 
 export function WarningEventsCard({
   events,
   onClearAll,
   onClearOne,
+  questions,
+  cleared,
 }: {
   events: WarningEvent[];
   onClearAll: () => void;
   onClearOne: (idx: number) => void;
+  /** Las preguntas EN EL ORDEN DEL DOCENTE, para ubicar cada evento. Sin esto
+   *  la lista dice qué pasó y no dónde — que en un «Intento de pegar» es la
+   *  mitad del dato. */
+  questions?: ReadonlyArray<{ id: string }>;
+  /** Advertencias que ya se perdonaron. Antes desaparecían sin dejar rastro. */
+  cleared?: WarningEvent[];
 }) {
   const { t } = useTranslation();
-  if (!events.length) return null;
+
+  /**
+   * Dónde ocurrió el evento, por ID.
+   *
+   * Se prefiere el ID sobre el índice porque con la mezcla activada el orden es
+   * distinto para cada alumno: su «Pregunta 4» no es la 4 del docente. El
+   * índice queda de respaldo para los eventos viejos, que no traen ID.
+   */
+  const ubicacion = (ev: WarningEvent): number | null => {
+    if (ev.questionId && questions?.length) {
+      const i = questions.findIndex((q) => q.id === ev.questionId);
+      if (i >= 0) return i;
+    }
+    return typeof ev.questionIdx === "number" ? ev.questionIdx : null;
+  };
+
+  if (!events.length && !cleared?.length) return null;
   return (
     <Card className="border-destructive/40 bg-destructive/5">
       <CardHeader className="pb-2">
@@ -43,6 +69,7 @@ export function WarningEventsCard({
           <Button
             size="sm"
             variant="outline"
+            disabled={!events.length}
             onClick={onClearAll}
             title={t("hc_routesAppTeacherMonitorExamId.clearAllWarningsTitle")}
           >
@@ -52,25 +79,63 @@ export function WarningEventsCard({
         </CardTitle>
       </CardHeader>
       <CardContent className="text-xs space-y-1">
-        {events.map((ev, i) => (
-          <div key={i} className="flex items-center gap-2">
-            <span className="text-muted-foreground tabular-nums">
-              {formatDateTime(warningEventTimestamp(ev))}
-            </span>
-            <span className="font-medium">{warningLabel(ev.type)}</span>
-            {typeof ev.questionIdx === "number" && (
-              <span className="text-muted-foreground">
-                · {t("hc_routesAppTeacherMonitorExamId.questionN", { n: ev.questionIdx + 1 })}
+        {events.map((ev, i) => {
+          const dondeFue = ubicacion(ev);
+          return (
+            <div key={i} className="flex flex-wrap items-center gap-x-2 gap-y-1">
+              <span className="text-muted-foreground tabular-nums">
+                {formatDateTime(warningEventTimestamp(ev))}
               </span>
-            )}
-            <RowAction
-              label={t("hc_routesAppTeacherMonitorExamId.deleteThisWarning")}
-              icon={Trash2}
-              tone="destructive"
-              onClick={() => onClearOne(i)}
-            />
+              <span className="font-medium">{warningLabel(ev.type)}</span>
+              {/* Cuáles de estos cuentan para el tope no se podía saber mirando
+                  la lista, y desde que pegar puede sumar o no según la pregunta
+                  el tipo dejó de alcanzar para deducirlo. */}
+              {eventoSumoStrike(ev) && (
+                <Badge variant="destructive" className="text-3xs">
+                  {t("hc_routesAppTeacherMonitorExamId.warningCounts")}
+                </Badge>
+              )}
+              {dondeFue !== null && (
+                <span className="text-muted-foreground">
+                  · {t("hc_routesAppTeacherMonitorExamId.questionN", { n: dondeFue + 1 })}
+                </span>
+              )}
+              <RowAction
+                label={t("hc_routesAppTeacherMonitorExamId.deleteThisWarning")}
+                icon={Trash2}
+                tone="destructive"
+                onClick={() => onClearOne(i)}
+              />
+            </div>
+          );
+        })}
+
+        {/* Lo perdonado sigue a la vista. Antes desaparecía: al revisar después
+            el expediente decía «0 advertencias» y no había forma de saber qué
+            se había quitado, ni cuándo, ni de qué tipo. */}
+        {!!cleared?.length && (
+          <div className="mt-3 border-t pt-2 space-y-1">
+            <p className="text-3xs font-medium uppercase tracking-wide text-muted-foreground">
+              {t("hc_routesAppTeacherMonitorExamId.forgivenTitle", { count: cleared.length })}
+            </p>
+            {cleared.map((ev, i) => {
+              const dondeFue = ubicacion(ev);
+              return (
+                <div key={i} className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+                  <span className="tabular-nums">
+                    {formatDateTime(warningEventTimestamp(ev))}
+                  </span>
+                  <span className="line-through">{warningLabel(ev.type)}</span>
+                  {dondeFue !== null && (
+                    <span>
+                      · {t("hc_routesAppTeacherMonitorExamId.questionN", { n: dondeFue + 1 })}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        ))}
+        )}
       </CardContent>
     </Card>
   );

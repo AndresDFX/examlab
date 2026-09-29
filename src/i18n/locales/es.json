@@ -8708,6 +8708,8 @@
     "materialsCount": "Materiales ({{count}})"
   },
   "hc_routesAppTeacherExamsExamId": {
+    "clipboardCountsLabel": "Copiar y pegar cuenta como advertencia",
+    "clipboardCountsHint": "Apagado, pegar solo queda anotado para que lo veas. Encendido, suma advertencia — salvo en preguntas de código, SQL, interfaz gráfica o consola, donde pegar es parte de responder. Útil en exámenes que no tienen ninguna de esas.",
     "actionDeleteQuestion": "Eliminar pregunta",
     "actionEditQuestion": "Editar pregunta",
     "actionMoveDown": "Bajar",
@@ -9057,6 +9059,8 @@
     "courseUnavailable": "Este curso no está disponible (no existe o fue movido a la papelera)."
   },
   "hc_routesAppTeacherMonitorExamId": {
+    "warningCounts": "suma",
+    "forgivenTitle": "Perdonadas ({{count}})",
     "optionN": "Opción {{n}}",
     "markedOption": "Marcó la opción {{n}}: {{label}}",
     "noSelection": "Sin selección",

@@ -12,6 +12,9 @@ import {
   suspendePorAdvertencias,
   creaVentanasDeProctoring,
   isStrikeEvent,
+  eventoSumoStrike,
+  pegarCuentaComoStrike,
+  TIPOS_DONDE_PEGAR_ES_NORMAL,
   ocultarCuentaComoStrike,
   salidaDePantallaCompletaCuentaComoStrike,
   shouldMarkSuspicious,
@@ -378,5 +381,62 @@ describe("el simulacro del docente NO se cierra por advertencias", () => {
     expect(suspendePorAdvertencias(10, 10, false)).toBe(true);
     expect(contarAdvertencia(9, 10, true)).toBe(10);
     expect(contarAdvertencia(10, 10, true)).toBe(10);
+  });
+});
+
+describe("eventoSumoStrike", () => {
+  it("manda lo que quedó escrito en el evento, no el tipo", () => {
+    // Desde que pegar puede sumar o no según la pregunta, el tipo dejó de
+    // alcanzar. Si se deduce del tipo, perdonar un pegado que SÍ sumó no
+    // descuenta el contador y el alumno se queda con el strike.
+    expect(eventoSumoStrike({ type: "pegar", suma: true })).toBe(true);
+    expect(eventoSumoStrike({ type: "pestaña", suma: false })).toBe(false);
+  });
+
+  it("un evento VIEJO, sin marca, se resuelve por tipo como siempre", () => {
+    // Es lo que hay en producción: 451 eventos escritos antes de que la marca
+    // existiera. Cambiarles el significado sería reescribir expedientes.
+    expect(eventoSumoStrike({ type: "pestaña" })).toBe(true);
+    expect(eventoSumoStrike({ type: "pegar" })).toBe(false);
+    expect(eventoSumoStrike({ type: "copiar" })).toBe(false);
+    expect(eventoSumoStrike({ type: "screenshot_attempt" })).toBe(false);
+  });
+});
+
+describe("pegarCuentaComoStrike", () => {
+  it("con el interruptor APAGADO nunca suma, pase lo que pase", () => {
+    // El default. Encenderlo para todos haría que, el día que la suspensión
+    // vuelva a funcionar, media clase se suspenda por pegar.
+    expect(pegarCuentaComoStrike("abierta", false)).toBe(false);
+    expect(pegarCuentaComoStrike("codigo", false)).toBe(false);
+  });
+
+  it("encendido, suma en una pregunta SIN editor", () => {
+    expect(pegarCuentaComoStrike("abierta", true)).toBe(true);
+    expect(pegarCuentaComoStrike("cerrada", true)).toBe(true);
+    expect(pegarCuentaComoStrike("diagrama", true)).toBe(true);
+  });
+
+  it("encendido, NO suma donde pegar es parte de responder", () => {
+    // La excepción original se mantiene intacta: mover una línea dentro del
+    // propio editor es escribir la respuesta, no copiarse.
+    for (const tipo of TIPOS_DONDE_PEGAR_ES_NORMAL) {
+      expect(pegarCuentaComoStrike(tipo, true), tipo).toBe(false);
+    }
+  });
+
+  it("sin saber en qué pregunta fue, NO suma", () => {
+    // Falla cerrado: una acusación que no se puede ubicar no se puede
+    // defender. Pasa en un examen viejo, cuyos eventos no traen la pregunta.
+    expect(pegarCuentaComoStrike(null, true)).toBe(false);
+    expect(pegarCuentaComoStrike(undefined, true)).toBe(false);
+    expect(pegarCuentaComoStrike("", true)).toBe(false);
+  });
+
+  it("un tipo de pregunta desconocido suma: la lista de exentos es blanca", () => {
+    // Al revés —denylist— un tipo nuevo con editor entraría sumando y el
+    // perdón de más sería invisible. Acá lo peor que pasa es un strike de más,
+    // que el docente VE y puede quitar.
+    expect(pegarCuentaComoStrike("tipo_que_no_existe", true)).toBe(true);
   });
 });

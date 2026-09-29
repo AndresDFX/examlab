@@ -8708,6 +8708,8 @@
     "materialsCount": "Materials ({{count}})"
   },
   "hc_routesAppTeacherExamsExamId": {
+    "clipboardCountsLabel": "Copy and paste counts as a warning",
+    "clipboardCountsHint": "Off, pasting is only logged for you to see. On, it adds a warning — except in code, SQL, GUI or console questions, where pasting is part of answering. Useful for exams that have none of those.",
     "actionDeleteQuestion": "Delete question",
     "actionEditQuestion": "Edit question",
     "actionMoveDown": "Move down",
@@ -9057,6 +9059,8 @@
     "courseUnavailable": "This course is not available (it doesn't exist or was moved to the trash)."
   },
   "hc_routesAppTeacherMonitorExamId": {
+    "warningCounts": "counts",
+    "forgivenTitle": "Forgiven ({{count}})",
     "optionN": "Option {{n}}",
     "markedOption": "Selected option {{n}}: {{label}}",
     "noSelection": "No selection",
