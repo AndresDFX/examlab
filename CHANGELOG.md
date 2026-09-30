@@ -137,12 +137,18 @@ persona con la asistencia marcada», con todos los cursos 2026-2 de UNIAJ y en e
 - Se calificaron a mano las dos entregas del corte 1 que llegaron después de la calificación de hoy
   (BD II y SB141C; la IA de UNIAJ sigue sin credencial) y se cancelaron sus jobs en cola.
 
-**Hallazgo que NO se tocó** (decisión del docente): hay actividades **publicadas que casi nadie tiene
-asignadas** y por eso los estudiantes no las ven — en Arquitectura 6303C los dos talleres del corte 1
-(uno asignado a 1 de 19 y cerrado; el otro, al 7,5 %, a nadie y cierra el 1 de octubre), los talleres
-de los cortes 2 y 3 de Programación II, Arquitectura y BD II, y el proyecto integrador de seis cursos.
-Publicar no asigna. Con la regla nueva esas actividades no le cuentan como 0 a quien no las vio, pero
-asignarlas es lo que falta.
+**Hallazgo: actividades publicadas que casi nadie tiene asignadas**, y por eso los estudiantes no las
+ven. Publicar no asigna. Con la regla nueva no le cuentan como 0 a quien no las vio, pero hay que
+asignarlas.
+
+- **Arquitectura 6303C — resuelto** por decisión del docente: un solo taller por corte. El de Corte 1
+  es «Modelos de servicio, virtualización y contenedores» al 10 % (antes 7,5 %); «Taller Corte 1
+  (Clases 1 a 4)», que solo tenía asignada la cuenta de prueba del dueño, quedó en 0 %. Los tres
+  talleres de corte se asignaron a los 19 matriculados con la mig `20262680000000` (la RLS de
+  escritura de `workshop_assignments` es solo de Docente/Admin, así que el SuperAdmin no puede
+  asignar por REST). El de Corte 3 sigue formativo al 0 %, como dice el Acuerdo.
+- **Pendiente**: los talleres de los cortes 2 y 3 de Programación II y BD II, y el proyecto integrador
+  de seis cursos.
 
 ### 🌳 Los supletorios y recuperatorios van dentro de la fila de su parcial
 
