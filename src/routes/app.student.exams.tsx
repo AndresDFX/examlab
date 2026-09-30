@@ -45,6 +45,7 @@ import { MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { CortePesoBadges } from "@/components/ui/corte-peso";
 import { indiceDeCortes, resolverCorteYPeso } from "@/modules/grading/corte-y-peso";
 import { formatDateTime } from "@/shared/lib/format";
+import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
 import { usePagination } from "@/hooks/use-pagination";
@@ -660,7 +661,9 @@ function StudentExams() {
                 {completed && grade == null && <PendingAiGradeBanner variant="compact" />}
 
                 {exam.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{exam.description}</p>
+                  <p className="text-sm text-muted-foreground line-clamp-2">
+                    {markdownToPlain(exam.description)}
+                  </p>
                 )}
                 <div className="text-xs text-muted-foreground space-y-0.5">
                   <div className="flex items-center gap-1.5">

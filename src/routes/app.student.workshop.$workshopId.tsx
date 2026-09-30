@@ -503,8 +503,8 @@ function StudentWorkshopDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{t("common.description")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm text-muted-foreground whitespace-pre-wrap">
-            {workshop.description}
+          <CardContent className="text-sm text-muted-foreground">
+            <MarkdownInline>{workshop.description}</MarkdownInline>
           </CardContent>
         </Card>
       )}
@@ -514,7 +514,9 @@ function StudentWorkshopDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{t("dashboard.cards.workshopsStudent")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm whitespace-pre-wrap">{workshop.instructions}</CardContent>
+          <CardContent className="text-sm">
+            <MarkdownInline>{workshop.instructions}</MarkdownInline>
+          </CardContent>
         </Card>
       )}
 

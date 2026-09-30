@@ -68,6 +68,7 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime } from "@/shared/lib/format";
+import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { isAiGradePending } from "@/modules/ai/ai-grading";
@@ -820,8 +821,9 @@ function StudentWorkshops() {
                 </div>
 
                 {workshop.description && (
+                  // Recortada a 2 líneas: texto plano, no la sintaxis cruda (`**así**`).
                   <p className="text-sm text-muted-foreground line-clamp-2">
-                    {workshop.description}
+                    {markdownToPlain(workshop.description)}
                   </p>
                 )}
 

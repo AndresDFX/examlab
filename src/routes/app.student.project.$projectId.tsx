@@ -33,6 +33,7 @@ import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { friendlyError } from "@/shared/lib/db-errors";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -378,7 +379,9 @@ function StudentProjectDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-base">{t("hc_routesAppStudentProjectProjectId.projectDescription")}</CardTitle>
           </CardHeader>
-          <CardContent className="text-sm whitespace-pre-wrap">{project.description}</CardContent>
+          <CardContent className="text-sm">
+            <MarkdownInline>{project.description}</MarkdownInline>
+          </CardContent>
         </Card>
       )}
 

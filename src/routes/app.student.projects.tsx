@@ -63,6 +63,8 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime } from "@/shared/lib/format";
+import { MarkdownInline } from "@/shared/components/MarkdownInline";
+import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { usePagination } from "@/hooks/use-pagination";
@@ -771,7 +773,7 @@ function StudentProjects() {
 
                 {project.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2">
-                    {project.description}
+                    {markdownToPlain(project.description)}
                   </p>
                 )}
 
@@ -932,8 +934,8 @@ function StudentProjects() {
           {active && (
             <>
               {active.project.description && (
-                <div className="rounded-md bg-muted/40 p-3 text-sm whitespace-pre-wrap">
-                  {active.project.description}
+                <div className="rounded-md bg-muted/40 p-3 text-sm">
+                  <MarkdownInline>{active.project.description}</MarkdownInline>
                 </div>
               )}
               <StudentProjectTaker
