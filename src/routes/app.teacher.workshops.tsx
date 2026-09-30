@@ -13,7 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
-import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
+import { SqlAnswerReview } from "@/modules/database/SqlAnswerReview";
 import { NetworkAnswerReview } from "@/modules/network/NetworkAnswerReview";
 import { useAuth } from "@/hooks/use-auth";
 import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
@@ -5722,31 +5722,9 @@ function TeacherWorkshops() {
                                              SQL», donde 2 de las 4 preguntas son de este
                                              tipo. Los dos helpers ya existen y son los
                                              mismos que usa la pantalla del alumno. */
-                                          (() => {
-                                            const sql = sqlSourceForDisplay(raw);
-                                            const salida = sqlResultsForDisplay(raw);
-                                            if (!sql && !salida) {
-                                              return (
-                                                <p className="text-xs italic text-muted-foreground mt-1">
-                                                  {t("hc_routesAppTeacherWorkshops.noAnswer")}
-                                                </p>
-                                              );
-                                            }
-                                            return (
-                                              <div className="mt-1 space-y-1">
-                                                {sql && (
-                                                  <pre className="max-h-48 overflow-auto rounded bg-background border p-2 text-xs whitespace-pre-wrap font-mono">
-                                                    {sql}
-                                                  </pre>
-                                                )}
-                                                {salida && (
-                                                  <pre className="max-h-40 overflow-auto rounded bg-muted/30 border p-2 text-2xs whitespace-pre font-mono">
-                                                    {salida}
-                                                  </pre>
-                                                )}
-                                              </div>
-                                            );
-                                          })()
+                                          <div className="mt-1">
+                                            <SqlAnswerReview value={raw} />
+                                          </div>
                                         ) : q.type === "red_consola" || q.type === "red_gui" ? (
                                           /* Mismo componente que la revisión del alumno: sin
                                              esto el docente veía la topología y el historial

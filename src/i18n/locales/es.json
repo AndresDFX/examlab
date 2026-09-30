@@ -11059,5 +11059,19 @@
     "parentNone": "Ninguno — examen normal",
     "sectionEdit": "Recuperación",
     "editHint": "Es una recuperación de «{{title}}». No suma aparte en Calificaciones: su nota ocupa el lugar de la del original, con su corte y su peso."
+  },
+  "sqlAnswerReview": {
+    "sqlLabel": "SQL que escribió",
+    "resultsLabel": "Lo que devolvió la base",
+    "lastRun": "última ejecución: {{date}}",
+    "notRun": "No lo ejecutó: se revisa leyendo el SQL.",
+    "partialRun": "La última ejecución fue de una parte del guion ({{shown}} de {{total}} sentencias). No muestra lo que pasa al correrlo completo, que es lo que se califica.",
+    "statementN": "Sentencia {{n}}",
+    "error": "Error",
+    "affected_one": "OK — {{count}} fila afectada",
+    "affected_other": "OK — {{count}} filas afectadas",
+    "noRows": "(0 filas)",
+    "truncated": "Se guardan solo las primeras {{max}} filas.",
+    "noAnswer": "Sin respuesta"
   }
 }

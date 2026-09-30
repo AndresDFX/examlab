@@ -11059,5 +11059,19 @@
     "parentNone": "None — regular exam",
     "sectionEdit": "Retake or makeup",
     "editHint": "This is a retake or makeup of “{{title}}”. It does not add up on its own in the gradebook: its grade takes the place of the original's, with its grading period and weight."
+  },
+  "sqlAnswerReview": {
+    "sqlLabel": "SQL written",
+    "resultsLabel": "What the database returned",
+    "lastRun": "last run: {{date}}",
+    "notRun": "Not run: review it by reading the SQL.",
+    "partialRun": "The last run was only part of the script ({{shown}} of {{total}} statements). It does not show what happens when the whole script runs, which is what is graded.",
+    "statementN": "Statement {{n}}",
+    "error": "Error",
+    "affected_one": "OK — {{count}} row affected",
+    "affected_other": "OK — {{count}} rows affected",
+    "noRows": "(0 rows)",
+    "truncated": "Only the first {{max}} rows are stored.",
+    "noAnswer": "No answer"
   }
 }

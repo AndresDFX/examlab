@@ -95,6 +95,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RowAction } from "@/components/ui/row-action";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
+import { SqlAnswerReview } from "@/modules/database/SqlAnswerReview";
+import { sqlResultsForDisplay, sqlSourceForDisplay } from "@/modules/database/sql-answer";
 import { CodeEditor, type CodeLanguage } from "@/modules/code/CodeEditor";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { desgloseEfectivo } from "@/modules/grading/deterministic-scoring";
@@ -244,6 +246,13 @@ function formatStudentAnswer(
       count: arr.length,
       labels: labels.join(" · "),
     });
+  }
+  if (qType === "bd_sql") {
+    // El SQL y las tablas de resultado en texto: lo mismo que lee la IA
+    // (`executionOutput`), no el JSON con el que se guarda.
+    const sql = sqlSourceForDisplay(raw);
+    const salida = sqlResultsForDisplay(raw);
+    if (sql || salida) return [sql, salida].filter(Boolean).join("\n\n");
   }
   // Tipos de texto libre — abierta, codigo, diagrama, java_gui, python_gui.
   const text = typeof raw === "string" ? raw : JSON.stringify(raw, null, 2);
@@ -3671,6 +3680,9 @@ function ExamMonitor() {
                                 height="220px"
                                 zoomScopeKey={q.id}
                               />
+                            ) : q.type === "bd_sql" ? (
+                              // El SQL y lo que devolvió la base, no el JSON guardado.
+                              <SqlAnswerReview value={ans} />
                             ) : (
                               q.type !== "cerrada" &&
                               q.type !== "cerrada_multi" && (
@@ -4453,6 +4465,8 @@ function ExamMonitor() {
                             height="220px"
                             zoomScopeKey={`${q.id}:peer`}
                           />
+                        ) : q.type === "bd_sql" ? (
+                          <SqlAnswerReview value={peerAns} />
                         ) : (
                           <div className="rounded border bg-muted/30 p-2 text-xs whitespace-pre-wrap font-mono min-h-[40px]">
                             {peerAns == null || peerAns === "" ? (
@@ -4826,12 +4840,11 @@ function ExamMonitor() {
                             const qid = b.qid as string;
                             const q = questions.find((x) => x.id === qid);
                             const studentAnswer = proposedAnswers[qid];
+                            // Formateado por tipo (la opción marcada, el SQL y sus
+                            // resultados…), no el valor crudo: una bd_sql se veía
+                            // como su JSON.
                             const studentAnswerStr =
-                              typeof studentAnswer === "string"
-                                ? studentAnswer
-                                : studentAnswer != null
-                                  ? JSON.stringify(studentAnswer)
-                                  : "";
+                              formatStudentAnswer(studentAnswer, q?.type, q) ?? "";
                             const earned = (b.earned as number | undefined) ?? 0;
                             const points = (b.points as number | undefined) ?? q?.points ?? 0;
                             const fb = (b.feedback as string | undefined) ?? "";
