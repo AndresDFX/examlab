@@ -205,7 +205,9 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           .is("parent_exam_id", null),
         db
           .from("workshop_courses")
-          .select("weight, cut_id, workshop:workshops(id, title, deleted_at, weight, requires_defense)")
+          .select(
+            "weight, cut_id, workshop:workshops(id, title, deleted_at, weight, requires_defense, parent_workshop_id)",
+          )
           .eq("course_id", courseId),
         db
           .from("project_courses")
@@ -234,9 +236,13 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
           deleted_at: string | null;
           weight: number | null;
           requires_defense?: boolean | null;
+          parent_workshop_id?: string | null;
         } | null;
       }>)
-        .filter((r) => r.workshop && !r.workshop.deleted_at)
+        // Una recuperación no es una actividad más del corte, igual que en la
+        // rama de exámenes: tiene su propia fila en workshop_courses con el
+        // peso del original, y contarla marcaba el corte como sobre-asignado.
+        .filter((r) => r.workshop && !r.workshop.deleted_at && !r.workshop.parent_workshop_id)
         .map((r) => {
           // workshop_courses.weight es el canónico; si es NULL cae al legacy
           // workshops.weight (curso primario).

@@ -86,7 +86,14 @@ import {
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { CrearRecuperacionDialog } from "@/modules/exams/CrearRecuperacionDialog";
-import { tipoDeRecuperacion } from "@/modules/grading/nota-con-recuperacion";
+import { arbolDeRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
+import {
+  BotonRecuperaciones,
+  CLASE_FILA_RECUPERACION,
+  InsigniaDeRecuperacion,
+  TituloDeRecuperacion,
+  useRecuperacionesDesplegadas,
+} from "@/modules/grading/RecuperacionesEnGrid";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
 import { PageHeader } from "@/components/ui/page-header";
 import { DateCell } from "@/components/ui/date-cell";
@@ -163,6 +170,12 @@ type Exam = {
   course?: { name: string; period: string | null };
 };
 
+const ACCESORES_RECUPERACION = {
+  id: (e: Exam) => e.id,
+  padre: (e: Exam) => e.parent_exam_id,
+  creado: (e: Exam) => e.created_at,
+};
+
 function TeacherExams() {
   const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
@@ -234,6 +247,29 @@ function TeacherExams() {
     });
   }, [exams, search, courseFilter, cutFilter, statusFilter, rangoFechas, filterScope]);
 
+  // Los supletorios y recuperatorios van DENTRO de la fila de su examen, no
+  // como filas sueltas (ver arbol-recuperaciones.ts). Ordenar, paginar y
+  // seleccionar operan sobre las filas; las recuperaciones van con su original.
+  const arbol = useMemo(
+    () => arbolDeRecuperaciones(exams, filteredExams, ACCESORES_RECUPERACION),
+    [exams, filteredExams],
+  );
+  const totalFilas = useMemo(
+    () => arbolDeRecuperaciones(exams, exams, ACCESORES_RECUPERACION).raices.length,
+    [exams],
+  );
+  const recuperacionesEnFilas = useMemo(
+    () => arbol.raices.reduce((n, e) => n + (arbol.hijas.get(e.id)?.length ?? 0), 0),
+    [arbol],
+  );
+  // Sin tocar, se abre sola la fila que está en la lista SOLO por una
+  // recuperación suya: así se ve por qué aparece un parcial cerrado con el
+  // filtro que oculta los cerrados.
+  const recuperacionesDesplegadas = useRecuperacionesDesplegadas(
+    "examlab_recuperaciones_abiertas:exams",
+    arbol.soloPorRecuperacion,
+  );
+
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. Igual que
   // en talleres y proyectos — pulso rápido del estado del catálogo.
@@ -256,7 +292,7 @@ function TeacherExams() {
   // replican los lookups derivados del render (nombre de curso/corte por id)
   // para que el orden coincida con lo que ve el docente. Vacíos van al final
   // automáticamente.
-  const sort = useTableSort(filteredExams, {
+  const sort = useTableSort(arbol.raices, {
     columns: {
       title: (e) => e.title,
       course: (e) => e.course?.name ?? courses.find((c) => c.id === e.course_id)?.name ?? "",
@@ -300,6 +336,30 @@ function TeacherExams() {
     getId: (r) => r.id,
   });
 
+  // Lo que se pinta de la página: cada fila y, si está desplegada, sus
+  // recuperaciones justo debajo. El mismo JSX pinta las dos; cambian la casilla,
+  // el título y las columnas que la recuperación hereda del original.
+  const filasDeLaPagina: {
+    e: Exam;
+    esRecuperacion: boolean;
+    recuperaciones: Exam[];
+    desplegada: boolean;
+  }[] = pagination.paginatedItems.flatMap((e) => {
+    const recuperaciones = arbol.hijas.get(e.id) ?? [];
+    const desplegada = recuperaciones.length > 0 && recuperacionesDesplegadas.estaDesplegada(e.id);
+    return [
+      { e, esRecuperacion: false, recuperaciones, desplegada },
+      ...(desplegada
+        ? recuperaciones.map((r) => ({
+            e: r,
+            esRecuperacion: true,
+            recuperaciones: [],
+            desplegada: false,
+          }))
+        : []),
+    ];
+  });
+
   const handleBulkDelete = async (ids: string[]) => {
     // Soft-delete: la fila queda invisible para las queries (filtran
     // is('deleted_at', null)) pero recuperable desde /app/trash hasta
@@ -325,15 +385,18 @@ function TeacherExams() {
     load();
   };
 
+  // Desde las FILAS y no desde `filteredExams`: un parcial que está en la lista
+  // solo por su recuperación no coincide con el filtro, y si se lo marca tiene
+  // que aparecer igual en el diálogo de borrado.
   const selectedExamItems = useMemo(
     () =>
-      filteredExams
+      sort.sorted
         .filter((e) => sel.isSelected(e.id))
         .map((e) => ({
           id: e.id,
           label: `${e.title}${e.course?.name ? ` — ${e.course.name}` : ""}`,
         })),
-    [filteredExams, sel],
+    [sort.sorted, sel],
   );
   const [selectedCourseIds, setSelectedCourseIds] = useState<Set<string>>(new Set());
   // Per-course cut+weight used only during multi-course creation.
@@ -775,12 +838,18 @@ function TeacherExams() {
         icon={<FileText className="h-6 w-6" />}
         title={t("exam.title")}
         subtitle={
-          filteredExams.length === exams.length
-            ? t("exam.subtitle", { count: exams.length })
+          // Cuenta FILAS, igual que la paginación de abajo, y las recuperaciones
+          // aparte: sin filtros, filas + recuperaciones = todos los exámenes,
+          // que es lo que suman los tiles de estado.
+          (arbol.raices.length === totalFilas
+            ? t("exam.subtitle", { count: totalFilas })
             : t("hc_routesAppTeacherExamsIndex.subtitleFiltered", {
-                shown: filteredExams.length,
-                total: exams.length,
-              })
+                shown: arbol.raices.length,
+                total: totalFilas,
+              })) +
+          (recuperacionesEnFilas > 0
+            ? t("recuperaciones.subtitleSuffix", { count: recuperacionesEnFilas })
+            : "")
         }
         actions={
           <>
@@ -1031,7 +1100,7 @@ function TeacherExams() {
                     </Button>
                   }
                 />
-              ) : filteredExams.length === 0 ? (
+              ) : arbol.raices.length === 0 ? (
                 <TableEmpty
                   colSpan={12}
                   icon={FileText}
@@ -1039,12 +1108,30 @@ function TeacherExams() {
                   hint={t("hc_routesAppTeacherExamsIndex.noResultsHint")}
                 />
               ) : null}
-              {pagination.paginatedItems.map((e) => (
-                <TableRow key={e.id} data-state={sel.isSelected(e.id) ? "selected" : undefined}>
+              {filasDeLaPagina.map(({ e, esRecuperacion, recuperaciones, desplegada }) => (
+                <TableRow
+                  key={e.id}
+                  data-state={!esRecuperacion && sel.isSelected(e.id) ? "selected" : undefined}
+                  className={esRecuperacion ? CLASE_FILA_RECUPERACION : undefined}
+                >
                   <TableCell className="w-10">
-                    <MultiSelectCheckbox id={e.id} state={sel} />
+                    {/* La selección múltiple es de filas: una recuperación se
+                        manda a la papelera desde su propio menú. */}
+                    {!esRecuperacion && <MultiSelectCheckbox id={e.id} state={sel} />}
                   </TableCell>
                   <TableCell className="font-medium">
+                    {esRecuperacion ? (
+                      <div className="flex flex-col gap-1 min-w-0">
+                        <TituloDeRecuperacion
+                          titulo={e.title}
+                          tipo={e.makeup_kind}
+                          regla={e.recovery_rule}
+                        />
+                        <div className="sm:hidden pl-6 text-2xs text-muted-foreground tabular-nums">
+                          {formatDateTime(e.start_time)} · {formatDuration(e.time_limit_minutes)}
+                        </div>
+                      </div>
+                    ) : (
                     <div className="flex flex-col gap-1 min-w-0">
                       {/* Sin `flex-wrap`: con él, cuando el badge no cabía el
                           título NO truncaba y el badge caía a otra línea, así
@@ -1054,13 +1141,19 @@ function TeacherExams() {
                         <span className="truncate" title={e.title}>
                           {e.title}
                         </span>
+                        {/* Recuperación cuyo original no está en la lista (en la
+                            papelera, o de un curso fuera del alcance): sigue
+                            siendo una fila, con su insignia. */}
                         {e.parent_exam_id && (
-                          <Badge variant="outline" className="text-3xs shrink-0">
-                            <GitBranch className="h-3 w-3 mr-1" />
-                            {tipoDeRecuperacion(e.makeup_kind) === "recuperatorio"
-                              ? t("recuperaciones.badgeRecuperatorio")
-                              : t("exam.supletorio")}
-                          </Badge>
+                          <InsigniaDeRecuperacion tipo={e.makeup_kind} regla={e.recovery_rule} />
+                        )}
+                        {recuperaciones.length > 0 && (
+                          <BotonRecuperaciones
+                            cantidad={recuperaciones.length}
+                            abierto={desplegada}
+                            onToggle={() => recuperacionesDesplegadas.alternar(e.id)}
+                            titulo={e.title}
+                          />
                         )}
                       </div>
                       <div className="md:hidden text-xs text-muted-foreground truncate">
@@ -1073,9 +1166,12 @@ function TeacherExams() {
                         {formatDateTime(e.start_time)} · {formatDuration(e.time_limit_minutes)}
                       </div>
                     </div>
+                    )}
                   </TableCell>
+                  {/* Curso y corte de una recuperación son los de su original,
+                      que está justo arriba: repetirlos es ruido. */}
                   <TableCell className="text-muted-foreground hidden md:table-cell">
-                    {e.course ? (
+                    {esRecuperacion ? null : e.course ? (
                       <CourseListCell
                         courses={[
                           {
@@ -1090,7 +1186,7 @@ function TeacherExams() {
                     )}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
-                    {(() => {
+                    {!esRecuperacion && (() => {
                       const cutName = cuts.find((c) => c.id === e.cut_id)?.name ?? "—";
                       return (
                         <div className="truncate" title={cutName}>
@@ -1858,6 +1954,9 @@ function TeacherExams() {
           origen={recuperacionDe}
           examenesDelCurso={examenesDelCursoDeRecuperacion}
           onCreated={(newId) => {
+            // Abre el original: al volver del editor, la copia se ve dentro de
+            // su parcial y no escondida en el desplegable.
+            recuperacionesDesplegadas.abrir(recuperacionDe.id);
             setRecuperacionDe(null);
             void load();
             // Al editor de la copia: lo primero que se hace con un recuperatorio

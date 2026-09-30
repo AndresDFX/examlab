@@ -1142,7 +1142,6 @@
     "shuffle": "Shuffle questions",
     "parentExam": "Makeup of (optional)",
     "originalExam": "Original exam",
-    "supletorio": "Makeup",
     "liveMonitor": "Monitor",
     "columns": {
       "title": "Title",
@@ -11059,7 +11058,13 @@
     "parentLabel": "Retake or makeup of",
     "parentNone": "None — regular exam",
     "sectionEdit": "Retake or makeup",
-    "editHint": "This is a retake or makeup of “{{title}}”. It does not add up on its own in the gradebook: its grade takes the place of the original's, with its grading period and weight."
+    "editHint": "This is a retake or makeup of “{{title}}”. It does not add up on its own in the gradebook: its grade takes the place of the original's, with its grading period and weight.",
+    "showForRow_one": "Show the retake or makeup of “{{title}}”",
+    "showForRow_other": "Show the {{count}} retakes and makeups of “{{title}}”",
+    "hideForRow_one": "Hide the retake or makeup of “{{title}}”",
+    "hideForRow_other": "Hide the retakes and makeups of “{{title}}”",
+    "subtitleSuffix_one": " · {{count}} retake or makeup",
+    "subtitleSuffix_other": " · {{count}} retakes and makeups"
   },
   "sqlAnswerReview": {
     "sqlLabel": "SQL written",

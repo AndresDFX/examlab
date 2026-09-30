@@ -123,7 +123,15 @@ import {
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CrearRecuperacionTallerDialog } from "@/modules/workshops/CrearRecuperacionTallerDialog";
-import { tipoDeRecuperacion, type FilaDeTaller } from "@/modules/grading/nota-con-recuperacion";
+import { type FilaDeTaller } from "@/modules/grading/nota-con-recuperacion";
+import { arbolDeRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
+import {
+  BotonRecuperaciones,
+  CLASE_FILA_RECUPERACION,
+  InsigniaDeRecuperacion,
+  TituloDeRecuperacion,
+  useRecuperacionesDesplegadas,
+} from "@/modules/grading/RecuperacionesEnGrid";
 import { formatPercent } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -286,6 +294,13 @@ type Cut = {
   attendance_weight: number;
 };
 type Student = { id: string; full_name: string; institutional_email: string };
+
+const ACCESORES_RECUPERACION = {
+  id: (w: Workshop) => w.id,
+  padre: (w: Workshop) => w.parent_workshop_id,
+  creado: (w: Workshop) => w.created_at,
+};
+
 type WsSub = {
   id: string;
   workshop_id: string;
@@ -510,6 +525,29 @@ function TeacherWorkshops() {
     });
   }, [workshops, search, courseFilter, cutFilter, statusFilter, rangoFechas, workshopCourses, filterScope]);
 
+  // Los supletorios y recuperatorios van DENTRO de la fila de su taller, no
+  // como filas sueltas (ver arbol-recuperaciones.ts). Ordenar, paginar y
+  // seleccionar operan sobre las filas; las recuperaciones van con su original.
+  const arbol = useMemo(
+    () => arbolDeRecuperaciones(workshops, filteredWorkshops, ACCESORES_RECUPERACION),
+    [workshops, filteredWorkshops],
+  );
+  const totalFilas = useMemo(
+    () => arbolDeRecuperaciones(workshops, workshops, ACCESORES_RECUPERACION).raices.length,
+    [workshops],
+  );
+  const recuperacionesEnFilas = useMemo(
+    () => arbol.raices.reduce((n, w) => n + (arbol.hijas.get(w.id)?.length ?? 0), 0),
+    [arbol],
+  );
+  // Sin tocar, se abre sola la fila que está en la lista SOLO por una
+  // recuperación suya: así se ve por qué aparece un taller cerrado con el
+  // filtro que oculta los cerrados.
+  const recuperacionesDesplegadas = useRecuperacionesDesplegadas(
+    "examlab_recuperaciones_abiertas:workshops",
+    arbol.soloPorRecuperacion,
+  );
+
   // Quick-stats estables del listado completo (no se mueven al filtrar).
   // Cuatro tiles: borradores, publicados, cerrados, externos. La idea
   // es darle al docente un pulso rápido del estado de sus talleres sin
@@ -532,7 +570,7 @@ function TeacherWorkshops() {
   // Orden por columna (entre filtrar y paginar). Los accessors de las
   // columnas derivadas (curso, corte) replican el lookup que usa el
   // render del cell; los vacíos (sin corte/peso) van al final.
-  const sort = useTableSort(filteredWorkshops, {
+  const sort = useTableSort(arbol.raices, {
     columns: {
       title: (w) => w.title,
       course: (w) => {
@@ -578,6 +616,30 @@ function TeacherWorkshops() {
     getId: (r) => r.id,
   });
 
+  // Lo que se pinta de la página: cada fila y, si está desplegada, sus
+  // recuperaciones justo debajo. El mismo JSX pinta las dos; cambian la casilla,
+  // el título y las columnas que la recuperación hereda del original.
+  const filasDeLaPagina: {
+    ws: Workshop;
+    esRecuperacion: boolean;
+    recuperaciones: Workshop[];
+    desplegada: boolean;
+  }[] = pagination.paginatedItems.flatMap((ws) => {
+    const recuperaciones = arbol.hijas.get(ws.id) ?? [];
+    const desplegada = recuperaciones.length > 0 && recuperacionesDesplegadas.estaDesplegada(ws.id);
+    return [
+      { ws, esRecuperacion: false, recuperaciones, desplegada },
+      ...(desplegada
+        ? recuperaciones.map((r) => ({
+            ws: r,
+            esRecuperacion: true,
+            recuperaciones: [],
+            desplegada: false,
+          }))
+        : []),
+    ];
+  });
+
   const handleBulkDelete = async (ids: string[]) => {
     const { error } = await softDeleteMany("workshops", ids);
     // `friendlyError` acá y no en el catch del BulkDeleteDialog: envolver el
@@ -600,12 +662,15 @@ function TeacherWorkshops() {
     load();
   };
 
+  // Desde las FILAS y no desde `filteredWorkshops`: un taller que está en la
+  // lista solo por su recuperación no coincide con el filtro, y si se lo marca
+  // tiene que aparecer igual en el diálogo de borrado.
   const selectedWorkshopItems = useMemo(
     () =>
-      filteredWorkshops
+      sort.sorted
         .filter((w) => sel.isSelected(w.id))
         .map((w) => ({ id: w.id, label: w.title })),
-    [filteredWorkshops, sel],
+    [sort.sorted, sel],
   );
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<Partial<Workshop>>({});
@@ -3706,9 +3771,18 @@ function TeacherWorkshops() {
         icon={<Hammer className="h-6 w-6" />}
         title={t("teacherWorkshops.pageTitle")}
         subtitle={
-          filteredWorkshops.length === workshops.length
-            ? t("teacherWorkshops.subtitleTotal", { total: workshops.length, courses: courses.length })
-            : t("teacherWorkshops.subtitleFiltered", { filtered: filteredWorkshops.length, total: workshops.length })
+          // Cuenta FILAS, igual que la paginación de abajo, y las recuperaciones
+          // aparte: sin filtros, filas + recuperaciones = todos los talleres,
+          // que es lo que suman los tiles de estado.
+          (arbol.raices.length === totalFilas
+            ? t("teacherWorkshops.subtitleTotal", { total: totalFilas, courses: courses.length })
+            : t("teacherWorkshops.subtitleFiltered", {
+                filtered: arbol.raices.length,
+                total: totalFilas,
+              })) +
+          (recuperacionesEnFilas > 0
+            ? t("recuperaciones.subtitleSuffix", { count: recuperacionesEnFilas })
+            : "")
         }
         actions={
           <>
@@ -3938,7 +4012,7 @@ function TeacherWorkshops() {
                     </Button>
                   }
                 />
-              ) : filteredWorkshops.length === 0 ? (
+              ) : arbol.raices.length === 0 ? (
                 <TableEmpty
                   colSpan={10}
                   icon={Hammer}
@@ -3946,27 +4020,52 @@ function TeacherWorkshops() {
                   hint={t("teacherWorkshops.tableEmptyFilteredHint")}
                 />
               ) : null}
-              {pagination.paginatedItems.map((ws) => (
-                <TableRow key={ws.id} data-state={sel.isSelected(ws.id) ? "selected" : undefined}>
+              {filasDeLaPagina.map(({ ws, esRecuperacion, recuperaciones, desplegada }) => (
+                <TableRow
+                  key={ws.id}
+                  data-state={!esRecuperacion && sel.isSelected(ws.id) ? "selected" : undefined}
+                  className={esRecuperacion ? CLASE_FILA_RECUPERACION : undefined}
+                >
                   <TableCell className="w-10">
-                    <MultiSelectCheckbox id={ws.id} state={sel} />
+                    {/* La selección múltiple es de filas: una recuperación se
+                        manda a la papelera desde su propio menú. */}
+                    {!esRecuperacion && <MultiSelectCheckbox id={ws.id} state={sel} />}
                   </TableCell>
                   <TableCell className="font-medium">
-                    <div className="flex flex-col gap-0.5">
-                      <span className="truncate max-w-[18rem] inline-flex items-center gap-1">
-                        <span className="truncate">{ws.title}</span>
+                    {esRecuperacion ? (
+                      <TituloDeRecuperacion
+                        titulo={ws.title}
+                        tipo={ws.makeup_kind}
+                        regla={ws.recovery_rule}
+                      />
+                    ) : (
+                    <div className="flex flex-col gap-0.5 min-w-0">
+                      {/* Sin `overflow-hidden` en esta línea: recortaría el área
+                          táctil del botón de recuperaciones, que sobresale a
+                          propósito (ver RecuperacionesEnGrid). Trunca el título,
+                          que la celda ya acota. */}
+                      <div className="flex items-center gap-1 min-w-0">
+                        <span className="truncate" title={ws.title}>
+                          {ws.title}
+                        </span>
                         {ws.external_link && (
                           <ExternalLink className="inline h-3 w-3 ml-1 text-muted-foreground shrink-0" />
                         )}
+                        {/* Recuperación cuyo original no está en la lista (en la
+                            papelera, o de un curso fuera del alcance): sigue
+                            siendo una fila, con su insignia. */}
                         {ws.parent_workshop_id && (
-                          <Badge variant="outline" className="text-3xs shrink-0">
-                            <GitBranch className="h-3 w-3 mr-1" />
-                            {tipoDeRecuperacion(ws.makeup_kind) === "recuperatorio"
-                              ? t("recuperaciones.badgeRecuperatorio")
-                              : t("recuperaciones.badgeSupletorio")}
-                          </Badge>
+                          <InsigniaDeRecuperacion tipo={ws.makeup_kind} regla={ws.recovery_rule} />
                         )}
-                      </span>
+                        {recuperaciones.length > 0 && (
+                          <BotonRecuperaciones
+                            cantidad={recuperaciones.length}
+                            abierto={desplegada}
+                            onToggle={() => recuperacionesDesplegadas.alternar(ws.id)}
+                            titulo={ws.title}
+                          />
+                        )}
+                      </div>
                       <span className="text-xs text-muted-foreground sm:hidden truncate">
                         {(() => {
                           const wcIds = workshopCourses.get(ws.id);
@@ -3981,9 +4080,12 @@ function TeacherWorkshops() {
                         })()}
                       </span>
                     </div>
+                    )}
                   </TableCell>
+                  {/* Curso y corte de una recuperación son los de su original,
+                      que está justo arriba: repetirlos es ruido. */}
                   <TableCell className="text-muted-foreground hidden sm:table-cell">
-                    {(() => {
+                    {!esRecuperacion && (() => {
                       // workshop_courses (M:N) es la fuente real de
                       // verdad de a qué cursos pertenece este taller.
                       // Si la tabla está poblada usamos los N courseIds;
@@ -4009,7 +4111,7 @@ function TeacherWorkshops() {
                     })()}
                   </TableCell>
                   <TableCell className="text-muted-foreground text-xs hidden md:table-cell">
-                    {(() => {
+                    {!esRecuperacion && (() => {
                       const cutName = cuts.find((c) => c.id === (ws as any).cut_id)?.name ?? "—";
                       return (
                         <div className="truncate" title={cutName}>
@@ -6356,9 +6458,11 @@ function TeacherWorkshops() {
           }}
           talleresDelCurso={talleresDelCursoDeRecuperacion}
           onCreated={() => {
+            // La copia nace en borrador y el toast pide revisar preguntas y
+            // fechas: se abre el original para que se vea dentro de su taller,
+            // y se recarga para que aparezca.
+            recuperacionesDesplegadas.abrir(recuperacionDe.id);
             setRecuperacionDe(null);
-            // La copia nace en borrador; el toast pide revisar preguntas y
-            // fechas. Se recarga para que aparezca en la grilla con su insignia.
             void load();
           }}
         />

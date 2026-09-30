@@ -99,7 +99,7 @@ Documento orientado a asegurar cobertura funcional por **rol** y por **módulo**
 | T-E-02 | Docente · Exámenes | Docente | P0        | Configurar título, curso, ventana `start_time` / `end_time`, duración `time_limit_minutes`, tipo de navegación entre preguntas. | Pendiente |
 | T-E-03 | Docente · Exámenes | Docente | P1        | Añadir/editar/ordenar preguntas (tipos soportados: opción múltiple, desarrollo, código, etc.); guardar sin pérdida de datos.    | Pendiente |
 | T-E-04 | Docente · Exámenes | Docente | P1        | Asignación de examen a estudiantes o curso (según modelo): solo estudiantes asignados lo ven.                                   | Pendiente |
-| T-E-05 | Docente · Exámenes | Docente | P2        | Examen supletorio / `parent_exam_id` (si aplica): etiqueta y comportamiento correctos en listados.                              | Pendiente |
+| T-E-05 | Docente · Exámenes | Docente | P2        | Supletorio / recuperatorio (`parent_exam_id`): en el grid va DENTRO de la fila de su original (botón «⑂ N» que lo despliega), no como fila suelta; insignia y comportamiento correctos. | Pendiente |
 | T-E-06 | Docente · Exámenes | Docente | P1        | Enlace o botón al **Monitor** del examen abre `/app/teacher/monitor/$examId`.                                                   | Pendiente |
 
 ---

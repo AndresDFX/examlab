@@ -1142,7 +1142,6 @@
     "shuffle": "Mezclar preguntas",
     "parentExam": "Es supletorio de (opcional)",
     "originalExam": "Examen original",
-    "supletorio": "Supletorio",
     "liveMonitor": "Monitor",
     "columns": {
       "title": "Título",
@@ -11059,7 +11058,13 @@
     "parentLabel": "Es recuperación de",
     "parentNone": "Ninguno — examen normal",
     "sectionEdit": "Recuperación",
-    "editHint": "Es una recuperación de «{{title}}». No suma aparte en Calificaciones: su nota ocupa el lugar de la del original, con su corte y su peso."
+    "editHint": "Es una recuperación de «{{title}}». No suma aparte en Calificaciones: su nota ocupa el lugar de la del original, con su corte y su peso.",
+    "showForRow_one": "Ver la recuperación de «{{title}}»",
+    "showForRow_other": "Ver las {{count}} recuperaciones de «{{title}}»",
+    "hideForRow_one": "Ocultar la recuperación de «{{title}}»",
+    "hideForRow_other": "Ocultar las recuperaciones de «{{title}}»",
+    "subtitleSuffix_one": " · {{count}} recuperación",
+    "subtitleSuffix_other": " · {{count}} recuperaciones"
   },
   "sqlAnswerReview": {
     "sqlLabel": "SQL que escribió",

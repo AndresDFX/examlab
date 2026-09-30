@@ -32,7 +32,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **Contraseña temporal FIJA `Temporal#123` para todos** (no aleatoria por usuario). Decisión explícita del usuario (2026-07-14): prefiere una clave uniforme conocida —que el docente dicta en clase— aunque sea insegura, en vez de una temporal única por estudiante que nunca se comunica. El default del edge `bulk-import-users` es `Temporal#123` (era `Cambiar#123`); el template CSV del UI ya lo sugiere. Guardada en claro en `admin_visible_passwords`. Login = correo institucional + `Temporal#123`.
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
-- **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados.
+- **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados. En los grids del docente una recuperación **no es una fila**: va dentro de la de su original (`arbolDeRecuperaciones`), y el filtro decide qué fila aparece, no qué recuperaciones.
 - **Recuperaciones de TALLER: mismo modelo, mismo núcleo** (`workshops.parent_workshop_id` + `makeup_kind` + `recovery_rule`, mig `20262660000000`). El pliegue lo hace el mismo módulo que exámenes (`plegarRecuperaciones` + `notaDeTallerConRecuperaciones`); su espejo SQL es `workshop_effective_raw_grade`, que el acta usa y que —a diferencia del de exámenes— **respeta la sustentación** (usa la regla de `notaEfectivaDeTaller`, no `final_grade ?? ai_grade`), alineando el acta con el gradebook/estudiante/boletín (solo afecta actas futuras). Dos diferencias con exámenes, ambas del taller: la nota sale de UNA entrega (grupo con precedencia) vía `notaEfectivaDeTaller`, y como los talleres son **M:N** (`workshop_courses`, peso/corte por curso) la recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. El estudiante ve la recuperación como un taller asignado por `workshop_assignments` (solo los elegidos), sin insignia de corte/peso. Publicar una recuperación avisa solo a sus asignados (`_notify_workshop_publication`). Verificado en PGlite.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
@@ -78,6 +78,51 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 🌳 Los supletorios y recuperatorios van dentro de la fila de su parcial
+
+En los grids de **Exámenes** y **Talleres** del docente, una recuperación dejó de ser una fila más:
+la fila del original lleva un botón «⑂ N» que despliega sus recuperaciones como sub-filas, alineadas
+a las mismas columnas (fechas, estado, acciones). Pedido: «no deberían ser un elemento del grid sino
+un desplegable dentro de cada elemento». Suelta, la recuperación se leía como una actividad más del
+corte (con su curso, su corte y un peso «—») y había que adivinar de qué parcial era.
+
+- **Árbol puro** en `src/modules/grading/arbol-recuperaciones.ts` (`arbolDeRecuperaciones` +
+  `tituloSinTipo`, con tests) y **piezas visuales compartidas** en `RecuperacionesEnGrid.tsx`, para
+  que los dos grids se vean igual. Las hijas se ordenan con `ordenDePliegue`, el MISMO comparador
+  del cálculo de la nota, exportado de `nota-con-recuperacion.ts` en vez de copiado. Sin migración.
+- En la sub-fila: sin casilla (la selección múltiple es de filas; la recuperación se borra desde su
+  menú), curso y corte vacíos porque son los del original, peso «—» con su tooltip, y el título sin
+  el tipo que ya dice la insignia («Supletorio — Parcial 1» → «Parcial 1», el entero en el tooltip).
+- Qué filas están abiertas se recuerda en `sessionStorage` (`useRecuperacionesDesplegadas`): el grid
+  se desmonta al ir al editor de una recuperación, y en memoria volvía cerrado. «Crear recuperatorio»
+  abre el original, así la copia recién creada no queda escondida en el desplegable.
+- De paso: el **Diagnóstico del curso** contaba la recuperación de un TALLER como una actividad más
+  del corte (la rama de exámenes ya la excluía). Como la copia tiene su propia fila en
+  `workshop_courses` con el peso del original, habría marcado el corte como sobre-asignado apenas
+  existiera la primera. Todavía no había ninguna en producción.
+- El subtítulo cuenta **filas** + « · N recuperaciones»: coincide con la paginación y, sin filtros,
+  suma lo mismo que los tiles de estado (que siguen contando cada actividad).
+
+Lo que no se deduce del código:
+
+- **El filtro decide qué FILA aparece, no qué recuperaciones.** Una fila entra si ella o cualquiera
+  de sus recuperaciones coincide, y desplegada muestra TODAS: filtrar también las hijas dejaba al
+  parcial con la historia a medias, cuando la nota se arma con todas.
+- **La fila que está SOLO por una recuperación suya se abre sola.** Es el caso de la captura que
+  originó el pedido: Parcial 1 cerrado y su supletorio publicado, con el filtro por defecto que oculta
+  los cerrados. Sin abrirse, aparecería un parcial «Cerrado» sin explicación.
+- **Una recuperación cuyo original no está en la lista sigue siendo una fila** (original en la
+  papelera o de un curso fuera del alcance del docente), con su insignia: colgarla de un padre
+  invisible la haría desaparecer.
+- **El diálogo de borrado masivo arma su lista desde las filas, no desde lo filtrado**: un parcial
+  que está solo por su recuperación no coincide con el filtro y, marcado, igual tiene que aparecer.
+- **Mandar un parcial a la papelera NO se lleva sus recuperaciones** (igual que antes): quedan como
+  filas propias hasta que se borren o se restaure el original.
+
+Verificado en el navegador contra datos reales (grid de exámenes, escritorio y 390 px) y con dos
+recuperaciones inyectadas solo en la respuesta del navegador de prueba para el grid de talleres, que
+en producción todavía no tiene ninguna.
 
 ### 🔁 Talleres recuperatorios (además de los supletorios)
 

@@ -118,6 +118,19 @@ export interface NotaResueltaGenerica {
 }
 
 /**
+ * El orden en que se aplican las recuperaciones: por creación y, a igual fecha,
+ * por id. El grid del docente las lista con este mismo comparador
+ * (`arbol-recuperaciones.ts`), para que la primera que se ve sea la primera que
+ * cuenta.
+ */
+export function ordenDePliegue(
+  a: { creadoEn: string | null | undefined; id: string },
+  b: { creadoEn: string | null | undefined; id: string },
+): number {
+  return (a.creadoEn ?? "").localeCompare(b.creadoEn ?? "") || a.id.localeCompare(b.id);
+}
+
+/**
  * El pliegue en orden de creación (ver el encabezado del módulo). La primera
  * recuperación presentada llena la ausencia del original; cada recuperatorio
  * posterior combina con lo acumulado según su regla. Es la regla que espeja el
@@ -131,9 +144,7 @@ export function plegarRecuperaciones(
     ? { nota: original.nota, fuente: "original", idFuente: original.id }
     : null;
 
-  const enOrden = [...recuperaciones].sort(
-    (a, b) => a.creadoEn.localeCompare(b.creadoEn) || a.id.localeCompare(b.id),
-  );
+  const enOrden = [...recuperaciones].sort(ordenDePliegue);
   for (const r of enOrden) {
     if (!r.presento) continue;
     if (base === null) {
