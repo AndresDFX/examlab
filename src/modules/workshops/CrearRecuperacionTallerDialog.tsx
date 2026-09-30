@@ -9,7 +9,8 @@
  *  - La copia nace en BORRADOR, se enlaza con `parent_workshop_id` +
  *    `makeup_kind`/`recovery_rule`, y se le crea su fila `workshop_courses` con
  *    el MISMO peso y corte que el ORIGINAL tiene en ESTE curso (talleres son
- *    M:N; `clone_workshop` NO copia esa fila). La recuperación se excluye de
+ *    M:N; desde la mig 20262670000000 `clone_workshop` vuelve a crearla, pero
+ *    se reemplaza igual para no depender de la versión). La recuperación se excluye de
  *    las sumas de bucket, así que ese peso no suma aparte.
  *  - Se asigna por `workshop_assignments` (como el estudiante ve los talleres):
  *    solo los elegidos lo ven. Asignar en borrador no avisa.
@@ -392,7 +393,8 @@ export function CrearRecuperacionTallerDialog({
       }
 
       // workshop_courses de la copia: MISMO peso y corte que el original en
-      // ESTE curso (clone_workshop no copia la fila M:N). Se excluye de las
+      // ESTE curso: se borra y se crea aunque `clone_workshop` ya la haya creado
+      // (mig 20262670000000), para no depender de la versión. Se excluye de las
       // sumas de bucket, así que ese peso no suma aparte.
       await db
         .from("workshop_courses")

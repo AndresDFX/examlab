@@ -70,8 +70,9 @@ export function computeFinalGrade(
 //     debe ser igual a cut.weight (validación soft).
 //   - cut.attendance_weight = % de la nota final para la asistencia del corte.
 //   - Items sin score CUENTAN COMO CERO usando su peso original (NO se
-//     reescalan). Eso refleja la realidad: lo que el estudiante DEBE y
-//     todavía no entregó/no tiene nota es nota perdida hasta que aparezca.
+//     reescalan): es lo que el estudiante DEBE. Pero QUÉ items entran lo
+//     decide antes la nota relativa (nota-relativa.ts): una actividad abierta,
+//     una entregada sin calificar o una sesión que no se dio no llegan acá.
 //     Solo retornamos null (UI muestra "—") cuando NINGÚN item del set
 //     tiene score — ahí no hay nada que mostrar.
 //
@@ -106,7 +107,20 @@ export function computeWeightedGrade(items: readonly GradedItem[]): number | nul
     (a, i) => a + (i.score != null ? Number(i.score) : 0) * Number(i.weight),
     0,
   );
-  return Number((sum / totalWeight).toFixed(2));
+  return redondearA2(sum / totalWeight);
+}
+
+/**
+ * Redondeo a 2 decimales con la mitad hacia arriba, como `ROUND(x, 2)` del acta
+ * en SQL. `toFixed(2)` redondea el valor BINARIO: 2,695 se guarda como
+ * 2,69499999… y sale 2,69, mientras el acta —que calcula en decimal exacto—
+ * dice 2,70. Medido en UNIAJ el 2026-09-30: 3 de ~190 estudiantes tenían una
+ * centésima de diferencia entre el libro de notas y el acta. El épsilon (muy
+ * por debajo de cualquier diferencia real entre dos notas) empuja ese empate
+ * al lado donde lo deja el decimal exacto.
+ */
+export function redondearA2(x: number): number {
+  return Math.round((x + 1e-9) * 100) / 100;
 }
 
 export interface CutWeights {

@@ -10,12 +10,12 @@
  * La fuente de verdad es `grade_cuts` + sus sub-pesos.
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDateOnly } from "@/shared/lib/format";
+import { formatDateOnly, todayLocalISO } from "@/shared/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RowAction } from "@/components/ui/row-action";
@@ -46,13 +46,12 @@ import {
   FolderKanban,
   CalendarCheck,
 } from "lucide-react";
-import { computeWeightedGrade, countsAsPresent } from "@/modules/grading/grade";
-import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
+import { computeWeightedGrade } from "@/modules/grading/grade";
 import {
-  notaDeExamenParaEstudiante,
-  notaDeTallerConRecuperaciones,
-} from "@/modules/grading/nota-con-recuperacion";
-import { entregaHecha } from "@/modules/submissions/entrega-hecha";
+  actividadesConNota,
+  notaDelEstudianteEnCurso,
+  type DetalleDeItem,
+} from "@/modules/grading/nota-del-curso";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -72,6 +71,7 @@ type Course = {
   grade_scale_min: number;
   grade_scale_max: number;
   passing_grade: number;
+  status?: string | null;
 };
 
 type Cut = {
@@ -96,9 +96,14 @@ type ItemRow = {
   rawGrade: number | null;
   rawMax: number;
   status: string;
-  weight?: number; // peso relativo (solo para exámenes por ahora)
+  /** Peso en ESTE curso (% de la nota final); 0 si no cae en un corte. */
+  weight?: number;
   reviewExamId?: string | null;
   reviewWorkshopId?: string | null;
+  /** Si entra en la nota (nota-relativa.ts). */
+  cuenta?: boolean;
+  /** Por qué no cuenta todavía, o por qué cuenta 0. null si tiene nota. */
+  motivo?: string | null;
 };
 
 type CutBreakdown = {
@@ -114,6 +119,9 @@ function StudentGrades() {
   const [courseId, setCourseId] = useState<string>("");
   const [cutsBreakdown, setCutsBreakdown] = useState<CutBreakdown[]>([]);
   const [unassigned, setUnassigned] = useState<ItemRow[]>([]);
+  const [finalGrade, setFinalGrade] = useState<number | null>(null);
+  // La nota todavía puede cambiar: hay algo por darse o por calificar.
+  const [parcial, setParcial] = useState(false);
   const [loading, setLoading] = useState(false);
   // Si la query principal de notas falla (RLS, red caída, schema cache),
   // poblamos `loadError` para mostrar `<ErrorState>` en vez de una vista
@@ -140,13 +148,14 @@ function StudentGrades() {
       }
       const { data } = await supabase
         .from("courses")
-        .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade")
+        .select("id, name, period, grade_scale_min, grade_scale_max, passing_grade, status")
         .in("id", ids)
         .is("deleted_at", null)
         .order("period", { ascending: false, nullsFirst: false })
         .order("name");
       if (cancelled) return;
-      const cs = (data ?? []) as Course[];
+      // `as unknown as`: types.ts generado aún no incluye `courses.status`.
+      const cs = (data ?? []) as unknown as Course[];
       setCourses(cs);
       if (cs[0]) setCourseId(cs[0].id);
     })();
@@ -155,7 +164,12 @@ function StudentGrades() {
     };
   }, [user]);
 
-  // Carga datos de cortes/items para el curso seleccionado
+  // Carga los datos del curso seleccionado y arma la nota con el MISMO cálculo
+  // que el libro del docente y el boletín (nota-del-curso.ts): la nota es
+  // RELATIVA a lo que ya se dio. Antes esta pantalla tenía su propia copia —con
+  // un 1 % por defecto para los pesos vacíos y la tarjeta de cada corte
+  // promediando solo lo calificado— y el estudiante veía otro número que su
+  // docente.
   useEffect(() => {
     if (!user || !courseId) return;
     const course = courses.find((c) => c.id === courseId);
@@ -166,12 +180,17 @@ function StudentGrades() {
       setLoading(true);
       setLoadError(null);
       try {
+        const PRJ_COLS =
+          "id, title, course_id, cut_id, weight, due_date, max_score, is_external, status, deleted_at";
         const [
           { data: cutsData },
           { data: exams },
-          { data: workshops },
-          { data: projects },
+          { data: wcRows },
+          { data: wsAncla },
+          { data: pcRows },
+          { data: prjAncla },
           { data: sessions },
+          senalesRes,
         ] = await Promise.all([
           db
             .from("grade_cuts")
@@ -180,132 +199,136 @@ function StudentGrades() {
             )
             .eq("course_id", courseId)
             .order("position"),
-          // Excluir draft del cálculo de notas: un examen/taller/proyecto
-          // en borrador todavía no debería pesar en la nota del estudiante.
-          // Closed sí cuenta — fue una actividad real que se cerró
-          // manualmente. La proyección de proyectos requiere filtrar el
-          // join después (project_courses no tiene status), ver flatProjects.
+          // Sin borradores ni papelera. `*` y no la lista: las columnas de
+          // recuperación (migs 20262650000000 / 20262660000000) pueden llegar
+          // después que el frontend, y pedirlas por nombre haría fallar todo.
           (supabase as any)
             .from("exams")
-            // `*` y no la lista: `makeup_kind`/`recovery_rule` (mig 20262650000000)
-            // pueden no existir todavía si el frontend se despliega antes que la
-            // migración, y pedirlas por nombre haría fallar la consulta entera.
             .select("*")
             .eq("course_id", courseId)
             .neq("status", "draft")
             .is("deleted_at", null),
-          // Talleres via workshop_courses (M:N) para incluir los talleres
-          // COMPARTIDOS a este curso como SECUNDARIO y usar el cut_id/weight
-          // POR CURSO (no el global legacy de workshops). Un taller que se
-          // comparte a 2 cursos vive solo en workshop_courses para el curso
-          // secundario; cargarlo por workshops.course_id (ancla legacy) lo
-          // dejaba invisible aquí. El filtro de draft se aplica abajo sobre
-          // el join (workshop_courses no tiene status). Espejo de flatProjects.
+          // Talleres: por la fila de unión (incluye los COMPARTIDOS a este curso)
+          // y los anclados al curso — un taller sin fila de unión seguía siendo
+          // del curso y quedaba afuera de la nota. La RLS le devuelve al
+          // estudiante solo los que tiene asignados.
           db
-            // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
-            // columnas de recuperación (mig 20262660000000) pueden llegar
-            // después que el frontend.
             .from("workshop_courses")
-            .select("cut_id, weight, workshop:workshops(*)")
+            .select("workshop_id, cut_id, weight, workshop:workshops(*)")
             .eq("course_id", courseId),
-          // Proyectos via project_courses para incluir secundarios y usar
-          // cut_id/weight por curso. El filtro de draft se aplica abajo
-          // sobre el join (project_courses no tiene status).
+          db.from("workshops").select("*").eq("course_id", courseId).is("deleted_at", null),
           db
             .from("project_courses")
-            .select("cut_id, weight, project:projects(id, title, max_score, is_external, status, deleted_at, group_mode)")
+            .select(`project_id, cut_id, weight, project:projects(${PRJ_COLS})`)
             .eq("course_id", courseId),
+          db.from("projects").select(PRJ_COLS).eq("course_id", courseId).is("deleted_at", null),
           db
             .from("attendance_sessions")
             .select("id, session_date, cut_id")
             .eq("course_id", courseId)
             .is("deleted_at", null),
+          // Lo que el estudiante no puede saber solo (la RLS no le deja ver lo
+          // ajeno): qué sesiones se dieron y qué actividades ya tienen notas.
+          db.rpc("senales_nota_relativa", { _course_id: courseId }),
         ]);
 
         const cuts = (cutsData ?? []) as Cut[];
-        const examIds = (exams ?? []).map((e: { id: string }) => e.id);
-        // Flatten workshop_courses rows → per-course cut_id/weight override
-        // (espejo de flatProjects). Excluimos drafts y los talleres en
-        // papelera. Así un taller compartido aparece con su cut_id/weight de
-        // ESTE curso, y la nota correcta se ve en ambos cursos.
-        const flatWorkshops = (workshops ?? [])
-          .filter(
-            (wc: any) =>
-              wc.workshop &&
-              !wc.workshop.deleted_at &&
-              (wc.workshop.status ?? "published") !== "draft",
-          )
-          .map((wc: any) => ({
-            ...wc.workshop,
-            cut_id: wc.cut_id ?? null,
-            weight: wc.weight ?? 1,
-          }));
-        const wsIds = flatWorkshops.map((w: { id: string }) => w.id);
-        // Entregas de grupo para TODOS los talleres — NO gatear por group_mode:
-        // fetchGroupSubs cortocircuita si el alumno no está en ningún grupo del
-        // item, así un miembro que no es el "último editor" ve SU nota grupal
-        // aunque group_mode haya cambiado o sea NULL (legacy). Los grupos son
-        // OPCIONALES (modo mixto): un alumno sin grupo cae a su entrega individual.
-        const groupWsIds = wsIds;
-        // Flatten project_courses rows → per-course cut_id/weight override.
-        // Excluimos drafts: si el proyecto está en borrador no debe pesar
-        // todavía en la nota del estudiante.
-        const flatProjects = (projects ?? [])
-          .filter(
-            (pc: any) =>
-              !pc.project?.deleted_at && (pc.project?.status ?? "published") !== "draft",
-          )
-          .map((pc: any) => ({
-            ...(pc.project ?? pc),
-            cut_id: pc.cut_id ?? null,
-            weight: pc.weight ?? 1,
-          }));
-        const prjIds = flatProjects.map((p: { id: string }) => p.id);
-        const groupPrjIds = prjIds;
-        const sessIds = ((sessions ?? []) as { id: string }[]).map((s) => s.id);
+        const vigente = (x: any) =>
+          !!x && !x.deleted_at && (x.status ?? "published") !== "draft";
+        const talleres: any[] = [
+          ...new Map(
+            [...((wcRows ?? []) as any[]).map((r) => r.workshop), ...((wsAncla ?? []) as any[])]
+              .filter(vigente)
+              .map((w) => [w.id, w]),
+          ).values(),
+        ];
+        const proyectos: any[] = [
+          ...new Map(
+            [...((pcRows ?? []) as any[]).map((r) => r.project), ...((prjAncla ?? []) as any[])]
+              .filter(vigente)
+              .map((p) => [p.id, p]),
+          ).values(),
+        ];
+        const examenes = (exams ?? []) as any[];
+        const examIds = examenes.map((e) => e.id);
+        const wsIds = talleres.map((w) => w.id);
+        const prjIds = proyectos.map((p) => p.id);
+        const allSessions = (sessions ?? []) as {
+          id: string;
+          session_date: string;
+          cut_id?: string | null;
+        }[];
+        const sessIds = allSessions.map((s) => s.id);
 
+        const vacio = Promise.resolve({ data: [] as any[], error: null });
         const [
           { data: examSubs },
           { data: wsSubsIndiv },
           { data: prjSubsIndiv },
           { data: attRecords },
+          asigExRes,
+          asigWsRes,
+          asigPrjRes,
         ] = await Promise.all([
-            examIds.length
-              ? supabase
-                  .from("submissions")
-                  .select("exam_id, ai_grade, final_override_grade, status, created_at")
-                  .in("exam_id", examIds)
-                  .eq("user_id", user.id)
-              : Promise.resolve({ data: [] as any[] }),
-            wsIds.length
-              ? supabase
-                  .from("workshop_submissions")
-                  .select("workshop_id, ai_grade, final_grade, status")
-                  .in("workshop_id", wsIds)
-                  .eq("user_id", user.id)
-              : Promise.resolve({ data: [] as any[] }),
-            prjIds.length
-              ? db
-                  .from("project_submissions")
-                  .select("project_id, ai_grade, final_grade, status")
-                  .in("project_id", prjIds)
-                  .eq("user_id", user.id)
-              : Promise.resolve({ data: [] as any[] }),
-            sessIds.length
-              ? supabase
-                  .from("attendance_records")
-                  .select("session_id, status")
-                  .in("session_id", sessIds)
-                  .eq("user_id", user.id)
-              : Promise.resolve({ data: [] as any[] }),
-          ]);
+          examIds.length
+            ? supabase
+                .from("submissions")
+                .select("exam_id, ai_grade, final_override_grade, status, created_at")
+                .in("exam_id", examIds)
+                .eq("user_id", user.id)
+            : vacio,
+          wsIds.length
+            ? supabase
+                .from("workshop_submissions")
+                .select("workshop_id, ai_grade, final_grade, status")
+                .in("workshop_id", wsIds)
+                .eq("user_id", user.id)
+            : vacio,
+          prjIds.length
+            ? db
+                .from("project_submissions")
+                .select("project_id, ai_grade, final_grade, status")
+                .in("project_id", prjIds)
+                .eq("user_id", user.id)
+            : vacio,
+          sessIds.length
+            ? supabase
+                .from("attendance_records")
+                .select("session_id, status")
+                .in("session_id", sessIds)
+                .eq("user_id", user.id)
+            : vacio,
+          // Lo asignado a ESTE estudiante. Para un alumno común la RLS ya filtra
+          // por asignación; un usuario multi-rol (docente matriculado en su
+          // curso) ve todo, y sin esto le contaría actividades que no tiene.
+          examIds.length
+            ? db
+                .from("exam_assignments")
+                .select("exam_id")
+                .in("exam_id", examIds)
+                .eq("user_id", user.id)
+            : vacio,
+          wsIds.length
+            ? db
+                .from("workshop_assignments")
+                .select("workshop_id")
+                .in("workshop_id", wsIds)
+                .eq("user_id", user.id)
+            : vacio,
+          prjIds.length
+            ? db
+                .from("project_assignments")
+                .select("project_id")
+                .in("project_id", prjIds)
+                .eq("user_id", user.id)
+            : vacio,
+        ]);
 
         // Trabajo en grupo: la entrega grupal tiene user_id = solo el "último
         // editor", así que la query por user_id de arriba NO trae la nota para los
-        // demás miembros → su taller/proyecto grupal contaba como 0 en la nota final.
-        // Traemos las entregas por group_id de los grupos a los que pertenece el
-        // alumno y las fusionamos (la grupal PRECEDE a cualquier individual del
-        // mismo item, espejo del acta). Solo corre si hay items en modo grupo.
+        // demás miembros. Traemos las entregas por group_id de los grupos a los
+        // que pertenece el alumno y las fusionamos (la grupal PRECEDE a cualquier
+        // individual del mismo item, espejo del libro del docente y del acta).
         const fetchGroupSubs = async (
           groupItemIds: string[],
           groupsTable: string,
@@ -334,8 +357,8 @@ function StudentGrades() {
           return (gsubs ?? []) as any[];
         };
         const [wsGroupSubs, prjGroupSubs] = await Promise.all([
-          fetchGroupSubs(groupWsIds, "workshop_groups", "workshop_group_members", "workshop_submissions", "workshop_id"),
-          fetchGroupSubs(groupPrjIds, "project_groups", "project_group_members", "project_submissions", "project_id"),
+          fetchGroupSubs(wsIds, "workshop_groups", "workshop_group_members", "workshop_submissions", "workshop_id"),
+          fetchGroupSubs(prjIds, "project_groups", "project_group_members", "project_submissions", "project_id"),
         ]);
         const wsSubs = [
           ...wsGroupSubs,
@@ -349,193 +372,187 @@ function StudentGrades() {
             (s) => !prjGroupSubs.some((g) => g.project_id === s.project_id),
           ),
         ];
+        const propiosIntentos = (examSubs ?? []) as any[];
+        const estadoPorSesion = new Map(
+          ((attRecords ?? []) as { session_id: string; status: string }[]).map((r) => [
+            r.session_id,
+            r.status,
+          ]),
+        );
 
-        // Helper: escala una calificación raw (0..max) a la escala del curso.
-        const toScale = (raw: number, max: number) => {
-          const pct = max > 0 ? raw / max : 0;
-          return course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
-        };
-        // Helper: normaliza un puntaje raw de escala 0..fromMax a 0..toMax,
-        // redondeado a 2 decimales. Usado para presentar la columna
-        // "Puntaje" SIEMPRE en la escala del curso (#19) sin tocar la nota
-        // final (que usa `toScale`/`it.grade`). Para items ya en la escala
-        // del curso (fromMax === toMax) devuelve el mismo valor.
-        const rescaleScore = (raw: number, fromMax: number, toMax: number) => {
-          if (fromMax <= 0) return 0;
-          if (fromMax === toMax) return Math.round(raw * 100) / 100;
-          return Math.round((raw / fromMax) * toMax * 100) / 100;
-        };
-
-        // Construye filas para cada item del curso (ya escaladas).
-        const rows: ItemRow[] = [];
-
-        // Exámenes (solo originales, no makeups)
-        const originalExams = (exams ?? []).filter((e: any) => !e.parent_exam_id);
-        for (const e of originalExams as any[]) {
-          // Supletorio y recuperatorio: la regla es UNA (nota-con-recuperacion.ts),
-          // la misma del gradebook del docente y del acta.
-          const r = notaDeExamenParaEstudiante(e, (exams ?? []) as any[], (examSubs ?? []) as any[]);
-          const raw = r.nota;
-          // Los intentos del examen de donde salió la nota: de ahí salen el
-          // estado y el enlace a la revisión correcta.
-          const examIdFuente = r.examIdFuente ?? e.id;
-          const attempts = (examSubs ?? []).filter((s: any) => s.exam_id === examIdFuente);
-          // Para "review" link: el intento más reciente finalizado
-          const sortedFinished = [...attempts]
-            .filter((s: any) => s.status === "completado" || s.status === "sospechoso")
-            .sort(
-              (a: any, b: any) =>
-                new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        // Señales del servidor. Si la función todavía no existe (el frontend
+        // puede desplegarse antes que la migración), se aproximan con lo propio:
+        // una sesión cuenta si ya pasó o si el estudiante tiene marca.
+        const senales = senalesRes?.error ? null : (senalesRes?.data as any);
+        const hoy = todayLocalISO();
+        const sesionesDadasSet: Set<string> = senales
+          ? new Set<string>(senales.sesiones_dadas ?? [])
+          : new Set(
+              allSessions
+                .filter((s) => s.session_date <= hoy || estadoPorSesion.has(s.id))
+                .map((s) => s.id),
             );
-          const latest = sortedFinished[0];
-          rows.push({
-            id: e.id,
-            title: e.title,
-            kind: "exam",
-            cut_id: e.cut_id ?? null,
-            rawGrade: raw,
-            rawMax: course.grade_scale_max,
-            grade: raw != null ? toScale(raw, course.grade_scale_max) : null,
-            status: latest?.status ?? (attempts.length ? "en_progreso" : "sin_entrega"),
-            weight: Number(e.weight ?? 1),
-            reviewExamId: latest ? examIdFuente : null,
-          });
-        }
+        const conNota = senales
+          ? {
+              examenes: new Set<string>(senales.examenes_con_nota ?? []),
+              talleres: new Set<string>(senales.talleres_con_nota ?? []),
+              proyectos: new Set<string>(senales.proyectos_con_nota ?? []),
+            }
+          : actividadesConNota({
+              intentos: propiosIntentos,
+              entregasTaller: wsSubs,
+              talleres,
+              entregasProyecto: prjSubs,
+            });
 
-        // Talleres — para is_external la nota ya está en la escala del
-        // curso (la ingresa el docente en ExternalGradesEditor con cap =
-        // course.grade_scale_max). Para AI/datos viejos, w.max_score puede
-        // ser 0..100 (legacy) — se reescala internamente con `internalMax`
-        // SOLO para calcular `grade` (no cambia la nota). La columna
-        // "Puntaje" SIEMPRE se presenta en la escala del curso (#19): el
-        // tope mostrado es grade_scale_max y el valor el puntaje normalizado.
-        // Solo talleres ORIGINALES: una recuperación no suma aparte, su nota se
-        // pliega en la del original (supletorio/recuperatorio) — la MISMA regla
-        // que el gradebook y el acta (`workshop_effective_raw_grade`). Se pliega
-        // en la ESCALA DEL CURSO para comparar peras con peras aunque los
-        // `max_score` difieran entre original y recuperación.
-        const wsFilas = (flatWorkshops as any[]).map((w) => ({
-          id: w.id,
-          parent_workshop_id: w.parent_workshop_id ?? null,
-          makeup_kind: w.makeup_kind ?? null,
-          recovery_rule: w.recovery_rule ?? null,
-          created_at: w.created_at ?? null,
-          status: w.status ?? null,
-          deleted_at: null,
-        }));
-        const wById = new Map((flatWorkshops as any[]).map((w) => [w.id, w]));
-        const notaDeW = (wid: string) => {
-          const w = wById.get(wid);
-          const sub = (wsSubs ?? []).find((s: any) => s.workshop_id === wid);
-          const raw = notaEfectivaDeTaller(sub, w?.requires_defense);
-          const internalMax = w?.is_external ? course.grade_scale_max : (w?.max_score ?? 100);
-          return {
-            id: wid,
-            presento: entregaHecha(sub),
-            nota: raw != null ? toScale(raw, internalMax) : null,
-          };
+        const escala = { min: Number(course.grade_scale_min), max: Number(course.grade_scale_max) };
+        const unionTalleres = new Map(
+          ((wcRows ?? []) as any[]).map((r) => [r.workshop_id ?? r.workshop?.id, r]),
+        );
+        const unionProyectos = new Map(
+          ((pcRows ?? []) as any[]).map((r) => [r.project_id ?? r.project?.id, r]),
+        );
+        const nota = notaDelEstudianteEnCurso(
+          {
+            courseId,
+            escala,
+            cursoFinalizado: course.status === "finalizado",
+            cortes: cuts,
+            examenes,
+            talleres,
+            unionTalleres,
+            proyectos,
+            unionProyectos,
+            sesiones: allSessions,
+            sesionesDadas: sesionesDadasSet,
+            conNota,
+          },
+          {
+            intentos: propiosIntentos,
+            entregaTaller: (wid) => wsSubs.find((s: any) => s.workshop_id === wid),
+            entregaProyecto: (pid) => prjSubs.find((s: any) => s.project_id === pid),
+            estadoAsistencia: (sid) => estadoPorSesion.get(sid),
+            // Si no se pudieron leer, NO se asume «nada asignado» (ningún 0
+            // contaría y la nota subiría en silencio): todo asignado, como antes.
+            asignaciones:
+              asigExRes.error || asigWsRes.error || asigPrjRes.error
+                ? undefined
+                : {
+                    examenes: new Set(((asigExRes.data ?? []) as any[]).map((r) => r.exam_id)),
+                    talleres: new Set(((asigWsRes.data ?? []) as any[]).map((r) => r.workshop_id)),
+                    proyectos: new Set(((asigPrjRes.data ?? []) as any[]).map((r) => r.project_id)),
+                  },
+          },
+          Date.now(),
+        );
+
+        // «Puntaje» = la nota expresada sobre el tope de la escala (0..max).
+        const aPuntaje = (score: number | null) => {
+          if (score == null) return null;
+          const rango = escala.max - escala.min;
+          const v = rango > 0 ? ((score - escala.min) / rango) * escala.max : score;
+          return Math.round(v * 100) / 100;
         };
-        for (const w of (flatWorkshops as any[]).filter((x) => !x.parent_workshop_id)) {
-          const r = notaDeTallerConRecuperaciones({ id: w.id, parent_workshop_id: null }, wsFilas, notaDeW);
-          const gradeCourse = r.nota; // ya en escala del curso
-          const wFuente = wById.get(r.idFuente ?? w.id);
-          const subFuente = (wsSubs ?? []).find((s: any) => s.workshop_id === (r.idFuente ?? w.id));
-          rows.push({
-            id: w.id,
-            title: w.title,
-            kind: "workshop",
-            cut_id: w.cut_id ?? null,
-            // La nota ya viene en escala del curso; el "Puntaje" mostrado y la
-            // nota final coinciden (rescaleScore identidad sobre grade_scale_max).
-            rawGrade: gradeCourse != null ? rescaleScore(gradeCourse, course.grade_scale_max, course.grade_scale_max) : null,
-            rawMax: course.grade_scale_max,
-            grade: gradeCourse,
-            status: subFuente?.status ?? "pendiente",
-            weight: Number(w.weight ?? 1),
-            reviewWorkshopId: subFuente ? (wFuente?.id ?? w.id) : null,
-          });
-        }
+        const motivoDe = (i: DetalleDeItem): string | null => {
+          if (i.score != null) return null;
+          // Sin corte no suma (lo dice la tarjeta «Sin corte asignado»); con
+          // peso 0 tampoco mueve la nota, y decir «cuenta 0» confunde.
+          if (i.cutId == null) return null;
+          if (i.weight <= 0) return t("notaRelativa.motivoPesoCero");
+          if (i.cuenta) return t("notaRelativa.motivoCuentaCero");
+          if (!i.seDio) return t("notaRelativa.motivoAbierta");
+          return i.entrego
+            ? t("notaRelativa.motivoPorCalificar")
+            : t("notaRelativa.motivoNoAsignada");
+        };
+        const examPorId = new Map(examenes.map((e) => [e.id, e]));
+        const tallerPorId = new Map(talleres.map((w) => [w.id, w]));
+        const proyectoPorId = new Map(proyectos.map((p) => [p.id, p]));
 
-        // Proyectos — misma regla: external = ya en escala del curso;
-        // Puntaje normalizado a la escala del curso (#19).
-        for (const p of flatProjects as any[]) {
-          const sub = (prjSubs ?? []).find((s: any) => s.project_id === p.id);
-          const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-          const internalMax = p.is_external ? course.grade_scale_max : (p.max_score ?? 100);
-          rows.push({
-            id: p.id,
-            title: p.title,
-            kind: "project",
-            cut_id: p.cut_id ?? null,
-            rawGrade: raw != null ? rescaleScore(raw, internalMax, course.grade_scale_max) : null,
-            rawMax: course.grade_scale_max,
-            grade: raw != null ? toScale(raw, internalMax) : null,
+        const rows: ItemRow[] = nota.items.map((i) => {
+          const base = {
+            id: i.id,
+            cut_id: i.cutId,
+            grade: i.score,
+            rawGrade: aPuntaje(i.score),
+            rawMax: escala.max,
+            weight: i.weight,
+            cuenta: i.cuenta,
+            motivo: motivoDe(i),
+          };
+          if (i.tipo === "examen") {
+            // Estado y enlace: los intentos del examen de donde salió la nota.
+            const fuente = i.idFuente ?? i.id;
+            const intentos = propiosIntentos.filter((s) => s.exam_id === fuente);
+            const terminado = [...intentos]
+              .filter((s) => s.status === "completado" || s.status === "sospechoso")
+              .sort(
+                (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+              )[0];
+            return {
+              ...base,
+              title: examPorId.get(i.id)?.title ?? "—",
+              kind: "exam" as const,
+              status: terminado?.status ?? (intentos.length ? "en_progreso" : "sin_entrega"),
+              reviewExamId: terminado ? fuente : null,
+            };
+          }
+          if (i.tipo === "taller") {
+            const fuente = i.idFuente ?? i.id;
+            const sub = wsSubs.find((s: any) => s.workshop_id === fuente);
+            return {
+              ...base,
+              title: tallerPorId.get(i.id)?.title ?? "—",
+              kind: "workshop" as const,
+              status: sub?.status ?? "pendiente",
+              reviewWorkshopId: sub ? fuente : null,
+            };
+          }
+          const sub = prjSubs.find((s: any) => s.project_id === i.id);
+          return {
+            ...base,
+            title: proyectoPorId.get(i.id)?.title ?? "—",
+            kind: "project" as const,
             status: sub?.status ?? "pendiente",
-            weight: Number(p.weight ?? 1),
-          });
-        }
+          };
+        });
 
-        // Asistencia: agrupa por corte usando el FK explícito
-        // attendance_sessions.cut_id (migración 20260509020000). Antes
-        // se inferiía por rango de fechas. Cuenta sesiones del corte y
-        // cuántas registró el estudiante como "presente".
-        const allSessions = (sessions ?? []) as {
-          id: string;
-          session_date: string;
-          cut_id?: string | null;
-        }[];
-        const allRecords = (attRecords ?? []) as { session_id: string; status: string }[];
-        const recordsBySession = new Map(allRecords.map((r) => [r.session_id, r.status]));
-
-        // Construye el desglose por corte usando el modelo nuevo:
-        // cada item aporta su weight (% del total) y la asistencia del
-        // corte aporta cut.attendance_weight (también % del total).
         const breakdown: CutBreakdown[] = cuts.map((cut) => {
           const cutItems = rows.filter((r) => r.cut_id === cut.id);
-
-          // Asistencia del corte: filtra sesiones por fecha, calcula %
-          // presente y escala. Se modela como un ItemRow más con peso =
-          // cut.attendance_weight para entrar al weighted avg uniforme.
-          //
-          // Renderizamos SIEMPRE la fila de asistencia cuando el bucket
-          // attendance_weight > 0, aunque no haya sesiones registradas o
-          // el corte no tenga fechas. Así el estudiante ve "0/0 sesiones"
-          // o "sin sesiones registradas" en lugar de que la asistencia
-          // simplemente desaparezca y dé la sensación de que su nota
-          // final ignora ese componente.
+          // La asistencia se muestra SIEMPRE que el corte le da peso, aunque no
+          // haya sesiones: si desapareciera, parecería que la nota la ignora.
           let attItem: ItemRow | null = null;
           const attWeight = Number(cut.attendance_weight ?? 0);
           if (attWeight > 0) {
-            // Filtro por cut_id explícito (migración 20260509020000):
-            // el docente asigna el corte al crear la sesión.
-            const sessionsInCut = allSessions.filter((s) => s.cut_id === cut.id);
-            if (sessionsInCut.length > 0) {
-              const present = sessionsInCut.filter((s) =>
-                countsAsPresent(recordsBySession.get(s.id)),
-              ).length;
-              const pct = present / sessionsInCut.length;
-              const attendanceAvg =
-                course.grade_scale_min + pct * (course.grade_scale_max - course.grade_scale_min);
+            const asis = nota.asistencia.get(cut.id);
+            const programadas = allSessions.filter((s) => s.cut_id === cut.id).length;
+            if (asis && asis.dadas > 0) {
               attItem = {
                 id: `attendance-${cut.id}`,
-                title: i18n.t("studentGrades.attendanceTitle", { present, total: sessionsInCut.length }),
+                title: t("studentGrades.attendanceTitle", {
+                  present: asis.presentes,
+                  total: asis.dadas,
+                }),
                 kind: "attendance",
                 cut_id: cut.id,
-                rawGrade: present,
-                rawMax: sessionsInCut.length,
-                grade: attendanceAvg,
+                rawGrade: asis.presentes,
+                rawMax: asis.dadas,
+                grade: asis.nota,
                 status: "calculado",
                 weight: attWeight,
+                cuenta: true,
+                motivo:
+                  asis.dadas < programadas
+                    ? t("notaRelativa.asistenciaDeLasDadas", { count: programadas })
+                    : null,
               };
             } else {
-              // Bucket de asistencia con peso > 0 pero sin sesiones
-              // asignadas a este corte: grade=null. OJO: computeWeightedGrade
-              // NO ignora los null — los cuenta como 0 con su peso completo.
-              // Por eso el memo de finalGrade SALTA explícitamente este item
-              // (kind attendance + grade null), espejando al gradebook docente.
               attItem = {
                 id: `attendance-${cut.id}`,
-                title: i18n.t("studentGrades.attendanceNoSessions"),
+                title:
+                  programadas > 0
+                    ? t("notaRelativa.asistenciaSinSesionesDadas")
+                    : t("studentGrades.attendanceNoSessions"),
                 kind: "attendance",
                 cut_id: cut.id,
                 rawGrade: null,
@@ -543,45 +560,24 @@ function StudentGrades() {
                 grade: null,
                 status: "pendiente",
                 weight: attWeight,
+                cuenta: false,
+                motivo: null,
               };
             }
           }
-
-          const allCutItems = attItem ? [...cutItems, attItem] : cutItems;
-          // Card de resumen del corte: usamos AVG de items GRADED ONLY
-          // (skip nulls), no `computeWeightedGrade` que cuenta null=0.
-          // Razón UX: el card es un overview "cómo voy en lo que YA me
-          // calificaron" en escala 1-5 del curso. Si el estudiante tiene
-          // perfecto en lo entregado, el card muestra 5 — no 3.33
-          // penalizado por items pendientes. Match con el grid del
-          // docente (que en práctica solo lo penaliza si EL DOCENTE no
-          // calificó algo). La NOTA FINAL global sigue usando null=0
-          // (más abajo via `computeWeightedGrade`) porque ahí sí refleja
-          // "lo que tienes hoy si nada más se entrega".
-          const graded = allCutItems
-            .filter((i) => i.grade != null && (i.weight ?? 1) > 0)
-            .map((i) => ({ score: i.grade as number, weight: i.weight ?? 1 }));
-          const grade =
-            graded.length === 0
-              ? null
-              : Number(
-                  (
-                    graded.reduce((a, i) => a + i.score * i.weight, 0) /
-                    graded.reduce((a, i) => a + i.weight, 0)
-                  ).toFixed(2),
-                );
-
           return {
             cut,
-            items: allCutItems,
-            grade,
+            items: attItem ? [...cutItems, attItem] : cutItems,
+            grade: nota.cutGrades.find((g) => g.cutId === cut.id)?.grade ?? null,
           };
         });
 
         if (cancelled) return;
-        // Items sin corte asignado (informativo)
+        // Sin corte asignado: informativo, NO suma a la nota final.
         setUnassigned(rows.filter((r) => !r.cut_id));
         setCutsBreakdown(breakdown);
+        setFinalGrade(nota.finalGrade);
+        setParcial(nota.parcial);
       } catch (e) {
         if (!cancelled) {
           setLoadError(
@@ -604,37 +600,6 @@ function StudentGrades() {
   }, [user, courseId, courses, retryNonce]);
 
   const course = courses.find((c) => c.id === courseId);
-
-  // La nota final ahora es el weighted avg de TODOS los items del curso
-  // (de todos los cortes) + asistencias por corte. Cada item ya tiene su
-  // weight expresado en % del total, así que pasamos todos directos al
-  // helper. Esto evita doble re-escala / pérdida de precisión que tendría
-  // promediar primero por corte y luego entre cortes.
-  const finalGrade = useMemo(() => {
-    const items: { score: number | null; weight: number }[] = [];
-    for (const cb of cutsBreakdown) {
-      for (const it of cb.items) {
-        // Asistencia de un corte SIN sesiones asignadas (grade=null) NO es "nota
-        // perdida": el gradebook docente la OMITE (gradebook.tsx:1012) y el
-        // certificado se emite con ese consolidado. computeWeightedGrade NO ignora
-        // los null — los cuenta como 0 con su peso completo — así que incluirla
-        // deflactaría la nota del estudiante vs su certificado (rompe la paridad
-        // docente↔estudiante↔certificado). Los demás null (examen/taller/proyecto)
-        // SÍ cuentan como 0 (nota perdida), igual que el docente → no se saltan.
-        if (it.kind === "attendance" && it.grade == null) continue;
-        items.push({ score: it.grade, weight: it.weight ?? 1 });
-      }
-    }
-    // Items SIN corte asignado (config gap): el gradebook docente los incluye
-    // en la nota final (finalItems = todos los allItems) y el certificado se
-    // emite con ESE número. Si acá los excluyéramos, el estudiante vería una
-    // nota final distinta a la de su certificado/gradebook. Los sumamos al
-    // weighted avg con su peso para mantener la paridad docente↔estudiante.
-    for (const it of unassigned) {
-      items.push({ score: it.grade, weight: it.weight ?? 1 });
-    }
-    return computeWeightedGrade(items);
-  }, [cutsBreakdown, unassigned]);
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
@@ -750,6 +715,11 @@ function StudentGrades() {
                 {passes == null && (
                   <div className="text-xs text-muted-foreground">{t("studentGrades.statusNoGrades")}</div>
                 )}
+                {parcial && finalGrade != null && (
+                  <div className="text-2xs text-muted-foreground">
+                    {t("notaRelativa.notaParcial")} · {t("notaRelativa.soloLoQueSeDio")}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
@@ -774,8 +744,14 @@ function StudentGrades() {
           {/* Detalle por corte */}
           {loading ? (
             <Card>
+              {/* `TableSkeleton` pinta filas (<tr>): van dentro de una tabla, no
+                  sueltas en un <div> (React avisaba de HTML inválido). */}
               <CardContent className="p-4">
-                <TableSkeleton rows={3} cols={4} />
+                <Table>
+                  <TableBody>
+                    <TableSkeleton rows={3} cols={4} />
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           ) : cutsBreakdown.length === 0 ? (
@@ -814,8 +790,12 @@ function StudentGrades() {
                       // tipo dentro del corte. Útil para que el alumno
                       // entienda "cuánto va aportando talleres" antes de
                       // ver la nota global del corte.
+                      // Con la MISMA regla que la nota del corte: lo que todavía no
+                      // cuenta (abierto, por calificar) tampoco entra acá.
                       const subtotal = computeWeightedGrade(
-                        items.map((i) => ({ score: i.grade, weight: i.weight ?? 1 })),
+                        items
+                          .filter((i) => i.cuenta)
+                          .map((i) => ({ score: i.grade, weight: i.weight ?? 0 })),
                       );
                       const bucketWeight = items.reduce((s, i) => s + (i.weight ?? 0), 0);
                       const graded = items.filter((i) => i.grade != null).length;
@@ -929,15 +909,17 @@ function KindGroup({
           : i18n.t("studentGrades.kindAttendance");
   return (
     <div className="rounded-md border overflow-x-auto overflow-y-hidden">
-      <div className="flex items-center justify-between gap-2 bg-muted/40 px-3 py-2 border-b">
+      {/* flex-wrap: a 390 px las dos mitades no caben en una línea, y sin
+          envolver cada texto se partía palabra por palabra. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-muted/40 px-3 py-2 border-b">
         <div className="flex items-center gap-2">
           <KindBadge kind={kind} />
           <span className="text-sm font-medium">{label}</span>
-          <span className="text-2xs text-muted-foreground">
+          <span className="text-2xs text-muted-foreground whitespace-nowrap">
             {i18n.t("studentGrades.gradedCount", { graded: gradedCount, total: totalCount })}
           </span>
         </div>
-        <div className="text-xs text-muted-foreground inline-flex items-center gap-2 tabular-nums">
+        <div className="text-xs text-muted-foreground inline-flex items-center gap-2 tabular-nums whitespace-nowrap">
           <span>{i18n.t("studentGrades.bucketWeight", { weight: bucketWeight.toFixed(1) })}</span>
           <span>·</span>
           <span>
@@ -967,7 +949,12 @@ function KindGroup({
         <TableBody>
           {items.map((it) => (
             <TableRow key={`${it.kind}-${it.id}`}>
-              <TableCell className="font-medium">{it.title}</TableCell>
+              <TableCell className="font-medium">
+                {it.title}
+                {it.motivo && (
+                  <div className="text-2xs font-normal text-muted-foreground">{it.motivo}</div>
+                )}
+              </TableCell>
               <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums text-muted-foreground">
                 {it.weight != null ? `${Number(it.weight).toFixed(1)}%` : "—"}
               </TableCell>

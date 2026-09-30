@@ -129,6 +129,13 @@ describe("filaQueManda", () => {
     });
   });
 
+  it("fila de union con corte y SIN peso: el de la actividad, como la nota", () => {
+    expect(filaQueManda({ cut_id: "k1", weight: null }, { cut_id: "k1", weight: 7 })).toEqual({
+      cut_id: "k1",
+      weight: 7,
+    });
+  });
+
   it("sin ninguna de las dos no inventa nada", () => {
     expect(filaQueManda(null, null)).toEqual({ cut_id: undefined, weight: undefined });
     expect(resolverCorteYPeso(filaQueManda(null, null).cut_id, undefined, CORTES)).toBeNull();

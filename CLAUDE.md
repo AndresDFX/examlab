@@ -585,11 +585,55 @@ REGLA: workshop_weight + exam_weight + project_weight + attendance_weight = cut.
 
 Migración 20260507130000 hizo backfill: para cada cut puso `workshop_weight = sum(workshops.weight asignados al corte)` etc, así que el comportamiento previo se preserva.
 
-**Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Eso refleja la realidad del estudiante: lo que debe y todavía no entregó/no tiene nota es nota perdida hasta que aparezca. Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Misma regla en `computeCutGrade` y `computeCourseFinalGrade`.
+**Cálculo** (`computeWeightedGrade(items)`): weighted average. Items con `score=null` **cuentan como 0** con su peso original (NO se reescalan). Solo retorna `null` (UI muestra "—") cuando NINGÚN item del set tiene score. Redondea a 2 decimales con la mitad hacia arriba (`redondearA2`), como el `ROUND` del acta: `toFixed(2)` dejaba 2,695 en 2,69 y el acta decía 2,70. **Qué items le llegan lo decide la nota relativa** (abajo): el "null = 0" es para lo que el estudiante DEBE, no para lo que todavía no ocurrió.
 
-**Asistencia → corte**: `attendance_sessions` NO tiene `cut_id`. La pertenencia se deriva por fechas: una sesión cuenta para el corte X si `session_date` está entre `cut.start_date` y `cut.end_date`. El score de asistencia del corte es `presentes / sesionesEnCorte` escalado a la escala del curso, y entra al weighted avg con `weight = cut.attendance_weight`. Implementado idéntico en `app.student.grades.tsx` y `app.teacher.gradebook.tsx`.
+**Asistencia → corte**: por el FK explícito `attendance_sessions.cut_id` (mig 20260509020000; la deducción por fechas es historia). El score del corte es `presentes / sesionesDADAS` escalado a la escala del curso, con `weight = cut.attendance_weight`; `tarde` cuenta como presente.
 
 **Forms de items**: input de Peso disabled cuando no hay corte; max = `cut.weight`.
+
+### Nota relativa — cuenta solo lo que ya se dio (mig 20262670000000)
+
+La nota de cada corte y la final son **relativas a lo que ya pasó**. Antes contaban todo lo
+programado: medido en UNIAJ el 2026-09-30, las sesiones de los cortes 2 y 3 (que no existían)
+entraban como faltas de todo el curso y un taller que vencía la semana siguiente valía 0 — finales
+de ~1,4 que con la regla correcta son ~4,0.
+
+- **UN solo cálculo para las cuatro superficies**: [nota-relativa.ts](src/modules/grading/nota-relativa.ts)
+  (la regla) + [nota-del-curso.ts](src/modules/grading/nota-del-curso.ts) (arma la nota de un
+  estudiante). Lo usan el libro del docente, «Mis notas» y el boletín (`report-context.ts`); el
+  espejo SQL es el acta (`nota_relativa_items` + `generate_course_acta`). Estaba escrito tres veces
+  y las copias ya discrepaban (un peso vacío valía 1 % en el libro y 0 en el boletín; la tarjeta del
+  corte del estudiante promediaba solo lo calificado).
+- **Una sesión se dio** si alguien tiene marca de asistencia (mismo criterio que Alerta temprana y
+  pendientes por estudiante). **Una actividad en línea se dio** cuando cerró (plazo vencido o
+  `status = closed`) y cerraron sus recuperaciones publicadas; **una externa**, cuando tiene al
+  menos una nota cargada. Con el curso `finalizado` toda en línea cuenta como dada.
+- **Por estudiante**: con nota, cuenta (aunque siga abierta). Sin nota en una que se dio: entregada
+  y sin calificar → **no cuenta** (la espera es del docente); no entregada → **0**, salvo que **no
+  se le haya asignado**: la RLS le muestra al alumno solo lo asignado, así que no la podía ver.
+  Medido en Arquitectura 6303C: un taller del corte 1 cerró asignado a 1 de 19.
+- **Corte y peso en ESTE curso** (`corteYPesoEnCurso`): manda la fila de unión
+  (`workshop_courses`/`project_courses`) si tiene corte; si no, la de la actividad cuando es de este
+  curso. Talleres y proyectos se cargan por la fila de unión **y** por su curso ancla: con solo la
+  unión, un taller duplicado sin fila quedaba invisible. **Lo que no cae en un corte no suma a la
+  final** (el 1 % por defecto hacía sumar 101 %), y un peso vacío vale 0.
+- **El estudiante no puede calcularlo solo** (no ve marcas ni entregas ajenas): recibe qué sesiones
+  se dieron y qué actividades tienen notas por `senales_nota_relativa(curso)` (solo ids). Si la RPC
+  todavía no existe, se aproxima con lo propio.
+- **`parcial`**: queda algo abierto, por calificar o una sesión por darse. **Con la nota parcial no
+  se emiten certificados** (ni se regeneran): a mitad de semestre casi todos «aprueban» un curso
+  que no terminó. El libro lo dice con «Nota parcial» en la columna del certificado.
+- **Publicar no asigna.** Una actividad publicada sin filas en `*_assignments` es invisible para los
+  estudiantes: se publica para nadie. El diagnóstico del curso ya lo detecta por cohorte; el
+  libro, en el detalle por estudiante («No asignada: no cuenta»). El SuperAdmin necesita LEER
+  `workshop_assignments` para calcular bien (política `workshop_assignments_select_superadmin`):
+  sin ella su libro tomaba todo taller como no asignado.
+- **Una recuperación solo hace esperar a quien la tiene asignada**: el supletorio abierto de otros no
+  deja pendiente la nota de quien no lo puede presentar. Es lo que hace coincidir «Mis notas» (la RLS
+  solo le muestra sus recuperaciones) con el libro y el acta.
+- **Las tablas por estudiante se leen PAGINADAS** (`todasLasFilas`, `src/shared/lib/todas-las-filas.ts`):
+  PostgREST corta en 1000 filas sin avisar, y un curso de 90 estudiantes lo supera en marcas de
+  asistencia y asignaciones — las sesiones recientes dejaban de «haberse dado».
 
 ---
 
@@ -1515,14 +1559,16 @@ Lo que cambia respecto de exámenes, y por qué:
   lectura de la nota de un taller, usar `notaDeTallerConRecuperaciones`; lo que cuenta ENTREGAS usa
   `entregasDeTallerQueDecidenLaNota`.
 - **La nota de un taller sale de `notaEfectivaDeTaller`** (respeta la sustentación) y «presentó» de
-  `entregaHecha` — no de intentos. El espejo SQL es `workshop_effective_raw_grade`, que **también
-  respeta `requires_defense`**, así que el acta ahora se alinea con gradebook/estudiante/boletín
-  (antes usaba `final_grade ?? ai_grade`; solo afecta actas FUTURAS).
+  `entregaHecha` — no de intentos. El espejo SQL del acta es `taller_nota_en_escala` (mig
+  20262670000000, pliega en la escala del curso como el cliente; reemplazó a
+  `workshop_effective_raw_grade`, que plegaba en crudo), y **también respeta `requires_defense`**,
+  así que el acta se alinea con gradebook/estudiante/boletín (solo afecta actas FUTURAS).
 - **Talleres son M:N** (`workshop_courses`, peso/corte por curso). La recuperación toma peso/corte
   del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. La nota se pliega en la **escala del
   curso** (no cruda) para que «mayor» compare bien aunque original y recuperación tengan `max_score`
-  distinto. `clone_workshop` NO copia la fila `workshop_courses` (regresión de la mig 20262380000000),
-  así que el diálogo la crea a mano tras clonar.
+  distinto. `clone_workshop` vuelve a crear la fila `workshop_courses` (la mig 20262380000000 la había
+  perdido; la restauró la 20262670000000); el diálogo igual la borra y la crea con el peso/corte del
+  original, así que funciona con cualquiera de las dos versiones.
 - **El estudiante ve la recuperación por `workshop_assignments`** (como todos los talleres): solo los
   elegidos. La tarjeta esconde la insignia de corte/peso. `_notify_workshop_publication` hace que
   publicarla avise solo a sus asignados. `clone_workshop` con `_copy_groups=true` SIEMPRE (con
@@ -2233,7 +2279,8 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `src/modules/reports/signature-image.ts` (`MAX_CARACTERES_FIRMA`) ↔ `supabase/migrations/20261940000000_report_signature_drawing.sql` (`chk_report_signatures_drawing`) | El tope de caracteres del PNG de la firma. El cliente recorta y reintenta con lados cada vez menores hasta entrar en ese número; la base lo rechaza con `invalid_drawing`. | Divergen → o el cliente manda un PNG que la base rechaza **después** de que la persona creyó haber firmado (el fallo que ya tuvo la firma dibujada en el celular), o recorta de más sin motivo. Lo fija `signature-image.test.ts`, que lee el tope de la migración del disco. |
 | `src/modules/attendance/pendientes-sesion.ts` (`MAX_CARACTERES_PENDIENTE`) ↔ `supabase/migrations/20262640000000_pendientes_proxima_sesion.sql` (el CHECK de `session_pending_items.body`) | El tope del texto de un pendiente para la próxima sesión. El cliente recorta a ese número (`normalizarTextoPendiente`) y el `Input` lo usa como `maxLength`; la base rechaza lo que lo pase. Lo fija `pendientes-sesion.test.ts`, que lee el tope de la migración del disco. | Divergen → el docente escribe un pendiente que el campo le deja escribir y la base lo rechaza al guardar (23514), o el cliente corta el texto antes de lo necesario. |
 | `src/modules/grading/nota-con-recuperacion.ts` (`resolverNotaConRecuperacion`) ↔ `supabase/migrations/20262650000000_examenes_recuperatorios.sql` (`exam_attempts_raw_grade` + `exam_effective_raw_grade`, que usa `generate_course_acta`) | La nota de un examen con recuperaciones: supletorio solo llena la ausencia, recuperatorio combina por `recovery_rule` (`mayor`/`reemplaza`), pliegue en orden de creación (`created_at, id`), «presentó» = intento `completado`/`sospechoso`, borradores y papelera fuera, promedio de reintentos redondeado a 2 decimales. Paridad verificada en PGlite con los mismos casos que los tests del helper | Divergen → el acta (y con ella el certificado) le pone a un estudiante una nota distinta de la que ve en el libro de notas y en «Mis notas». Es exactamente lo que pasaba antes: el acta ignoraba las recuperaciones por completo |
-| `src/modules/grading/nota-con-recuperacion.ts` (`notaDeTallerConRecuperaciones` / `plegarRecuperaciones`) ↔ `supabase/migrations/20262660000000_talleres_recuperatorios.sql` (`workshop_submission_raw_grade` + `workshop_effective_raw_grade`, que usa `generate_course_acta`) | La nota de un TALLER con recuperaciones: mismo pliegue que exámenes, pero la nota de cada taller sale de `notaEfectivaDeTaller` (con sustentación → solo `final_grade`; sin ella → `final_grade ?? ai_grade`), «presentó» = una entrega en estado de entrega (espejo de `ESTADOS_SIN_ENTREGAR`), grupo con precedencia sobre individual. La lista de estados «sin entregar» del SQL debe seguir a `entrega-hecha.ts`. Paridad verificada en PGlite | Divergen → el acta le pone al estudiante una nota de taller distinta de la del gradebook/«Mis notas»; o, si el SQL deja de respetar `requires_defense`, el acta cierra una nota que el docente no sustentó |
+| `src/modules/grading/nota-con-recuperacion.ts` (`notaDeTallerConRecuperaciones` / `plegarRecuperaciones`) ↔ `supabase/migrations/20262660000000_talleres_recuperatorios.sql` (`workshop_submission_raw_grade` + `workshop_effective_raw_grade`; el acta pasó a `taller_nota_en_escala`, mig 20262670000000, que pliega en la escala del curso como el cliente) | La nota de un TALLER con recuperaciones: mismo pliegue que exámenes, pero la nota de cada taller sale de `notaEfectivaDeTaller` (con sustentación → solo `final_grade`; sin ella → `final_grade ?? ai_grade`), «presentó» = una entrega en estado de entrega (espejo de `ESTADOS_SIN_ENTREGAR`), grupo con precedencia sobre individual. La lista de estados «sin entregar» del SQL debe seguir a `entrega-hecha.ts`. Paridad verificada en PGlite | Divergen → el acta le pone al estudiante una nota de taller distinta de la del gradebook/«Mis notas»; o, si el SQL deja de respetar `requires_defense`, el acta cierra una nota que el docente no sustentó |
+| `src/modules/grading/nota-relativa.ts` + `nota-del-curso.ts` (`actividadSeDio`, `actividadCuenta`, `corteYPesoEnCurso`, `asistenciaDelCorte`, `notaDelEstudianteEnCurso`) ↔ `supabase/migrations/20262670000000_nota_relativa.sql` (`_actividad_se_dio`, `_*_se_dio`, `nota_relativa_items`, `generate_course_acta`, `senales_nota_relativa`) ↔ `src/modules/grading/grade.ts` (`redondearA2`) ↔ `compute_weighted_grade` (`ROUND(x, 2)`) | La nota RELATIVA: qué sesión se dio (≥1 marca, sin papelera), qué actividad se dio (cerrada o plazo vencido y sus recuperaciones publicadas cerradas; externa = alguien con nota; curso finalizado = toda en línea dada), qué cuenta por estudiante (con nota; sin nota y dada: 0 si no la entregó y la tenía asignada, no cuenta si la entregó o no se le asignó), corte y peso en el curso (fila de unión con corte, si no la de la actividad de ESTE curso; peso vacío = 0), lo sin corte fuera de la final, y el redondeo a centésimas con la mitad hacia arriba. Las señales del estudiante (`senales_nota_relativa`) son la MISMA definición que `sesionesDadas` + `actividadesConNota`. Paridad verificada contra PGlite con los datos reales de UNIAJ: cortes y final iguales para todos los estudiantes de los 7 cursos | Divergen → el acta, «Mis notas» y el libro del docente le dan a un estudiante notas distintas por la misma entrega — y el certificado se emite con la del libro. Antes del arreglo pasaba en tres puntos a la vez (peso vacío 1 % vs 0, lo sin corte dentro o fuera de la final, y una centésima por el redondeo binario de `toFixed`) |
 | `src/modules/code/combine-files.ts` (`combineFilesForExec` + `javaHasMain`) ↔ `supabase/functions/execute-code/index.ts` (`combineFiles` + `javaHasMain`)                                                                                                                                                                                                                                                               | Combinación de N archivos en un solo `sourceCode` (Java: clase con `main` primero + degradar `public` y quitar `package` en secundarios; script: encabezado `// ─── file ───` por archivo). El cliente combina y manda **ambos** `files` + `sourceCode` para que un edge SIN soporte multi-archivo (deploy viejo) no responda "Código fuente requerido" | Divergen → el combinado del cliente (fallback edge viejo) difiere del server (edge nuevo) — ej. Java compila distinto según qué clase queda primero, o el alumno ve una salida y otra según el deploy |
 | `src/modules/admin/teacher-student-courses.ts` (`COURSE_NAME_SEPARATOR`, el dedup en minúsculas, y el shape `ImportRowResult` con `ok`/`duplicate`/`enrolledExisting`/`enrollFailed`) ↔ `supabase/functions/bulk-import-users/index.ts` (`course_name.split("|")`, `courseNameToId` keyeado por `name.trim().toLowerCase()`, y los campos que empuja a `result`) | El contrato del alta multi-curso: separador de la lista de cursos, resolución case-insensitive del nombre → id, y qué campos distinguen "creado" de "ya existía y lo matriculé" de "ya existía y la matrícula FALLÓ" | Divergen → el alta multi-curso del docente falla con "el curso no existe" sobre cursos que él ve en su propia lista, o el aviso miente sobre qué pasó (un fallo de matrícula pintado como "ya estaba matriculado"). El separador es `|` porque el campo se comparte con `roles`; migrar el edge a `course_ids` obliga a cambiar el cliente en el mismo commit |
 | `src/modules/grading/deterministic-scoring.ts` (`scoreDeterministaCliente`, `esDeterminista`, `parseOptionIndex`, `respuestaCrudaDeTaller`) ↔ `supabase/functions/_shared/deterministic-scoring.ts` (`scoreDeterministic`, `esDeterminista`, `indiceFinito`) ↔ el `payload` por tipo de `WorkshopQuestions.tsx` (dónde se GUARDA cada respuesta) ↔ `src/modules/ai/grade-submission.ts` (`buildWorkshopItems`/`buildProjectJobs`, que EXCLUYEN del batch de IA todo tipo para el que `esDeterminista(type)` sea true) | La nota de las preguntas que NO usan modelo (cerrada, opción múltiple, red) y de qué columna sale la respuesta. El servidor la calcula en el camino del alumno (con `submissionId`); el navegador del docente la calcula en el re-grade, que NO manda `submissionId` y por eso no puede delegarla. Dos detalles que parecen cosméticos y no lo son: el taller guarda `selected_option` como TEXT (`"2"`), así que el índice se normaliza con `parseOptionIndex` antes de comparar —un helper que exija `number` pone 0 a TODAS las cerradas—; y `cerrada_multi` NO se guarda en `selected_option` sino en **`answer_text`** como JSON. Los builders de `grade-submission.ts` (usados por "Calificar todos" del Diagnóstico del curso, vía `enqueueAiGradeForSubmission`) DEBEN excluir el mismo set que `esDeterminista()` — un chequeo literal `type === "cerrada"` que se queda atrás cuando el set crece dejaba pasar `red_consola`/`red_gui` al batch de IA. | Divergen → la MISMA entrega vale distinto según quién apretó el botón. Ya pasó dos veces con el mismo origen: (1) el re-grade del docente tenía `earned: 0` fijo con un comentario que decía "correct_index match" sin que existiera comparación alguna, y en producción 15 respuestas correctas de 8 entregas quedaron en 0 mientras el camino del alumno les daba el puntaje completo; (2) al arreglar (1) agregando `red_consola`/`red_gui` al set de `esDeterminista()`, `grade-submission.ts` quedó con el chequeo VIEJO (`cerrada`/`cerrada_multi` nomás) — una pregunta de red enviada a "Calificar todos" se mandaba a la IA como texto libre y **sobreescribía** la nota determinista correcta con lo que el modelo le adivinara a un JSON de topología. |

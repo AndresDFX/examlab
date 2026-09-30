@@ -2271,7 +2271,7 @@
     "cutWeight": "Weight: {{weight}}% of total · Grade:",
     "noCutActivities": "No activities in this period.",
     "noAssignedCut": "No period assigned",
-    "unassignedHint": "These activities are not yet associated with a grading period.",
+    "unassignedHint": "These activities are not yet associated with a grading period, so they don't count toward your final grade.",
     "kindWorkshops": "Workshops",
     "kindExams": "Exams",
     "kindProjects": "Projects",
@@ -2298,7 +2298,7 @@
     "attendanceTitle": "Attendance ({{present}}/{{total}} sessions)",
     "attendanceNoSessions": "Attendance (no sessions assigned to this period)",
     "scaleExplanation": "Score = what you got out of the total for the activity · Grade = that score converted to the course scale, which is what counts toward your final grade.",
-    "footerNote": "The course grade is calculated by summing the weighted average of each grading period. Each period averages workshops, exams, projects and attendance using the weights set by the teacher. Components without data do not penalize: their weights are distributed among the others.",
+    "footerNote": "The course grade is the weighted average of the workshops, exams, projects and attendance of each grading period, using the weights set by the teacher. Only what has already happened counts: a session, once attendance was taken; an activity, once it closed. Work you submitted that is awaiting grading does not count until it is graded, and anything you did not submit for a closed activity counts as 0.",
     "loadErrorFallback": "We couldn't load your grades right now."
   },
   "studentPolls": {
@@ -9060,10 +9060,8 @@
     "gradeHelpDecimals": "(shown next to the title). Decimals with a comma (e.g. 4.5).",
     "status": "Status",
     "suspicious": "Suspicious",
-    "sessionsInCutRange": "{{count}} session in the cut's range",
-    "sessionsInCutRange_other": "{{count}} sessions in the cut's range",
     "sessionsPresent": "Sessions present",
-    "totalSessions": "Total sessions",
+    "totalSessions": "Sessions held",
     "attendancePct": "% attendance",
     "gradeWithScale": "Grade ({{min}}–{{max}})",
     "noAttendanceSessionsInCut": "There are no attendance sessions assigned to this cut.",
@@ -11093,5 +11091,28 @@
     "toReply_other": "{{count}} to reply",
     "toClose_one": "{{count}} to close",
     "toClose_other": "{{count}} to close"
+  },
+  "notaRelativa": {
+    "notaParcial": "Partial grade",
+    "soloLoQueSeDio": "Only what has already taken place in the course counts.",
+    "explicacion": "The grade is relative to what has already happened: a session counts once someone was marked in it, and an activity once it closed or, if it is external, once it has grades. Submitted work awaiting grading does not count until it is graded, and anything not assigned to a student does not count as 0 for them.",
+    "certificadoParcialHint": "There are still open or ungraded activities, or sessions still to be held. The certificate is issued with the final grade.",
+    "certificadosParciales_one": "{{count}} student passes based on the course so far, but their grade is still partial: the certificate is issued with the final grade.",
+    "certificadosParciales_other": "{{count}} students pass based on the course so far, but their grade is still partial: the certificate is issued with the final grade.",
+    "certificadosOmitidos_one": "{{count}} more passing student is left out because their grade is still partial.",
+    "certificadosOmitidos_other": "{{count}} more passing students are left out because their grade is still partial.",
+    "motivoAbierta": "Open: does not count yet",
+    "motivoPorCalificar": "Awaiting grading: does not count yet",
+    "motivoCuentaCero": "No grade: counts as 0",
+    "motivoPesoCero": "0% weight: does not add to the grade",
+    "motivoNoAsignada": "Not assigned: does not count",
+    "sesionesDadasDeProgramadas_one": "{{dadas}} of {{count}} session held",
+    "sesionesDadasDeProgramadas_other": "{{dadas}} of {{count}} sessions held",
+    "asistenciaSesionesDadas_one": "Attendance only counts sessions that were already held (with at least one attendance mark): {{dadas}} of {{count}} scheduled in the cut.",
+    "asistenciaSesionesDadas_other": "Attendance only counts sessions that were already held (with at least one attendance mark): {{dadas}} of {{count}} scheduled in the cut.",
+    "ningunaSesionDada": "No session of this cut has been held yet (none has attendance marked): attendance does not count yet.",
+    "asistenciaDeLasDadas_one": "Only sessions already held count, out of {{count}} scheduled.",
+    "asistenciaDeLasDadas_other": "Only sessions already held count, out of {{count}} scheduled.",
+    "asistenciaSinSesionesDadas": "Attendance (no session of this period has been held yet)"
   }
 }

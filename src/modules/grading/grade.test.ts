@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-
 import {
   computeFinalGrade,
   computeCutGrade,
@@ -11,6 +10,7 @@ import {
   type ManualOverride,
   type QuestionPoints,
   countsAsPresent,
+  redondearA2,
   scaleAttendance,
 } from "./grade";
 
@@ -358,5 +358,18 @@ describe("nota final: PLANO vs avg-de-cortes (G1/G5 — por qué deben unificars
     expect(flat).toBe(1.67);
     expect(avgOfCuts).toBe(3);
     expect(flat).not.toBe(avgOfCuts); // ← el acta usaba avg-de-cortes; el gradebook usa flat
+  });
+});
+
+describe("redondearA2 — como ROUND(x, 2) del acta", () => {
+  it("un empate en la milésima sube, aunque en binario sea 2,6949999…", () => {
+    expect(redondearA2(2.695)).toBe(2.7);
+    expect(computeWeightedGrade([{ weight: 100, score: 2.695 }])).toBe(2.7);
+    expect(redondearA2(4.055)).toBe(4.06);
+  });
+  it("lo que no es empate queda igual", () => {
+    expect(redondearA2(2.694)).toBe(2.69);
+    expect(redondearA2(3)).toBe(3);
+    expect(redondearA2(0)).toBe(0);
   });
 });

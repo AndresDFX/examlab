@@ -2271,7 +2271,7 @@
     "cutWeight": "Peso: {{weight}}% del total · Calificación:",
     "noCutActivities": "Sin actividades en este corte.",
     "noAssignedCut": "Sin corte asignado",
-    "unassignedHint": "Estas actividades aún no están asociadas a un corte evaluativo.",
+    "unassignedHint": "Estas actividades aún no están asociadas a un corte evaluativo, así que no suman a tu nota final.",
     "kindWorkshops": "Talleres",
     "kindExams": "Exámenes",
     "kindProjects": "Proyectos",
@@ -2298,7 +2298,7 @@
     "attendanceTitle": "Asistencia ({{present}}/{{total}} sesiones)",
     "attendanceNoSessions": "Asistencia (sin sesiones asignadas a este corte)",
     "scaleExplanation": "Puntaje = lo que sacaste sobre el total de la actividad · Nota = ese puntaje convertido a la escala del curso, que es la que cuenta para tu calificación final.",
-    "footerNote": "La calificación del curso se calcula sumando el promedio ponderado de cada corte. Cada corte promedia talleres, exámenes, proyectos y asistencia con los pesos definidos por el docente. Componentes sin datos no penalizan: sus pesos se reparten entre los demás.",
+    "footerNote": "La calificación del curso es el promedio ponderado de los talleres, exámenes, proyectos y la asistencia de cada corte, con los pesos que definió el docente. Cuenta solo lo que ya se dio: una sesión, cuando se tomó asistencia; una actividad, cuando cerró. Lo que entregaste y falta calificar no cuenta hasta tener nota, y lo que no entregaste de una actividad cerrada cuenta 0.",
     "loadErrorFallback": "No pudimos cargar tus notas en este momento."
   },
   "studentPolls": {
@@ -9060,10 +9060,8 @@
     "gradeHelpDecimals": "(mostrado al lado del título). Decimales con coma (ej. 4,5).",
     "status": "Estado",
     "suspicious": "Sospechoso",
-    "sessionsInCutRange": "{{count}} sesión en el rango del corte",
-    "sessionsInCutRange_other": "{{count}} sesiones en el rango del corte",
     "sessionsPresent": "Sesiones presente",
-    "totalSessions": "Total sesiones",
+    "totalSessions": "Sesiones dadas",
     "attendancePct": "% asistencia",
     "gradeWithScale": "Nota ({{min}}–{{max}})",
     "noAttendanceSessionsInCut": "No hay sesiones de asistencia asignadas a este corte.",
@@ -11093,5 +11091,28 @@
     "toReply_other": "{{count}} por responder",
     "toClose_one": "{{count}} por cerrar",
     "toClose_other": "{{count}} por cerrar"
+  },
+  "notaRelativa": {
+    "notaParcial": "Nota parcial",
+    "soloLoQueSeDio": "Cuenta solo lo que ya se dio en el curso.",
+    "explicacion": "La nota es relativa a lo que ya se dio: una sesión cuenta cuando alguien quedó marcado en ella, y una actividad cuando cerró o, si es externa, cuando ya tiene notas. Lo entregado que falta calificar no cuenta hasta tener nota, y lo que no se le asignó a un estudiante no le cuenta como 0.",
+    "certificadoParcialHint": "Todavía hay actividades abiertas o por calificar, o sesiones por darse. El certificado se emite con la nota definitiva.",
+    "certificadosParciales_one": "{{count}} estudiante aprueba con lo que va del curso, pero su nota todavía es parcial: el certificado se emite con la nota definitiva.",
+    "certificadosParciales_other": "{{count}} estudiantes aprueban con lo que va del curso, pero su nota todavía es parcial: el certificado se emite con la nota definitiva.",
+    "certificadosOmitidos_one": "{{count}} aprobado más queda afuera porque su nota todavía es parcial.",
+    "certificadosOmitidos_other": "{{count}} aprobados más quedan afuera porque su nota todavía es parcial.",
+    "motivoAbierta": "Abierta: todavía no cuenta",
+    "motivoPorCalificar": "Por calificar: todavía no cuenta",
+    "motivoCuentaCero": "Sin nota: cuenta 0",
+    "motivoPesoCero": "Peso 0 %: no suma a la nota",
+    "motivoNoAsignada": "No asignada: no cuenta",
+    "sesionesDadasDeProgramadas_one": "{{dadas}} de {{count}} sesión dada",
+    "sesionesDadasDeProgramadas_other": "{{dadas}} de {{count}} sesiones dadas",
+    "asistenciaSesionesDadas_one": "La asistencia cuenta solo las sesiones que ya se dieron (con al menos una asistencia marcada): {{dadas}} de {{count}} programada en el corte.",
+    "asistenciaSesionesDadas_other": "La asistencia cuenta solo las sesiones que ya se dieron (con al menos una asistencia marcada): {{dadas}} de {{count}} programadas en el corte.",
+    "ningunaSesionDada": "Todavía no se ha dado ninguna sesión de este corte (ninguna tiene asistencia marcada): la asistencia no cuenta aún.",
+    "asistenciaDeLasDadas_one": "Cuentan solo las sesiones que ya se dieron, de {{count}} programada.",
+    "asistenciaDeLasDadas_other": "Cuentan solo las sesiones que ya se dieron, de {{count}} programadas.",
+    "asistenciaSinSesionesDadas": "Asistencia (todavía no se ha dado ninguna sesión de este corte)"
   }
 }

@@ -202,6 +202,8 @@ type Project = {
   id: string;
   course_id: string;
   cut_id: string | null;
+  /** Peso en el curso ancla (% de la nota final); el de cada curso vive en project_courses. */
+  weight?: number | null;
   title: string;
   description: string | null;
   instructions: string | null;
@@ -702,9 +704,13 @@ function TeacherProjects() {
       cut_id: string | null;
       weight: number;
     }[] = [];
+    // Sin la lista de vínculos no se sabe cuáles faltan: el auto-reparo de abajo
+    // se salta, o tomaría cada proyecto por huérfano.
+    let pcsCargados = false;
     try {
       const pcs = await db.from("project_courses").select("project_id, course_id, cut_id, weight");
       if (pcs.error) throw new Error(`project_courses: ${pcs.error.message}`);
+      pcsCargados = true;
       pcsRows = (pcs.data ?? []) as {
         project_id: string;
         course_id: string;
@@ -757,9 +763,19 @@ function TeacherProjects() {
       // el vínculo y un fallo silencioso del INSERT lo dejaba huérfano),
       // intentamos crear la fila ahora. Sin esto, ese proyecto NO se
       // encontraba al filtrar por su curso primario tras el bug.
+      // La fila se crea con el corte y el peso del PROYECTO (su curso ancla es
+      // este): sin ellos nacía con el corte vacío y el peso por defecto de 1, y
+      // así quedó el proyecto integrador de UNIAJ, que su fila dice Corte 3 · 20 %.
       const missingLinks = projectsRaw
-        .filter((p) => p.course_id && !(linkMap.get(p.id) ?? []).includes(p.course_id))
-        .map((p) => ({ project_id: p.id, course_id: p.course_id }));
+        .filter(
+          (p) => pcsCargados && p.course_id && !(linkMap.get(p.id) ?? []).includes(p.course_id),
+        )
+        .map((p) => ({
+          project_id: p.id,
+          course_id: p.course_id,
+          cut_id: p.cut_id ?? null,
+          weight: p.weight != null ? Math.max(0, Number(p.weight)) : 1,
+        }));
       if (missingLinks.length) {
         console.warn(
           `[projects] self-healing ${missingLinks.length} missing project_courses link(s)`,
@@ -767,7 +783,9 @@ function TeacherProjects() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: healErr } = await (db as any)
           .from("project_courses")
-          .upsert(missingLinks, { onConflict: "project_id,course_id" });
+          // ignoreDuplicates: si la fila ya existe (la lista vino truncada, o la
+          // creó otra pestaña), NO se pisa su corte ni su peso.
+          .upsert(missingLinks, { onConflict: "project_id,course_id", ignoreDuplicates: true });
         if (healErr) {
           console.warn("[projects] self-heal insert failed", healErr);
         } else {

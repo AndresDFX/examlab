@@ -98,22 +98,26 @@ export function indiceDeCortes(
  * tabla de unión, el 86 % de las tarjetas del estudiante saldría sin corte y
  * sin porcentaje — o sea, la funcionalidad no existiría para casi nadie.
  *
- * Cuando las DOS existen gana la de unión, y no es una preferencia: es la que
- * usan el gradebook del docente y la pantalla de notas del estudiante para
- * calcular. En producción hay 3 talleres donde difieren —«Taller Corte 1
- * (Clases 1 a 4)» dice 10 % en su fila y 2,5 % en la de unión— y mostrarle al
- * alumno el 10 % sería contradecir su propia nota. Ojo con el detalle: la
- * grilla del DOCENTE lee la fila de la actividad, así que en esos 3 casos
- * docente y estudiante ven números distintos. Eso es un defecto de la grilla
- * del docente, no de acá.
+ * Cuando las DOS existen gana la de unión, y no es una preferencia: es la
+ * misma resolución que usa la NOTA (`corteYPesoEnCurso`, nota-relativa.ts), en
+ * el libro del docente, «Mis notas», el boletín y el acta. En producción hay 3
+ * talleres donde difieren —«Taller Corte 1 (Clases 1 a 4)» dice 10 % en su fila
+ * y 2,5 % en la de unión— y mostrarle al alumno el 10 % sería contradecir su
+ * propia nota. Ojo con el detalle: la grilla del DOCENTE (talleres) lee la fila
+ * de la actividad, así que en esos 3 casos docente y estudiante ven números
+ * distintos. Eso es un defecto de esa grilla, no de acá.
  */
 export function filaQueManda<T extends { cut_id: string | null; weight: number | null }>(
   deUnion: T | undefined | null,
   dePropia: { cut_id?: string | null; weight?: number | null } | undefined | null,
 ): { cut_id: string | null | undefined; weight: number | null | undefined } {
   // Una fila de unión SIN corte no se toma como respuesta: significa que nunca
-  // se le asignó corte en ese curso, y la de la actividad puede tenerlo.
-  if (deUnion && deUnion.cut_id) return deUnion;
+  // se le asignó corte en ese curso, y la de la actividad puede tenerlo. Con
+  // corte pero sin peso vale el de la actividad, que es lo que la columna
+  // documenta (`NULL = se usa workshops.weight`) y lo que calcula la nota.
+  if (deUnion && deUnion.cut_id) {
+    return { cut_id: deUnion.cut_id, weight: deUnion.weight ?? dePropia?.weight };
+  }
   return { cut_id: dePropia?.cut_id, weight: dePropia?.weight };
 }
 

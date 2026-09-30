@@ -62,7 +62,16 @@ import {
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
-import { computeWeightedGrade, countsAsPresent, type GradedItem } from "@/modules/grading/grade";
+import { computeWeightedGrade } from "@/modules/grading/grade";
+import { corteYPesoEnCurso, sesionesDadas } from "@/modules/grading/nota-relativa";
+import { todasLasFilas } from "@/shared/lib/todas-las-filas";
+import {
+  actividadesConNota,
+  notaDelEstudianteEnCurso,
+  type DatosParaNota,
+  type DetalleDeItem,
+  type NotaCompleta,
+} from "@/modules/grading/nota-del-curso";
 import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { courseIdsInScope } from "@/modules/courses/course-filter-scope";
 import {
@@ -140,11 +149,19 @@ type Exam = {
   weight?: number | null;
   retry_mode?: string | null;
   status?: string | null;
+  /** Cierre de la ventana: decide si el examen «ya se dio» (nota relativa). */
+  end_time?: string | null;
+  is_external?: boolean | null;
   /** Solo en recuperaciones: supletorio | recuperatorio (mig 20262650000000). */
   makeup_kind?: string | null;
   recovery_rule?: string | null;
   created_at?: string | null;
 };
+/**
+ * Taller o proyecto tal como viene de SU fila: `cut_id`/`weight` son los del
+ * curso ancla. El corte y el peso en ESTE curso los resuelve
+ * `corteYPesoEnCurso` con la fila de unión (y quedan en la columna).
+ */
 type Workshop = {
   id: string;
   title: string;
@@ -152,6 +169,7 @@ type Workshop = {
   max_score: number;
   cut_id?: string | null;
   weight?: number | null;
+  due_date?: string | null;
   is_external?: boolean | null;
   status?: string | null;
   requires_defense?: boolean | null;
@@ -168,8 +186,17 @@ type Project = {
   max_score: number;
   cut_id: string | null;
   weight?: number | null;
+  due_date?: string | null;
   is_external?: boolean | null;
   status?: string | null;
+};
+/** Fila de `workshop_courses` / `project_courses`: corte y peso en este curso. */
+type FilaDeUnion = { cut_id: string | null; weight: number | null };
+type Asignaciones = { examenes: Set<string>; talleres: Set<string>; proyectos: Set<string> };
+const SIN_ASIGNACIONES: Asignaciones = {
+  examenes: new Set(),
+  talleres: new Set(),
+  proyectos: new Set(),
 };
 type Cut = {
   id: string;
@@ -319,6 +346,9 @@ function Gradebook() {
   const [allWorkshops, setAllWorkshops] = useState<Workshop[]>([]);
   const [cuts, setCuts] = useState<Cut[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  // Filas de unión por actividad (corte y peso EN ESTE curso).
+  const [wsUnion, setWsUnion] = useState<Map<string, FilaDeUnion>>(new Map());
+  const [prjUnion, setPrjUnion] = useState<Map<string, FilaDeUnion>>(new Map());
   const [projectSubs, setProjectSubs] = useState<ProjectSub[]>([]);
   // Membresía de grupo por usuario (taller/proyecto): userId → set de group_ids.
   // Necesario porque una entrega grupal tiene user_id = solo el "último editor";
@@ -327,6 +357,9 @@ function Gradebook() {
   const [prjGroupsByUser, setPrjGroupsByUser] = useState<Map<string, Set<string>>>(new Map());
   const [attSessions, setAttSessions] = useState<AttSession[]>([]);
   const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
+  // Lo asignado a cada estudiante: sin asignación no ve la actividad, así que
+  // sin entrega no le cuenta como 0 (nota-relativa.ts).
+  const [asignaciones, setAsignaciones] = useState<Map<string, Asignaciones>>(new Map());
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
   // Progreso de "Guardar cambios": el guardado es un loop SECUENCIAL de
@@ -453,12 +486,16 @@ function Gradebook() {
   // o hacer setState sobre un componente desmontado.
   const loadSeqRef = useRef(0);
   const mountedRef = useRef(true);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Se vuelve a poner en true al montar: en desarrollo StrictMode monta,
+    // desmonta y vuelve a montar, y sin esto el ref quedaba en false para
+    // siempre — toda carga se descartaba por «vieja» y el libro se quedaba en
+    // «Cargando calificaciones…».
+    mountedRef.current = true;
+    return () => {
       mountedRef.current = false;
-    },
-    [],
-  );
+    };
+  }, []);
 
   // Load data for selected course
   const loadCourse = useCallback(async () => {
@@ -510,34 +547,47 @@ function Gradebook() {
     // gradebook ↔ app.student.grades (ver CLAUDE.md): ambos deben excluir draft.
     const exams = ((examsRaw ?? []) as Exam[]).filter((e) => (e.status ?? "published") !== "draft");
 
-    // Workshops: query via workshop_courses (M:N) para incluir los talleres
-    // COMPARTIDOS a este curso como SECUNDARIO y usar el cut_id/weight POR
-    // CURSO (no el global legacy de workshops). Espejo exacto del query de
-    // proyectos de abajo. Cargar por workshops.course_id (ancla legacy)
-    // dejaba un taller compartido invisible (sin columna ni nota) en el
-    // curso secundario.
-    const wcData = await must<any>(
-      "workshop_courses",
-      db
-        .from("workshop_courses")
-        // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
-        // columnas de recuperación (mig 20262660000000) pueden llegar después
-        // que el frontend; pedirlas por nombre haría fallar la consulta entera.
-        .select("cut_id, weight, workshop:workshops(*)")
-        .eq("course_id", courseId),
+    // Talleres del curso: los que tienen fila en workshop_courses (M:N, incluye
+    // los COMPARTIDOS a este curso como secundario) MÁS los anclados a este
+    // curso que no la tienen. Solo por la fila de unión, un taller duplicado o
+    // importado sin ella quedaba INVISIBLE: sin columna y fuera de la nota
+    // (medido en UNIAJ el 2026-09-30: tres talleres del corte 2 al 10 %).
+    // La fila del taller se guarda TAL CUAL; el corte y el peso en este curso
+    // los resuelve `corteYPesoEnCurso` (manda la de unión si tiene corte).
+    const [wcData, wsAncla] = await Promise.all([
+      must<any>(
+        "workshop_courses",
+        db
+          .from("workshop_courses")
+          // `workshop:workshops(*)` y no la lista: `parent_workshop_id` y las
+          // columnas de recuperación (mig 20262660000000) pueden llegar después
+          // que el frontend; pedirlas por nombre haría fallar la consulta entera.
+          .select("workshop_id, cut_id, weight, workshop:workshops(*)")
+          .eq("course_id", courseId),
+      ),
+      must<Workshop>(
+        "workshops",
+        db.from("workshops").select("*").eq("course_id", courseId).is("deleted_at", null),
+      ),
+    ]);
+    const wcMap = new Map<string, FilaDeUnion>(
+      (wcData ?? []).map((wc: any) => [
+        wc.workshop_id ?? wc.workshop?.id,
+        { cut_id: wc.cut_id ?? null, weight: wc.weight ?? null },
+      ]),
     );
-    const workshops = (wcData ?? [])
-      .filter(
-        (wc: any) =>
-          wc.workshop &&
-          !wc.workshop.deleted_at && // en papelera → excluido
-          (wc.workshop.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
-      )
-      .map((wc: any) => ({
-        ...wc.workshop,
-        cut_id: wc.cut_id,
-        weight: wc.weight,
-      }));
+    const workshops = [
+      ...new Map<string, Workshop>(
+        [...(wcData ?? []).map((wc: any) => wc.workshop), ...(wsAncla ?? [])]
+          .filter(
+            (w: any) =>
+              w &&
+              !w.deleted_at && // en papelera → excluido
+              (w.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
+          )
+          .map((w: any) => [w.id, w as Workshop]),
+      ).values(),
+    ];
 
     // Cortes evaluativos
     const cutsData = await must<Cut>(
@@ -551,29 +601,43 @@ function Gradebook() {
         .order("position"),
     );
 
-    // Proyectos: query via project_courses para incluir secundarios y usar
-    // cut_id/weight por curso en vez del global de projects.
-    const pcData = await must<any>(
-      "project_courses",
-      db
-        .from("project_courses")
-        .select(
-          "cut_id, weight, project:projects(id, title, course_id, max_score, is_external, deleted_at, status)",
-        )
-        .eq("course_id", courseId),
+    // Proyectos: igual que los talleres — por project_courses (secundarios
+    // incluidos) más los anclados a este curso. Una fila de unión SIN corte
+    // (la que crea el auto-reparo de la pantalla de proyectos, con el peso por
+    // defecto de 1) no manda: el corte y el peso salen de la fila del proyecto.
+    const PRJ_COLS =
+      "id, title, course_id, max_score, is_external, deleted_at, status, cut_id, weight, due_date";
+    const [pcData, prjAncla] = await Promise.all([
+      must<any>(
+        "project_courses",
+        db
+          .from("project_courses")
+          .select(`project_id, cut_id, weight, project:projects(${PRJ_COLS})`)
+          .eq("course_id", courseId),
+      ),
+      must<Project>(
+        "projects",
+        db.from("projects").select(PRJ_COLS).eq("course_id", courseId).is("deleted_at", null),
+      ),
+    ]);
+    const pcMap = new Map<string, FilaDeUnion>(
+      (pcData ?? []).map((pc: any) => [
+        pc.project_id ?? pc.project?.id,
+        { cut_id: pc.cut_id ?? null, weight: pc.weight ?? null },
+      ]),
     );
-    const projectsData = (pcData ?? [])
-      .filter(
-        (pc: any) =>
-          pc.project &&
-          !pc.project.deleted_at && // en papelera → excluido
-          (pc.project.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
-      )
-      .map((pc: any) => ({
-        ...pc.project,
-        cut_id: pc.cut_id,
-        weight: pc.weight,
-      }));
+    const projectsData = [
+      ...new Map<string, Project>(
+        [...(pcData ?? []).map((pc: any) => pc.project), ...(prjAncla ?? [])]
+          .filter(
+            (p: any) =>
+              p &&
+              !p.deleted_at && // en papelera → excluido
+              (p.status ?? "published") !== "draft", // borrador → no cuenta (paridad estudiante)
+          )
+          .map((p: any) => [p.id, p as Project]),
+      ).values(),
+    ];
 
     // Sesiones de asistencia. cut_id es el FK explícito al corte
     // (migración 20260509020000). Si llega null, la sesión no aporta a
@@ -589,9 +653,11 @@ function Gradebook() {
 
     if (stale()) return;
     setAllExams((exams ?? []) as Exam[]);
-    setAllWorkshops((workshops ?? []) as Workshop[]);
+    setAllWorkshops(workshops);
+    setWsUnion(wcMap);
     setCuts((cutsData ?? []) as Cut[]);
-    setProjects((projectsData ?? []) as Project[]);
+    setProjects(projectsData);
+    setPrjUnion(pcMap);
     setAttSessions((sessions ?? []) as AttSession[]);
 
     // Build columns: original exams (no parent) + workshops + projects
@@ -607,28 +673,37 @@ function Gradebook() {
       }));
 
     // Solo talleres ORIGINALES tienen columna: la nota de una recuperación se
-    // pliega en la del original (getGrade), con la insignia S/R.
-    const wsCols: GradeColumn[] = ((workshops ?? []) as Workshop[])
+    // pliega en la del original (getGrade), con la insignia S/R. El corte y el
+    // peso de la columna son los que usa la nota (`corteYPesoEnCurso`): si no
+    // coincidieran, el detalle del corte mostraría un taller que no suma, o
+    // «Sin corte» uno que sí.
+    const wsCols: GradeColumn[] = workshops
       .filter((w) => !w.parent_workshop_id)
-      .map((w) => ({
-        id: w.id,
-        title: w.title,
-        kind: "workshop" as const,
-        maxScore: w.max_score,
-        isExternal: !!w.is_external,
-        weight: w.weight ?? null,
-        cutId: w.cut_id ?? null,
-      }));
+      .map((w) => {
+        const r = corteYPesoEnCurso(wcMap.get(w.id), w, courseId);
+        return {
+          id: w.id,
+          title: w.title,
+          kind: "workshop" as const,
+          maxScore: w.max_score,
+          isExternal: !!w.is_external,
+          weight: r.cutId ? r.weight : null,
+          cutId: r.cutId,
+        };
+      });
 
-    const prjCols: GradeColumn[] = ((projectsData ?? []) as Project[]).map((p) => ({
-      id: p.id,
-      title: p.title,
-      kind: "project" as const,
-      maxScore: p.max_score,
-      isExternal: !!p.is_external,
-      weight: p.weight ?? null,
-      cutId: p.cut_id ?? null,
-    }));
+    const prjCols: GradeColumn[] = projectsData.map((p) => {
+      const r = corteYPesoEnCurso(pcMap.get(p.id), p, courseId);
+      return {
+        id: p.id,
+        title: p.title,
+        kind: "project" as const,
+        maxScore: p.max_score,
+        isExternal: !!p.is_external,
+        weight: r.cutId ? r.weight : null,
+        cutId: r.cutId,
+      };
+    });
 
     setColumns([...examCols, ...wsCols, ...prjCols]);
 
@@ -657,12 +732,18 @@ function Gradebook() {
     // Exam submissions
     const examIds = (exams ?? []).map((e: any) => e.id);
     if (examIds.length) {
+      // Paginado (`todasLasFilas`): PostgREST corta en 1000 filas sin avisar,
+      // y de estas tablas por estudiante sale la nota — ver el helper.
       const es = await must<any>(
         "submissions",
-        supabase
-          .from("submissions")
-          .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
-          .in("exam_id", examIds),
+        todasLasFilas((desde, hasta) =>
+          supabase
+            .from("submissions")
+            .select("id, exam_id, user_id, ai_grade, final_override_grade, status, created_at")
+            .in("exam_id", examIds)
+            .order("id")
+            .range(desde, hasta),
+        ),
       );
       if (stale()) return;
       setExamSubs((es ?? []) as ExamSub[]);
@@ -675,10 +756,14 @@ function Gradebook() {
     if (wsIds.length) {
       const ws = await must<any>(
         "workshop_submissions",
-        supabase
-          .from("workshop_submissions")
-          .select("id, workshop_id, user_id, group_id, ai_grade, final_grade, status")
-          .in("workshop_id", wsIds),
+        todasLasFilas((desde, hasta) =>
+          supabase
+            .from("workshop_submissions")
+            .select("id, workshop_id, user_id, group_id, ai_grade, final_grade, status")
+            .in("workshop_id", wsIds)
+            .order("id")
+            .range(desde, hasta),
+        ),
       );
       if (stale()) return;
       setWsSubs((ws ?? []) as WsSub[]);
@@ -692,10 +777,15 @@ function Gradebook() {
       if (wgIds.length) {
         const wmembers = await must<any>(
           "workshop_group_members",
-          (supabase as any)
-            .from("workshop_group_members")
-            .select("group_id, user_id")
-            .in("group_id", wgIds),
+          todasLasFilas((desde, hasta) =>
+            (supabase as any)
+              .from("workshop_group_members")
+              .select("group_id, user_id")
+              .in("group_id", wgIds)
+              .order("group_id")
+              .order("user_id")
+              .range(desde, hasta),
+          ),
         );
         for (const m of (wmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
           if (!wsMap.has(m.user_id)) wsMap.set(m.user_id, new Set());
@@ -714,10 +804,14 @@ function Gradebook() {
     if (prjIds.length && userIds.length) {
       const ps = await must<ProjectSub>(
         "project_submissions",
-        db
-          .from("project_submissions")
-          .select("project_id, user_id, group_id, ai_grade, final_grade, status")
-          .in("project_id", prjIds),
+        todasLasFilas((desde, hasta) =>
+          db
+            .from("project_submissions")
+            .select("project_id, user_id, group_id, ai_grade, final_grade, status")
+            .in("project_id", prjIds)
+            .order("id")
+            .range(desde, hasta),
+        ),
       );
       if (stale()) return;
       setProjectSubs((ps ?? []) as ProjectSub[]);
@@ -730,10 +824,15 @@ function Gradebook() {
       if (pgIds.length) {
         const pmembers = await must<any>(
           "project_group_members",
-          (db as any)
-            .from("project_group_members")
-            .select("group_id, user_id")
-            .in("group_id", pgIds),
+          todasLasFilas((desde, hasta) =>
+            (db as any)
+              .from("project_group_members")
+              .select("group_id, user_id")
+              .in("group_id", pgIds)
+              .order("group_id")
+              .order("user_id")
+              .range(desde, hasta),
+          ),
         );
         for (const m of (pmembers ?? []) as Array<{ group_id: string; user_id: string }>) {
           if (!prjMap.has(m.user_id)) prjMap.set(m.user_id, new Set());
@@ -752,16 +851,77 @@ function Gradebook() {
     if (sessIds.length && userIds.length) {
       const ar = await must<AttRecord>(
         "attendance_records",
-        db
-          .from("attendance_records")
-          .select("session_id, user_id, status")
-          .in("session_id", sessIds),
+        todasLasFilas((desde, hasta) =>
+          db
+            .from("attendance_records")
+            .select("session_id, user_id, status")
+            .in("session_id", sessIds)
+            .order("id")
+            .range(desde, hasta),
+        ),
       );
       if (stale()) return;
       setAttRecords((ar ?? []) as AttRecord[]);
     } else {
       setAttRecords([]);
     }
+
+    // Asignaciones de las actividades del curso, por estudiante.
+    const [asigEx, asigWs, asigPrj] = await Promise.all([
+      examIds.length
+        ? must<{ exam_id: string; user_id: string }>(
+            "exam_assignments",
+            todasLasFilas((desde, hasta) =>
+              db
+                .from("exam_assignments")
+                .select("exam_id, user_id")
+                .in("exam_id", examIds)
+                .order("id")
+                .range(desde, hasta),
+            ),
+          )
+        : Promise.resolve([]),
+      wsIds.length
+        ? must<{ workshop_id: string; user_id: string }>(
+            "workshop_assignments",
+            todasLasFilas((desde, hasta) =>
+              db
+                .from("workshop_assignments")
+                .select("workshop_id, user_id")
+                .in("workshop_id", wsIds)
+                .order("id")
+                .range(desde, hasta),
+            ),
+          )
+        : Promise.resolve([]),
+      prjIds.length
+        ? must<{ project_id: string; user_id: string }>(
+            "project_assignments",
+            todasLasFilas((desde, hasta) =>
+              db
+                .from("project_assignments")
+                .select("project_id, user_id")
+                .in("project_id", prjIds)
+                .order("id")
+                .range(desde, hasta),
+            ),
+          )
+        : Promise.resolve([]),
+    ]);
+    const asig = new Map<string, Asignaciones>();
+    const de = (uid: string) => {
+      let a = asig.get(uid);
+      if (!a) {
+        a = { examenes: new Set(), talleres: new Set(), proyectos: new Set() };
+        asig.set(uid, a);
+      }
+      return a;
+    };
+    for (const r of asigEx) de(r.user_id).examenes.add(r.exam_id);
+    for (const r of asigWs) de(r.user_id).talleres.add(r.workshop_id);
+    for (const r of asigPrj) de(r.user_id).proyectos.add(r.project_id);
+    if (stale()) return;
+    setAsignaciones(asig);
 
     if (stale()) return;
     setCourseDataError(null);
@@ -1363,167 +1523,122 @@ function Gradebook() {
   const detailCutColumns = detailCutId ? (columnsByCut.get(detailCutId) ?? []) : [];
   const detailCut = detailCutId ? cuts.find((c) => c.id === detailCutId) : null;
 
-  // ───────── Consolidado por cortes (modelo nuevo: peso = % de la nota final)
-  // Cada item (examen, taller, proyecto) y la asistencia por corte aportan
-  // directamente con su peso al cálculo. La nota del corte y la final usan
-  // computeWeightedGrade que reescala pesos cuando hay items sin score.
-  const consolidated = useMemo(() => {
-    if (!selectedCourse || !cuts.length || !students.length) return null;
-
-    const min = selectedCourse.grade_scale_min;
-    const max = selectedCourse.grade_scale_max;
-    const toScale = (raw: number, rawMax: number) => {
-      const pct = rawMax > 0 ? raw / rawMax : 0;
-      return min + pct * (max - min);
+  // ───────── La nota de cada estudiante (peso = % de la nota final)
+  // El cálculo es el de nota-del-curso.ts, el MISMO de «Mis notas» y del
+  // boletín: la nota es RELATIVA a lo que ya se dio. Una sesión cuenta si
+  // alguien quedó marcado en ella; una actividad abierta todavía no le baja la
+  // nota a nadie; una entregada sin calificar espera al docente. Antes este
+  // archivo tenía su propia copia, y las sesiones futuras entraban como faltas
+  // de todo el curso.
+  const datosParaNota = useMemo<DatosParaNota | null>(() => {
+    if (!selectedCourse) return null;
+    return {
+      courseId: selectedCourse.id,
+      escala: {
+        min: Number(selectedCourse.grade_scale_min),
+        max: Number(selectedCourse.grade_scale_max),
+      },
+      cursoFinalizado: selectedCourse.status === "finalizado",
+      cortes: cuts,
+      examenes: allExams,
+      talleres: allWorkshops,
+      unionTalleres: wsUnion,
+      proyectos: projects,
+      unionProyectos: prjUnion,
+      sesiones: attSessions,
+      sesionesDadas: sesionesDadas(attRecords),
+      conNota: actividadesConNota({
+        intentos: examSubs,
+        entregasTaller: wsSubs,
+        talleres: allWorkshops,
+        entregasProyecto: projectSubs,
+      }),
     };
-
-    const recordsBySessionUser = new Map<string, string>();
-    for (const r of attRecords) {
-      recordsBySessionUser.set(`${r.session_id}::${r.user_id}`, r.status);
-    }
-
-    return students.map((stu) => {
-      // Lista de items del curso (con su corte y peso). Se reusa para
-      // calcular el promedio del corte y el final.
-      const allItems: Array<{ cutId: string | null; score: number | null; weight: number }> = [];
-
-      // Exams (con makeup fallback). Respeta retry_mode (last/average/highest)
-      // vía computeAttemptGrade — IGUAL que getGrade. Antes tomaba un sub
-      // arbitrario con .find() ignorando retry_mode, así que la nota
-      // consolidada, la nota por corte y el CERTIFICADO que se emite desde
-      // este consolidado podían basarse en el intento equivocado.
-      const intentosDelEstudiante = examSubs.filter((s) => s.user_id === stu.id);
-      for (const e of allExams.filter((x) => !x.parent_exam_id)) {
-        // Supletorio y recuperatorio: misma regla que la celda (getGrade).
-        const raw = notaDeExamenParaEstudiante(e, allExams, intentosDelEstudiante).nota;
-        allItems.push({
-          cutId: e.cut_id ?? null,
-          weight: Math.max(0, Number((e as any).weight ?? 1) || 0),
-          score: raw != null ? toScale(Number(raw), max) : null,
-        });
-      }
-
-      // Workshops — para is_external la nota está en escala del curso
-      // (la captura ExternalGradesEditor con cap = grade_scale_max).
-      // Solo ORIGINALES: una recuperación no suma aparte, su nota se pliega en
-      // la del original (misma regla que la celda getGrade). Se pliega en la
-      // ESCALA DEL CURSO para comparar peras con peras aunque difieran max_score.
-      const wsById = new Map(allWorkshops.map((w) => [w.id, w]));
-      const subDeW = (wid: string) =>
-        wsSubs.find(
-          (s) => s.workshop_id === wid && !!s.group_id && !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
-        ) ?? wsSubs.find((s) => s.workshop_id === wid && s.user_id === stu.id);
-      const notaDeW = (wid: string) => {
-        const w = wsById.get(wid);
-        const sub = subDeW(wid);
-        // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota del
-        // TRABAJO. Este número alimenta el consolidado, el CSV y la EMISIÓN DE
-        // CERTIFICADOS (compara contra `passing_grade`).
-        const raw = notaEfectivaDeTaller(sub, (w as any)?.requires_defense);
-        const wMax = w?.is_external ? max : (w?.max_score ?? 100);
-        return { id: wid, presento: entregaHecha(sub ?? null), nota: raw != null ? toScale(Number(raw), wMax) : null };
-      };
-      const wsFilasG: FilaDeTaller[] = allWorkshops.map((w) => ({
-        id: w.id,
-        parent_workshop_id: w.parent_workshop_id ?? null,
-        makeup_kind: w.makeup_kind ?? null,
-        recovery_rule: w.recovery_rule ?? null,
-        created_at: w.created_at ?? null,
-        status: w.status ?? null,
-        deleted_at: null,
-      }));
-      for (const w of allWorkshops.filter((x) => !x.parent_workshop_id)) {
-        const score = notaDeTallerConRecuperaciones({ id: w.id, parent_workshop_id: null }, wsFilasG, notaDeW).nota;
-        allItems.push({
-          cutId: w.cut_id ?? null,
-          weight: Math.max(0, Number((w as any).weight ?? 1) || 0),
-          score,
-        });
-      }
-
-      // Projects — misma regla que workshops para is_external.
-      for (const p of projects) {
-        const sub =
-          projectSubs.find(
-            (s) =>
-              s.project_id === p.id &&
-              !!s.group_id &&
-              !!prjGroupsByUser.get(stu.id)?.has(s.group_id),
-          ) ?? projectSubs.find((s) => s.project_id === p.id && s.user_id === stu.id);
-        const raw = sub ? (sub.final_grade ?? sub.ai_grade) : null;
-        const pMax = p.is_external ? max : (p.max_score ?? 100);
-        allItems.push({
-          cutId: p.cut_id ?? null,
-          weight: Math.max(0, Number((p as any).weight ?? 1) || 0),
-          score: raw != null ? toScale(Number(raw), pMax) : null,
-        });
-      }
-
-      // Asistencia por corte: solo aporta si hay sesiones programadas en la
-      // ventana del corte. Sin sesiones → no es "nota perdida", es "no aplica
-      // todavía" → omitirlo del weighted avg (mismo criterio que la vista del
-      // estudiante en app.student.grades.tsx).
-      const attEntries = cuts
-        .map((cut) => {
-          // Filtramos sesiones por cut_id explícito (migración
-          // 20260509020000). Antes se inferiía por rango de fechas; ahora
-          // el docente la asigna al crear la sesión.
-          const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
-          if (sessionsInCut.length === 0) return null;
-          const present = sessionsInCut.filter((s) =>
-            countsAsPresent(recordsBySessionUser.get(`${s.id}::${stu.id}`)),
-          ).length;
-          const attAvg = min + (present / sessionsInCut.length) * (max - min);
-          return {
-            cutId: cut.id,
-            weight: Math.max(0, Number(cut.attendance_weight ?? 0) || 0),
-            score: attAvg,
-          };
-        })
-        .filter((e): e is { cutId: string; weight: number; score: number } => e != null);
-
-      // Nota por corte: weighted avg de items del corte + asistencia del corte
-      const cutGrades = cuts.map((cut) => {
-        const items: GradedItem[] = allItems
-          .filter((i) => i.cutId === cut.id)
-          .map((i) => ({ score: i.score, weight: i.weight }));
-        const att = attEntries.find((a) => a.cutId === cut.id);
-        if (att) items.push({ score: att.score, weight: att.weight });
-        return { cutId: cut.id, grade: computeWeightedGrade(items) };
-      });
-
-      // Nota final: weighted avg de TODOS los items + TODAS las asistencias.
-      // No es lo mismo que ponderar las notas de los cortes — esto evita
-      // doble redondeo/re-escala y respeta exactamente el peso configurado.
-      const finalItems: GradedItem[] = [
-        ...allItems.map((i) => ({ score: i.score, weight: i.weight })),
-        ...attEntries.map((a) => ({ score: a.score, weight: a.weight })),
-      ];
-      const finalGrade = computeWeightedGrade(finalItems);
-
-      // Asistencia por corte expuesta para el export Excel (single source of
-      // truth con la nota del corte de arriba). null cuando el corte no tiene
-      // sesiones → el export deja la celda vacía (no es nota perdida).
-      const attByCut = cuts.map((cut) => ({
-        cutId: cut.id,
-        score: attEntries.find((a) => a.cutId === cut.id)?.score ?? null,
-      }));
-
-      return { student: stu, cutGrades, finalGrade, attByCut };
-    });
   }, [
     selectedCourse,
     cuts,
-    students,
     allExams,
     allWorkshops,
+    wsUnion,
     projects,
+    prjUnion,
+    attSessions,
+    attRecords,
     examSubs,
     wsSubs,
     projectSubs,
-    attSessions,
-    attRecords,
   ]);
+
+  const notaPorEstudiante = useMemo(() => {
+    const porEstudiante = new Map<string, NotaCompleta>();
+    if (!datosParaNota) return porEstudiante;
+    const ahora = Date.now();
+    const estadoAsistencia = new Map<string, string>();
+    for (const r of attRecords) estadoAsistencia.set(`${r.session_id}::${r.user_id}`, r.status);
+    const intentosDe = new Map<string, ExamSub[]>();
+    for (const s of examSubs) {
+      const lista = intentosDe.get(s.user_id);
+      if (lista) lista.push(s);
+      else intentosDe.set(s.user_id, [s]);
+    }
+    for (const stu of students) {
+      // La entrega del GRUPO gana a una individual vieja (modo mixto), igual
+      // que la celda (getGrade) y que «Mis notas».
+      const entregaTaller = (wid: string) =>
+        wsSubs.find(
+          (s) =>
+            s.workshop_id === wid && !!s.group_id && !!wsGroupsByUser.get(stu.id)?.has(s.group_id),
+        ) ?? wsSubs.find((s) => s.workshop_id === wid && s.user_id === stu.id);
+      const entregaProyecto = (pid: string) =>
+        projectSubs.find(
+          (s) =>
+            s.project_id === pid && !!s.group_id && !!prjGroupsByUser.get(stu.id)?.has(s.group_id),
+        ) ?? projectSubs.find((s) => s.project_id === pid && s.user_id === stu.id);
+      porEstudiante.set(
+        stu.id,
+        notaDelEstudianteEnCurso(
+          datosParaNota,
+          {
+            intentos: intentosDe.get(stu.id) ?? [],
+            entregaTaller,
+            entregaProyecto,
+            estadoAsistencia: (sid) => estadoAsistencia.get(`${sid}::${stu.id}`),
+            // Sin ninguna fila, nada asignado (no `undefined`, que es «todo»).
+            asignaciones: asignaciones.get(stu.id) ?? SIN_ASIGNACIONES,
+          },
+          ahora,
+        ),
+      );
+    }
+    return porEstudiante;
+  }, [
+    datosParaNota,
+    students,
+    attRecords,
+    examSubs,
+    wsSubs,
+    wsGroupsByUser,
+    projectSubs,
+    prjGroupsByUser,
+    asignaciones,
+  ]);
+
+  // Consolidado por cortes: lo que muestran la tabla, el export y los
+  // certificados. `parcial` = todavía hay algo por darse o por calificar.
+  const consolidated = useMemo(() => {
+    if (!selectedCourse || !cuts.length || !students.length) return null;
+    return students.map((stu) => {
+      const n = notaPorEstudiante.get(stu.id);
+      return {
+        student: stu,
+        cutGrades: n?.cutGrades ?? cuts.map((c) => ({ cutId: c.id, grade: null })),
+        finalGrade: n?.finalGrade ?? null,
+        attByCut: n?.attByCut ?? cuts.map((c) => ({ cutId: c.id, score: null })),
+        parcial: n?.parcial ?? true,
+      };
+    });
+  }, [selectedCourse, cuts, students, notaPorEstudiante]);
+  const hayNotaParcial = consolidated?.some((r) => r.parcial) ?? false;
 
   // ── Certificados: emitir individual + bulk + descargar ──
 
@@ -1661,25 +1776,32 @@ function Gradebook() {
 
   const bulkIssueAll = useCallback(async () => {
     if (!selectedCourse || !consolidated) return;
-    const candidates = consolidated.filter((r) => {
+    const aprobados = consolidated.filter((r) => {
       if (r.finalGrade == null) return false;
       if (r.finalGrade < selectedCourse.passing_grade) return false;
       if (certByUserId[r.student.id]) return false;
       return true;
     });
+    // Con la nota PARCIAL no se emite: es la de lo que ya pasó, y a mitad de
+    // semestre casi todos «aprueban» un curso que no terminó.
+    const candidates = aprobados.filter((r) => !r.parcial);
+    const omitidos = aprobados.length - candidates.length;
     if (candidates.length === 0) {
       toast.info(
-        i18n.t("toast.routes_app_teacher_gradebook.noPendingStudents", {
-          defaultValue: "Sin estudiantes pendientes: todos los aprobados ya tienen certificado.",
-        }),
+        omitidos > 0
+          ? t("notaRelativa.certificadosParciales", { count: omitidos })
+          : i18n.t("toast.routes_app_teacher_gradebook.noPendingStudents", {
+              defaultValue: "Sin estudiantes pendientes: todos los aprobados ya tienen certificado.",
+            }),
+        { duration: 10000 },
       );
       return;
     }
     const ok = await confirm({
       title: t("hc_routesAppTeacherGradebook.bulkIssueTitle", { count: candidates.length }),
-      description: t("hc_routesAppTeacherGradebook.bulkIssueDescription", {
+      description: `${t("hc_routesAppTeacherGradebook.bulkIssueDescription", {
         course: selectedCourse.name,
-      }),
+      })}${omitidos > 0 ? ` ${t("notaRelativa.certificadosOmitidos", { count: omitidos })}` : ""}`,
       confirmLabel: t("hc_routesAppTeacherGradebook.issueAll"),
       tone: "warning",
     });
@@ -1774,52 +1896,68 @@ function Gradebook() {
     async (regenerate = false) => {
       if (!selectedCourse || !consolidated) return;
       // Universo de aprobados (válidos para emisión, con o sin cert vigente).
-      const approved = consolidated.filter((r) => {
+      // Quien tiene la nota PARCIAL queda afuera: ni se le emite ni —al
+      // regenerar— se le revoca el que tiene, porque se reemplazaría un
+      // certificado definitivo por uno con la nota de medio semestre.
+      const aprobadosTodos = consolidated.filter((r) => {
         if (r.finalGrade == null) return false;
         if (r.finalGrade < selectedCourse.passing_grade) return false;
         return true;
       });
+      const approved = aprobadosTodos.filter((r) => !r.parcial);
+      const omitidos = aprobadosTodos.length - approved.length;
+      const parcialDe = new Map(consolidated.map((r) => [r.student.id, r.parcial]));
       // En modo regenerar, todos los aprobados se vuelven a emitir.
       // En modo normal, solo los pendientes (sin cert vigente activo).
       const targets = regenerate ? approved : approved.filter((r) => !certByUserId[r.student.id]);
       const existingCount = Object.keys(certByUserId).length;
       if (targets.length === 0 && existingCount === 0) {
         toast.info(
-          i18n.t("toast.routes_app_teacher_gradebook.noApprovedIssuable", {
-            defaultValue: "No hay aprobados con certificado emitible en este curso.",
-          }),
+          omitidos > 0
+            ? t("notaRelativa.certificadosParciales", { count: omitidos })
+            : i18n.t("toast.routes_app_teacher_gradebook.noApprovedIssuable", {
+                defaultValue: "No hay aprobados con certificado emitible en este curso.",
+              }),
+          { duration: 10000 },
         );
         return;
       }
       if (regenerate && approved.length === 0) {
         toast.info(
-          i18n.t("toast.routes_app_teacher_gradebook.noApprovedStudents", {
-            defaultValue: "No hay estudiantes aprobados en este curso.",
-          }),
+          omitidos > 0
+            ? t("notaRelativa.certificadosParciales", { count: omitidos })
+            : i18n.t("toast.routes_app_teacher_gradebook.noApprovedStudents", {
+                defaultValue: "No hay estudiantes aprobados en este curso.",
+              }),
+          { duration: 10000 },
         );
         return;
       }
+      const avisoOmitidos =
+        omitidos > 0 ? ` ${t("notaRelativa.certificadosOmitidos", { count: omitidos })}` : "";
       const ok = await confirm({
         title: regenerate
           ? t("hc_routesAppTeacherGradebook.bulkRegenerateTitle", { count: approved.length })
           : t("hc_routesAppTeacherGradebook.bulkGenerateTitle", {
               count: targets.length + existingCount,
             }),
-        description: regenerate
-          ? t("hc_routesAppTeacherGradebook.bulkRegenerateDescription", {
-              count: approved.length,
-              course: selectedCourse.name,
-            })
-          : targets.length > 0
-            ? t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionWithIssue", {
-                count: targets.length,
+        description: `${
+          regenerate
+            ? t("hc_routesAppTeacherGradebook.bulkRegenerateDescription", {
+                count: approved.length,
                 course: selectedCourse.name,
-                total: targets.length + existingCount,
               })
-            : t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionDownloadOnly", {
-                count: existingCount,
-                course: selectedCourse.name,
-              }),
+            : targets.length > 0
+              ? t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionWithIssue", {
+                  count: targets.length,
+                  course: selectedCourse.name,
+                  total: targets.length + existingCount,
+                })
+              : t("hc_routesAppTeacherGradebook.bulkGenerateDescriptionDownloadOnly", {
+                  count: existingCount,
+                  course: selectedCourse.name,
+                })
+        }${avisoOmitidos}`,
         confirmLabel: regenerate
           ? t("hc_routesAppTeacherGradebook.regenerateAll")
           : t("hc_routesAppTeacherGradebook.generateAndDownload"),
@@ -1839,9 +1977,9 @@ function Gradebook() {
         // individual (arriba). certByUserId ya solo contiene vigentes
         // (reloadCertificates filtra .is("revoked_at", null)).
         if (regenerate && existingCount > 0) {
-          const vigentes = (Object.values(certByUserId) as Array<{ id?: string }>).filter(
-            (c) => c && c.id,
-          );
+          const vigentes = (
+            Object.values(certByUserId) as Array<{ id?: string; user_id?: string }>
+          ).filter((c) => c && c.id && !(c.user_id && parcialDe.get(c.user_id)));
           let firstRevErr: unknown = null;
           for (const cert of vigentes) {
             const { error: revErr } = await db.rpc("revoke_certificate", {
@@ -2239,9 +2377,18 @@ function Gradebook() {
             <HelpHint>
               {t("hc_routesAppTeacherGradebook.finalGradeHelpPrefix")}{" "}
               <strong>{t("hc_routesAppTeacherGradebook.evaluativeCuts")}</strong>{" "}
-              {t("hc_routesAppTeacherGradebook.finalGradeHelpSuffix")}
+              {t("hc_routesAppTeacherGradebook.finalGradeHelpSuffix")}{" "}
+              {t("notaRelativa.explicacion")}
             </HelpHint>
           </div>
+          {hayNotaParcial && (
+            <div className="text-sm inline-flex items-center gap-1.5">
+              <Badge variant="outline" className="text-3xs whitespace-nowrap shrink-0">
+                {t("notaRelativa.notaParcial")}
+              </Badge>
+              <span className="text-muted-foreground">{t("notaRelativa.soloLoQueSeDio")}</span>
+            </div>
+          )}
         </div>
       )}
 
@@ -2501,14 +2648,28 @@ function Gradebook() {
                                       window.open(buildVerifyUrl(cert.short_code), "_blank");
                                     }}
                                   />
-                                  <RowAction
-                                    label={t("hc_routesAppTeacherGradebook.regenerateRowAction")}
-                                    icon={RefreshCw}
-                                    onClick={() =>
-                                      void regenerateCertForStudent(row.student.id, row.finalGrade)
-                                    }
-                                  />
+                                  {/* Regenerar con la nota parcial reemplazaría el
+                                      certificado definitivo por uno de medio semestre. */}
+                                  {!row.parcial && (
+                                    <RowAction
+                                      label={t("hc_routesAppTeacherGradebook.regenerateRowAction")}
+                                      icon={RefreshCw}
+                                      onClick={() =>
+                                        void regenerateCertForStudent(row.student.id, row.finalGrade)
+                                      }
+                                    />
+                                  )}
                                 </div>
+                              );
+                            }
+                            if (row.parcial) {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground">
+                                  {t("notaRelativa.notaParcial")}
+                                  <HelpHint side="left">
+                                    {t("notaRelativa.certificadoParcialHint")}
+                                  </HelpHint>
+                                </span>
                               );
                             }
                             if (passes !== true) {
@@ -2578,10 +2739,9 @@ function Gradebook() {
 
       {/* Modal de detalle por corte — abre con "Ver detalle" en el header
           del consolidado. Muestra una sub-tabla por tipo (Talleres /
-          Exámenes / Proyectos) + una sub-tabla de Asistencia per-student
-          calculada desde attendance_sessions/records dentro del rango de
-          fechas del corte. Las ediciones comparten el state `edits` y se
-          guardan con el botón global "Guardar cambios". */}
+          Exámenes / Proyectos) + la Asistencia por estudiante sobre las
+          sesiones del corte (cut_id) que ya se dieron. Las ediciones comparten
+          el state `edits` y se guardan con el botón global "Guardar cambios". */}
       <Dialog
         open={detailCutId != null}
         onOpenChange={(o) => {
@@ -2604,10 +2764,8 @@ function Gradebook() {
               cut: detailCut,
               columns: detailCutColumns,
               students: filteredStudents,
-              getGrade,
-              selectedCourse,
+              notaDe: (id) => notaPorEstudiante.get(id),
               attSessions,
-              attRecords,
               onOpenStudent: setDetailStudentId,
             })}
         </DialogContent>
@@ -2655,7 +2813,7 @@ function Gradebook() {
               cellKey,
               selectedCourse,
               attSessions,
-              attRecords,
+              nota: notaPorEstudiante.get(detailStudentId),
             })}
         </DialogContent>
       </Dialog>
@@ -2667,46 +2825,27 @@ function Gradebook() {
 // Vista dentro del modal "Ver detalle del corte X". Resumen de 4 columnas
 // (Talleres / Exámenes / Proyectos / Asistencia) por estudiante: cada
 // celda es la nota PONDERADA del bucket dentro del corte (en escala del
-// curso). Eye button por fila abre un segundo modal con el desglose
-// completo (cada item + asistencia) para ese estudiante en el corte.
+// curso), con la MISMA regla de la nota del corte — lo que todavía no cuenta
+// (abierto, por calificar) tampoco entra acá. Eye button por fila abre un
+// segundo modal con el desglose completo (cada item + asistencia).
 function renderCutDetailGrouped({
   cut,
   columns,
   students,
-  getGrade,
-  selectedCourse,
+  notaDe,
   attSessions,
-  attRecords,
   onOpenStudent,
 }: {
   cut: Cut;
   columns: GradeColumn[];
   students: Student[];
-  getGrade: (
-    studentId: string,
-    col: GradeColumn,
-  ) => {
-    grade: number | null;
-    isMakeup: boolean;
-    makeupKind?: TipoRecuperacion;
-    status?: string;
-    subId?: string;
-  };
-  selectedCourse: Course | undefined;
+  notaDe: (studentId: string) => NotaCompleta | undefined;
   attSessions: AttSession[];
-  attRecords: AttRecord[];
   onOpenStudent: (studentId: string) => void;
 }) {
-  // Sesiones de este corte usando el FK explícito attendance_sessions.cut_id
-  // (migración 20260509020000). Antes se inferiía por rango de fechas.
+  // Sesiones PROGRAMADAS en el corte (FK attendance_sessions.cut_id, mig
+  // 20260509020000). La nota de asistencia se calcula sobre las que se dieron.
   const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
-  const sessionIdsInCut = new Set(sessionsInCut.map((s) => s.id));
-  const recordsBySessionUser = new Map<string, string>();
-  for (const r of attRecords) {
-    if (sessionIdsInCut.has(r.session_id)) {
-      recordsBySessionUser.set(`${r.session_id}::${r.user_id}`, r.status);
-    }
-  }
 
   const workshopCols = columns.filter((c) => c.kind === "workshop");
   const examCols = columns.filter((c) => c.kind === "exam");
@@ -2729,45 +2868,20 @@ function renderCutDetailGrouped({
     );
   }
 
-  // Subtotal de un bucket = promedio simple de notas de los items de
-  // ese tipo en este corte, escaladas a la escala del curso
-  // (0..grade_scale_max). Workshops/proyectos no externos vienen en
-  // 0..max_score (típicamente 0..100), así que hay que reescalar antes
-  // de promediar para que un curso con escala 0–5 no muestre 93.00.
-  const courseMax = selectedCourse?.grade_scale_max ?? 100;
-  const courseMin = selectedCourse?.grade_scale_min ?? 0;
-  const scaleToCourse = (col: GradeColumn, raw: number): number => {
-    // Exámenes y externos ya están en escala del curso.
-    if (col.kind === "exam" || col.isExternal) return raw;
-    const rawMax = col.maxScore ?? 100;
-    const pct = rawMax > 0 ? raw / rawMax : 0;
-    return courseMin + pct * (courseMax - courseMin);
-  };
-  const bucketAvg = (studentId: string, cols: GradeColumn[]): number | null => {
-    const grades = cols
-      .map((c) => {
-        const g = getGrade(studentId, c).grade;
-        return g != null ? scaleToCourse(c, g) : null;
-      })
-      .filter((g): g is number => g != null);
-    if (grades.length === 0) return null;
-    return grades.reduce((s, g) => s + g, 0) / grades.length;
-  };
-
-  // Asistencia por estudiante para este corte.
-  const attendanceFor = (studentId: string) => {
-    const present = sessionsInCut.filter((ses) =>
-      countsAsPresent(recordsBySessionUser.get(`${ses.id}::${studentId}`)),
-    ).length;
-    const total = sessionsInCut.length;
-    const pct = total > 0 ? present / total : 0;
-    const nota =
-      selectedCourse && total > 0
-        ? selectedCourse.grade_scale_min +
-          pct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
-        : null;
-    return { present, total, nota };
-  };
+  // Subtotal de un bucket = promedio PONDERADO de lo que cuenta de ese tipo en
+  // este corte, con las notas ya en la escala del curso. Antes era un promedio
+  // simple de lo calificado, así que un taller vencido sin entregar (que en la
+  // nota del corte vale 0) no aparecía acá y el bucket decía otra cosa.
+  const bucketNota = (studentId: string, tipo: DetalleDeItem["tipo"]): number | null =>
+    computeWeightedGrade(
+      (notaDe(studentId)?.items ?? [])
+        .filter((i) => i.tipo === tipo && i.cutId === cut.id && i.cuenta)
+        .map((i) => ({ score: i.score, weight: i.weight })),
+    );
+  // Cuántas se dieron es del curso, no del estudiante: da igual de quién se lea.
+  const dadasEnCorte = students.length
+    ? (notaDe(students[0].id)?.asistencia.get(cut.id)?.dadas ?? 0)
+    : 0;
 
   // Chips de resumen de pesos arriba del grid.
   const bucketSummary = [
@@ -2873,10 +2987,10 @@ function renderCutDetailGrouped({
                 </TableRow>
               )}
               {students.map((s) => {
-                const wAvg = bucketAvg(s.id, workshopCols);
-                const eAvg = bucketAvg(s.id, examCols);
-                const pAvg = bucketAvg(s.id, projectCols);
-                const att = attendanceFor(s.id);
+                const wAvg = bucketNota(s.id, "taller");
+                const eAvg = bucketNota(s.id, "examen");
+                const pAvg = bucketNota(s.id, "proyecto");
+                const att = notaDe(s.id)?.asistencia.get(cut.id);
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
@@ -2900,13 +3014,13 @@ function renderCutDetailGrouped({
                     )}
                     {showAttendance && (
                       <TableCell className="text-center bg-amber-400/5">
-                        {att.total > 0 ? (
+                        {att && att.dadas > 0 ? (
                           <div className="flex flex-col items-center gap-0.5">
                             <span className="text-sm tabular-nums font-medium">
                               {att.nota != null ? att.nota.toFixed(2) : "—"}
                             </span>
                             <span className="text-3xs text-muted-foreground tabular-nums">
-                              {att.present}/{att.total}
+                              {att.presentes}/{att.dadas}
                             </span>
                           </div>
                         ) : (
@@ -2934,6 +3048,14 @@ function renderCutDetailGrouped({
           {i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsHint")}
         </p>
       )}
+      {showAttendance && sessionsInCut.length > 0 && dadasEnCorte < sessionsInCut.length && (
+        <p className="text-2xs text-muted-foreground italic">
+          {i18n.t("notaRelativa.asistenciaSesionesDadas", {
+            dadas: dadasEnCorte,
+            count: sessionsInCut.length,
+          })}
+        </p>
+      )}
     </div>
   );
 }
@@ -2942,7 +3064,7 @@ function renderCutDetailGrouped({
 // Render del modal interno que se abre desde el ojo "Ver detalle" en
 // cada fila del modal del corte. Lista CADA item del corte (workshops,
 // exámenes, proyectos) para ESE estudiante con su nota editable, más
-// la fila de asistencia con presentes/total/nota (read-only).
+// la fila de asistencia con presentes/dadas/nota (read-only).
 function renderStudentCutDetail({
   cut,
   columns,
@@ -2953,7 +3075,7 @@ function renderStudentCutDetail({
   cellKey,
   selectedCourse,
   attSessions,
-  attRecords,
+  nota,
 }: {
   cut: Cut;
   columns: GradeColumn[];
@@ -2973,22 +3095,30 @@ function renderStudentCutDetail({
   cellKey: (studentId: string, colId: string) => string;
   selectedCourse: Course | undefined;
   attSessions: AttSession[];
-  attRecords: AttRecord[];
+  /** La nota del estudiante (nota-del-curso.ts): de ahí sale qué cuenta y por qué. */
+  nota: NotaCompleta | undefined;
 }) {
-  // Filtro por cut_id explícito (migración 20260509020000).
-  const sessionsInCut = attSessions.filter((s) => s.cut_id === cut.id);
-  const presentCount = sessionsInCut.filter((ses) =>
-    countsAsPresent(
-      attRecords.find((r) => r.session_id === ses.id && r.user_id === studentId)?.status,
-    ),
-  ).length;
-  const totalSess = sessionsInCut.length;
+  // Sesiones PROGRAMADAS en el corte (FK cut_id, mig 20260509020000); la nota
+  // de asistencia es sobre las que se DIERON (con al menos una marca).
+  const programadas = attSessions.filter((s) => s.cut_id === cut.id).length;
+  const asis = nota?.asistencia.get(cut.id);
+  const presentCount = asis?.presentes ?? 0;
+  const totalSess = asis?.dadas ?? 0;
   const attPct = totalSess > 0 ? presentCount / totalSess : 0;
-  const attNota =
-    selectedCourse && totalSess > 0
-      ? selectedCourse.grade_scale_min +
-        attPct * (selectedCourse.grade_scale_max - selectedCourse.grade_scale_min)
-      : null;
+  const attNota = asis?.nota ?? null;
+  const TIPO_DE_COLUMNA = { exam: "examen", workshop: "taller", project: "proyecto" } as const;
+  // Por qué una actividad sin nota cuenta o no, dicho con la regla relativa.
+  const motivoSinNota = (col: GradeColumn): string | null => {
+    const d = nota?.items.find((i) => i.tipo === TIPO_DE_COLUMNA[col.kind] && i.id === col.id);
+    if (!d || d.score != null) return null;
+    // Con peso 0 no mueve la nota: decir «cuenta 0» confunde.
+    if (d.weight <= 0) return i18n.t("notaRelativa.motivoPesoCero");
+    if (d.cuenta) return i18n.t("notaRelativa.motivoCuentaCero");
+    if (!d.seDio) return i18n.t("notaRelativa.motivoAbierta");
+    return d.entrego
+      ? i18n.t("notaRelativa.motivoPorCalificar")
+      : i18n.t("notaRelativa.motivoNoAsignada");
+  };
 
   const sectionDef: Array<{
     key: "workshop" | "exam" | "project";
@@ -3137,7 +3267,9 @@ function renderStudentCutDetail({
                             </span>
                           )}
                           {!g.isMakeup && g.status !== "sospechoso" && (
-                            <span className="text-3xs text-muted-foreground">—</span>
+                            <span className="text-3xs text-muted-foreground">
+                              {motivoSinNota(col) ?? "—"}
+                            </span>
                           )}
                         </div>
                       </TableCell>
@@ -3159,7 +3291,10 @@ function renderStudentCutDetail({
                 {i18n.t("hc_routesAppTeacherGradebook.attendance")}
               </span>
               <span className="text-2xs text-muted-foreground">
-                {i18n.t("hc_routesAppTeacherGradebook.sessionsInCutRange", { count: totalSess })}
+                {i18n.t("notaRelativa.sesionesDadasDeProgramadas", {
+                  dadas: totalSess,
+                  count: programadas,
+                })}
               </span>
             </div>
             <span className="text-2xs text-muted-foreground tabular-nums">
@@ -3197,7 +3332,9 @@ function renderStudentCutDetail({
                     colSpan={selectedCourse ? 4 : 3}
                     className="text-center text-muted-foreground py-4 text-xs italic"
                   >
-                    {i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsInCut")}
+                    {programadas === 0
+                      ? i18n.t("hc_routesAppTeacherGradebook.noAttendanceSessionsInCut")
+                      : i18n.t("notaRelativa.ningunaSesionDada")}
                   </TableCell>
                 </TableRow>
               ) : (
