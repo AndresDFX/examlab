@@ -83,6 +83,11 @@ import { applyClearOneWarning, applyClearAllWarnings } from "@/modules/exams/exa
 import { isExamOpen } from "@/modules/exams/exam-time";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { ConversationSection } from "@/modules/grading/ConversationSection";
+import {
+  estadoDeConversacion,
+  resumirHilos,
+  type ResumenConversacion,
+} from "@/modules/grading/estado-conversacion";
 import { computeIntegritySuggestion, mentionsAiPenalty } from "@/modules/exams/integrity";
 import {
   countPendingByUser,
@@ -598,9 +603,7 @@ function ExamMonitor() {
   // "Conversación" un badge con cuántos hilos abiertos hay y si alguno
   // espera respuesta del docente — sin tener que expandirla. La key es
   // `${submissionId}:${questionId}`.
-  const [threadsByQ, setThreadsByQ] = useState<Record<string, { count: number; pending: boolean }>>(
-    {},
-  );
+  const [threadsByQ, setThreadsByQ] = useState<Record<string, ResumenConversacion>>({});
   // Lo extraemos en una función callable (no solo dentro del effect)
   // para que el `FeedbackThread` pueda invocarla via `onChanged` cuando
   // el docente cierra/reabre/agrega un comentario. Sin esto, los
@@ -631,18 +634,11 @@ function ExamMonitor() {
       }[];
       const openCounts: Record<string, number> = {};
       const threadOwner = new Map<string, string>();
-      // Agrupado por (submissionId, questionId) para el resumen en cada
-      // question Card del modal.
-      const threadsByQKey = new Map<string, { id: string }[]>();
       for (const t of threadsArr) {
         const uid = subUserById.get(t.submission_id);
         if (!uid) continue;
         openCounts[uid] = (openCounts[uid] ?? 0) + 1;
         threadOwner.set(t.id, uid);
-        const key = `${t.submission_id}:${t.question_id}`;
-        const arr = threadsByQKey.get(key) ?? [];
-        arr.push({ id: t.id });
-        threadsByQKey.set(key, arr);
       }
       setOpenThreadsByUser(openCounts);
 
@@ -668,7 +664,6 @@ function ExamMonitor() {
         if (!lastByThread.has(c.thread_id)) lastByThread.set(c.thread_id, c.user_id);
       }
       const pendingCounts: Record<string, number> = {};
-      const pendingByThread = new Set<string>();
       for (const [threadId, ownerUid] of threadOwner.entries()) {
         const lastAuthor = lastByThread.get(threadId);
         // Pendiente si el último comentario lo escribió el ALUMNO
@@ -677,20 +672,13 @@ function ExamMonitor() {
         // ser ruido o un placeholder.
         if (lastAuthor && lastAuthor === ownerUid) {
           pendingCounts[ownerUid] = (pendingCounts[ownerUid] ?? 0) + 1;
-          pendingByThread.add(threadId);
         }
       }
       setPendingReplyByUser(pendingCounts);
 
-      // Aggregar a la forma final por (sub, q): count + has-pending.
-      const byQ: Record<string, { count: number; pending: boolean }> = {};
-      for (const [key, ths] of threadsByQKey.entries()) {
-        byQ[key] = {
-          count: ths.length,
-          pending: ths.some((tt) => pendingByThread.has(tt.id)),
-        };
-      }
-      setThreadsByQ(byQ);
+      // Por (sub, q): cuántos hilos, si alguno espera respuesta y si alguno ya
+      // respondido sigue abierto (falta cerrarlo) — ver estado-conversacion.ts.
+      setThreadsByQ(resumirHilos(threadsArr, lastByThread, subUserById));
     } catch (e) {
       console.warn("[monitor] reloadThreadCounts failed", e);
     }
@@ -2967,22 +2955,26 @@ function ExamMonitor() {
                       {(() => {
                         const open = openThreadsByUser[row.userId] ?? 0;
                         const pending = pendingReplyByUser[row.userId] ?? 0;
-                        if (open === 0 && pending === 0) {
+                        // Ámbar = respondidas que siguen abiertas (falta cerrarlas);
+                        // rojo = esperan respuesta. Antes el ámbar contaba TODAS las
+                        // abiertas y el rojo iba incluido: «por cerrar» no se veía.
+                        const porCerrar = Math.max(0, open - pending);
+                        if (porCerrar === 0 && pending === 0) {
                           return <span className="text-xs text-muted-foreground">—</span>;
                         }
                         return (
                           <div className="flex items-center gap-1">
-                            {open > 0 && (
+                            {porCerrar > 0 && (
                               <button
                                 type="button"
                                 onClick={() => openView(latest)}
                                 title={t("hc_routesAppTeacherMonitorExamId.openConversations", {
-                                  count: open,
+                                  count: porCerrar,
                                 })}
-                                className="inline-flex items-center gap-1 rounded-md border border-amber-400/60 bg-amber-400/15 px-1.5 py-0.5 text-2xs font-medium text-amber-700 dark:text-amber-300 hover:bg-amber-400/25 transition-colors"
+                                className="inline-flex items-center gap-1 rounded-md border border-warning/60 bg-warning/15 px-1.5 py-0.5 text-2xs font-medium text-warning-on-subtle hover:bg-warning/25 transition-colors"
                               >
                                 <MessageSquareText className="h-3 w-3" />
-                                <span className="tabular-nums">{open}</span>
+                                <span className="tabular-nums">{porCerrar}</span>
                               </button>
                             )}
                             {pending > 0 && (
@@ -3486,6 +3478,66 @@ function ExamMonitor() {
                     </CardContent>
                   </Card>
 
+                  {/* Conversaciones pendientes de ESTA entrega: qué pregunta falta
+                      responder y cuál falta cerrar, sin tener que recorrer las diez.
+                      Cada acceso lleva a la pregunta y la resalta. */}
+                  {(() => {
+                    const pendientes = questions
+                      .map((q, idx) => ({
+                        q,
+                        idx,
+                        estado: estadoDeConversacion(threadsByQ[`${viewingSub.id}:${q.id}`]),
+                      }))
+                      .filter((x) => x.estado);
+                    if (pendientes.length === 0) return null;
+                    const porResponder = pendientes.filter((x) => x.estado === "responder").length;
+                    const porCerrarQ = pendientes.length - porResponder;
+                    return (
+                      <div
+                        className={`rounded-md border p-2.5 space-y-2 ${
+                          porResponder > 0
+                            ? "border-destructive/40 bg-destructive/5"
+                            : "border-warning/50 bg-warning/10"
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-medium">
+                          <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
+                          <span>{t("conversacionesPendientes.title")}</span>
+                          {porResponder > 0 && (
+                            <span className="text-destructive">
+                              {t("conversacionesPendientes.toReply", { count: porResponder })}
+                            </span>
+                          )}
+                          {porCerrarQ > 0 && (
+                            <span className="text-warning-on-subtle">
+                              {t("conversacionesPendientes.toClose", { count: porCerrarQ })}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {pendientes.map(({ q, idx, estado }) => (
+                            <button
+                              key={q.id}
+                              type="button"
+                              onClick={() => setHighlightQuestionId(q.id)}
+                              className={`inline-flex min-h-8 items-center gap-1 rounded-md border px-2 text-2xs font-medium transition-colors ${
+                                estado === "responder"
+                                  ? "border-destructive/50 bg-destructive/10 text-destructive hover:bg-destructive/20"
+                                  : "border-warning/60 bg-warning/15 text-warning-on-subtle hover:bg-warning/25"
+                              }`}
+                            >
+                              {t("hc_routesAppTeacherMonitorExamId.questionN", { n: idx + 1 })}
+                              <span aria-hidden>·</span>
+                              {estado === "responder"
+                                ? t("integrity.conversationPending")
+                                : t("integrity.conversationAwaitingClose")}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+
                   {questions.length === 0 && (
                     <p className="text-sm text-muted-foreground">
                       {t("hc_routesAppTeacherMonitorExamId.examNoQuestions")}
@@ -3518,12 +3570,25 @@ function ExamMonitor() {
                       const bd = byId.get(q.id);
                       const override = manual[q.id];
                       const qEntry = qOverrides[q.id] ?? { score: null, feedback: "" };
+                      const estadoConv = estadoDeConversacion(
+                        threadsByQ[`${viewingSub.id}:${q.id}`],
+                      );
                       return (
                         <Card
                           key={q.id}
                           id={`exam-q-${q.id}`}
                           className={
-                            highlightQuestionId === q.id ? "ring-2 ring-primary/60" : undefined
+                            [
+                              highlightQuestionId === q.id ? "ring-2 ring-primary/60" : "",
+                              // La pregunta entera avisa, no solo la sección de abajo.
+                              estadoConv === "responder"
+                                ? "border-l-4 border-l-destructive"
+                                : estadoConv === "cerrar"
+                                  ? "border-l-4 border-l-warning"
+                                  : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ") || undefined
                           }
                         >
                           <CardHeader className="pb-2">
@@ -3534,6 +3599,21 @@ function ExamMonitor() {
                               <Badge variant="outline" className="text-3xs">
                                 {q.type}
                               </Badge>
+                              {estadoConv === "responder" && (
+                                <Badge variant="destructive" className="text-3xs">
+                                  <MessageSquareText className="h-2.5 w-2.5 mr-1" aria-hidden />
+                                  {t("integrity.conversationPending")}
+                                </Badge>
+                              )}
+                              {estadoConv === "cerrar" && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-3xs border-warning/60 bg-warning/15 text-warning-on-subtle"
+                                >
+                                  <MessageSquareText className="h-2.5 w-2.5 mr-1" aria-hidden />
+                                  {t("integrity.conversationAwaitingClose")}
+                                </Badge>
+                              )}
 {/* Solo para preguntas de CÓDIGO. `language` quedó con 'java' en 151
                                   preguntas que no lo son (cerrada, abierta, bd_sql…) porque el
                                   formulario lo manda igual, y sin este filtro una pregunta de

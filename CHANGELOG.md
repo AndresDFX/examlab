@@ -119,6 +119,17 @@ Lo que no se deduce del código:
 - **Carrera de despliegue**: las pantallas piden `workshops` con `select("*")` / `workshops(*)` en los
   embeds, no las columnas nuevas por nombre; el diálogo no deja crear mientras la columna no exista.
 
+### 💬 Conversaciones: «falta responder» (rojo) y «falta cerrar» (ámbar)
+
+En «Respuestas de…» un reclamo que el docente ya contestó pero no cerró se veía igual que una
+pregunta sin nada pendiente: el hilo quedaba abierto para siempre. Ahora hay tres estados
+([estado-conversacion.ts](src/modules/grading/estado-conversacion.ts), con tests): **falta responder**
+(el último mensaje es del estudiante, rojo), **falta cerrar** (ya respondiste y sigue abierto, ámbar)
+y nada pendiente. Se ve en la sección «Conversación» (que además se abre sola cuando hay algo
+pendiente), en el borde y el encabezado de cada pregunta, y en un resumen arriba del diálogo con
+accesos directos a cada pregunta. En la lista de estudiantes el ámbar pasó a contar las «por cerrar»
+(antes contaba todas las abiertas e incluía a las rojas). Igual en la calificación de talleres.
+
 ### 🗄️ El docente ve la respuesta de SQL como SQL y tablas, no como JSON
 
 En el monitor de exámenes una respuesta `bd_sql` se mostraba como el JSON con el que se guarda

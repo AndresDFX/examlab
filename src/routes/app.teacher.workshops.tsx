@@ -149,6 +149,7 @@ import { toCSV } from "@/shared/lib/csv";
 import { TeacherWorkshopQuestionsEditor } from "@/modules/workshops/WorkshopQuestions";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { ConversationSection } from "@/modules/grading/ConversationSection";
+import type { ResumenConversacion } from "@/modules/grading/estado-conversacion";
 // FraudPanel quitado: la detección de IA y copia ahora se muestra POR
 // pregunta dentro del Accordion (mismo patrón del monitor de exámenes).
 import { computeIntegritySuggestion } from "@/modules/exams/integrity";
@@ -774,7 +775,7 @@ function TeacherWorkshops() {
   // mensaje del thread lo escribió el alumno (espera respuesta del
   // docente). Se carga una sola vez en openGrading.
   const [wsThreadsByQ, setWsThreadsByQ] = useState<
-    Record<string, { count: number; pending: boolean }>
+    Record<string, ResumenConversacion>
   >({});
 
   // Assignment
@@ -1976,11 +1977,13 @@ function TeacherWorkshops() {
         for (const [tid, ownerUid] of threadOwner.entries()) {
           if (lastByThread.get(tid) === ownerUid) pendingByThread.add(tid);
         }
-        const byQ: Record<string, { count: number; pending: boolean }> = {};
+        // Con «falta cerrar» además de «falta responder» (estado-conversacion.ts).
+        const byQ: Record<string, ResumenConversacion> = {};
         for (const [key, ids] of threadsByQKey.entries()) {
           byQ[key] = {
             count: ids.length,
             pending: ids.some((tid) => pendingByThread.has(tid)),
+            awaitingClose: ids.some((tid) => !pendingByThread.has(tid)),
           };
         }
         setWsThreadsByQ(byQ);

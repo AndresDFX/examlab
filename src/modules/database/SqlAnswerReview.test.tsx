@@ -37,7 +37,12 @@ describe("SqlAnswerReview", () => {
     const valor = serializeSqlAnswer({
       sql: "grabt select on nomina to contadora; delete from pedido where id = 2;",
       results: [
-        { sql: "grabt select on nomina to contadora", columns: [], rows: [], error: 'syntax error at or near "grabt"' },
+        {
+          sql: "grabt select on nomina to contadora",
+          columns: [],
+          rows: [],
+          error: 'syntax error at or near "grabt"',
+        },
         { sql: "delete from pedido where id = 2", columns: [], rows: [], affectedRows: 1 },
       ],
     });

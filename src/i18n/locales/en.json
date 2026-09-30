@@ -1735,7 +1735,8 @@
     "rubricLabel": "Rubric",
     "gradingSection": "Grading this question",
     "conversation": "Conversation with student",
-    "conversationPending": "Awaiting reply",
+    "conversationPending": "Needs your reply",
+    "conversationAwaitingClose": "Still to close",
     "noCurrentGrade": "No current grade",
     "aiSection": "AI suspicion on submission",
     "aiNoSignal": "No AI suspicions for this submission.",
@@ -9139,7 +9140,7 @@
     "emptyNoStudentsStarted": "No student has started the exam yet.",
     "emptyNoSearchMatch": "No student matches the search.",
     "viewManageAttempts": "View and manage attempts",
-    "openConversations": "{{count}} open conversation(s)",
+    "openConversations": "{{count}} replied conversation(s) still to close",
     "pendingConversations": "{{count}} conversation(s) awaiting your reply",
     "resumeExamTitle": "Resume exam",
     "pauseExamTitle": "Pause exam",
@@ -11073,5 +11074,12 @@
     "noRows": "(0 rows)",
     "truncated": "Only the first {{max}} rows are stored.",
     "noAnswer": "No answer"
+  },
+  "conversacionesPendientes": {
+    "title": "Pending conversations:",
+    "toReply_one": "{{count}} to reply",
+    "toReply_other": "{{count}} to reply",
+    "toClose_one": "{{count}} to close",
+    "toClose_other": "{{count}} to close"
   }
 }

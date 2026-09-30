@@ -1735,7 +1735,8 @@
     "rubricLabel": "Rúbrica",
     "gradingSection": "Calificación de esta pregunta",
     "conversation": "Conversación con el estudiante",
-    "conversationPending": "Esperando respuesta",
+    "conversationPending": "Falta responder",
+    "conversationAwaitingClose": "Falta cerrar",
     "noCurrentGrade": "Sin nota actual",
     "aiSection": "Sospecha de IA en la entrega",
     "aiNoSignal": "Sin sospechas de IA para esta entrega.",
@@ -9139,7 +9140,7 @@
     "emptyNoStudentsStarted": "Ningún estudiante ha iniciado el examen aún.",
     "emptyNoSearchMatch": "Ningún estudiante coincide con la búsqueda.",
     "viewManageAttempts": "Ver y gestionar intentos",
-    "openConversations": "{{count}} conversación(es) abierta(s)",
+    "openConversations": "{{count}} conversación(es) respondida(s) que falta cerrar",
     "pendingConversations": "{{count}} conversación(es) esperan tu respuesta",
     "resumeExamTitle": "Reanudar examen",
     "pauseExamTitle": "Pausar examen",
@@ -11073,5 +11074,12 @@
     "noRows": "(0 filas)",
     "truncated": "Se guardan solo las primeras {{max}} filas.",
     "noAnswer": "Sin respuesta"
+  },
+  "conversacionesPendientes": {
+    "title": "Conversaciones pendientes:",
+    "toReply_one": "{{count}} por responder",
+    "toReply_other": "{{count}} por responder",
+    "toClose_one": "{{count}} por cerrar",
+    "toClose_other": "{{count}} por cerrar"
   }
 }

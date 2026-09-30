@@ -32,9 +32,7 @@ function Resultado({ r, n }: { r: SqlStatementResult; n: number }) {
   const { t } = useTranslation();
   return (
     <div className="space-y-1">
-      <div className="text-3xs text-muted-foreground">
-        {t("sqlAnswerReview.statementN", { n })}
-      </div>
+      <div className="text-3xs text-muted-foreground">{t("sqlAnswerReview.statementN", { n })}</div>
       <pre className="whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 font-mono text-2xs">
         {r.sql.trim()}
       </pre>
@@ -55,7 +53,10 @@ function Resultado({ r, n }: { r: SqlStatementResult; n: number }) {
             <thead className="bg-muted">
               <tr>
                 {r.columns.map((c, i) => (
-                  <th key={i} className="px-2 py-1 text-left font-medium border-b whitespace-nowrap">
+                  <th
+                    key={i}
+                    className="px-2 py-1 text-left font-medium border-b whitespace-nowrap"
+                  >
                     {c}
                   </th>
                 ))}
