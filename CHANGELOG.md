@@ -119,6 +119,16 @@ Lo que no se deduce del código:
 - **Carrera de despliegue**: las pantallas piden `workshops` con `select("*")` / `workshops(*)` en los
   embeds, no las columnas nuevas por nombre; el diálogo no deja crear mientras la columna no exista.
 
+### 🗄️ El docente ve la respuesta de SQL como SQL y tablas, no como JSON
+
+En el monitor de exámenes una respuesta `bd_sql` se mostraba como el JSON con el que se guarda
+(`{"bdSql":1,"sql":"…","results":[…]}`). Ahora [SqlAnswerReview](src/modules/database/SqlAnswerReview.tsx)
+muestra el SQL, cada resultado como tabla, los errores de Postgres marcados y, cuando la última
+ejecución fue solo una parte del guion, lo dice («1 de 2 sentencias»): la base guarda solo la última
+corrida, y así se ve de un vistazo que el resultado no es el del guion completo. Montado en el diálogo
+de respuestas del monitor, la comparación con un compañero, las vistas previas de recalificación y la
+calificación de talleres del docente (que tenía el mismo bloque copiado a mano).
+
 ### 🧩 Armar grupos ya no recarga la pantalla (talleres y proyectos)
 
 Cada movimiento en el editor de grupos —arrastrar, ⇄, crear o borrar un grupo— hacía `await load()`,

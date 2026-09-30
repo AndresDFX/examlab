@@ -1683,6 +1683,11 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   existente ([sql-answer.ts](src/modules/database/sql-answer.ts), 20 tests). **El resultado se persiste**
   a propósito: la base es efímera, así que sin eso la evidencia se pierde al cerrar la pestaña y no hay
   con qué calificar ni con qué responder un reclamo.
+- **Para MOSTRAR una respuesta `bd_sql` a quien califica, va [SqlAnswerReview](src/modules/database/SqlAnswerReview.tsx)**,
+  nunca el valor crudo: se guarda como JSON y el monitor de exámenes le mostraba al docente el
+  `{"bdSql":1,…}` literal. Además de SQL + tablas, avisa cuando la última ejecución fue una PARTE del
+  guion (resultados < sentencias): la base guarda solo la última corrida, y un «a mí me funcionó»
+  suele ser eso — se probó una selección y la hoja completa falla.
 - **El error del `setupSql` se muestra como error del ENUNCIADO**, no del alumno. Si el docente se
   equivoca en el esquema, el estudiante tiene que poder distinguirlo de su propio error.
 - **Calificación por IA** reusando el pipeline existente: el SQL va como `userAnswer` y las tablas de
