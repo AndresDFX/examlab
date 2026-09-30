@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { arbolDeRecuperaciones, tituloSinTipo } from "./arbol-recuperaciones";
+import { arbolDeRecuperaciones, idsConRecuperaciones, tituloSinTipo } from "./arbol-recuperaciones";
 import en from "@/i18n/locales/en.json";
 import es from "@/i18n/locales/es.json";
 
@@ -161,4 +161,12 @@ describe("tituloSinTipo ↔ los títulos por defecto de «Crear recuperatorio»"
       );
     });
   }
+});
+
+describe("idsConRecuperaciones", () => {
+  it("suma las recuperaciones de cada fila, sin repetir", () => {
+    const hijas = new Map([["p1", [{ id: "s1" }, { id: "r1" }]]]);
+    expect(idsConRecuperaciones(["p1", "p2"], hijas).sort()).toEqual(["p1", "p2", "r1", "s1"]);
+    expect(idsConRecuperaciones(["p1", "s1"], hijas).sort()).toEqual(["p1", "r1", "s1"]);
+  });
 });

@@ -125,3 +125,19 @@ export function tituloSinTipo(titulo: string, tipo: string): string {
   const sinSeparador = resto.replace(/^[\s:·—–-]+/, "");
   return sinSeparador.length > 0 ? sinSeparador : titulo;
 }
+
+/**
+ * Los ids a mandar a la papelera cuando se borra una fila: ella y sus
+ * recuperaciones. Van juntas porque en el grid la recuperación vive DENTRO de
+ * su original: si el original se va y ella se queda, reaparece suelta como
+ * fila propia, que es justo lo que el grid dejó de mostrar. Se restauran por
+ * separado desde la papelera.
+ */
+export function idsConRecuperaciones(
+  ids: readonly string[],
+  hijas: ReadonlyMap<string, readonly { id: string }[]>,
+): string[] {
+  const todos = new Set(ids);
+  for (const id of ids) for (const h of hijas.get(id) ?? []) todos.add(h.id);
+  return [...todos];
+}

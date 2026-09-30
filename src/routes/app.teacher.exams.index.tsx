@@ -14,7 +14,7 @@ import i18n from "@/i18n";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { isValidDateRange, capEndToCourseEnd, earliestCourseEnd } from "@/shared/lib/date-range";
 import { supabase } from "@/integrations/supabase/client";
-import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
+import { softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { NoAssignedCoursesNotice } from "@/modules/courses/NoAssignedCoursesNotice";
 import { useActiveRole } from "@/hooks/use-active-role";
@@ -86,12 +86,13 @@ import {
 import { RowActionsMenu } from "@/components/ui/row-actions-menu";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { CrearRecuperacionDialog } from "@/modules/exams/CrearRecuperacionDialog";
-import { arbolDeRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
+import { arbolDeRecuperaciones, idsConRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
 import {
   BotonRecuperaciones,
   CLASE_FILA_RECUPERACION,
   InsigniaDeRecuperacion,
   TituloDeRecuperacion,
+  avisoDeRecuperacionesAlBorrar,
   useRecuperacionesDesplegadas,
 } from "@/modules/grading/RecuperacionesEnGrid";
 import { TableEmpty, ErrorState } from "@/components/ui/empty-state";
@@ -364,7 +365,9 @@ function TeacherExams() {
     // Soft-delete: la fila queda invisible para las queries (filtran
     // is('deleted_at', null)) pero recuperable desde /app/trash hasta
     // que el cron de purga (30 días) la borre físicamente.
-    const { error } = await softDeleteMany("exams", ids);
+    // Las recuperaciones de lo marcado van con su original (ver idsConRecuperaciones).
+    const todos = idsConRecuperaciones(ids, arbol.hijas);
+    const { error } = await softDeleteMany("exams", todos);
     // `friendlyError` acá y no en el catch del BulkDeleteDialog: el objeto de
     // Supabase trae `code` SQLSTATE, y envolverlo en un Error crudo perdía la
     // traducción (el docente veía el mensaje técnico en inglés).
@@ -372,14 +375,14 @@ function TeacherExams() {
     toast.success(
       i18n.t("toast.routes_app_teacher_exams_index.bulkSentToTrash", {
         defaultValue: "{{count}} examen(es) enviado(s) a papelera",
-        count: ids.length,
+        count: todos.length,
       }),
     );
     void logEvent({
       action: "exam.deleted",
       category: "exam",
       actorRole: roles[0],
-      metadata: { count: ids.length, ids },
+      metadata: { count: todos.length, ids: todos },
     });
     sel.clear();
     load();
@@ -418,14 +421,20 @@ function TeacherExams() {
         defaultValue:
           'El examen "{{title}}" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía.',
         title: exam.title,
-      }),
+      })
+        + (arbol.hijas.get(exam.id)?.length
+          ? ` ${avisoDeRecuperacionesAlBorrar(t, arbol.hijas.get(exam.id) ?? [])}`
+          : ""),
       confirmLabel: t("common.delete", { defaultValue: "Enviar a papelera" }),
       tone: "warning",
     });
     if (!ok) return;
     setDeletingId(exam.id);
     try {
-      const { error } = await softDelete("exams", exam.id);
+      const { error } = await softDeleteMany(
+        "exams",
+        idsConRecuperaciones([exam.id], arbol.hijas),
+      );
       if (error) {
         toast.error(friendlyUniqueViolation(error) ?? friendlyError(error));
         return;
@@ -1047,7 +1056,7 @@ function TeacherExams() {
                 <TableHead className="w-10">
                   <MultiSelectHeaderCheckbox state={sel} />
                 </TableHead>
-                <SortableHead sortKey="title" sort={sort} className="w-48 max-w-[320px]">
+                <SortableHead sortKey="title" sort={sort} className="sm:w-48 max-w-[320px]">
                   {t("exam.columns.title")}
                 </SortableHead>
                 <SortableHead sortKey="course" sort={sort} className="hidden md:table-cell w-32">
@@ -1075,13 +1084,13 @@ function TeacherExams() {
                 <SortableHead sortKey="kind" sort={sort} className="hidden xl:table-cell w-24">
                   {t("exam.columns.type")}
                 </SortableHead>
-                <SortableHead sortKey="status" sort={sort} className="w-24">
+                <SortableHead sortKey="status" sort={sort} className="w-20 sm:w-24">
                   {t("hc_routesAppTeacherExamsIndex.colStatus")}
                 </SortableHead>
                 <SortableHead sortKey="navigation" sort={sort} className="hidden xl:table-cell w-28">
                   {t("exam.columns.navigation")}
                 </SortableHead>
-                <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
+                <TableHead className="text-right w-[4.5rem] sm:w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -1943,7 +1952,15 @@ function TeacherExams() {
         items={selectedExamItems}
         entityNameSingular={t("hc_routesAppTeacherExamsIndex.entitySingular")}
         entityNamePlural={t("hc_routesAppTeacherExamsIndex.entityPlural")}
-        extraWarning={t("hc_routesAppTeacherExamsIndex.bulkDeleteWarning")}
+        extraWarning={[
+          t("hc_routesAppTeacherExamsIndex.bulkDeleteWarning"),
+          avisoDeRecuperacionesAlBorrar(
+            t,
+            selectedExamItems.flatMap((i) => arbol.hijas.get(i.id) ?? []),
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ")}
         onConfirm={handleBulkDelete}
       />
 

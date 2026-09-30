@@ -75,7 +75,9 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 >
 > **La API key de Bedrock se quitó** (2026-09-07, ver «Seguridad» abajo). El proveedor `bedrock`
 > sigue existiendo como opción en el panel, pero **ya no tiene credencial**: activarlo en la fila
-> platform-default tumbaría la IA de TODAS las instituciones, porque las 7 están en `ai_mode='shared'`.
+> platform-default tumbaría la IA de las instituciones en `ai_mode='shared'`. **Corrección medida el 2026-09-30**:
+> no son las 7 — UNIAJ y Univalle están en `ai_mode='own'` con su fila en `bedrock` sin credencial,
+> o sea que HOY su IA no califica y la cola se les acumula (UNIAJ tenía 33 jobs parados).
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
@@ -117,8 +119,14 @@ Lo que no se deduce del código:
   invisible la haría desaparecer.
 - **El diálogo de borrado masivo arma su lista desde las filas, no desde lo filtrado**: un parcial
   que está solo por su recuperación no coincide con el filtro y, marcado, igual tiene que aparecer.
-- **Mandar un parcial a la papelera NO se lleva sus recuperaciones** (igual que antes): quedan como
-  filas propias hasta que se borren o se restaure el original.
+- **Mandar un parcial a la papelera se lleva también sus recuperaciones**, y el diálogo (individual y
+  masivo) lo avisa: «Tiene 1 supletorio: también va a la papelera, y se puede restaurar desde ahí».
+  Antes quedaban atrás y, con el anidado, reaparecían sueltas como filas propias. Se restauran por
+  separado desde la papelera.
+- **Móvil (390 px)**: el menú ⋮ de cada fila quedaba fuera de la pantalla (la columna Acciones se
+  cortaba en «Ac…» y había que deslizar la tabla de lado). En móvil el título toma el ancho que
+  sobra y Estado/Acciones se angostan; escritorio queda igual. Verificado en modo táctil: el botón
+  «⑂ N» sube a 44 px sin agrandar su fila (`pointer-coarse:-my-3`).
 
 Verificado en el navegador contra datos reales (grid de exámenes, escritorio y 390 px) y con dos
 recuperaciones inyectadas solo en la respuesta del navegador de prueba para el grid de talleres, que

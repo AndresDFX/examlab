@@ -11064,7 +11064,14 @@
     "hideForRow_one": "Ocultar la recuperación de «{{title}}»",
     "hideForRow_other": "Ocultar las recuperaciones de «{{title}}»",
     "subtitleSuffix_one": " · {{count}} recuperación",
-    "subtitleSuffix_other": " · {{count}} recuperaciones"
+    "subtitleSuffix_other": " · {{count}} recuperaciones",
+    "countSupletorio_one": "{{count}} supletorio",
+    "countSupletorio_other": "{{count}} supletorios",
+    "countRecuperatorio_one": "{{count}} recuperatorio",
+    "countRecuperatorio_other": "{{count}} recuperatorios",
+    "countJoin": " y ",
+    "deleteAlsoMakeups_one": "Tiene {{tipos}}: también va a la papelera, y se puede restaurar desde ahí.",
+    "deleteAlsoMakeups_other": "Tiene {{tipos}}: también van a la papelera, y se pueden restaurar desde ahí."
   },
   "sqlAnswerReview": {
     "sqlLabel": "SQL que escribió",

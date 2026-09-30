@@ -10,7 +10,7 @@ import { transicionDeFila } from "@/shared/lib/publicacion";
 import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
+import { softDeleteMany } from "@/modules/trash/soft-delete";
 import { cancelPendingAiJobsForTarget } from "@/modules/ai/ai-grading";
 import { v86TranscriptForDisplay } from "@/modules/serverconsole/v86-answer";
 import { SqlAnswerReview } from "@/modules/database/SqlAnswerReview";
@@ -124,12 +124,13 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { CrearRecuperacionTallerDialog } from "@/modules/workshops/CrearRecuperacionTallerDialog";
 import { type FilaDeTaller } from "@/modules/grading/nota-con-recuperacion";
-import { arbolDeRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
+import { arbolDeRecuperaciones, idsConRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
 import {
   BotonRecuperaciones,
   CLASE_FILA_RECUPERACION,
   InsigniaDeRecuperacion,
   TituloDeRecuperacion,
+  avisoDeRecuperacionesAlBorrar,
   useRecuperacionesDesplegadas,
 } from "@/modules/grading/RecuperacionesEnGrid";
 import { formatPercent } from "@/shared/lib/format";
@@ -641,7 +642,9 @@ function TeacherWorkshops() {
   });
 
   const handleBulkDelete = async (ids: string[]) => {
-    const { error } = await softDeleteMany("workshops", ids);
+    // Las recuperaciones de lo marcado van con su original (ver idsConRecuperaciones).
+    const todos = idsConRecuperaciones(ids, arbol.hijas);
+    const { error } = await softDeleteMany("workshops", todos);
     // `friendlyError` acá y no en el catch del BulkDeleteDialog: envolver el
     // objeto de Supabase en un Error crudo perdía el SQLSTATE y con él la
     // traducción, así que el docente veía el mensaje técnico en inglés.
@@ -649,14 +652,14 @@ function TeacherWorkshops() {
     toast.success(
       i18n.t("toast.routes_app_teacher_workshops.bulkMovedToTrash", {
         defaultValue: "{{count}} taller(es) enviado(s) a papelera",
-        count: ids.length,
+        count: todos.length,
       }),
     );
     void logEvent({
       action: "workshop.deleted",
       category: "workshop",
       actorRole: roles[0],
-      metadata: { count: ids.length, ids },
+      metadata: { count: todos.length, ids: todos },
     });
     sel.clear();
     load();
@@ -1678,7 +1681,11 @@ function TeacherWorkshops() {
     if (deletingId) return;
     const ok = await confirm({
       title: t("workshop.deleteTitle"),
-      description: t("workshop.deleteBody"),
+      description:
+        t("workshop.deleteBody") +
+        (arbol.hijas.get(id)?.length
+          ? ` ${avisoDeRecuperacionesAlBorrar(t, arbol.hijas.get(id) ?? [])}`
+          : ""),
       confirmLabel: t("common.delete"),
       tone: "destructive",
     });
@@ -1686,7 +1693,7 @@ function TeacherWorkshops() {
     const ws = workshops.find((w) => w.id === id);
     setDeletingId(id);
     try {
-      const { error } = await softDelete("workshops", id);
+      const { error } = await softDeleteMany("workshops", idsConRecuperaciones([id], arbol.hijas));
       if (error) {
         toast.error(friendlyError(error));
         return;
@@ -3990,10 +3997,10 @@ function TeacherWorkshops() {
                 <SortableHead sortKey="due_date" sort={sort} className="hidden sm:table-cell w-28">
                   {t("common.end")}
                 </SortableHead>
-                <SortableHead sortKey="status" sort={sort} className="w-24">
+                <SortableHead sortKey="status" sort={sort} className="w-20 sm:w-24">
                   {t("common.status")}
                 </SortableHead>
-                <TableHead className="text-right w-20">{t("common.actions")}</TableHead>
+                <TableHead className="text-right w-[4.5rem] sm:w-20">{t("common.actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -6429,7 +6436,15 @@ function TeacherWorkshops() {
         items={selectedWorkshopItems}
         entityNameSingular={t("hc_routesAppTeacherWorkshops.bulkEntitySingular")}
         entityNamePlural={t("hc_routesAppTeacherWorkshops.bulkEntityPlural")}
-        extraWarning={t("hc_routesAppTeacherWorkshops.bulkExtraWarning")}
+        extraWarning={[
+          t("hc_routesAppTeacherWorkshops.bulkExtraWarning"),
+          avisoDeRecuperacionesAlBorrar(
+            t,
+            selectedWorkshopItems.flatMap((i) => arbol.hijas.get(i.id) ?? []),
+          ),
+        ]
+          .filter(Boolean)
+          .join(" ")}
         onConfirm={handleBulkDelete}
       />
 

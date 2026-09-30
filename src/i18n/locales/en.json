@@ -11064,7 +11064,14 @@
     "hideForRow_one": "Hide the retake or makeup of “{{title}}”",
     "hideForRow_other": "Hide the retakes and makeups of “{{title}}”",
     "subtitleSuffix_one": " · {{count}} retake or makeup",
-    "subtitleSuffix_other": " · {{count}} retakes and makeups"
+    "subtitleSuffix_other": " · {{count}} retakes and makeups",
+    "countSupletorio_one": "{{count}} makeup",
+    "countSupletorio_other": "{{count}} makeups",
+    "countRecuperatorio_one": "{{count}} retake",
+    "countRecuperatorio_other": "{{count}} retakes",
+    "countJoin": " and ",
+    "deleteAlsoMakeups_one": "It has {{tipos}}: it also goes to the trash and can be restored from there.",
+    "deleteAlsoMakeups_other": "It has {{tipos}}: they also go to the trash and can be restored from there."
   },
   "sqlAnswerReview": {
     "sqlLabel": "SQL written",

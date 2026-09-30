@@ -7,6 +7,7 @@
  */
 import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import type { TFunction } from "i18next";
 import { ChevronDown, ChevronRight, CornerDownRight, GitBranch } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -177,4 +178,27 @@ export function TituloDeRecuperacion({
       </span>
     </div>
   );
+}
+
+/**
+ * El aviso del diálogo de borrado cuando lo que se borra tiene recuperaciones:
+ * dice cuántas y de qué tipo, y que se van a la papelera con el original. ""
+ * si no tiene ninguna (el caller lo concatena a su propio texto).
+ */
+export function avisoDeRecuperacionesAlBorrar(
+  t: TFunction,
+  recuperaciones: readonly { makeup_kind?: string | null }[],
+): string {
+  if (recuperaciones.length === 0) return "";
+  const recuperatorios = recuperaciones.filter(
+    (r) => tipoDeRecuperacion(r.makeup_kind) === "recuperatorio",
+  ).length;
+  const supletorios = recuperaciones.length - recuperatorios;
+  const tipos = [
+    supletorios > 0 && t("recuperaciones.countSupletorio", { count: supletorios }),
+    recuperatorios > 0 && t("recuperaciones.countRecuperatorio", { count: recuperatorios }),
+  ]
+    .filter(Boolean)
+    .join(t("recuperaciones.countJoin"));
+  return t("recuperaciones.deleteAlsoMakeups", { count: recuperaciones.length, tipos });
 }
