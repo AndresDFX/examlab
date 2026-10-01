@@ -6,8 +6,11 @@ import {
 } from "@/shared/lib/rango-de-fechas";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
-import { transicionDeFila } from "@/shared/lib/publicacion";
+import { transicionDeFila, type AccionMasiva } from "@/shared/lib/publicacion";
 import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
+import { mapaDeEstados, soloCursosEnBorrador } from "@/modules/courses/curso-borrador";
+import { AvisoCursoEnBorrador } from "@/modules/courses/AvisoCursoEnBorrador";
+import { unirLista } from "@/shared/lib/unir-lista";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -410,8 +413,32 @@ function TeacherExams() {
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
   const confirm = useConfirm();
-  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
-    useCambiarPublicacion("exams", () => load());
+  const {
+    cambiar: cambiarPublicacion,
+    cambiandoId: cambiandoPublicacionId,
+    cambiarVarios: cambiarPublicacionVarios,
+    cambiandoVarios: cambiandoPublicacionVarios,
+  } = useCambiarPublicacion("exams", () => load());
+
+  // Un curso en borrador no publica material (mig 20262690000000): la fila, la
+  // barra de selección y el formulario ofrecen lo mismo que la base va a aceptar.
+  const estadosDeCursos = useMemo(() => mapaDeEstados(courses), [courses]);
+  const cambiarPublicacionSeleccion = async (accion: AccionMasiva) => {
+    const filas = sort.sorted
+      .filter((e) => sel.isSelected(e.id))
+      .map((e) => ({
+        id: e.id,
+        titulo: e.title,
+        inicio: e.start_time,
+        status: e.status,
+        cursoEnBorrador: soloCursosEnBorrador([e.course_id], estadosDeCursos),
+      }));
+    const ok = await cambiarPublicacionVarios(filas, accion, {
+      singular: t("hc_routesAppTeacherExamsIndex.entitySingular"),
+      plural: t("hc_routesAppTeacherExamsIndex.entityPlural"),
+    });
+    if (ok) sel.clear();
+  };
 
   const remove = async (exam: Exam) => {
     if (deletingId) return;
@@ -618,6 +645,10 @@ function TeacherExams() {
           ...f,
           course_id: first ?? f.course_id,
           cut_id: validCut ? f.cut_id : null,
+          status:
+            (f as any).status === "published" && soloCursosEnBorrador(arr, estadosDeCursos)
+              ? "draft"
+              : (f as any).status,
           // Topar la fecha/hora de fin al curso que termina ANTES entre los
           // seleccionados (cabe en todos). Si ya es menor, se deja igual. No
           // aplica a externos (la fecha es marcador del evento, end=start).
@@ -761,8 +792,16 @@ function TeacherExams() {
     setSaving(true);
     try {
       let firstId: string | null = null;
+      // En un curso en borrador el examen nace en borrador aunque se haya pedido
+      // publicado: la base rechazaría el insert, y con la lista de cursos a medio
+      // recorrer quedarían creados los primeros y no el resto.
+      const quedaronEnBorrador: string[] = [];
       for (const cid of courseIds) {
         const perCourse: Record<string, any> = { ...basePayload, course_id: cid };
+        if (perCourse.status === "published" && soloCursosEnBorrador([cid], estadosDeCursos)) {
+          perCourse.status = "draft";
+          quedaronEnBorrador.push(courses.find((c) => c.id === cid)?.name ?? cid);
+        }
         if (isMultiCourse) {
           const cc = courseCuts[cid];
           perCourse.cut_id = cc?.cut_id || null;
@@ -785,7 +824,7 @@ function TeacherExams() {
         // Notificar a los estudiantes del curso. NO aplica para externos
         // (la actividad ya pasó, solo se registra la nota) ni para draft
         // (el examen aún no es visible, mandar push sería confuso).
-        const initialStatus = (basePayload.status as string) ?? "published";
+        const initialStatus = (perCourse.status as string) ?? "published";
         if (!isExternal && initialStatus === "published") {
           await supabase.rpc("notify_course_students", {
             _course_id: cid,
@@ -802,6 +841,15 @@ function TeacherExams() {
           ? t("exam.createdIn", { count: courseIds.length })
           : t("exam.createdOne"),
       );
+      if (quedaronEnBorrador.length > 0) {
+        toast.info(
+          t("publicacion.quedoEnBorrador", {
+            count: quedaronEnBorrador.length,
+            cursos: unirLista(quedaronEnBorrador, i18n.language || "es-CO"),
+          }),
+          { duration: 10000 },
+        );
+      }
       for (const cid of courseIds) {
         void logEvent({
           action: "exam.created",
@@ -1003,6 +1051,22 @@ function TeacherExams() {
         onDelete={() => setBulkDeleteOpen(true)}
         entityNameSingular={t("hc_routesAppTeacherExamsIndex.entitySingular")}
         entityNamePlural={t("hc_routesAppTeacherExamsIndex.entityPlural")}
+        extraActions={[
+          {
+            key: "publicar",
+            label: t("publicacion.publish"),
+            icon: IconoPublicar,
+            onClick: () => void cambiarPublicacionSeleccion("publicar"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+          {
+            key: "borrador",
+            label: t("publicacion.backToDraft"),
+            icon: IconoBorrador,
+            onClick: () => void cambiarPublicacionSeleccion("volverABorrador"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+        ]}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
@@ -1283,13 +1347,22 @@ function TeacherExams() {
                         },
                         (() => {
                           const tr = transicionDeFila(e.status);
+                          const bloqueada =
+                            tr?.clave === "publicar" &&
+                            soloCursosEnBorrador([e.course_id], estadosDeCursos);
                           return tr ? {
                                 label:
                                   tr.clave === "publicar"
                                     ? t("publicacion.publish")
                                     : t("publicacion.backToDraft"),
                                 icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
-                                disabled: cambiandoPublicacionId != null,
+                                disabled:
+                                  cambiandoPublicacionId != null ||
+                                  cambiandoPublicacionVarios ||
+                                  bloqueada,
+                                hint: bloqueada
+                                  ? t("publicacion.cursoEnBorrador", { count: 1 })
+                                  : undefined,
                                 onClick: () =>
                                   void cambiarPublicacion(
                                     { id: e.id, titulo: e.title, inicio: e.start_time },
@@ -1624,7 +1697,13 @@ function TeacherExams() {
                     const nextStart = form.start_time || toLocal(now);
                     setForm({
                       ...form,
-                      status: "published",
+                      // En un curso en borrador no se publica: reabre a borrador.
+                      status: soloCursosEnBorrador(
+                        [...selectedCourseIds, (form as any).course_id],
+                        estadosDeCursos,
+                      )
+                        ? "draft"
+                        : "published",
                       start_time: nextStart,
                       end_time: nextEnd,
                     } as any);
@@ -1647,7 +1726,10 @@ function TeacherExams() {
                     <SelectItem value="draft">
                       {t("hc_routesAppTeacherExamsIndex.statusDraft")}
                     </SelectItem>
-                    <SelectItem value="published">
+                    <SelectItem
+                      value="published"
+                      disabled={soloCursosEnBorrador([...selectedCourseIds], estadosDeCursos)}
+                    >
                       {t("hc_routesAppTeacherExamsIndex.statusPublished")}
                     </SelectItem>
                     <SelectItem value="closed">
@@ -1655,6 +1737,9 @@ function TeacherExams() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {soloCursosEnBorrador([...selectedCourseIds], estadosDeCursos) && (
+                  <AvisoCursoEnBorrador cursos={selectedCourseIds.size} />
+                )}
               </div>
               <div
                 className="grid grid-cols-1 sm:grid-cols-2 gap-3"

@@ -187,6 +187,8 @@ export interface MultiSelectExtraAction {
   icon?: React.ComponentType<{ className?: string }>;
   onClick: () => void;
   variant?: React.ComponentProps<typeof Button>["variant"];
+  /** Mientras corre la acción, para que un segundo clic no la repita. */
+  disabled?: boolean;
 }
 
 export function MultiSelectToolbar({
@@ -269,6 +271,7 @@ export function MultiSelectToolbar({
               variant={a.variant ?? "outline"}
               size="sm"
               onClick={a.onClick}
+              disabled={a.disabled}
             >
               {Icon ? <Icon className="h-3.5 w-3.5 mr-1" /> : null}
               {a.label}

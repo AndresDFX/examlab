@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { avisoAlPublicar, CATEGORIA_DE_TABLA, transicionDeFila } from "./publicacion";
+import {
+  avisoAlPublicar,
+  avisosAlPublicarVarias,
+  CATEGORIA_DE_TABLA,
+  planDePublicacionMasiva,
+  transicionDeFila,
+} from "./publicacion";
 
 describe("transicionDeFila", () => {
   it("un borrador se publica", () => {
@@ -83,5 +89,68 @@ describe("CATEGORIA_DE_TABLA", () => {
     expect(CATEGORIA_DE_TABLA.workshops).toBe("workshop");
     expect(CATEGORIA_DE_TABLA.exams).toBe("exam");
     expect(CATEGORIA_DE_TABLA.projects).toBe("project");
+  });
+});
+
+describe("planDePublicacionMasiva", () => {
+  const filas = [
+    { id: "b1", status: "draft" },
+    { id: "b2", status: "draft", cursoEnBorrador: true },
+    { id: "p1", status: "published" },
+    { id: "p2", status: "published", cursoEnBorrador: true },
+    { id: "c1", status: "closed" },
+    { id: "x", status: null },
+  ];
+
+  it("publicar: solo los borradores de cursos activos; cuenta lo que se omite", () => {
+    expect(planDePublicacionMasiva(filas, "publicar")).toEqual({
+      ids: ["b1"],
+      yaEstaban: 2,
+      cerradas: 2,
+      enCursoBorrador: 1,
+    });
+  });
+
+  it("volver a borrador: todos los publicados, aunque su curso esté en borrador", () => {
+    // Esconder algo nunca está bloqueado: es justo lo que la regla quiere.
+    expect(planDePublicacionMasiva(filas, "volverABorrador")).toEqual({
+      ids: ["p1", "p2"],
+      yaEstaban: 2,
+      cerradas: 2,
+      enCursoBorrador: 0,
+    });
+  });
+
+  it("ofrece lo mismo que la fila: una cerrada no cambia desde la lista", () => {
+    const plan = planDePublicacionMasiva([{ id: "c", status: "closed" }], "publicar");
+    expect(plan.ids).toEqual([]);
+    expect(plan.cerradas).toBe(1);
+  });
+
+  it("sin filas no hay nada que hacer", () => {
+    expect(planDePublicacionMasiva([], "publicar")).toEqual({
+      ids: [],
+      yaEstaban: 0,
+      cerradas: 0,
+      enCursoBorrador: 0,
+    });
+  });
+});
+
+describe("avisosAlPublicarVarias", () => {
+  const ahora = new Date("2026-09-18T12:00:00Z");
+
+  it("cuenta, fila por fila, cuáles avisan ya y cuáles cuando se acerquen", () => {
+    expect(
+      avisosAlPublicarVarias([null, "2026-09-19T08:00:00Z", "2026-10-30T12:00:00Z"], ahora),
+    ).toEqual({ silenciado: false, ahora: 2, cuandoSeAcerque: 1 });
+  });
+
+  it("con la categoría apagada no se promete ningún aviso", () => {
+    expect(avisosAlPublicarVarias([null], ahora, false)).toEqual({
+      silenciado: true,
+      ahora: 0,
+      cuandoSeAcerque: 0,
+    });
   });
 });

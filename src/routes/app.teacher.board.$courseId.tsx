@@ -768,6 +768,11 @@ function CourseBoardPage() {
         displayName,
       });
       if (!uploadToasts(res)) return;
+      if (res.quedoEnBorrador) {
+        toast.info(t("publicacion.quedoEnBorrador", { count: 1, cursos: course.name }), {
+          duration: 10000,
+        });
+      }
       if (session && res.contentId) {
         // Asignar el contenido recién creado a la clase elegida.
         await updateAssignment(session.id, res.contentId, null, null);

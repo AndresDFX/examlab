@@ -123,6 +123,8 @@ import { cn } from "@/shared/lib/utils";
 import { softDelete } from "@/modules/trash/soft-delete";
 import { useTranslation } from "react-i18next";
 import { anyCourseInScope, courseIdsInScopeMulti } from "@/modules/courses/course-filter-scope";
+import { conAnclaActiva, mapaDeEstados, soloCursosEnBorrador } from "@/modules/courses/curso-borrador";
+import { AvisoCursoEnBorrador } from "@/modules/courses/AvisoCursoEnBorrador";
 import i18n from "@/i18n";
 
 export const Route = createFileRoute("/app/teacher/polls")({ component: TeacherPolls });
@@ -1607,7 +1609,7 @@ function CreatePollDialog({
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  courses: Array<{ id: string; name: string }>;
+  courses: Array<{ id: string; name: string; status?: string | null }>;
   userId: string | null;
   /** Se llama tras crear/editar. En CREATE recibe la fila nueva para que el
    *  padre pueda, p.ej., abrir el editor de preguntas de una encuesta mixta. */
@@ -1666,6 +1668,14 @@ function CreatePollDialog({
   // docente la ve. Al activarse, los triggers de DB notifican + emailan
   // al curso. Default false para evitar publicar a medio armar.
   const [isPublished, setIsPublished] = useState(false);
+  // Un curso en borrador no publica material (mig 20262690000000): con todos los
+  // cursos elegidos en borrador, «Publicada» no se ofrece.
+  const estadosDeCursos = useMemo(() => mapaDeEstados(courses), [courses]);
+  const todosEnBorrador = soloCursosEnBorrador(courseIds, estadosDeCursos);
+  const cambiarCursos = (next: string[]) => {
+    setCourseIds(next);
+    if (isPublished && soloCursosEnBorrador(next, estadosDeCursos)) setIsPublished(false);
+  };
   // Sesión asociada (opcional). Cuando se setea, la encuesta aparece
   // destacada en la pantalla de la sesión (asistencia teacher + tarjeta
   // de sesión en student). El selector lista las sesiones del curso ancla.
@@ -2162,7 +2172,11 @@ function CreatePollDialog({
       // anchor previo ya no está en courseIds, lo reemplazamos por el
       // nuevo primero — polls.course_id es NOT NULL así que siempre
       // necesita un valor válido del set.
-      const anchorCourseId = courseIds[0];
+      // Al CREAR publicada, el ancla es un curso activo si hay alguno: la base
+      // mira el ancla en el INSERT, antes de que existan las filas de
+      // `poll_courses` (ver curso-borrador.ts).
+      const anchorCourseId =
+        !isEdit && isPublished ? conAnclaActiva(courseIds, estadosDeCursos)[0] : courseIds[0];
 
       if (isEdit && editingPoll) {
         // ── MODO EDICIÓN ──
@@ -2516,9 +2530,7 @@ function CreatePollDialog({
                   type="button"
                   className="text-2xs text-primary hover:underline disabled:opacity-50"
                   onClick={() =>
-                    setCourseIds(
-                      courseIds.length === courses.length ? [] : courses.map((c) => c.id),
-                    )
+                    cambiarCursos(courseIds.length === courses.length ? [] : courses.map((c) => c.id))
                   }
                 >
                   {courseIds.length === courses.length
@@ -2539,8 +2551,8 @@ function CreatePollDialog({
                     <Checkbox
                       checked={courseIds.includes(c.id)}
                       onCheckedChange={(checked) =>
-                        setCourseIds((prev) =>
-                          checked ? [...prev, c.id] : prev.filter((x) => x !== c.id),
+                        cambiarCursos(
+                          checked ? [...courseIds, c.id] : courseIds.filter((x) => x !== c.id),
                         )
                       }
                     />
@@ -2855,7 +2867,7 @@ function CreatePollDialog({
                     </span>
                   </div>
                 </SelectItem>
-                <SelectItem value="published">
+                <SelectItem value="published" disabled={!isPublished && todosEnBorrador}>
                   <div className="flex flex-col gap-0.5">
                     <span>{t("teacherPolls.statusOptionPublished")}</span>
                     <span className="text-2xs text-muted-foreground">
@@ -2865,6 +2877,7 @@ function CreatePollDialog({
                 </SelectItem>
               </SelectContent>
             </Select>
+            {!isPublished && todosEnBorrador && <AvisoCursoEnBorrador cursos={courseIds.length} />}
           </div>
           )}
 

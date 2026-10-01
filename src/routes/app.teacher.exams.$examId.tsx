@@ -5,6 +5,8 @@ import { useAuth } from "@/hooks/use-auth";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
 import { isValidDateRange } from "@/shared/lib/date-range";
+import { mapaDeEstados, soloCursosEnBorrador } from "@/modules/courses/curso-borrador";
+import { AvisoCursoEnBorrador } from "@/modules/courses/AvisoCursoEnBorrador";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -148,7 +150,7 @@ function ExamEditor() {
   // al montar el editor. RLS filtra a los cursos del docente; Admin ve
   // todos. Permite cambiar el curso de asignación post-creación.
   const [courses, setCourses] = useState<
-    Array<{ id: string; name: string; period: string | null }>
+    Array<{ id: string; name: string; period: string | null; status?: string | null }>
   >([]);
   // Curso original cargado de DB. Si al guardar cambia, hay que limpiar
   // exam_assignments del curso anterior y re-auto-asignar los nuevos
@@ -414,11 +416,18 @@ function ExamEditor() {
     // en papelera para no ofrecerlos como destino.
     const { data: cs } = await supabase
       .from("courses")
-      .select("id, name, period")
+      .select("id, name, period, status")
       .is("deleted_at", null)
       .order("period", { ascending: false, nullsFirst: false })
       .order("name");
-    setCourses((cs ?? []) as Array<{ id: string; name: string; period: string | null }>);
+    setCourses(
+      (cs ?? []) as unknown as Array<{
+        id: string;
+        name: string;
+        period: string | null;
+        status?: string | null;
+      }>,
+    );
     if (e?.course_id) {
       const { data: asg } = await supabase
         .from("exam_assignments")
@@ -1440,7 +1449,17 @@ function ExamEditor() {
                     // Al cambiar el curso reseteamos cut_id (los cuts son
                     // course-scoped) y refrescamos los datos del nuevo
                     // curso para que el panel de pesos/bucket sea preciso.
-                    setExam({ ...exam, course_id: v, cut_id: null } as any);
+                    // Un curso en borrador no publica material (mig
+                    // 20262690000000): moverlo ahí lo deja en borrador.
+                    const aBorrador =
+                      (exam as any).status === "published" &&
+                      soloCursosEnBorrador([v], mapaDeEstados(courses));
+                    setExam({
+                      ...exam,
+                      course_id: v,
+                      cut_id: null,
+                      ...(aBorrador ? { status: "draft" } : {}),
+                    } as any);
                     await loadCourseData(v);
                   }}
                 >
@@ -1481,7 +1500,10 @@ function ExamEditor() {
                     const nextStart = exam.start_time || now.toISOString();
                     setExam({
                       ...exam,
-                      status: "published",
+                      // En un curso en borrador no se publica: reabre a borrador.
+                      status: soloCursosEnBorrador([(exam as any).course_id], mapaDeEstados(courses))
+                        ? "draft"
+                        : "published",
                       start_time: nextStart,
                       end_time: nextEnd,
                     });
@@ -1618,10 +1640,22 @@ function ExamEditor() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="draft">{t("hc_routesAppTeacherExamsExamId.statusDraft")}</SelectItem>
-                    <SelectItem value="published">{t("hc_routesAppTeacherExamsExamId.statusPublished")}</SelectItem>
+                    <SelectItem
+                      value="published"
+                      disabled={
+                        (exam as any).status !== "published" &&
+                        soloCursosEnBorrador([(exam as any).course_id], mapaDeEstados(courses))
+                      }
+                    >
+                      {t("hc_routesAppTeacherExamsExamId.statusPublished")}
+                    </SelectItem>
                     <SelectItem value="closed">{t("hc_routesAppTeacherExamsExamId.statusClosed")}</SelectItem>
                   </SelectContent>
                 </Select>
+                {(exam as any).status !== "published" &&
+                  soloCursosEnBorrador([(exam as any).course_id], mapaDeEstados(courses)) && (
+                    <AvisoCursoEnBorrador cursos={1} />
+                  )}
               </div>
               {/* Configuración del examen. Esta pantalla ya PERSISTÍA estos tres
                   campos al guardar —los copiaba del objeto cargado— pero no los

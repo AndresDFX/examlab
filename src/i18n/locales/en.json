@@ -698,14 +698,10 @@
     },
     "groupActive": "Active courses",
     "groupClosed": "Closed courses",
-    "actionPublish": "Publish (set in progress)",
-    "actionPublishConfirmTitle": "Publish course?",
-    "actionPublishConfirmBody": "The course will move to In progress and show as active.",
+    "actionPublish": "Activate course (set in progress)",
     "actionFinalize": "Finish course",
-    "actionFinalizeConfirmTitle": "Finish course?",
     "actionFinalizeConfirmBody": "The course will be marked as Finished. You can reopen it later if needed.",
     "actionReopen": "Reopen course",
-    "actionReopenConfirmTitle": "Reopen course?",
     "actionReopenConfirmBody": "The course will return to In progress. If its end date has passed, the automatic finalization will close it again the next day unless you update the end date.",
     "actionMoveToDraft": "Move to draft",
     "statusFormLabel": "Course status",
@@ -2946,7 +2942,8 @@
     "subtitleOwn": "{{own}} yours · {{shared}} shared by your teachers",
     "subtitleStatic": "Whiteboards your teachers share with your courses will appear here.",
     "title": "Whiteboards",
-    "viewerSubtitle": "Read-only view — shared by your teacher."
+    "viewerSubtitle": "Read-only view — shared by your teacher.",
+    "enBorrador": "This whiteboard isn't available yet: the teacher has it as a draft."
   },
   "teacherStudents": {
     "actionImpersonate": "Log in as",
@@ -9617,7 +9614,9 @@
     "statClosed": "Closed",
     "colStatus": "Status",
     "actionReopen": "Reopen",
-    "actionClose": "Close"
+    "actionClose": "Close",
+    "statusPublishedToast": "Whiteboard published",
+    "statusDraftToast": "Whiteboard moved to draft"
   },
   "hc_routesAppTeacherWorkshops": {
     "aiBusyDetecting": "Detecting copies with AI…",
@@ -10894,9 +10893,42 @@
     "confirmPublishLater": "It will show up in students' lists. They are notified only when the start date is one day away, not now.",
     "confirmPublishSilenced": "It will appear in the students' list, but they will NOT be notified: notifications for this category are turned off in Settings → Emails. If you want them to know, use Broadcast to course or ask the Admin to turn them back on.",
     "confirmDraftTitle": "Move “{{nombre}}” back to draft?",
-    "confirmDraftBody": "It stops showing up in students' lists. Existing submissions are not deleted.",
+    "confirmDraftBody": "It stops appearing in the students' list and its grade doesn't count in the gradebook while it stays in draft. Existing submissions are not deleted.",
     "published": "“{{nombre}}” is now published.",
-    "backToDraftDone": "“{{nombre}}” is back to draft."
+    "backToDraftDone": "“{{nombre}}” is back to draft.",
+    "masiva": {
+      "tituloPublicar": "Publish {{count}} {{entidad}}?",
+      "tituloBorrador": "Move {{count}} {{entidad}} back to draft?",
+      "avisoMixto": "They will appear in the students' list. Students are notified right away about {{count}}; about the rest, one day before their start date. A sent notice can't be withdrawn.",
+      "omitidas": "Skipping {{lista}}.",
+      "omitYaPublicadas_one": "{{count}} already published",
+      "omitYaPublicadas_other": "{{count}} already published",
+      "omitYaBorrador_one": "{{count}} already in draft",
+      "omitYaBorrador_other": "{{count}} already in draft",
+      "omitCerradas_one": "{{count}} closed (reopen it from Edit)",
+      "omitCerradas_other": "{{count}} closed (reopen them from Edit)",
+      "omitCursoBorrador_one": "{{count}} from a draft course",
+      "omitCursoBorrador_other": "{{count}} from draft courses",
+      "nada": "Nothing to change: {{motivo}}.",
+      "publicadas_one": "Published {{count}} {{entidad}}.",
+      "publicadas_other": "Published {{count}} {{entidad}}.",
+      "enBorrador_one": "{{count}} {{entidad}} moved back to draft.",
+      "enBorrador_other": "{{count}} {{entidad}} moved back to draft.",
+      "avisoAhora_one": "It will appear in the students' list and students are notified right away. A sent notice can't be withdrawn, even if it goes back to draft.",
+      "avisoAhora_other": "They will appear in the students' list and students are notified right away. A sent notice can't be withdrawn, even if they go back to draft.",
+      "avisoLuego_one": "It will appear in the students' list. The notice reaches students one day before its start date, not now.",
+      "avisoLuego_other": "They will appear in the students' list. Each notice reaches students one day before its start date, not now.",
+      "avisoSilenciado_one": "It will appear in the students' list, but students are NOT notified: notices for this category are turned off in Settings → Emails.",
+      "avisoSilenciado_other": "They will appear in the students' list, but students are NOT notified: notices for this category are turned off in Settings → Emails.",
+      "borradorCuerpo_one": "It stops appearing in the students' list and its grade doesn't count in the gradebook while it stays in draft. Existing submissions are not deleted.",
+      "borradorCuerpo_other": "They stop appearing in the students' list and their grades don't count in the gradebook while they stay in draft. Existing submissions are not deleted."
+    },
+    "cursoEnBorrador_one": "Its course is a draft: activate it in Courses to publish.",
+    "cursoEnBorrador_other": "Its courses are drafts: activate at least one in Courses to publish.",
+    "cursoEnBorradorForm_one": "The course is a draft: for now it can only be saved as a draft. Publish it once you activate the course.",
+    "cursoEnBorradorForm_other": "The selected courses are drafts: for now it can only be saved as a draft. Publish it once you activate one of them.",
+    "quedoEnBorrador_one": "It was saved as a draft in “{{cursos}}”: that course is a draft. Publish it once you activate the course.",
+    "quedoEnBorrador_other": "It was saved as a draft in {{cursos}}: those courses are drafts. Publish it once you activate them."
   },
   "borradorLocal": {
     "recuperado_one": "We recovered {{count}} answer you had written and never submitted.",
@@ -11114,5 +11146,56 @@
     "asistenciaDeLasDadas_one": "Only sessions already held count, out of {{count}} scheduled.",
     "asistenciaDeLasDadas_other": "Only sessions already held count, out of {{count}} scheduled.",
     "asistenciaSinSesionesDadas": "Attendance (no session of this period has been held yet)"
+  },
+  "cursoEstado": {
+    "material": {
+      "examenes_one": "{{count}} exam",
+      "examenes_other": "{{count}} exams",
+      "talleres_one": "{{count}} workshop",
+      "talleres_other": "{{count}} workshops",
+      "proyectos_one": "{{count}} project",
+      "proyectos_other": "{{count}} projects",
+      "encuestas_one": "{{count}} poll",
+      "encuestas_other": "{{count}} polls",
+      "pizarras_one": "{{count}} whiteboard",
+      "pizarras_other": "{{count}} whiteboards",
+      "contenidos_one": "{{count}} content item",
+      "contenidos_other": "{{count}} content items"
+    },
+    "aBorrador": {
+      "titulo": "Move “{{nombre}}” to draft?",
+      "confirmar": "Move to draft",
+      "material": "Its students stop seeing what was published, which goes back to draft: {{lista}}.",
+      "nada": "It has no published material: nothing gets hidden.",
+      "sinDatos": "Its students stop seeing the course's published material: it goes back to draft.",
+      "conEntregas_one": "{{count}} of those activities already has submissions: its grade stops counting in the gradebook while it stays in draft.",
+      "conEntregas_other": "{{count}} of those activities already have submissions: their grades stop counting in the gradebook while they stay in draft.",
+      "retos_one": "{{count}} live challenge in progress ends.",
+      "retos_other": "{{count}} live challenges in progress end.",
+      "compartidos_one": "{{count}} stays published because it also belongs to another active course.",
+      "compartidos_other": "{{count}} stay published because they also belong to another active course.",
+      "regla": "While it's a draft nothing can be published in it, and activating it again doesn't republish what was hidden: you have to publish it again."
+    },
+    "activar": {
+      "titulo": "Activate “{{nombre}}”?",
+      "confirmar": "Activate course",
+      "visible": "The course moves to In progress and its students see it as active.",
+      "bienvenida_one": "A course welcome is sent to {{count}} enrolled student.",
+      "bienvenida_other": "A course welcome is sent to the {{count}} enrolled students.",
+      "sinBienvenida": "No welcome email is sent: it's turned off in Settings → Emails.",
+      "siguenEnBorrador": "Activating it doesn't publish anything: what's in draft stays that way ({{lista}}). Publish it when it's ready."
+    },
+    "reabrir": {
+      "titulo": "Reopen “{{nombre}}”?",
+      "confirmar": "Reopen course",
+      "cerrados": "What was closed when it finished stays closed ({{lista}}): reopen it from its own screen if needed."
+    },
+    "finalizar": {
+      "titulo": "Finish “{{nombre}}”?",
+      "confirmar": "Finish course",
+      "cierra": "What's still open gets closed: {{lista}}. Reopening the course later doesn't reopen it.",
+      "pendientes_one": "“{{nombre}}” can't be finished yet: {{count}} submission is pending grading. Grade it (Course diagnostic) before finishing.",
+      "pendientes_other": "“{{nombre}}” can't be finished yet: {{count}} submissions are pending grading. Grade them (Course diagnostic) before finishing."
+    }
   }
 }

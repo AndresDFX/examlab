@@ -84,6 +84,11 @@ export type BoardUploadResult = {
   failed: string[];
   /** Mensaje de error fatal (no se creó nada). */
   error?: string;
+  /**
+   * El contenido se pidió publicado y la base lo guardó en borrador porque su
+   * curso está en borrador (mig 20262690000000). La pantalla lo avisa.
+   */
+  quedoEnBorrador?: boolean;
 };
 
 /** Validación compartida de extensión + tamaño (per-file y total). */
@@ -199,7 +204,7 @@ export async function uploadBoardContent(params: {
       is_published: true,
       files: [],
     })
-    .select("id")
+    .select("id, is_published")
     .single();
 
   if (insErr || !inserted?.id) {
@@ -258,6 +263,7 @@ export async function uploadBoardContent(params: {
     uploadedPaths: uploaded.map((u) => u.path),
     skipped,
     failed,
+    quedoEnBorrador: (inserted as { is_published?: boolean }).is_published === false,
   };
 }
 

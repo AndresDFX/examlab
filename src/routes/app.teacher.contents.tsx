@@ -5,6 +5,7 @@ import { softDelete, softDeleteMany } from "@/modules/trash/soft-delete";
 import { useAuth } from "@/hooks/use-auth";
 import { useActiveRole } from "@/hooks/use-active-role";
 import { fetchScopedCourses } from "@/modules/courses/course-scope";
+import { cuantosCursos, mapaDeEstados, soloCursosEnBorrador } from "@/modules/courses/curso-borrador";
 import { courseIdsInScopeMulti, itemInScope } from "@/modules/courses/course-filter-scope";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
@@ -442,6 +443,15 @@ function TeacherContents() {
   const [derived, setDerived] = useState<
     Record<string, { sessions: number; exams: number; workshops: number; projects: number }>
   >({});
+  // Cursos de cada contenido por `content_course_assignments` (además del ancla
+  // `course_id`): sin esto no se sabe si TODOS sus cursos están en borrador, y
+  // un curso en borrador no publica material (mig 20262690000000).
+  const [cursosDeContenido, setCursosDeContenido] = useState<Record<string, string[]>>({});
+  const estadosDeCursos = useMemo(() => mapaDeEstados(courses), [courses]);
+  const cursosDe = (it: { id: string; course_id?: string | null }) => [
+    it.course_id,
+    ...(cursosDeContenido[it.id] ?? []),
+  ];
   const [creating, setCreating] = useState(false);
   /** id del contenido cuyo estado de publicación se está guardando. Bloquea
    *  el Select de esa fila para que no se disparen dos UPDATE seguidos
@@ -691,8 +701,9 @@ function TeacherContents() {
     const contentIds = (gens ?? []).map((g: { id: string }) => g.id);
     if (contentIds.length === 0) {
       setDerived({});
+      setCursosDeContenido({});
     } else {
-      const [sess, ex, ws, pj] = await Promise.all([
+      const [sess, ex, ws, pj, cca] = await Promise.all([
         db
           .from("attendance_sessions")
           .select("content_id")
@@ -713,7 +724,12 @@ function TeacherContents() {
           .select("source_content_id")
           .in("source_content_id", contentIds)
           .is("deleted_at", null),
+        db.from("content_course_assignments").select("content_id, course_id").in("content_id", contentIds),
       ]);
+      const porContenido: Record<string, string[]> = {};
+      for (const r of (cca.data ?? []) as { content_id: string; course_id: string }[]) {
+        (porContenido[r.content_id] ??= []).push(r.course_id);
+      }
       const next: Record<
         string,
         { sessions: number; exams: number; workshops: number; projects: number }
@@ -736,6 +752,7 @@ function TeacherContents() {
       }
       if (!isActive()) return;
       setDerived(next);
+      setCursosDeContenido(porContenido);
     }
     setLoading(false);
     // isAdminLikeView en deps: si el usuario alterna entre rol Admin y
@@ -1570,7 +1587,12 @@ function TeacherContents() {
                               title={
                                 publishingId !== null
                                   ? t("common.processing", { defaultValue: "Procesando…" })
-                                  : undefined
+                                  : !it.is_published &&
+                                      soloCursosEnBorrador(cursosDe(it), estadosDeCursos)
+                                    ? t("publicacion.cursoEnBorrador", {
+                                        count: cuantosCursos(cursosDe(it)),
+                                      })
+                                    : undefined
                               }
                             >
                               {publishingId === it.id && <Spinner size="xs" />}
@@ -1580,7 +1602,14 @@ function TeacherContents() {
                               <SelectItem value="draft" className="text-xs">
                                 {t("hc_routesAppTeacherContents.draft")}
                               </SelectItem>
-                              <SelectItem value="published" className="text-xs">
+                              <SelectItem
+                                value="published"
+                                className="text-xs"
+                                disabled={
+                                  !it.is_published &&
+                                  soloCursosEnBorrador(cursosDe(it), estadosDeCursos)
+                                }
+                              >
                                 {t("hc_routesAppTeacherContents.published")}
                               </SelectItem>
                             </SelectContent>

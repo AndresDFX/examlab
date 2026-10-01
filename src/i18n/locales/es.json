@@ -698,14 +698,10 @@
     },
     "groupActive": "Cursos activos",
     "groupClosed": "Cursos cerrados",
-    "actionPublish": "Publicar (poner en curso)",
-    "actionPublishConfirmTitle": "¿Publicar el curso?",
-    "actionPublishConfirmBody": "El curso pasará a En curso y será visible como activo.",
+    "actionPublish": "Activar curso (poner en curso)",
     "actionFinalize": "Finalizar curso",
-    "actionFinalizeConfirmTitle": "¿Finalizar el curso?",
     "actionFinalizeConfirmBody": "El curso quedará marcado como Finalizado. Podrás reabrirlo después si lo necesitas.",
     "actionReopen": "Reabrir curso",
-    "actionReopenConfirmTitle": "¿Reabrir el curso?",
     "actionReopenConfirmBody": "El curso volverá a En curso. Si su fecha de fin ya pasó, la finalización automática lo cerrará de nuevo al día siguiente salvo que actualices la fecha de fin.",
     "actionMoveToDraft": "Mover a borrador",
     "statusFormLabel": "Estado del curso",
@@ -2946,7 +2942,8 @@
     "subtitleOwn": "{{own}} tuyas · {{shared}} compartidas por tus docentes",
     "subtitleStatic": "Las pizarras que tus docentes compartan con tus cursos aparecerán acá.",
     "title": "Pizarras",
-    "viewerSubtitle": "Vista de solo lectura — compartida por tu docente."
+    "viewerSubtitle": "Vista de solo lectura — compartida por tu docente.",
+    "enBorrador": "Esta pizarra todavía no está disponible: el docente la tiene en borrador."
   },
   "teacherStudents": {
     "actionImpersonate": "Iniciar como",
@@ -9617,7 +9614,9 @@
     "statClosed": "Cerradas",
     "colStatus": "Estado",
     "actionReopen": "Reabrir",
-    "actionClose": "Cerrar"
+    "actionClose": "Cerrar",
+    "statusPublishedToast": "Pizarra publicada",
+    "statusDraftToast": "Pizarra en borrador"
   },
   "hc_routesAppTeacherWorkshops": {
     "aiBusyDetecting": "Detectando copias con IA…",
@@ -10892,11 +10891,44 @@
     "confirmPublishTitle": "¿Publicar «{{nombre}}»?",
     "confirmPublishNow": "Va a aparecer en la lista de los estudiantes y se les avisa ahora mismo. Volver a borrador después la esconde de nuevo, pero el aviso ya no se puede retirar.",
     "confirmPublishLater": "Va a aparecer en la lista de los estudiantes. El aviso les llega solo cuando falte un día para la fecha de inicio, no ahora.",
-    "confirmPublishSilenced": "Va a aparecer en la lista de los estudiantes, pero NO se les avisa: los avisos de esta categoría están apagados en Configuración → Correos. Si querés que se enteren, avisales por Difundir a curso o pedile al Admin que los vuelva a encender.",
+    "confirmPublishSilenced": "Va a aparecer en la lista de los estudiantes, pero NO se les avisa: los avisos de esta categoría están apagados en Configuración → Correos. Si quieres que se enteren, avísales por Difundir a curso o pídele al Admin que los vuelva a encender.",
     "confirmDraftTitle": "¿Volver «{{nombre}}» a borrador?",
-    "confirmDraftBody": "Deja de aparecer en la lista de los estudiantes. Las entregas que ya existan no se borran.",
+    "confirmDraftBody": "Deja de aparecer en la lista de los estudiantes y su nota no cuenta en el libro de notas mientras siga en borrador. Las entregas que ya existan no se borran.",
     "published": "«{{nombre}}» quedó publicado.",
-    "backToDraftDone": "«{{nombre}}» volvió a borrador."
+    "backToDraftDone": "«{{nombre}}» volvió a borrador.",
+    "masiva": {
+      "tituloPublicar": "¿Publicar {{count}} {{entidad}}?",
+      "tituloBorrador": "¿Volver {{count}} {{entidad}} a borrador?",
+      "avisoMixto": "Van a aparecer en la lista de los estudiantes. De {{count}} se les avisa ahora mismo; del resto, cuando falte un día para su fecha de inicio. Un aviso enviado ya no se puede retirar.",
+      "omitidas": "Se omiten {{lista}}.",
+      "omitYaPublicadas_one": "{{count}} que ya estaba publicado",
+      "omitYaPublicadas_other": "{{count}} que ya estaban publicados",
+      "omitYaBorrador_one": "{{count}} que ya estaba en borrador",
+      "omitYaBorrador_other": "{{count}} que ya estaban en borrador",
+      "omitCerradas_one": "{{count}} cerrado (se reabre desde Editar)",
+      "omitCerradas_other": "{{count}} cerrados (se reabren desde Editar)",
+      "omitCursoBorrador_one": "{{count}} de un curso en borrador",
+      "omitCursoBorrador_other": "{{count}} de cursos en borrador",
+      "nada": "No hay nada que cambiar: {{motivo}}.",
+      "publicadas_one": "Se publicó {{count}} {{entidad}}.",
+      "publicadas_other": "Se publicaron {{count}} {{entidad}}.",
+      "enBorrador_one": "{{count}} {{entidad}} volvió a borrador.",
+      "enBorrador_other": "{{count}} {{entidad}} volvieron a borrador.",
+      "avisoAhora_one": "Va a aparecer en la lista de los estudiantes y se les avisa ahora mismo. Un aviso enviado ya no se puede retirar, aunque vuelva a borrador.",
+      "avisoAhora_other": "Van a aparecer en la lista de los estudiantes y se les avisa ahora mismo. Un aviso enviado ya no se puede retirar, aunque vuelvan a borrador.",
+      "avisoLuego_one": "Va a aparecer en la lista de los estudiantes. El aviso les llega cuando falte un día para su fecha de inicio, no ahora.",
+      "avisoLuego_other": "Van a aparecer en la lista de los estudiantes. El aviso de cada uno les llega cuando falte un día para su fecha de inicio, no ahora.",
+      "avisoSilenciado_one": "Va a aparecer en la lista de los estudiantes, pero NO se les avisa: los avisos de esta categoría están apagados en Configuración → Correos.",
+      "avisoSilenciado_other": "Van a aparecer en la lista de los estudiantes, pero NO se les avisa: los avisos de esta categoría están apagados en Configuración → Correos.",
+      "borradorCuerpo_one": "Deja de aparecer en la lista de los estudiantes y su nota no cuenta en el libro de notas mientras siga en borrador. Las entregas que ya existan no se borran.",
+      "borradorCuerpo_other": "Dejan de aparecer en la lista de los estudiantes y sus notas no cuentan en el libro de notas mientras sigan en borrador. Las entregas que ya existan no se borran."
+    },
+    "cursoEnBorrador_one": "Su curso está en borrador: actívalo en Cursos para poder publicar.",
+    "cursoEnBorrador_other": "Sus cursos están en borrador: activa al menos uno en Cursos para poder publicar.",
+    "cursoEnBorradorForm_one": "El curso está en borrador: por ahora solo se puede guardar en borrador. Publícalo cuando actives el curso.",
+    "cursoEnBorradorForm_other": "Los cursos elegidos están en borrador: por ahora solo se puede guardar en borrador. Publícalo cuando actives alguno.",
+    "quedoEnBorrador_one": "En «{{cursos}}» quedó en borrador: ese curso está en borrador. Publícalo cuando actives el curso.",
+    "quedoEnBorrador_other": "En {{cursos}} quedó en borrador: esos cursos están en borrador. Publícalo cuando los actives."
   },
   "borradorLocal": {
     "recuperado_one": "Recuperamos {{count}} respuesta que habías escrito y no se alcanzó a enviar.",
@@ -11114,5 +11146,56 @@
     "asistenciaDeLasDadas_one": "Cuentan solo las sesiones que ya se dieron, de {{count}} programada.",
     "asistenciaDeLasDadas_other": "Cuentan solo las sesiones que ya se dieron, de {{count}} programadas.",
     "asistenciaSinSesionesDadas": "Asistencia (todavía no se ha dado ninguna sesión de este corte)"
+  },
+  "cursoEstado": {
+    "material": {
+      "examenes_one": "{{count}} examen",
+      "examenes_other": "{{count}} exámenes",
+      "talleres_one": "{{count}} taller",
+      "talleres_other": "{{count}} talleres",
+      "proyectos_one": "{{count}} proyecto",
+      "proyectos_other": "{{count}} proyectos",
+      "encuestas_one": "{{count}} encuesta",
+      "encuestas_other": "{{count}} encuestas",
+      "pizarras_one": "{{count}} pizarra",
+      "pizarras_other": "{{count}} pizarras",
+      "contenidos_one": "{{count}} contenido",
+      "contenidos_other": "{{count}} contenidos"
+    },
+    "aBorrador": {
+      "titulo": "¿Pasar «{{nombre}}» a borrador?",
+      "confirmar": "Pasar a borrador",
+      "material": "Sus estudiantes dejan de ver lo que estaba publicado, que pasa a borrador: {{lista}}.",
+      "nada": "No tiene material publicado: no se oculta nada.",
+      "sinDatos": "Sus estudiantes dejan de ver el material publicado del curso: pasa a borrador.",
+      "conEntregas_one": "{{count}} de esas actividades ya tiene entregas: su nota deja de contar en el libro de notas mientras siga en borrador.",
+      "conEntregas_other": "{{count}} de esas actividades ya tienen entregas: sus notas dejan de contar en el libro de notas mientras sigan en borrador.",
+      "retos_one": "Termina {{count}} reto en vivo que está en curso.",
+      "retos_other": "Terminan {{count}} retos en vivo que están en curso.",
+      "compartidos_one": "{{count}} sigue publicado porque también es de otro curso activo.",
+      "compartidos_other": "{{count}} siguen publicados porque también son de otro curso activo.",
+      "regla": "Mientras esté en borrador no se puede publicar nada en él, y volver a activarlo no republica lo que se ocultó: hay que publicarlo de nuevo."
+    },
+    "activar": {
+      "titulo": "¿Activar «{{nombre}}»?",
+      "confirmar": "Activar curso",
+      "visible": "El curso pasa a En curso y sus estudiantes lo ven como activo.",
+      "bienvenida_one": "Se le envía la bienvenida al curso a {{count}} estudiante matriculado.",
+      "bienvenida_other": "Se les envía la bienvenida al curso a los {{count}} estudiantes matriculados.",
+      "sinBienvenida": "No se envía correo de bienvenida: está apagado en Configuración → Correos.",
+      "siguenEnBorrador": "Activarlo no publica nada: lo que está en borrador sigue así ({{lista}}). Publícalo cuando esté listo."
+    },
+    "reabrir": {
+      "titulo": "¿Reabrir «{{nombre}}»?",
+      "confirmar": "Reabrir curso",
+      "cerrados": "Lo que se cerró al finalizar sigue cerrado ({{lista}}): se reabre desde su propia pantalla si hace falta."
+    },
+    "finalizar": {
+      "titulo": "¿Finalizar «{{nombre}}»?",
+      "confirmar": "Finalizar curso",
+      "cierra": "Se cierra lo que sigue abierto: {{lista}}. Reabrir el curso después no lo reabre.",
+      "pendientes_one": "Todavía no se puede finalizar «{{nombre}}»: hay {{count}} entrega pendiente de calificación. Califícala (Diagnóstico del curso) antes de finalizar.",
+      "pendientes_other": "Todavía no se puede finalizar «{{nombre}}»: hay {{count}} entregas pendientes de calificación. Califícalas (Diagnóstico del curso) antes de finalizar."
+    }
   }
 }

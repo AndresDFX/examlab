@@ -29,6 +29,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - `proximo` es una sub-vista por fecha DENTRO de `en_curso` (no es un estado persistido).
   - Finalizar es acción de docente del curso o Admin/SuperAdmin (validado en la RPC).
   - **Cascade al finalizar** (mig `20260991000000`): un trigger `AFTER UPDATE OF status` cierra en cascada lo asociado — exámenes/pizarras (`status='closed'`), talleres/proyectos/encuestas (cerrados SOLO si NINGÚN otro curso ligado sigue `<> 'finalizado'` — caveat M:N), foros (`manually_closed_at`), juegos Kahoot en vivo (`ended`), ventanas de check-in QR. NO cierra sesiones de asistencia ni contenidos/videos (histórico/consultable). NO auto-reabre al reabrir el curso. Funciones `close_*_for_course` son `SECURITY DEFINER` y **REVOCADAS de PUBLIC** (internas). Al agregar una entidad nueva ligada a curso con estado cerrado, sumar su `close_*` al orquestador. **Las actividades EXTERNAS también se cierran** (mig `20261630000000`): antes se excluían con `is_external = false` "porque solo registran nota", y el efecto era que un `Parcial I` externo de un curso finalizado quedaba `published` para siempre, mezclado con los borradores del periodo nuevo. `status` es ciclo de vida, no permiso de calificación: `ExternalGradesEditor` no lee `exams.status`, el alumno filtra los externos de plano, y un curso solo llega a `finalizado` sin pendientes de calificación. **El trigger solo dispara en la TRANSICIÓN** a `finalizado`, así que los cursos ya finalizados antes de `20260991000000` nunca corrieron la cascada — esa misma migración trae el **backfill** idempotente para todos los tenants.
+  - **Un curso en BORRADOR tiene su material en borrador** (mig `20262690000000`). Espejo de la cascada al finalizar: pasar un curso a `borrador` pasa a borrador lo publicado —exámenes, talleres, proyectos, encuestas, pizarras COMPARTIDAS con el curso y contenidos— y termina sus retos en vivo (aunque la encuesta esté en borrador: un reto se hospeda así). Lo compartido (M:N) con otro curso que no está en borrador NO se toca. **No se deshace**: activar el curso no republica nada. Y mientras siga en borrador **no se publica nada cuyos cursos estén TODOS en borrador**: exámenes, talleres, proyectos y encuestas se rechazan con un mensaje (publicarlos siempre es explícito); pizarras y contenidos, que se CREAN publicados, quedan en borrador al crearlos, compartirlos o moverlos ahí, y solo se rechaza publicarlos después. Se mira la TRANSICIÓN (o el cambio de curso), no el estado. A diferencia de finalizar, esto SÍ oculta contenidos: finalizar conserva el histórico consultable, borrador es «todavía no es para el estudiante». La regla de la pantalla vive en `src/modules/courses/curso-borrador.ts` (espejo de `_solo_cursos_en_borrador`) y el aviso de cada cambio de estado en `cambio-estado-curso.ts`, alimentado por `impacto_cambio_estado_curso`, que cuenta con las MISMAS funciones que usa la cascada. Todo cambio de estado de un curso pasa por UNA confirmación con números (acciones de la fila y selector del formulario).
   - **Contraseña temporal FIJA `Temporal#123` para todos** (no aleatoria por usuario). Decisión explícita del usuario (2026-07-14): prefiere una clave uniforme conocida —que el docente dicta en clase— aunque sea insegura, en vez de una temporal única por estudiante que nunca se comunica. El default del edge `bulk-import-users` es `Temporal#123` (era `Cambiar#123`); el template CSV del UI ya lo sugiere. Guardada en claro en `admin_visible_passwords`. Login = correo institucional + `Temporal#123`.
   - **Correo de bienvenida al curso — se envía al PUBLICAR, no al matricular en borrador** (mig `20261130000000`). Matricular a un estudiante en un curso en `borrador` NO emite bienvenida (el curso aún no está disponible; el trigger de matrícula `notify_course_enrollment_welcome` salta `status='borrador'`). La bienvenida sale cuando el curso pasa `borrador → en_curso`: trigger `trg_course_published_welcome` (`AFTER UPDATE OF status`) inserta una notif `course_welcome` por cada estudiante ya matriculado → pipeline de email. Matricular DIRECTO en un curso ya publicado (`<> borrador`) sí emite al instante (comportamiento previo, mig `20261110000000`). Esto permite importar/matricular en borrador sin spamear correos ni entregar claves temporales antes de tiempo.
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
@@ -81,6 +82,67 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > o sea que HOY su IA no califica y la cola se les acumula (UNIAJ tenía 33 jobs parados).
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 📦 Un curso en borrador tiene su material en borrador — y los avisos al cambiar de estado
+
+Pedido: «si los cursos están en borrador todo el material debería ponerse en borrador
+automáticamente, igual que al completar; ahora los cursos están en borrador, pongámoslos en activos
+por ahora pero arreglemos la lógica: que no se pueda poner talleres, exámenes ni nada para un curso
+en borrador; y los mensajes de advertencia cuando se vaya a cambiar el estado de un curso». Y a mitad
+de camino: «las acciones de publicar y poner en borrador de los grids de talleres y exámenes,
+permitirlas como acciones masivas al seleccionar uno o varios».
+
+**Lo que estaba mal**: el estado del curso y el de su material eran independientes. Los 7 cursos
+2026-2 de UNIAJ estuvieron en borrador con talleres, exámenes y encuestas publicados y los
+estudiantes entregando; y pasar un curso a borrador (o finalizarlo) se confirmaba con un texto
+genérico — «Mover a borrador» incluso reusaba el de «Publicar» («pasará a En curso»).
+
+**Lo que se hizo**:
+
+- **Datos**: los 7 cursos de UNIAJ pasaron a `en_curso` por `set_course_status` con el JWT del
+  SuperAdmin (0 correos de bienvenida: `course_welcome` está apagado). Queda un único curso en
+  borrador en producción, `Test-2026-2` de Univalle (1 matriculado, 1 examen «Prueba» publicado): no
+  se tocó.
+- **Mig `20262690000000`**: la cascada a borrador (trigger `trg_cascade_borrador_curso`), los seis
+  bloqueos de publicación (`trg_bloquear_publicar_*`) y `impacto_cambio_estado_curso(curso, estado)`
+  (misma autorización que `set_course_status`, solo cuenta). Helpers internos revocados de `anon` y
+  `authenticated`. **Verificada contra PGlite con 80 comprobaciones** (`C:/Temp/pgval/val-curso-borrador.mjs`):
+  lo que pasa a borrador y lo que no (M:N con curso activo, curso en papelera en la unión, cerrados,
+  papelera, pizarras personales), los retos en vivo, cada bloqueo y cada coerción, que el impacto
+  cuente exactamente lo que la cascada cambia, y que los triggers corran como `authenticated`.
+- **Avisos al cambiar el estado de un curso** (`cambio-estado-curso.ts`, 16 tests): a borrador dice
+  cuánto se oculta, cuántas actividades ya tienen entregas (sus notas dejan de contar: los borradores
+  no entran al libro), qué retos terminan y qué sigue publicado por ser de otro curso; activar dice si
+  sale la bienvenida y qué sigue en borrador; reabrir, que lo cerrado sigue cerrado; finalizar, qué
+  se cierra — y con entregas sin calificar ni ofrece confirmar. El selector de estado del formulario
+  de edición cambiaba el estado **sin preguntar**: ahora pasa por la misma confirmación.
+- **Acciones masivas** «Publicar» / «Volver a borrador» en la barra de selección de exámenes,
+  talleres y proyectos (`planDePublicacionMasiva`): cambian solo lo que la fila ofrecería por sí sola
+  —una cerrada no, una de un curso en borrador no se publica— y dicen qué omiten y por qué. UN update:
+  si la base rechaza una, no cambia ninguna.
+- **Pantallas**: «Publicar» de la fila se deshabilita con el motivo a la vista cuando el curso está en
+  borrador (el menú de fila ahora MUESTRA el `hint` de un item deshabilitado, que antes era un `title`
+  que nunca aparecía); los formularios de examen, taller, proyecto y encuesta no ofrecen «Publicado»
+  con todos sus cursos en borrador y lo dicen; al crear material multi-curso publicado, el ancla es un
+  curso activo (`conAnclaActiva`), porque la base mira el ancla antes de que existan las filas de
+  unión. Crear un examen en varios cursos a la vez ya no puede quedar a medias: en el curso en
+  borrador nace en borrador y se avisa. «Reabrir» en un formulario reabre a borrador si el curso está
+  en borrador, y el estado por fila de Contenidos tampoco ofrece «Publicado» ahí.
+- **Lo que la base deja en borrador por su cuenta se avisa** (crear o compartir una pizarra, subir
+  material al tablero o desde Contenidos), leyendo el estado que devolvió la base.
+- **Pizarras en borrador**: «Borrador» no ocultaba nada al estudiante (su lista solo escondía las
+  cerradas). Ahora una compartida en borrador no aparece en su lista, ni en el buscador, ni abre por
+  enlace (`ocultaParaQuienLaRecibe`). Medido: en producción no había ninguna compartida en borrador.
+  Y la grilla del docente ofrece «Publicar» / «Volver a borrador»: solo tenía Cerrar / Reabrir, así
+  que una pizarra que la cascada dejaba en borrador no tenía cómo republicarse.
+- **Vocabulario**: la acción del curso pasó de «Publicar (poner en curso)» a **«Activar curso»**: el
+  curso se activa y el material se publica, y los avisos nuevos decían «actívalo» sobre un menú que no
+  tenía esa palabra.
+
+**Decisiones**: la interpretación de «no se puede poner nada» es **no se puede PUBLICAR**: el material
+se puede preparar en borrador —si no, un curso en preparación no se podría armar—. Quedan fuera, a
+propósito: hospedar un reto en vivo (es una actividad en clase, y el reto se hospeda en borrador),
+pasar lista, los foros y la difusión a curso.
 
 ### 📐 La nota cuenta solo lo que ya se dio — revisión de las notas de UNIAJ
 

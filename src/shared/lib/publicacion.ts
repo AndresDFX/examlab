@@ -96,3 +96,74 @@ export const CATEGORIA_DE_TABLA = {
   exams: "exam",
   projects: "project",
 } as const;
+
+// ── Acciones masivas ──────────────────────────────────────────────────
+// «Publicar» y «Volver a borrador» sobre varias filas seleccionadas. Ofrecen
+// EXACTAMENTE lo que ofrece cada fila (`transicionDeFila`): una fila cerrada no
+// se toca, y una fila cuyo curso está en borrador no se publica (mig
+// 20262690000000). Lo que se omite se cuenta, para decirlo en la confirmación
+// en vez de dejar que el docente crea que pasó con todo lo que marcó.
+
+export type AccionMasiva = Transicion["clave"];
+
+export interface FilaParaPlan {
+  id: string;
+  status: string | null | undefined;
+  /** Todos sus cursos están en borrador: no se puede publicar. */
+  cursoEnBorrador?: boolean;
+}
+
+export interface PlanMasivo {
+  /** Las que cambian. */
+  ids: string[];
+  /** Ya estaban en el estado de destino. */
+  yaEstaban: number;
+  /** Cerradas (o sin transición desde la lista): se reabren desde Editar. */
+  cerradas: number;
+  /** Solo al publicar: su curso está en borrador. */
+  enCursoBorrador: number;
+}
+
+export function planDePublicacionMasiva(
+  filas: readonly FilaParaPlan[],
+  accion: AccionMasiva,
+): PlanMasivo {
+  const plan: PlanMasivo = { ids: [], yaEstaban: 0, cerradas: 0, enCursoBorrador: 0 };
+  const destino: EstadoActividad = accion === "publicar" ? "published" : "draft";
+  for (const f of filas) {
+    if (f.status === destino) {
+      plan.yaEstaban += 1;
+      continue;
+    }
+    const tr = transicionDeFila(f.status);
+    if (!tr || tr.clave !== accion) {
+      plan.cerradas += 1;
+      continue;
+    }
+    if (accion === "publicar" && f.cursoEnBorrador) {
+      plan.enCursoBorrador += 1;
+      continue;
+    }
+    plan.ids.push(f.id);
+  }
+  return plan;
+}
+
+/**
+ * Al publicar varias, cuántas avisan ya y cuántas cuando se acerque su fecha.
+ * Misma regla que `avisoAlPublicar`, fila por fila.
+ */
+export function avisosAlPublicarVarias(
+  inicios: readonly (string | null | undefined)[],
+  ahora: Date,
+  categoriaActiva = true,
+): { silenciado: boolean; ahora: number; cuandoSeAcerque: number } {
+  if (!categoriaActiva) return { silenciado: true, ahora: 0, cuandoSeAcerque: 0 };
+  let ya = 0;
+  let luego = 0;
+  for (const inicio of inicios) {
+    if (avisoAlPublicar(inicio, ahora) === "cuandoSeAcerque") luego += 1;
+    else ya += 1;
+  }
+  return { silenciado: false, ahora: ya, cuandoSeAcerque: luego };
+}

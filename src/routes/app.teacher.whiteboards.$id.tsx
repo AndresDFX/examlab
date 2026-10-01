@@ -49,6 +49,8 @@ interface Whiteboard {
   scene_json: WhiteboardScene;
   course_id: string | null;
   is_shared_with_course: boolean;
+  /** draft | published | closed. nullish ⇒ published. */
+  status?: string | null;
 }
 
 function WhiteboardEditorPage() {
@@ -88,7 +90,7 @@ function WhiteboardEditorPage() {
         const [{ data: wbData, error: wbErr }, { data: courseRows }] = await Promise.all([
           db
             .from("whiteboards")
-            .select("id, owner_id, name, description, scene_json, course_id, is_shared_with_course")
+            .select("id, owner_id, name, description, scene_json, course_id, is_shared_with_course, status")
             .eq("id", id)
             // Una pizarra en papelera no debe ser editable por deep-link/link
             // stale: filtrar deleted_at para que el editor no la abra.
@@ -163,18 +165,39 @@ function WhiteboardEditorPage() {
     const nextShared = metaCourse !== "none" && metaShared;
     setMetaStatus("saving");
     try {
-      const { error } = await db
+      const { data: guardada, error } = await db
         .from("whiteboards")
         .update({ name: metaName.trim(), course_id: nextCourse, is_shared_with_course: nextShared })
-        .eq("id", wb.id);
+        .eq("id", wb.id)
+        .select("status")
+        .maybeSingle();
       if (error) {
         setMetaStatus("idle");
         toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsId.couldNotSave")));
         return;
       }
+      // Compartirla con un curso en borrador (o moverla a uno) la deja en
+      // borrador (mig 20262690000000): decirlo, o el docente cree que el curso
+      // ya la ve.
+      const nuevoEstado = (guardada as { status?: string | null } | null)?.status ?? wb.status ?? null;
+      if (nextShared && nuevoEstado === "draft" && (wb.status ?? "published") !== "draft") {
+        toast.info(
+          t("publicacion.quedoEnBorrador", {
+            count: 1,
+            cursos: courses.find((c) => c.id === nextCourse)?.name ?? "",
+          }),
+          { duration: 10000 },
+        );
+      }
       // Actualizar wb → el effect de auto-guardado ve que ya no hay cambios y
       // no re-dispara (evita loop).
-      setWb({ ...wb, name: metaName.trim(), course_id: nextCourse, is_shared_with_course: nextShared });
+      setWb({
+        ...wb,
+        name: metaName.trim(),
+        course_id: nextCourse,
+        is_shared_with_course: nextShared,
+        status: nuevoEstado,
+      });
       setMetaStatus("saved");
     } catch (e) {
       // Caller: onChange debounced / flush al desmontar. Sin catch, una

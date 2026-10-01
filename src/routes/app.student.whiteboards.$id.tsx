@@ -55,6 +55,7 @@ interface Pizarra {
   description: string | null;
   owner_id: string;
   course_id: string | null;
+  status?: string | null;
 }
 
 function StudentWhiteboard() {
@@ -81,7 +82,7 @@ function StudentWhiteboard() {
         const [{ data, error }, { data: enrollments }] = await Promise.all([
           db
             .from("whiteboards")
-            .select("id, name, description, owner_id, course_id")
+            .select("id, name, description, owner_id, course_id, status")
             .eq("id", id)
             .is("deleted_at", null)
             .maybeSingle(),
@@ -97,6 +98,13 @@ function StudentWhiteboard() {
           return;
         }
         const fila = data as Pizarra;
+        // Una compartida en borrador todavía no es para el estudiante (la lista
+        // ya no la muestra); un enlace viejo no debe abrirla.
+        if (fila.owner_id !== user.id && (fila.status ?? "published") === "draft") {
+          setLoadError(t("studentWhiteboards.enBorrador"));
+          setLoading(false);
+          return;
+        }
         setWb(fila);
         setNombre(fila.name);
         setCursoId(fila.course_id ?? SIN_CURSO);

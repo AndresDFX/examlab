@@ -9,14 +9,22 @@
  * La decisión de qué transición ofrecer y cuándo avisa el trigger vive en
  * `publicacion.ts`, que es puro y está testeado. Acá solo está el efecto.
  */
-import { useState } from "react";
+import { createElement, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { supabase } from "@/integrations/supabase/client";
+import { unirLista } from "@/shared/lib/unir-lista";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
-import { avisoAlPublicar, CATEGORIA_DE_TABLA, type Transicion } from "@/shared/lib/publicacion";
+import {
+  avisoAlPublicar,
+  avisosAlPublicarVarias,
+  CATEGORIA_DE_TABLA,
+  planDePublicacionMasiva,
+  type AccionMasiva,
+  type Transicion,
+} from "@/shared/lib/publicacion";
 
 export type TablaPublicable = "workshops" | "exams" | "projects";
 
@@ -28,40 +36,48 @@ export interface FilaPublicable {
   inicio?: string | null;
 }
 
+/** Una fila seleccionada para la acción masiva. */
+export interface FilaMasiva extends FilaPublicable {
+  status: string | null | undefined;
+  /** Todos sus cursos están en borrador (ver `curso-borrador.ts`). */
+  cursoEnBorrador?: boolean;
+}
+
 export function useCambiarPublicacion(
   tabla: TablaPublicable,
   alTerminar: () => void | Promise<void>,
 ) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const confirm = useConfirm();
   const [cambiandoId, setCambiandoId] = useState<string | null>(null);
+  const [cambiandoVarios, setCambiandoVarios] = useState(false);
+
+  // Si la categoría está apagada en el panel de Notificaciones, publicar NO
+  // avisa a nadie (mig 20262300000000) y el diálogo tiene que decirlo. Se lee
+  // al confirmar y no una vez al montar la pantalla porque un Admin puede
+  // cambiarlo mientras el docente tiene la lista abierta, y prometer de más es
+  // justamente el error que este diálogo existe para evitar.
+  //
+  // `email_settings` es legible por cualquier autenticado (policy
+  // `email_settings_select`, `USING (true)`) y en esa tabla no hay secretos:
+  // las credenciales SMTP viven en `tenant_email_settings`.
+  const leerCategoriaActiva = async (): Promise<boolean> => {
+    const { data } = await supabase
+      .from("email_settings")
+      .select("enabled_kinds")
+      .eq("id", 1)
+      .maybeSingle();
+    const kinds = (data as { enabled_kinds?: Record<string, boolean> } | null)?.enabled_kinds;
+    // Clave AUSENTE = encendida, igual que el trigger y que el edge: se exige
+    // el literal `false`. Y si la consulta falla, se asume encendida — decir
+    // «no se avisa» cuando sí se avisa es el error caro de los dos.
+    return !(kinds && kinds[CATEGORIA_DE_TABLA[tabla]] === false);
+  };
 
   const cambiar = async (fila: FilaPublicable, transicion: Transicion) => {
-    if (cambiandoId) return;
+    if (cambiandoId || cambiandoVarios) return;
     const publicando = transicion.clave === "publicar";
-
-    // Si la categoría está apagada en el panel de Notificaciones, publicar NO
-    // avisa a nadie (mig 20262300000000) y el diálogo tiene que decirlo. Se lee
-    // acá y no una vez al montar la pantalla porque un Admin puede cambiarlo
-    // mientras el docente tiene la lista abierta, y prometer de más es
-    // justamente el error que este diálogo existe para evitar.
-    //
-    // `email_settings` es legible por cualquier autenticado (policy
-    // `email_settings_select`, `USING (true)`) y en esa tabla no hay secretos:
-    // las credenciales SMTP viven en `tenant_email_settings`.
-    let categoriaActiva = true;
-    if (publicando) {
-      const { data } = await supabase
-        .from("email_settings")
-        .select("enabled_kinds")
-        .eq("id", 1)
-        .maybeSingle();
-      const kinds = (data as { enabled_kinds?: Record<string, boolean> } | null)?.enabled_kinds;
-      // Clave AUSENTE = encendida, igual que el trigger y que el edge: se exige
-      // el literal `false`. Y si la consulta falla, se asume encendida — decir
-      // «no se avisa» cuando sí se avisa es el error caro de los dos.
-      if (kinds && kinds[CATEGORIA_DE_TABLA[tabla]] === false) categoriaActiva = false;
-    }
+    const categoriaActiva = publicando ? await leerCategoriaActiva() : true;
 
     const ok = await confirm({
       title: publicando
@@ -104,5 +120,101 @@ export function useCambiarPublicacion(
     }
   };
 
-  return { cambiar, cambiandoId };
+  /**
+   * Publicar o volver a borrador varias filas a la vez. Cambia solo lo que la
+   * fila ofrecería por sí sola (`planDePublicacionMasiva`) y dice qué omite.
+   * Es UN update: si la base rechaza una (su curso pasó a borrador mientras la
+   * lista estaba abierta), no cambia ninguna y se muestra el motivo.
+   */
+  const cambiarVarios = async (
+    filas: readonly FilaMasiva[],
+    accion: AccionMasiva,
+    nombres: { singular: string; plural: string },
+  ): Promise<boolean> => {
+    if (cambiandoId || cambiandoVarios) return false;
+    const publicando = accion === "publicar";
+    const plan = planDePublicacionMasiva(filas, accion);
+    const idioma = i18n.language || "es-CO";
+
+    const omitidas: string[] = [];
+    if (plan.yaEstaban > 0) {
+      omitidas.push(
+        t(publicando ? "publicacion.masiva.omitYaPublicadas" : "publicacion.masiva.omitYaBorrador", {
+          count: plan.yaEstaban,
+        }),
+      );
+    }
+    if (plan.cerradas > 0) omitidas.push(t("publicacion.masiva.omitCerradas", { count: plan.cerradas }));
+    if (plan.enCursoBorrador > 0) {
+      omitidas.push(t("publicacion.masiva.omitCursoBorrador", { count: plan.enCursoBorrador }));
+    }
+
+    if (plan.ids.length === 0) {
+      toast.info(t("publicacion.masiva.nada", { motivo: unirLista(omitidas, idioma) }));
+      return false;
+    }
+
+    const count = plan.ids.length;
+    const parrafos: string[] = [];
+    if (publicando) {
+      const aCambiar = new Set(plan.ids);
+      const avisos = avisosAlPublicarVarias(
+        filas.filter((f) => aCambiar.has(f.id)).map((f) => f.inicio),
+        new Date(),
+        await leerCategoriaActiva(),
+      );
+      if (avisos.silenciado) parrafos.push(t("publicacion.masiva.avisoSilenciado", { count }));
+      else if (avisos.cuandoSeAcerque === 0) parrafos.push(t("publicacion.masiva.avisoAhora", { count }));
+      else if (avisos.ahora === 0) parrafos.push(t("publicacion.masiva.avisoLuego", { count }));
+      // Mixto solo ocurre con dos o más: siempre plural.
+      else parrafos.push(t("publicacion.masiva.avisoMixto", { count: avisos.ahora }));
+    } else {
+      parrafos.push(t("publicacion.masiva.borradorCuerpo", { count }));
+    }
+    if (omitidas.length > 0) {
+      parrafos.push(t("publicacion.masiva.omitidas", { lista: unirLista(omitidas, idioma) }));
+    }
+
+    const entidad = count === 1 ? nombres.singular : nombres.plural;
+    const ok = await confirm({
+      title: t(publicando ? "publicacion.masiva.tituloPublicar" : "publicacion.masiva.tituloBorrador", {
+        count,
+        entidad,
+      }),
+      // `span` y no `div`/`p`: la descripción del diálogo ya es un <p>.
+      description: createElement(
+        "span",
+        { className: "block space-y-2" },
+        parrafos.map((p, i) => createElement("span", { key: i, className: "block" }, p)),
+      ),
+      confirmLabel: publicando ? t("publicacion.publish") : t("publicacion.backToDraft"),
+      // Mismo tono que la fila: nada se pierde, pero un aviso enviado no vuelve.
+      tone: "warning",
+    });
+    if (!ok) return false;
+
+    setCambiandoVarios(true);
+    try {
+      const { error } = await supabase
+        .from(tabla)
+        .update({ status: publicando ? "published" : "draft" })
+        .in("id", plan.ids);
+      if (error) {
+        toast.error(friendlyError(error), { duration: 12000 });
+        return false;
+      }
+      toast.success(
+        t(publicando ? "publicacion.masiva.publicadas" : "publicacion.masiva.enBorrador", { count, entidad }),
+      );
+      await alTerminar();
+      return true;
+    } catch (e) {
+      toast.error(friendlyError(e), { duration: 12000 });
+      return false;
+    } finally {
+      setCambiandoVarios(false);
+    }
+  };
+
+  return { cambiar, cambiandoId, cambiarVarios, cambiandoVarios };
 }

@@ -73,6 +73,8 @@ import {
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
 import { stripNotebookOutputs } from "@/modules/code/notebook";
+import { conAnclaActiva, mapaDeEstados } from "@/modules/courses/curso-borrador";
+import { unirLista } from "@/shared/lib/unir-lista";
 // Helpers PUROS — testeados en `upload-external-helpers.test.ts`.
 import {
   tagsToModality,
@@ -166,6 +168,8 @@ const previewNames = (names: string[]): string => {
 interface CourseOption {
   id: string;
   name: string;
+  /** Si llega, el ancla del contenido es un curso que no está en borrador. */
+  status?: string | null;
 }
 
 interface Props {
@@ -438,7 +442,12 @@ export function UploadExternalContentDialog({
     setSaving(true);
     setProgress({ done: 0, total: files.length });
     const courseIdsArr = Array.from(selectedCourseIds);
-    const anchorCourseId = courseIdsArr[0];
+    // El material subido nace publicado, salvo en un curso en borrador, donde la
+    // base lo guarda en borrador (mig 20262690000000). La base mira el ancla en
+    // el INSERT, antes de que existan las filas de unión: con un curso activo
+    // entre los elegidos, el ancla es ese, para que no quede en borrador un
+    // material que sus estudiantes sí deben ver.
+    const anchorCourseId = conAnclaActiva(courseIdsArr, mapaDeEstados(courses))[0];
     const modality = tagsToModality(tagsForDb);
     // Clampamos desde el string crudo por si el usuario disparó submit
     // (Enter / click) sin que el campo de duración perdiera el foco (blur)
@@ -469,7 +478,7 @@ export function UploadExternalContentDialog({
     const { data: created, error: insErr } = await db
       .from("generated_contents")
       .insert(insertPayload)
-      .select("id")
+      .select("id, is_published")
       .maybeSingle();
     if (insErr || !created?.id) {
       const code = (insErr as { code?: string } | null)?.code;
@@ -614,6 +623,18 @@ export function UploadExternalContentDialog({
             failed: failed.join(", "),
           });
     toast.success(successMsg);
+    // Pedido publicado, la base lo guardó en borrador: todos sus cursos están en
+    // borrador (mig 20262690000000). Decirlo, o el docente cree que ya lo ven.
+    if ((created as { is_published?: boolean }).is_published === false) {
+      const nombres = courseIdsArr.map((id) => courses.find((c) => c.id === id)?.name ?? id);
+      toast.info(
+        t("publicacion.quedoEnBorrador", {
+          count: nombres.length,
+          cursos: unirLista(nombres, i18n.language || "es-CO"),
+        }),
+        { duration: 10000 },
+      );
+    }
     onCreated(contentId);
     onOpenChange(false);
     setSaving(false);

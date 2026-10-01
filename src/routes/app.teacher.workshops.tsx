@@ -6,8 +6,15 @@ import {
 } from "@/shared/lib/rango-de-fechas";
 import { createFileRoute } from "@tanstack/react-router";
 import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
-import { transicionDeFila } from "@/shared/lib/publicacion";
+import { transicionDeFila, type AccionMasiva } from "@/shared/lib/publicacion";
 import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
+import {
+  conAnclaActiva,
+  cuantosCursos,
+  mapaDeEstados,
+  soloCursosEnBorrador,
+} from "@/modules/courses/curso-borrador";
+import { AvisoCursoEnBorrador } from "@/modules/courses/AvisoCursoEnBorrador";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDeleteMany } from "@/modules/trash/soft-delete";
@@ -417,8 +424,12 @@ function TeacherWorkshops() {
   const { user, roles, loading: authLoading } = useAuth();
   const activeRole = useActiveRole();
   const confirm = useConfirm();
-  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
-    useCambiarPublicacion("workshops", () => load());
+  const {
+    cambiar: cambiarPublicacion,
+    cambiandoId: cambiandoPublicacionId,
+    cambiarVarios: cambiarPublicacionVarios,
+    cambiandoVarios: cambiandoPublicacionVarios,
+  } = useCambiarPublicacion("workshops", () => load());
   // Gate IA: cubre los tres handlers que invocan IA acá —
   // aiRegradeAnswer (re-grade pregunta), gradeOneWithAI (calificar
   // workshop completo) y runDetectCopies (detectar plagio).
@@ -600,6 +611,30 @@ function TeacherWorkshops() {
   });
 
   const sel = useMultiSelect(sort.sorted);
+
+  // Un curso en borrador no publica material (mig 20262690000000). Un taller es
+  // de su ancla y de sus filas de `workshop_courses`: se bloquea solo si TODOS
+  // esos cursos están en borrador, que es lo mismo que mira la base.
+  const estadosDeCursos = useMemo(() => mapaDeEstados(courses), [courses]);
+  const cursosDelTaller = (ws: Workshop) => [ws.course_id, ...(workshopCourses.get(ws.id) ?? [])];
+  const tallerEnCursoBorrador = (ws: Workshop) =>
+    soloCursosEnBorrador(cursosDelTaller(ws), estadosDeCursos);
+  const cambiarPublicacionSeleccion = async (accion: AccionMasiva) => {
+    const filas = sort.sorted
+      .filter((ws) => sel.isSelected(ws.id))
+      .map((ws) => ({
+        id: ws.id,
+        titulo: ws.title,
+        inicio: ws.start_date,
+        status: ws.status,
+        cursoEnBorrador: tallerEnCursoBorrador(ws),
+      }));
+    const ok = await cambiarPublicacionVarios(filas, accion, {
+      singular: t("teacherWorkshops.bulkEntitySingular"),
+      plural: t("teacherWorkshops.bulkEntityPlural"),
+    });
+    if (ok) sel.clear();
+  };
 
   // Paginación client-side sobre la lista filtrada+ordenada. El
   // multi-select sigue trabajando sobre `sort.sorted` (todas las páginas)
@@ -1195,6 +1230,10 @@ function TeacherWorkshops() {
         setForm((f) => ({
           ...f,
           course_id: first,
+          status:
+            f.status === "published" && soloCursosEnBorrador([...next], estadosDeCursos)
+              ? "draft"
+              : f.status,
           // Taller NUEVO: el puntaje máximo sigue la escala del curso
           // primario. Al editar (f.id) NO se toca para no pisar un valor ya
           // guardado.
@@ -1540,7 +1579,11 @@ function TeacherWorkshops() {
       // por compat con queries legacy. workshops.weight / cut_id usan los
       // valores del PRIMER curso; los demás cursos viven en
       // workshop_courses.weight / cut_id que pueden diferir.
-      const firstCid = courseIds[0];
+      // Al publicar, el ancla es un curso ACTIVO si hay alguno: la base mira el
+      // ancla en el INSERT, antes de que existan las filas de `workshop_courses`,
+      // y con un ancla en borrador rechazaría un taller que sí se puede publicar.
+      const firstCid =
+        basePayload.status === "published" ? conAnclaActiva(courseIds, estadosDeCursos)[0] : courseIds[0];
       const firstCc = isMultiCourse ? courseCuts[firstCid] : undefined;
       const primaryPayload: Record<string, any> = {
         ...basePayload,
@@ -3925,6 +3968,22 @@ function TeacherWorkshops() {
         onDelete={() => setBulkDeleteOpen(true)}
         entityNameSingular={t("teacherWorkshops.bulkEntitySingular")}
         entityNamePlural={t("teacherWorkshops.bulkEntityPlural")}
+        extraActions={[
+          {
+            key: "publicar",
+            label: t("publicacion.publish"),
+            icon: IconoPublicar,
+            onClick: () => void cambiarPublicacionSeleccion("publicar"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+          {
+            key: "borrador",
+            label: t("publicacion.backToDraft"),
+            icon: IconoBorrador,
+            onClick: () => void cambiarPublicacionSeleccion("volverABorrador"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+        ]}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: muestra cuánto
@@ -4182,13 +4241,22 @@ function TeacherWorkshops() {
                         },
                         (() => {
                           const tr = transicionDeFila(ws.status);
+                          const bloqueada = tr?.clave === "publicar" && tallerEnCursoBorrador(ws);
                           return tr ? {
                                 label:
                                   tr.clave === "publicar"
                                     ? t("publicacion.publish")
                                     : t("publicacion.backToDraft"),
                                 icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
-                                disabled: cambiandoPublicacionId != null,
+                                disabled:
+                                  cambiandoPublicacionId != null ||
+                                  cambiandoPublicacionVarios ||
+                                  bloqueada,
+                                hint: bloqueada
+                                  ? t("publicacion.cursoEnBorrador", {
+                                      count: cuantosCursos(cursosDelTaller(ws)),
+                                    })
+                                  : undefined,
                                 onClick: () =>
                                   void cambiarPublicacion(
                                     { id: ws.id, titulo: ws.title, inicio: ws.start_date },
@@ -4586,7 +4654,16 @@ function TeacherWorkshops() {
                     const nextDue = isFuture
                       ? current
                       : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000));
-                    setForm({ ...form, status: "published", due_date: nextDue });
+                    // En un curso en borrador no se publica: reabre a borrador.
+                    const cursosEnBorrador = soloCursosEnBorrador(
+                      [...selectedCourseIds, form.course_id as string | undefined],
+                      estadosDeCursos,
+                    );
+                    setForm({
+                      ...form,
+                      status: cursosEnBorrador ? "draft" : "published",
+                      due_date: nextDue,
+                    });
                   }}
                 />
               )}
@@ -4602,10 +4679,33 @@ function TeacherWorkshops() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="draft">{t("teacherWorkshops.statusDraft")}</SelectItem>
-                      <SelectItem value="published">{t("teacherWorkshops.statusPublished")}</SelectItem>
+                      <SelectItem
+                        value="published"
+                        disabled={
+                          form.status !== "published" &&
+                          soloCursosEnBorrador(
+                            [...selectedCourseIds, form.course_id as string | undefined],
+                            estadosDeCursos,
+                          )
+                        }
+                      >
+                        {t("teacherWorkshops.statusPublished")}
+                      </SelectItem>
                       <SelectItem value="closed">{t("teacherWorkshops.statusClosed")}</SelectItem>
                     </SelectContent>
                   </Select>
+                  {form.status !== "published" &&
+                    soloCursosEnBorrador(
+                      [...selectedCourseIds, form.course_id as string | undefined],
+                      estadosDeCursos,
+                    ) && (
+                      <AvisoCursoEnBorrador
+                        cursos={cuantosCursos([
+                          ...selectedCourseIds,
+                          form.course_id as string | undefined,
+                        ])}
+                      />
+                    )}
                 </div>
               )}
               <div>

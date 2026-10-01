@@ -66,7 +66,8 @@ export type RowActionItem = {
   /** Inserta un separador horizontal ANTES de este item (típicamente
    *  antes de "Eliminar" para separar lo destructivo del resto). */
   separatorBefore?: boolean;
-  /** Tooltip / hint si aplica (ej: "no disponible para externos"). */
+  /** Tooltip / hint si aplica (ej: "no disponible para externos"). Si el item
+   *  está `disabled`, se muestra visible debajo de la etiqueta: es el motivo. */
   hint?: string;
 };
 
@@ -132,7 +133,16 @@ export function RowActionsMenu({
               ) : (
                 <ItemIcon className="h-4 w-4" aria-hidden />
               )}
-              <span className="flex-1">{action.label}</span>
+              <span className="flex-1 min-w-0">
+                {action.label}
+                {/* Un item deshabilitado no recibe el puntero, así que su `title`
+                    no aparece nunca: el motivo se muestra en el propio menú. */}
+                {action.disabled && action.hint && (
+                  <span className="block text-2xs leading-snug text-muted-foreground">
+                    {action.hint}
+                  </span>
+                )}
+              </span>
             </>
           );
           // Caso navegación interna: usamos asChild + Link. Evita que el

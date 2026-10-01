@@ -23,6 +23,7 @@ import { DateCell } from "@/components/ui/date-cell";
 import {
   deriveCourseDisplayState,
   summarizeCourses,
+  type CourseStatus,
 } from "@/modules/courses/course-status";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
@@ -73,6 +74,7 @@ import {
   Stethoscope,
   Play,
   CheckCircle2,
+  Undo2,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
@@ -100,6 +102,14 @@ import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { conPerfilOfrecible } from "@/modules/admin/profile-scope";
+import {
+  avisoDeCambioDeEstado,
+  partesDeMaterial,
+  type ConteoDeMaterial,
+  type ImpactoCambioEstado,
+  type Parrafo,
+} from "@/modules/courses/cambio-estado-curso";
+import { unirLista } from "@/shared/lib/unir-lista";
 
 // grade_cuts/grade_cut_items aren't always reflected in the auto-generated types.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1315,14 +1325,17 @@ export function AdminCourses() {
   // silencio. La autorización fina (docente del curso / Admin del tenant)
   // la enforza el RPC server-side; el grid del docente ya lista solo sus
   // cursos, así que no hace falta un gate extra en cliente.
-  const changeCourseStatus = async (course: Course, next: "borrador" | "en_curso" | "finalizado") => {
+  const changeCourseStatus = async (
+    course: Pick<Course, "id" | "name">,
+    next: CourseStatus,
+  ): Promise<boolean> => {
     // Anti doble-submit + feedback visible. Antes esta función NO tenía
     // ningún estado de carga: el usuario confirmaba "Finalizar" y no pasaba
     // nada visible mientras corría el RPC + el `load()` completo (varias
     // queries). Y sin try/catch, un throw del RPC (red / sesión / función
     // inexistente) se perdía como promesa rechazada sin dueño —
     // literalmente "no lo hizo ni me dio el error".
-    if (statusBusyId) return;
+    if (statusBusyId) return false;
     setStatusBusyId(course.id);
     try {
       const { error } = await db.rpc("set_course_status", {
@@ -1331,7 +1344,7 @@ export function AdminCourses() {
       });
       if (error) {
         toast.error(friendlyError(error), { duration: 12000 });
-        return;
+        return false;
       }
       toast.success(t("toast.routes_app_admin_courses.statusChanged"));
       void logEvent({
@@ -1344,60 +1357,82 @@ export function AdminCourses() {
         metadata: { status: next },
       });
       await load();
+      return true;
     } catch (e) {
       toast.error(friendlyError(e), { duration: 12000 });
+      return false;
     } finally {
       setStatusBusyId(null);
     }
   };
 
+  // Cambiar el estado de un curso mueve su material: a borrador lo pasa a
+  // borrador (y sus notas dejan de contar), finalizar lo cierra, y volver atrás
+  // no deshace ninguna de las dos cosas (migs 20260991000000 y 20262690000000).
+  // Por eso antes de confirmar se le pregunta a la base qué va a pasar y el
+  // diálogo lo dice con números (ver cambio-estado-curso.ts). Es el ÚNICO camino
+  // de confirmación: lo usan las acciones de la fila y el selector del formulario.
+  const listaDeMaterial = (m: ConteoDeMaterial) =>
+    unirLista(
+      partesDeMaterial(m).map(({ tipo, n }) => t(`cursoEstado.material.${tipo}`, { count: n })),
+      i18n.language || "es-CO",
+    );
+  const confirmarCambioDeEstado = async (
+    course: Pick<Course, "id" | "name" | "status">,
+    next: CourseStatus,
+  ): Promise<boolean> => {
+    if (statusBusyId) return false;
+    const { data, error } = await db.rpc("impacto_cambio_estado_curso", {
+      _course_id: course.id,
+      _status: next,
+    });
+    // Sin el impacto (la función falló o todavía no llegó a esta base) el aviso
+    // se arma igual, sin números: nunca se cambia el estado sin preguntar.
+    const impacto = error ? null : ((data ?? null) as ImpactoCambioEstado | null);
+    const aviso = avisoDeCambioDeEstado(course.status ?? null, next, impacto);
+    if (!aviso) return false;
+    const texto = (p: Parrafo) =>
+      t(p.clave, {
+        ...p.params,
+        nombre: course.name,
+        lista: p.material ? listaDeMaterial(p.material) : undefined,
+      });
+    if (aviso.bloqueo) {
+      toast.error(texto(aviso.bloqueo), { duration: 12000 });
+      return false;
+    }
+    return confirm({
+      title: t(`cursoEstado.${aviso.clave}.titulo`, { nombre: course.name }),
+      // `span` y no `div`/`p`: la descripción del diálogo ya es un <p>.
+      description: (
+        <span className="block space-y-2">
+          {aviso.parrafos.map((p, i) => (
+            <span key={i} className="block">
+              {texto(p)}
+            </span>
+          ))}
+        </span>
+      ),
+      confirmLabel: t(`cursoEstado.${aviso.clave}.confirmar`),
+      tone: aviso.tono,
+    });
+  };
+  const cambiarEstadoConAviso = async (
+    course: Pick<Course, "id" | "name" | "status">,
+    next: CourseStatus,
+  ): Promise<boolean> => {
+    if (!(await confirmarCambioDeEstado(course, next))) return false;
+    return changeCourseStatus(course, next);
+  };
+
   /** Publicar (borrador → en_curso). */
-  const publishCourse = async (course: Course) => {
-    const ok = await confirm({
-      title: t("course.actionPublishConfirmTitle"),
-      description: t("course.actionPublishConfirmBody"),
-      confirmLabel: t("course.actionPublish"),
-      tone: "default",
-    });
-    if (!ok) return;
-    await changeCourseStatus(course, "en_curso");
-  };
-
+  const publishCourse = (course: Course) => cambiarEstadoConAviso(course, "en_curso");
   /** Finalizar (en_curso → finalizado). */
-  const finalizeCourse = async (course: Course) => {
-    const ok = await confirm({
-      title: t("course.actionFinalizeConfirmTitle"),
-      description: t("course.actionFinalizeConfirmBody"),
-      confirmLabel: t("course.actionFinalize"),
-      tone: "warning",
-    });
-    if (!ok) return;
-    await changeCourseStatus(course, "finalizado");
-  };
-
+  const finalizeCourse = (course: Course) => cambiarEstadoConAviso(course, "finalizado");
   /** Reabrir (finalizado → en_curso). */
-  const reopenCourse = async (course: Course) => {
-    const ok = await confirm({
-      title: t("course.actionReopenConfirmTitle"),
-      description: t("course.actionReopenConfirmBody"),
-      confirmLabel: t("course.actionReopen"),
-      tone: "default",
-    });
-    if (!ok) return;
-    await changeCourseStatus(course, "en_curso");
-  };
-
+  const reopenCourse = (course: Course) => cambiarEstadoConAviso(course, "en_curso");
   /** Mover a borrador (despublicar — caso raro). */
-  const moveCourseToDraft = async (course: Course) => {
-    const ok = await confirm({
-      title: t("course.actionMoveToDraft"),
-      description: t("course.actionPublishConfirmBody"),
-      confirmLabel: t("course.actionMoveToDraft"),
-      tone: "warning",
-    });
-    if (!ok) return;
-    await changeCourseStatus(course, "borrador");
-  };
+  const moveCourseToDraft = (course: Course) => cambiarEstadoConAviso(course, "borrador");
 
   // ── Student Enrollment ───────────────────────────────────
 
@@ -2504,7 +2539,9 @@ export function AdminCourses() {
                         },
                         c.status === "finalizado" && {
                           label: t("course.actionMoveToDraft"),
-                          icon: Pencil,
+                          // Mismo ícono que «Volver a borrador» en las grillas de
+                          // exámenes, talleres y proyectos: es el mismo concepto.
+                          icon: Undo2,
                           onClick: () => void moveCourseToDraft(c),
                           disabled: statusBusyId != null,
                         },
@@ -2824,22 +2861,20 @@ export function AdminCourses() {
                   </Label>
                   <Select
                     value={(editing.status as string | undefined) ?? "en_curso"}
+                    disabled={statusBusyId != null}
                     onValueChange={(v) => {
-                      const next = v as "borrador" | "en_curso" | "finalizado";
-                      // Reflejo optimista en el form; el RPC + load() refrescan
-                      // el grid (y finalized_at/by server-side).
-                      setEditing((prev) => (prev ? { ...prev, status: next } : prev));
+                      const next = v as CourseStatus;
+                      const curso = {
+                        id: editing.id as string,
+                        name: editing.name ?? "",
+                        status: editing.status ?? null,
+                      };
+                      // Mismo aviso que las acciones de la fila. El valor del
+                      // Select cambia solo si el cambio se confirmó y se aplicó.
                       void (async () => {
-                        const { error } = await db.rpc("set_course_status", {
-                          _course_id: editing.id,
-                          _status: next,
-                        });
-                        if (error) {
-                          toast.error(friendlyError(error));
-                          return;
+                        if (await cambiarEstadoConAviso(curso, next)) {
+                          setEditing((prev) => (prev ? { ...prev, status: next } : prev));
                         }
-                        toast.success(t("toast.routes_app_admin_courses.statusChanged"));
-                        load();
                       })();
                     }}
                   >

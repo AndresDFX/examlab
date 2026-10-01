@@ -43,7 +43,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { scopedCourseIds, visibleForScopedCourses } from "@/modules/courses/course-scope";
 import { isStaffActive } from "@/shared/lib/roles";
-import { esPropia } from "@/modules/whiteboard/student-whiteboards";
+import { esPropia, ocultaParaQuienLaRecibe } from "@/modules/whiteboard/student-whiteboards";
 import { MIN_QUERY_LENGTH, ilikePatternFor, matchesQuery, sortByRelevance } from "./search-text";
 
 // Los tipos generados de Supabase no reflejan `deleted_at` ni la tabla
@@ -543,9 +543,9 @@ async function searchWhiteboards(q: string, s: SearchScope): Promise<PaletteHit[
   // papelera. Es la misma regla que reparte las dos listas de
   // /app/student/whiteboards, y vive en un solo módulo para que no divergan.
   const propiaDelAlumno = (r: Row) => !s.staff && esPropia(r, s.userId);
-  // Una pizarra CERRADA sale del listado activo del alumno.
+  // Una pizarra CERRADA o en BORRADOR no está en el listado del alumno.
   if (!s.staff) {
-    rows = rows.filter((r) => propiaDelAlumno(r) || (r.status ?? "published") !== "closed");
+    rows = rows.filter((r) => propiaDelAlumno(r) || !ocultaParaQuienLaRecibe(r.status));
   }
   // Pizarra de un curso en papelera: el curso ya no existe. Las pizarras SIN
   // curso (personales del docente o del alumno) se quedan.

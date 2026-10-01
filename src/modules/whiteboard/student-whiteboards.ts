@@ -39,8 +39,20 @@ export interface PizarraVisible {
   owner_id: string | null;
   course_id: string | null;
   is_shared_with_course: boolean | null;
-  /** `closed` cuando el curso se finalizó (cascada). Nullish ⇒ publicada. */
+  /** `closed` cuando el curso se finalizó; `draft` cuando el docente la dejó en
+   *  borrador o su curso pasó a borrador (cascadas). Nullish ⇒ publicada. */
   status?: string | null;
+}
+
+/**
+ * ¿Una pizarra que el estudiante RECIBE (no propia) queda fuera de su vista?
+ * Cerrada sale del listado activo; en borrador todavía no es para él —«Borrador»
+ * quiere decir lo mismo que en un taller o un examen, y un curso que pasa a
+ * borrador deja así sus pizarras compartidas (mig 20262690000000)—.
+ */
+export function ocultaParaQuienLaRecibe(status: string | null | undefined): boolean {
+  const s = status ?? "published";
+  return s === "closed" || s === "draft";
 }
 
 /** Una pizarra es propia si el estudiante es su dueño. */
@@ -63,12 +75,13 @@ export function esPropia(wb: Pick<PizarraVisible, "owner_id">, userId: string): 
  *     se hiciera por `is_shared_with_course` primero, esas aparecerían en las dos
  *     listas: la misma pizarra dos veces en la misma pantalla se lee como un bug.
  *
- *  2. **A una pizarra PROPIA no se le aplica el filtro de `closed`.** La cascada
+ *  2. **A una pizarra PROPIA no se le aplica el filtro de estado.** La cascada
  *     de finalizar un curso (`close_whiteboards_for_course`) cierra las pizarras
  *     de ese curso, y una pizarra personal del estudiante atada a él también
  *     queda `closed`. Filtrarla le haría desaparecer SU trabajo el día que el
- *     docente cierra el semestre. El filtro de `closed` existe para lo que el
- *     docente publica —cerrado sale del listado activo—, no para lo propio.
+ *     docente cierra el semestre. El filtro de `closed` y `draft`
+ *     (`ocultaParaQuienLaRecibe`) existe para lo que el docente publica, no
+ *     para lo propio.
  *
  *  3. **Lo propio no depende de que el curso siga vivo.** Si el curso se manda a
  *     la papelera, la pizarra personal sigue siendo del estudiante; lo que se
@@ -88,7 +101,7 @@ export function partirPizarras<T extends PizarraVisible>(
       continue;
     }
     if (wb.course_id && cursosEnPapelera.has(wb.course_id)) continue;
-    if ((wb.status ?? "published") === "closed") continue;
+    if (ocultaParaQuienLaRecibe(wb.status)) continue;
     compartidas.push(wb);
   }
   return { propias, compartidas };

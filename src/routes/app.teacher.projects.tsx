@@ -18,8 +18,15 @@ import {
 } from "@/shared/lib/rango-de-fechas";
 import { createFileRoute } from "@tanstack/react-router";
 import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
-import { transicionDeFila } from "@/shared/lib/publicacion";
+import { transicionDeFila, type AccionMasiva } from "@/shared/lib/publicacion";
 import { useCambiarPublicacion } from "@/shared/components/use-cambiar-publicacion";
+import {
+  conAnclaActiva,
+  cuantosCursos,
+  mapaDeEstados,
+  soloCursosEnBorrador,
+} from "@/modules/courses/curso-borrador";
+import { AvisoCursoEnBorrador } from "@/modules/courses/AvisoCursoEnBorrador";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -235,8 +242,12 @@ function TeacherProjects() {
   const activeRole = useActiveRole();
   const { t } = useTranslation();
   const confirm = useConfirm();
-  const { cambiar: cambiarPublicacion, cambiandoId: cambiandoPublicacionId } =
-    useCambiarPublicacion("projects", () => load());
+  const {
+    cambiar: cambiarPublicacion,
+    cambiandoId: cambiandoPublicacionId,
+    cambiarVarios: cambiarPublicacionVarios,
+    cambiandoVarios: cambiandoPublicacionVarios,
+  } = useCambiarPublicacion("projects", () => load());
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
   // en el set, recibía "Necesitas rol Docente" silencioso al entrar.
   const isTeacher = isStaffRole(roles);
@@ -372,6 +383,30 @@ function TeacherProjects() {
   });
 
   const sel = useMultiSelect(sort.sorted);
+
+  // Un curso en borrador no publica material (mig 20262690000000). Un proyecto
+  // es de su ancla y de sus filas de `project_courses`: se bloquea solo si TODOS
+  // esos cursos están en borrador, que es lo mismo que mira la base.
+  const estadosDeCursos = useMemo(() => mapaDeEstados(courses), [courses]);
+  const cursosDelProyecto = (p: Project) => [p.course_id, ...(p.linked_course_ids ?? [])];
+  const proyectoEnCursoBorrador = (p: Project) =>
+    soloCursosEnBorrador(cursosDelProyecto(p), estadosDeCursos);
+  const cambiarPublicacionSeleccion = async (accion: AccionMasiva) => {
+    const filas = sort.sorted
+      .filter((p) => sel.isSelected(p.id))
+      .map((p) => ({
+        id: p.id,
+        titulo: p.title,
+        inicio: p.start_date,
+        status: p.status,
+        cursoEnBorrador: proyectoEnCursoBorrador(p),
+      }));
+    const ok = await cambiarPublicacionVarios(filas, accion, {
+      singular: t("hc_routesAppTeacherProjects.entitySingular"),
+      plural: t("hc_routesAppTeacherProjects.entityPlural"),
+    });
+    if (ok) sel.clear();
+  };
 
   // Paginación client-side sobre la lista filtrada+ordenada. El
   // multi-select sigue trabajando sobre `sort.sorted` (todas las
@@ -1063,7 +1098,17 @@ function TeacherProjects() {
           form.due_date,
           earliestCourseEnd(next.map((cid) => courses.find((c) => c.id === cid)?.end_date)),
         );
-    setForm({ ...form, linked_course_ids: next, course_id: primary, due_date: cappedDue });
+    setForm({
+      ...form,
+      linked_course_ids: next,
+      course_id: primary,
+      due_date: cappedDue,
+      // Si todos los cursos elegidos quedan en borrador, no se puede publicar.
+      status:
+        form.status === "published" && soloCursosEnBorrador(next, estadosDeCursos)
+          ? "draft"
+          : form.status,
+    });
     setCourseCuts((prev) => {
       const updated: Record<string, { cut_id: string | null; weight: number }> = {};
       for (const cid of next) {
@@ -1084,8 +1129,14 @@ function TeacherProjects() {
       );
       return;
     }
-    const primaryCourse =
+    const primaryElegido =
       form.course_id && linked.includes(form.course_id) ? form.course_id : linked[0];
+    // Al CREAR publicado, el ancla es un curso activo si hay alguno: la base mira
+    // el ancla en el INSERT, antes de que existan las filas de `project_courses`.
+    const primaryCourse =
+      !editing && form.status === "published" && soloCursosEnBorrador([primaryElegido], estadosDeCursos)
+        ? conAnclaActiva(linked, estadosDeCursos)[0]
+        : primaryElegido;
     const isExternal = !!(form as any).is_external;
     // Topar la entrega (due_date) al fin del curso que termina ANTES entre los
     // asociados (defensa al guardar: cubre edición y cambios tras elegir curso).
@@ -2708,6 +2759,22 @@ function TeacherProjects() {
         onDelete={() => setBulkDeleteOpen(true)}
         entityNameSingular={t("hc_routesAppTeacherProjects.entitySingular")}
         entityNamePlural={t("hc_routesAppTeacherProjects.entityPlural")}
+        extraActions={[
+          {
+            key: "publicar",
+            label: t("publicacion.publish"),
+            icon: IconoPublicar,
+            onClick: () => void cambiarPublicacionSeleccion("publicar"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+          {
+            key: "borrador",
+            label: t("publicacion.backToDraft"),
+            icon: IconoBorrador,
+            onClick: () => void cambiarPublicacionSeleccion("volverABorrador"),
+            disabled: cambiandoPublicacionVarios || cambiandoPublicacionId != null,
+          },
+        ]}
       />
 
       {/* Resumen de pesos cuando se filtra por corte: cuánto suman los
@@ -2861,13 +2928,22 @@ function TeacherProjects() {
                         },
                         (() => {
                           const tr = transicionDeFila(p.status);
+                          const bloqueada = tr?.clave === "publicar" && proyectoEnCursoBorrador(p);
                           return tr ? {
                                 label:
                                   tr.clave === "publicar"
                                     ? t("publicacion.publish")
                                     : t("publicacion.backToDraft"),
                                 icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
-                                disabled: cambiandoPublicacionId != null,
+                                disabled:
+                                  cambiandoPublicacionId != null ||
+                                  cambiandoPublicacionVarios ||
+                                  bloqueada,
+                                hint: bloqueada
+                                  ? t("publicacion.cursoEnBorrador", {
+                                      count: cuantosCursos(cursosDelProyecto(p)),
+                                    })
+                                  : undefined,
                                 onClick: () =>
                                   void cambiarPublicacion(
                                     { id: p.id, titulo: p.title, inicio: p.start_date },
@@ -3378,7 +3454,14 @@ function TeacherProjects() {
                   const nextDue = isFuture
                     ? form.due_date
                     : toLocal(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString());
-                  setForm({ ...form, status: "published", due_date: nextDue });
+                  // En un curso en borrador no se publica: reabre a borrador.
+                  setForm({
+                    ...form,
+                    status: soloCursosEnBorrador(form.linked_course_ids ?? [], estadosDeCursos)
+                      ? "draft"
+                      : "published",
+                    due_date: nextDue,
+                  });
                 }}
               />
             )}
@@ -3396,7 +3479,13 @@ function TeacherProjects() {
                     <SelectItem value="draft">
                       {t("hc_routesAppTeacherProjects.statusDraft")}
                     </SelectItem>
-                    <SelectItem value="published">
+                    <SelectItem
+                      value="published"
+                      disabled={
+                        form.status !== "published" &&
+                        soloCursosEnBorrador(form.linked_course_ids ?? [], estadosDeCursos)
+                      }
+                    >
                       {t("hc_routesAppTeacherProjects.statusPublished")}
                     </SelectItem>
                     <SelectItem value="closed">
@@ -3404,6 +3493,10 @@ function TeacherProjects() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
+                {form.status !== "published" &&
+                  soloCursosEnBorrador(form.linked_course_ids ?? [], estadosDeCursos) && (
+                    <AvisoCursoEnBorrador cursos={cuantosCursos(form.linked_course_ids ?? [])} />
+                  )}
               </div>
             )}
           </div>

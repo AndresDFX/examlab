@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   construirPizarraNueva,
   esPropia,
+  ocultaParaQuienLaRecibe,
   partirPizarras,
   type PizarraVisible,
 } from "./student-whiteboards";
@@ -71,6 +72,28 @@ describe("partirPizarras", () => {
     const r = partirPizarras([wb({ id: "suya", owner_id: OTRO, status: "closed" })], YO);
     expect(r.compartidas).toEqual([]);
     expect(r.propias).toEqual([]);
+  });
+
+  it("a una COMPARTIDA en borrador se la esconde; a una PROPIA en borrador no", () => {
+    // «Borrador» es lo mismo que en un taller: todavía no es para el estudiante.
+    // Y un curso que pasa a borrador deja así sus pizarras compartidas.
+    const r = partirPizarras(
+      [
+        wb({ id: "del-docente", owner_id: OTRO, status: "draft" }),
+        wb({ id: "mia", owner_id: YO, status: "draft", is_shared_with_course: false }),
+      ],
+      YO,
+    );
+    expect(r.compartidas).toEqual([]);
+    expect(r.propias.map((x) => x.id)).toEqual(["mia"]);
+  });
+
+  it("ocultaParaQuienLaRecibe: cerrada y borrador sí; publicada o sin estado no", () => {
+    expect(ocultaParaQuienLaRecibe("closed")).toBe(true);
+    expect(ocultaParaQuienLaRecibe("draft")).toBe(true);
+    expect(ocultaParaQuienLaRecibe("published")).toBe(false);
+    expect(ocultaParaQuienLaRecibe(null)).toBe(false);
+    expect(ocultaParaQuienLaRecibe(undefined)).toBe(false);
   });
 
   it("esconde las compartidas de un curso en papelera", () => {

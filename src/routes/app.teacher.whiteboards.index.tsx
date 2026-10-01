@@ -74,6 +74,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Trash2, Palette, Globe, Lock, Unlock, Copy, Eye } from "lucide-react";
+import { BadgeCheck as IconoPublicar, Undo2 as IconoBorrador } from "lucide-react";
+import { transicionDeFila } from "@/shared/lib/publicacion";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { StatCard } from "@/components/ui/stat-card";
 import { HelpHint } from "@/components/ui/help-hint";
@@ -125,7 +127,17 @@ interface Whiteboard {
      *  grid (ListFilters), mismo patrón que Exámenes/Talleres/Proyectos. */
     period?: string | null;
     academic_subjects?: { name: string | null } | null;
+    /** Para no ofrecer «Publicar» en un curso en borrador (mig 20262690000000). */
+    status?: string | null;
   } | null;
+}
+
+/**
+ * ¿La pizarra NO se puede publicar? Solo una COMPARTIDA con un curso en
+ * borrador: una personal no es material del curso, así que la regla no la toca.
+ */
+function pizarraEnCursoBorrador(w: Whiteboard): boolean {
+  return w.is_shared_with_course && w.courses?.status === "borrador";
 }
 
 function TeacherWhiteboards() {
@@ -320,7 +332,7 @@ function TeacherWhiteboards() {
     let q = db
       .from("whiteboards")
       .select(
-        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at, period, academic_subjects:subject_id(name))",
+        "id, owner_id, name, description, created_at, updated_at, course_id, is_shared_with_course, status, courses(id, name, deleted_at, period, status, academic_subjects:subject_id(name))",
       )
       // Ocultar pizarras en papelera de la lista del docente.
       .is("deleted_at", null)
@@ -611,10 +623,25 @@ function TeacherWhiteboards() {
         payload.is_shared_with_course = true;
       }
       if (draftSessionId !== "none") payload.attendance_session_id = draftSessionId;
-      const { data, error } = await db.from("whiteboards").insert(payload).select("id").single();
+      const { data, error } = await db
+        .from("whiteboards")
+        .insert(payload)
+        .select("id, status")
+        .single();
       if (error || !data) {
         toast.error(friendlyError(error, t("hc_routesAppTeacherWhiteboardsIndex.createError")));
         return;
+      }
+      // Compartida con un curso en borrador, la base la guarda en borrador
+      // (mig 20262690000000): decirlo, o el docente cree que el curso ya la ve.
+      if (payload.is_shared_with_course && data.status === "draft") {
+        toast.info(
+          t("publicacion.quedoEnBorrador", {
+            count: 1,
+            cursos: draftCourses.find((c) => c.id === draftCourseId)?.name ?? "",
+          }),
+          { duration: 10000 },
+        );
       }
       // Crear la PRIMERA hoja con el nombre elegido (en vez de dejar que
       // MultiPageWhiteboard la auto-cree sin nombre → "Hoja 1"). Es una hoja de
@@ -692,14 +719,19 @@ function TeacherWhiteboards() {
         toast.error(friendlyError(error));
         return;
       }
+      const antes = w.status ?? "published";
       toast.success(
         status === "closed"
           ? t("hc_routesAppTeacherWhiteboardsIndex.statusClosedToast", {
               defaultValue: "Pizarra cerrada",
             })
-          : t("hc_routesAppTeacherWhiteboardsIndex.statusReopenedToast", {
-              defaultValue: "Pizarra reabierta",
-            }),
+          : status === "draft"
+            ? t("hc_routesAppTeacherWhiteboardsIndex.statusDraftToast")
+            : antes === "closed"
+              ? t("hc_routesAppTeacherWhiteboardsIndex.statusReopenedToast", {
+                  defaultValue: "Pizarra reabierta",
+                })
+              : t("hc_routesAppTeacherWhiteboardsIndex.statusPublishedToast"),
       );
       setItems((prev) => prev.map((p) => (p.id === w.id ? { ...p, status } : p)));
     } catch (e) {
@@ -1011,16 +1043,42 @@ function TeacherWhiteboards() {
                               icon: Copy,
                               onClick: () => setDuplicateFor(w),
                             },
-                            // Cerrar / Reabrir: alterna published↔closed. Cerrada
-                            // sale del listado activo (docente y alumno) sin
-                            // borrarla. nullish ⇒ published (no cerrada).
+                            // Publicar / Volver a borrador, igual que en exámenes,
+                            // talleres y proyectos. Sin esto una pizarra en
+                            // borrador (la deja así un curso que pasa a borrador)
+                            // no tenía cómo volver a publicarse desde la lista.
+                            (() => {
+                              const tr = transicionDeFila(w.status ?? "published");
+                              if (!tr) return null;
+                              const bloqueada = tr.clave === "publicar" && pizarraEnCursoBorrador(w);
+                              return {
+                                label:
+                                  tr.clave === "publicar"
+                                    ? t("publicacion.publish")
+                                    : t("publicacion.backToDraft"),
+                                icon: tr.clave === "publicar" ? IconoPublicar : IconoBorrador,
+                                disabled: bloqueada,
+                                hint: bloqueada
+                                  ? t("publicacion.cursoEnBorrador", { count: 1 })
+                                  : undefined,
+                                onClick: () => void setWhiteboardStatus(w, tr.a),
+                              };
+                            })(),
+                            // Cerrar / Reabrir: cerrada sale del listado activo
+                            // (docente y alumno) sin borrarla. nullish ⇒ published.
+                            // En un curso en borrador reabre a borrador: publicada
+                            // ahí la base la rechazaría.
                             (w.status ?? "published") === "closed"
                               ? {
                                   label: t("hc_routesAppTeacherWhiteboardsIndex.actionReopen", {
                                     defaultValue: "Reabrir",
                                   }),
                                   icon: Unlock,
-                                  onClick: () => void setWhiteboardStatus(w, "published"),
+                                  onClick: () =>
+                                    void setWhiteboardStatus(
+                                      w,
+                                      pizarraEnCursoBorrador(w) ? "draft" : "published",
+                                    ),
                                 }
                               : {
                                   label: t("hc_routesAppTeacherWhiteboardsIndex.actionClose", {
