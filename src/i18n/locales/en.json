@@ -7343,7 +7343,8 @@
   "hc_modulesProjectsProjectGroupsEditor": {
     "groupNameRequired": "Give the group a name",
     "deleteGroupTitle": "Delete group \"{{name}}\"",
-    "deleteGroupDescWithMembers": "It has {{count}} member(s). They will be left without a group. The group's submission (if any) is kept but will lose the association. This action cannot be undone.",
+    "deleteGroupDescWithMembers_one": "It has {{count}} member. They will be left without a group. The group's submission (if any) is kept but will lose its association. This action cannot be undone.",
+    "deleteGroupDescWithMembers_other": "It has {{count}} members. They will be left without a group. The group's submission (if any) is kept but will lose its association. This action cannot be undone.",
     "deleteGroupDescEmpty": "This action cannot be undone.",
     "delete": "Delete",
     "projectGroupsTitle": "Project groups",
@@ -7355,7 +7356,8 @@
     "unassignedHelp": "These students submit the project individually. Drag to a group to change.",
     "allStudentsInGroups": "All students are in a group.",
     "noGroupsCreated": "No groups created. Start by creating one above and drag students.",
-    "memberCount": "{{count}} member(s)",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
     "deleteGroupTooltip": "Delete group",
     "dragStudentsHere": "Drag students here.",
     "moveToOtherGroup": "Move to another group",
@@ -7628,7 +7630,8 @@
     "createGroup": "Create group",
     "deleteConfirmLabel": "Delete",
     "deleteGroupDescEmpty": "This action cannot be undone.",
-    "deleteGroupDescWithMembers": "It has {{count}} member(s). They will be left without a group. The group's submission (if any) is kept but will lose its association. This action cannot be undone.",
+    "deleteGroupDescWithMembers_one": "It has {{count}} member. They will be left without a group. The group's submission (if any) is kept but will lose its association. This action cannot be undone.",
+    "deleteGroupDescWithMembers_other": "It has {{count}} members. They will be left without a group. The group's submission (if any) is kept but will lose its association. This action cannot be undone.",
     "deleteGroupTitle": "Delete group \"{{name}}\"",
     "deleteGroupTooltip": "Delete group",
     "dragStudentsHere": "Drag students here.",
@@ -11243,6 +11246,11 @@
     "notaDe": "Grade of {{name}}",
     "tableroHint": "Create groups and drag students. Students with a group (graded together) and without one (graded individually) can coexist. Each student can belong to only one group at a time.",
     "sinGrupoTitulo": "No group (graded individually)",
-    "sinGrupoHint": "These students are graded one by one. Drag them into a group to grade them together."
+    "sinGrupoHint": "These students are graded one by one. Drag them into a group to grade them together.",
+    "hintProyecto": "Optional: enter each group's grade on its card and it is saved for all of its members. You can also grade later from “Submissions and grading”."
+  },
+  "actividadExterna": {
+    "sinNota": "Not graded yet",
+    "notaRegistrada": "External activity: the grade was recorded by the teacher."
   }
 }

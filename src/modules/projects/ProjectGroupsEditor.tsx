@@ -17,6 +17,13 @@ import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide
 import { Spinner } from "@/components/ui/spinner";
 import { SearchInput } from "@/components/ui/search-input";
 import { filtrarTablero } from "@/modules/workshops/buscar-en-grupos";
+import { NotaDeGrupoInline } from "@/modules/grading/NotaDeGrupoInline";
+import {
+  useCalificarGrupo,
+  type IntegranteACalificar,
+  type NotaGuardada,
+} from "@/modules/grading/use-calificar-grupo";
+import { formatNumber } from "@/shared/lib/format";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -34,6 +41,8 @@ const db = supabase as any;
 type Student = { id: string; full_name: string; institutional_email: string };
 type Group = { id: string; name: string; signup_code: string };
 type Member = { group_id: string; user_id: string };
+/** Nota externa ya guardada de un estudiante (su fila individual). */
+type NotaExterna = { submissionId: string | null; grade: number | null; feedback: string };
 
 interface Props {
   projectId: string;
@@ -61,6 +70,12 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
   /** Solo decide qué tarjetas se ven: no mueve a nadie (ver buscar-en-grupos.ts). */
   const [busqueda, setBusqueda] = useState("");
+  /** Proyecto EXTERNO: cada grupo se puede calificar desde su tarjeta (ver
+   *  WorkshopGroupsEditor). Las notas van en la escala del curso ancla. */
+  const [esExterno, setEsExterno] = useState(false);
+  const [escala, setEscala] = useState(5);
+  const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
+  const { calificar, guardando: guardandoNota } = useCalificarGrupo("project", projectId);
 
   /**
    * Cambiar un grupo NO recarga la pantalla (ver el mismo comentario en
@@ -85,11 +100,21 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     const courseIds = claveCursos ? claveCursos.split(",") : [];
     try {
       let userIds: string[] = [];
+      // Un curso vinculado que está en la papelera no aporta estudiantes.
+      let vigentes: string[] = [];
       if (courseIds.length > 0) {
+        const { data: cs } = await supabase
+          .from("courses")
+          .select("id")
+          .in("id", courseIds)
+          .is("deleted_at", null);
+        vigentes = ((cs ?? []) as { id: string }[]).map((c) => c.id);
+      }
+      if (vigentes.length > 0) {
         const { data: enr } = await supabase
           .from("course_enrollments")
           .select("user_id")
-          .in("course_id", courseIds);
+          .in("course_id", vigentes);
         userIds = Array.from(new Set((enr ?? []).map((e: { user_id: string }) => e.user_id)));
       }
       let profs: Student[] = [];
@@ -103,6 +128,48 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         profs = ((data ?? []) as Student[]).sort((a, b) => a.full_name.localeCompare(b.full_name));
       }
       setStudents(profs);
+
+      const { data: pRow } = await db
+        .from("projects")
+        .select("is_external, course_id")
+        .eq("id", projectId)
+        .maybeSingle();
+      const externo = (pRow as { is_external?: boolean | null } | null)?.is_external === true;
+      setEsExterno(externo);
+      if (externo) {
+        const ancla = (pRow as { course_id?: string | null } | null)?.course_id ?? courseIds[0];
+        const [{ data: curso }, { data: indiv }] = await Promise.all([
+          supabase.from("courses").select("grade_scale_max").eq("id", ancla).maybeSingle(),
+          db
+            .from("project_submissions")
+            .select("id, user_id, final_grade, teacher_feedback")
+            .eq("project_id", projectId)
+            .is("group_id", null),
+        ]);
+        const max = Number((curso as { grade_scale_max?: number } | null)?.grade_scale_max);
+        setEscala(Number.isFinite(max) && max > 0 ? max : 5);
+        setNotas(
+          new Map(
+            (
+              (indiv ?? []) as {
+                id: string;
+                user_id: string;
+                final_grade: number | null;
+                teacher_feedback: string | null;
+              }[]
+            ).map((x) => [
+              x.user_id,
+              {
+                submissionId: x.id,
+                grade: x.final_grade != null ? Number(x.final_grade) : null,
+                feedback: x.teacher_feedback ?? "",
+              },
+            ]),
+          ),
+        );
+      } else {
+        setNotas(new Map());
+      }
 
       const { data: gs } = await db
         .from("project_groups")
@@ -162,6 +229,32 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     () => filtrarTablero(unassigned, studentsByGroup, groups, busqueda),
     [unassigned, studentsByGroup, groups, busqueda],
   );
+
+  /** Los integrantes de un grupo con su nota externa, para calificarlo entero. */
+  const integrantesConNota = (g: Group, ms: Student[]): IntegranteACalificar[] =>
+    ms.map((st) => {
+      const n = notas.get(st.id);
+      return {
+        userId: st.id,
+        fullName: st.full_name,
+        grupoId: g.id,
+        grupoNombre: g.name,
+        grade: n?.grade ?? null,
+        feedback: n?.feedback ?? "",
+        originalGrade: n?.grade ?? null,
+        originalFeedback: n?.feedback ?? "",
+        submissionId: n?.submissionId ?? null,
+      };
+    });
+
+  const notaGuardada = (userId: string, n: NotaGuardada) =>
+    setNotas((prev) =>
+      new Map(prev).set(userId, {
+        submissionId: n.submissionId ?? prev.get(userId)?.submissionId ?? null,
+        grade: n.grade,
+        feedback: n.feedback,
+      }),
+    );
 
   const createGroup = async () => {
     const name = newGroupName.trim();
@@ -288,8 +381,14 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            {t("hc_modulesProjectsProjectGroupsEditor.projectGroupsHelp")}
+            {/* En un proyecto externo nadie «entrega»: el grupo se califica junto. */}
+            {esExterno
+              ? t("gruposNota.tableroHint")
+              : t("hc_modulesProjectsProjectGroupsEditor.projectGroupsHelp")}
           </p>
+          {esExterno && (
+            <p className="text-xs text-muted-foreground">{t("gruposNota.hintProyecto")}</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex gap-2">
@@ -349,13 +448,17 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                {t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
+                {esExterno
+                  ? t("gruposNota.sinGrupoTitulo")
+                  : t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-3xs">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
               <p className="text-3xs text-muted-foreground">
-                {t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
+                {esExterno
+                  ? t("gruposNota.sinGrupoHint")
+                  : t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">
@@ -378,6 +481,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                     groups={groups}
                     currentGroupId={null}
                     onMoveTo={(target) => void moveUser(s.id, target)}
+                    nota={esExterno ? (notas.get(s.id)?.grade ?? null) : undefined}
                   />
                 ))
               )}
@@ -424,6 +528,18 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-1.5 min-h-[60px]">
+                    {esExterno && ms.length > 0 && (
+                      <NotaDeGrupoInline
+                        key={g.id}
+                        grupoId={g.id}
+                        nombre={g.name}
+                        integrantes={integrantesConNota(g, ms)}
+                        escala={escala}
+                        calificar={calificar}
+                        guardando={guardandoNota}
+                        onGuardada={notaGuardada}
+                      />
+                    )}
                     {ms.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
                         {t("hc_modulesProjectsProjectGroupsEditor.dragStudentsHere")}
@@ -443,6 +559,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                           groups={groups}
                           currentGroupId={g.id}
                           onMoveTo={(target) => void moveUser(s.id, target)}
+                          nota={esExterno ? (notas.get(s.id)?.grade ?? null) : undefined}
                         />
                       ))
                     )}
@@ -475,6 +592,7 @@ function DraggableStudent({
   groups,
   currentGroupId,
   onMoveTo,
+  nota,
 }: {
   student: Student;
   isDragging: boolean;
@@ -483,6 +601,8 @@ function DraggableStudent({
   groups: Group[];
   currentGroupId: string | null;
   onMoveTo: (target: string) => void;
+  /** Proyecto externo: la nota ya guardada (`null` = sin nota). `undefined` = no aplica. */
+  nota?: number | null;
 }) {
   const { t } = useTranslation();
   return (
@@ -501,6 +621,15 @@ function DraggableStudent({
           {student.institutional_email}
         </div>
       </div>
+      {nota != null && (
+        <Badge
+          variant="outline"
+          className="text-3xs tabular-nums shrink-0"
+          title={t("gruposNota.notaDe", { name: student.full_name })}
+        >
+          {formatNumber(nota, { maximumFractionDigits: 2 })}
+        </Badge>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button

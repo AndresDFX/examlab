@@ -7343,7 +7343,8 @@
   "hc_modulesProjectsProjectGroupsEditor": {
     "groupNameRequired": "Ponle un nombre al grupo",
     "deleteGroupTitle": "Eliminar grupo \"{{name}}\"",
-    "deleteGroupDescWithMembers": "Tiene {{count}} miembro(s). Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
+    "deleteGroupDescWithMembers_one": "Tiene {{count}} miembro. Quedará sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
+    "deleteGroupDescWithMembers_other": "Tiene {{count}} miembros. Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
     "deleteGroupDescEmpty": "Esta acción no se puede deshacer.",
     "delete": "Eliminar",
     "projectGroupsTitle": "Grupos del proyecto",
@@ -7355,7 +7356,8 @@
     "unassignedHelp": "Estos estudiantes entregan el proyecto individualmente. Arrastra a un grupo para cambiar.",
     "allStudentsInGroups": "Todos los estudiantes están en algún grupo.",
     "noGroupsCreated": "Sin grupos creados. Empieza creando uno arriba y arrastra estudiantes.",
-    "memberCount": "{{count}} miembro(s)",
+    "memberCount_one": "{{count}} miembro",
+    "memberCount_other": "{{count}} miembros",
     "deleteGroupTooltip": "Eliminar grupo",
     "dragStudentsHere": "Arrastra estudiantes aquí.",
     "moveToOtherGroup": "Mover a otro grupo",
@@ -7628,7 +7630,8 @@
     "createGroup": "Crear grupo",
     "deleteConfirmLabel": "Eliminar",
     "deleteGroupDescEmpty": "Esta acción no se puede deshacer.",
-    "deleteGroupDescWithMembers": "Tiene {{count}} miembro(s). Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
+    "deleteGroupDescWithMembers_one": "Tiene {{count}} miembro. Quedará sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
+    "deleteGroupDescWithMembers_other": "Tiene {{count}} miembros. Quedarán sin grupo. La entrega del grupo (si existe) se mantiene pero perderá la asociación. Esta acción no se puede deshacer.",
     "deleteGroupTitle": "Eliminar grupo \"{{name}}\"",
     "deleteGroupTooltip": "Eliminar grupo",
     "dragStudentsHere": "Arrastra estudiantes aquí.",
@@ -11243,6 +11246,11 @@
     "notaDe": "Nota de {{name}}",
     "tableroHint": "Crea grupos y arrastra estudiantes. Pueden coexistir estudiantes con grupo (se califican juntos) y sin grupo (se califican individualmente). Cada estudiante puede pertenecer a un solo grupo a la vez.",
     "sinGrupoTitulo": "Sin grupo (se califican individualmente)",
-    "sinGrupoHint": "Estos estudiantes se califican cada uno por su cuenta. Arrástralos a un grupo para calificarlos juntos."
+    "sinGrupoHint": "Estos estudiantes se califican cada uno por su cuenta. Arrástralos a un grupo para calificarlos juntos.",
+    "hintProyecto": "Opcional: escribe la nota de cada grupo en su tarjeta y se guarda para todos sus integrantes. También puedes calificar después desde «Entregas y calificación»."
+  },
+  "actividadExterna": {
+    "sinNota": "Sin nota todavía",
+    "notaRegistrada": "Actividad externa: la nota la registró el docente."
   }
 }

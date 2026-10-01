@@ -19,6 +19,22 @@
  * PURO: sin React ni Supabase, para poder testearlo.
  */
 
+/**
+ * ¿La entrega de un estudiante CON GRUPO en esta actividad es la del grupo?
+ * Solo en una actividad EN LÍNEA con trabajo en grupo, donde el grupo entrega
+ * una fila compartida. En una EXTERNA no hay entrega: la nota es la fila de
+ * cada integrante, así que hay que buscar la propia. Buscarla por grupo la
+ * escondía — el estudiante veía su proyecto externo sin nota, o «Vencido».
+ */
+export function entregaEsDelGrupo(actividad: {
+  is_external?: boolean | null;
+  group_mode?: string | null;
+}): boolean {
+  return (
+    !actividad.is_external && !!actividad.group_mode && actividad.group_mode !== "individual"
+  );
+}
+
 /** Lo mínimo de una fila de «Notas externas» que miran estas reglas. */
 export interface FilaDeNotaConGrupo {
   userId: string;

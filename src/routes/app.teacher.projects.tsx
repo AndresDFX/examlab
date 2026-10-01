@@ -2966,7 +2966,9 @@ function TeacherProjects() {
                           icon: Users,
                           onClick: () => openAssignDialog(p),
                         },
-                        !p.is_external && {
+                        // También en externos, como en talleres: una exposición
+                        // por grupos se arma acá y se califica por grupo.
+                        {
                           label: t("hc_routesAppTeacherProjects.actionGroups"),
                           icon: UsersRound,
                           disabled: openingGroupsId != null,

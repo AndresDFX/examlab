@@ -10,6 +10,7 @@
  *    p.ej. caso edge si el estudiante recargó antes del grading), muestra
  *    estado pendiente.
  */
+import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -48,6 +49,8 @@ type WorkshopLoaded = {
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
   /** Si el taller se sustenta: sin sustentación no hay nota final. */
   requires_defense?: boolean | null;
+  /** Taller externo: la nota es la fila del estudiante, aunque tenga grupo. */
+  is_external?: boolean | null;
   course: { name: string; grade_scale_min: number; grade_scale_max: number };
 };
 
@@ -153,7 +156,7 @@ function StudentWorkshopDetail() {
         const { data: ws, error: wsErr } = await dbAny
           .from("workshops")
           .select(
-            "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, requires_defense, course:courses(name, grade_scale_min, grade_scale_max)",
+            "id, title, description, instructions, external_link, due_date, max_score, status, group_mode, requires_defense, is_external, course:courses(name, grade_scale_min, grade_scale_max)",
           )
           .eq("id", workshopId)
           .is("deleted_at", null)
@@ -206,8 +209,9 @@ function StudentWorkshopDetail() {
 
         // Submission: si hay grupo, filtramos por group_id (la entrega
         // es del grupo, cualquier miembro la ve y edita). Si no hay
-        // grupo, comportamiento individual normal.
-        const subQuery = myGroupId
+        // grupo, comportamiento individual normal. En un taller EXTERNO no
+        // hay entrega del grupo: la nota es la fila propia (`entregaEsDelGrupo`).
+        const subQuery = myGroupId && entregaEsDelGrupo(ws as WorkshopLoaded)
           ? dbAny
               .from("workshop_submissions")
               .select(
@@ -493,7 +497,8 @@ function StudentWorkshopDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("exam.review.noSubmission")}
+            {/* Un taller externo no se entrega: falta la nota, no una entrega. */}
+            {workshop.is_external ? t("actividadExterna.sinNota") : t("exam.review.noSubmission")}
           </CardContent>
         </Card>
       )}
@@ -541,17 +546,25 @@ function StudentWorkshopDetail() {
                 <div>
                   <div className="font-medium">{t("exam.review.globalResult")}</div>
                   <div className="text-xs text-muted-foreground">
-                    {submission.submitted_at
-                      ? t("exam.review.submittedAt", {
-                          when: formatDateTime(submission.submitted_at),
-                        })
-                      : t("exam.review.submittedNoDate")}
+                    {/* En un externo esa fecha es cuando el docente guardó la nota. */}
+                    {workshop.is_external
+                      ? t("actividadExterna.notaRegistrada")
+                      : submission.submitted_at
+                        ? t("exam.review.submittedAt", {
+                            when: formatDateTime(submission.submitted_at),
+                          })
+                        : t("exam.review.submittedNoDate")}
                   </div>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-semibold tabular-nums">
-                  {gradeShow != null ? `${gradeShow} / ${workshop.max_score}` : "—"}
+                  {/* La nota externa va en la escala del curso, no en el puntaje del taller. */}
+                  {gradeShow != null
+                    ? `${gradeShow} / ${
+                        workshop.is_external ? workshop.course.grade_scale_max : workshop.max_score
+                      }`
+                    : "—"}
                 </div>
                 {faltaSustentacion ? (
                   <p className="mt-1 max-w-[16rem] text-2xs leading-tight text-muted-foreground">

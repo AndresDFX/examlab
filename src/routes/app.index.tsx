@@ -1644,7 +1644,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const { data: pjData } = projectIds.length
         ? await dbAny
             .from("projects")
-            .select("id, title, due_date, status, start_date, course:courses(name)")
+            .select("id, title, due_date, status, start_date, is_external, course:courses(name)")
             .in("id", projectIds)
             .eq("status", "published")
             .is("deleted_at", null)
@@ -1670,6 +1670,8 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       const pjs = ((pjData ?? []) as any[])
         .filter(
           (p) =>
+            // Un proyecto EXTERNO no se entrega: ya ocurrió y solo trae nota.
+            !p.is_external &&
             !submittedIds.has(p.id) &&
             (!p.start_date || new Date(p.start_date) <= new Date()) &&
             (!p.due_date || new Date(p.due_date) >= new Date()),

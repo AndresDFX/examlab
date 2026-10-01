@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   borradorInicialDeGrupo,
   conflictosAlCalificarGrupo,
+  entregaEsDelGrupo,
   integrantesPorEntrega,
   nombresDeIntegrantes,
   planDeNotaDeGrupo,
@@ -150,6 +151,19 @@ describe("integrantesPorEntrega", () => {
     expect(integrantesPorEntrega([{ id: "s", group_id: "g2" }], grupos, ["ana"]).get("s")).toEqual([
       "ana",
     ]);
+  });
+});
+
+describe("entregaEsDelGrupo", () => {
+  it("solo en una actividad EN LÍNEA con trabajo en grupo", () => {
+    expect(entregaEsDelGrupo({ group_mode: "teacher_assigned" })).toBe(true);
+    expect(entregaEsDelGrupo({ group_mode: "group_required", is_external: false })).toBe(true);
+    expect(entregaEsDelGrupo({ group_mode: "individual" })).toBe(false);
+    expect(entregaEsDelGrupo({ group_mode: null })).toBe(false);
+  });
+
+  it("en una EXTERNA la nota es la fila de cada integrante, aunque tenga grupos", () => {
+    expect(entregaEsDelGrupo({ group_mode: "teacher_assigned", is_external: true })).toBe(false);
   });
 });
 

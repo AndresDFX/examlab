@@ -6,6 +6,7 @@
  * cada archivo y al enviar la IA califica caja por caja. La calificación final se
  * calcula sobre `max_score` del proyecto.
  */
+import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
 import {
   RANGO_VACIO,
   claveDeRango,
@@ -150,6 +151,9 @@ function cmpDate(a: Date | null, b: Date | null, asc: boolean): number {
 function getProjectDisplayStatus(row: ProjectRow, now: number): ProjectDisplayStatus {
   const s = row.submission?.status;
   if (s === "calificado") return "graded";
+  // Un proyecto EXTERNO no se entrega: sin nota todavía está «cerrado», no
+  // «vencido» ni «disponible» (los contadores y el filtro salen de acá).
+  if (row.project.is_external) return "closed";
   // Cualquier ENTREGA HECHA, no solo el literal "entregado". La plataforma
   // escribe `ai_revisado` sola cuando la IA revisa una entrega, y con la
   // lista blanca de dos estados que había acá ese caso caía en el
@@ -334,7 +338,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, status, group_mode, max_attempts, course_id, cut_id, weight",
+            "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight",
           )
           .in("id", allIds)
           .is("deleted_at", null)
@@ -372,8 +376,16 @@ function StudentProjects() {
 
     // Splitting: individuales (incluye grupales sin grupo asignado, modo mixto)
     // se buscan por user_id; los grupales con grupo asignado por group_id.
-    const indivIds = ids.filter((id) => !groupIdByProject.has(id));
-    const myGroupIds = Array.from(groupIdByProject.values());
+    // Un proyecto EXTERNO con grupos va por user_id igual: no hay entrega del
+    // grupo, la nota es la fila de cada integrante (`entregaEsDelGrupo`).
+    const porGrupo = new Map(
+      [...groupIdByProject].filter(([pid]) => {
+        const p = projects.find((x) => x.id === pid);
+        return !!p && entregaEsDelGrupo(p);
+      }),
+    );
+    const indivIds = ids.filter((id) => !porGrupo.has(id));
+    const myGroupIds = Array.from(new Set(porGrupo.values()));
 
     let subs: Array<ProjectRow["submission"] & { project_id: string }> = [];
     if (indivIds.length || myGroupIds.length) {
@@ -706,7 +718,12 @@ function StudentProjects() {
           // OJO: `isOverdue` de arriba es «pasó el plazo» a secas porque
           // gobierna `isOpen`, o sea si la entrega sigue abierta. Lo que se
           // MUESTRA como vencido es otra cosa: pasó el plazo Y no entregó.
-          const vencido = estaVencido({ plazo: project.due_date, entrega: submission, ahora: now });
+          // Un proyecto EXTERNO ya ocurrió fuera de la plataforma: no se entrega,
+          // solo trae la nota que puso el docente. Nada de «Vencido», «Empezar»
+          // ni «Eliminar mi entrega» —borrar esa fila sería borrar la nota—.
+          const esExterno = !!project.is_external;
+          const vencido =
+            !esExterno && estaVencido({ plazo: project.due_date, entrega: submission, ahora: now });
           const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
@@ -746,6 +763,10 @@ function StudentProjects() {
                           ? `${project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2)}/${project.course.grade_scale_max}`
                           : `${grade}`
                         : t("project.submitted")}
+                    </Badge>
+                  ) : esExterno ? (
+                    <Badge variant="outline" className="shrink-0">
+                      {t("actividadExterna.sinNota")}
                     </Badge>
                   ) : entregaHecha(submission) ? (
                     <Badge variant="secondary" className="shrink-0">
@@ -822,7 +843,7 @@ function StudentProjects() {
                 )}
 
                 {/* Modo grupal estricto SIN grupo: bloqueo de entrega. */}
-                {isOpen && blockedNoGroup && (
+                {isOpen && !esExterno && blockedNoGroup && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
                     <div className="font-medium mb-1">
                       {t("hc_routesAppStudentProjects.groupModeNoGroupTitle")}
@@ -834,7 +855,7 @@ function StudentProjects() {
                 {/* Mientras esté abierto el plazo, el estudiante puede
                     actualizar su entrega aunque ya tenga calificación de
                     IA — al re-entregar se vuelve a calificar. */}
-                {isOpen && !blockedNoGroup && !attemptsExhausted && (
+                {isOpen && !esExterno && !blockedNoGroup && !attemptsExhausted && (
                   <Button
                     size="sm"
                     className="w-full"
@@ -870,7 +891,7 @@ function StudentProjects() {
                     re-editar/borrar — el contador no aumenta hasta
                     que se califique. Misma regla que en el submit. */}
                 {(() => {
-                  if (!isOpen || !submission) return null;
+                  if (!isOpen || !submission || esExterno) return null;
                   const canDelete = !attemptsExhausted;
                   return canDelete ? (
                     <Button
@@ -889,7 +910,7 @@ function StudentProjects() {
                   );
                 })()}
 
-                {project.status === "published" && isOverdue && !submission && (
+                {project.status === "published" && isOverdue && !submission && !esExterno && (
                   <p className="text-xs text-destructive text-center">
                     {t("project.windowClosedHelp")}
                   </p>

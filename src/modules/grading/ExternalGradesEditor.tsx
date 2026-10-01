@@ -545,7 +545,9 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
             )}
             {/* En el teléfono, solo el ícono: con el texto, la columna de la
                 nota se angosta tanto que «4,5» se ve «4». */}
-            <span className="sr-only sm:not-sr-only">{t("externalGrades.gradeGroup")}</span>
+            <span className="sr-only sm:not-sr-only sm:whitespace-nowrap">
+              {t("externalGrades.gradeGroup")}
+            </span>
           </Button>
         </TableCell>
       </TableRow>

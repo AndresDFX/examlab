@@ -35,6 +35,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { formatDateTime } from "@/shared/lib/format";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -55,6 +56,8 @@ type ProjectLoaded = {
   max_score: number;
   status: string;
   group_mode?: "individual" | "teacher_assigned" | "self_signup";
+  /** Proyecto externo: la nota es la fila del estudiante, aunque tenga grupo. */
+  is_external?: boolean | null;
   // Cargado en una segunda fase vía project_courses (ya no hay FK directa
   // de projects.course_id a courses, así que el join PostgREST falla con
   // PGRST200; lo resolvemos como "el primer curso vinculado").
@@ -137,7 +140,7 @@ function StudentProjectDetail() {
           db
             .from("projects")
             .select(
-              "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status, group_mode",
+              "id, course_id, title, description, instructions, external_link, due_date, max_files, max_score, status, group_mode, is_external",
             )
             .eq("id", projectId)
             .is("deleted_at", null)
@@ -161,13 +164,10 @@ function StudentProjectDetail() {
             .eq("user_id", user.id),
         ]);
 
-        // Determinar grupo del estudiante para este proyecto (si aplica).
+        // Determinar grupo del estudiante para este proyecto (si aplica). En
+        // un proyecto EXTERNO no hay entrega del grupo: se busca la propia.
         let myGroupId: string | null = null;
-        if (
-          pr &&
-          (pr as ProjectLoaded).group_mode &&
-          (pr as ProjectLoaded).group_mode !== "individual"
-        ) {
+        if (pr && entregaEsDelGrupo(pr as ProjectLoaded)) {
           const groups = (myGroupRows ?? []) as { group: { id: string; project_id: string } }[];
           myGroupId = groups.find((g) => g.group?.project_id === projectId)?.group?.id ?? null;
         }
@@ -365,7 +365,10 @@ function StudentProjectDetail() {
       {!submission && (
         <Card className="border-dashed">
           <CardContent className="p-6 text-sm text-muted-foreground">
-            {t("project.review.noSubmission")}
+            {/* Un proyecto externo no se entrega: falta la nota, no una entrega. */}
+            {project.is_external
+              ? t("actividadExterna.sinNota")
+              : t("project.review.noSubmission")}
           </CardContent>
         </Card>
       )}
@@ -405,17 +408,27 @@ function StudentProjectDetail() {
                 <div>
                   <div className="font-medium">{t("project.review.globalResult")}</div>
                   <div className="text-xs text-muted-foreground">
-                    {submission.submitted_at
-                      ? t("project.review.submittedAt", {
-                          when: formatDateTime(submission.submitted_at),
-                        })
-                      : t("project.review.submittedNoDate")}
+                    {/* En un externo esa fecha es cuando el docente guardó la nota. */}
+                    {project.is_external
+                      ? t("actividadExterna.notaRegistrada")
+                      : submission.submitted_at
+                        ? t("project.review.submittedAt", {
+                            when: formatDateTime(submission.submitted_at),
+                          })
+                        : t("project.review.submittedNoDate")}
                   </div>
                 </div>
               </div>
               <div className="text-right">
                 <div className="text-2xl font-semibold tabular-nums">
-                  {gradeShow != null ? `${gradeShow} / ${project.max_score}` : "—"}
+                  {/* La nota externa va en la escala del curso, no en el puntaje del proyecto. */}
+                  {gradeShow != null
+                    ? `${gradeShow} / ${
+                        project.is_external
+                          ? (project.course?.grade_scale_max ?? project.max_score)
+                          : project.max_score
+                      }`
+                    : "—"}
                 </div>
                 <StatusBadge status={submission.status} className="mt-1" />
               </div>
@@ -439,6 +452,7 @@ function StudentProjectDetail() {
             </Card>
           )}
 
+          {!project.is_external && (
           <div className="space-y-4">
             <h2 className="text-lg font-semibold tracking-tight">{t("hc_routesAppStudentProjectProjectId.submittedFiles")}</h2>
             {files.length === 0 && (
@@ -608,6 +622,7 @@ function StudentProjectDetail() {
               );
             })}
           </div>
+          )}
         </>
       )}
     </div>
