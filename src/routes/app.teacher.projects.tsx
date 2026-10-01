@@ -82,6 +82,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { ExternalGradesEditor } from "@/modules/grading/ExternalGradesEditor";
 import { ProjectGroupsEditor } from "@/modules/projects/ProjectGroupsEditor";
+import { cargarGruposDeEntregas } from "@/modules/grading/grupos-de-entregas";
+import { nombresDeIntegrantes } from "@/modules/grading/nota-de-grupo";
+import { matchesQuery } from "@/modules/search/search-text";
 import { toast } from "sonner";
 import { logEvent } from "@/shared/lib/audit";
 import { friendlyError, friendlyUniqueViolation } from "@/shared/lib/db-errors";
@@ -628,18 +631,27 @@ function TeacherProjects() {
   const [gradingSubs, setGradingSubs] = useState<Submission[]>([]);
   const [gradingAnsBySub, setGradingAnsBySub] = useState<Record<string, SubFile[]>>({});
   const [gradingLoading, setGradingLoading] = useState(false);
-  // Buscador del modal de calificaciones — filtra por nombre/correo del
-  // estudiante. Se limpia al abrir el dialog.
+  /** Grupo de cada entrega grupal (por `group_id`): la nota de esa entrega es
+   *  la de todos sus integrantes, y el docente tiene que verlo al calificar. */
+  const [gruposDeEntrega, setGruposDeEntrega] = useState<
+    Map<string, { nombre: string; nombres: string[] }>
+  >(new Map());
+  // Buscador del modal de calificaciones — filtra por nombre/correo de quien
+  // entregó y, en una entrega de grupo, por el grupo y sus integrantes. Se
+  // limpia al abrir el dialog.
   const [gradingSearch, setGradingSearch] = useState("");
   const filteredGradingSubs = useMemo(() => {
-    const q = gradingSearch.trim().toLowerCase();
-    if (!q) return gradingSubs;
+    if (!gradingSearch.trim()) return gradingSubs;
     return gradingSubs.filter((s) => {
-      const name = (s.profile?.full_name ?? "").toLowerCase();
-      const email = (s.profile?.institutional_email ?? "").toLowerCase();
-      return name.includes(q) || email.includes(q);
+      const grupo = s.group_id ? gruposDeEntrega.get(s.group_id) : undefined;
+      return matchesQuery(
+        [s.profile?.full_name, s.profile?.institutional_email, grupo?.nombre, ...(grupo?.nombres ?? [])]
+          .filter(Boolean)
+          .join(" "),
+        gradingSearch,
+      );
     });
-  }, [gradingSubs, gradingSearch]);
+  }, [gradingSubs, gradingSearch, gruposDeEntrega]);
   // Multi-select para recalificar SOLO algunas entregas con IA. Trabaja
   // sobre las entregas filtradas — si el docente busca "Juan" y marca,
   // el bulk re-grade respeta ese subset. `useMultiSelect` deduplica
@@ -1774,6 +1786,7 @@ function TeacherProjects() {
     setGradingFiles([]);
     setGradingSubs([]);
     setGradingAnsBySub({});
+    setGruposDeEntrega(new Map());
     setGradingSearch(""); // reset buscador al abrir
     setGradingOpen(true);
     setGradingLoading(true);
@@ -1798,7 +1811,15 @@ function TeacherProjects() {
 
       const subsList = (subs ?? []) as Submission[];
       if (subsList.length) {
-        const userIds = subsList.map((s) => s.user_id);
+        // Integrantes de los grupos con entrega: sus nombres van en la entrega
+        // grupal, así que se piden junto con los perfiles de quien entregó.
+        const grupos = await cargarGruposDeEntregas("project", subsList);
+        const userIds = Array.from(
+          new Set([
+            ...subsList.map((s) => s.user_id),
+            ...[...grupos.values()].flatMap((g) => g.integrantes),
+          ]),
+        );
         const subIds = subsList.map((s) => s.id);
         const [{ data: profs }, { data: ans, error: ansErr }] = await Promise.all([
           db.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
@@ -1819,6 +1840,20 @@ function TeacherProjects() {
           );
         }
         const profMap = new Map(((profs ?? []) as Array<{ id: string }>).map((pp) => [pp.id, pp]));
+        setGruposDeEntrega(
+          new Map(
+            [...grupos].map(([gid, g]) => [
+              gid,
+              {
+                nombre: g.nombre,
+                nombres: nombresDeIntegrantes(
+                  g.integrantes,
+                  profMap as Map<string, { full_name?: string | null }>,
+                ),
+              },
+            ]),
+          ),
+        );
         const grouped: Record<string, SubFile[]> = {};
         for (const a of (ans ?? []) as SubFile[]) {
           (grouped[a.submission_id] ||= []).push(a);
@@ -2567,12 +2602,25 @@ function TeacherProjects() {
     }
   };
 
+  /** Una entrega de grupo se nombra por el grupo: es la de todos sus integrantes. */
+  const grupoDeEntrega = (sub: Submission | undefined) =>
+    sub?.group_id ? gruposDeEntrega.get(sub.group_id) : undefined;
+  const cuerpoDeBorrado = (sub: Submission | undefined) => {
+    const grupo = grupoDeEntrega(sub);
+    return grupo
+      ? t("gradingGroups.deleteBodyWithFiles", {
+          count: grupo.nombres.length,
+          names: grupo.nombres.join(", "),
+        })
+      : t("project.deleteSubmissionBody");
+  };
+
   const deleteSubmission = async (sub: Submission) => {
     if (deletingSubId) return;
-    const name = sub.profile?.full_name ?? t("common.empty");
+    const name = grupoDeEntrega(sub)?.nombre ?? sub.profile?.full_name ?? t("common.empty");
     const ok = await confirm({
       title: t("project.deleteSubmissionTitle", { name }),
-      description: t("project.deleteSubmissionBody"),
+      description: cuerpoDeBorrado(sub),
       confirmLabel: t("project.deleteSubmissionConfirm"),
       tone: "destructive",
     });
@@ -2613,12 +2661,15 @@ function TeacherProjects() {
       title:
         ids.length === 1
           ? t("project.deleteSubmissionTitle", {
-              name: gradingSubs.find((s) => s.id === ids[0])?.profile?.full_name ?? "—",
+              name: (() => {
+                const sub = gradingSubs.find((s) => s.id === ids[0]);
+                return grupoDeEntrega(sub)?.nombre ?? sub?.profile?.full_name ?? "—";
+              })(),
             })
           : t("hc_routesAppTeacherProjects.deleteNSubmissionsTitle", { n: ids.length }),
       description:
         ids.length === 1
-          ? t("project.deleteSubmissionBody")
+          ? cuerpoDeBorrado(gradingSubs.find((s) => s.id === ids[0]))
           : t("hc_routesAppTeacherProjects.deleteNSubmissionsBody", { n: ids.length }),
       confirmLabel: t("project.deleteSubmissionConfirm"),
       tone: "destructive",
@@ -3904,6 +3955,9 @@ function TeacherProjects() {
                   // hay sustentación, si no la de la entrega (submission_grade
                   // o el legacy ai_grade), si no nada.
                   const headerGrade = sub.final_grade ?? sub.submission_grade ?? sub.ai_grade;
+                  const grupoDeLaEntrega = sub.group_id
+                    ? gruposDeEntrega.get(sub.group_id)
+                    : undefined;
                   return (
                     <AccordionItem
                       key={sub.id}
@@ -3913,8 +3967,8 @@ function TeacherProjects() {
                         highlightSubId === sub.id ? "ring-2 ring-primary/60 rounded-md" : ""
                       }
                     >
-                      <AccordionTrigger className="hover:no-underline">
-                        <div className="flex flex-1 items-center gap-2 text-left">
+                      <AccordionTrigger className="hover:no-underline min-w-0">
+                        <div className="flex flex-1 min-w-0 items-center gap-2 text-left">
                           {/* Checkbox de multi-select. `onClick stop` evita
                               que el click en el checkbox expanda/colapse
                               el AccordionTrigger; Radix Accordion lo
@@ -3929,16 +3983,41 @@ function TeacherProjects() {
                               id={sub.id}
                               state={gradingSel}
                               ariaLabel={t("hc_routesAppTeacherProjects.selectSubmissionOf", {
-                                name: sub.profile?.full_name ?? "—",
+                                name: grupoDeLaEntrega?.nombre ?? sub.profile?.full_name ?? "—",
                               })}
                             />
                           </span>
-                          <span className="font-medium text-sm">
-                            {sub.profile?.full_name ?? "—"}
-                          </span>
-                          <span className="text-3xs text-muted-foreground">
-                            {sub.profile?.institutional_email}
-                          </span>
+                          {grupoDeLaEntrega ? (
+                            // Entrega de GRUPO: la fila es del grupo, no de
+                            // quien la subió, y su nota es la de todos.
+                            <span className="flex min-w-0 items-center gap-1.5">
+                              <UsersRound
+                                className="h-3.5 w-3.5 text-primary shrink-0"
+                                aria-hidden
+                              />
+                              <span className="font-medium text-sm truncate">
+                                {grupoDeLaEntrega.nombre}
+                              </span>
+                              <span
+                                className="text-3xs text-muted-foreground truncate"
+                                title={grupoDeLaEntrega.nombres.join(", ")}
+                              >
+                                {t("gradingGroups.members", {
+                                  count: grupoDeLaEntrega.nombres.length,
+                                  names: grupoDeLaEntrega.nombres.join(", "),
+                                })}
+                              </span>
+                            </span>
+                          ) : (
+                            <>
+                              <span className="font-medium text-sm">
+                                {sub.profile?.full_name ?? "—"}
+                              </span>
+                              <span className="text-3xs text-muted-foreground">
+                                {sub.profile?.institutional_email}
+                              </span>
+                            </>
+                          )}
                           <div className="ml-auto">
                             <StatusBadge status={sub.status} />
                           </div>
@@ -3956,6 +4035,21 @@ function TeacherProjects() {
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="space-y-3">
+                          {grupoDeLaEntrega && (
+                            <p className="flex items-start gap-1.5 text-xs">
+                              <UsersRound
+                                className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5"
+                                aria-hidden
+                              />
+                              <span>
+                                {t("gradingGroups.submissionOfGroup", {
+                                  group: grupoDeLaEntrega.nombre,
+                                  count: grupoDeLaEntrega.nombres.length,
+                                  names: grupoDeLaEntrega.nombres.join(", "),
+                                })}
+                              </span>
+                            </p>
+                          )}
                           <div className="flex items-center justify-between flex-wrap gap-2">
                             <p className="text-2xs text-muted-foreground tabular-nums">
                               {t("hc_routesAppTeacherProjects.sentLabel")}{" "}

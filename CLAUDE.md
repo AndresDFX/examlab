@@ -915,6 +915,49 @@ y a los estudiantes ([PendientesProximaSesionCard](src/modules/attendance/Pendie
 - **No va en una columna de `attendance_sessions`**: esa tabla tiene sus propias reglas de lectura
   para el estudiante, y esta necesita otra (el interruptor). Con tabla propia, cada una en su política.
 
+### Calificar por grupo (buscador, «Calificar al grupo», libro de notas)
+
+Hay DOS formas de que una nota sea «del grupo», y no se califican igual
+([nota-de-grupo.ts](src/modules/grading/nota-de-grupo.ts), puro y con tests):
+
+- **En línea**: el grupo entrega UNA fila compartida (`*_submissions.group_id`), así que su nota YA es la
+  de todos. Lo que faltaba era que se viera: en los diálogos de calificación de talleres y proyectos una
+  entrega de grupo se muestra como el grupo con sus integrantes ([grupos-de-entregas.ts](src/modules/grading/grupos-de-entregas.ts)),
+  el buscador la encuentra por cualquier integrante y borrarla avisa que es la de todos. En el **libro de
+  notas** cada integrante tiene su celda, pero todas apuntan a la MISMA entrega: `handleEdit` copia el
+  valor a las de sus compañeros (`integrantesPorEntrega`) y `saveAll` guarda una vez por entrega
+  (`unaVezPorEntrega`); el ícono `IndicadorDeGrupo` lo explica.
+- **Externa** (la exposición): no hay entrega del estudiante; la nota es **una fila por integrante**
+  (`group_id NULL`). «Calificar al grupo» escribe la misma nota en cada una y cada integrante se sigue
+  ajustando en su fila. La escritura de una nota externa vive UNA vez ([notas-externas.ts](src/modules/grading/notas-externas.ts),
+  con un test que fija el contenido exacto de cada fila) y la acción de grupo también
+  ([use-calificar-grupo.ts](src/modules/grading/use-calificar-grupo.ts)): la usan «Notas externas»
+  (`ExternalGradesEditor`, fila de cabecera por grupo) y la ventana de grupos de un taller externo
+  ([NotaDeGrupoInline](src/modules/grading/NotaDeGrupoInline.tsx), nota opcional en cada tarjeta).
+
+Lo que no se deduce:
+
+- **Antes de pisar una nota distinta se pregunta** (`conflictosAlCalificarGrupo`): el ajuste individual
+  del que no se presentó es justo lo que no se puede perder sin verlo. Y una observación de grupo en
+  blanco NO borra la de cada integrante (`planDeNotaDeGrupo`); sin nota de grupo no hay nada que guardar.
+- **«Guardar todos» incluye las notas de grupo escritas y sin guardar.** Es el botón primario; si no las
+  incluyera, quien escribe la nota de cada grupo y lo aprieta se va creyendo que guardó. Las filas de los
+  integrantes que su grupo acaba de guardar no se vuelven a escribir con su valor viejo.
+- **En un taller externo, tener nota no impide cambiar de grupo** (mig [20262700000000](supabase/migrations/20262700000000_grupos_externos_nota_no_bloquea_cambio.sql)).
+  El bloqueo de la mig `20261068000000` («ya tiene una entrega individual») trataba la nota del docente
+  como una entrega: calificar por grupo y después corregir un grupo dejaba al estudiante SIN grupo (el
+  movimiento borra la membresía vieja antes de insertar la nueva). **Proyectos NO se eximen**: la lista
+  del estudiante sí muestra los proyectos externos y, con grupo, busca solo la entrega del grupo, así que
+  la fila individual quedaría escondida. Hoy además «Grupos» no se ofrece en un proyecto externo, y por
+  eso la nota en la tarjeta es solo de talleres.
+- **El buscador de la ventana de grupos** ([buscar-en-grupos.ts](src/modules/workshops/buscar-en-grupos.ts))
+  solo decide qué tarjetas se ven: los grupos siguen todos (son el destino del arrastre) y buscar el
+  nombre de un grupo lo muestra completo. Arrastrar, «Repartir al azar» y «Desde una imagen» reciben la
+  lista completa, no la filtrada.
+- «Notas externas» lista a los estudiantes del curso ancla **y de los cursos M:N** del taller o proyecto
+  (sin los que están en la papelera), igual que la ventana de grupos: con solo el ancla, un grupo con
+  integrantes de otro curso se calificaba a medias.
+
 ### Proyectos: sustentación + link al repo obligatorio
 
 La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").
@@ -983,7 +1026,7 @@ Para que un grupo de N estudiantes comparta UNA misma entrega y reciba la misma 
 - **DB** (migraciones 20260507150000 talleres y 20260507180000 proyectos): `workshops.group_mode` / `projects.group_mode` (`individual` | `teacher_assigned` | `self_signup` — V1 expone solo individual y teacher_assigned). Tablas `{workshop|project}_groups(id, {workshop|project}_id, name, signup_code)` + `{workshop|project}_group_members(group_id, user_id)` con trigger que evita estar en >1 grupo del mismo taller/proyecto. Columna `{workshop|project}_submissions.group_id` (cuando hay grupo, la submission pertenece al grupo).
 - **RLS**: groups y members con SELECT abierto + write Docente/Admin. `*_submissions` extendido a "dueño O miembro del grupo de la submission O Docente/Admin" en SELECT/INSERT/UPDATE — eso permite que cualquier miembro del grupo edite la misma fila.
 - **Modo MIXTO**: en un mismo taller/proyecto con `group_mode != 'individual'` pueden coexistir estudiantes con grupo (entregan en grupo, comparten una sola entrega y nota) y sin grupo (entregan individual). El estudiante sin grupo NO se bloquea — entrega normalmente. La UI no muestra warnings de "espera a tu grupo".
-- **UI Docente**: toggle "Trabajo en grupo" en el form (solo cuando NO es externo). Botón "Grupos"/"Activar grupos" en el grid (icono UsersRound) — visible también en talleres EXTERNOS: una exposición por grupos se arma acá y en «Notas externas» (`ExternalGradesEditor`) cada fila muestra su grupo y «Aplicar la nota a todo el grupo» copia nota y observación a los integrantes (quedan sin guardar hasta «Guardar todo»). Click sin grupos activos auto-activa `teacher_assigned`. Abre [WorkshopGroupsEditor](src/components/WorkshopGroupsEditor.tsx) o [ProjectGroupsEditor](src/components/ProjectGroupsEditor.tsx) con **drag & drop nativo** (HTML5 drag API, sin librería) — arrastrar tarjeta de estudiante entre "Sin grupo" y los grupos creados; ring visual en drop target.
+- **UI Docente**: toggle "Trabajo en grupo" en el form (solo cuando NO es externo). Botón "Grupos"/"Activar grupos" en el grid (icono UsersRound) — visible también en talleres EXTERNOS: una exposición por grupos se arma acá y se califica por grupo (ver «Calificar por grupo» abajo). Click sin grupos activos auto-activa `teacher_assigned`. Abre [WorkshopGroupsEditor](src/components/WorkshopGroupsEditor.tsx) o [ProjectGroupsEditor](src/components/ProjectGroupsEditor.tsx) con **drag & drop nativo** (HTML5 drag API, sin librería) — arrastrar tarjeta de estudiante entre "Sin grupo" y los grupos creados; ring visual en drop target.
 - **UI Estudiante**: en `app.student.workshops.tsx` y `app.student.projects.tsx` la query de submission filtra por `group_id` cuando aplica (cualquier miembro ve la misma entrega), y por `user_id` cuando no (modo individual o mixto sin grupo). Card "Tu grupo: X" arriba solo si `myGroup != null`.
 - **Submission compartida**: `StudentWorkshopTaker` y `StudentProjectTaker` aceptan prop `groupId`. La query existente y el INSERT incluyen `group_id` cuando hay grupo. `user_id` se mantiene como "último editor".
 - **Notificación de calificación**: `saveGrade` lee `submission.group_id`; si existe, inserta una notificación por cada miembro del grupo. Caso individual: solo al `user_id`.
@@ -2315,6 +2358,7 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `src/modules/courses/curso-borrador.ts` (`soloCursosEnBorrador`) + `src/modules/courses/cambio-estado-curso.ts` (`ImpactoCambioEstado`) ↔ `supabase/migrations/20262690000000_curso_borrador_material_borrador.sql` (`_solo_cursos_en_borrador`, los `tg_bloquear_publicar_*` y las claves que devuelve `impacto_cambio_estado_curso`) | Cuándo un material NO se puede publicar (todos sus cursos vigentes en borrador; sin ningún curso, sí se puede) y los nombres de los conteos del impacto (`a_borrador`, `con_entregas`, `retos_en_vivo`, `compartidos_siguen`, `a_cerrar`, `pendientes_calificar`, `en_borrador`, `cerrados`, `bienvenida`, `matriculados`). La pantalla es más permisiva a propósito con un curso que no conoce | Divergen → la pantalla deshabilita «Publicar» sobre algo que la base aceptaría (o lo deja pulsar y la base lo rechaza), o el diálogo de cambio de estado sale sin números porque una clave cambió de nombre — sin error visible, solo un aviso menos útil |
 | `src/modules/submissions/entrega-hecha.ts` (`ESTADOS_SIN_ENTREGAR`) ↔ `supabase/migrations/20262440000000_estado_es_entrega_recordatorios.sql` (`public.estado_es_entrega`) | Qué estados significan «TODAVÍA no entregó». Es lista **negra** a propósito: los estados nuevos de estas tablas nacen del pipeline de calificación —aparecen DESPUÉS de entregar—, así que con lista blanca cada uno se cae al peor lado. Lo fija `entrega-hecha.test.ts`, que lee la migración del disco. | Divergen → la pantalla le dice «Vencido» a quien entregó, o el cron le manda un correo pidiendo que entregue. Ya pasó: `ai_revisado` faltaba, y dejó 37 entregas reales marcadas como vencidas y fuera del filtro por defecto del alumno. |
+| `src/modules/workshops/WorkshopGroupsEditor.tsx` (`conEntregaIndividual` vacío cuando el taller es externo) ↔ `supabase/migrations/20262700000000_grupos_externos_nota_no_bloquea_cambio.sql` (`NOT COALESCE(w.is_external, false)` en `tg_block_ws_group_member_with_individual`) | Cuándo una fila individual de `workshop_submissions` le impide a un estudiante entrar a un grupo: en un taller EN LÍNEA sí (es su entrega), en uno EXTERNO no (es la nota del docente). Proyectos no tienen la excepción. La pantalla no bloquea lo que la base acepta, ni deja pasar lo que rechaza | Divergen → la pantalla deja mover a alguien con nota y la base lo rechaza con P0001 (y queda SIN grupo, porque la membresía vieja ya se borró), o «Desde una imagen» bloquea a quien la base dejaría agrupar |
 | `src/modules/attendance/attendance-code.ts` ↔ `supabase/migrations/20260507100100_attendance_check_in_pgcrypto_fix.sql` (`compute_attendance_code`)                                                                                                                                                                                                                                                    | Cálculo TOTP-like (sha256 + 7 hex + mod 1M + pad 6)                                                                                                  | Docente y server difieren → check-in rechazado                                                                                                                                            |
 | `src/modules/notifications/notification-email.ts` (`CRITICAL_KINDS`) ↔ `supabase/functions/send-email/index.ts` (`CRITICAL_KINDS` + `shouldSendEmail` interno) ↔ SQL `_notification_kind_emails`                                                                                                                                                                                                                                             | Predicado "este kind+link emaila" — set de kinds emailables (incluye `course_welcome`, agregado mig 20261110000000)                                                                                                                    | Emails se mandan / no mandan inconsistentemente. Al agregar un kind emailable nuevo, actualizar los 3 lados.                                                                                                                                                                                           |
 | `src/routes/app.forum.$courseId.tsx` (`computeForumState`) ↔ `src/routes/app.forum.$courseId.$forumId.tsx` (`isForumOpen`) ↔ SQL `public.is_forum_open()`                                                                                                                                                                                                                                              | Predicado "foro abierto"                                                                                                                             | UI dice abierto pero RLS rechaza el INSERT, o viceversa                                                                                                                                   |

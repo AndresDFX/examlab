@@ -35,6 +35,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   - **"Nuevo taller/examen/proyecto publicado" se DIFIERE si la fecha de inicio está a más de un día** (mig `20262210000000`). Publicar de una sola vez el semestre entero (16 talleres, uno por clase) ya NO manda 16 avisos inmediatos con fechas de meses después — cada aviso sale solo, vía cron horario, cuando a su ítem le falta ≤1 día para empezar (o si la fecha de inicio ya pasó, sigue notificando al instante). Columna `publish_notified_at` por fila (NULL = pendiente); no hay cola aparte. El aviso de "actualizado" post-publicación también espera a que el de "publicado" haya salido. Encuestas queda fuera (forma de tabla distinta, no fue parte del reporte).
 - **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados. En los grids del docente una recuperación **no es una fila**: va dentro de la de su original (`arbolDeRecuperaciones`), y el filtro decide qué fila aparece, no qué recuperaciones.
 - **Recuperaciones de TALLER: mismo modelo, mismo núcleo** (`workshops.parent_workshop_id` + `makeup_kind` + `recovery_rule`, mig `20262660000000`). El pliegue lo hace el mismo módulo que exámenes (`plegarRecuperaciones` + `notaDeTallerConRecuperaciones`); su espejo SQL es `workshop_effective_raw_grade` (desde la mig `20262670000000` el acta usa `taller_nota_en_escala`, que pliega en la escala del curso), que —a diferencia del de exámenes— **respeta la sustentación** (usa la regla de `notaEfectivaDeTaller`, no `final_grade ?? ai_grade`), alineando el acta con el gradebook/estudiante/boletín (solo afecta actas futuras). Dos diferencias con exámenes, ambas del taller: la nota sale de UNA entrega (grupo con precedencia) vía `notaEfectivaDeTaller`, y como los talleres son **M:N** (`workshop_courses`, peso/corte por curso) la recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. El estudiante ve la recuperación como un taller asignado por `workshop_assignments` (solo los elegidos), sin insignia de corte/peso. Publicar una recuperación avisa solo a sus asignados (`_notify_workshop_publication`). Verificado en PGlite.
+- **Calificar por grupo** (mig `20262700000000`). En una actividad **en línea** el grupo entrega UNA fila compartida (`group_id`) y su nota ES la del grupo: las pantallas la muestran como del grupo, y en el libro de notas editar la celda de un integrante edita la de todos (se guarda una vez por entrega). En un taller **externo** la nota es UNA FILA POR INTEGRANTE (`group_id NULL`): «Calificar al grupo» escribe la misma nota en cada una, y cada integrante se puede ajustar después; antes de pisar una nota distinta se pregunta. Por eso **en un taller externo esa fila no le impide a nadie cambiar de grupo** (es la nota del docente, no una entrega), mientras que en uno en línea el bloqueo de la mig `20261068000000` sigue igual. **Proyectos quedan fuera de la exención** a propósito: la lista del estudiante SÍ muestra los proyectos externos y con grupo busca solo la entrega del grupo, así que la fila individual quedaría escondida. La escritura de una nota externa vive UNA vez (`grading/notas-externas.ts`) y la acción de grupo también (`use-calificar-grupo.ts`), compartidas por «Notas externas» y la ventana de grupos.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
@@ -82,6 +83,49 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > o sea que HOY su IA no califica y la cola se les acumula (UNIAJ tenía 33 jobs parados).
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 👥 Buscar estudiantes al armar grupos, y calificar a un grupo entero
+
+Pedido: «añade un buscador por estudiante [en la ventana de grupos] que no dañe ningún otro flujo
+[…] en la parte de calificaciones no está soportada la calificación por grupo […] cuando haya
+grupos, debería salir en esa actividad y, en cualquiera que tenga un grupo, la posibilidad de
+calificar el grupo entero con la misma calificación»; y a mitad de camino: «también desde la
+conformación de grupos permite poner la nota de manera opcional». Primer uso: la exposición
+externa de Introducción SB141B, que se estaba armando por grupos ese mismo día.
+
+- **Buscador en la ventana de grupos** (talleres y proyectos): por nombre o correo, sin tildes y
+  por palabras (`matchesQuery`, el del buscador global); filtra «Sin grupo» y los integrantes de
+  cada grupo. Los grupos se siguen viendo TODOS —son el destino del arrastre— y buscar el nombre
+  de un grupo lo muestra completo. No toca arrastrar, «Repartir al azar» ni «Desde una imagen»,
+  que siguen recibiendo la lista completa (`workshops/buscar-en-grupos.ts`).
+- **«Notas externas» por grupo**: cada grupo tiene su fila con nota y observación y el botón
+  «Calificar al grupo», que guarda la misma nota en cada integrante; los integrantes van debajo y
+  se ajustan uno por uno (el que no se presentó). Si alguno ya tenía OTRA nota, se pregunta antes
+  de reemplazarla. «Guardar todos» también guarda las notas de grupo escritas y sin guardar: es el
+  botón principal, y si no las incluyera, quien escribe la nota de cada grupo y lo aprieta se iría
+  creyendo que guardó. La lista ahora incluye a los estudiantes de los cursos M:N del taller (sin
+  los que están en la papelera), igual que la ventana de grupos: si no, un grupo con integrantes
+  de otro curso se calificaba a medias. Reemplaza al botón chico «Aplicar la nota a todo el grupo»,
+  que solo copiaba y no guardaba.
+- **Nota opcional desde la ventana de grupos** (solo talleres externos): cada tarjeta trae «Nota
+  del grupo» + «Guardar nota», y cada integrante muestra su nota. En uno en línea no aparece: la
+  nota del grupo es la de su entrega y se pone en «Calificar».
+- **Calificación en línea**: en talleres y proyectos, una entrega de grupo se muestra como el
+  grupo con sus integrantes, el detalle dice que la nota es para todos, el buscador la encuentra
+  por cualquier integrante, y borrarla avisa que es la entrega de todos (antes nombraba solo a
+  quien la había subido).
+- **Libro de notas**: la celda que sale de una entrega de grupo lleva un ícono que lo dice; editar
+  la de un integrante cambia en el acto la de sus compañeros y se guarda una sola vez (antes se
+  cambiaba una, y al guardar las demás «saltaban» solas). Además la grilla muestra la nota de los
+  proyectos, que salía «—» aunque contara.
+- **Mig `20262700000000`**: en un taller EXTERNO, tener nota ya no impide entrar a otro grupo.
+  Sin esto, calificar por grupo y después corregir un grupo era imposible: mover a alguien borraba
+  su membresía, el INSERT de la nueva se rechazaba y quedaba SIN grupo. Validada con PGlite
+  (incluido que en línea sigue bloqueado y que proyectos no cambian).
+- Verificado en la app local contra datos reales con TODA escritura interceptada en el navegador:
+  la nota del Grupo 1 salió para sus 4 integrantes con el mismo contenido que guardaba «Notas
+  externas», la confirmación aparece ante una nota distinta, y en el libro una edición de grupo
+  hizo UN solo guardado.
 
 ### 📦 Un curso en borrador tiene su material en borrador — y los avisos al cambiar de estado
 
@@ -343,6 +387,8 @@ así que una exposición por grupos se calificaba estudiante por estudiante. Aho
 también en externos, y en «Notas externas» cada fila muestra su grupo con la acción «Aplicar la nota
 a todo el grupo», que copia nota y observación a los integrantes (quedan pendientes de «Guardar
 todo»: nada se guarda solo). Primer uso: la exposición del corte 1 de Introducción SB141B.
+*(Reemplazada después por la fila del grupo con «Calificar al grupo»; ver «Buscar estudiantes al
+armar grupos, y calificar a un grupo entero».)*
 
 ### 🔁 Exámenes recuperatorios (además de los supletorios)
 

@@ -2646,9 +2646,8 @@
     "attachFiles": "Attach files"
   },
   "externalGrades": {
-    "applyToGroup": "Apply the grade to the whole group {{group}}",
     "title": "External grades",
-    "helpHint": "This activity already happened outside the platform. Enter each student's grade (0–{{max}}) so it counts in the grading period calculation. Use a period for decimals (e.g. 4.5).",
+    "helpHint": "This activity already happened outside the platform. Enter each student's grade (0–{{max}}) so it counts in the grading period calculation. Use a comma for decimals (e.g. 4,5).",
     "gradedBadge": "{{graded}}/{{total}} graded",
     "searchPlaceholder": "Search student by name or email…",
     "clearSearch": "Clear search",
@@ -2674,7 +2673,27 @@
     "toastBulkSaved_other": "{{count}} changes saved",
     "toastBulkFailed_one": " · {{count}} failed",
     "toastBulkFailed_other": " · {{count}} failures",
-    "toastNoChanges": "No unsaved changes"
+    "toastNoChanges": "No unsaved changes",
+    "searchPlaceholderGroups": "Search student or group…",
+    "groupsHint": "Grade each group on its row: the grade is saved for all of its members. You can then adjust a single member on their own row.",
+    "groupStatus_one": "{{graded}} of {{count}} graded",
+    "groupStatus_other": "{{graded}} of {{count}} graded",
+    "groupDistinct": "different grades",
+    "groupGradeAria": "Grade for group {{group}}",
+    "groupFeedbackPlaceholder": "Comment for the whole group (optional)",
+    "gradeGroup": "Grade the group",
+    "gradeGroupTitle_one": "Saves this grade for the member of “{{group}}”",
+    "gradeGroupTitle_other": "Saves this grade for the {{count}} members of “{{group}}”",
+    "groupNeedsGrade": "Enter the group's grade first.",
+    "groupReplaceTitle": "Replace grades in “{{group}}”?",
+    "groupReplaceBody_one": "{{list}} already has a different grade. It will be replaced by {{grade}}, like the rest of the group.",
+    "groupReplaceBody_other": "{{count}} members already have a different grade: {{list}}. They will be replaced by {{grade}}.",
+    "groupReplaceConfirm": "Replace and save",
+    "groupSaved_one": "“{{group}}”: grade saved for its member.",
+    "groupSaved_other": "“{{group}}”: grade saved for its {{count}} members.",
+    "groupSavedPartial": "“{{group}}”: saved for {{saved}} of {{total}}. First: “{{name}}” — {{error}}",
+    "noGroupSection_one": "No group · {{count}} student (graded individually)",
+    "noGroupSection_other": "No group · {{count}} students (graded individually)"
   },
   "aiQueue": {
     "title": "Queued generations",
@@ -11197,5 +11216,33 @@
       "pendientes_one": "“{{nombre}}” can't be finished yet: {{count}} submission is pending grading. Grade it (Course diagnostic) before finishing.",
       "pendientes_other": "“{{nombre}}” can't be finished yet: {{count}} submissions are pending grading. Grade them (Course diagnostic) before finishing."
     }
+  },
+  "buscarEnGrupos": {
+    "placeholder": "Search student or group…",
+    "coincidencias_one": "{{count}} student matches",
+    "coincidencias_other": "{{count}} students match",
+    "nadieSinGrupo": "No ungrouped student matches the search.",
+    "nadieEnElGrupo": "No member matches the search."
+  },
+  "gradingGroups": {
+    "members_one": "{{count}} member: {{names}}",
+    "members_other": "{{count}} members: {{names}}",
+    "submissionOfGroup_one": "Group submission “{{group}}”: the grade and feedback are for its member ({{names}}).",
+    "submissionOfGroup_other": "Group submission “{{group}}”: the grade and feedback are for its {{count}} members ({{names}}).",
+    "gradebookCell_one": "Grade of group “{{group}}” ({{count}} member in this course).",
+    "gradebookCell_other": "Grade of group “{{group}}”: it is the same submission for its {{count}} members in this course.",
+    "deleteBody_one": "The group's submission will be permanently deleted. It belongs to its member ({{names}}).",
+    "deleteBody_other": "The group's submission will be permanently deleted. It belongs to its {{count}} members ({{names}}).",
+    "deleteBodyWithFiles_one": "The group's submission and all its files will be permanently deleted. It belongs to its member ({{names}}).",
+    "deleteBodyWithFiles_other": "The group's submission and all its files will be permanently deleted. It belongs to its {{count}} members ({{names}})."
+  },
+  "gruposNota": {
+    "label": "Group grade",
+    "guardar": "Save grade",
+    "hint": "Optional: enter each group's grade on its card and it is saved for all of its members. You can also grade later from “Grade”.",
+    "notaDe": "Grade of {{name}}",
+    "tableroHint": "Create groups and drag students. Students with a group (graded together) and without one (graded individually) can coexist. Each student can belong to only one group at a time.",
+    "sinGrupoTitulo": "No group (graded individually)",
+    "sinGrupoHint": "These students are graded one by one. Drag them into a group to grade them together."
   }
 }

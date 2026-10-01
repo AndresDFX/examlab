@@ -49,6 +49,7 @@ import {
   Award,
   RotateCcw,
   ChevronDown,
+  UsersRound,
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
@@ -65,6 +66,7 @@ import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade } from "@/modules/grading/grade";
 import { corteYPesoEnCurso, sesionesDadas } from "@/modules/grading/nota-relativa";
 import { todasLasFilas } from "@/shared/lib/todas-las-filas";
+import { integrantesPorEntrega, unaVezPorEntrega } from "@/modules/grading/nota-de-grupo";
 import {
   actividadesConNota,
   notaDelEstudianteEnCurso,
@@ -246,6 +248,13 @@ type WsSub = {
   status: string;
 };
 
+/**
+ * El grupo de la entrega que da la nota de una celda. Solo existe cuando la
+ * entrega es GRUPAL: es una fila compartida, así que esa nota es la de todos
+ * sus integrantes y editarla en una celda la cambia en todas.
+ */
+type GrupoDeCelda = { nombre: string; integrantes: number };
+
 /** A column in the grid — examen, taller o proyecto */
 type GradeColumn = {
   id: string;
@@ -355,6 +364,8 @@ function Gradebook() {
   // los demás miembros se resuelven por su pertenencia al group_id de la submission.
   const [wsGroupsByUser, setWsGroupsByUser] = useState<Map<string, Set<string>>>(new Map());
   const [prjGroupsByUser, setPrjGroupsByUser] = useState<Map<string, Set<string>>>(new Map());
+  /** Nombre de cada grupo (talleres y proyectos), para decir de quién es la nota. */
+  const [nombresDeGrupos, setNombresDeGrupos] = useState<Map<string, string>>(new Map());
   const [attSessions, setAttSessions] = useState<AttSession[]>([]);
   const [attRecords, setAttRecords] = useState<AttRecord[]>([]);
   // Lo asignado a cada estudiante: sin asignación no ve la actividad, así que
@@ -751,6 +762,9 @@ function Gradebook() {
       setExamSubs([]);
     }
 
+    // Nombres de los grupos de talleres y proyectos (se llenan abajo).
+    const nombres: Array<{ id: string; name: string }> = [];
+
     // Workshop submissions
     const wsIds = (workshops ?? []).map((w: any) => w.id);
     if (wsIds.length) {
@@ -771,9 +785,10 @@ function Gradebook() {
       const wsMap = new Map<string, Set<string>>();
       const wgroups = await must<any>(
         "workshop_groups",
-        (supabase as any).from("workshop_groups").select("id").in("workshop_id", wsIds),
+        (supabase as any).from("workshop_groups").select("id, name").in("workshop_id", wsIds),
       );
       const wgIds = ((wgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
+      nombres.push(...((wgroups ?? []) as Array<{ id: string; name: string }>));
       if (wgIds.length) {
         const wmembers = await must<any>(
           "workshop_group_members",
@@ -818,9 +833,10 @@ function Gradebook() {
       const prjMap = new Map<string, Set<string>>();
       const pgroups = await must<any>(
         "project_groups",
-        (db as any).from("project_groups").select("id").in("project_id", prjIds),
+        (db as any).from("project_groups").select("id, name").in("project_id", prjIds),
       );
       const pgIds = ((pgroups ?? []) as Array<{ id: string }>).map((g) => g.id);
+      nombres.push(...((pgroups ?? []) as Array<{ id: string; name: string }>));
       if (pgIds.length) {
         const pmembers = await must<any>(
           "project_group_members",
@@ -845,6 +861,7 @@ function Gradebook() {
       setProjectSubs([]);
       setPrjGroupsByUser(new Map());
     }
+    setNombresDeGrupos(new Map(nombres.map((g) => [g.id, g.name])));
 
     // Attendance records (todas las sesiones del curso)
     const sessIds = ((sessions ?? []) as AttSession[]).map((s) => s.id);
@@ -948,6 +965,26 @@ function Gradebook() {
     void loadCourse();
   }, [loadCourse]);
 
+  // Cuántos estudiantes de la lista hay en cada grupo (talleres y proyectos).
+  const integrantesPorGrupo = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const st of students) {
+      for (const gid of wsGroupsByUser.get(st.id) ?? []) m.set(gid, (m.get(gid) ?? 0) + 1);
+      for (const gid of prjGroupsByUser.get(st.id) ?? []) m.set(gid, (m.get(gid) ?? 0) + 1);
+    }
+    return m;
+  }, [students, wsGroupsByUser, prjGroupsByUser]);
+  const grupoDeCelda = (groupId: string | null | undefined): GrupoDeCelda | undefined =>
+    groupId
+      ? { nombre: nombresDeGrupos.get(groupId) ?? "", integrantes: integrantesPorGrupo.get(groupId) ?? 0 }
+      : undefined;
+  // Entrega de grupo de un taller → estudiantes de la lista que la comparten.
+  // Es lo que hace que editar la celda de uno cambie la de todo su grupo.
+  const integrantesDeEntrega = useMemo(
+    () => integrantesPorEntrega(wsSubs, wsGroupsByUser, students.map((st) => st.id)),
+    [wsSubs, wsGroupsByUser, students],
+  );
+
   // Get the effective grade for a student + column
   const getGrade = (
     studentId: string,
@@ -958,6 +995,7 @@ function Gradebook() {
     makeupKind?: TipoRecuperacion;
     status?: string;
     subId?: string;
+    grupo?: GrupoDeCelda;
   } => {
     if (col.kind === "exam") {
       const examMeta = allExams.find((e) => e.id === col.id);
@@ -1026,6 +1064,7 @@ function Gradebook() {
         makeupKind: esRecuperacion ? (r.fuente as TipoRecuperacion) : undefined,
         status: subFuente?.status,
         subId: subFuente?.id,
+        grupo: grupoDeCelda(subFuente?.group_id),
       };
     } else {
       // project — misma precedencia de GRUPO sobre individual que en talleres.
@@ -1045,6 +1084,7 @@ function Gradebook() {
           // subId no podemos editar inline. Se considera follow-up
           // separado si se quiere editar proyectos desde aquí.
           subId: undefined,
+          grupo: grupoDeCelda(sub.group_id),
         };
       return { grade: null, isMakeup: false };
     }
@@ -1053,8 +1093,27 @@ function Gradebook() {
   // Edit handler
   const cellKey = (studentId: string, colId: string) => `${studentId}::${colId}`;
 
+  /**
+   * Una celda cuya nota sale de una entrega de GRUPO edita esa entrega, que es
+   * la misma para todos sus integrantes: el valor se copia a las celdas de sus
+   * compañeros para que se vea lo que de verdad va a cambiar. Antes cambiaba
+   * solo la celda tocada y, al guardar, las de los demás «saltaban» solas — o,
+   * si se escribía distinto en dos integrantes, ganaba el último sin aviso.
+   */
   const handleEdit = (studentId: string, colId: string, value: string) => {
-    setEdits((prev) => ({ ...prev, [cellKey(studentId, colId)]: value }));
+    const col = columns.find((c) => c.id === colId);
+    const g = col ? getGrade(studentId, col) : undefined;
+    const companeros =
+      col && col.kind === "workshop" && g?.subId && g.grupo
+        ? (integrantesDeEntrega.get(g.subId) ?? []).filter(
+            (sid) => sid !== studentId && getGrade(sid, col).subId === g.subId,
+          )
+        : [];
+    setEdits((prev) => {
+      const next = { ...prev, [cellKey(studentId, colId)]: value };
+      for (const sid of companeros) next[cellKey(sid, colId)] = value;
+      return next;
+    });
   };
 
   // Save all edits
@@ -1062,7 +1121,17 @@ function Gradebook() {
     // Anti doble-submit: el loop es secuencial y puede tardar; un segundo
     // click arrancaba una segunda pasada sobre los mismos `edits`.
     if (saving) return;
-    const entries = Object.entries(edits).filter(([, v]) => v !== "");
+    // Las celdas de un mismo grupo apuntan a la misma entrega: se guarda una vez.
+    const entries = unaVezPorEntrega(
+      Object.entries(edits).filter(([, v]) => v !== ""),
+      ([key]) => {
+        const [studentId, colId] = key.split("::");
+        const col = columns.find((c) => c.id === colId);
+        if (!col || col.kind !== "workshop") return null;
+        const g = getGrade(studentId, col);
+        return g.subId && g.grupo ? g.subId : null;
+      },
+    );
     if (!entries.length) {
       toast.info(
         i18n.t("toast.routes_app_teacher_gradebook.noChangesToSave", {
@@ -3089,6 +3158,7 @@ function renderStudentCutDetail({
     makeupKind?: TipoRecuperacion;
     status?: string;
     subId?: string;
+    grupo?: GrupoDeCelda;
   };
   edits: EditMap;
   handleEdit: (studentId: string, colId: string, value: string) => void;
@@ -3266,11 +3336,16 @@ function renderStudentCutDetail({
                               <AlertTriangle className="h-3 w-3" />
                             </span>
                           )}
-                          {!g.isMakeup && g.status !== "sospechoso" && (
-                            <span className="text-3xs text-muted-foreground">
-                              {motivoSinNota(col) ?? "—"}
-                            </span>
-                          )}
+                          {g.grupo && <IndicadorDeGrupo grupo={g.grupo} />}
+                          {/* Con el ícono del grupo, el «—» de relleno sobra;
+                              el motivo de una nota que falta, no. */}
+                          {!g.isMakeup &&
+                            g.status !== "sospechoso" &&
+                            (!g.grupo || motivoSinNota(col) != null) && (
+                              <span className="text-3xs text-muted-foreground">
+                                {motivoSinNota(col) ?? "—"}
+                              </span>
+                            )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -3365,6 +3440,28 @@ function renderStudentCutDetail({
   );
 }
 
+/**
+ * «Esta nota es la del grupo»: la celda sale de una entrega grupal, que es UNA
+ * fila para todos sus integrantes. Editarla en una celda la copia a las demás
+ * (ver `handleEdit`), y este ícono dice por qué.
+ */
+function IndicadorDeGrupo({ grupo }: { grupo: GrupoDeCelda }) {
+  const texto = i18n.t("gradingGroups.gradebookCell", {
+    group: grupo.nombre,
+    count: grupo.integrantes,
+  });
+  return (
+    <span
+      role="img"
+      aria-label={texto}
+      title={texto}
+      className="inline-flex size-5 shrink-0 items-center justify-center rounded-md border border-primary/30 bg-primary/10 text-primary"
+    >
+      <UsersRound className="h-3 w-3" aria-hidden />
+    </span>
+  );
+}
+
 // ───────────────────────── Editable grid (compartida) ─────────────────────────
 // Antes la grilla estaba inline en el JSX. La extraímos para reutilizar entre
 // "Sin corte asignado" y el modal de Ver detalle por corte.
@@ -3388,6 +3485,7 @@ function renderEditableGrid({
     makeupKind?: TipoRecuperacion;
     status?: string;
     subId?: string;
+    grupo?: GrupoDeCelda;
   };
   edits: EditMap;
   handleEdit: (studentId: string, colId: string, value: string) => void;
@@ -3521,7 +3619,22 @@ function renderEditableGrid({
                               <AlertTriangle className="h-3 w-3" strokeWidth={2} aria-hidden />
                             </span>
                           )}
+                          {g.grupo && <IndicadorDeGrupo grupo={g.grupo} />}
                         </div>
+                      </div>
+                    ) : g.grade != null ? (
+                      // Sin entrega editable (los proyectos no se editan acá):
+                      // la nota se muestra igual, como en el detalle del corte.
+                      // Antes la celda decía «—» aunque la nota contara.
+                      <div>
+                        <span className="text-sm tabular-nums font-medium">
+                          {Number(g.grade).toFixed(2)}
+                        </span>
+                        {g.grupo && (
+                          <div className="flex min-h-[1.125rem] items-center justify-center mt-0.5">
+                            <IndicadorDeGrupo grupo={g.grupo} />
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <span className="text-muted-foreground text-xs">—</span>

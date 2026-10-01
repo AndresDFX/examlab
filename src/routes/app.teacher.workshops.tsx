@@ -87,6 +87,9 @@ import {
 } from "@/modules/grading/deterministic-scoring";
 import { CoursePicker } from "@/modules/courses/CoursePicker";
 import { WorkshopGroupsEditor } from "@/modules/workshops/WorkshopGroupsEditor";
+import { cargarGruposDeEntregas } from "@/modules/grading/grupos-de-entregas";
+import { nombresDeIntegrantes } from "@/modules/grading/nota-de-grupo";
+import { matchesQuery } from "@/modules/search/search-text";
 import { DefensePanel } from "@/modules/grading/DefensePanel";
 import { HelpHint } from "@/components/ui/help-hint";
 import { toast } from "sonner";
@@ -322,6 +325,9 @@ type WsSub = {
   teacher_feedback: string | null;
   status: string;
   submitted_at: string | null;
+  /** Entrega de GRUPO: una sola fila para todos sus integrantes (ver
+   *  `wsGruposDeEntrega`). `user_id` es entonces solo quien la editó último. */
+  group_id?: string | null;
   /** Sustentación (solo con `workshops.requires_defense`). La nota final es
    *  `submission_grade × defense_factor`; sin factor no hay nota final. */
   submission_grade?: number | null;
@@ -862,6 +868,11 @@ function TeacherWorkshops() {
   // Pregunta a destacar dentro del accordion expandido cuando el
   // deep-link viene del modal de Conversaciones abiertas (?question=ID).
   const [highlightWsQuestionId, setHighlightWsQuestionId] = useState<string | null>(null);
+  /** Grupo de cada entrega grupal (por `group_id`): nombre e integrantes. La
+   *  nota de esa entrega es la de todo el grupo, y el docente tiene que verlo. */
+  const [wsGruposDeEntrega, setWsGruposDeEntrega] = useState<
+    Map<string, { nombre: string; nombres: string[] }>
+  >(new Map());
   // Per-question grading: questions of the workshop, and answers grouped
   // by submission. Edits live in `answersBySub` until the teacher saves a
   // single question or recomputes the global grade.
@@ -1937,6 +1948,7 @@ function TeacherWorkshops() {
     setAnswersBySub({});
     setWsSimilarityPairs([]);
     setWsThreadsByQ({});
+    setWsGruposDeEntrega(new Map());
     const [{ data: subs, error: subsErr }, { data: qs }, { data: pairs }] = await Promise.all([
       supabase.from("workshop_submissions").select("*").eq("workshop_id", ws.id),
       supabase
@@ -1969,7 +1981,15 @@ function TeacherWorkshops() {
     setWsSimilarityPairs((pairs ?? []) as WsSimilarityPair[]);
 
     if (subs?.length) {
-      const userIds = subs.map((s: any) => s.user_id);
+      // Integrantes de los grupos con entrega: sus nombres van en la fila de la
+      // entrega grupal, así que se piden junto con los perfiles de quien entregó.
+      const grupos = await cargarGruposDeEntregas("workshop", subs as { group_id?: string | null }[]);
+      const userIds = Array.from(
+        new Set([
+          ...subs.map((s: any) => s.user_id as string),
+          ...[...grupos.values()].flatMap((g) => g.integrantes),
+        ]),
+      );
       const subIds = subs.map((s: any) => s.id);
       const [{ data: profiles }, { data: ans }, { data: threads }] = await Promise.all([
         supabase.from("profiles").select("id, full_name, institutional_email").in("id", userIds),
@@ -1991,6 +2011,14 @@ function TeacherWorkshops() {
           .in("submission_id", subIds),
       ]);
       const profileMap = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+      setWsGruposDeEntrega(
+        new Map(
+          [...grupos].map(([gid, g]) => [
+            gid,
+            { nombre: g.nombre, nombres: nombresDeIntegrantes(g.integrantes, profileMap as Map<string, { full_name?: string | null }>) },
+          ]),
+        ),
+      );
       const grouped: Record<string, WsAnswer[]> = {};
       for (const a of (ans ?? []) as WsAnswer[]) {
         // Las dos columnas nuevas se cargan abajo en una query separada
@@ -2189,21 +2217,27 @@ function TeacherWorkshops() {
   }, [wsSimilarityPairs]);
 
   /** Entregas filtradas por el buscador del modal de calificaciones.
-   *  Matchea por nombre completo o email institucional del estudiante.
+   *  Matchea por nombre o email de quien entregó y, en una entrega de grupo,
+   *  por el nombre del grupo y de cualquiera de sus integrantes (buscar a
+   *  «Luis» encuentra la entrega de su grupo aunque la haya subido otro).
    *  Si el query está vacío devuelve todas. */
   const filteredWsSubs = useMemo(() => {
-    const q = gradingSearch.trim().toLowerCase();
-    if (!q) return wsSubs;
+    if (!gradingSearch.trim()) return wsSubs;
     return wsSubs.filter((s) => {
-      const name = (
-        (s as { profile?: { full_name?: string } }).profile?.full_name ?? ""
-      ).toLowerCase();
-      const email = (
-        (s as { profile?: { institutional_email?: string } }).profile?.institutional_email ?? ""
-      ).toLowerCase();
-      return name.includes(q) || email.includes(q);
+      const grupo = s.group_id ? wsGruposDeEntrega.get(s.group_id) : undefined;
+      return matchesQuery(
+        [
+          s.profile?.full_name,
+          s.profile?.institutional_email,
+          grupo?.nombre,
+          ...(grupo?.nombres ?? []),
+        ]
+          .filter(Boolean)
+          .join(" "),
+        gradingSearch,
+      );
     });
-  }, [wsSubs, gradingSearch]);
+  }, [wsSubs, gradingSearch, wsGruposDeEntrega]);
 
   /** Selección por checkbox de entregas dentro del diálogo de
    *  calificaciones — scoped a `filteredWsSubs` (mismo patrón que el resto
@@ -3268,7 +3302,11 @@ function TeacherWorkshops() {
 
     const rows: RegradeRow[] = targets.map((s) => ({
       submissionId: s.id,
-      studentName: s.profile?.full_name || s.profile?.institutional_email || "—",
+      studentName:
+        (s.group_id ? wsGruposDeEntrega.get(s.group_id)?.nombre : undefined) ||
+        s.profile?.full_name ||
+        s.profile?.institutional_email ||
+        "—",
       previousGrade: s.final_grade ?? s.ai_grade ?? null,
       newGrade: null,
       status: "pending",
@@ -3776,9 +3814,17 @@ function TeacherWorkshops() {
 
   const deleteSubmission = async (subId: string, studentName: string) => {
     if (deletingSubId) return;
+    // Una entrega de GRUPO es la de todos sus integrantes: decirlo antes de borrar.
+    const sub = wsSubs.find((x) => x.id === subId);
+    const grupo = sub?.group_id ? wsGruposDeEntrega.get(sub.group_id) : undefined;
     const ok = await confirm({
-      title: t("workshop.deleteSubmissionTitle", { name: studentName }),
-      description: t("workshop.deleteSubmissionBody"),
+      title: t("workshop.deleteSubmissionTitle", { name: grupo?.nombre ?? studentName }),
+      description: grupo
+        ? t("gradingGroups.deleteBody", {
+            count: grupo.nombres.length,
+            names: grupo.nombres.join(", "),
+          })
+        : t("workshop.deleteSubmissionBody"),
       confirmLabel: t("workshop.deleteSubmissionConfirm"),
       tone: "destructive",
     });
@@ -5443,6 +5489,9 @@ function TeacherWorkshops() {
                             : faltaSustentacion
                               ? t("teacherWorkshops.defenseMissing")
                               : "—";
+                        const grupoDeLaEntrega = sub.group_id
+                          ? wsGruposDeEntrega.get(sub.group_id)
+                          : undefined;
                         return (
                           <TableRow
                             key={sub.id}
@@ -5457,12 +5506,42 @@ function TeacherWorkshops() {
                               <MultiSelectCheckbox id={sub.id} state={subSel} />
                             </TableCell>
                             <TableCell className="max-w-[260px] min-w-0">
-                              <div className="font-medium text-sm truncate">
-                                {sub.profile?.full_name ?? "—"}
-                              </div>
-                              <div className="text-2xs text-muted-foreground truncate">
-                                {sub.profile?.institutional_email}
-                              </div>
+                              {grupoDeLaEntrega ? (
+                                // Entrega de GRUPO: la fila es del grupo, no de
+                                // quien la subió, y su nota es la de todos.
+                                <>
+                                  <div className="flex items-center gap-1.5 min-w-0">
+                                    <UsersRound
+                                      className="h-3.5 w-3.5 text-primary shrink-0"
+                                      aria-hidden
+                                    />
+                                    <span
+                                      className="font-medium text-sm truncate"
+                                      title={grupoDeLaEntrega.nombre}
+                                    >
+                                      {grupoDeLaEntrega.nombre}
+                                    </span>
+                                  </div>
+                                  <div
+                                    className="text-2xs text-muted-foreground truncate"
+                                    title={grupoDeLaEntrega.nombres.join(", ")}
+                                  >
+                                    {t("gradingGroups.members", {
+                                      count: grupoDeLaEntrega.nombres.length,
+                                      names: grupoDeLaEntrega.nombres.join(", "),
+                                    })}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div className="font-medium text-sm truncate">
+                                    {sub.profile?.full_name ?? "—"}
+                                  </div>
+                                  <div className="text-2xs text-muted-foreground truncate">
+                                    {sub.profile?.institutional_email}
+                                  </div>
+                                </>
+                              )}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">
                               <StatusBadge status={sub.status || "pendiente"} />
@@ -5543,7 +5622,8 @@ function TeacherWorkshops() {
                                   onClick={() =>
                                     deleteSubmission(
                                       sub.id,
-                                      sub.profile?.full_name ??
+                                      grupoDeLaEntrega?.nombre ??
+                                        sub.profile?.full_name ??
                                         t("hc_routesAppTeacherWorkshops.thisStudent"),
                                     )
                                   }
@@ -5617,6 +5697,27 @@ function TeacherWorkshops() {
                             <div className="text-xs text-muted-foreground truncate">
                               {sub.profile?.institutional_email}
                             </div>
+                            {(() => {
+                              const grupo = sub.group_id
+                                ? wsGruposDeEntrega.get(sub.group_id)
+                                : undefined;
+                              if (!grupo) return null;
+                              return (
+                                <p className="mt-1 flex items-start gap-1.5 text-xs">
+                                  <UsersRound
+                                    className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5"
+                                    aria-hidden
+                                  />
+                                  <span>
+                                    {t("gradingGroups.submissionOfGroup", {
+                                      group: grupo.nombre,
+                                      count: grupo.nombres.length,
+                                      names: grupo.nombres.join(", "),
+                                    })}
+                                  </span>
+                                </p>
+                              );
+                            })()}
                           </div>
                           <div className="flex items-center gap-1.5 flex-wrap justify-end">
                             {/* Badges de alertas de integridad. Solo se

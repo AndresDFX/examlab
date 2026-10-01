@@ -15,6 +15,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { SearchInput } from "@/components/ui/search-input";
+import { filtrarTablero } from "@/modules/workshops/buscar-en-grupos";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import {
@@ -57,6 +59,8 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const [creating, setCreating] = useState(false);
   const [draggingUserId, setDraggingUserId] = useState<string | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  /** Solo decide qué tarjetas se ven: no mueve a nadie (ver buscar-en-grupos.ts). */
+  const [busqueda, setBusqueda] = useState("");
 
   /**
    * Cambiar un grupo NO recarga la pantalla (ver el mismo comentario en
@@ -128,6 +132,11 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
     void load();
   }, [load]);
 
+  // La búsqueda es de ESTE proyecto (mismo motivo que en WorkshopGroupsEditor).
+  useEffect(() => {
+    setBusqueda("");
+  }, [projectId]);
+
   const memberByUser = useMemo(() => {
     const m = new Map<string, string>();
     for (const x of members) m.set(x.user_id, x.group_id);
@@ -147,6 +156,11 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const unassigned = useMemo(
     () => students.filter((s) => !memberByUser.has(s.id)),
     [students, memberByUser],
+  );
+
+  const tablero = useMemo(
+    () => filtrarTablero(unassigned, studentsByGroup, groups, busqueda),
+    [unassigned, studentsByGroup, groups, busqueda],
   );
 
   const createGroup = async () => {
@@ -298,6 +312,23 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
         </CardContent>
       </Card>
 
+      {!loading && students.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            value={busqueda}
+            onChange={setBusqueda}
+            placeholder={t("buscarEnGrupos.placeholder")}
+            maxWidthClass="sm:max-w-sm"
+            className="flex-1"
+          />
+          {tablero.activa && (
+            <span className="text-2xs text-muted-foreground tabular-nums" aria-live="polite">
+              {t("buscarEnGrupos.coincidencias", { count: tablero.visibles })}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
@@ -332,8 +363,12 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                 <p className="text-xs text-muted-foreground italic">
                   {t("hc_modulesProjectsProjectGroupsEditor.allStudentsInGroups")}
                 </p>
+              ) : tablero.sinGrupo.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  {t("buscarEnGrupos.nadieSinGrupo")}
+                </p>
               ) : (
-                unassigned.map((s) => (
+                tablero.sinGrupo.map((s) => (
                   <DraggableStudent
                     key={s.id}
                     student={s}
@@ -359,6 +394,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             )}
             {groups.map((g) => {
               const ms = studentsByGroup.get(g.id) ?? [];
+              const visibles = tablero.porGrupo.get(g.id) ?? ms;
               const isOver = dragOverTarget === g.id;
               return (
                 <Card
@@ -392,8 +428,12 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                       <p className="text-xs text-muted-foreground italic">
                         {t("hc_modulesProjectsProjectGroupsEditor.dragStudentsHere")}
                       </p>
+                    ) : visibles.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        {t("buscarEnGrupos.nadieEnElGrupo")}
+                      </p>
                     ) : (
-                      ms.map((s) => (
+                      visibles.map((s) => (
                         <DraggableStudent
                           key={s.id}
                           student={s}

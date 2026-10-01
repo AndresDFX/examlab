@@ -2646,7 +2646,6 @@
     "attachFiles": "Adjuntar archivos"
   },
   "externalGrades": {
-    "applyToGroup": "Aplicar la nota a todo el grupo {{group}}",
     "title": "Notas externas",
     "helpHint": "Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada estudiante (0–{{max}}) para que cuente en el cálculo del corte. Usa coma para decimales (ej. 4,5).",
     "gradedBadge": "{{graded}}/{{total}} con nota",
@@ -2674,7 +2673,27 @@
     "toastBulkSaved_other": "{{count}} cambios guardados",
     "toastBulkFailed_one": " · {{count}} fallido",
     "toastBulkFailed_other": " · {{count}} fallidos",
-    "toastNoChanges": "No hay cambios sin guardar"
+    "toastNoChanges": "No hay cambios sin guardar",
+    "searchPlaceholderGroups": "Buscar estudiante o grupo…",
+    "groupsHint": "Califica cada grupo en su fila: la nota se guarda para todos sus integrantes. Después puedes ajustar a un integrante en su propia fila.",
+    "groupStatus_one": "{{graded}} de {{count}} con nota",
+    "groupStatus_other": "{{graded}} de {{count}} con nota",
+    "groupDistinct": "notas distintas",
+    "groupGradeAria": "Nota del grupo {{group}}",
+    "groupFeedbackPlaceholder": "Observación para todo el grupo (opcional)",
+    "gradeGroup": "Calificar al grupo",
+    "gradeGroupTitle_one": "Guarda esta nota para el integrante de «{{group}}»",
+    "gradeGroupTitle_other": "Guarda esta nota para los {{count}} integrantes de «{{group}}»",
+    "groupNeedsGrade": "Escribe la nota del grupo antes de calificarlo.",
+    "groupReplaceTitle": "¿Reemplazar notas en «{{group}}»?",
+    "groupReplaceBody_one": "{{list}} ya tiene otra nota. Se reemplaza por {{grade}}, como al resto del grupo.",
+    "groupReplaceBody_other": "{{count}} integrantes ya tienen otra nota: {{list}}. Se reemplazan por {{grade}}.",
+    "groupReplaceConfirm": "Reemplazar y guardar",
+    "groupSaved_one": "«{{group}}»: nota guardada para su integrante.",
+    "groupSaved_other": "«{{group}}»: nota guardada para sus {{count}} integrantes.",
+    "groupSavedPartial": "«{{group}}»: se guardó en {{saved}} de {{total}}. Primero: «{{name}}» — {{error}}",
+    "noGroupSection_one": "Sin grupo · {{count}} estudiante (se califica individualmente)",
+    "noGroupSection_other": "Sin grupo · {{count}} estudiantes (se califican individualmente)"
   },
   "aiQueue": {
     "title": "Generaciones encoladas",
@@ -7614,7 +7633,7 @@
     "deleteGroupTooltip": "Eliminar grupo",
     "dragStudentsHere": "Arrastra estudiantes aquí.",
     "fromImageAction": "Desde una imagen",
-    "fromImageHint": "Subí una captura de la videollamada con los grupos y la IA propone la asignación.",
+    "fromImageHint": "Sube una captura de la videollamada con los grupos y la IA propone la asignación.",
     "groupNamePlaceholder": "Nombre del grupo (ej. Grupo 1)",
     "loading": "Cargando…",
     "memberCount_one": "{{count}} miembro",
@@ -11197,5 +11216,33 @@
       "pendientes_one": "Todavía no se puede finalizar «{{nombre}}»: hay {{count}} entrega pendiente de calificación. Califícala (Diagnóstico del curso) antes de finalizar.",
       "pendientes_other": "Todavía no se puede finalizar «{{nombre}}»: hay {{count}} entregas pendientes de calificación. Califícalas (Diagnóstico del curso) antes de finalizar."
     }
+  },
+  "buscarEnGrupos": {
+    "placeholder": "Buscar estudiante o grupo…",
+    "coincidencias_one": "{{count}} estudiante coincide",
+    "coincidencias_other": "{{count}} estudiantes coinciden",
+    "nadieSinGrupo": "Nadie sin grupo coincide con la búsqueda.",
+    "nadieEnElGrupo": "Ningún integrante coincide con la búsqueda."
+  },
+  "gradingGroups": {
+    "members_one": "{{count}} integrante: {{names}}",
+    "members_other": "{{count}} integrantes: {{names}}",
+    "submissionOfGroup_one": "Entrega del grupo «{{group}}»: la nota y la retroalimentación son para su integrante ({{names}}).",
+    "submissionOfGroup_other": "Entrega del grupo «{{group}}»: la nota y la retroalimentación son para sus {{count}} integrantes ({{names}}).",
+    "gradebookCell_one": "Nota del grupo «{{group}}» ({{count}} integrante en este curso).",
+    "gradebookCell_other": "Nota del grupo «{{group}}»: es la misma entrega para sus {{count}} integrantes en este curso.",
+    "deleteBody_one": "Se eliminará de forma permanente la entrega del grupo, que es la de su integrante ({{names}}).",
+    "deleteBody_other": "Se eliminará de forma permanente la entrega del grupo, que es la de sus {{count}} integrantes ({{names}}).",
+    "deleteBodyWithFiles_one": "Se eliminará de forma permanente la entrega del grupo y todos sus archivos. Es la de su integrante ({{names}}).",
+    "deleteBodyWithFiles_other": "Se eliminará de forma permanente la entrega del grupo y todos sus archivos. Es la de sus {{count}} integrantes ({{names}})."
+  },
+  "gruposNota": {
+    "label": "Nota del grupo",
+    "guardar": "Guardar nota",
+    "hint": "Opcional: escribe la nota de cada grupo en su tarjeta y se guarda para todos sus integrantes. También puedes calificar después desde «Calificar».",
+    "notaDe": "Nota de {{name}}",
+    "tableroHint": "Crea grupos y arrastra estudiantes. Pueden coexistir estudiantes con grupo (se califican juntos) y sin grupo (se califican individualmente). Cada estudiante puede pertenecer a un solo grupo a la vez.",
+    "sinGrupoTitulo": "Sin grupo (se califican individualmente)",
+    "sinGrupoHint": "Estos estudiantes se califican cada uno por su cuenta. Arrástralos a un grupo para calificarlos juntos."
   }
 }

@@ -30,6 +30,15 @@ import {
   ImageUp,
 } from "lucide-react";
 import { GruposDesdeImagenDialog } from "./GruposDesdeImagenDialog";
+import { filtrarTablero } from "./buscar-en-grupos";
+import { SearchInput } from "@/components/ui/search-input";
+import { NotaDeGrupoInline } from "@/modules/grading/NotaDeGrupoInline";
+import {
+  useCalificarGrupo,
+  type IntegranteACalificar,
+  type NotaGuardada,
+} from "@/modules/grading/use-calificar-grupo";
+import { formatNumber } from "@/shared/lib/format";
 import { Spinner } from "@/components/ui/spinner";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -57,6 +66,8 @@ const db = supabase as any;
 type Student = { id: string; full_name: string; institutional_email: string };
 type Group = { id: string; name: string; signup_code: string };
 type Member = { group_id: string; user_id: string };
+/** Nota externa ya guardada de un estudiante (su fila individual). */
+type NotaExterna = { submissionId: string | null; grade: number | null; feedback: string };
 
 interface Props {
   workshopId: string;
@@ -104,6 +115,18 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const [groupSizeMin, setGroupSizeMin] = useState<number | null>(null);
   const [groupSizeMax, setGroupSizeMax] = useState<number | null>(null);
   const [dragOverTarget, setDragOverTarget] = useState<string | null>(null);
+  /** Solo decide qué tarjetas se ven: no mueve a nadie (ver buscar-en-grupos.ts). */
+  const [busqueda, setBusqueda] = useState("");
+  /**
+   * Taller EXTERNO (la exposición): cada grupo se puede calificar desde su
+   * tarjeta, opcionalmente, mientras se arma. En uno en línea no: la nota del
+   * grupo es la de su entrega y se pone en «Calificar».
+   */
+  const [esExterno, setEsExterno] = useState(false);
+  /** Las notas externas van en la escala del curso. */
+  const [escala, setEscala] = useState(5);
+  const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
+  const { calificar, guardando: guardandoNota } = useCalificarGrupo("workshop", workshopId);
 
   /**
    * Cambiar un grupo NO recarga la pantalla. Antes cada movimiento hacía
@@ -134,9 +157,20 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         .from("workshop_courses")
         .select("course_id")
         .eq("workshop_id", workshopId);
-      const courseIds = Array.from(
-        new Set([courseId, ...((wcRows ?? []) as { course_id: string }[]).map((r) => r.course_id)]),
-      );
+      // Un curso de la unión que está en la papelera no aporta estudiantes.
+      const otros = Array.from(
+        new Set(((wcRows ?? []) as { course_id: string }[]).map((r) => r.course_id)),
+      ).filter((id) => id !== courseId);
+      let vigentes: string[] = [];
+      if (otros.length > 0) {
+        const { data: cs } = await supabase
+          .from("courses")
+          .select("id")
+          .in("id", otros)
+          .is("deleted_at", null);
+        vigentes = ((cs ?? []) as { id: string }[]).map((c) => c.id);
+      }
+      const courseIds = [courseId, ...vigentes];
       const { data: enr } = await supabase
         .from("course_enrollments")
         .select("user_id")
@@ -161,11 +195,22 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       }
       const { data: wsRow } = await db
         .from("workshops")
-        .select("group_size_min, group_size_max")
+        .select("group_size_min, group_size_max, is_external")
         .eq("id", workshopId)
         .maybeSingle();
       setGroupSizeMin((wsRow as { group_size_min?: number | null } | null)?.group_size_min ?? null);
       setGroupSizeMax((wsRow as { group_size_max?: number | null } | null)?.group_size_max ?? null);
+      const externo = (wsRow as { is_external?: boolean | null } | null)?.is_external === true;
+      setEsExterno(externo);
+      if (externo) {
+        const { data: curso } = await supabase
+          .from("courses")
+          .select("grade_scale_max")
+          .eq("id", courseId)
+          .maybeSingle();
+        const max = Number((curso as { grade_scale_max?: number } | null)?.grade_scale_max);
+        setEscala(Number.isFinite(max) && max > 0 ? max : 5);
+      }
 
       setStudents(profs);
       // Todos incluidos por defecto: el caso normal es "vino el curso". Destildar
@@ -225,11 +270,32 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       // quién tiene que sacar de la lista.
       const { data: indiv } = await db
         .from("workshop_submissions")
-        .select("user_id")
+        .select("id, user_id, final_grade, teacher_feedback")
         .eq("workshop_id", workshopId)
         .is("group_id", null);
-      setConEntregaIndividual(
-        new Set(((indiv ?? []) as { user_id: string }[]).map((x) => x.user_id)),
+      const filasIndiv = (indiv ?? []) as {
+        id: string;
+        user_id: string;
+        final_grade: number | null;
+        teacher_feedback: string | null;
+      }[];
+      // En un taller EXTERNO esas filas son la NOTA que escribió el docente, no
+      // una entrega: no le impiden a nadie entrar a un grupo (mig
+      // 20262700000000), así que no se bloquean acá.
+      setConEntregaIndividual(externo ? new Set() : new Set(filasIndiv.map((x) => x.user_id)));
+      setNotas(
+        externo
+          ? new Map(
+              filasIndiv.map((x) => [
+                x.user_id,
+                {
+                  submissionId: x.id,
+                  grade: x.final_grade != null ? Number(x.final_grade) : null,
+                  feedback: x.teacher_feedback ?? "",
+                },
+              ]),
+            )
+          : new Map(),
       );
     } finally {
       primeraCarga.current = false;
@@ -242,6 +308,12 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
     primeraCarga.current = true;
     void load();
   }, [load]);
+
+  // La búsqueda es de ESTE taller: abrir el de otro curso con un nombre ya
+  // escrito mostraría un tablero filtrado sin que el docente sepa por qué.
+  useEffect(() => {
+    setBusqueda("");
+  }, [workshopId]);
 
   const memberByUser = useMemo(() => {
     const m = new Map<string, string>(); // user_id -> group_id
@@ -263,6 +335,37 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
     () => students.filter((s) => !memberByUser.has(s.id)),
     [students, memberByUser],
   );
+
+  const tablero = useMemo(
+    () => filtrarTablero(unassigned, studentsByGroup, groups, busqueda),
+    [unassigned, studentsByGroup, groups, busqueda],
+  );
+
+  /** Los integrantes de un grupo con su nota externa, para calificarlo entero. */
+  const integrantesConNota = (g: Group, ms: Student[]): IntegranteACalificar[] =>
+    ms.map((st) => {
+      const n = notas.get(st.id);
+      return {
+        userId: st.id,
+        fullName: st.full_name,
+        grupoId: g.id,
+        grupoNombre: g.name,
+        grade: n?.grade ?? null,
+        feedback: n?.feedback ?? "",
+        originalGrade: n?.grade ?? null,
+        originalFeedback: n?.feedback ?? "",
+        submissionId: n?.submissionId ?? null,
+      };
+    });
+
+  const notaGuardada = (userId: string, n: NotaGuardada) =>
+    setNotas((prev) =>
+      new Map(prev).set(userId, {
+        submissionId: n.submissionId ?? prev.get(userId)?.submissionId ?? null,
+        grade: n.grade,
+        feedback: n.feedback,
+      }),
+    );
 
   const createGroup = async () => {
     const name = newGroupName.trim();
@@ -553,17 +656,23 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             </Badge>
           </CardTitle>
           <p className="text-xs text-muted-foreground">
-            {t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsHint")}
+            {/* En un taller externo nadie «entrega»: el grupo se califica junto. */}
+            {esExterno
+              ? t("gruposNota.tableroHint")
+              : t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsHint")}
           </p>
+          {esExterno && (
+            <p className="text-xs text-muted-foreground">{t("gruposNota.hint")}</p>
+          )}
         </CardHeader>
         <CardContent className="space-y-3">
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Input
               value={newGroupName}
               onChange={(e) => setNewGroupName(e.target.value)}
               placeholder={t("hc_modulesWorkshopsWorkshopGroupsEditor.groupNamePlaceholder")}
               onKeyDown={(e) => e.key === "Enter" && void createGroup()}
-              className="flex-1"
+              className="flex-1 min-w-[160px] sm:min-w-48"
             />
             <Button onClick={createGroup} disabled={creating || !newGroupName.trim()}>
               {creating ? (
@@ -739,6 +848,23 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         </CardContent>
       </Card>
 
+      {!loading && students.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <SearchInput
+            value={busqueda}
+            onChange={setBusqueda}
+            placeholder={t("buscarEnGrupos.placeholder")}
+            maxWidthClass="sm:max-w-sm"
+            className="flex-1"
+          />
+          {tablero.activa && (
+            <span className="text-2xs text-muted-foreground tabular-nums" aria-live="polite">
+              {t("buscarEnGrupos.coincidencias", { count: tablero.visibles })}
+            </span>
+          )}
+        </div>
+      )}
+
       {loading ? (
         <Card>
           <CardContent className="p-6 text-sm text-muted-foreground flex items-center gap-2">
@@ -760,13 +886,17 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
           >
             <CardHeader className="pb-3">
               <CardTitle className="text-sm flex items-center gap-2">
-                {t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedTitle")}
+                {esExterno
+                  ? t("gruposNota.sinGrupoTitulo")
+                  : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-3xs">
                   {unassigned.length}
                 </Badge>
               </CardTitle>
               <p className="text-3xs text-muted-foreground">
-                {t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedHint")}
+                {esExterno
+                  ? t("gruposNota.sinGrupoHint")
+                  : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedHint")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">
@@ -774,8 +904,12 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                 <p className="text-xs text-muted-foreground italic">
                   {t("hc_modulesWorkshopsWorkshopGroupsEditor.allStudentsAssigned")}
                 </p>
+              ) : tablero.sinGrupo.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">
+                  {t("buscarEnGrupos.nadieSinGrupo")}
+                </p>
               ) : (
-                unassigned.map((s) => (
+                tablero.sinGrupo.map((s) => (
                   <DraggableStudent
                     key={s.id}
                     student={s}
@@ -785,6 +919,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                     groups={groups}
                     currentGroupId={null}
                     onMoveTo={(target) => void moveUser(s.id, target)}
+                    nota={esExterno ? (notas.get(s.id)?.grade ?? null) : undefined}
                   />
                 ))
               )}
@@ -802,6 +937,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             )}
             {groups.map((g) => {
               const ms = studentsByGroup.get(g.id) ?? [];
+              const visibles = tablero.porGrupo.get(g.id) ?? ms;
               const isOver = dragOverTarget === g.id;
               return (
                 <Card
@@ -833,12 +969,28 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                     </Button>
                   </CardHeader>
                   <CardContent className="space-y-1.5 min-h-[60px]">
+                    {esExterno && ms.length > 0 && (
+                      <NotaDeGrupoInline
+                        key={g.id}
+                        grupoId={g.id}
+                        nombre={g.name}
+                        integrantes={integrantesConNota(g, ms)}
+                        escala={escala}
+                        calificar={calificar}
+                        guardando={guardandoNota}
+                        onGuardada={notaGuardada}
+                      />
+                    )}
                     {ms.length === 0 ? (
                       <p className="text-xs text-muted-foreground italic">
                         {t("hc_modulesWorkshopsWorkshopGroupsEditor.dragStudentsHere")}
                       </p>
+                    ) : visibles.length === 0 ? (
+                      <p className="text-xs text-muted-foreground italic">
+                        {t("buscarEnGrupos.nadieEnElGrupo")}
+                      </p>
                     ) : (
-                      ms.map((s) => (
+                      visibles.map((s) => (
                         <DraggableStudent
                           key={s.id}
                           student={s}
@@ -848,6 +1000,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                           groups={groups}
                           currentGroupId={g.id}
                           onMoveTo={(target) => void moveUser(s.id, target)}
+                          nota={esExterno ? (notas.get(s.id)?.grade ?? null) : undefined}
                         />
                       ))
                     )}
@@ -892,6 +1045,7 @@ function DraggableStudent({
   groups,
   currentGroupId,
   onMoveTo,
+  nota,
 }: {
   student: Student;
   isDragging: boolean;
@@ -900,6 +1054,8 @@ function DraggableStudent({
   groups: Group[];
   currentGroupId: string | null;
   onMoveTo: (target: string) => void;
+  /** Taller externo: la nota ya guardada (`null` = sin nota). `undefined` = no aplica. */
+  nota?: number | null;
 }) {
   const { t } = useTranslation();
   return (
@@ -918,6 +1074,15 @@ function DraggableStudent({
           {student.institutional_email}
         </div>
       </div>
+      {nota != null && (
+        <Badge
+          variant="outline"
+          className="text-3xs tabular-nums shrink-0"
+          title={t("gruposNota.notaDe", { name: student.full_name })}
+        >
+          {formatNumber(nota, { maximumFractionDigits: 2 })}
+        </Badge>
+      )}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
