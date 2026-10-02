@@ -814,7 +814,21 @@ así que el agujero eran estos dos ([borrador-local.ts](src/modules/submissions/
 
 ### Actividades externas (`is_external` en exams, workshops y projects)
 
-Para parciales/talleres/proyectos que ya pasaron fuera de la plataforma (presencial o virtual en otra herramienta) y solo se registran notas. Toggle en el dialog de creación esconde campos sin sentido (duración/navegación/proctoring/preguntas para examen, archivos esperados/instrucciones para proyecto). El editor de notas externas (`ExternalGradesEditor`) lista a los matriculados con columnas Nota + **Observación** (campo libre por estudiante), y guarda en `submissions.{final_override_grade, teacher_feedback}` / `workshop_submissions.{final_grade, teacher_feedback}` / `project_submissions.{final_grade, teacher_feedback}`. La columna `submissions.teacher_feedback` la agregó la migración 20260507130000.
+Para parciales/talleres/proyectos que se hacen fuera de la plataforma (presencial o virtual en otra herramienta): tienen inicio y fin como cualquier actividad, pero no se entregan ni se presentan acá; solo se registran notas. Toggle en el dialog de creación esconde campos sin sentido (duración/navegación/proctoring/preguntas para examen, archivos esperados/instrucciones para proyecto). El editor de notas externas (`ExternalGradesEditor`) lista a los matriculados con columnas Nota + **Observación** (campo libre por estudiante), y guarda en `submissions.{final_override_grade, teacher_feedback}` / `workshop_submissions.{final_grade, teacher_feedback}` / `project_submissions.{final_grade, teacher_feedback}`. La columna `submissions.teacher_feedback` la agregó la migración 20260507130000.
+
+- **Fechas (desde 2026-10-01)**: inicio y fin con la misma validación que una actividad en línea
+  (fin ≥ inicio). Antes había una sola fecha y el examen externo se guardaba con inicio = fin; esas
+  filas siguen siendo válidas. **Siguen exentas del tope al fin del curso** (front y trigger
+  `cap_*_to_course`): sus fechas registran lo que pasó, no una ventana de entrega.
+- **Lo que impide presentar o entregar una externa NO son sus fechas.** La ventana de 0 s era, de
+  hecho, la única barrera de la pantalla de toma; ahora `TakeExamScreen` la rechaza por `is_external`.
+  Al agregar una superficie que deje entregar o presentar, cortar por `is_external`, nunca por fechas.
+  Lo mismo con los recordatorios de «vence pronto», que excluyen a las externas (exámenes desde la
+  mig 20262620000000; talleres y proyectos desde la 20262720000000). Los avisos de PUBLICACIÓN no
+  las excluyen: una externa publicada se anuncia como cualquier actividad (con las categorías del
+  panel apagadas, como hoy, no sale nada).
+- **La nota de una externa no depende de sus fechas**: cuenta cuando tiene alguna nota cargada
+  (`actividadSeDio`), así que mover sus fechas no cambia ninguna nota.
 
 ### Detección de fraude (FraudPanel)
 

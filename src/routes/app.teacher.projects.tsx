@@ -1103,7 +1103,7 @@ function TeacherProjects() {
     const primary = next.includes(form.course_id ?? "") ? form.course_id : next[0];
     // Topar la entrega (due_date) al fin del curso que termina ANTES entre los
     // seleccionados (cabe en todos). Si ya es menor, se deja igual. No aplica a
-    // externos (la fecha es marcador del evento ya ocurrido).
+    // externos: sus fechas no son una ventana de entrega.
     const cappedDue = (form as any).is_external
       ? form.due_date
       : capEndToCourseEnd(
@@ -1152,7 +1152,9 @@ function TeacherProjects() {
     const isExternal = !!(form as any).is_external;
     // Topar la entrega (due_date) al fin del curso que termina ANTES entre los
     // asociados (defensa al guardar: cubre edición y cambios tras elegir curso).
-    // La fecha fin nunca supera la del curso. No aplica a externos.
+    // La fecha fin nunca supera la del curso. No aplica a externos: sus fechas
+    // registran lo que pasó fuera de la plataforma, no una ventana de entrega
+    // (el trigger `cap_due_date_to_course` también los exime).
     const cappedDue = isExternal
       ? (form.due_date ?? "")
       : capEndToCourseEnd(
@@ -1163,9 +1165,10 @@ function TeacherProjects() {
       setForm((f) => ({ ...f, due_date: cappedDue }));
     }
     // Regla cross-form (goal #10): la fecha de entrega (due_date) no puede
-    // ser anterior a la de inicio (start_date); iguales OK. El tope anterior NO
-    // salta esta validación: si el curso termina antes del inicio, es inválido.
-    if (!isExternal && !isValidDateRange(form.start_date, cappedDue)) {
+    // ser anterior a la de inicio (start_date); iguales OK. Vale también para el
+    // externo, que tiene inicio y fin como cualquier proyecto. El tope anterior
+    // NO salta esta validación: si el curso termina antes del inicio, es inválido.
+    if (!isValidDateRange(form.start_date, cappedDue)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
@@ -1199,7 +1202,8 @@ function TeacherProjects() {
     };
     if (isExternal) {
       payload.is_external = true;
-      // Para externos: due_date marca cuándo ocurrió, sin start.
+      // Inicio y fin como cualquier proyecto: lo que no tiene es entrega.
+      payload.start_date = form.start_date ? new Date(form.start_date).toISOString() : null;
       payload.due_date = cappedDue ? new Date(cappedDue).toISOString() : null;
     } else {
       payload.external_link = form.external_link || null;
@@ -3469,22 +3473,18 @@ function TeacherProjects() {
                 })}
               </div>
             )}
+            {/* Un proyecto externo tiene inicio y fin como cualquier otro: lo
+                único que no tiene es la entrega por la plataforma. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {!(form as any).is_external && (
-                <div>
-                  <Label required>{t("common.startDate")}</Label>
-                  <DateTimePicker
-                    value={form.start_date ? toLocal(form.start_date) : ""}
-                    onChange={(v) => setForm({ ...form, start_date: v })}
-                  />
-                </div>
-              )}
               <div>
-                <Label required>
-                  {(form as any).is_external
-                    ? t("hc_routesAppTeacherProjects.eventDate")
-                    : t("common.endDate")}
-                </Label>
+                <Label required>{t("common.startDate")}</Label>
+                <DateTimePicker
+                  value={form.start_date ? toLocal(form.start_date) : ""}
+                  onChange={(v) => setForm({ ...form, start_date: v })}
+                />
+              </div>
+              <div>
+                <Label required>{t("common.endDate")}</Label>
                 <DateTimePicker
                   value={form.due_date ? toLocal(form.due_date) : ""}
                   onChange={(v) => setForm({ ...form, due_date: v })}

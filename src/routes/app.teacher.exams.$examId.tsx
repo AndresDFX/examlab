@@ -450,11 +450,11 @@ function ExamEditor() {
         : Math.max(1, Number(rawAttempts) || 1);
     const isExternal = !!(exam as any).is_external;
     // Regla cross-form (goal #10): la fecha/hora de fin no puede ser anterior
-    // a la de inicio (iguales OK). Solo aplica al examen en línea — el externo
-    // fuerza end = start (ventana 0s). Espeja la validación del create dialog
-    // en app.teacher.exams.index.tsx; el helper compara por epoch así que
-    // tolera el ISO crudo de la DB vs el datetime-local del picker.
-    if (!isExternal && !isValidDateRange(exam.start_time, exam.end_time)) {
+    // a la de inicio (iguales OK), también en el externo, que tiene inicio y
+    // fin como cualquier examen. Espeja la validación del create dialog en
+    // app.teacher.exams.index.tsx; el helper compara por epoch así que tolera
+    // el ISO crudo de la DB vs el datetime-local del picker.
+    if (!isValidDateRange(exam.start_time, exam.end_time)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
@@ -1487,8 +1487,10 @@ function ExamEditor() {
                   fija una fecha de fin futura para que los estudiantes lo
                   puedan presentar de nuevo. Solo en edición de un examen
                   existente cuyo estado actual es 'closed'. El Guardar normal
-                  persiste los cambios (RLS ya permite al docente). */}
-              {(exam as any).status === "closed" && (
+                  persiste los cambios (RLS ya permite al docente). No en un
+                  externo: no se presenta en la plataforma, así que no hay nada
+                  que reabrir (talleres y proyectos ya lo ocultan igual). */}
+              {!(exam as any).is_external && (exam as any).status === "closed" && (
                 <ReopenClosedBanner
                   hint={t("hc_routesAppTeacherExamsExamId.reopenHint")}
                   onReopen={() => {
@@ -1734,11 +1736,7 @@ function ExamEditor() {
                   stack en mobile y fila en sm+. */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <Label required>
-                    {(exam as any).is_external
-                      ? t("hc_routesAppTeacherExamsExamId.fieldExamDate")
-                      : t("hc_routesAppTeacherExamsExamId.fieldStart")}
-                  </Label>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldStart")}</Label>
                   <DateTimePicker
                     value={toLocal(exam.start_time)}
                     onChange={(start) => {
@@ -1762,37 +1760,35 @@ function ExamEditor() {
                       setExam({
                         ...exam,
                         start_time: start,
-                        // Para externos forzamos end_time = start_time
-                        // (ventana 0s) para que el examen no se pueda
-                        // tomar — solo se cargan notas manualmente.
-                        end_time: (exam as any).is_external ? start : autoEnd,
+                        // También en el externo: tiene inicio y fin como
+                        // cualquier examen. Lo que impide presentarlo es la
+                        // pantalla de toma, que lo rechaza.
+                        end_time: autoEnd,
                         time_limit_minutes: diffMin,
                       });
                     }}
                   />
                 </div>
-                {!(exam as any).is_external && (
-                  <div>
-                    <Label required>{t("hc_routesAppTeacherExamsExamId.fieldEnd")}</Label>
-                    <DateTimePicker
-                      value={toLocal(exam.end_time)}
-                      onChange={(end) => {
-                        // Misma guardia que el campo de inicio de acá al lado: al
-                        // DESELECCIONAR el día, `end` llega vacío y la resta da NaN.
-                        // Acá además no era solo cosmético: `time_limit_minutes` se
-                        // serializa a null en el PATCH y la columna es NOT NULL, así
-                        // que el examen no se podía guardar (23502).
-                        const ms =
-                          new Date(end).getTime() - new Date(exam.start_time).getTime();
-                        const diffMin =
-                          exam.start_time && Number.isFinite(ms)
-                            ? Math.max(1, Math.round(ms / 60000))
-                            : exam.time_limit_minutes;
-                        setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
-                      }}
-                    />
-                  </div>
-                )}
+                <div>
+                  <Label required>{t("hc_routesAppTeacherExamsExamId.fieldEnd")}</Label>
+                  <DateTimePicker
+                    value={toLocal(exam.end_time)}
+                    onChange={(end) => {
+                      // Misma guardia que el campo de inicio de acá al lado: al
+                      // DESELECCIONAR el día, `end` llega vacío y la resta da NaN.
+                      // Acá además no era solo cosmético: `time_limit_minutes` se
+                      // serializa a null en el PATCH y la columna es NOT NULL, así
+                      // que el examen no se podía guardar (23502).
+                      const ms =
+                        new Date(end).getTime() - new Date(exam.start_time).getTime();
+                      const diffMin =
+                        exam.start_time && Number.isFinite(ms)
+                          ? Math.max(1, Math.round(ms / 60000))
+                          : exam.time_limit_minutes;
+                      setExam({ ...exam, end_time: end, time_limit_minutes: diffMin });
+                    }}
+                  />
+                </div>
               </div>
               {/*
                * Bloque "solo plataforma": duración, navegación, proctoring,

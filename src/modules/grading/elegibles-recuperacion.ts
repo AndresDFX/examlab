@@ -160,7 +160,8 @@ export function candidatosDeTallerParaRecuperacion(args: {
   return { candidatos, presentaron, aprobaron };
 }
 
-const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
+const HORA_MS = 60 * 60 * 1000;
+const SEMANA_MS = 7 * 24 * HORA_MS;
 
 /**
  * Fechas de partida para la recuperación: las del original, corridas de a
@@ -171,6 +172,11 @@ const SEMANA_MS = 7 * 24 * 60 * 60 * 1000;
  * el día y la hora —la franja de la clase, que es donde casi siempre se toma—,
  * en vez de proponer «dentro de 7 días desde ahora» a una hora cualquiera. El
  * docente las ajusta igual; esto solo evita que el default sea inservible.
+ *
+ * Un original sin duración —fin igual o anterior al inicio— propone UNA hora.
+ * Es el caso de las actividades externas guardadas cuando tenían una sola
+ * fecha (inicio = fin): sin esto, el diálogo abría con un rango que él mismo
+ * rechaza por inválido.
  */
 export function sugerirFechasDeRecuperacion(
   inicio: Date,
@@ -180,6 +186,8 @@ export function sugerirFechasDeRecuperacion(
   const i = inicio.getTime();
   const f = fin.getTime();
   if (!Number.isFinite(i) || !Number.isFinite(f)) return { inicio, fin };
+  const duracion = f > i ? f - i : HORA_MS;
   const semanas = i > ahora.getTime() ? 0 : Math.floor((ahora.getTime() - i) / SEMANA_MS) + 1;
-  return { inicio: new Date(i + semanas * SEMANA_MS), fin: new Date(f + semanas * SEMANA_MS) };
+  const nuevoInicio = i + semanas * SEMANA_MS;
+  return { inicio: new Date(nuevoInicio), fin: new Date(nuevoInicio + duracion) };
 }

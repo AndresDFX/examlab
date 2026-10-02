@@ -160,4 +160,16 @@ describe("sugerirFechasDeRecuperacion", () => {
     const r = sugerirFechasDeRecuperacion(malo, fin, new Date());
     expect(Number.isNaN(r.inicio.getTime())).toBe(true);
   });
+
+  it("un original sin duración (externa de una sola fecha) propone una hora", () => {
+    const r = sugerirFechasDeRecuperacion(inicio, inicio, new Date("2026-09-29T18:00:00Z"));
+    expect(r.inicio.toISOString()).toBe("2026-10-05T23:00:00.000Z");
+    expect(r.fin.toISOString()).toBe("2026-10-06T00:00:00.000Z");
+  });
+
+  it("un fin anterior al inicio tampoco se copia: el rango propuesto siempre es válido", () => {
+    const r = sugerirFechasDeRecuperacion(fin, inicio, new Date("2026-09-20T12:00:00Z"));
+    expect(r.inicio).toEqual(fin);
+    expect(r.fin.getTime() - r.inicio.getTime()).toBe(60 * 60 * 1000);
+  });
 });

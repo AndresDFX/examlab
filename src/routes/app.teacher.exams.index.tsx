@@ -130,9 +130,9 @@ import { DecimalInput } from "@/components/ui/decimal-input";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { ReopenClosedBanner } from "@/shared/components/ReopenClosedBanner";
 
-const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled
-Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false
-Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30,30,secuencial,true`;
+const EXAMS_TEMPLATE = `course_name,title,description,start_time,end_time,time_limit_minutes,navigation_type,shuffle_enabled,is_external
+Programación I,Parcial 1,Examen del primer corte,2025-09-15T08:00,2025-09-15T10:00,90,libre,false,false
+Programación I,Quiz 1,Quiz corto sobre listas,2025-09-22T08:00,2025-09-22T08:30,30,secuencial,true,false`;
 
 export const Route = createFileRoute("/app/teacher/exams/")({ component: TeacherExams });
 
@@ -308,7 +308,8 @@ function TeacherExams() {
       start_time: (e) => e.start_time,
       // Espeja la celda: `end_time` tal cual. Los sin fecha van al final.
       end_time: (e) => ((e as any).end_time ? new Date((e as any).end_time) : null),
-      duration: (e) => Number(e.time_limit_minutes ?? 0),
+      // Espeja la celda: un externo no tiene duración («—», va al final).
+      duration: (e) => ((e as any).is_external ? null : Number(e.time_limit_minutes ?? 0)),
       kind: (e) => ((e as any).is_external ? "externo" : "en linea"),
       status: (e) => ((e as any).status ?? "published") as string,
       navigation: (e) => e.navigation_type,
@@ -651,7 +652,7 @@ function TeacherExams() {
               : (f as any).status,
           // Topar la fecha/hora de fin al curso que termina ANTES entre los
           // seleccionados (cabe en todos). Si ya es menor, se deja igual. No
-          // aplica a externos (la fecha es marcador del evento, end=start).
+          // aplica a externos: sus fechas no son una ventana para presentarlo.
           end_time: (f as any).is_external
             ? f.end_time
             : capEndToCourseEnd(
@@ -678,10 +679,12 @@ function TeacherExams() {
       return;
     }
     const isExternal = !!(form as any).is_external;
-    if (isExternal && !form.start_time) {
+    // Las dos son obligatorias, también en el externo. Sin este corte, una
+    // vaciada a mano llegaba a `new Date("").toISOString()`, que LANZA.
+    if (!form.start_time || !form.end_time) {
       toast.error(
-        i18n.t("toast.routes_app_teacher_exams_index.externalDateRequired", {
-          defaultValue: "Indica la fecha de la actividad",
+        i18n.t("toast.routes_app_teacher_exams_index.datesRequired", {
+          defaultValue: "Indica la fecha de inicio y la de fin",
         }),
       );
       return;
@@ -689,7 +692,9 @@ function TeacherExams() {
     const courseIds = [...selectedCourseIds];
     // Topar la fecha/hora de fin al fin del curso que termina ANTES entre los
     // asociados (defensa al guardar: cubre edición y cambios tras elegir curso).
-    // La fecha fin nunca supera la del curso. No aplica a externos (end = start).
+    // La fecha fin nunca supera la del curso. No aplica a externos: sus fechas
+    // registran lo que pasó fuera de la plataforma, no una ventana para
+    // presentarlo (el trigger `cap_end_time_to_course` también los exime).
     const cappedEnd = isExternal
       ? form.end_time
       : capEndToCourseEnd(
@@ -700,21 +705,22 @@ function TeacherExams() {
       setForm((f) => ({ ...f, end_time: cappedEnd }));
     }
     // Regla cross-form (goal #10): la fecha/hora de fin no puede ser
-    // anterior a la de inicio (iguales OK). El tope anterior NO salta esta
-    // validación: si el curso termina antes del inicio, el rango es inválido.
-    if (!isExternal && !isValidDateRange(form.start_time, cappedEnd)) {
+    // anterior a la de inicio (iguales OK), también en el externo. El tope
+    // anterior NO salta esta validación: si el curso termina antes del
+    // inicio, el rango es inválido.
+    if (!isValidDateRange(form.start_time, cappedEnd)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
-    // Para externos: start/end son la fecha de la actividad (ventana de
-    // 0s, así el examen no se puede tomar pero sigue siendo un row válido
-    // al que el docente le carga notas manualmente). Los campos de
-    // duración / navegación / proctoring / reintentos NO se incluyen en
-    // el payload — los DEFAULT de la DB se encargan, y así nos blindamos
-    // contra "Could not find the 'X' column in schema cache" si alguna
-    // columna fue añadida por migración reciente.
-    const startIso = new Date(form.start_time!).toISOString();
-    const endIso = isExternal ? startIso : new Date(cappedEnd!).toISOString();
+    // Para externos: inicio y fin como cualquier examen, pero no se presenta
+    // en la plataforma (la pantalla de toma lo rechaza y la lista del
+    // estudiante no lo muestra); el docente le carga las notas a mano. Los
+    // campos de duración / navegación / proctoring / reintentos NO se
+    // incluyen en el payload — los DEFAULT de la DB se encargan, y así nos
+    // blindamos contra "Could not find the 'X' column in schema cache" si
+    // alguna columna fue añadida por migración reciente.
+    const startIso = new Date(form.start_time).toISOString();
+    const endIso = new Date(cappedEnd!).toISOString();
     const isMultiCourse = courseIds.length > 1;
     const basePayload: Record<string, any> = {
       title: form.title,
@@ -822,7 +828,7 @@ function TeacherExams() {
         // Auto-asignar todos los estudiantes matriculados en el curso
         await autoAssignExam(data.id, cid);
         // Notificar a los estudiantes del curso. NO aplica para externos
-        // (la actividad ya pasó, solo se registra la nota) ni para draft
+        // (no se presenta en la plataforma, solo se registra la nota) ni para draft
         // (el examen aún no es visible, mandar push sería confuso).
         const initialStatus = (perCourse.status as string) ?? "published";
         if (!isExternal && initialStatus === "published") {
@@ -926,6 +932,7 @@ function TeacherExams() {
                     time_limit_minutes: e.time_limit_minutes,
                     navigation_type: e.navigation_type,
                     shuffle_enabled: e.shuffle_enabled ? "true" : "false",
+                    is_external: (e as any).is_external ? "true" : "false",
                   })),
                 );
               }}
@@ -948,17 +955,27 @@ function TeacherExams() {
                       skipped++;
                       continue;
                     }
-                    const { error } = await supabase.from("exams").insert({
+                    // `is_external` es opcional (un CSV viejo no la trae = en
+                    // línea). Sin ella, una externa exportada volvía como examen
+                    // EN LÍNEA con su ventana real: presentable. Al externo no
+                    // se le mandan los campos de la toma, como en el formulario.
+                    const esExterno = String(r.is_external ?? "").toLowerCase() === "true";
+                    const fila: Record<string, unknown> = {
                       course_id: cid,
                       title: r.title,
                       description: r.description || null,
                       start_time: new Date(r.start_time).toISOString(),
                       end_time: new Date(r.end_time).toISOString(),
-                      time_limit_minutes: Number(r.time_limit_minutes) || 60,
-                      navigation_type: r.navigation_type || "libre",
-                      shuffle_enabled: String(r.shuffle_enabled).toLowerCase() === "true",
                       created_by: user.id,
-                    });
+                    };
+                    if (esExterno) {
+                      fila.is_external = true;
+                    } else {
+                      fila.time_limit_minutes = Number(r.time_limit_minutes) || 60;
+                      fila.navigation_type = r.navigation_type || "libre";
+                      fila.shuffle_enabled = String(r.shuffle_enabled).toLowerCase() === "true";
+                    }
+                    const { error } = await supabase.from("exams").insert(fila as any);
                     if (error) {
                       skipped++;
                       if (!firstError)
@@ -1297,12 +1314,14 @@ function TeacherExams() {
                         abierto. La duración del intento ya tiene su columna. */}
                     <DateCell value={(e as any).end_time} variant="datetime" />
                   </TableCell>
+                  {/* Un externo no tiene duración de intento: no se presenta
+                      acá, y su `time_limit_minutes` es el default de la base. */}
                   <TableCell
                     className="text-sm hidden xl:table-cell tabular-nums whitespace-nowrap"
                     truncate
-                    title={formatDuration(e.time_limit_minutes)}
+                    title={(e as any).is_external ? undefined : formatDuration(e.time_limit_minutes)}
                   >
-                    {formatDuration(e.time_limit_minutes)}
+                    {(e as any).is_external ? "—" : formatDuration(e.time_limit_minutes)}
                   </TableCell>
                   <TableCell className="hidden xl:table-cell">
                     {(e as any).is_external ? (
@@ -1420,8 +1439,8 @@ function TeacherExams() {
              * Toggle de actividad externa: cuando se activa, el examen
              * no es para tomarlo en línea — es solo registro de notas
              * de un parcial presencial. Escondemos la sección "Cómo se
-             * toma" completa (duración, navegación, proctoring, supletorio)
-             * y la fecha de fin (la actividad ya pasó, fecha = un instante).
+             * toma" completa (duración, navegación, proctoring, supletorio);
+             * las fechas de inicio y fin quedan, como en cualquier examen.
              */}
             <div
               className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
@@ -1685,8 +1704,9 @@ function TeacherExams() {
                   Este dialog del índice se usa hoy solo para CREAR (la edición
                   navega a /app/teacher/exams/$examId), así que el banner no se
                   muestra acá — pero queda gateado por id+estado para honrar la
-                  semántica "solo en edición" si el dialog se reutilizara. */}
-              {(form as any).id && (form as any).status === "closed" && (
+                  semántica "solo en edición" si el dialog se reutilizara. Un
+                  externo no se reabre: no se presenta en la plataforma. */}
+              {(form as any).id && !(form as any).is_external && (form as any).status === "closed" && (
                 <ReopenClosedBanner
                   hint={t("hc_routesAppTeacherExamsIndex.reopenHint")}
                   onReopen={() => {
@@ -1745,12 +1765,10 @@ function TeacherExams() {
                 className="grid grid-cols-1 sm:grid-cols-2 gap-3"
                 data-tour-id="exam-field-dates"
               >
+                {/* El externo tiene inicio y fin como cualquier examen: lo que
+                    no tiene es la toma en la plataforma. */}
                 <div>
-                  <Label required>
-                    {(form as any).is_external
-                      ? t("hc_routesAppTeacherExamsIndex.examDate")
-                      : t("common.start")}
-                  </Label>
+                  <Label required>{t("common.start")}</Label>
                   <DateTimePicker
                     value={form.start_time as string}
                     onChange={(start) => {
@@ -1784,24 +1802,22 @@ function TeacherExams() {
                     }}
                   />
                 </div>
-                {!(form as any).is_external && (
-                  <div>
-                    <Label required>{t("common.end")}</Label>
-                    <DateTimePicker
-                      value={form.end_time as string}
-                      onChange={(end) => {
-                        // Mismo cuidado que en el campo de inicio: al vaciar la
-                        // fecha, `end` llega vacío y la resta daría NaN.
-                        const ms = new Date(end).getTime() - new Date(form.start_time!).getTime();
-                        const diffMin =
-                          form.start_time && Number.isFinite(ms)
-                            ? Math.max(1, Math.round(ms / 60000))
-                            : form.time_limit_minutes;
-                        setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
-                      }}
-                    />
-                  </div>
-                )}
+                <div>
+                  <Label required>{t("common.end")}</Label>
+                  <DateTimePicker
+                    value={form.end_time as string}
+                    onChange={(end) => {
+                      // Mismo cuidado que en el campo de inicio: al vaciar la
+                      // fecha, `end` llega vacío y la resta daría NaN.
+                      const ms = new Date(end).getTime() - new Date(form.start_time!).getTime();
+                      const diffMin =
+                        form.start_time && Number.isFinite(ms)
+                          ? Math.max(1, Math.round(ms / 60000))
+                          : form.time_limit_minutes;
+                      setForm({ ...form, end_time: end, time_limit_minutes: diffMin });
+                    }}
+                  />
+                </div>
               </div>
               {!(form as any).is_external && (
                 <ActivitySessionSelect

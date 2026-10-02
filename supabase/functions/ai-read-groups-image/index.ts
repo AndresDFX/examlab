@@ -178,19 +178,17 @@ Deno.serve(async (req: Request) => {
   // El taller tiene que ser visible PARA EL CALLER: se consulta con SU JWT, así aplica
   // la RLS. No se replica la autorización de escritura (eso lo hace el cliente bajo
   // RLS); esto evita gastar cuota por alguien que después no va a poder escribir.
+  // Un taller EXTERNO también puede tener grupos (una exposición presencial que se
+  // califica por grupo): se aceptan igual. El editor ya sabe que en un externo nadie
+  // «entregó individual», así que no bloquea a ningún estudiante del borrador.
   const { data: ws } = await userClient
     .from("workshops")
-    .select("id, course_id, is_external, deleted_at")
+    .select("id, course_id, deleted_at")
     .eq("id", workshopId)
     .maybeSingle();
-  const taller = ws as
-    | { id: string; course_id: string | null; is_external: boolean; deleted_at: string | null }
-    | null;
+  const taller = ws as { id: string; course_id: string | null; deleted_at: string | null } | null;
   if (!taller || taller.deleted_at) {
     return jsonError("El taller no existe o está en la papelera.", 403);
-  }
-  if (taller.is_external) {
-    return jsonError("Un taller externo no tiene grupos en la plataforma.", 409);
   }
 
   const imagen = (body.imagen ?? "").trim();

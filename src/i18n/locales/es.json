@@ -2647,7 +2647,7 @@
   },
   "externalGrades": {
     "title": "Notas externas",
-    "helpHint": "Esta actividad ya ocurrió fuera de la plataforma. Ingresa la nota de cada estudiante (0–{{max}}) para que cuente en el cálculo del corte. Usa coma para decimales (ej. 4,5).",
+    "helpHint": "Esta actividad se hace fuera de la plataforma. Ingresa la nota de cada estudiante (0–{{max}}) para que cuente en el cálculo del corte. Usa coma para decimales (ej. 4,5).",
     "gradedBadge": "{{graded}}/{{total}} con nota",
     "searchPlaceholder": "Buscar estudiante por nombre o correo…",
     "clearSearch": "Limpiar búsqueda",
@@ -3718,7 +3718,8 @@
       "warningExamExit": "Advertencia {{count}}/{{max}}: Salida de examen",
       "examLoadFailed": "No se pudo cargar el examen.",
       "couldNotReenterFullscreen": "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11.",
-      "warningsClearedByTeacher": "El docente revisó tus advertencias. Ahora tienes {{count}}."
+      "warningsClearedByTeacher": "El docente revisó tus advertencias. Ahora tienes {{count}}.",
+      "examIsExternal": "Este examen se presenta fuera de la plataforma; aquí solo se registra la nota."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversación limpiada"
@@ -3818,9 +3819,9 @@
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} examen(es) enviado(s) a papelera",
-      "externalDateRequired": "Indica la fecha de la actividad",
       "weightOverBucket": "El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
-      "weightOverBucketCourse": "{{courseName}}: El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte."
+      "weightOverBucketCourse": "{{courseName}}: El peso del examen ({{requested}}%) supera el bucket disponible del corte ({{available}}% restantes). Reduce el peso o ajusta los demás exámenes del corte.",
+      "datesRequired": "Indica la fecha de inicio y la de fin"
     },
     "routes_app_teacher_gradebook": {
       "noChangesToSave": "No hay cambios para guardar",
@@ -4466,7 +4467,7 @@
     "dialogTitleEdit": "Editar taller",
     "dialogTitleNew": "Nuevo taller",
     "fieldExternal": "Actividad externa",
-    "fieldExternalDesc": "Un taller que ocurrió fuera de la plataforma — presencial o hecho en otra herramienta. Solo registras notas para el cálculo del corte.",
+    "fieldExternalDesc": "Un taller que se hace fuera de la plataforma —presencial o en otra herramienta—. Tiene sus fechas como cualquier taller, pero no se entrega por aquí: solo registras las notas.",
     "fieldGroupMode": "Modo de trabajo",
     "groupModeIndividual": "Individual — cada estudiante entrega por separado",
     "groupModeRequired": "Grupal — todos deben estar en un grupo para entregar",
@@ -4509,7 +4510,6 @@
     "fieldDates": "Fechas",
     "fieldVisibleFrom": "Visible desde",
     "fieldDueDate": "Fecha límite",
-    "fieldExternalDate": "Fecha del taller",
     "fieldStatus": "Estado",
     "statusDraft": "Borrador",
     "statusPublished": "Publicado",
@@ -8794,7 +8794,6 @@
     "fieldDescription": "Descripción",
     "fieldDuration": "Duración (min)",
     "fieldEnd": "Fin",
-    "fieldExamDate": "Fecha del parcial",
     "fieldExpectedRubric": "Rúbrica esperada",
     "fieldFramework": "Framework",
     "fieldLanguage": "Lenguaje",
@@ -8946,13 +8945,12 @@
     "noResultsHint": "Limpia el buscador o el curso para ver todos los exámenes.",
     "duplicate": "Duplicar",
     "externalActivity": "Actividad externa",
-    "externalActivityHint": "Un parcial que ocurrió fuera de la plataforma — presencial o hecho en otra herramienta. Solo registras notas para el cálculo del corte.",
+    "externalActivityHint": "Un parcial que se presenta fuera de la plataforma —presencial o en otra herramienta—. Tiene sus fechas como cualquier parcial, pero no se presenta por aquí: solo registras las notas.",
     "reopenHint": "Cambia el estado a Publicado y fija una fecha de fin futura para que los estudiantes puedan presentarlo de nuevo.",
     "statusLabel": "Estado",
     "statusDraft": "Borrador",
     "statusPublished": "Publicado",
     "statusClosed": "Cerrado",
-    "examDate": "Fecha del parcial",
     "scheduleTypeLabel": "Tipo de programación",
     "scheduleNormalName": "Normal",
     "scheduleNormalHint": "el cronómetro cuenta hasta la fecha de fin para todos.",
@@ -9317,11 +9315,10 @@
     "errorLoadingCourseLinks": "Error cargando vínculos de cursos",
     "errorLoadingCourses": "Error cargando cursos",
     "errorLoadingProjects": "Error cargando proyectos",
-    "eventDate": "Fecha del evento",
     "exceedsAvailableBucket": "Excede el bucket disponible.",
     "exceedsBucketBy": "Sobrepasa el bucket por",
     "externalActivity": "Actividad externa",
-    "externalActivityHint": "Un proyecto que ocurrió fuera de la plataforma. Solo registras notas y observaciones por estudiante.",
+    "externalActivityHint": "Un proyecto que se hace fuera de la plataforma. Tiene sus fechas como cualquier proyecto, pero no se entrega por aquí: solo registras notas y observaciones por estudiante.",
     "externalGrades": "Notas externas",
     "externalLink": "Link externo (opcional)",
     "feedback": "Retroalimentación",
@@ -11077,8 +11074,7 @@
     "titleRequired": "Escribe un título",
     "startLabel": "Fecha inicio",
     "endLabel": "Fecha fin",
-    "dateLabel": "Fecha",
-    "datesRequired": "Elige la fecha",
+    "datesRequired": "Elige la fecha de inicio y la de fin",
     "copyQuestionsLabel": "Copiar las preguntas del original",
     "copyQuestionsHint": "Después cambias las que quieras antes de publicarlo.",
     "sectionWho": "A quién se asigna",

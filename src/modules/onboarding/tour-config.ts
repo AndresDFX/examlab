@@ -567,7 +567,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="exam-field-external"]',
     title: "Actividad externa (opcional)",
     description:
-      "Si el examen ya pasó <strong>fuera de la plataforma</strong> (presencial o en otra herramienta), activá este toggle. Quedan solo los campos para registrar notas y se ocultan duración/proctoring/preguntas.",
+      "Si el examen se presenta <strong>fuera de la plataforma</strong> (presencial o en otra herramienta), activa este interruptor. Conserva sus fechas de inicio y fin, se ocultan duración, proctoring y preguntas, y solo registras las notas.",
     side: "left",
     align: "start",
   },
@@ -620,7 +620,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="workshop-field-external"]',
     title: "Actividad externa (opcional)",
     description:
-      "Si el taller pasó <strong>fuera de la plataforma</strong> (presencial), activá el toggle. Solo quedará el campo de notas — sin preguntas ni IA.",
+      "Si el taller se hace <strong>fuera de la plataforma</strong> (presencial o en otra herramienta), activa el interruptor. Conserva sus fechas de inicio y fin; no lleva preguntas ni IA y solo registras las notas.",
     side: "left",
     align: "start",
   },
@@ -677,7 +677,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="project-field-external"]',
     title: "Actividad externa (opcional)",
     description:
-      "Si el proyecto pasó <strong>fuera de la plataforma</strong> (presentación presencial, etc.), activá el toggle. Solo registras notas y observaciones por alumno.",
+      "Si el proyecto se hace <strong>fuera de la plataforma</strong> (presentación presencial, etc.), activa el interruptor. Conserva sus fechas de inicio y fin y solo registras notas y observaciones por estudiante.",
     side: "left",
     align: "start",
   },

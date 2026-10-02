@@ -283,19 +283,22 @@ export function CrearRecuperacionDialog({
       return;
     }
     const ini = new Date(inicio);
-    const fi = externo ? ini : new Date(fin);
+    // Una externa tiene inicio y fin como cualquier otra: se valida igual.
+    const fi = new Date(fin);
     if (!Number.isFinite(ini.getTime()) || !Number.isFinite(fi.getTime())) {
       toast.error(t("recuperaciones.datesRequired"));
       return;
     }
-    if (!externo && fi.getTime() <= ini.getTime()) {
+    if (fi.getTime() <= ini.getTime()) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
     // El trigger `cap_end_time_to_course` recorta el fin al del curso SIN error:
-    // con un inicio posterior, la ventana quedaría invertida e inservible.
+    // con un inicio posterior, la ventana quedaría invertida e inservible. A una
+    // externa el trigger no la recorta (sus fechas registran lo que pasó), así
+    // que acá no hay nada que prevenir.
     const tope = courseEndOfDay(finCurso);
-    if (tope && ini.getTime() > tope.getTime()) {
+    if (!externo && tope && ini.getTime() > tope.getTime()) {
       toast.error(t("recuperaciones.afterCourseEnd"));
       return;
     }
@@ -463,17 +466,13 @@ export function CrearRecuperacionDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label required>
-                    {t(externo ? "recuperaciones.dateLabel" : "recuperaciones.startLabel")}
-                  </Label>
+                  <Label required>{t("recuperaciones.startLabel")}</Label>
                   <DateTimePicker value={inicio} onChange={setInicio} disabled={enviando} />
                 </div>
-                {!externo && (
-                  <div className="space-y-1.5">
-                    <Label required>{t("recuperaciones.endLabel")}</Label>
-                    <DateTimePicker value={fin} onChange={setFin} disabled={enviando} />
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <Label required>{t("recuperaciones.endLabel")}</Label>
+                  <DateTimePicker value={fin} onChange={setFin} disabled={enviando} />
+                </div>
               </div>
 
               {!externo && (

@@ -101,7 +101,7 @@ Actividades prácticas, individuales o en grupo, que el estudiante entrega para 
 
 - Crea el taller, define sus preguntas y, si quieres, activa **trabajo en grupo** (una sola entrega y nota por grupo).
 - **Con IA**: genera las preguntas y obtén calificación automática de las entregas.
-- Marca el taller como **externo** cuando solo necesitas registrar notas de algo ya realizado fuera de la plataforma.
+- Marca el taller como **externo** cuando se hace fuera de la plataforma y solo necesitas registrar sus notas; conserva sus fechas de inicio y fin.
 
 ![Talleres](screenshots/administrador/09-teacher_workshops.png)
 

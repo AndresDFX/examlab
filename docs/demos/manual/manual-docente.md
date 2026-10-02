@@ -100,7 +100,7 @@ Biblioteca de videos del curso o globales, para complementar tus clases.
 Crea, aplica y monitorea exámenes en línea con proctoring.
 
 - **🤖 Genera preguntas con IA** al crear el examen, o tómalas del banco. Configura **duración**, **navegación** (libre o secuencial), **mezcla** de preguntas, **máximo de advertencias** de proctoring e **intentos permitidos**.
-- **Actividad externa**: si el examen ya se hizo por fuera (presencial u otra herramienta), márcalo como externo para solo registrar notas y observaciones.
+- **Actividad externa**: si el examen se presenta por fuera (presencial u otra herramienta), márcalo como externo: conserva sus fechas de inicio y fin, no se presenta en la plataforma y solo registras notas y observaciones.
 - Durante el examen tienes **monitor en vivo**; al terminar, la **IA califica automáticamente** y el **análisis antifraude** marca entregas sospechosas (y compara entregas entre estudiantes para detectar copia).
 - **Duplicar (parametrizable)**: al duplicar eliges el curso destino, el título y **qué copiar** — las preguntas y/o la configuración de proctoring (navegación, mezcla, máximo de advertencias). La copia nace como borrador.
 
@@ -112,7 +112,7 @@ Actividades evaluables, individuales o **en grupo**, con calificación asistida 
 
 - **🤖 Genera el taller completo o pregunta por pregunta con IA.**
 - **Trabajo en grupo**: activa "Trabajo en grupo" para que un grupo comparta **una sola entrega y una sola nota**. Desde el botón **Grupos** armas los equipos **arrastrando** las tarjetas de estudiantes entre "Sin grupo" y cada grupo. Pueden convivir estudiantes con grupo (entrega compartida) y sin grupo (entrega individual) en el mismo taller.
-- Las entregas se **califican con IA** y puedes registrar talleres **"externos"** (presenciales) solo para anotar notas y observaciones.
+- Las entregas se **califican con IA** y puedes registrar talleres **"externos"** (presenciales o en otra herramienta), con sus fechas de inicio y fin, solo para anotar notas y observaciones.
 - **Duplicar (parametrizable)**: eliges el curso destino, el título y qué copiar (preguntas y/o grupos).
 
 ![Talleres](screenshots/docente/10-teacher_workshops.png)

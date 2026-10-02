@@ -640,6 +640,23 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       setExamExtraSeconds(extraSeconds);
       examExtraSecondsRef.current = extraSeconds;
 
+      // Un examen EXTERNO se presenta fuera de la plataforma: acá no se toma
+      // nunca, ni con la ventana abierta. Antes lo impedía de hecho que se
+      // guardaba con inicio = fin (una ventana de 0 s); desde que tiene inicio y
+      // fin como cualquier examen, el corte tiene que ser explícito: sin él,
+      // quien llegara por la URL con la ventana abierta abriría un intento —una
+      // fila en `submissions`— sobre la actividad donde el docente carga las
+      // notas a mano.
+      if (!simulacro && e.is_external) {
+        toast.error(
+          i18n.t("toast.routes_app_student_take_examId.examIsExternal", {
+            defaultValue:
+              "Este examen se presenta fuera de la plataforma; aquí solo se registra la nota.",
+          }),
+        );
+        navigate({ to: "/app/student/exams" });
+        return;
+      }
       // En SIMULACRO no se miran la ventana, el estado ni la asignación: el
       // docente prueba justamente lo que todavía es borrador, o lo que ya cerró.
       if (!simulacro && !isExamOpen({ start_time: e.start_time, end_time: e.end_time })) {

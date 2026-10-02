@@ -342,17 +342,20 @@ export function CrearRecuperacionTallerDialog({
       return;
     }
     const ini = new Date(inicio);
-    const fi = externo ? ini : new Date(fin);
+    // Una externa tiene inicio y fin como cualquier otra: se valida igual.
+    const fi = new Date(fin);
     if (!Number.isFinite(ini.getTime()) || !Number.isFinite(fi.getTime())) {
       toast.error(t("recuperaciones.datesRequired"));
       return;
     }
-    if (!externo && fi.getTime() <= ini.getTime()) {
+    if (fi.getTime() <= ini.getTime()) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
+    // Mismo motivo que en el diálogo de exámenes: `cap_due_date_to_course`
+    // recorta el fin sin error, salvo en una externa, a la que no la recorta.
     const tope = courseEndOfDay(finCurso);
-    if (tope && ini.getTime() > tope.getTime()) {
+    if (!externo && tope && ini.getTime() > tope.getTime()) {
       toast.error(t("recuperaciones.afterCourseEnd"));
       return;
     }
@@ -540,17 +543,13 @@ export function CrearRecuperacionTallerDialog({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label required>
-                    {t(externo ? "recuperaciones.dateLabel" : "recuperaciones.startLabel")}
-                  </Label>
+                  <Label required>{t("recuperaciones.startLabel")}</Label>
                   <DateTimePicker value={inicio} onChange={setInicio} disabled={enviando} />
                 </div>
-                {!externo && (
-                  <div className="space-y-1.5">
-                    <Label required>{t("recuperaciones.endLabel")}</Label>
-                    <DateTimePicker value={fin} onChange={setFin} disabled={enviando} />
-                  </div>
-                )}
+                <div className="space-y-1.5">
+                  <Label required>{t("recuperaciones.endLabel")}</Label>
+                  <DateTimePicker value={fin} onChange={setFin} disabled={enviando} />
+                </div>
               </div>
 
               {!externo && (

@@ -1521,15 +1521,19 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
       // decide con los roles POSEÍDOS, no con el rol activo, así que a un
       // usuario multi-rol le llegaban los borradores y el filtro de abajo los
       // escondía recién en el navegador. Mismo criterio que las listas del
-      // estudiante (ver `app.student.exams.tsx`).
+      // estudiante (ver `app.student.exams.tsx`). Tampoco los EXTERNOS: se
+      // presentan fuera de la plataforma, así que no son algo «pendiente» que
+      // el estudiante pueda hacer acá —la lista de exámenes tampoco los
+      // muestra—; con inicio y fin reales, saldrían «En curso».
       const { data: asg } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams!inner(id, title, start_time, end_time, time_limit_minutes, status, deleted_at, course:courses(name))",
+          "exam:exams!inner(id, title, start_time, end_time, time_limit_minutes, status, deleted_at, is_external, course:courses(name))",
         )
         .eq("user_id", userId)
         .eq("exam.status", "published")
-        .is("exam.deleted_at", null);
+        .is("exam.deleted_at", null)
+        .is("exam.is_external", false);
       const examIds = (asg ?? []).map((a: any) => a.exam?.id).filter(Boolean);
       const { data: doneSubs } = examIds.length
         ? await supabase
@@ -1546,6 +1550,7 @@ function StudentDashboard({ userId }: { userId: string | undefined }) {
           (e: any) =>
             e &&
             !e.deleted_at &&
+            !e.is_external &&
             (e.status ?? "published") === "published" &&
             new Date(e.end_time) > new Date() &&
             !doneExamIds.has(e.id),

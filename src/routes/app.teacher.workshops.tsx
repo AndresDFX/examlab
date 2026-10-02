@@ -1253,7 +1253,7 @@ function TeacherWorkshops() {
             : (courses.find((c) => c.id === first)?.grade_scale_max ?? f.max_score),
           // Topar el plazo (due_date) al fin del curso que termina ANTES entre
           // los seleccionados — así cabe en TODOS. Si ya es menor, queda igual.
-          // No aplica a externos (la fecha es marcador del evento ya ocurrido).
+          // No aplica a externos: sus fechas no son una ventana de entrega.
           due_date: (f as any).is_external
             ? f.due_date
             : capEndToCourseEnd(
@@ -1366,7 +1366,8 @@ function TeacherWorkshops() {
     // Topar el plazo (due_date) al fin del curso que termina ANTES entre los
     // asociados (defensa al guardar: cubre edición y cualquier cambio de fecha
     // tras elegir el curso). La fecha fin nunca supera la del curso. No aplica a
-    // externos (la fecha es marcador del evento ya ocurrido).
+    // externos: sus fechas registran lo que pasó fuera de la plataforma, no una
+    // ventana de entrega (el trigger `cap_due_date_to_course` también los exime).
     const cappedDue = isExternal
       ? (form.due_date ?? "")
       : capEndToCourseEnd(
@@ -1377,17 +1378,15 @@ function TeacherWorkshops() {
       setForm((f) => ({ ...f, due_date: cappedDue }));
     }
     // Regla cross-form (goal #10): el plazo (due_date) no puede ser
-    // anterior a "Visible desde" (start_date); iguales OK. Solo aplica al
-    // taller en línea — el externo solo registra la fecha del evento. El tope
-    // anterior NO salta esta validación: si el curso termina antes del inicio,
-    // el rango queda inválido y se avisa.
-    if (!isExternal && !isValidDateRange((form as any).start_date, cappedDue)) {
+    // anterior a "Visible desde" (start_date); iguales OK. Vale también para el
+    // externo, que tiene inicio y fin como cualquier taller. El tope anterior NO
+    // salta esta validación: si el curso termina antes del inicio, el rango
+    // queda inválido y se avisa.
+    if (!isValidDateRange((form as any).start_date, cappedDue)) {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
-    const groupMode: string = isExternal
-      ? "individual"
-      : ((form as any).group_mode ?? "individual");
+    const groupMode: string = (form as any).group_mode ?? "individual";
     // Per-curso (corte+peso por curso) cuando hay >1 curso — tanto en
     // creación como en edición.
     const isMultiCourse = courseIds.length > 1;
@@ -1414,10 +1413,14 @@ function TeacherWorkshops() {
       // Multi-course: cut_id+weight are set per-course in the loop below.
       cut_id: isMultiCourse ? null : form.cut_id || null,
       is_external: isExternal,
-      group_mode: groupMode,
       // Un taller EXTERNO solo registra notas: no hay entrega que sustentar.
       requires_defense: isExternal ? false : Boolean((form as any).requires_defense),
     };
+    // En un externo los grupos los arma la acción «Grupos» de la fila (para
+    // calificar una exposición por grupo), no este formulario, que ni muestra el
+    // selector. Mandar el modo acá lo devolvía a «individual» cada vez que se
+    // editaba, p. ej. para cambiarle las fechas.
+    if (!isExternal) basePayload.group_mode = groupMode;
     // Una recuperación no ocupa bucket: su nota va sobre la del original, así
     // que no se valida su peso contra el bucket (heredó el del original, que ya
     // lo ocupa). Su corte/peso viene del original y no se toca desde acá.
@@ -4756,20 +4759,26 @@ function TeacherWorkshops() {
               )}
               <div>
                 <Label className="text-xs text-muted-foreground mb-1 block">{t("teacherWorkshops.fieldDates")}</Label>
+                {/* Un taller externo tiene sus fechas como cualquier otro: lo que
+                    cambia es que no se entrega por la plataforma. Por eso acá
+                    se nombran «inicio» y «fin» y no «visible desde» / «fecha
+                    límite», que hablan de una entrega que no existe. */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {!(form as any).is_external && (
-                    <div>
-                      <Label className="text-xs">{t("teacherWorkshops.fieldVisibleFrom")}</Label>
-                      <DateTimePicker
-                        value={(form as any).start_date ?? ""}
-                        onChange={(v) => setForm({ ...form, start_date: v } as any)}
-                        className="mt-1"
-                      />
-                    </div>
-                  )}
                   <div>
                     <Label className="text-xs">
-                      {(form as any).is_external ? t("teacherWorkshops.fieldExternalDate") : t("teacherWorkshops.fieldDueDate")}
+                      {(form as any).is_external
+                        ? t("common.startDate")
+                        : t("teacherWorkshops.fieldVisibleFrom")}
+                    </Label>
+                    <DateTimePicker
+                      value={(form as any).start_date ?? ""}
+                      onChange={(v) => setForm({ ...form, start_date: v } as any)}
+                      className="mt-1"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">
+                      {(form as any).is_external ? t("common.endDate") : t("teacherWorkshops.fieldDueDate")}
                     </Label>
                     <DateTimePicker
                       value={(form.due_date as any) ?? ""}

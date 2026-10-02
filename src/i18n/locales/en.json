@@ -2647,7 +2647,7 @@
   },
   "externalGrades": {
     "title": "External grades",
-    "helpHint": "This activity already happened outside the platform. Enter each student's grade (0–{{max}}) so it counts in the grading period calculation. Use a comma for decimals (e.g. 4,5).",
+    "helpHint": "This activity takes place outside the platform. Enter each student's grade (0–{{max}}) so it counts in the grading period calculation. Use a comma for decimals (e.g. 4,5).",
     "gradedBadge": "{{graded}}/{{total}} graded",
     "searchPlaceholder": "Search student by name or email…",
     "clearSearch": "Clear search",
@@ -3718,7 +3718,8 @@
       "warningExamExit": "Warning {{count}}/{{max}}: Exam exit",
       "examLoadFailed": "Could not load the exam.",
       "couldNotReenterFullscreen": "Could not return to fullscreen. Try again or press F11.",
-      "warningsClearedByTeacher": "Your teacher reviewed your warnings. You now have {{count}}."
+      "warningsClearedByTeacher": "Your teacher reviewed your warnings. You now have {{count}}.",
+      "examIsExternal": "This exam is taken outside the platform; only the grade is recorded here."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversation cleared"
@@ -3818,9 +3819,9 @@
     },
     "routes_app_teacher_exams_index": {
       "bulkSentToTrash": "{{count}} exam(s) sent to trash",
-      "externalDateRequired": "Enter the activity date",
       "weightOverBucket": "The exam weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Lower the weight or adjust the other exams in the term.",
-      "weightOverBucketCourse": "{{courseName}}: The exam weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Lower the weight or adjust the other exams in the term."
+      "weightOverBucketCourse": "{{courseName}}: The exam weight ({{requested}}%) exceeds the available bucket for the term ({{available}}% remaining). Lower the weight or adjust the other exams in the term.",
+      "datesRequired": "Enter the start and end dates"
     },
     "routes_app_teacher_gradebook": {
       "noChangesToSave": "No changes to save",
@@ -4466,7 +4467,7 @@
     "dialogTitleEdit": "Edit workshop",
     "dialogTitleNew": "New workshop",
     "fieldExternal": "External activity",
-    "fieldExternalDesc": "A workshop that took place outside the platform — in person or in another tool. You only record grades for the cut calculation.",
+    "fieldExternalDesc": "A workshop done outside the platform — in person or in another tool. It has its dates like any workshop, but it isn't submitted here: you only record the grades.",
     "fieldGroupMode": "Work mode",
     "groupModeIndividual": "Individual — each student submits separately",
     "groupModeRequired": "Group — everyone must be in a group to submit",
@@ -4509,7 +4510,6 @@
     "fieldDates": "Dates",
     "fieldVisibleFrom": "Visible from",
     "fieldDueDate": "Due date",
-    "fieldExternalDate": "Workshop date",
     "fieldStatus": "Status",
     "statusDraft": "Draft",
     "statusPublished": "Published",
@@ -8794,7 +8794,6 @@
     "fieldDescription": "Description",
     "fieldDuration": "Duration (min)",
     "fieldEnd": "End",
-    "fieldExamDate": "Exam date",
     "fieldExpectedRubric": "Expected rubric",
     "fieldFramework": "Framework",
     "fieldLanguage": "Language",
@@ -8946,13 +8945,12 @@
     "noResultsHint": "Clear the search or the course to see all exams.",
     "duplicate": "Duplicate",
     "externalActivity": "External activity",
-    "externalActivityHint": "A test that took place outside the platform — in person or done with another tool. You only record grades for the cut calculation.",
+    "externalActivityHint": "A test taken outside the platform — in person or in another tool. It has its dates like any test, but it isn't taken here: you only record the grades.",
     "reopenHint": "Change the status to Published and set a future end date so students can take it again.",
     "statusLabel": "Status",
     "statusDraft": "Draft",
     "statusPublished": "Published",
     "statusClosed": "Closed",
-    "examDate": "Test date",
     "scheduleTypeLabel": "Schedule type",
     "scheduleNormalName": "Normal",
     "scheduleNormalHint": "the timer counts down to the end date for everyone.",
@@ -9317,11 +9315,10 @@
     "errorLoadingCourseLinks": "Error loading course links",
     "errorLoadingCourses": "Error loading courses",
     "errorLoadingProjects": "Error loading projects",
-    "eventDate": "Event date",
     "exceedsAvailableBucket": "Exceeds the available bucket.",
     "exceedsBucketBy": "Exceeds the bucket by",
     "externalActivity": "External activity",
-    "externalActivityHint": "A project that took place outside the platform. You only record grades and observations per student.",
+    "externalActivityHint": "A project done outside the platform. It has its dates like any project, but it isn't submitted here: you only record grades and comments per student.",
     "externalGrades": "External grades",
     "externalLink": "External link (optional)",
     "feedback": "Feedback",
@@ -11077,8 +11074,7 @@
     "titleRequired": "Enter a title",
     "startLabel": "Start date",
     "endLabel": "End date",
-    "dateLabel": "Date",
-    "datesRequired": "Choose the date",
+    "datesRequired": "Choose the start and end dates",
     "copyQuestionsLabel": "Copy the original's questions",
     "copyQuestionsHint": "You can change any of them before publishing it.",
     "sectionWho": "Who it is assigned to",

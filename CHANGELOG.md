@@ -36,6 +36,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Recuperaciones de examen: la nota sale de UNA regla** (`src/modules/grading/nota-con-recuperacion.ts` ↔ SQL `exam_effective_raw_grade`, mig `20262650000000`). `makeup_kind`: el **supletorio** solo llena la ausencia de quien NO presentó el original; el **recuperatorio** cuenta aunque lo haya presentado, según `recovery_rule` (`mayor` por defecto, o `reemplaza`). Se pliegan en orden de creación; borradores y papelera no cuentan. Ninguna pantalla vuelve a escribir el «si no hay intentos directos, usar el supletorio»: pasa por `notaDeExamenParaEstudiante`, y lo que cuenta ENTREGAS (Estadísticas, Alerta temprana) por `entregasQueDecidenLaNota`. Una recuperación no tiene peso propio ni es una actividad más del corte, y avisa solo a sus asignados. En los grids del docente una recuperación **no es una fila**: va dentro de la de su original (`arbolDeRecuperaciones`), y el filtro decide qué fila aparece, no qué recuperaciones.
 - **Recuperaciones de TALLER: mismo modelo, mismo núcleo** (`workshops.parent_workshop_id` + `makeup_kind` + `recovery_rule`, mig `20262660000000`). El pliegue lo hace el mismo módulo que exámenes (`plegarRecuperaciones` + `notaDeTallerConRecuperaciones`); su espejo SQL es `workshop_effective_raw_grade` (desde la mig `20262670000000` el acta usa `taller_nota_en_escala`, que pliega en la escala del curso), que —a diferencia del de exámenes— **respeta la sustentación** (usa la regla de `notaEfectivaDeTaller`, no `final_grade ?? ai_grade`), alineando el acta con el gradebook/estudiante/boletín (solo afecta actas futuras). Dos diferencias con exámenes, ambas del taller: la nota sale de UNA entrega (grupo con precedencia) vía `notaEfectivaDeTaller`, y como los talleres son **M:N** (`workshop_courses`, peso/corte por curso) la recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. El estudiante ve la recuperación como un taller asignado por `workshop_assignments` (solo los elegidos), sin insignia de corte/peso. Publicar una recuperación avisa solo a sus asignados (`_notify_workshop_publication`). Verificado en PGlite.
 - **Calificar por grupo** (mig `20262700000000`). En una actividad **en línea** el grupo entrega UNA fila compartida (`group_id`) y su nota ES la del grupo: las pantallas la muestran como del grupo, y en el libro de notas editar la celda de un integrante edita la de todos (se guarda una vez por entrega). En un taller **externo** la nota es UNA FILA POR INTEGRANTE (`group_id NULL`): «Calificar al grupo» escribe la misma nota en cada una, y cada integrante se puede ajustar después; antes de pisar una nota distinta se pregunta. Por eso **en una actividad externa (taller o proyecto) esa fila no le impide a nadie cambiar de grupo** (es la nota del docente, no una entrega), mientras que en una en línea el bloqueo de la mig `20261068000000` sigue igual (migs `20262700000000` talleres y `20262710000000` proyectos). Y **el estudiante no puede borrar su fila en una actividad externa**: la política de «borrar mi entrega dentro del plazo» la excluye, porque ahí borrarla es borrar la nota. Las pantallas del estudiante buscan la entrega del GRUPO solo en una actividad en línea (`entregaEsDelGrupo`): en una externa buscan la fila propia, o la nota quedaría escondida. La escritura de una nota externa vive UNA vez (`grading/notas-externas.ts`) y la acción de grupo también (`use-calificar-grupo.ts`), compartidas por «Notas externas» y la ventana de grupos.
+- **Una actividad EXTERNA tiene inicio y fin como cualquier otra; lo que no tiene es entrega** (2026-10-01). Lo que impide presentarla o entregarla NO son sus fechas —antes la ventana de 0 s del examen externo era, de hecho, la única barrera—: se corta por `is_external` (pantalla de toma, listas y tablero del estudiante, recordatorios de «vence pronto» con la mig `20262720000000`). Al agregar una superficie que deje entregar, presentar o recordar, cortar por `is_external`, nunca por fechas. Sus fechas siguen exentas del tope al fin del curso (front y trigger `cap_*_to_course`), y la nota de una externa no depende de ellas: cuenta cuando tiene notas cargadas.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
@@ -83,6 +84,48 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > o sea que HOY su IA no califica y la cola se les acumula (UNIAJ tenía 33 jobs parados).
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+
+### 📅 Las actividades externas tienen fecha de inicio y de fin
+
+Pedido: que los talleres, exámenes y proyectos externos tengan fecha de inicio y fecha de fin «con el
+mismo comportamiento de las actividades normales». Lo único distinto sigue siendo que no se
+entregan ni se presentan en la plataforma: solo se referencian, y el docente les pone la nota.
+
+- **Formularios**: el de taller, los dos de examen (crear y editar), el de proyecto y los dos
+  diálogos de recuperación muestran inicio y fin también con «Actividad externa» encendida, con la
+  misma validación (el fin no puede ser anterior al inicio). Antes había un solo campo («Fecha del
+  taller», «Fecha del parcial», «Fecha del evento»), y el examen externo se guardaba con inicio =
+  fin. Las externas ya guardadas así abren con las dos fechas iguales, y eso sigue siendo válido.
+- **Sigue sin el tope al fin del curso**, en el formulario y en el trigger `cap_*_to_course`: sus
+  fechas registran lo que pasó fuera de la plataforma, no una ventana de entrega.
+- **La pantalla de toma rechaza un examen externo** aunque su ventana esté abierta. Hasta ahora lo
+  impedía de hecho la ventana de 0 s; con inicio y fin reales, quien llegara por la URL habría
+  abierto un intento sobre la actividad donde el docente carga las notas a mano.
+- **Sin recordatorio de «vence pronto»** para talleres y proyectos externos (mig
+  `20262720000000`): le habría pedido entregar algo que no se entrega en la plataforma, y como no hay
+  entrega, la exclusión «ya entregó» nunca lo frenaba. Los de examen ya los excluían. Validada
+  contra PostgreSQL real: antes del cambio el taller y el proyecto externos publicados recibían el
+  aviso, después no; en línea, entregados, deduplicación y permisos, igual.
+- **El tablero del estudiante no cuenta un examen externo como pendiente** ni lo muestra «En
+  curso»: con inicio y fin reales habría aparecido ahí, mientras la lista de exámenes (con razón) no
+  lo muestra.
+- **El CSV de exámenes lleva `is_external`** (exportar e importar; columna opcional, un CSV viejo
+  sigue importando igual). Sin ella, una externa exportada volvía como examen en línea con su
+  ventana real.
+- **Ajustes de paso**: guardar un taller externo ya no lo devuelve a «individual» (borraba el modo
+  de grupo que deja la acción «Grupos», p. ej. al cambiarle las fechas); el examen externo ya no
+  ofrece «Reabrir» (taller y proyecto ya lo ocultaban) y su columna «Duración» dice «—»; la tarjeta
+  del proyecto externo del estudiante dice «Inicio» y «Fin» en vez de «Disponible desde» y
+  «Entrega»; la recuperación de una externa ya no se rechaza por empezar después del fin del curso
+  (a una externa no se le recorta la fecha); la ayuda del interruptor, la del editor de notas
+  externas, el recorrido guiado y los manuales ya no dicen «ya ocurrió»; un examen con una fecha
+  vaciada a mano ya no revienta al guardar, avisa; y «Desde una imagen» funciona en un taller
+  externo (la función `ai-read-groups-image` lo rechazaba con «un taller externo no tiene grupos»,
+  que dejó de ser cierto al habilitar los grupos en externas).
+- **Lo que no cambió**: qué ve el estudiante de cada externa en sus listas (exámenes y talleres
+  externos siguen fuera), su estado, los avisos de publicación (una externa publicada se anuncia
+  como cualquier actividad; con las categorías apagadas, como hoy, no sale nada) y la nota — una
+  externa cuenta cuando tiene notas cargadas, no por sus fechas.
 
 ### 🎡 Ruleta del curso para elegir estudiantes al azar
 
