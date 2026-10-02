@@ -11256,7 +11256,6 @@
     "descripcion": "Spin to pick at random among the course students, those present in a session or the groups of an activity. It decides whose turn it is: it does not change any grade.",
     "fuenteLabel": "Among whom?",
     "fuenteCurso": "Course students",
-    "fuenteSesion": "Present in a session",
     "fuenteGrupos": "Groups of an activity",
     "sesionPlaceholder": "Choose the session",
     "actividadPlaceholder": "Choose the workshop or project",
@@ -11299,7 +11298,12 @@
     "yaSalieronYMas_one": "Already picked: {{names}} and {{count}} more",
     "yaSalieronYMas_other": "Already picked: {{names}} and {{count}} more",
     "sinAnimacion": "No animation",
-    "sesionSinAsistencia": "Attendance hasn't been taken for that session yet.",
-    "reiniciar": "Reset round"
+    "sesionSinAsistencia": "Attendance hasn't been taken for that session yet. Uncheck the box to include everyone.",
+    "reiniciar": "Reset round",
+    "soloAsistieron": "Only those who attended the session",
+    "soloAsistieronRecuerda": "It opens this way the next time you use it from Attendance.",
+    "botonAsistenciaTitle": "Pick at random among those who attended today's class, or among everyone",
+    "silenciar": "Mute",
+    "activarSonido": "Turn sound on"
   }
 }

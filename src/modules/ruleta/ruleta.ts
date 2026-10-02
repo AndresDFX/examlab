@@ -7,8 +7,8 @@
  * (si el ángulo final y el sorteo no coinciden, la ruleta «miente» y nadie lo
  * nota), que el sorteo sea parejo, quién entra a la rueda y qué se muestra.
  *
- * Diseño en docs/plans/pendientes/ruleta-de-estudiantes.md (ver allí lo que se
- * decidió distinto). La ruleta NO escribe en ningún camino de calificación: la
+ * Diseño en docs/plans/ruleta-de-estudiantes.md (ver allí lo que se decidió
+ * distinto). La ruleta NO escribe en ningún camino de calificación: la
  * consecuencia de salir es pasar al tablero, no una nota.
  */
 
@@ -181,12 +181,56 @@ export function textoDeElegidos(elegidos: readonly Participante[]): string {
   return elegidos.map((e, i) => `${i + 1}. ${e.etiqueta}`).join("\n");
 }
 
-// ── La ronda guardada en la pestaña ─────────────────────────────────────
+// ── Entre quiénes se sortea ─────────────────────────────────────────────
 
-export type FuenteDeRuleta = "curso" | "sesion" | "grupos";
+/**
+ * Estudiantes del curso o grupos de una actividad. La asistencia NO es una
+ * fuente aparte: es un filtro sobre los estudiantes («solo los que asistieron a
+ * la sesión»), para que pasar de «los que vinieron» a «todos» sea desmarcar una
+ * casilla y no cambiar de lista.
+ */
+export type FuenteDeRuleta = "curso" | "grupos";
+
+/**
+ * Quiénes participan antes de desmarcar a nadie. Con «solo los que asistieron»,
+ * mientras no llegan las marcas de la sesión no hay nadie: mostrar a todo el
+ * curso un instante y después recortarlo haría saltar la rueda frente a la clase.
+ */
+export function quienesParticipan(args: {
+  fuente: FuenteDeRuleta;
+  soloAsistieron: boolean;
+  estudiantes: readonly Participante[];
+  /** Los presentes de la sesión elegida; `null` = todavía cargando. */
+  presentes: ReadonlySet<string> | null;
+  /** Los grupos de la actividad elegida; `null` = todavía cargando. */
+  grupos: readonly Participante[] | null;
+}): Participante[] {
+  if (args.fuente === "grupos") return [...(args.grupos ?? [])];
+  if (!args.soloAsistieron) return [...args.estudiantes];
+  const presentes = args.presentes;
+  return presentes ? args.estudiantes.filter((s) => presentes.has(s.id)) : [];
+}
+
+// ── Lo que se recuerda ─────────────────────────────────────────────────
+
+/**
+ * Si, abierta desde Asistencia, la ruleta arranca con «solo los que
+ * asistieron». Es una comodidad de este navegador (`localStorage`), no un dato
+ * del curso: cada docente la deja como prefiere.
+ */
+export const PREFERENCIA_SOLO_ASISTIERON = "examlab_ruleta_solo_asistieron";
+
+/** Sin preferencia guardada, desde Asistencia entran solo los que asistieron. */
+export function leerPreferenciaSoloAsistieron(raw: string | null | undefined): boolean {
+  return raw !== "0";
+}
+
+export const escribirPreferenciaSoloAsistieron = (solo: boolean) => (solo ? "1" : "0");
 
 export interface RondaGuardada {
   fuente: FuenteDeRuleta;
+  /** Con fuente «curso»: solo los presentes de `sesionId`. */
+  soloAsistieron: boolean;
   sesionId: string;
   actividadKey: string;
   desmarcados: string[];
@@ -197,6 +241,67 @@ export interface RondaGuardada {
 }
 
 export const claveDeRonda = (courseId: string) => `examlab_ruleta:${courseId}`;
+
+/**
+ * Con qué arranca la ruleta al abrirse: la ronda guardada en la pestaña, si
+ * sigue valiendo, o los valores de partida. Desde Asistencia manda la sesión
+ * (la que se tocó, o la última que se dio) y la preferencia del docente.
+ *
+ * `conservarRonda` dice si los desmarcados, los elegidos y los giros de la
+ * ronda guardada siguen aplicando: solo si los participantes son los MISMOS.
+ * Con otra sesión u otra fuente, los ids de la ronda anterior no significan
+ * nada, y arrastrar «ya salieron» de otra clase confundiría a la de hoy.
+ */
+export function estadoInicialDeRonda(args: {
+  guardada: RondaGuardada | null;
+  /** Las sesiones del curso, de la más nueva a la más vieja. */
+  sesiones: readonly { id: string; fecha: string }[];
+  actividades: readonly { key: string }[];
+  /** Hoy, `YYYY-MM-DD` local. */
+  hoy: string;
+  desdeAsistencia: boolean;
+  sesionInicial?: string | null;
+  preferenciaSoloAsistieron: boolean;
+}): {
+  fuente: FuenteDeRuleta;
+  soloAsistieron: boolean;
+  sesionId: string;
+  actividadKey: string;
+  conservarRonda: boolean;
+} {
+  const { guardada, sesiones, actividades } = args;
+  const existeSesion = (id: string) => sesiones.some((s) => s.id === id);
+  // La clase de hoy o, si hoy no hay, la última que ya se dio.
+  const sesionDefecto = sesiones.find((s) => s.fecha <= args.hoy)?.id ?? sesiones[0]?.id ?? "";
+
+  let fuente: FuenteDeRuleta = guardada?.fuente ?? "curso";
+  let solo = guardada?.soloAsistieron ?? false;
+  let sesionId = guardada?.sesionId && existeSesion(guardada.sesionId) ? guardada.sesionId : sesionDefecto;
+  const actividadKey =
+    guardada?.actividadKey && actividades.some((a) => a.key === guardada.actividadKey)
+      ? guardada.actividadKey
+      : (actividades[0]?.key ?? "");
+  if (fuente === "grupos" && actividades.length === 0) fuente = "curso";
+  if (sesiones.length === 0) solo = false;
+
+  let conservarRonda =
+    !!guardada && fuente === guardada.fuente && (fuente === "grupos" || solo === guardada.soloAsistieron);
+  if (fuente === "curso" && solo && guardada?.sesionId !== sesionId) conservarRonda = false;
+  if (fuente === "grupos" && guardada?.actividadKey !== actividadKey) conservarRonda = false;
+
+  if (args.desdeAsistencia && sesiones.length > 0) {
+    const sId = args.sesionInicial && existeSesion(args.sesionInicial) ? args.sesionInicial : sesionDefecto;
+    const nuevoSolo = args.preferenciaSoloAsistieron;
+    const mismosParticipantes =
+      conservarRonda && fuente === "curso" && solo === nuevoSolo && (!nuevoSolo || sesionId === sId);
+    if (!mismosParticipantes) conservarRonda = false;
+    fuente = "curso";
+    solo = nuevoSolo;
+    sesionId = sId;
+  }
+
+  return { fuente, soloAsistieron: solo, sesionId, actividadKey, conservarRonda };
+}
 
 /**
  * Lee la ronda guardada sin confiar en su forma: viene del navegador, puede ser
@@ -215,8 +320,12 @@ export function leerRondaGuardada(raw: string | null | undefined): RondaGuardada
   const o = g as Record<string, unknown>;
   if (o.fuente !== "curso" && o.fuente !== "sesion" && o.fuente !== "grupos") return null;
   const texto = (v: unknown) => (typeof v === "string" ? v : "");
+  // «sesion» era una fuente aparte en la primera versión: hoy es el curso con
+  // el filtro de asistencia puesto. Una ronda de esa versión sigue valiendo.
+  const deSesion = o.fuente === "sesion";
   return {
-    fuente: o.fuente,
+    fuente: o.fuente === "grupos" ? "grupos" : "curso",
+    soloAsistieron: deSesion || o.soloAsistieron === true,
     sesionId: texto(o.sesionId),
     actividadKey: texto(o.actividadKey),
     desmarcados: Array.isArray(o.desmarcados)

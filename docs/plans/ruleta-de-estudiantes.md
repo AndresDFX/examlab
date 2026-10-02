@@ -27,6 +27,25 @@
 >   encendido) en vez del enfriamiento de los últimos k. Más fácil de explicar en voz alta.
 > - **Sin nombres en la rueda arriba de 40 gajos** (el plan decía 24): con 34 se leen bien.
 > - **La ronda vive en `sessionStorage`** (sobrevive a una recarga en clase, no a la semana).
+>
+> **v2 (2026-10-02), a pedido del usuario:**
+>
+> - **La asistencia es un FILTRO, no una fuente**: «Solo los que asistieron a la sesión» sobre los
+>   estudiantes del curso, en vez de una tercera lista. Pasar de «los que vinieron» a «todos» es
+>   desmarcar una casilla. Abierta desde Asistencia (botón en la cabecera, o el menú de una sesión)
+>   arranca marcada; desde el curso, con todos. La elección hecha desde Asistencia se recuerda en
+>   ese navegador (`examlab_ruleta_solo_asistieron`). La regla de arranque es pura y con tests
+>   (`estadoInicialDeRonda`).
+> - **El giro se anima cuadro a cuadro** (`animacion-giro.ts`, puro y con tests) y no con una
+>   transición de CSS: hace falta saber qué gajo pasa bajo el puntero en cada cuadro. Toma
+>   impulso, frena largo y se asienta sin salir del gajo sorteado (un test lo recorre para 2 a 150
+>   gajos).
+> - **Sonido sintetizado** (Web Audio, sin archivos): un «clac» por gajo, espaciado al arrancar para
+>   que no se vuelva zumbido, y un acorde al elegir. Se silencia desde la zona proyectada, que es lo
+>   que se ve a pantalla completa (`examlab_ruleta_sonido`).
+> - **Al elegir**: el gajo sale hacia afuera con un brillo de su color y los demás se apagan, el
+>   nombre entra con un rebote sobre el color de su gajo, y cae confeti. Con «Sin animación» (o
+>   «reducir movimiento» del sistema) no hay giro ni confeti; el acorde, sí.
 
 No hay tokens `--chart-*` en `styles.css`, así que los sectores van con `--primary` a opacidades alternas (respeta P3 y la marca de la institución). Plan:
 

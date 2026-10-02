@@ -11256,7 +11256,6 @@
     "descripcion": "Gira para elegir al azar entre los estudiantes del curso, los presentes en una sesión o los grupos de una actividad. Sirve para decidir a quién le toca: no cambia ninguna nota.",
     "fuenteLabel": "¿Entre quiénes?",
     "fuenteCurso": "Estudiantes del curso",
-    "fuenteSesion": "Presentes en una sesión",
     "fuenteGrupos": "Grupos de una actividad",
     "sesionPlaceholder": "Elige la sesión",
     "actividadPlaceholder": "Elige el taller o proyecto",
@@ -11299,7 +11298,12 @@
     "yaSalieronYMas_one": "Ya salieron: {{names}} y {{count}} más",
     "yaSalieronYMas_other": "Ya salieron: {{names}} y {{count}} más",
     "sinAnimacion": "Sin animación",
-    "sesionSinAsistencia": "Todavía no se tomó asistencia en esa sesión.",
-    "reiniciar": "Reiniciar ronda"
+    "sesionSinAsistencia": "Todavía no se tomó asistencia en esa sesión. Desmarca la casilla para incluir a todos.",
+    "reiniciar": "Reiniciar ronda",
+    "soloAsistieron": "Solo los que asistieron a la sesión",
+    "soloAsistieronRecuerda": "Así se abre la próxima vez que la uses desde Asistencia.",
+    "botonAsistenciaTitle": "Elige al azar entre los que asistieron a la clase de hoy, o entre todos",
+    "silenciar": "Silenciar",
+    "activarSonido": "Activar el sonido"
   }
 }

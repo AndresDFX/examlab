@@ -425,8 +425,11 @@ function TeacherAttendance() {
   // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
   // recupera el contenido. Solo el docente de la sesión la edita.
   const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
-  /** Sesión sobre cuyos presentes se abre la ruleta. */
-  const [ruletaSession, setRuletaSession] = useState<Session | null>(null);
+  /**
+   * Ruleta abierta desde Asistencia: `sesionId` es la sesión de cuyo menú se
+   * abrió, o `null` desde la cabecera (la clase de hoy o la última que se dio).
+   */
+  const [ruletaDesde, setRuletaDesde] = useState<{ sesionId: string | null } | null>(null);
   // Sesión seleccionada para DUPLICAR. Abre un dialog con opciones de qué
   // info interna copiar (contenido asignado, pizarra, snippets de código).
   const [duplicateSessionFor, setDuplicateSessionFor] = useState<Session | null>(null);
@@ -2793,6 +2796,18 @@ function TeacherAttendance() {
               <CalendarPlus className="h-4 w-4 mr-1" />
               {t("teacherAttendance.scheduleSessions")}
             </Button>
+            {/* La ruleta del curso, a mano en clase: sin buscar la sesión en el
+                menú de su columna, abre sobre la de hoy (o la última que se dio). */}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRuletaDesde({ sesionId: null })}
+              disabled={!courseId}
+              title={t("ruleta.botonAsistenciaTitle")}
+            >
+              <LoaderPinwheel className="h-4 w-4 mr-1" />
+              {t("ruleta.boton")}
+            </Button>
           </div>
         }
       />
@@ -3171,9 +3186,9 @@ function TeacherAttendance() {
                                     <Palette className="h-4 w-4 mr-2 text-violet-500" />
                                     {t("teacherAttendance.whiteboard")}
                                   </DropdownMenuItem>
-                                  {/* Ruleta sobre los presentes de ESTA clase:
-                                    quién pasa al tablero, quién responde. */}
-                                  <DropdownMenuItem onSelect={() => setRuletaSession(sess)}>
+                                  {/* Ruleta sobre ESTA clase: quién pasa al
+                                    tablero, quién responde. */}
+                                  <DropdownMenuItem onSelect={() => setRuletaDesde({ sesionId: sess.id })}>
                                     <LoaderPinwheel className="h-4 w-4 mr-2 text-amber-500" />
                                     {t("ruleta.boton")}
                                   </DropdownMenuItem>
@@ -4203,19 +4218,22 @@ function TeacherAttendance() {
           }
           onCreated={() => setPollLaunchSession(null)}
         />
-        {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
-            Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
-        {ruletaSession && courseId && (
+        {/* La misma ruleta del curso, abierta desde Asistencia: arranca con la
+            preferencia del docente («solo los que asistieron» o «todos»). */}
+        {ruletaDesde && courseId && (
           <RuletaDialog
             courseId={courseId}
             courseName={courses.find((c) => c.id === courseId)?.name ?? ""}
-            sesionInicial={ruletaSession.id}
+            desdeAsistencia
+            sesionInicial={ruletaDesde.sesionId}
             open
             onOpenChange={(o) => {
-              if (!o) setRuletaSession(null);
+              if (!o) setRuletaDesde(null);
             }}
           />
         )}
+        {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
+            Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
         <SessionWhiteboardDialog
           sessionId={whiteboardSession?.id ?? null}
           sessionLabel={

@@ -520,3 +520,23 @@ iframe[src*="gpteng"] {
   color: #c4b5fd;
   box-shadow: inset 0 0 0 1px rgba(139, 92, 246, 0.35);
 }
+
+/* Ruleta: el nombre del elegido entra con un pequeño rebote. Con
+   «reducir movimiento» del sistema, aparece sin animar. */
+@theme {
+  --animate-ruleta-pop: ruleta-pop 0.6s cubic-bezier(0.2, 0.9, 0.3, 1.25) both;
+
+  @keyframes ruleta-pop {
+    0% {
+      opacity: 0;
+      transform: scale(0.5);
+    }
+    60% {
+      opacity: 1;
+      transform: scale(1.08);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+}

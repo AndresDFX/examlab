@@ -85,6 +85,30 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🎡 Ruleta desde Asistencia («solo los que asistieron» o todos) y un giro con sonido
+
+Pedido: «incluye la ruleta también desde la asistencia, sujeta a que aparezcan por defecto solo los
+que asistieron o todos, usa el mismo componente»; y después, «en la animación final haz una
+animación mejor, con sonido cuando gire y cuando elija, más dinámica». Es el MISMO `RuletaDialog`
+en los tres lugares.
+
+- **Desde Asistencia**: botón «Ruleta» en la cabecera (abre sobre la clase de hoy o la última que
+  se dio), además del ítem en el menú de cada sesión.
+- **«Solo los que asistieron a la sesión» es una casilla**, no una lista aparte: desmarcarla incluye
+  a todo el curso. Desde Asistencia arranca marcada y lo que el docente elija ahí se recuerda en
+  ese navegador para la próxima vez; desde el curso arranca con todos. Si la sesión no tiene
+  asistencia tomada, lo dice y sugiere desmarcar. Una ronda guardada de la versión anterior se
+  sigue leyendo.
+- **El giro**: toma impulso, frena largo y se asienta sin salir del gajo sorteado. El puntero
+  rebota con cada clavija del borde y suena un «clac» por gajo, cada vez más espaciado. Al elegir,
+  el gajo sale hacia afuera con un brillo de su color, los demás se apagan, suena un acorde, cae
+  confeti y el nombre entra con un rebote sobre el color de su gajo. El sonido se genera en el
+  navegador (sin archivos) y se silencia con un botón de la zona proyectada, que es lo que se ve a
+  pantalla completa. Con «Sin animación» no hay giro ni confeti.
+- **Lo que no cambió**: el sorteo se decide antes de animar, el puntero cae exactamente en el
+  sorteado (ahora también durante el asentamiento, fijado por test) y la ruleta no escribe nada en
+  la base.
+
 ### 📅 Las actividades externas tienen fecha de inicio y de fin
 
 Pedido: que los talleres, exámenes y proyectos externos tengan fecha de inicio y fecha de fin «con el

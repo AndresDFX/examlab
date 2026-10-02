@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
-import { Copy, LoaderPinwheel, RotateCcw, Users } from "lucide-react";
+import { Copy, LoaderPinwheel, RotateCcw, Users, Volume2, VolumeX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -34,13 +34,30 @@ import { matchesQuery } from "@/modules/search/search-text";
 import { countsAsPresent } from "@/modules/grading/grade";
 import { conPerfilOfrecible } from "@/modules/admin/profile-scope";
 import { RuedaSvg } from "./RuedaSvg";
+import { Confeti } from "./Confeti";
 import {
+  DESVIO_MAXIMO_PUNTERO,
+  DURACION_GIRO_MS,
+  VUELTAS_GIRO,
+  anguloDelGiro,
+  desvioDelPuntero,
+  tocaTic,
+} from "./animacion-giro";
+import { prepararAudio, sonarGanador, sonarTic } from "./sonido-ruleta";
+import {
+  PREFERENCIA_SOLO_ASISTIERON,
   azarCripto,
   claveDeRonda,
+  colorDeGajo,
   elegirIndice,
   enLaRueda,
+  indiceBajoElPuntero,
+  escribirPreferenciaSoloAsistieron,
+  estadoInicialDeRonda,
+  leerPreferenciaSoloAsistieron,
   leerRondaGuardada,
   pareceIdentificador,
+  quienesParticipan,
   rotacionParaCaerEn,
   sigueCursando,
   textoDeElegidos,
@@ -63,6 +80,8 @@ interface ActividadConGrupos {
 
 /** Cuántos de los que ya salieron se nombran en la zona proyectada. */
 const SALIDOS_A_LA_VISTA = 5;
+/** Sonido encendido o apagado en este navegador (comodidad, no dato del curso). */
+const CLAVE_SONIDO = "examlab_ruleta_sonido";
 
 interface Props {
   courseId: string;
@@ -70,18 +89,25 @@ interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /**
-   * Abrir ya sobre los presentes de esta sesión (desde Asistencia). Si la ronda
-   * guardada era de otra fuente o sesión, empieza una nueva.
+   * Abierta desde Asistencia: arranca con la preferencia del docente («solo los
+   * que asistieron», salvo que haya elegido «todos») sobre la clase de hoy o la
+   * última que se dio. Desde el curso arranca con todos.
+   */
+  desdeAsistencia?: boolean;
+  /**
+   * La sesión sobre la que se abre (el menú de una sesión de Asistencia).
+   * Implica `desdeAsistencia`. Si la ronda guardada era de otra sesión o de
+   * otros participantes, empieza una nueva.
    */
   sesionInicial?: string | null;
 }
 
 /**
- * Ruleta del curso: elige al azar entre los estudiantes del curso, los
- * presentes en una sesión o los grupos de un taller o proyecto (por ejemplo,
- * el orden de una exposición). Lo que se proyecta —la rueda, el resultado, el
- * número de giro y quiénes ya salieron— puede ir a pantalla completa; la lista
- * de participantes queda afuera.
+ * Ruleta del curso: elige al azar entre los estudiantes del curso —todos, o
+ * solo los que asistieron a una sesión— o entre los grupos de un taller o
+ * proyecto (por ejemplo, el orden de una exposición). Lo que se proyecta —la
+ * rueda, el resultado, el número de giro y quiénes ya salieron— puede ir a
+ * pantalla completa; la lista de participantes queda afuera.
  *
  * El número de giro y «ya salieron» van A LA VISTA a propósito: el único truco
  * real con una ruleta es girar otra vez hasta que salga quien uno quiere, y eso
@@ -91,8 +117,16 @@ interface Props {
  * pero no se arrastra a la semana siguiente como lo haría `localStorage`.
  * La ruleta no escribe nada en la base.
  */
-export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionInicial }: Props) {
+export function RuletaDialog({
+  courseId,
+  courseName,
+  open,
+  onOpenChange,
+  desdeAsistencia,
+  sesionInicial,
+}: Props) {
   const { t } = useTranslation();
+  const contextoAsistencia = !!desdeAsistencia || !!sesionInicial;
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [reintento, setReintento] = useState(0);
@@ -101,6 +135,8 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
   const [actividades, setActividades] = useState<ActividadConGrupos[]>([]);
 
   const [fuente, setFuente] = useState<FuenteDeRuleta>("curso");
+  /** Con fuente «curso»: solo los presentes de `sesionId`. */
+  const [soloAsistieron, setSoloAsistieron] = useState(false);
   const [sesionId, setSesionId] = useState("");
   const [actividadKey, setActividadKey] = useState("");
   /** null = cargando; `registros` = la sesión tiene asistencia tomada. */
@@ -116,12 +152,30 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
 
   const [rotacion, setRotacion] = useState(0);
   const [girando, setGirando] = useState(false);
-  /** Duración del giro en curso (0 = salta al resultado). */
-  const [duracionGiro, setDuracionGiro] = useState(0);
   /** El último elegido mientras se muestra su resultado (sigue en la rueda). */
   const [mostrandoA, setMostrandoA] = useState<string | null>(null);
-  const ganadorRef = useRef<Participante | null>(null);
+  const [sonido, setSonido] = useState(true);
+  /** El botón de silenciar vale también a mitad de un giro, que ya está corriendo. */
+  const sonidoRef = useRef(true);
+  useEffect(() => {
+    sonidoRef.current = sonido;
+  }, [sonido]);
+  /** Sube con cada elección animada: es lo que dispara el confeti. */
+  const [confeti, setConfeti] = useState(0);
   const temporizador = useRef<number | null>(null);
+  const cuadroRef = useRef<number | null>(null);
+  /** Termina el giro en curso; `silencioso` = sin sonido ni confeti (se cerró). */
+  const terminarGiroRef = useRef<((silencioso: boolean) => void) | null>(null);
+  /**
+   * El sorteado del giro en curso. Se guarda en la ronda desde que arranca: si
+   * el diálogo se desmonta a mitad del giro, el giro ya contó y su elegido
+   * también. Si no, cerrar y reabrir sería una forma de «girar de nuevo».
+   */
+  const ganadorEnCursoRef = useRef<Participante | null>(null);
+  /** El ángulo real de la rueda, también a mitad de giro. */
+  const rotacionRef = useRef(0);
+  const ruedaRef = useRef<SVGSVGElement | null>(null);
+  const punteroRef = useRef<SVGSVGElement | null>(null);
   const restaurado = useRef(false);
   const girarRef = useRef<HTMLButtonElement | null>(null);
   const clave = claveDeRonda(courseId);
@@ -134,6 +188,11 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
       setSinAnimacion(window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false);
     } catch {
       setSinAnimacion(false);
+    }
+    try {
+      setSonido(localStorage.getItem(CLAVE_SONIDO) !== "0");
+    } catch {
+      setSonido(true);
     }
   }, []);
 
@@ -263,40 +322,35 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
         setSesiones(listaSesiones);
         setActividades(conGrupos);
 
-        // La ronda de esta pestaña, validada contra lo que se acaba de cargar.
+        // La ronda de esta pestaña, validada contra lo que se acaba de cargar, y
+        // la preferencia de este navegador para cuando se abre desde Asistencia.
         let guardada: RondaGuardada | null = null;
+        let preferencia = true;
         try {
           guardada = leerRondaGuardada(sessionStorage.getItem(claveDeRonda(courseId)));
         } catch {
           guardada = null;
         }
-        const hoy = todayLocalISO();
-        const existeSesion = (id: string) => listaSesiones.some((s) => s.id === id);
-        const existeActividad = (k: string) => conGrupos.some((a) => a.key === k);
-        const sesionDefecto =
-          listaSesiones.find((s) => s.fecha <= hoy)?.id ?? listaSesiones[0]?.id ?? "";
-
-        let f: FuenteDeRuleta = guardada?.fuente ?? "curso";
-        let sId = guardada?.sesionId && existeSesion(guardada.sesionId) ? guardada.sesionId : sesionDefecto;
-        const aKey =
-          guardada?.actividadKey && existeActividad(guardada.actividadKey)
-            ? guardada.actividadKey
-            : (conGrupos[0]?.key ?? "");
-        if (f === "sesion" && listaSesiones.length === 0) f = "curso";
-        if (f === "grupos" && conGrupos.length === 0) f = "curso";
-        let conservarRonda = !!guardada && f === guardada.fuente;
-        if (f === "sesion" && guardada?.sesionId !== sId) conservarRonda = false;
-        if (f === "grupos" && guardada?.actividadKey !== aKey) conservarRonda = false;
-        // Desde Asistencia se abre sobre ESA sesión.
-        if (sesionInicial && existeSesion(sesionInicial)) {
-          if (!(f === "sesion" && sId === sesionInicial)) conservarRonda = false;
-          f = "sesion";
-          sId = sesionInicial;
+        try {
+          preferencia = leerPreferenciaSoloAsistieron(localStorage.getItem(PREFERENCIA_SOLO_ASISTIERON));
+        } catch {
+          preferencia = true;
         }
+        const inicio = estadoInicialDeRonda({
+          guardada,
+          sesiones: listaSesiones,
+          actividades: conGrupos,
+          hoy: todayLocalISO(),
+          desdeAsistencia: contextoAsistencia,
+          sesionInicial,
+          preferenciaSoloAsistieron: preferencia,
+        });
+        const conservarRonda = inicio.conservarRonda;
 
-        setFuente(f);
-        setSesionId(sId);
-        setActividadKey(aKey);
+        setFuente(inicio.fuente);
+        setSoloAsistieron(inicio.soloAsistieron);
+        setSesionId(inicio.sesionId);
+        setActividadKey(inicio.actividadKey);
         setMostrandoA(null);
         if (conservarRonda && guardada) {
           setDesmarcados(new Set(guardada.desmarcados));
@@ -318,7 +372,8 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
     return () => {
       cancelled = true;
     };
-    // `t` y `sesionInicial` se leen al abrir; no deben recargar la ruleta.
+    // `t`, `sesionInicial` y `contextoAsistencia` se leen al abrir; no deben
+    // recargar la ruleta.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, courseId, reintento]);
 
@@ -326,7 +381,7 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
   // justificada no está en el salón).
   useEffect(() => {
     setPresentes(null);
-    if (!open || fuente !== "sesion" || !sesionId) return;
+    if (!open || fuente !== "curso" || !soloAsistieron || !sesionId) return;
     let cancelled = false;
     void (async () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -349,7 +404,7 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
     return () => {
       cancelled = true;
     };
-  }, [open, fuente, sesionId]);
+  }, [open, fuente, soloAsistieron, sesionId]);
 
   // Grupos (con sus integrantes) de la actividad elegida.
   useEffect(() => {
@@ -417,12 +472,14 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
   useEffect(() => {
     if (!restaurado.current) return;
     try {
+      const enCurso = girando ? ganadorEnCursoRef.current : null;
       const g: RondaGuardada = {
         fuente,
+        soloAsistieron,
         sesionId,
         actividadKey,
         desmarcados: [...desmarcados],
-        elegidos,
+        elegidos: enCurso ? [...elegidos, enCurso] : elegidos,
         noRepetir,
         giros,
       };
@@ -430,14 +487,22 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
     } catch {
       /* navegación privada o almacenamiento lleno: la ruleta funciona igual */
     }
-  }, [clave, fuente, sesionId, actividadKey, desmarcados, elegidos, noRepetir, giros]);
+  }, [clave, fuente, soloAsistieron, sesionId, actividadKey, desmarcados, elegidos, noRepetir, giros, girando]);
 
   useEffect(
     () => () => {
       if (temporizador.current != null) window.clearTimeout(temporizador.current);
+      if (cuadroRef.current != null) cancelAnimationFrame(cuadroRef.current);
     },
     [],
   );
+
+  // Cerrar a mitad de un giro lo termina en el acto y en silencio: el sorteo ya
+  // estaba hecho (cuenta como giro, no hay «deshacer»), pero que siga sonando
+  // una ruleta que nadie ve no tiene sentido.
+  useEffect(() => {
+    if (!open) terminarGiroRef.current?.(true);
+  }, [open]);
 
   // El foco arranca en «Girar»: si quedara en la X, la barra espaciadora cerraría la ruleta.
   useEffect(() => {
@@ -448,11 +513,17 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
   }, [open, cargando, error]);
 
   // ── Quiénes participan y quiénes están en la rueda ───────────────────
-  const base: Participante[] = useMemo(() => {
-    if (fuente === "curso") return estudiantes;
-    if (fuente === "sesion") return presentes ? estudiantes.filter((s) => presentes.ids.has(s.id)) : [];
-    return grupos ?? [];
-  }, [fuente, estudiantes, presentes, grupos]);
+  const base: Participante[] = useMemo(
+    () =>
+      quienesParticipan({
+        fuente,
+        soloAsistieron,
+        estudiantes,
+        presentes: presentes?.ids ?? null,
+        grupos,
+      }),
+    [fuente, soloAsistieron, estudiantes, presentes, grupos],
+  );
 
   const idsElegidos = useMemo(() => elegidos.map((e) => e.id), [elegidos]);
   const rueda = useMemo(
@@ -465,13 +536,18 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
     [base, desmarcados, idsElegidos, noRepetir],
   );
   const resultado = mostrandoA ? (elegidos[elegidos.length - 1] ?? null) : null;
+  // El elegido sigue en la rueda mientras se muestra: ahí se lo resalta.
+  const indiceGanador = resultado ? rueda.findIndex((p) => p.id === resultado.id) : null;
+  const colorDelGanador =
+    indiceGanador != null && indiceGanador >= 0 ? colorDeGajo(indiceGanador, rueda.length) : null;
   const visibles = useMemo(
     () => (busqueda.trim() ? base.filter((p) => matchesQuery(p.etiqueta, busqueda)) : base),
     [base, busqueda],
   );
   const yaSalio = useMemo(() => new Set(idsElegidos), [idsElegidos]);
+  const filtraPorAsistencia = fuente === "curso" && soloAsistieron;
   const cargandoFuente =
-    (fuente === "sesion" && !!sesionId && presentes === null) ||
+    (filtraPorAsistencia && !!sesionId && presentes === null) ||
     (fuente === "grupos" && !!actividadKey && grupos === null);
   const todosSalieron = !girando && base.length > 0 && proximos.length === 0 && elegidos.length > 0;
 
@@ -487,34 +563,101 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
   const girar = () => {
     if (girando || cargandoFuente) return;
     const lista = proximos;
-    if (lista.length === 0) return;
-    const i = elegirIndice(lista.length);
-    ganadorRef.current = lista[i];
+    const n = lista.length;
+    if (n === 0) return;
+    // El sorteo se decide ANTES de mover nada: la rueda solo lo muestra.
+    const i = elegirIndice(n);
+    const ganador = lista[i];
     // Con uno solo no hay azar que mostrar: girar teatralizaría señalarlo.
-    const animar = !sinAnimacion && lista.length > 1;
-    const duracion = animar ? 4800 : 0;
+    const animar = !sinAnimacion && n > 1;
+    // El audio solo arranca dentro de un gesto del usuario, y este lo es.
+    const audio = sonido ? prepararAudio() : null;
+    const desde = rotacionRef.current;
+    const hasta = rotacionParaCaerEn(desde, i, n, animar ? VUELTAS_GIRO : 0, azarCripto());
+    ganadorEnCursoRef.current = ganador;
     setMostrandoA(null);
-    setDuracionGiro(duracion);
     setGirando(true);
-    setGiros((n) => n + 1);
-    setRotacion((r) => rotacionParaCaerEn(r, i, lista.length, animar ? 7 : 0, azarCripto()));
-    temporizador.current = window.setTimeout(
-      () => {
-        temporizador.current = null;
-        const g = ganadorRef.current;
-        setGirando(false);
-        if (g) {
-          setElegidos((prev) => [...prev, g]);
-          setMostrandoA(g.id);
+    setGiros((g) => g + 1);
+
+    const terminar = (silencioso: boolean) => {
+      terminarGiroRef.current = null;
+      ganadorEnCursoRef.current = null;
+      if (cuadroRef.current != null) cancelAnimationFrame(cuadroRef.current);
+      if (temporizador.current != null) window.clearTimeout(temporizador.current);
+      cuadroRef.current = null;
+      temporizador.current = null;
+      rotacionRef.current = hasta;
+      if (ruedaRef.current) ruedaRef.current.style.transform = `rotate(${hasta}deg)`;
+      if (punteroRef.current) punteroRef.current.style.rotate = "0deg";
+      setRotacion(hasta);
+      setGirando(false);
+      setElegidos((prev) => [...prev, ganador]);
+      setMostrandoA(ganador.id);
+      if (silencioso) return;
+      if (audio && sonidoRef.current) sonarGanador(audio);
+      if (animar) setConfeti((c) => c + 1);
+    };
+    terminarGiroRef.current = terminar;
+
+    if (!animar) {
+      if (ruedaRef.current) ruedaRef.current.style.transform = `rotate(${hasta}deg)`;
+      temporizador.current = window.setTimeout(() => terminar(false), 300);
+      return;
+    }
+
+    // Cuadro a cuadro: en cada uno se sabe qué gajo pasa bajo el puntero, y de
+    // ahí salen el «clac» y el rebote del puntero.
+    const gradosPorGajo = 360 / n;
+    const inicio = performance.now();
+    let anteriorMs = inicio;
+    let anteriorAngulo = desde;
+    let gajoAnterior = indiceBajoElPuntero(desde, n);
+    let ultimoTic: number | null = null;
+    let desvio = 0;
+    const paso = (ahora: number) => {
+      const progreso = (ahora - inicio) / DURACION_GIRO_MS;
+      const angulo = anguloDelGiro({ desde, hasta, progreso, gradosPorGajo });
+      rotacionRef.current = angulo;
+      if (ruedaRef.current) ruedaRef.current.style.transform = `rotate(${angulo}deg)`;
+      desvio = desvioDelPuntero(desvio, ahora - anteriorMs);
+      const gajo = indiceBajoElPuntero(angulo, n);
+      if (gajo !== gajoAnterior) {
+        gajoAnterior = gajo;
+        // La clavija empuja la punta del puntero hacia donde va la rueda.
+        desvio = angulo >= anteriorAngulo ? -DESVIO_MAXIMO_PUNTERO : DESVIO_MAXIMO_PUNTERO;
+        if (audio && sonidoRef.current && tocaTic(ultimoTic, ahora)) {
+          ultimoTic = ahora;
+          sonarTic(audio);
         }
-      },
-      animar ? duracion + 80 : 300,
-    );
+      }
+      if (punteroRef.current) punteroRef.current.style.rotate = `${desvio}deg`;
+      anteriorMs = ahora;
+      anteriorAngulo = angulo;
+      if (progreso < 1) cuadroRef.current = requestAnimationFrame(paso);
+      else terminar(false);
+    };
+    cuadroRef.current = requestAnimationFrame(paso);
   };
 
   const reiniciar = () => {
     nuevaRonda();
     toast.success(t("ruleta.reiniciada"));
+  };
+
+  /**
+   * «Solo los que asistieron» ↔ «todos». Abierta desde Asistencia, la elección
+   * queda como la de partida de la próxima vez: es lo que el docente prefiere
+   * en clase, y no tiene por qué repetirla cada vez.
+   */
+  const cambiarSoloAsistieron = (solo: boolean) => {
+    setSoloAsistieron(solo);
+    nuevaRonda();
+    if (!contextoAsistencia) return;
+    try {
+      localStorage.setItem(PREFERENCIA_SOLO_ASISTIERON, escribirPreferenciaSoloAsistieron(solo));
+    } catch {
+      /* navegación privada: la elección vale para esta vez */
+    }
   };
 
   const copiar = async () => {
@@ -544,6 +687,18 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
       }
       return next;
     });
+
+  const alternarSonido = () => {
+    const nuevo = !sonido;
+    setSonido(nuevo);
+    try {
+      localStorage.setItem(CLAVE_SONIDO, nuevo ? "1" : "0");
+    } catch {
+      /* navegación privada: vale para esta vez */
+    }
+    // Mismo motivo que en pantalla completa: el foco vuelve a «Girar».
+    window.setTimeout(() => girarRef.current?.focus(), 50);
+  };
 
   const alternarPantalla = () => {
     toggle();
@@ -602,7 +757,10 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
           <RuedaSvg
             participantes={rueda}
             rotacion={rotacion}
-            duracionMs={girando ? duracionGiro : 0}
+            animando={girando}
+            ruedaRef={ruedaRef}
+            punteroRef={punteroRef}
+            ganador={indiceGanador}
             ariaLabel={t("ruleta.ruedaAria", { count: rueda.length })}
             onClick={girar}
             deshabilitada={rueda.length === 0}
@@ -635,15 +793,20 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
             {girando ? (
               <p className="text-sm text-muted-foreground">{t("ruleta.girando")}</p>
             ) : resultado ? (
-              <div className="space-y-1">
+              // `key` por giro: cada elección vuelve a entrar con su rebote.
+              <div key={`salio-${giros}`} className="space-y-1.5">
                 <p className="text-2xs font-medium uppercase tracking-wide text-muted-foreground">
                   {t("ruleta.salio")}
                 </p>
                 <p
                   className={cn(
-                    "font-semibold break-words",
-                    isFullscreen ? "text-2xl md:text-3xl" : "text-xl",
+                    "inline-block max-w-full rounded-full px-5 py-1.5 font-bold break-words shadow-md",
+                    "animate-ruleta-pop motion-reduce:animate-none",
+                    isFullscreen ? "text-2xl md:text-4xl" : "text-xl",
                   )}
+                  // El color de SU gajo: une el nombre con lo que la clase vio
+                  // en la rueda. Es dato de la paleta, no un color de diseño.
+                  style={colorDelGanador ? { backgroundColor: colorDelGanador.fondo, color: colorDelGanador.texto } : undefined}
                 >
                   {resultado.etiqueta}
                 </p>
@@ -671,9 +834,19 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
           {!isFullscreen && (
             <p className="text-center text-2xs text-muted-foreground">{t("ruleta.atajo")}</p>
           )}
+          {/* Va en la zona proyectada y no en el panel: a pantalla completa el
+              panel no se ve, y es justo ahí donde hace falta silenciarla. */}
+          <div className="absolute bottom-2 left-2">
+            <RowAction
+              label={sonido ? t("ruleta.silenciar") : t("ruleta.activarSonido")}
+              icon={sonido ? Volume2 : VolumeX}
+              onClick={alternarSonido}
+            />
+          </div>
           {supported && (
             <FullscreenButton floating isFullscreen={isFullscreen} onToggle={alternarPantalla} />
           )}
+          <Confeti disparo={confeti} activo={!sinAnimacion} />
         </div>
 
         {/* El panel del docente: entre quiénes, a quién se saca, quiénes salieron. */}
@@ -693,47 +866,67 @@ export function RuletaDialog({ courseId, courseName, open, onOpenChange, sesionI
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="curso">{t("ruleta.fuenteCurso")}</SelectItem>
-                <SelectItem value="sesion" disabled={sesiones.length === 0}>
-                  {t("ruleta.fuenteSesion")}
-                </SelectItem>
                 <SelectItem value="grupos" disabled={actividades.length === 0}>
                   {t("ruleta.fuenteGrupos")}
                 </SelectItem>
               </SelectContent>
             </Select>
-            {sesiones.length === 0 && (
-              <p className="text-2xs text-muted-foreground">{t("ruleta.sinSesiones")}</p>
-            )}
             {actividades.length === 0 && (
               <p className="text-2xs text-muted-foreground">{t("ruleta.sinGrupos")}</p>
             )}
-            {fuente === "sesion" && (
-              <Select
-                value={sesionId}
-                onValueChange={(v) => {
-                  setSesionId(v);
-                  nuevaRonda();
-                }}
-                disabled={girando}
-              >
-                <SelectTrigger className="h-9" aria-label={t("ruleta.sesionPlaceholder")}>
-                  <SelectValue placeholder={t("ruleta.sesionPlaceholder")} />
-                </SelectTrigger>
-                <SelectContent>
-                  {sesiones.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.etiqueta}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
-            {/* «Sin registro» no es «ausente»: si no se tomó asistencia, se dice eso. */}
-            {fuente === "sesion" && presentes && presentes.registros === 0 && (
-              <p className="text-2xs text-muted-foreground">{t("ruleta.sesionSinAsistencia")}</p>
-            )}
-            {fuente === "sesion" && presentes && presentes.registros > 0 && presentes.ids.size === 0 && (
-              <p className="text-2xs text-muted-foreground">{t("ruleta.sesionSinPresentes")}</p>
+            {/* La asistencia filtra a los estudiantes del curso: pasar de «los que
+                vinieron» a «todos» es desmarcar esta casilla, no cambiar de lista. */}
+            {fuente === "curso" && (
+              <div className="space-y-1.5 rounded-md border p-2">
+                <label
+                  className={cn(
+                    "flex min-h-8 items-start gap-2 text-xs",
+                    sesiones.length === 0 ? "cursor-not-allowed opacity-60" : "cursor-pointer",
+                  )}
+                >
+                  <Checkbox
+                    checked={soloAsistieron}
+                    onCheckedChange={(v) => cambiarSoloAsistieron(v === true)}
+                    disabled={girando || sesiones.length === 0}
+                    className="mt-0.5"
+                  />
+                  <span>{t("ruleta.soloAsistieron")}</span>
+                </label>
+                {sesiones.length === 0 && (
+                  <p className="text-2xs text-muted-foreground">{t("ruleta.sinSesiones")}</p>
+                )}
+                {soloAsistieron && (
+                  <Select
+                    value={sesionId}
+                    onValueChange={(v) => {
+                      setSesionId(v);
+                      nuevaRonda();
+                    }}
+                    disabled={girando}
+                  >
+                    <SelectTrigger className="h-9" aria-label={t("ruleta.sesionPlaceholder")}>
+                      <SelectValue placeholder={t("ruleta.sesionPlaceholder")} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sesiones.map((s) => (
+                        <SelectItem key={s.id} value={s.id}>
+                          {s.etiqueta}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                {/* «Sin registro» no es «ausente»: si no se tomó asistencia, se dice eso. */}
+                {soloAsistieron && presentes && presentes.registros === 0 && (
+                  <p className="text-2xs text-muted-foreground">{t("ruleta.sesionSinAsistencia")}</p>
+                )}
+                {soloAsistieron && presentes && presentes.registros > 0 && presentes.ids.size === 0 && (
+                  <p className="text-2xs text-muted-foreground">{t("ruleta.sesionSinPresentes")}</p>
+                )}
+                {contextoAsistencia && sesiones.length > 0 && (
+                  <p className="text-2xs text-muted-foreground">{t("ruleta.soloAsistieronRecuerda")}</p>
+                )}
+              </div>
             )}
             {fuente === "grupos" && (
               <Select

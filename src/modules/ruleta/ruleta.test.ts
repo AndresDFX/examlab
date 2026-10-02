@@ -2,20 +2,26 @@ import { describe, expect, it } from "vitest";
 
 import {
   PALETA,
+  PREFERENCIA_SOLO_ASISTIERON,
   claveDeRonda,
   colorDeGajo,
   elegirIndice,
   enLaRueda,
+  escribirPreferenciaSoloAsistieron,
+  estadoInicialDeRonda,
   etiquetaCorta,
   gajosConNombre,
   indiceBajoElPuntero,
+  leerPreferenciaSoloAsistieron,
   leerRondaGuardada,
   pareceIdentificador,
+  quienesParticipan,
   rotacionParaCaerEn,
   sigueCursando,
   tamanoDeLetra,
   textoDeElegidos,
 } from "./ruleta";
+import type { RondaGuardada } from "./ruleta";
 
 describe("rotacionParaCaerEn ↔ indiceBajoElPuntero", () => {
   it("la rueda se detiene EXACTAMENTE en el gajo sorteado (cualquier n, punto de partida y fracción)", () => {
@@ -177,7 +183,8 @@ describe("quién entra a la ruleta", () => {
 describe("leerRondaGuardada", () => {
   it("devuelve la ronda tal cual si está bien formada", () => {
     const r = {
-      fuente: "sesion",
+      fuente: "curso",
+      soloAsistieron: true,
       sesionId: "s1",
       actividadKey: "",
       desmarcados: ["a"],
@@ -186,6 +193,16 @@ describe("leerRondaGuardada", () => {
       giros: 3,
     };
     expect(leerRondaGuardada(JSON.stringify(r))).toEqual(r);
+  });
+
+  it("una ronda de la primera versión («sesion» como fuente) se lee como el curso con el filtro puesto", () => {
+    const vieja = { fuente: "sesion", sesionId: "s1", desmarcados: [], elegidos: [], noRepetir: true, giros: 2 };
+    expect(leerRondaGuardada(JSON.stringify(vieja))).toMatchObject({
+      fuente: "curso",
+      soloAsistieron: true,
+      sesionId: "s1",
+      giros: 2,
+    });
   });
 
   it("descarta lo que no encaja, campo por campo, y un JSON roto es «no hay ronda»", () => {
@@ -198,6 +215,7 @@ describe("leerRondaGuardada", () => {
       ),
     ).toEqual({
       fuente: "curso",
+      soloAsistieron: false,
       sesionId: "",
       actividadKey: "",
       desmarcados: ["a"],
@@ -209,5 +227,159 @@ describe("leerRondaGuardada", () => {
 
   it("la clave es por curso", () => {
     expect(claveDeRonda("c1")).toBe("examlab_ruleta:c1");
+  });
+});
+
+describe("quienesParticipan", () => {
+  const est = [
+    { id: "a", etiqueta: "Ana" },
+    { id: "b", etiqueta: "Beto" },
+    { id: "c", etiqueta: "Caro" },
+  ];
+  const base = { estudiantes: est, presentes: new Set(["b"]), grupos: null };
+
+  it("todos: el curso entero, aunque haya asistencia tomada", () => {
+    expect(quienesParticipan({ ...base, fuente: "curso", soloAsistieron: false }).map((p) => p.id)).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("solo los que asistieron: los presentes de la sesión", () => {
+    expect(quienesParticipan({ ...base, fuente: "curso", soloAsistieron: true }).map((p) => p.id)).toEqual(["b"]);
+  });
+
+  it("mientras llegan las marcas no hay nadie (la rueda no muestra al curso y después lo recorta)", () => {
+    expect(quienesParticipan({ ...base, presentes: null, fuente: "curso", soloAsistieron: true })).toEqual([]);
+  });
+
+  it("grupos: los grupos de la actividad, sin importar el filtro de asistencia", () => {
+    const grupos = [{ id: "g1", etiqueta: "Grupo 1" }];
+    expect(quienesParticipan({ ...base, grupos, fuente: "grupos", soloAsistieron: true })).toEqual(grupos);
+    expect(quienesParticipan({ ...base, grupos: null, fuente: "grupos", soloAsistieron: false })).toEqual([]);
+  });
+});
+
+describe("preferencia «solo los que asistieron»", () => {
+  it("sin nada guardado, desde Asistencia entran solo los que asistieron", () => {
+    expect(leerPreferenciaSoloAsistieron(null)).toBe(true);
+    expect(leerPreferenciaSoloAsistieron(undefined)).toBe(true);
+    expect(leerPreferenciaSoloAsistieron("basura")).toBe(true);
+  });
+
+  it("se guarda y se lee de vuelta igual", () => {
+    for (const v of [true, false]) {
+      expect(leerPreferenciaSoloAsistieron(escribirPreferenciaSoloAsistieron(v))).toBe(v);
+    }
+  });
+
+  it("la clave es única en la app", () => {
+    expect(PREFERENCIA_SOLO_ASISTIERON).toBe("examlab_ruleta_solo_asistieron");
+  });
+});
+
+describe("estadoInicialDeRonda", () => {
+  // De la más nueva a la más vieja, como las carga el diálogo.
+  const sesiones = [
+    { id: "futura", fecha: "2026-10-09" },
+    { id: "hoy", fecha: "2026-10-02" },
+    { id: "pasada", fecha: "2026-09-25" },
+  ];
+  const actividades = [{ key: "workshop:w1" }];
+  const hoy = "2026-10-02";
+  const ronda = (r: Partial<RondaGuardada>): RondaGuardada => ({
+    fuente: "curso",
+    soloAsistieron: false,
+    sesionId: "",
+    actividadKey: "",
+    desmarcados: ["x"],
+    elegidos: [{ id: "y", etiqueta: "Ye" }],
+    noRepetir: true,
+    giros: 4,
+    ...r,
+  });
+  const base = { sesiones, actividades, hoy, desdeAsistencia: false, preferenciaSoloAsistieron: true };
+
+  it("desde el curso, sin ronda: todos los estudiantes", () => {
+    expect(estadoInicialDeRonda({ ...base, guardada: null })).toMatchObject({
+      fuente: "curso",
+      soloAsistieron: false,
+      conservarRonda: false,
+    });
+  });
+
+  it("desde la cabecera de Asistencia: la clase de hoy, solo los que asistieron", () => {
+    expect(estadoInicialDeRonda({ ...base, guardada: null, desdeAsistencia: true })).toMatchObject({
+      fuente: "curso",
+      soloAsistieron: true,
+      sesionId: "hoy",
+    });
+  });
+
+  it("desde Asistencia con la preferencia en «todos»: todo el curso, con la sesión a mano", () => {
+    expect(
+      estadoInicialDeRonda({ ...base, guardada: null, desdeAsistencia: true, preferenciaSoloAsistieron: false }),
+    ).toMatchObject({ fuente: "curso", soloAsistieron: false, sesionId: "hoy" });
+  });
+
+  it("desde el menú de una sesión: esa sesión, aunque no sea la de hoy", () => {
+    expect(
+      estadoInicialDeRonda({ ...base, guardada: null, desdeAsistencia: true, sesionInicial: "pasada" }),
+    ).toMatchObject({ soloAsistieron: true, sesionId: "pasada" });
+  });
+
+  it("una sesión que no está en la lista cae en la de hoy, no en vacío", () => {
+    expect(
+      estadoInicialDeRonda({ ...base, guardada: null, desdeAsistencia: true, sesionInicial: "otra" }),
+    ).toMatchObject({ sesionId: "hoy" });
+  });
+
+  it("reabrir sobre la MISMA sesión conserva la ronda; otra sesión empieza una nueva", () => {
+    const guardada = ronda({ soloAsistieron: true, sesionId: "pasada" });
+    expect(
+      estadoInicialDeRonda({ ...base, guardada, desdeAsistencia: true, sesionInicial: "pasada" }).conservarRonda,
+    ).toBe(true);
+    expect(
+      estadoInicialDeRonda({ ...base, guardada, desdeAsistencia: true, sesionInicial: "hoy" }).conservarRonda,
+    ).toBe(false);
+  });
+
+  it("de «todos» a «solo los que asistieron» los participantes cambian: ronda nueva", () => {
+    const guardada = ronda({ soloAsistieron: false });
+    expect(estadoInicialDeRonda({ ...base, guardada, desdeAsistencia: true }).conservarRonda).toBe(false);
+    expect(
+      estadoInicialDeRonda({ ...base, guardada, desdeAsistencia: true, preferenciaSoloAsistieron: false })
+        .conservarRonda,
+    ).toBe(true);
+  });
+
+  it("desde el curso se restaura la ronda guardada tal cual, si sigue valiendo", () => {
+    const guardada = ronda({ fuente: "grupos", actividadKey: "workshop:w1" });
+    expect(estadoInicialDeRonda({ ...base, guardada })).toMatchObject({
+      fuente: "grupos",
+      actividadKey: "workshop:w1",
+      conservarRonda: true,
+    });
+  });
+
+  it("grupos que ya no existen o un curso sin sesiones: vuelve a todos, sin conservar", () => {
+    expect(
+      estadoInicialDeRonda({ ...base, actividades: [], guardada: ronda({ fuente: "grupos", actividadKey: "workshop:w1" }) }),
+    ).toMatchObject({ fuente: "curso", conservarRonda: false });
+    expect(
+      estadoInicialDeRonda({
+        ...base,
+        sesiones: [],
+        desdeAsistencia: true,
+        guardada: ronda({ soloAsistieron: true, sesionId: "hoy" }),
+      }),
+    ).toMatchObject({ fuente: "curso", soloAsistieron: false, conservarRonda: false });
+  });
+
+  it("si hoy no hay clase, la sesión por defecto es la última que ya se dio (no una futura)", () => {
+    expect(
+      estadoInicialDeRonda({ ...base, hoy: "2026-09-30", guardada: null, desdeAsistencia: true }).sesionId,
+    ).toBe("pasada");
   });
 });
