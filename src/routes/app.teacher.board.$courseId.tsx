@@ -84,8 +84,10 @@ import {
   CalendarPlus,
   CalendarClock,
   Highlighter,
+  LoaderPinwheel,
 } from "lucide-react";
 import { LinkCalendarEventsDialog } from "@/modules/calendar/LinkCalendarEventsDialog";
+import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import {
   Select,
   SelectContent,
@@ -440,6 +442,7 @@ function CourseBoardPage() {
   const [draftTimeTouched, setDraftTimeTouched] = useState(false);
   // Dialog de vincular/resincronizar Google Calendar (grabaciones/notas).
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [ruletaOpen, setRuletaOpen] = useState(false);
   // Dialogs de horario del curso + generador de sesiones.
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [generateOpen, setGenerateOpen] = useState(false);
@@ -1232,6 +1235,17 @@ function CourseBoardPage() {
               <CalendarRange className="h-3.5 w-3.5 mr-1" />
               {t("course.boardCalendar", { defaultValue: "Calendario" })}
             </Button>
+            {/* Elegir al azar: quién participa, quién expone, qué grupo sigue. */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setRuletaOpen(true)}
+              title={t("ruleta.botonTitle")}
+              className="h-8 text-xs"
+            >
+              <LoaderPinwheel className="h-3.5 w-3.5 mr-1" />
+              {t("ruleta.boton")}
+            </Button>
             <Button
               size="sm"
               onClick={() => {
@@ -1893,6 +1907,13 @@ function CourseBoardPage() {
         onOpenChange={setCalendarOpen}
         courseId={course.id}
         onLinked={() => setReloadNonce((n) => n + 1)}
+      />
+
+      <RuletaDialog
+        courseId={course.id}
+        courseName={course.name}
+        open={ruletaOpen}
+        onOpenChange={setRuletaOpen}
       />
 
       {/* Generar varias sesiones desde el horario del curso (festivos +

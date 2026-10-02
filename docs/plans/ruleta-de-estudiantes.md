@@ -1,9 +1,32 @@
 # Ruleta visual de estudiantes — plan de diseño
 
 > Producido por el workflow `ruleta-de-estudiantes` (mapeo + frente de ataque + síntesis).
-> **NO implementado todavía.** Las afirmaciones están verificadas por los agentes contra
-> el código; las que sostienen decisiones grandes conviene re-verificarlas antes de
-> ejecutar.
+>
+> **Implementado el 2026-10-01 (v1)** en `src/modules/ruleta/` (`ruleta.ts` puro y con tests,
+> `RuedaSvg.tsx`, `RuletaDialog.tsx`). Se respetó lo de fondo —herramienta y no `poll_type`, nada
+> persiste en la base, no toca ningún camino de calificación, sorteo con `crypto` y el ganador
+> decidido ANTES de animar, sin docentes ni quienes ya no cursan, `countsAsPresent` para los
+> presentes, «sin registro» no es «ausente», nombre completo y nunca un código en pantalla, el
+> número de giro y quiénes ya salieron A LA VISTA de la clase, `prefers-reduced-motion` + «Sin
+> animación», con uno solo no se gira— y se decidió distinto en esto, a pedido del usuario o por
+> lo que mostró la implementación:
+>
+> - **Dónde**: botón en el **tablero del curso** e ítem en el menú del curso (Cursos), además del
+>   menú de cada sesión en Asistencia (abre sobre los presentes de esa clase). El usuario la pidió
+>   «en el curso».
+> - **Contenedor**: un `Dialog` con la rueda en pantalla completa (`useFullscreen`), no un overlay
+>   `fixed inset-0`. El motivo del plan —los portales de Radix no se ven en pantalla completa— no
+>   aplica: en la zona proyectada no hay selects ni confirmaciones.
+> - **Color**: paleta de 10 colores con el texto de mayor contraste (≥ 4,5:1, lo fija un test), no
+>   `--primary` a dos opacidades. La referencia que dio el usuario es una rueda de colores, y con un
+>   solo color 30 nombres seguidos no se separan. Es «color que ES el dato» (excepción de P3).
+> - **Ícono**: `LoaderPinwheel` (una rueda de gajos), no `Dices`.
+> - **Grupos**: entran en v1 como tercera fuente (los grupos de un taller o proyecto del curso: el
+>   orden de una exposición). Solo se leen.
+> - **No repetir**: «quien sale deja la ruleta en el siguiente giro» (interruptor, por defecto
+>   encendido) en vez del enfriamiento de los últimos k. Más fácil de explicar en voz alta.
+> - **Sin nombres en la rueda arriba de 40 gajos** (el plan decía 24): con 34 se leen bien.
+> - **La ronda vive en `sessionStorage`** (sobrevive a una recarga en clase, no a la semana).
 
 No hay tokens `--chart-*` en `styles.css`, así que los sectores van con `--primary` a opacidades alternas (respeta P3 y la marca de la institución). Plan:
 

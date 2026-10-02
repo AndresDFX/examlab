@@ -95,6 +95,7 @@ import {
   Zap,
   Palette,
   Copy,
+  LoaderPinwheel,
   ListTodo,
 } from "lucide-react";
 import { toCSV } from "@/shared/lib/csv";
@@ -151,6 +152,7 @@ import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
+import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 // Helpers PUROS de CSV de sesiones — extraídos para testear sin montar
 // el componente (ver src/modules/sessions/csv.test.ts). El template, el
@@ -423,6 +425,8 @@ function TeacherAttendance() {
   // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
   // recupera el contenido. Solo el docente de la sesión la edita.
   const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
+  /** Sesión sobre cuyos presentes se abre la ruleta. */
+  const [ruletaSession, setRuletaSession] = useState<Session | null>(null);
   // Sesión seleccionada para DUPLICAR. Abre un dialog con opciones de qué
   // info interna copiar (contenido asignado, pizarra, snippets de código).
   const [duplicateSessionFor, setDuplicateSessionFor] = useState<Session | null>(null);
@@ -3167,6 +3171,12 @@ function TeacherAttendance() {
                                     <Palette className="h-4 w-4 mr-2 text-violet-500" />
                                     {t("teacherAttendance.whiteboard")}
                                   </DropdownMenuItem>
+                                  {/* Ruleta sobre los presentes de ESTA clase:
+                                    quién pasa al tablero, quién responde. */}
+                                  <DropdownMenuItem onSelect={() => setRuletaSession(sess)}>
+                                    <LoaderPinwheel className="h-4 w-4 mr-2 text-amber-500" />
+                                    {t("ruleta.boton")}
+                                  </DropdownMenuItem>
                                   {/* Duplicar la sesión: crea una copia (misma fecha,
                                     el docente la reubica) con opción de copiar el
                                     contenido asignado, la pizarra y los snippets. */}
@@ -4195,6 +4205,17 @@ function TeacherAttendance() {
         />
         {/* Pizarra de la sesión — Excalidraw embebido en Dialog full-height.
             Persiste 1:1 con attendance_sessions.whiteboard_scene. */}
+        {ruletaSession && courseId && (
+          <RuletaDialog
+            courseId={courseId}
+            courseName={courses.find((c) => c.id === courseId)?.name ?? ""}
+            sesionInicial={ruletaSession.id}
+            open
+            onOpenChange={(o) => {
+              if (!o) setRuletaSession(null);
+            }}
+          />
+        )}
         <SessionWhiteboardDialog
           sessionId={whiteboardSession?.id ?? null}
           sessionLabel={

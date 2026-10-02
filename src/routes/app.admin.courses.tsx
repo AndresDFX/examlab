@@ -75,8 +75,10 @@ import {
   Play,
   CheckCircle2,
   Undo2,
+  LoaderPinwheel,
 } from "lucide-react";
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
+import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
 import {
   Select,
@@ -474,6 +476,8 @@ export function AdminCourses() {
   // Enrollment
   const [enrollOpen, setEnrollOpen] = useState(false);
   const [enrollCourse, setEnrollCourse] = useState<Course | null>(null);
+  /** Curso de la ruleta abierta (elegir estudiantes al azar). */
+  const [ruletaCurso, setRuletaCurso] = useState<Course | null>(null);
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [enrolledIds, setEnrolledIds] = useState<Set<string>>(new Set());
 
@@ -2461,6 +2465,13 @@ export function AdminCourses() {
                           params: { courseId: c.id },
                         },
                         {
+                          // Herramienta de clase, junto al tablero y el foro (no
+                          // gestiona personas: elige entre ellas al azar).
+                          label: t("ruleta.boton"),
+                          icon: LoaderPinwheel,
+                          onClick: () => setRuletaCurso(c),
+                        },
+                        {
                           label: t("course.students"),
                           icon: Users,
                           onClick: () => void openEnroll(c),
@@ -3288,6 +3299,17 @@ export function AdminCourses() {
         courseId={voceroCourse?.id ?? null}
         courseName={voceroCourse?.name}
       />
+
+      {ruletaCurso && (
+        <RuletaDialog
+          courseId={ruletaCurso.id}
+          courseName={ruletaCurso.name}
+          open
+          onOpenChange={(o) => {
+            if (!o) setRuletaCurso(null);
+          }}
+        />
+      )}
 
       {/* ── Student Enrollment Dialog ── */}
       <Dialog open={enrollOpen} onOpenChange={setEnrollOpen}>

@@ -84,6 +84,32 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🎡 Ruleta del curso para elegir estudiantes al azar
+
+Pedido: «añade una ruleta en el curso que permita seleccionar estudiantes para cierta actividad»,
+con https://es.piliapp.com/random/wheel/ como referencia. Diseño en
+`docs/plans/ruleta-de-estudiantes.md` (estaba en pendientes; ahí queda lo que se decidió distinto).
+
+- **Dónde**: botón «Ruleta» en el tablero del curso, ítem en el menú de cada curso (Cursos) y en el
+  menú de cada sesión de Asistencia (abre sobre los presentes de esa clase).
+- **Entre quiénes**: los estudiantes del curso (sin quien dicta el curso aunque esté matriculado, sin
+  cuentas inactivas y sin retirados, aplazados ni graduados), los presentes de una sesión
+  (`countsAsPresent`: presente o tarde; si no se tomó asistencia lo dice, no lo da por ausencia) o
+  los grupos de un taller o proyecto del curso (el orden de una exposición, con sus integrantes).
+- **Cómo**: se gira con el botón, un clic en la rueda o la barra espaciadora. El sorteo es con
+  `crypto` y se decide ANTES de animar: la rueda solo muestra el resultado, y un test recorre
+  cientos de combinaciones para fijar que se detiene exactamente en el sorteado. «No repetir» saca
+  al que salió en el siguiente giro; se puede desmarcar a quien no vino; la lista de elegidos se
+  copia. La rueda va a pantalla completa para compartirla en la videollamada.
+- **A la vista de la clase**: el número de giro y quiénes ya salieron. El único truco real con una
+  ruleta es girar otra vez hasta que salga quien uno quiere, y eso solo lo ataja que se vea; por eso
+  tampoco hay «deshacer» (se reinicia la ronda, a la vista).
+- **Cuidados**: nunca proyecta un código de matrícula como nombre (si el nombre es la parte local del
+  correo, dice «Estudiante sin nombre»); con más de 40 gajos la rueda va sin nombres y el nombre sale
+  entero en el resultado; «Sin animación» y `prefers-reduced-motion`; con uno solo no se gira.
+- **No escribe nada en la base** ni toca ninguna nota. La ronda se recuerda en la pestaña
+  (`sessionStorage`): sobrevive a una recarga en clase, no a la semana siguiente.
+
 ### 👥 Proyectos externos por grupos (lo mismo que talleres)
 
 Pedido: «incluye el tema de grupos también en Proyectos». Talleres ya tenía grupos en las actividades
