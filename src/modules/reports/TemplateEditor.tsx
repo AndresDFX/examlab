@@ -886,7 +886,7 @@ function RevisionPlantilla({ avisos }: { avisos: ReadonlyArray<AvisoPlantilla> }
         return t("reportLint.firmaFueraDelBucle", {
           n: a.cantidad,
           defaultValue:
-            "Hay {{n}} firma(s) fuera del listado de estudiantes, así que no se sabe de quién son y nadie va a poder firmarlas. Movelas dentro del listado, o usá la ranura de firma del estudiante en un informe por estudiante.",
+            "Hay {{n}} firma(s) fuera del listado de estudiantes, así que no se sabe de quién son y nadie va a poder firmarlas. Movelas dentro del listado, o usa la ranura de firma del estudiante en un informe por estudiante.",
         });
       case "ranuraSoloPorEstudiante":
         return t("reportLint.ranuraSoloPorEstudiante", {

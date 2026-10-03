@@ -213,7 +213,7 @@ export class ShellInterpreter {
       case "history": return { out: this.history.map((h, i) => `${String(i + 1).padStart(5)}  ${h}`) };
       case "groups": return this.groupsCmd(args);
       case "passwd": return { out: ["(passwd requiere entrada interactiva, no disponible en la consola simulada)"] };
-      case "su": return { out: ["(su requiere contraseña interactiva; usá `sudo <comando>` para tareas privilegiadas)"] };
+      case "su": return { out: ["(su requiere contraseña interactiva; usa `sudo <comando>` para tareas privilegiadas)"] };
       case "getent": return this.getent(args);
       case "dpkg": return this.dpkg(args);
       case "service": return this.serviceCmd(args);
@@ -722,7 +722,7 @@ export class ShellInterpreter {
     return { out: [
       VERSION,
       "Intérprete interactivo no disponible en la consola simulada.",
-      "Usá  python3 -c \"print('hola')\"  o  python3 archivo.py",
+      "Usa  python3 -c \"print('hola')\"  o  python3 archivo.py",
     ] };
   }
 
@@ -934,6 +934,6 @@ export class ShellInterpreter {
   private man(args: string[]): ShellResult {
     const c = args[0];
     if (!c) return { out: ["¿Qué página de manual desea?"] };
-    return { out: [`(man simulado) Para '${c}', probá  ${c} --help. El manual completo no está en la consola simulada.`] };
+    return { out: [`(man simulado) Para '${c}', prueba  ${c} --help. El manual completo no está en la consola simulada.`] };
   }
 }

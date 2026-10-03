@@ -121,7 +121,7 @@ export function HeaderBlockDialog({
           <DialogDescription>
             {t("headerBlock.dialogDesc", {
               defaultValue:
-                "El logo de tu institución a la izquierda, el título al centro y el código del formato a la derecha, como en los formatos que ya usás.",
+                "El logo de tu institución a la izquierda, el título al centro y el código del formato a la derecha, como en los formatos que ya usas.",
             })}
           </DialogDescription>
         </DialogHeader>

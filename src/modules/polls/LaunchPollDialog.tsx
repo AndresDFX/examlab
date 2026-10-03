@@ -127,7 +127,7 @@ export function LaunchPollDialog({
     if (!title.trim()) {
       toast.error(
         i18n.t("toast.modules_polls_LaunchPollDialog.questionRequired", {
-          defaultValue: "Escribí la pregunta",
+          defaultValue: "Escribe la pregunta",
         }),
       );
       return;

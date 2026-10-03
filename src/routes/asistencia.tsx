@@ -164,7 +164,7 @@ function errorText(
       });
     default:
       return t("publicAttendance.errGeneric", {
-        defaultValue: "No se pudo registrar la asistencia. Intentá de nuevo.",
+        defaultValue: "No se pudo registrar la asistencia. Intenta de nuevo.",
       });
   }
 }
@@ -284,10 +284,10 @@ function PublicAttendance() {
       toast.error(
         soloCorreo
           ? t("publicAttendance.fillEmailCode", {
-              defaultValue: "Completá tu correo y el código.",
+              defaultValue: "Completa tu correo y el código.",
             })
           : t("publicAttendance.fillAll", {
-              defaultValue: "Completá correo, contraseña y código.",
+              defaultValue: "Completa correo, contraseña y código.",
             }),
       );
       return;
@@ -331,7 +331,7 @@ function PublicAttendance() {
             </h1>
             <p className="text-sm text-muted-foreground">
               {t("publicAttendance.subtitle", {
-                defaultValue: "Confirmá tu asistencia a esta clase.",
+                defaultValue: "Confirma tu asistencia a esta clase.",
               })}
             </p>
           </div>
@@ -442,7 +442,7 @@ function PublicAttendance() {
               <XCircle className="h-8 w-8 text-destructive" />
               <p className="text-sm text-muted-foreground">
                 {t("publicAttendance.noSession", {
-                  defaultValue: "Enlace inválido. Escaneá de nuevo el QR de la clase.",
+                  defaultValue: "Enlace inválido. Escanea de nuevo el QR de la clase.",
                 })}
               </p>
             </div>
@@ -481,7 +481,7 @@ function PublicAttendance() {
               )}
               <p className="text-xs text-muted-foreground">
                 {t("publicAttendance.successHint", {
-                  defaultValue: "Ya podés cerrar esta pantalla.",
+                  defaultValue: "Ya puedes cerrar esta pantalla.",
                 })}
               </p>
             </div>
@@ -614,7 +614,7 @@ function PublicAttendance() {
                   </ul>
                   <p className="text-2xs text-muted-foreground">
                     {t("publicAttendance.reqAfter", {
-                      defaultValue: "Cuando lo completes, volvé a marcar con el mismo código.",
+                      defaultValue: "Cuando lo completes, vuelve a marcar con el mismo código.",
                     })}
                   </p>
                 </div>

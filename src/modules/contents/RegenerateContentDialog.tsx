@@ -107,7 +107,7 @@ export function RegenerateContentDialog({
       if (!user?.id) {
         toast.error(
           t("contents.regenerateSessionInvalid", {
-            defaultValue: "Sesión no válida. Recargá la página.",
+            defaultValue: "Sesión no válida. Recarga la página.",
           }),
         );
         return;

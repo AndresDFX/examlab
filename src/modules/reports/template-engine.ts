@@ -907,7 +907,7 @@ export function buildSampleReportContext(overrides?: Partial<TemplateContext>): 
       nota: "3,3",
       aporte_nota_final: "Esta actividad no aporta a la nota final del curso.",
       respondidas: "10 de 13",
-      comentario_docente: "Buen manejo de las relaciones; repasá la normalización.",
+      comentario_docente: "Buen manejo de las relaciones; repasa la normalización.",
       total_preguntas: "13",
       correctas: "7",
       parciales: "2",

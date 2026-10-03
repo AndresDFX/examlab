@@ -247,7 +247,7 @@ export function AdminAcademicSubjectsPanel() {
           t("academic.subjects.partialLoadWarning", {
             fields: partial.join(", "),
             defaultValue:
-              "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+              "Las asignaturas cargaron, pero estos datos complementarios no: {{fields}}. Recarga para reintentar.",
           }),
           { duration: 10000 },
         );

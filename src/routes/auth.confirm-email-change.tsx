@@ -103,7 +103,7 @@ function ConfirmEmailChangePage() {
     if (code === "token_already_confirmed") {
       return t("auth.confirmEmailChange.errorAlreadyConfirmed", {
         defaultValue:
-          "Este cambio ya fue confirmado y aplicado. Si necesitás revertirlo, usá el link del correo de aviso que mandamos al correo anterior (válido por 24h).",
+          "Este cambio ya fue confirmado y aplicado. Si necesitas revertirlo, usa el link del correo de aviso que mandamos al correo anterior (válido por 24h).",
       });
     }
     if (code === "email_already_taken") {
@@ -167,7 +167,7 @@ function ConfirmEmailChangePage() {
                   <p className="mt-1 text-muted-foreground">
                     {t("auth.confirmEmailChange.appliedBody", {
                       defaultValue:
-                        "A partir de ahora iniciás sesión con este correo:",
+                        "A partir de ahora inicias sesión con este correo:",
                     })}
                   </p>
                   <p className="mt-1 font-mono text-xs break-all text-foreground">
@@ -177,7 +177,7 @@ function ConfirmEmailChangePage() {
                     <p className="mt-2 text-xs">
                       <span className="text-muted-foreground">
                         {t("auth.confirmEmailChange.revertUntil", {
-                          defaultValue: "Podés revertir hasta el:",
+                          defaultValue: "Puedes revertir hasta el:",
                         })}{" "}
                       </span>
                       <span className="font-semibold">{formatApplyAt(state.applyAfter)}</span>
@@ -186,7 +186,7 @@ function ConfirmEmailChangePage() {
                   <p className="mt-2 text-xs text-muted-foreground">
                     {t("auth.confirmEmailChange.revertHint", {
                       defaultValue:
-                        "Mandamos un aviso a tu correo anterior con un link para revertir por seguridad. Si no fuiste vos, usá ese link antes de las 24h.",
+                        "Mandamos un aviso a tu correo anterior con un link para revertir por seguridad. Si no fuiste vos, usa ese link antes de las 24h.",
                     })}
                   </p>
                 </div>

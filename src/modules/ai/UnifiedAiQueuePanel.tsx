@@ -967,7 +967,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
         toast.info(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.asyncModeActivateCode", {
             defaultValue:
-              "La cola está en modo diferido. Activá un código de IA inmediata para procesar las tareas al instante.",
+              "La cola está en modo diferido. Activa un código de IA inmediata para procesar las tareas al instante.",
           }),
         );
         setOverrideOpen(true);
@@ -998,7 +998,7 @@ export function UnifiedAiQueuePanel({ isAdmin = false }: Props) {
       } else if (d?.failed > 0) {
         toast.error(
           i18n.t("toast.modules_ai_UnifiedAiQueuePanel.jobProcessedButFailed", {
-            defaultValue: "La tarea se procesó pero falló — revisá el error en la cola.",
+            defaultValue: "La tarea se procesó pero falló — revisa el error en la cola.",
           }),
         );
       } else {

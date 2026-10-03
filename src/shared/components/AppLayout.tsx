@@ -877,7 +877,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <p className="text-sm text-muted-foreground">
             {t("appLayout.deactivatedBody", {
               defaultValue:
-                "Tu cuenta fue desactivada. Contactá al administrador de tu institución para reactivarla.",
+                "Tu cuenta fue desactivada. Contacta al administrador de tu institución para reactivarla.",
             })}
           </p>
           <Button variant="outline" onClick={signOut}>

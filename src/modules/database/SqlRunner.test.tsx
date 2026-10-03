@@ -64,7 +64,7 @@ describe("SqlRunner sin el editor", () => {
     // se vuelve contestable sin que haga nada.
     estadoMonaco.estado = "error";
     montar({ value: null, onChange: () => {} });
-    expect(screen.getByPlaceholderText("Escribí acá tu consulta SQL")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Escribe acá tu consulta SQL")).toBeInTheDocument();
     expect(screen.getByText(/No se pudo cargar el editor/)).toBeInTheDocument();
   });
 
@@ -73,7 +73,7 @@ describe("SqlRunner sin el editor", () => {
     // cargando. Sin el plazo, la espera no termina nunca.
     estadoMonaco.lento = true;
     montar({ value: null, onChange: () => {} });
-    expect(screen.getByPlaceholderText("Escribí acá tu consulta SQL")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Escribe acá tu consulta SQL")).toBeInTheDocument();
     expect(screen.getByText(/está tardando en cargar/)).toBeInTheDocument();
   });
 
@@ -86,7 +86,7 @@ describe("SqlRunner sin el editor", () => {
     estadoMonaco.estado = "error";
     montar({ value: null, onChange: (v) => cambios.push(v) });
 
-    await user.type(screen.getByPlaceholderText("Escribí acá tu consulta SQL"), "select 1");
+    await user.type(screen.getByPlaceholderText("Escribe acá tu consulta SQL"), "select 1");
 
     const ultimo = cambios[cambios.length - 1];
     expect(parseSqlAnswer(ultimo)?.sql).toBe("select 1");
@@ -97,7 +97,7 @@ describe("SqlRunner sin el editor", () => {
     const user = userEvent.setup();
     montar({ value: null, onChange: () => {} });
     await user.click(screen.getByRole("button", { name: "Escribir sin el editor" }));
-    expect(screen.getByPlaceholderText("Escribí acá tu consulta SQL")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Escribe acá tu consulta SQL")).toBeInTheDocument();
   });
 
   it("en solo lectura no se ofrece escribir: no hay nada que escribir", () => {
@@ -130,7 +130,7 @@ describe("SqlRunner sin el editor", () => {
     // ni siquiera corre, no hay nada que guardar de lo que tranquilizar.
     estadoMonaco.estado = "error";
     montar({ value: null, onChange: () => {}, readOnly: true });
-    expect(screen.queryByPlaceholderText("Escribí acá tu consulta SQL")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Escribe acá tu consulta SQL")).not.toBeInTheDocument();
     expect(screen.getByText("No se pudo cargar el editor.")).toBeInTheDocument();
     expect(screen.queryByText(/se guarda igual/)).not.toBeInTheDocument();
   });
@@ -139,6 +139,6 @@ describe("SqlRunner sin el editor", () => {
     estadoMonaco.estado = "listo";
     montar({ value: null, onChange: () => {} });
     expect(screen.getByTestId("monaco")).toBeInTheDocument();
-    expect(screen.queryByPlaceholderText("Escribí acá tu consulta SQL")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("Escribe acá tu consulta SQL")).not.toBeInTheDocument();
   });
 });

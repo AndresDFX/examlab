@@ -388,7 +388,7 @@ export function FraudPanel({ kind, refId, userNames }: FraudPanelProps) {
       toast.error(
         i18n.t("toast.modules_exams_FraudPanel.plagiarismNoQueueMode", {
           defaultValue:
-            "La detección de plagio no soporta modo cola. Activá un código de IA inmediata para continuar.",
+            "La detección de plagio no soporta modo cola. Activa un código de IA inmediata para continuar.",
         }),
       );
       return;

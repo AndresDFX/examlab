@@ -209,7 +209,7 @@ function StudentCertificates() {
         friendlyError(
           e,
           i18n.t("toast.routes_app_student_certificates.verifyLinkCopyFailed", {
-            defaultValue: "No pudimos copiar el link. Abrí la verificación y copialo de la barra.",
+            defaultValue: "No pudimos copiar el link. Abre la verificación y copialo de la barra.",
           }),
         ),
       );

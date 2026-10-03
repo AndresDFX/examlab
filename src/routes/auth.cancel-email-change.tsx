@@ -87,19 +87,19 @@ function CancelEmailChangePage() {
     if (code === "revert_window_expired") {
       return t("auth.cancelEmailChange.errorWindowExpired", {
         defaultValue:
-          "Pasaron más de 24h desde el cambio; la ventana para revertir desde este link ya cerró. Si no reconocés el cambio, contactá a soporte y reseteá tu contraseña.",
+          "Pasaron más de 24h desde el cambio; la ventana para revertir desde este link ya cerró. Si no reconoces el cambio, contacta a soporte y restablece tu contraseña.",
       });
     }
     if (code === "revert_not_available_legacy_token") {
       return t("auth.cancelEmailChange.errorLegacyToken", {
         defaultValue:
-          "Este link corresponde a un cambio previo al nuevo flujo de reverso. El cambio fue cancelado, pero no podemos restaurar automáticamente. Si necesitás tu correo anterior, contactá a soporte.",
+          "Este link corresponde a un cambio previo al nuevo flujo de reverso. El cambio fue cancelado, pero no podemos restaurar automáticamente. Si necesitas tu correo anterior, contacta a soporte.",
       });
     }
     if (code === "previous_email_taken_by_other") {
       return t("auth.cancelEmailChange.errorPreviousTaken", {
         defaultValue:
-          "Tu correo anterior fue tomado por otra cuenta. No podemos revertir automáticamente — contactá a soporte para resolverlo.",
+          "Tu correo anterior fue tomado por otra cuenta. No podemos revertir automáticamente — contacta a soporte para resolverlo.",
       });
     }
     if (code === "missing_token") {
@@ -169,7 +169,7 @@ function CancelEmailChangePage() {
                     {state.wasRevert
                       ? t("auth.cancelEmailChange.successRevertBody", {
                           defaultValue:
-                            "Tu cuenta volvió a usar tu correo anterior. Iniciá sesión con él:",
+                            "Tu cuenta volvió a usar tu correo anterior. Inicia sesión con él:",
                         })
                       : t("auth.cancelEmailChange.successBody", {
                           defaultValue:

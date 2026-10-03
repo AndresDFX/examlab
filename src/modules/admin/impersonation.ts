@@ -198,7 +198,7 @@ export async function startImpersonate(userId: string): Promise<void> {
   if (!sessCheck.session || sessCheck.session.user.id !== target.id) {
     localStorage.removeItem(IMPERSONATION_BACKUP_KEY);
     sessionStorage.removeItem(IMPERSONATION_TRANSITION_FLAG);
-    throw new Error("La sesión impersonada no se persistió correctamente. Volvé a intentar.");
+    throw new Error("La sesión impersonada no se persistió correctamente. Vuelve a intentar.");
   }
 
   window.dispatchEvent(new Event("examlab:impersonation-changed"));

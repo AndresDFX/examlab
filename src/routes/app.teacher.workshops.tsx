@@ -3194,7 +3194,7 @@ function TeacherWorkshops() {
         toast.warning(
           i18n.t("toast.routes_app_teacher_workshops.gradeAllPartial", {
             defaultValue:
-              "{{graded}} calificada(s), {{failed}} quedaron pendientes (revisa los errores arriba y volvé a intentar).",
+              "{{graded}} calificada(s), {{failed}} quedaron pendientes (revisa los errores arriba y vuelve a intentar).",
             graded,
             failed,
           }),
@@ -3273,7 +3273,7 @@ function TeacherWorkshops() {
             : null,
         i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmCost", {
           defaultValue:
-            "Cada entrega consume cuota de IA y tarda entre 30 y 90 segundos. Podés detener el proceso a mitad.",
+            "Cada entrega consume cuota de IA y tarda entre 30 y 90 segundos. Puedes detener el proceso a mitad.",
         }),
         i18n.t("hc_routesAppTeacherWorkshops.regradeConfirmManual", {
           defaultValue:
@@ -3401,7 +3401,7 @@ function TeacherWorkshops() {
         toast.warning(
           i18n.t("toast.routes_app_teacher_workshops.regradePartial", {
             defaultValue:
-              "{{done}} recalificada(s), {{failed}} con error (mirá el detalle en la ventana).",
+              "{{done}} recalificada(s), {{failed}} con error (mira el detalle en la ventana).",
             done,
             failed,
           }),

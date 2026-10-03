@@ -1775,7 +1775,7 @@ function Inner() {
     if (genNecesitaFoco && !parseFocoKey(genFocoKey)) {
       toast.error(
         i18n.t("toast.routes_app_teacher_reports.selectFoco", {
-          defaultValue: "Elegí la evaluación de la que habla este informe",
+          defaultValue: "Elige la evaluación de la que habla este informe",
         }),
       );
       return;
@@ -2245,7 +2245,7 @@ function Inner() {
     const seleccionados = agregar.faltantes.filter((f) => agregarSel.has(f.id));
     if (seleccionados.length === 0) {
       toast.info(
-        i18n.t("reportAppend.noneSelected", { defaultValue: "Elegí al menos un estudiante." }),
+        i18n.t("reportAppend.noneSelected", { defaultValue: "Elige al menos un estudiante." }),
       );
       return;
     }
@@ -2298,7 +2298,7 @@ function Inner() {
         toast.error(
           i18n.t("reportAppend.noRows", {
             defaultValue:
-              "No se pudieron generar las filas de los estudiantes. Revisá que la plantilla tenga un listado con casilla de firma.",
+              "No se pudieron generar las filas de los estudiantes. Revisa que la plantilla tenga un listado con casilla de firma.",
           }),
         );
         return;
@@ -2316,7 +2316,7 @@ function Inner() {
         toast.error(
           i18n.t("reportAppend.noList", {
             defaultValue:
-              "No encontramos el listado de estudiantes en este documento, así que no agregamos nada. Revisá que la plantilla tenga una tabla con casilla de firma por estudiante.",
+              "No encontramos el listado de estudiantes en este documento, así que no agregamos nada. Revisa que la plantilla tenga una tabla con casilla de firma por estudiante.",
           }),
         );
         return;
@@ -2680,14 +2680,14 @@ function Inner() {
                   <HelpHint>
                     {t("hc_routesAppTeacherReports.genHistoryFrozenHint", {
                       defaultValue:
-                        "Cada informe queda congelado tal cual se generó: si después corregís el nombre de un estudiante, los informes ya generados siguen mostrando el nombre anterior. Generá el informe de nuevo para que salga con el nombre actualizado.",
+                        "Cada informe queda congelado tal cual se generó: si después corriges el nombre de un estudiante, los informes ya generados siguen mostrando el nombre anterior. Genera el informe de nuevo para que salga con el nombre actualizado.",
                     })}
                   </HelpHint>
                 </h3>
                 <p className="text-2xs text-muted-foreground">
                   {t("hc_routesAppTeacherReports.genHistoryHint", {
                     defaultValue:
-                      "Cada Word/PDF que generaste desde una plantilla. Volvé a descargarlo cuando quieras.",
+                      "Cada Word/PDF que generaste desde una plantilla. Vuelve a descargarlo cuando quieras.",
                   })}
                 </p>
               </div>
@@ -2748,7 +2748,7 @@ function Inner() {
                               : t("hc_routesAppTeacherReports.genEmptyTitle", { defaultValue: "Aún no generaste informes" })
                           }
                           hint={t("hc_routesAppTeacherReports.genEmptyHint", {
-                            defaultValue: "Generá uno desde una plantilla (tab “Plantillas” → Generar).",
+                            defaultValue: "Genera uno desde una plantilla (tab “Plantillas” → Generar).",
                           })}
                         />
                       ) : (
@@ -3113,7 +3113,7 @@ function Inner() {
                         genLoadingEvaluaciones
                           ? t("hc_routesAppTeacherReports.loading")
                           : t("hc_routesAppTeacherReports.focoPlaceholder", {
-                              defaultValue: "Elegí el examen, taller o proyecto",
+                              defaultValue: "Elige el examen, taller o proyecto",
                             })
                       }
                     />
@@ -3312,7 +3312,7 @@ function Inner() {
           <p className="text-2xs text-muted-foreground -mt-1">
             {t("hc_routesAppTeacherReports.generateHint", {
               defaultValue:
-                "Generá el archivo descargable (Word o PDF) con tus ajustes. Cada descarga queda en “Informes generados”.",
+                "Genera el archivo descargable (Word o PDF) con tus ajustes. Cada descarga queda en “Informes generados”.",
             })}
           </p>
 

@@ -175,7 +175,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
     if (!fromDate || !toDate) {
       toast.error(
         i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.pickBothDates", {
-          defaultValue: "Eligí ambas fechas",
+          defaultValue: "Elige ambas fechas",
         }),
       );
       return [];
@@ -200,13 +200,13 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         if (msg === "no_calendar_selected") {
           toast.error(
             i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noCalendarSelected", {
-              defaultValue: "Primero seleccioná un calendario en la pantalla de Calendar.",
+              defaultValue: "Primero selecciona un calendario en la pantalla de Calendar.",
             }),
           );
         } else if (msg === "calendar_not_accessible") {
           toast.error(
             i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.calendarNotAccessible", {
-              defaultValue: "El calendario ya no es accesible. Reconectá Google Calendar.",
+              defaultValue: "El calendario ya no es accesible. Reconecta Google Calendar.",
             }),
           );
         } else {
@@ -265,7 +265,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         toast.info(
           i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noLinkedInRange", {
             defaultValue:
-              "No hay sesiones vinculadas a eventos en este rango. Ajustá las fechas para cubrir las sesiones ya vinculadas y reintentá.",
+              "No hay sesiones vinculadas a eventos en este rango. Ajusta las fechas para cubrir las sesiones ya vinculadas y reintenta.",
           }),
         );
         return;

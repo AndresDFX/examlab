@@ -340,7 +340,7 @@ function WhiteboardEditorPage() {
               {!metaName.trim() ? (
                 <span className="flex items-center gap-1 text-xs text-amber-600 dark:text-amber-400">
                   {t("hc_routesAppTeacherWhiteboardsId.needsNameToSave", {
-                    defaultValue: "Poné un nombre para guardar",
+                    defaultValue: "Pon un nombre para guardar",
                   })}
                 </span>
               ) : metaStatus === "saving" ? (

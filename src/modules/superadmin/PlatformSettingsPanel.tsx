@@ -171,7 +171,7 @@ export function PlatformSettingsPanel() {
               <p className="text-xs text-muted-foreground">
                 {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsHelpBefore", { defaultValue: "Cuando está activo, cada interacción del módulo Soporte (apertura de ticket, respuesta, cambio de estado) dispara" })}{" "}
                 <strong>email</strong>{" "}
-                {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsHelpAfter", { defaultValue: "al destinatario. Cuando está desactivado, las notificaciones siguen apareciendo en la campana in-app pero NO sale email — útil si gestionás todo desde el panel sin saturar la bandeja." })}
+                {t("hc_modulesSuperadminPlatformSettingsPanel.supportEmailsHelpAfter", { defaultValue: "al destinatario. Cuando está desactivado, las notificaciones siguen apareciendo en la campana in-app pero NO sale email — útil si gestionas todo desde el panel sin saturar la bandeja." })}
               </p>
             </div>
           </div>

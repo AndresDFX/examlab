@@ -1501,7 +1501,7 @@ function CourseBoardPage() {
                         })
                       : t("slideAnnotations.openActionUnavailable", {
                           defaultValue:
-                            "Sin diapositivas anotables (subí imágenes de las diapositivas)",
+                            "Sin diapositivas anotables (sube imágenes de las diapositivas)",
                         })
                   }
                   disabled={c.slideCount === 0}

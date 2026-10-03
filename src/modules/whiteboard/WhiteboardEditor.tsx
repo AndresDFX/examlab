@@ -1205,7 +1205,7 @@ export function WhiteboardEditor(props: Props) {
           <p className="max-w-md text-xs text-muted-foreground">
             {i18n.t("hc_modulesWhiteboardWhiteboardEditor.crashHint", {
               defaultValue:
-                "El contenido guardado no se pudo cargar en el editor. Podés reintentar; si vuelve a fallar, avisá al administrador.",
+                "El contenido guardado no se pudo cargar en el editor. Puedes reintentar; si vuelve a fallar, avisa al administrador.",
             })}
           </p>
           {error?.message && (

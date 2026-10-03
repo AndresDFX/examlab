@@ -122,7 +122,7 @@ const EDGE_FUNCTION_DESCRIPTIONS: Record<string, string> = {
     "Worker invocado por pg_cron hourly que drena `ai_grading_queue` y aplica resultados.",
   "broadcast-course-message":
     "Envío masivo de mensaje + notificación + email a los matriculados de un curso.",
-  "bulk-import-users": "Importa usuarios desde CSV creándolos en auth.users + profiles + roles.",
+  "bulk-import-users": "Importa usuarios desde CSV creandolos en auth.users + profiles + roles.",
   calendar: "Conecta Google/Outlook con el docente y sincroniza sesiones del curso como eventos.",
   "calendar-ics":
     "Genera el ICS de los eventos del docente para suscribirse desde calendarios externos.",

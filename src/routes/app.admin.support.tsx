@@ -383,7 +383,7 @@ function AdminSupportPage() {
         toast.warning(
           i18n.t("adminSupport.ticketCreatedSomeAttachmentsFailed", {
             defaultValue:
-              "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — podés volver a subirlos desde el detalle.",
+              "Ticket creado. {{uploaded}} adjunto(s) subido(s), {{failed}} fallaron — puedes volver a subirlos desde el detalle.",
             uploaded: attachmentsUploaded,
             failed: attachmentsFailed,
           }),

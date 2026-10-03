@@ -597,7 +597,7 @@ function ExamEditor() {
               enrErr,
               t("hc_routesAppTeacherExamsExamId.reassignReadFailed", {
                 defaultValue:
-                  "El examen se guardó, pero no se pudieron leer los matriculados del curso nuevo: las asignaciones quedaron como estaban. Volvé a guardar.",
+                  "El examen se guardó, pero no se pudieron leer los matriculados del curso nuevo: las asignaciones quedaron como estaban. Vuelve a guardar.",
               }),
             ),
             { duration: 12000 },

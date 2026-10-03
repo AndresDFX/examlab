@@ -1811,7 +1811,7 @@ function CreatePollDialog({
     if (slotDates.length === 0) {
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.addAtLeastOneDate", {
-          defaultValue: "Agregá al menos una fecha",
+          defaultValue: "Agrega al menos una fecha",
         }),
       );
       return;
@@ -1829,7 +1829,7 @@ function CreatePollDialog({
     if (!slotTimeStart || !slotTimeEnd) {
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.defineTimeWindow", {
-          defaultValue: "Definí la ventana horaria (inicio y fin)",
+          defaultValue: "Define la ventana horaria (inicio y fin)",
         }),
       );
       return;
@@ -1845,7 +1845,7 @@ function CreatePollDialog({
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.configProducesNoSlots", {
           defaultValue:
-            "La configuración no produce ningún slot — revisá la ventana horaria y la periodicidad",
+            "La configuración no produce ningún slot — revisa la ventana horaria y la periodicidad",
         }),
       );
       return;
@@ -1860,7 +1860,7 @@ function CreatePollDialog({
     toast.success(
       i18n.t("toast.routes_app_teacher_polls.slotsGenerated", {
         defaultValue:
-          "{{count}} slot(s) generados de {{dates}} fecha{{plural}}. Esas fechas se quitaron de la lista — agregá más y volvé a generar si necesitás.",
+          "{{count}} slot(s) generados de {{dates}} fecha{{plural}}. Esas fechas se quitaron de la lista — agrega más y vuelve a generar si necesitas.",
         count: generated.length,
         dates: generatedDates,
         plural: generatedDates === 1 ? "" : "s",
@@ -2017,7 +2017,7 @@ function CreatePollDialog({
     if (!manualSlotDate || !manualSlotTime) {
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.pickSlotDateTime", {
-          defaultValue: "Elegí fecha y hora para el slot",
+          defaultValue: "Elige fecha y hora para el slot",
         }),
       );
       return;
@@ -2100,7 +2100,7 @@ function CreatePollDialog({
     if (courseIds.length === 0) {
       toast.error(
         i18n.t("toast.routes_app_teacher_polls.chooseAtLeastOneCourse", {
-          defaultValue: "Elegí al menos un curso",
+          defaultValue: "Elige al menos un curso",
         }),
       );
       return;
@@ -2142,7 +2142,7 @@ function CreatePollDialog({
           type === "slot"
             ? i18n.t("toast.routes_app_teacher_polls.slotNeedsConfig", {
                 defaultValue:
-                  "Agregá al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
+                  "Agrega al menos una fecha y una ventana horaria válida (inicio antes de fin) para generar los slots.",
               })
             : i18n.t("toast.routes_app_teacher_polls.atLeastTwoOptions", {
                 defaultValue: "Se necesitan al menos 2 opciones",

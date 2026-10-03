@@ -706,7 +706,7 @@ function AdminUsers() {
           })
         : t("adminUsers.deactivateDesc", {
             defaultValue:
-              "No podrá iniciar sesión y libera su cupo de licencia. Su sesión se invalida al expirar el token. Podés reactivarlo luego.",
+              "No podrá iniciar sesión y libera su cupo de licencia. Su sesión se invalida al expirar el token. Puedes reactivarlo luego.",
           }),
       confirmLabel: active ? t("common.reactivate", { defaultValue: "Reactivar" }) : t("common.deactivate", { defaultValue: "Desactivar" }),
       tone: active ? "warning" : "destructive",
@@ -837,7 +837,7 @@ function AdminUsers() {
           t("adminUsers.partialLoadWarning", {
             fields: partial.join(", "),
             defaultValue:
-              "Los usuarios cargaron, pero estos datos complementarios no: {{fields}}. Recargá para reintentar.",
+              "Los usuarios cargaron, pero estos datos complementarios no: {{fields}}. Recarga para reintentar.",
           }),
           { duration: 10000 },
         );
@@ -906,7 +906,7 @@ function AdminUsers() {
         toast.error(
           i18n.t("toast.routes_app_admin_users.rolesAddFailedAfterRemove", {
             defaultValue:
-              "{{error}}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintentá agregar los nuevos.",
+              "{{error}}. Los roles a quitar SÍ se eliminaron; revisa el estado del usuario y reintenta agregar los nuevos.",
             error: friendlyError(error),
           }),
         );
@@ -1792,7 +1792,7 @@ function AdminUsers() {
           {
             duration: 12000,
             description: t("adminUsers.importSeeReport", {
-              defaultValue: "Abrí el detalle para ver el motivo de cada fila.",
+              defaultValue: "Abre el detalle para ver el motivo de cada fila.",
             }),
           },
         );

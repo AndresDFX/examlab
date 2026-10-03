@@ -493,7 +493,7 @@ export function AdminModelPanel() {
             title: t("aiModel.ownConfirmTitle", { defaultValue: "Usar tu propia IA" }),
             description: t("aiModel.ownConfirmBody", {
               defaultValue:
-                "Tu institución dejará de usar la IA compartida de la plataforma y pasará a usar TU propia API key. El consumo se cobrará a la cuenta del proveedor de tu institución. Si la key falla o agota su cuota, la IA de tu institución dejará de funcionar hasta que la corrijas. Esto NO afecta a otras instituciones. Recordá pegar tu API key aquí abajo.",
+                "Tu institución dejará de usar la IA compartida de la plataforma y pasará a usar TU propia API key. El consumo se cobrará a la cuenta del proveedor de tu institución. Si la key falla o agota su cuota, la IA de tu institución dejará de funcionar hasta que la corrijas. Esto NO afecta a otras instituciones. Recuerda pegar tu API key aquí abajo.",
             }),
             confirmLabel: t("aiModel.ownConfirmCta", { defaultValue: "Usar mi propia IA" }),
           }
@@ -573,7 +573,7 @@ export function AdminModelPanel() {
               </strong>{" "}
               {t("aiModel.scopeTenantOwnBody", {
                 defaultValue:
-                  "Pegá la API key del provider que vas a usar — cobra a la cuenta de tu institución. La calificación con IA no funciona hasta que esté configurada.",
+                  "Pega la API key del provider que vas a usar — cobra a la cuenta de tu institución. La calificación con IA no funciona hasta que esté configurada.",
               })}
             </>
           ) : (
@@ -585,7 +585,7 @@ export function AdminModelPanel() {
               </strong>{" "}
               {t("aiModel.scopeTenantSharedBody", {
                 defaultValue:
-                  "No necesitás configurar una API key. Si preferís usar la tuya, cambiá el modo a «Propia» abajo.",
+                  "No necesitas configurar una API key. Si prefieres usar la tuya, cambia el modo a «Propia» abajo.",
               })}
             </>
           )}
@@ -736,7 +736,7 @@ export function AdminModelPanel() {
               <Trans
                 i18nKey="hc_modulesAdminAdminModelPanel.apiKeyAlertGlobal"
                 values={{ secret: SECRET_NAME[draftProvider] }}
-                defaults="Esta key se usa para las tareas internas de la plataforma. Si la dejás vacía, las tareas caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback."
+                defaults="Esta key se usa para las tareas internas de la plataforma. Si la dejas vacía, las tareas caen al secret <code>{{secret}}</code> en Supabase → Edge Function Secrets como último fallback."
                 components={{ code: <code /> }}
               />
             ) : (
@@ -762,7 +762,7 @@ export function AdminModelPanel() {
                 "Sin configurar — las tareas internas de la plataforma caen al env secret",
             })}
             placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
-              defaultValue: "Pegá tu API key (obligatorio)",
+              defaultValue: "Pega tu API key (obligatorio)",
             })}
             helpHint={
               <div className="space-y-1">
@@ -809,7 +809,7 @@ export function AdminModelPanel() {
                   "Sin configurar — las tareas internas de la plataforma caen al env secret",
               })}
               placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
-                defaultValue: "Pegá tu API key (obligatorio)",
+                defaultValue: "Pega tu API key (obligatorio)",
               })}
               helpHint={
                 <div className="space-y-1">
@@ -869,7 +869,7 @@ export function AdminModelPanel() {
                 "Sin configurar — las tareas internas de la plataforma caen al env secret",
             })}
             placeholderEmptyTenant={t("aiModel.apiKeyEmptyTenant", {
-              defaultValue: "Pegá tu API key (obligatorio)",
+              defaultValue: "Pega tu API key (obligatorio)",
             })}
             helpHint={
               <div className="space-y-1">
@@ -1108,7 +1108,7 @@ function FallbackKeysEditor({
           <PasswordInput
             value={k}
             placeholder={t("aiModel.fallbackKeysPlaceholder", {
-              defaultValue: "Pegá una clave de respaldo",
+              defaultValue: "Pega una clave de respaldo",
             })}
             onChange={(e) => setAt(i, e.target.value)}
             wrapperClassName="flex-1"
@@ -1212,7 +1212,7 @@ function BedrockModelSelect({
   const cargarModelos = async () => {
     if (!apiKey) {
       setErrorCarga(
-        t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." }),
+        t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pega la API key antes de cargar." }),
       );
       return;
     }
@@ -1301,7 +1301,7 @@ function BedrockModelSelect({
           onClick={() => void cargarModelos()}
           title={
             !apiKey
-              ? t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." })
+              ? t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pega la API key antes de cargar." })
               : undefined
           }
         >
@@ -1327,7 +1327,7 @@ function BedrockModelSelect({
           la key es la única forma de que la razón se vea sin adivinar. */}
       {!apiKey && !cargando && (
         <p className="text-2xs text-muted-foreground">
-          {t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pegá la API key antes de cargar." })}
+          {t("aiModel.bedrockLoadModelsNoKey", { defaultValue: "Pega la API key antes de cargar." })}
         </p>
       )}
       {errorCarga && (
@@ -1411,9 +1411,9 @@ function HealthCheckButton({
   // haber pasado el mouse. Un hint SIEMPRE visible es la única forma de que
   // se entienda por qué está apagado sin adivinar.
   const disabledReason = !model.trim()
-    ? t("aiModel.healthCheckNoModel", { defaultValue: "Elegí un modelo antes de probar." })
+    ? t("aiModel.healthCheckNoModel", { defaultValue: "Elige un modelo antes de probar." })
     : !apiKey
-      ? t("aiModel.healthCheckNoKey", { defaultValue: "Pegá la API key antes de probar." })
+      ? t("aiModel.healthCheckNoKey", { defaultValue: "Pega la API key antes de probar." })
       : undefined;
 
   return (

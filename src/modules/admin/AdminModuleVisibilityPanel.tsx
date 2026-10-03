@@ -530,7 +530,7 @@ export function AdminModuleVisibilityPanel() {
               </strong>{" "}
               {t("moduleVisibility.scopeGlobalBody", {
                 defaultValue:
-                  "Lo que guardás acá es el default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su institución desde su propio panel.",
+                  "Lo que guardas acá es el default que reciben TODAS las instituciones. Cada Admin puede sobrescribirlo para su institución desde su propio panel.",
               })}
             </>
           ) : (
@@ -540,7 +540,7 @@ export function AdminModuleVisibilityPanel() {
               </strong>{" "}
               {t("moduleVisibility.scopeTenantBody", {
                 defaultValue:
-                  "Lo que guardás acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejás un módulo o estado sin tocar, se hereda del default global.",
+                  "Lo que guardas acá aplica SOLO a esta institución y se superpone sobre la configuración global de la plataforma. Si dejas un módulo o estado sin tocar, se hereda del default global.",
               })}
             </>
           )}

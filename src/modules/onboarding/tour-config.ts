@@ -68,7 +68,7 @@ export interface TourStep {
    *  creación al siguiente (el dialog del paso anterior queda abierto). */
   escapeBefore?: boolean;
   /** Cuántos ms esperar el `element` en el DOM después de las acciones
-   *  (route + clickBefore). Default 3000ms. Subilo para módulos
+   *  (route + clickBefore). Default 3000ms. Súbelo para módulos
    *  lentos (ej. dashboards con muchas queries). */
   waitMs?: number;
 }
@@ -92,7 +92,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="role-switcher"]',
     title: "Selector de rol",
     description:
-      "Si tenés más de un rol (ej. Admin + Docente), lo cambiás acá. Como <strong>Administrador</strong> tenés control total de la institución.",
+      "Si tienes más de un rol (ej. Admin + Docente), lo cambias acá. Como <strong>Administrador</strong> tienes control total de la institución.",
     side: "right",
     align: "start",
   },
@@ -113,7 +113,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/courses",
     title: "Cursos",
     description:
-      "Acá <strong>creás y administrás los cursos</strong> de tu institución. Cada curso vive su propia vida: tiene docentes, cortes con pesos, estudiantes matriculados y todo el contenido pedagógico adentro.",
+      "Acá <strong>creas y administras los cursos</strong> de tu institución. Cada curso vive su propia vida: tiene docentes, cortes con pesos, estudiantes matriculados y todo el contenido pedagógico adentro.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nuevo curso" ───────────────────────
@@ -124,7 +124,7 @@ export const ADMIN_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear un curso",
     description:
-      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanzá con <em>Siguiente</em>.",
+      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -140,7 +140,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="course-field-period"]',
     title: "Periodo académico",
     description:
-      "El periodo al que pertenece este curso (ej. 2026-1). Si tu institución gestiona periodos centralmente, elegís del dropdown — el código se sincroniza automáticamente.",
+      "El periodo al que pertenece este curso (ej. 2026-1). Si tu institución gestiona periodos centralmente, eliges del dropdown — el código se sincroniza automáticamente.",
     side: "left",
     align: "start",
   },
@@ -148,7 +148,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="course-field-subject"]',
     title: "Asignatura del plan",
     description:
-      "La asignatura es la <strong>fuente de verdad</strong> para programa + semestre. Al elegirla, ambos se heredan — no tenés que duplicar la info.",
+      "La asignatura es la <strong>fuente de verdad</strong> para programa + semestre. Al elegirla, ambos se heredan — no tienes que duplicar la info.",
     side: "left",
     align: "start",
   },
@@ -164,7 +164,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="course-field-cuts"]',
     title: "Cortes evaluativos",
     description:
-      "Definí cuántos cortes tiene (1er parcial, 2do, final). Cada uno suma a la nota final con su peso (ej. 30/30/40). Los pesos por tipo (exámenes/talleres/proyectos) se editan adentro de cada corte.",
+      "Define cuántos cortes tiene (1er parcial, 2do, final). Cada uno suma a la nota final con su peso (ej. 30/30/40). Los pesos por tipo (exámenes/talleres/proyectos) se editan adentro de cada corte.",
     side: "left",
     align: "start",
   },
@@ -177,7 +177,7 @@ export const ADMIN_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Académico",
     description:
-      "Definís de qué se compone tu institución: <strong>programas</strong> (Ingeniería, Diseño…), <strong>periodos</strong> (2026-I, 2026-II) y <strong>asignaturas</strong>. Se configura una vez al año y los docentes reutilizan todo al crear sus cursos.",
+      "Defines de qué se compone tu institución: <strong>programas</strong> (Ingeniería, Diseño…), <strong>periodos</strong> (2026-I, 2026-II) y <strong>asignaturas</strong>. Se configura una vez al año y los docentes reutilizan todo al crear sus cursos.",
     side: "right",
   },
 
@@ -187,7 +187,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/teacher/contents",
     title: "Contenidos",
     description:
-      "Todo el <strong>material de estudio</strong> que producen los docentes (presentaciones, guías, ejercicios). Acá podés revisar lo que se está generando con IA y verificar la calidad antes de que llegue a los alumnos.",
+      "Todo el <strong>material de estudio</strong> que producen los docentes (presentaciones, guías, ejercicios). Acá puedes revisar lo que se está generando con IA y verificar la calidad antes de que llegue a los alumnos.",
     side: "right",
   },
 
@@ -207,7 +207,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/ai-prompts",
     title: "Prompts IA",
     description:
-      "Acá decidís <strong>cómo califica la IA</strong> en tu institución: el tono, los criterios y qué tan estricta es. Lo definís una vez y aplica a todos los docentes. Cada docente puede ajustarlo para su propio curso.",
+      "Acá decides <strong>cómo califica la IA</strong> en tu institución: el tono, los criterios y qué tan estricta es. Lo defines una vez y aplica a todos los docentes. Cada docente puede ajustarlo para su propio curso.",
     side: "right",
   },
 
@@ -217,7 +217,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/ai-cron",
     title: "Cola de IA",
     description:
-      "Acá ves <strong>todo lo que la IA está haciendo</strong>: qué entregas está calificando, qué materiales está generando y qué se trabó. Si algo falla, lo reintentás con un click. Útil cuando un docente avisa que su nota no llegó.",
+      "Acá ves <strong>todo lo que la IA está haciendo</strong>: qué entregas está calificando, qué materiales está generando y qué se trabó. Si algo falla, lo reintentas con un click. Útil cuando un docente avisa que su nota no llegó.",
     side: "right",
   },
 
@@ -237,7 +237,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/certificates",
     title: "Certificaciones",
     description:
-      "Plantillas y emisiones de certificados de finalización. Definís el diseño una vez (logo, firma, texto) y se aplica a los alumnos que aprueben el curso.",
+      "Plantillas y emisiones de certificados de finalización. Defines el diseño una vez (logo, firma, texto) y se aplica a los alumnos que aprueben el curso.",
     side: "right",
   },
 
@@ -257,7 +257,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/users",
     title: "Usuarios",
     description:
-      "<p>Creá y gestionás los <strong>usuarios</strong> de tu institución: docentes, estudiantes y otros administradores. Asignás roles y los matriculás en cursos. En los próximos pasos te muestro las dos formas de crearlos.",
+      "<p>Crea y gestionas los <strong>usuarios</strong> de tu institución: docentes, estudiantes y otros administradores. Asignas roles y los matriculas en cursos. En los próximos pasos te muestro las dos formas de crearlos.",
     side: "right",
   },
   // ─── Demo INTERACTIVA: crear un usuario ─────────────────────────────
@@ -267,7 +267,7 @@ export const ADMIN_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear un usuario",
     description:
-      "<p>Click en <em>Nuevo usuario</em> abre este modal.</p><ol><li>Email + nombre completo.</li><li>Rol(es): Estudiante, Docente, Admin (o varios).</li><li>Contraseña temporal — el usuario la cambia en su primer login.</li><li>Si es Estudiante, podés asignarle código institucional.</li></ol>",
+      "<p>Click en <em>Nuevo usuario</em> abre este modal.</p><ol><li>Email + nombre completo.</li><li>Rol(es): Estudiante, Docente, Admin (o varios).</li><li>Contraseña temporal — el usuario la cambia en su primer login.</li><li>Si es Estudiante, puedes asignarle código institucional.</li></ol>",
     side: "left",
     align: "center",
   },
@@ -277,7 +277,7 @@ export const ADMIN_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Importar usuarios en lote",
     description:
-      "<p>Para crear <strong>muchos usuarios a la vez</strong>:</p><ol><li>Abrí el menú <em>Datos</em>.</li><li>Click <em>Descargar plantilla</em> — bajás un CSV de ejemplo.</li><li>Llenala con los usuarios (email, nombre, rol, código).</li><li>Click <em>Importar desde CSV</em> y subí el archivo.</li></ol><p>Se crea uno cada ~500ms para no saturar la API.</p>",
+      "<p>Para crear <strong>muchos usuarios a la vez</strong>:</p><ol><li>Abre el menú <em>Datos</em>.</li><li>Click <em>Descargar plantilla</em> — bajas un CSV de ejemplo.</li><li>Llénala con los usuarios (email, nombre, rol, código).</li><li>Click <em>Importar desde CSV</em> y sube el archivo.</li></ol><p>Se crea uno cada ~500ms para no saturar la API.</p>",
     side: "bottom",
     align: "end",
   },
@@ -302,7 +302,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/trash",
     title: "Papelera",
     description:
-      "¿Un docente borró un examen por error? Acá lo recuperás. Todo lo que se elimina (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
+      "¿Un docente borró un examen por error? Acá lo recuperas. Todo lo que se elimina (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
     side: "right",
   },
 
@@ -314,7 +314,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/support",
     title: "Soporte (PQRS)",
     description:
-      "Tu canal directo con el <strong>SuperAdmin</strong> de la plataforma. Abrí un ticket con tu <em>petición, queja, reclamo o sugerencia</em> — podés adjuntar archivos y mantener la conversación dentro del ticket. Recibís notificación cuando te respondan o cambien el estado. Casos típicos: errores de plataforma, solicitudes de cuota, reportes de bugs, dudas operativas.",
+      "Tu canal directo con el <strong>SuperAdmin</strong> de la plataforma. Abre un ticket con tu <em>petición, queja, reclamo o sugerencia</em> — puedes adjuntar archivos y mantener la conversación dentro del ticket. Recibes notificación cuando te respondan o cambien el estado. Casos típicos: errores de plataforma, solicitudes de cuota, reportes de bugs, dudas operativas.",
     side: "right",
   },
 
@@ -324,7 +324,7 @@ export const ADMIN_TOUR: TourStep[] = [
     route: "/app/admin/settings",
     title: "Configuración",
     description:
-      "El panel de control de tu institución: cambiás el <strong>logo y los colores</strong> (branding), ajustás cuántos usuarios pueden tener cada rol, y decidís <strong>qué módulos ve cada uno</strong>. Los cambios se aplican al instante.",
+      "El panel de control de tu institución: cambias el <strong>logo y los colores</strong> (branding), ajustas cuántos usuarios pueden tener cada rol, y decides <strong>qué módulos ve cada uno</strong>. Los cambios se aplican al instante.",
     side: "right",
   },
 
@@ -337,9 +337,9 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="settings-ai-tab"]',
     route: "/app/admin/settings",
     clickBefore: '[data-tour-id="settings-ai-tab"]',
-    title: "Configurá tu API key de IA",
+    title: "Configura tu API key de IA",
     description:
-      "<p><strong>Importante:</strong> tu institución necesita su propia API key para usar la calificación con IA, generación de contenidos y detección de copia.</p><ol><li>Entrá a esta pestaña <em>Modelo IA</em>.</li><li>Elegí proveedor: <em>Google Gemini</em> (recomendado, hay tier gratuito) u <em>OpenAI</em>.</li><li>Pegá la API key generada en tu cuenta del proveedor.</li><li>Guardá.</li></ol><p>El costo se cobra a tu cuenta del proveedor — no a ExamLab. Sin esta key, las funciones de IA no funcionan en tu institución.</p>",
+      "<p><strong>Importante:</strong> tu institución necesita su propia API key para usar la calificación con IA, generación de contenidos y detección de copia.</p><ol><li>Entra a esta pestaña <em>Modelo IA</em>.</li><li>Elige proveedor: <em>Google Gemini</em> (recomendado, hay tier gratuito) u <em>OpenAI</em>.</li><li>Pega la API key generada en tu cuenta del proveedor.</li><li>Guarda.</li></ol><p>El costo se cobra a tu cuenta del proveedor — no a ExamLab. Sin esta key, las funciones de IA no funcionan en tu institución.</p>",
     side: "bottom",
     waitMs: 4000,
   },
@@ -353,9 +353,9 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="settings-email-tab"]',
     route: "/app/admin/settings",
     clickBefore: '[data-tour-id="settings-email-tab"]',
-    title: "Configurá los correos",
+    title: "Configura los correos",
     description:
-      "<p>Tab <em>Correos</em>: prendés / apagás el envío de emails por categoría (calificaciones, mensajes, encuestas...).</p><ol><li><strong>Interruptor global</strong>: lo apagás y NO sale ningún correo (notif in-app sigue).</li><li><strong>Bienvenida</strong>: el correo automático al crear usuarios nuevos. Apágalo si repartís contraseñas a mano o usás SSO.</li></ol>",
+      "<p>Tab <em>Correos</em>: prendes / apagas el envío de emails por categoría (calificaciones, mensajes, encuestas...).</p><ol><li><strong>Interruptor global</strong>: lo apagas y NO sale ningún correo (notif in-app sigue).</li><li><strong>Bienvenida</strong>: el correo automático al crear usuarios nuevos. Apágalo si repartes contraseñas a mano o usas SSO.</li></ol>",
     side: "bottom",
     waitMs: 3000,
   },
@@ -365,7 +365,7 @@ export const ADMIN_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="settings-email-tab"]',
     title: "Bienvenida (nuevos usuarios)",
     description:
-      "Este toggle controla el correo de <em>“Define tu contraseña”</em> que se envía al crear un usuario nuevo (form individual o bulk CSV). Apágalo cuando ya entregás las claves por otro canal — evita inundar bandejas con links que nadie usa.",
+      "Este toggle controla el correo de <em>“Define tu contraseña”</em> que se envía al crear un usuario nuevo (form individual o bulk CSV). Apágalo cuando ya entregas las claves por otro canal — evita inundar bandejas con links que nadie usa.",
     side: "left",
     align: "center",
     waitMs: 3000,
@@ -384,7 +384,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="notifications-bell"]',
     title: "Notificaciones",
     description:
-      "Avisos del sistema y de tus usuarios. El badge rojo indica cuántas no leídas tenés. Click para abrir el popover con la lista.",
+      "Avisos del sistema y de tus usuarios. El badge rojo indica cuántas no leídas tienes. Click para abrir el popover con la lista.",
     side: "right",
     align: "end",
   },
@@ -400,7 +400,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="more-options"]',
     title: "Más opciones",
     description:
-      "Editar perfil, cambiar contraseña, preferencias de notificación, tema claro/oscuro, idioma. Y desde acá podés <strong>volver a ver este tour</strong> cuando quieras.",
+      "Editar perfil, cambiar contraseña, preferencias de notificación, tema claro/oscuro, idioma. Y desde acá puedes <strong>volver a ver este tour</strong> cuando quieras.",
     side: "right",
     align: "end",
   },
@@ -408,7 +408,7 @@ export const ADMIN_TOUR: TourStep[] = [
     element: '[data-tour-id="logout"]',
     title: "Cerrar sesión",
     description:
-      "Cuando termines, cerrá sesión desde acá. ¡Listo! Si volvés a necesitar el tour, está en el menú de Más opciones.",
+      "Cuando termines, cierra sesión desde acá. ¡Listo! Si vuelves a necesitar el tour, está en el menú de Más opciones.",
     side: "right",
     align: "end",
   },
@@ -450,7 +450,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app",
     title: "Dashboard",
     description:
-      "Vista general de tu día: notas pendientes de calificar, sesiones de hoy, próximos exámenes, conversaciones sin responder. El punto de partida cada vez que entrás.",
+      "Vista general de tu día: notas pendientes de calificar, sesiones de hoy, próximos exámenes, conversaciones sin responder. El punto de partida cada vez que entras.",
     side: "right",
   },
 
@@ -460,7 +460,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/courses",
     title: "Mis cursos",
     description:
-      "Los cursos que dictás. Desde acá entrás a su tablero (asistencia, contenidos, gradebook) y a las listas de exámenes/talleres/proyectos del curso.",
+      "Los cursos que dictas. Desde acá entras a su tablero (asistencia, contenidos, gradebook) y a las listas de exámenes/talleres/proyectos del curso.",
     side: "right",
   },
 
@@ -470,7 +470,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/contents",
     title: "Contenidos",
     description:
-      "<p>Material de estudio para tus alumnos (PPTX, MD, PDF, ZIP).</p><strong>Tenés dos caminos:</strong><ol><li><em>Nuevo contenido</em> → la IA lo genera a partir de un tema + syllabus.</li><li><em>Subir externo</em> → cargás un archivo tuyo (ya hecho) y le ponés la misma metadata pedagógica (tema, modo, tags, idioma) para que se vea junto al resto.</li></ol>",
+      "<p>Material de estudio para tus alumnos (PPTX, MD, PDF, ZIP).</p><strong>Tienes dos caminos:</strong><ol><li><em>Nuevo contenido</em> → la IA lo genera a partir de un tema + syllabus.</li><li><em>Subir externo</em> → cargas un archivo tuyo (ya hecho) y le pones la misma metadata pedagógica (tema, modo, tags, idioma) para que se vea junto al resto.</li></ol>",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Subir externo" ─────────────────────
@@ -488,7 +488,7 @@ export const TEACHER_TOUR: TourStep[] = [
     waitMs: 500,
     title: "Subir contenido externo",
     description:
-      "<p>Cargás un archivo ya hecho (PDF / PPTX / DOCX / MD / ZIP) y completás la MISMA metadata que el flujo de IA: tema, modo (curso completo o individual), tags, idioma, instrucciones.</p><p>Así tu material queda con todos los filtros y búsquedas funcionando — sin gastar créditos de IA.</p>",
+      "<p>Cargas un archivo ya hecho (PDF / PPTX / DOCX / MD / ZIP) y completas la MISMA metadata que el flujo de IA: tema, modo (curso completo o individual), tags, idioma, instrucciones.</p><p>Así tu material queda con todos los filtros y búsquedas funcionando — sin gastar créditos de IA.</p>",
     side: "left",
     align: "center",
   },
@@ -499,7 +499,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/question-bank",
     title: "Preguntas",
     description:
-      "Tu <strong>biblioteca de preguntas reutilizables</strong> por curso. Una vez que armás una buena pregunta, la guardás acá y la importás desde cualquier examen/taller/proyecto en vez de reescribirla.",
+      "Tu <strong>biblioteca de preguntas reutilizables</strong> por curso. Una vez que armas una buena pregunta, la guardas acá y la importas desde cualquier examen/taller/proyecto en vez de reescribirla.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva pregunta" ────────────────────
@@ -508,7 +508,7 @@ export const TEACHER_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="create-question"]',
     waitMs: 400,
     title: "Crear una pregunta",
-    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
+    description: "Te muestro los <strong>campos clave</strong>. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -532,7 +532,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="question-field-rubric"]',
     title: "Rúbrica esperada",
     description:
-      "Lo que esperás como respuesta ideal: <strong>la IA califica usando esto</strong>. Definí criterios concretos (no solo “bien explicado”) para que las notas sean consistentes. No aplica para preguntas cerradas.",
+      "Lo que esperas como respuesta ideal: <strong>la IA califica usando esto</strong>. Define criterios concretos (no solo “bien explicado”) para que las notas sean consistentes. No aplica para preguntas cerradas.",
     side: "left",
     align: "start",
   },
@@ -559,7 +559,7 @@ export const TEACHER_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear un examen",
     description:
-      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanzá con <em>Siguiente</em>.",
+      "Te muestro los <strong>campos clave</strong> del formulario en los próximos pasos. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -583,7 +583,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="exam-field-courses"]',
     title: "Curso(s)",
     description:
-      "A qué curso pertenece. Si seleccionás <strong>varios</strong>, el examen se publica idéntico en todos (útil cuando dictás la misma materia a 2 grupos).",
+      "A qué curso pertenece. Si seleccionas <strong>varios</strong>, el examen se publica idéntico en todos (útil cuando dictas la misma materia a 2 grupos).",
     side: "left",
     align: "start",
   },
@@ -591,7 +591,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="exam-field-dates"]',
     title: "Ventana de fechas",
     description:
-      "Desde cuándo está <strong>disponible</strong> hasta cuándo el alumno puede entregar. La duración (minutos) se auto-calcula al elegir Fin, pero podés ajustarla manualmente. Después del cierre, no se aceptan más intentos.",
+      "Desde cuándo está <strong>disponible</strong> hasta cuándo el alumno puede entregar. La duración (minutos) se auto-calcula al elegir Fin, pero puedes ajustarla manualmente. Después del cierre, no se aceptan más intentos.",
     side: "left",
     align: "start",
   },
@@ -612,7 +612,7 @@ export const TEACHER_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="create-workshop"]',
     waitMs: 400,
     title: "Crear un taller",
-    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
+    description: "Te muestro los <strong>campos clave</strong>. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -636,7 +636,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="workshop-field-courses"]',
     title: "Curso(s)",
     description:
-      "Curso(s) donde aplica. Podés asociarlo a varios — un solo registro de taller que viven N alumnos de distintos cursos.",
+      "Curso(s) donde aplica. Puedes asociarlo a varios — un solo registro de taller que viven N alumnos de distintos cursos.",
     side: "left",
     align: "start",
   },
@@ -648,7 +648,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="workshop-section-delivery"]',
     title: "Cómo se entrega",
     description:
-      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Abrila solo si querés cambiar algo — los grupos los administrás desde el botón <em>Grupos</em> del grid.",
+      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Ábrela solo si quieres cambiar algo — los grupos los administras desde el botón <em>Grupos</em> del grid.",
     side: "left",
     align: "start",
   },
@@ -660,7 +660,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Proyectos",
     description:
-      "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, vos lo sustentás en persona y le ponés un factor (0-1) que multiplica la nota.",
+      "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, vos lo sustentas en persona y le pones un factor (0-1) que multiplica la nota.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nuevo proyecto" ────────────────────
@@ -669,7 +669,7 @@ export const TEACHER_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="create-project"]',
     waitMs: 400,
     title: "Crear un proyecto",
-    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
+    description: "Te muestro los <strong>campos clave</strong>. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -685,7 +685,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="project-field-group-mode"]',
     title: "Modo de trabajo",
     description:
-      "Individual, grupal o mixto. Los proyectos típicamente son grupales — definí grupos desde el botón <em>Grupos</em> del grid antes de la fecha de entrega.",
+      "Individual, grupal o mixto. Los proyectos típicamente son grupales — define grupos desde el botón <em>Grupos</em> del grid antes de la fecha de entrega.",
     side: "left",
     align: "start",
   },
@@ -701,7 +701,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="project-field-description"]',
     title: "Descripción (importante para la IA)",
     description:
-      "Esta es la <strong>descripción global del proyecto</strong>. La IA la usa al calificar CADA entrega como contexto — sin esto califica las preguntas aisladas y pierde sentido del conjunto. Definí propósito + alcance + restricciones en 3-6 oraciones.",
+      "Esta es la <strong>descripción global del proyecto</strong>. La IA la usa al calificar CADA entrega como contexto — sin esto califica las preguntas aisladas y pierde sentido del conjunto. Define propósito + alcance + restricciones en 3-6 oraciones.",
     side: "left",
     align: "start",
   },
@@ -714,7 +714,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Calificaciones",
     description:
-      "El <strong>boletín consolidado</strong> de cada curso. Ves todas las notas de tus alumnos (exámenes, talleres, proyectos y asistencia) agrupadas por corte. Acá editás notas de actividades que hiciste por fuera (presencial) y bajás un CSV para subir al sistema de la institución.",
+      "El <strong>boletín consolidado</strong> de cada curso. Ves todas las notas de tus alumnos (exámenes, talleres, proyectos y asistencia) agrupadas por corte. Acá editas notas de actividades que hiciste por fuera (presencial) y bajas un CSV para subir al sistema de la institución.",
     side: "right",
   },
 
@@ -724,7 +724,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/attendance",
     title: "Asistencia",
     description:
-      "Tu <strong>tablero de asistencia</strong>: una columna por sesión, una fila por alumno. Tenés <strong>3 modos</strong> de crear sesiones: una sola, programar varias automáticas (días de la semana), o importar de CSV. Cada sesión es además el contenedor de pizarra, snippets y encuestas en vivo.",
+      "Tu <strong>tablero de asistencia</strong>: una columna por sesión, una fila por alumno. Tienes <strong>3 modos</strong> de crear sesiones: una sola, programar varias automáticas (días de la semana), o importar de CSV. Cada sesión es además el contenedor de pizarra, snippets y encuestas en vivo.",
     side: "right",
   },
   // ─── Dialog "Nueva sesión" — demo interactiva ───────────────────────
@@ -737,14 +737,14 @@ export const TEACHER_TOUR: TourStep[] = [
     waitMs: 400,
     title: "Crear una sesión",
     description:
-      "Una sesión = una clase. Te muestro los campos clave del modal — para crear MUCHAS sesiones a la vez podés usar <em>Programar sesiones</em> o <em>Importar CSV</em> desde el botón al lado.",
+      "Una sesión = una clase. Te muestro los campos clave del modal — para crear MUCHAS sesiones a la vez puedes usar <em>Programar sesiones</em> o <em>Importar CSV</em> desde el botón al lado.",
     side: "left",
     align: "center",
   },
   {
     element: '[data-tour-id="session-field-date"]',
     title: "Fecha",
-    description: "El día de la clase. Usá el calendar picker — respeta zona horaria de Bogotá.",
+    description: "El día de la clase. Usa el calendar picker — respeta zona horaria de Bogotá.",
     side: "left",
     align: "start",
   },
@@ -752,7 +752,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="session-field-time"]',
     title: "Hora inicio + Hora fin",
     description:
-      "Ahora marcás <strong>hora de inicio</strong> y <strong>hora de fin</strong> (zona horaria local). La duración se calcula sola y se usa para sincronizar con Google Calendar a la hora real. Si dejás ambas vacías, queda como sesión sin horario fijo.",
+      "Ahora marcas <strong>hora de inicio</strong> y <strong>hora de fin</strong> (zona horaria local). La duración se calcula sola y se usa para sincronizar con Google Calendar a la hora real. Si dejas ambas vacías, queda como sesión sin horario fijo.",
     side: "left",
     align: "start",
   },
@@ -760,7 +760,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="session-field-title"]',
     title: "Título (opcional)",
     description:
-      "Descripción corta de la clase (ej. <em>“Clase 5 — Recursión”</em>, <em>“Lab 2”</em>). Si lo dejás vacío, aparece como <em>“Clase del DD-MM-YYYY”</em>.",
+      "Descripción corta de la clase (ej. <em>“Clase 5 — Recursión”</em>, <em>“Lab 2”</em>). Si lo dejas vacío, aparece como <em>“Clase del DD-MM-YYYY”</em>.",
     side: "left",
     align: "start",
   },
@@ -768,7 +768,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="session-field-cut"]',
     title: "Corte",
     description:
-      "A qué corte aporta la asistencia. Si dejás <em>Sin corte</em>, la sesión queda visible pero no cuenta para la nota. Reasignable después desde la columna <em>Corte</em> del tablero.",
+      "A qué corte aporta la asistencia. Si dejas <em>Sin corte</em>, la sesión queda visible pero no cuenta para la nota. Reasignable después desde la columna <em>Corte</em> del tablero.",
     side: "left",
     align: "start",
   },
@@ -781,7 +781,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Pizarras",
     description:
-      "Tus <strong>pizarras digitales</strong> (Excalidraw embebido). Las usás para explicar conceptos en clase, dejar diagramas que los alumnos puedan consultar, o trabajar con ellos en tiempo real.",
+      "Tus <strong>pizarras digitales</strong> (Excalidraw embebido). Las usas para explicar conceptos en clase, dejar diagramas que los alumnos puedan consultar, o trabajar con ellos en tiempo real.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva pizarra" ─────────────────────
@@ -790,7 +790,7 @@ export const TEACHER_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="create-whiteboard"]',
     waitMs: 400,
     title: "Crear una pizarra",
-    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
+    description: "Te muestro los <strong>campos clave</strong>. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -806,7 +806,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="whiteboard-field-description"]',
     title: "Descripción (opcional)",
     description:
-      "Notas internas para vos: contexto, qué temas cubre, etc. Los alumnos NO la ven — es solo para que vos te ubiques cuando tengas muchas.",
+      "Notas internas para ti: contexto, qué temas cubre, etc. Los alumnos NO la ven — es solo para que vos te ubiques cuando tengas muchas.",
     side: "left",
     align: "start",
   },
@@ -814,7 +814,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="whiteboard-field-course"]',
     title: "Curso (opcional)",
     description:
-      "Si la asociás a un curso, podés <strong>compartirla con sus alumnos</strong> en modo read-only desde la pizarra. Sin curso, la pizarra es privada — solo vos la ves.",
+      "Si la asocias a un curso, puedes <strong>compartirla con sus alumnos</strong> en modo read-only desde la pizarra. Sin curso, la pizarra es privada — solo tú la ves.",
     side: "left",
     align: "start",
   },
@@ -826,7 +826,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Encuestas",
     description:
-      "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>retos en vivo</strong> — un quiz gamificado en tiempo real. Desde el menú de cada fila podés <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
+      "Cuatro tipos en un solo lugar: <strong>opción única</strong> o <strong>múltiple</strong> para votar en clase, <strong>cupo (Doodle)</strong> para coordinar fechas, y <strong>retos en vivo</strong> — un quiz gamificado en tiempo real. Desde el menú de cada fila puedes <strong>duplicarla</strong>, <strong>compartir un enlace único</strong> y en <em>Ver resultados</em> ver <strong>qué eligió cada alumno</strong>. Tip: clic en el encabezado de una columna ordena el grid.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nueva encuesta" ────────────────────
@@ -835,7 +835,7 @@ export const TEACHER_TOUR: TourStep[] = [
     clickBefore: '[data-tour-id="create-poll"]',
     waitMs: 400,
     title: "Crear una encuesta",
-    description: "Te muestro los <strong>campos clave</strong>. Avanzá con <em>Siguiente</em>.",
+    description: "Te muestro los <strong>campos clave</strong>. Avanza con <em>Siguiente</em>.",
     side: "left",
     align: "center",
   },
@@ -843,7 +843,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="poll-field-title"]',
     title: "Título",
     description:
-      "La pregunta o tema central. Sé directo — <em>“¿Quedó claro el concepto?”</em>, <em>“Elegí tu fecha de sustentación”</em>.",
+      "La pregunta o tema central. Sé directo — <em>“¿Quedó claro el concepto?”</em>, <em>“Elige tu fecha de sustentación”</em>.",
     side: "left",
     align: "start",
   },
@@ -851,7 +851,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="poll-field-courses"]',
     title: "Curso(s)",
     description:
-      "Podés asociar la encuesta a <strong>uno o varios cursos</strong>. Los alumnos matriculados en cualquiera pueden votar. Útil si dictás la misma materia a varios grupos.",
+      "Puedes asociar la encuesta a <strong>uno o varios cursos</strong>. Los alumnos matriculados en cualquiera pueden votar. Útil si dictas la misma materia a varios grupos.",
     side: "left",
     align: "start",
   },
@@ -876,7 +876,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Reto en vivo: quiz gamificado",
     description:
-      "<p>Un reto en vivo es un juego de preguntas en tiempo real:</p><ol><li>Creá una encuesta tipo <em>Reto en vivo</em>.</li><li>En su menú, abrí <em>Preguntas</em> y armá el cuestionario — a mano o <strong>con IA</strong> (única o varias respuestas correctas).</li><li>Click <em>Hospedar en vivo</em>: se genera un <strong>PIN</strong> + <strong>QR</strong> que proyectás.</li><li>Los alumnos entran con el PIN/QR y esperan en la sala.</li><li>Avanzás pregunta por pregunta viendo el puntaje acumulado.</li></ol>",
+      "<p>Un reto en vivo es un juego de preguntas en tiempo real:</p><ol><li>Crea una encuesta tipo <em>Reto en vivo</em>.</li><li>En su menú, abre <em>Preguntas</em> y arma el cuestionario — a mano o <strong>con IA</strong> (única o varias respuestas correctas).</li><li>Click <em>Hospedar en vivo</em>: se genera un <strong>PIN</strong> + <strong>QR</strong> que proyectas.</li><li>Los alumnos entran con el PIN/QR y esperan en la sala.</li><li>Avanzas pregunta por pregunta viendo el puntaje acumulado.</li></ol>",
     side: "bottom",
     align: "end",
   },
@@ -909,7 +909,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/ai-prompts",
     title: "Prompts IA",
     description:
-      "¿No te gusta cómo la IA está calificando? Acá <strong>ajustás el tono y los criterios</strong> para TUS cursos. Por ejemplo: más estricta con la sintaxis en Programación I, más flexible con redacción en Ética. Cada curso puede tener su receta.",
+      "¿No te gusta cómo la IA está calificando? Acá <strong>ajustas el tono y los criterios</strong> para TUS cursos. Por ejemplo: más estricta con la sintaxis en Programación I, más flexible con redacción en Ética. Cada curso puede tener su receta.",
     side: "right",
   },
 
@@ -919,7 +919,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/videos",
     title: "Videos",
     description:
-      "Tu <strong>biblioteca de videos</strong> (YouTube, Vimeo, MP4 propios). Los enlazás en talleres y proyectos como recurso obligatorio o de apoyo. Subís uno y lo reutilizás en todos los cursos donde lo necesites.",
+      "Tu <strong>biblioteca de videos</strong> (YouTube, Vimeo, MP4 propios). Los enlazas en talleres y proyectos como recurso obligatorio o de apoyo. Subes uno y lo reutilizas en todos los cursos donde lo necesites.",
     side: "right",
   },
 
@@ -929,7 +929,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/certificates",
     title: "Certificaciones",
     description:
-      "Cuando un alumno aprueba el curso, acá podés <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución, vos solo confirmás que lleguen.",
+      "Cuando un alumno aprueba el curso, acá puedes <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución, vos solo confirmas que lleguen.",
     side: "right",
   },
 
@@ -939,7 +939,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/ai-cron",
     title: "Cola IA",
     description:
-      "¿Un alumno pregunta dónde está su nota? Acá ves <strong>qué está calificando la IA</strong> en este momento, qué se terminó y qué se trabó. Si algo falló, lo reintentás con un click — no hace falta llamar a soporte.",
+      "¿Un alumno pregunta dónde está su nota? Acá ves <strong>qué está calificando la IA</strong> en este momento, qué se terminó y qué se trabó. Si algo falló, lo reintentas con un click — no hace falta llamar a soporte.",
     side: "right",
   },
 
@@ -949,7 +949,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/reports",
     title: "Documentos",
     description:
-      "Generás <strong>actas, boletines y reportes</strong> en PDF a partir de plantillas pre-armadas. Eligís curso + corte + periodo y descargás. Lo que te ahorra rellenar el formato del consejo académico a mano cada semestre.",
+      "Generas <strong>actas, boletines y reportes</strong> en PDF a partir de plantillas pre-armadas. Eliges curso + corte + periodo y descargas. Lo que te ahorra rellenar el formato del consejo académico a mano cada semestre.",
     side: "right",
   },
 
@@ -959,7 +959,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/students",
     title: "Mis estudiantes",
     description:
-      "El <strong>directorio de tus alumnos</strong> con su rendimiento de un vistazo. Si querés saber qué ve un alumno exactamente (porque te dice que no le aparece algo), usás <em>Ver como</em> y entrás a su vista por un rato.",
+      "El <strong>directorio de tus alumnos</strong> con su rendimiento de un vistazo. Si quieres saber qué ve un alumno exactamente (porque te dice que no le aparece algo), usas <em>Ver como</em> y entras a su vista por un rato.",
     side: "right",
   },
 
@@ -969,7 +969,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/teacher/audit-logs",
     title: "Auditoría",
     description:
-      "El historial de <strong>todo lo que pasó en tus cursos</strong>: qué creaste, qué entregaron tus alumnos, qué calificó la IA y cuándo. Útil cuando un alumno reclama una nota y necesitás reconstruir qué pasó.",
+      "El historial de <strong>todo lo que pasó en tus cursos</strong>: qué creaste, qué entregaron tus alumnos, qué calificó la IA y cuándo. Útil cuando un alumno reclama una nota y necesitas reconstruir qué pasó.",
     side: "right",
   },
 
@@ -979,7 +979,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/trash",
     title: "Papelera",
     description:
-      "¿Borraste un examen por error? Acá lo recuperás. Todo lo que eliminás (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
+      "¿Borraste un examen por error? Acá lo recuperas. Todo lo que eliminas (cursos, exámenes, talleres, proyectos…) queda <strong>30 días</strong> antes de borrarse para siempre. Click en <em>Restaurar</em> y vuelve a aparecer como si nada.",
     side: "right",
   },
 
@@ -988,7 +988,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="user-info"]',
     title: "Tu cuenta",
     description:
-      "Tu identidad. Desde el menú de tres puntos podés editar perfil, cambiar contraseña, preferencias de notificación y volver a ver este tour.",
+      "Tu identidad. Desde el menú de tres puntos puedes editar perfil, cambiar contraseña, preferencias de notificación y volver a ver este tour.",
     side: "right",
     align: "end",
   },
@@ -996,7 +996,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="notifications-bell"]',
     title: "Notificaciones",
     description:
-      "Avisos: entregas pendientes de calificar, mensajes nuevos, foros con respuestas. El badge rojo indica cuántas no leídas tenés.",
+      "Avisos: entregas pendientes de calificar, mensajes nuevos, foros con respuestas. El badge rojo indica cuántas no leídas tienes.",
     side: "right",
     align: "end",
   },
@@ -1004,7 +1004,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="messages-bell"]',
     title: "Mensajes",
     description:
-      "Chat 1-a-1 con alumnos y otros docentes. Acá llegan mensajes nuevos. El badge rojo indica cuántas conversaciones no leídas tenés.",
+      "Chat 1-a-1 con alumnos y otros docentes. Acá llegan mensajes nuevos. El badge rojo indica cuántas conversaciones no leídas tienes.",
     side: "right",
     align: "end",
   },
@@ -1014,7 +1014,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/messages",
     title: "Difundir a curso(s)",
     description:
-      "<p>Desde Mensajes podés <strong>enviar un aviso a TODO un curso</strong> (o a varios) de una sola vez.</p><ol><li>Click <em>Enviar a todos los estudiantes</em>.</li><li>Seleccioná uno o varios cursos.</li><li>Escribí asunto + cuerpo. Etiquetá talleres/exámenes con <code>#</code>.</li><li>Enviar ahora o <em>programar</em> para más tarde.</li></ol><p>Cada alumno recibe notif in-app + correo BCC.</p>",
+      "<p>Desde Mensajes puedes <strong>enviar un aviso a TODO un curso</strong> (o a varios) de una sola vez.</p><ol><li>Click <em>Enviar a todos los estudiantes</em>.</li><li>Selecciona uno o varios cursos.</li><li>Escribe asunto + cuerpo. Etiqueta talleres/exámenes con <code>#</code>.</li><li>Enviar ahora o <em>programar</em> para más tarde.</li></ol><p>Cada alumno recibe notif in-app + correo BCC.</p>",
     side: "bottom",
     align: "end",
   },
@@ -1022,7 +1022,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="more-options"]',
     title: "Más opciones",
     description:
-      "Perfil, contraseña, preferencias, tema e idioma. Y desde acá podés <strong>volver a ver este tour</strong> cuando quieras.",
+      "Perfil, contraseña, preferencias, tema e idioma. Y desde acá puedes <strong>volver a ver este tour</strong> cuando quieras.",
     side: "right",
     align: "end",
   },
@@ -1037,7 +1037,7 @@ export const STUDENT_TOUR: TourStep[] = [
     element: '[data-tour-id="brand"]',
     title: "Bienvenido a ExamLab",
     description:
-      "Acá ves el nombre de tu institución. Desde el sidebar accedés a tus cursos, exámenes, talleres y todo lo que el docente publique.",
+      "Acá ves el nombre de tu institución. Desde el sidebar accedes a tus cursos, exámenes, talleres y todo lo que el docente publique.",
     side: "right",
     align: "start",
   },
@@ -1068,7 +1068,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/exams",
     title: "Exámenes",
     description:
-      "<strong>Para entregar un examen:</strong><ol><li>Esperá la ventana de tiempo definida por el docente.</li><li>Click <em>Comenzar</em>.</li><li>Respondé las preguntas (modo proctoring si el docente lo activó: pantalla completa, no copia/pega).</li><li>Click <em>Entregar</em>.</li></ol> La IA califica las preguntas abiertas y de código automáticamente.",
+      "<strong>Para entregar un examen:</strong><ol><li>Espera la ventana de tiempo definida por el docente.</li><li>Click <em>Comenzar</em>.</li><li>Responde las preguntas (modo proctoring si el docente lo activó: pantalla completa, no copia/pega).</li><li>Click <em>Entregar</em>.</li></ol> La IA califica las preguntas abiertas y de código automáticamente.",
     side: "right",
   },
 
@@ -1078,7 +1078,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/workshops",
     title: "Talleres",
     description:
-      "<strong>Para entregar un taller:</strong><ol><li>Abrí el taller pendiente.</li><li>Respondé cada pregunta (código, abierta, diagrama, ZIP de archivos...).</li><li>Click <em>Entregar</em> antes de la fecha límite.</li></ol> Si el taller es en <em>grupo</em>, cualquier miembro puede editar la misma entrega.",
+      "<strong>Para entregar un taller:</strong><ol><li>Abre el taller pendiente.</li><li>Responde cada pregunta (código, abierta, diagrama, ZIP de archivos...).</li><li>Click <em>Entregar</em> antes de la fecha límite.</li></ol> Si el taller es en <em>grupo</em>, cualquier miembro puede editar la misma entrega.",
     side: "right",
   },
 
@@ -1088,7 +1088,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/projects",
     title: "Proyectos",
     description:
-      "<strong>Para entregar un proyecto:</strong><ol><li>Subí los archivos esperados (README, diagrama, ZIP de código).</li><li>Pegá el link a tu repo (Git, Drive...).</li><li>Click <em>Entregar</em>.</li><li>La nota final llega <em>después</em> de tu sustentación con el docente.</li></ol>",
+      "<strong>Para entregar un proyecto:</strong><ol><li>Sube los archivos esperados (README, diagrama, ZIP de código).</li><li>Pega el link a tu repo (Git, Drive...).</li><li>Click <em>Entregar</em>.</li><li>La nota final llega <em>después</em> de tu sustentación con el docente.</li></ol>",
     side: "right",
   },
 
@@ -1108,7 +1108,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/attendance",
     title: "Asistencia",
     description:
-      "Tu historial de asistencia por curso.<br><strong>Para hacer check-in en vivo:</strong> cuando el docente abra el QR, click <em>Escanear QR</em> con tu cámara o tipeá el código de 6 dígitos. También verás los <em>snippets de código</em> y <em>pizarras compartidas</em> de cada sesión.",
+      "Tu historial de asistencia por curso.<br><strong>Para hacer check-in en vivo:</strong> cuando el docente abra el QR, click <em>Escanear QR</em> con tu cámara o escribe el código de 6 dígitos. También verás los <em>snippets de código</em> y <em>pizarras compartidas</em> de cada sesión.",
     side: "right",
   },
 
@@ -1118,7 +1118,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/polls",
     title: "Encuestas",
     description:
-      "Votás encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, podés <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un reto en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escaneá el <strong>QR</strong> o tipeá el <strong>PIN</strong> que él proyecta.</li><li>Esperá en la <em>sala</em> a que arranque.</li><li>Respondé cada pregunta a tiempo — ganás puntos por acertar rápido.</li></ol>",
+      "Votas encuestas del docente (única, múltiple o por cupo tipo Doodle). Si lo permite, puedes <strong>cambiar</strong> o <strong>quitar</strong> tu respuesta.<br><strong>Para unirte a un reto en vivo:</strong><ol><li>Cuando el docente lo inicie, aparece arriba una tarjeta de juego.</li><li>Escanea el <strong>QR</strong> o escribe el <strong>PIN</strong> que él proyecta.</li><li>Espera en la <em>sala</em> a que arranque.</li><li>Responde cada pregunta a tiempo — ganas puntos por acertar rápido.</li></ol>",
     side: "right",
   },
 
@@ -1128,7 +1128,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/whiteboards",
     title: "Pizarras",
     description:
-      "Las pizarras que tu docente comparte con el curso. Read-only — podés ver los diagramas que él explicó en clase y volver a consultarlos cuando estudies.",
+      "Las pizarras que tu docente comparte con el curso. Read-only — puedes ver los diagramas que él explicó en clase y volver a consultarlos cuando estudies.",
     side: "right",
   },
 
@@ -1138,7 +1138,7 @@ export const STUDENT_TOUR: TourStep[] = [
     route: "/app/student/calendar",
     title: "Calendario",
     description:
-      "Tu calendario unificado: clases, fechas de exámenes/talleres/proyectos. Exportable a Google Calendar (.ics) — instalá la suscripción y se sincroniza solo.",
+      "Tu calendario unificado: clases, fechas de exámenes/talleres/proyectos. Exportable a Google Calendar (.ics) — instala la suscripción y se sincroniza solo.",
     side: "right",
   },
 
@@ -1175,7 +1175,7 @@ export const STUDENT_TOUR: TourStep[] = [
     element: '[data-tour-id="notifications-bell"]',
     title: "Notificaciones",
     description:
-      "Avisos: tu examen fue calificado, hay una encuesta nueva, un foro tiene respuestas. El badge rojo indica cuántas no leídas tenés.",
+      "Avisos: tu examen fue calificado, hay una encuesta nueva, un foro tiene respuestas. El badge rojo indica cuántas no leídas tienes.",
     side: "right",
     align: "end",
   },
@@ -1183,7 +1183,7 @@ export const STUDENT_TOUR: TourStep[] = [
     element: '[data-tour-id="more-options"]',
     title: "Más opciones",
     description:
-      "Editá tu perfil, cambiá tu contraseña, ajustá preferencias de notificación o el idioma. Y desde acá podés <strong>volver a ver este tour</strong>.",
+      "Edita tu perfil, cambia tu contraseña, ajusta preferencias de notificación o el idioma. Y desde acá puedes <strong>volver a ver este tour</strong>.",
     side: "right",
     align: "end",
   },

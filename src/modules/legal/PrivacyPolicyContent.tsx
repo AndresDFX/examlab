@@ -82,7 +82,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
         "Datos de cuenta: nombre, correo institucional, rol(es) e institución. Opcionalmente un correo personal, si lo registrás para recibir avisos cuando el institucional falla.",
         "Identidad de inicio de sesión: si tu institución usa acceso corporativo (SSO), recibimos de ese proveedor tu identificador y tu correo para vincularlos a tu cuenta. Nunca recibimos tu contraseña corporativa.",
         "Datos académicos: cursos, grupo, matrículas, entregas de exámenes, talleres y proyectos, calificaciones, retroalimentación, sustentaciones y asistencia.",
-        "Contenido que creás: archivos, código, diagramas, respuestas, mensajes, participación en foros y encuestas.",
+        "Contenido que creas: archivos, código, diagramas, respuestas, mensajes, participación en foros y encuestas.",
         "Señales de supervisión de evaluaciones: ver la sección 5.",
         "Progreso sobre el material: qué archivos del tablero del curso abriste o descargaste, para poder mostrarte dónde ibas. Registra el hecho de abrirlo, no cuánto lo leíste, y no se usa para calificar.",
         "Datos técnicos: identificador de sesión, preferencias (tema, idioma, ajustes de las listas) y registros de auditoría con fecha, autor y acción.",
@@ -108,7 +108,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
         "Cuando el docente activa la supervisión de un examen, la plataforma registra señales sobre CÓMO se rindió: salir de pantalla completa, cambiar de pestaña o de ventana, copiar, cortar o pegar, abrir el menú contextual, intentos de captura de pantalla y salir del examen con el botón «atrás» del navegador. Al acumular tres advertencias la entrega queda marcada para revisión del docente.",
         "Durante un examen NO se activa la cámara ni el micrófono, y no se graba la pantalla. Las señales anteriores son eventos de la ventana del navegador, no imagen ni sonido.",
         "Para detectar copia, la plataforma también puede comparar entre sí las entregas de una misma actividad y señalarle al docente los pares con coincidencias que el enunciado no explica. Eso implica que tu entrega se procesa junto con la de tus compañeros, con la única finalidad de esa comparación.",
-        "Ninguna de estas señales decide por sí sola: son insumos para el docente, que es quien evalúa el caso y toma la decisión académica. Tenés derecho a que se te explique el señalamiento y a controvertirlo por los canales de tu institución.",
+        "Ninguna de estas señales decide por sí sola: son insumos para el docente, que es quien evalúa el caso y toma la decisión académica. Tienes derecho a que se te explique el señalamiento y a controvertirlo por los canales de tu institución.",
       ],
     },
     {
@@ -124,12 +124,12 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
     {
       title: "7. Cámara, notificaciones y permisos del dispositivo",
       paragraphs: [
-        "La plataforma solo pide permisos del dispositivo cuando una función concreta los necesita, y siempre podés negarlos:",
+        "La plataforma solo pide permisos del dispositivo cuando una función concreta los necesita, y siempre puedes negarlos:",
       ],
       bullets: [
-        "Cámara: únicamente para leer el código QR del registro de asistencia. La imagen se procesa en tu propio dispositivo para extraer el código; no se envía ni se almacena ninguna foto. Si preferís no dar el permiso, podés escribir el código de seis dígitos a mano.",
-        "Notificaciones: si las autorizás, guardamos el identificador que tu navegador genera para poder enviarte avisos de la plataforma. Podés revocarlo desde los ajustes del navegador.",
-        "Ejecución de código: cuando pulsás «Ejecutar», el código que escribiste se envía a un servicio de ejecución para devolverte la salida. Va el código, no tu identidad.",
+        "Cámara: únicamente para leer el código QR del registro de asistencia. La imagen se procesa en tu propio dispositivo para extraer el código; no se envía ni se almacena ninguna foto. Si prefieres no dar el permiso, puedes escribir el código de seis dígitos a mano.",
+        "Notificaciones: si las autorizas, guardamos el identificador que tu navegador genera para poder enviarte avisos de la plataforma. Puedes revocarlo desde los ajustes del navegador.",
+        "Ejecución de código: cuando pulsas «Ejecutar», el código que escribiste se envía a un servicio de ejecución para devolverte la salida. Va el código, no tu identidad.",
         "No recopilamos tu ubicación geográfica, ni usamos analítica de terceros, ni rastreamos tu actividad fuera de la plataforma.",
       ],
     },
@@ -156,7 +156,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
       bullets: [
         "Tu sesión iniciada, para no pedirte la contraseña en cada pantalla.",
         "Preferencias de interfaz: tema claro u oscuro, idioma, orden y tamaño de página de las listas.",
-        "Si activás «Recordarme», tu correo y la institución elegida, para prellenar el próximo inicio de sesión. La contraseña nunca se guarda: eso queda a cargo del administrador de contraseñas de tu navegador, si decidís usarlo.",
+        "Si activas «Recordarme», tu correo y la institución elegida, para prellenar el próximo inicio de sesión. La contraseña nunca se guarda: eso queda a cargo del administrador de contraseñas de tu navegador, si decides usarlo.",
         "Borrar los datos del sitio en tu navegador elimina todo lo anterior sin afectar tu cuenta ni tus notas.",
       ],
     },
@@ -177,7 +177,7 @@ export function PrivacyPolicyContent({ showHeader = true }: { showHeader?: boole
     },
     {
       title: "13. Tus derechos y cómo ejercerlos",
-      paragraphs: ["Como titular de tus datos personales tenés derecho a:"],
+      paragraphs: ["Como titular de tus datos personales tienes derecho a:"],
       bullets: [
         "Conocer, actualizar y rectificar tus datos, en especial los que estén incompletos o induzcan a error.",
         "Solicitar prueba de la autorización que dio origen al tratamiento.",

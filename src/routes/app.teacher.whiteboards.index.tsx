@@ -588,7 +588,7 @@ function TeacherWhiteboards() {
     if (draftSessionId !== "none" && draftCourseId === "none") {
       toast.error(
         i18n.t("toast.routes_app_teacher_whiteboards_index.sessionNeedsCourse", {
-          defaultValue: "Si elegís una sesión, primero hay que elegir el curso.",
+          defaultValue: "Si eliges una sesión, primero hay que elegir el curso.",
         }),
       );
       return;
@@ -599,7 +599,7 @@ function TeacherWhiteboards() {
     if (draftCourseId !== "none" && draftSessionId === "none") {
       toast.error(
         i18n.t("toast.routes_app_teacher_whiteboards_index.sessionRequiredForCourse", {
-          defaultValue: "Al asociar la pizarra a un curso, elegí (o creá) una sesión.",
+          defaultValue: "Al asociar la pizarra a un curso, elige (o crea) una sesión.",
         }),
       );
       return;
@@ -1218,7 +1218,7 @@ function TeacherWhiteboards() {
                           <SelectValue
                             placeholder={t(
                               "hc_routesAppTeacherWhiteboardsIndex.sessionPlaceholderRequired",
-                              { defaultValue: "Elegí una sesión" },
+                              { defaultValue: "Elige una sesión" },
                             )}
                           />
                         </SelectTrigger>

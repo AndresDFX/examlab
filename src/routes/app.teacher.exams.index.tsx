@@ -447,7 +447,7 @@ function TeacherExams() {
       title: t("exam.deleteTitle", { defaultValue: "Enviar a papelera" }),
       description: t("exam.deleteDesc", {
         defaultValue:
-          'El examen "{{title}}" se ocultará de la lista pero quedará en papelera por 30 días por si querés restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía.',
+          'El examen "{{title}}" se ocultará de la lista pero quedará en papelera por 30 días por si quieres restaurarlo. Las preguntas, asignaciones y entregas no se borran todavía.',
         title: exam.title,
       })
         + (arbol.hijas.get(exam.id)?.length
