@@ -57,6 +57,7 @@ import { sortRolesByDisplay } from "@/shared/lib/role-order";
 import { logEvent } from "@/shared/lib/audit";
 import { ensurePushSubscription } from "@/modules/notifications/push-subscription";
 import { setActiveRoleSignal } from "@/modules/tenants/active-role-signal";
+import { elegirRolInicial, guardarRol, leerRolGuardado } from "@/modules/tenants/rol-activo-guardado";
 import { ImpersonationBanner } from "@/modules/admin/ImpersonationBanner";
 import { IMPERSONATION_TRANSITION_FLAG } from "@/modules/admin/impersonation";
 import { TenantOverrideBanner } from "@/modules/tenants/TenantOverrideBanner";
@@ -783,17 +784,19 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   }, [loading, user]);
 
   useEffect(() => {
-    if (roles.length && !activeRole) {
+    if (roles.length && !activeRole && user) {
       // Prioridad del rol por DEFECTO al loguearse cuando el usuario tiene
       // varios roles. Docente gana a Admin a propósito: un usuario con ambos
       // (caso común: el docente que además administra su tenant) entra a
       // trabajar como Docente, no a la consola de administración. Un Admin
       // puro sigue entrando como Admin; un Estudiante puro como Estudiante.
       // SuperAdmin no se lista (un SA puro cae a roles[0]; mantiene su comportamiento).
-      const order: AppRole[] = ["Docente", "Admin", "Estudiante"];
-      setActiveRole(order.find((r) => roles.includes(r)) ?? roles[0]);
+      // Al RECARGAR manda el rol que se eligió en esta pestaña: sin eso el
+      // usuario volvía al de defecto y el guard de RBAC lo sacaba de la
+      // pantalla en la que estaba (ver rol-activo-guardado.ts).
+      setActiveRole(elegirRolInicial(roles, leerRolGuardado(user.id)));
     }
-  }, [roles, activeRole]);
+  }, [roles, activeRole, user]);
 
   // Publica el rol activo en el signal compartido para que
   // TenantThemeProvider (en __root.tsx, fuera de este árbol de contexto)
@@ -802,7 +805,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   // re-aplica (Admin) inmediatamente sin recargar la página.
   useEffect(() => {
     setActiveRoleSignal(activeRole);
-  }, [activeRole]);
+    if (activeRole && user) guardarRol(user.id, activeRole);
+  }, [activeRole, user]);
 
   /**
    * Handler unificado del Select de rol (desktop + mobile drawer).
