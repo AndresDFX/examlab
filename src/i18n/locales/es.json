@@ -11312,5 +11312,17 @@
     "grupos": "Grupos",
     "agregarPreguntas": "Agregar preguntas",
     "dirtyHint": "Este formulario tiene cambios sin guardar: estas ventanas trabajan con la versión guardada."
+  },
+  "estadoCortes": {
+    "actual": "Corte actual",
+    "conNotas": "Calificado",
+    "sinNotas": "Sin notas aún",
+    "soloAsistencia": "asistencia {{nota}}",
+    "toggleAria": "Mostrar u ocultar el detalle de {{cut}}",
+    "tipoConteo": "{{label}} {{conNota}}/{{total}}",
+    "tipo_exam": "Exámenes",
+    "tipo_workshop": "Talleres",
+    "tipo_project": "Proyectos",
+    "tipo_attendance": "Asistencia"
   }
 }

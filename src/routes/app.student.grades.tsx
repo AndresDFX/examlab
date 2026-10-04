@@ -47,6 +47,9 @@ import {
   CalendarCheck,
 } from "lucide-react";
 import { computeWeightedGrade } from "@/modules/grading/grade";
+import { resumirCortes, type ResumenDeCorte } from "@/modules/grading/estado-de-cortes";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ChevronDown } from "lucide-react";
 import {
   actividadesConNota,
   notaDelEstudianteEnCurso,
@@ -118,6 +121,8 @@ function StudentGrades() {
   const [courses, setCourses] = useState<Course[]>([]);
   const [courseId, setCourseId] = useState<string>("");
   const [cutsBreakdown, setCutsBreakdown] = useState<CutBreakdown[]>([]);
+  /** Cortes desplegados a mano; sin entrada, abierto solo el actual. */
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
   const [unassigned, setUnassigned] = useState<ItemRow[]>([]);
   const [finalGrade, setFinalGrade] = useState<number | null>(null);
   // La nota todavía puede cambiar: hay algo por darse o por calificar.
@@ -603,6 +608,13 @@ function StudentGrades() {
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
   const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
+  /** En qué va cada corte, desde las notas y no desde las fechas. */
+  const resumenes = resumirCortes(
+    cutsBreakdown.map((cb) => cb.items.map((i) => ({ kind: i.kind, grade: i.grade }))),
+  );
+  /** Verde si aprueba, rojo si no: lo primero que el estudiante busca. */
+  const colorDeNota = (n: number | null) =>
+    n == null || !course ? "" : n >= course.passing_grade ? "text-success" : "text-destructive";
 
   // Si la query de notas del curso seleccionado falló, no queremos
   // mostrar la tabla vacía como si estuviera "sin datos" — eso confunde
@@ -664,27 +676,54 @@ function StudentGrades() {
         <>
           {/* Tarjetas resumen: una por corte + final */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {cutsBreakdown.map((cb) => (
-              <Card key={cb.cut.id}>
-                <CardContent className="p-4 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground uppercase tracking-wide">
-                      {cb.cut.name}
-                    </span>
-                    <Badge variant="outline" className="text-3xs">
-                      {cb.cut.weight}%
-                    </Badge>
-                  </div>
-                  <div className="text-2xl font-semibold tabular-nums">{fmt(cb.grade)}</div>
-                  <div className="text-2xs text-muted-foreground">
-                    {t("studentGrades.gradedCount", {
-                      graded: cb.items.filter((i) => i.grade != null).length,
-                      total: cb.items.length,
-                    })}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {cutsBreakdown.map((cb, idx) => {
+              const r = resumenes[idx];
+              const asistencia = cb.items.find((i) => i.kind === "attendance");
+              return (
+                <Card
+                  key={cb.cut.id}
+                  className={r.estado === "actual" ? "border-primary/60 ring-1 ring-primary/40" : ""}
+                >
+                  <CardContent className="p-4 space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs text-muted-foreground uppercase tracking-wide truncate">
+                        {cb.cut.name}
+                      </span>
+                      <div className="flex items-center gap-1 shrink-0">
+                        {r.estado === "actual" && (
+                          <Badge className="text-3xs">{t("estadoCortes.actual")}</Badge>
+                        )}
+                        <Badge variant="outline" className="text-3xs">
+                          {cb.cut.weight}%
+                        </Badge>
+                      </div>
+                    </div>
+                    {r.conNotas ? (
+                      <>
+                        <div className={`text-2xl font-semibold tabular-nums ${colorDeNota(cb.grade)}`}>
+                          {fmt(cb.grade)}
+                        </div>
+                        <div className="text-2xs text-muted-foreground">
+                          {t("studentGrades.gradedCount", {
+                            graded: cb.items.filter((i) => i.grade != null).length,
+                            total: cb.items.length,
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-2xl font-semibold text-muted-foreground">—</div>
+                        <div className="text-2xs text-muted-foreground">
+                          {t("estadoCortes.sinNotas")}
+                          {asistencia?.grade != null &&
+                            ` · ${t("estadoCortes.soloAsistencia", { nota: fmt(asistencia.grade) })}`}
+                        </div>
+                      </>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
             <Card
               className={
                 passes === true
@@ -761,22 +800,55 @@ function StudentGrades() {
               </CardContent>
             </Card>
           ) : (
-            cutsBreakdown.map((cb) => (
-              <Card key={cb.cut.id}>
-                <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 space-y-0">
-                  <div>
-                    <CardTitle className="text-base">{cb.cut.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground">
-                      {t("studentGrades.cutWeight", { weight: cb.cut.weight })}{" "}
-                      <span className="font-medium tabular-nums">{fmt(cb.grade)}</span>
-                    </p>
-                  </div>
-                  {cb.cut.start_date && cb.cut.end_date && (
-                    <Badge variant="outline" className="text-3xs">
-                      {formatDateOnly(cb.cut.start_date)} → {formatDateOnly(cb.cut.end_date)}
-                    </Badge>
-                  )}
-                </CardHeader>
+            cutsBreakdown.map((cb, idx) => {
+              const r = resumenes[idx];
+              // Abierto por defecto SOLO el corte actual: los demás se despliegan
+              // a pedido, así la pantalla arranca mostrando lo que importa ahora.
+              const abierto = abiertos[cb.cut.id] ?? r.estado === "actual";
+              return (
+              <Collapsible
+                key={cb.cut.id}
+                open={abierto}
+                onOpenChange={(v) => setAbiertos((prev) => ({ ...prev, [cb.cut.id]: v }))}
+              >
+              <Card className={r.estado === "actual" ? "border-primary/60" : ""}>
+                <CollapsibleTrigger asChild>
+                  <button
+                    type="button"
+                    className="w-full text-left rounded-t-lg hover:bg-accent/40 transition-colors"
+                    aria-label={t("estadoCortes.toggleAria", { cut: cb.cut.name })}
+                  >
+                    <CardHeader className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 space-y-0">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <ChevronDown
+                            className={`h-4 w-4 shrink-0 transition-transform ${abierto ? "" : "-rotate-90"}`}
+                            aria-hidden
+                          />
+                          <CardTitle className="text-base truncate">{cb.cut.name}</CardTitle>
+                          <EstadoDeCorteBadge estado={r.estado} />
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          {t("studentGrades.cutWeight", { weight: cb.cut.weight })}{" "}
+                          {r.conNotas ? (
+                            <span className={`font-semibold tabular-nums ${colorDeNota(cb.grade)}`}>
+                              {fmt(cb.grade)}
+                            </span>
+                          ) : (
+                            <span className="font-medium">{t("estadoCortes.sinNotas")}</span>
+                          )}
+                        </p>
+                        <SintesisDeCorte resumen={r} />
+                      </div>
+                      {cb.cut.start_date && cb.cut.end_date && (
+                        <Badge variant="outline" className="text-3xs shrink-0">
+                          {formatDateOnly(cb.cut.start_date)} → {formatDateOnly(cb.cut.end_date)}
+                        </Badge>
+                      )}
+                    </CardHeader>
+                  </button>
+                </CollapsibleTrigger>
+                <CollapsibleContent>
                 <CardContent className="p-3 space-y-3">
                   {cb.items.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-4">
@@ -816,8 +888,11 @@ function StudentGrades() {
                     })
                   )}
                 </CardContent>
+                </CollapsibleContent>
               </Card>
-            ))
+              </Collapsible>
+              );
+            })
           )}
 
           {/* Items sin corte asignado */}
@@ -1020,4 +1095,40 @@ function KindBadge({ kind }: { kind: ItemRow["kind"] }) {
         </Badge>
       );
   }
+}
+
+/** El estado del corte en una palabra, con el color que lo distingue. */
+function EstadoDeCorteBadge({ estado }: { estado: ResumenDeCorte["estado"] }) {
+  const { t } = useTranslation();
+  if (estado === "actual") return <Badge className="text-3xs shrink-0">{t("estadoCortes.actual")}</Badge>;
+  if (estado === "con_notas")
+    return (
+      <Badge variant="secondary" className="text-3xs shrink-0">
+        {t("estadoCortes.conNotas")}
+      </Badge>
+    );
+  return (
+    <Badge variant="outline" className="text-3xs shrink-0 text-muted-foreground">
+      {t("estadoCortes.sinNotas")}
+    </Badge>
+  );
+}
+
+/** Qué hay en el corte: «Exámenes 2/3 · Talleres 1/1 · Asistencia 1/1» (con nota / total). */
+function SintesisDeCorte({ resumen }: { resumen: ResumenDeCorte }) {
+  const { t } = useTranslation();
+  if (resumen.porTipo.length === 0) return null;
+  return (
+    <p className="text-2xs text-muted-foreground truncate">
+      {resumen.porTipo
+        .map((x) =>
+          t("estadoCortes.tipoConteo", {
+            label: t(`estadoCortes.tipo_${x.kind}`),
+            conNota: x.conNota,
+            total: x.total,
+          }),
+        )
+        .join(" · ")}
+    </p>
+  );
 }

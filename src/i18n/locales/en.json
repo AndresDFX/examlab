@@ -11312,5 +11312,17 @@
     "grupos": "Groups",
     "agregarPreguntas": "Add questions",
     "dirtyHint": "This form has unsaved changes: these windows work with the saved version."
+  },
+  "estadoCortes": {
+    "actual": "Current term",
+    "conNotas": "Graded",
+    "sinNotas": "No grades yet",
+    "soloAsistencia": "attendance {{nota}}",
+    "toggleAria": "Show or hide the details of {{cut}}",
+    "tipoConteo": "{{label}} {{conNota}}/{{total}}",
+    "tipo_exam": "Exams",
+    "tipo_workshop": "Workshops",
+    "tipo_project": "Projects",
+    "tipo_attendance": "Attendance"
   }
 }
