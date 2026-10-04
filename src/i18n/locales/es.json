@@ -4456,9 +4456,6 @@
     "tableEmptyFirstBtn": "Crear primer taller",
     "tableEmptyFiltered": "Sin resultados para los filtros actuales.",
     "tableEmptyFilteredHint": "Limpia el buscador o el curso para ver todos los talleres.",
-    "actionAssign": "Asignación / excluir estudiantes",
-    "actionGroups": "Grupos",
-    "actionQuestions": "Preguntas del taller",
     "actionGrade": "Calificar",
     "actionEdit": "Editar",
     "actionDuplicate": "Duplicar",
@@ -4472,7 +4469,7 @@
     "groupModeIndividual": "Individual — cada estudiante entrega por separado",
     "groupModeRequired": "Grupal — todos deben estar en un grupo para entregar",
     "groupModeMixed": "Mixto — quien tenga grupo entrega en grupo, los demás individual",
-    "groupModeHint": "En Grupal o Mixto administras los grupos desde el menú \"Grupos\".",
+    "groupModeHint": "En Grupal o Mixto los grupos se arman con el botón «Grupos» de «Contenido y participantes», arriba de este formulario (disponible una vez guardado).",
     "fieldTitle": "Título",
     "fieldCourses": "Cursos",
     "fieldCoursesHint": "(selecciona uno o más)",
@@ -9264,10 +9261,7 @@
     "pauseReasonUnavailable": "El examen quedó pausado, pero el motivo no se pudo enviar: falta actualizar la plataforma. Avísale al estudiante por otro medio."
   },
   "hc_routesAppTeacherProjects": {
-    "actionAssignStudents": "Asignar estudiantes",
     "actionDuplicate": "Duplicar",
-    "actionGroups": "Grupos",
-    "actionProjectQuestions": "Preguntas del proyecto",
     "actionSubmissionsGrading": "Entregas y calificación",
     "addVideo": "Agregar video",
     "aiBadge": "IA: {{pct}}%",
@@ -9420,7 +9414,7 @@
     "willReplaceDescription": "⚠ Reemplazará la descripción actual.",
     "workMode": "Modo de trabajo",
     "workModeGroupRequired": "Grupal — todos deben estar en un grupo para entregar",
-    "workModeHint": "En Grupal o Mixto administras los grupos desde el menú \"Grupos\".",
+    "workModeHint": "En Grupal o Mixto los grupos se arman con el botón «Grupos» de «Contenido y participantes», arriba de este formulario (disponible una vez guardado).",
     "workModeIndividual": "Individual — cada estudiante entrega por separado",
     "workModeMixed": "Mixto — quien tenga grupo entrega en grupo, los demás individual",
     "zipLegacy": "(ZIP legacy)",
@@ -11309,5 +11303,14 @@
     "botonAsistenciaTitle": "Elige al azar entre los que asistieron a la clase de hoy, o entre todos",
     "silenciar": "Silenciar",
     "activarSonido": "Activar el sonido"
+  },
+  "editarConfig": {
+    "titulo": "Contenido y participantes",
+    "hint": "Lo que cambies aquí se guarda al momento, sin el botón Guardar de este formulario.",
+    "preguntas": "Preguntas",
+    "estudiantes": "Estudiantes asignados",
+    "grupos": "Grupos",
+    "agregarPreguntas": "Agregar preguntas",
+    "dirtyHint": "Este formulario tiene cambios sin guardar: estas ventanas trabajan con la versión guardada."
   }
 }

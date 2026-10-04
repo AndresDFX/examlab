@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde acciones, el docente define los archivos esperados, organiza los grupos de trabajo, revisa las entregas y registra la sustentación.",
+      "narration": "Desde acciones, el docente revisa las entregas y registra la sustentación. Los archivos esperados, los estudiantes asignados y los grupos se configuran al editar el proyecto.",
       "bufferMs": 700,
       "beats": [
         {
@@ -109,7 +109,8 @@
       "kind": "platform",
       "openVia": {
         "target": "rowaction:0",
-        "menuItem": "Preguntas"
+        "menuItem": "Editar",
+        "button": "Preguntas"
       },
       "tab": "Generar con IA",
       "narration": "Los entregables del proyecto también los arma la inteligencia artificial: le damos los temas... y generamos. Siempre incluye una entrega de código fuente, más preguntas de análisis y diseño.",

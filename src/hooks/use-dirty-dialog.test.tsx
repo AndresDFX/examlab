@@ -75,6 +75,27 @@ describe("useDirtyDialog — isDirty", () => {
   });
 });
 
+describe("useDirtyDialog — ajustarBase", () => {
+  it("un cambio que hizo el sistema no cuenta como sucio", () => {
+    const { result, rerender } = renderHook(({ open, form }) => useDirtyDialog(open, form), {
+      initialProps: { open: true, form: { name: "a", group_mode: "individual" } },
+    });
+    act(() => result.current.ajustarBase({ group_mode: "teacher_assigned" }));
+    rerender({ open: true, form: { name: "a", group_mode: "teacher_assigned" } });
+    expect(result.current.isDirty).toBe(false);
+  });
+
+  it("lo que el docente sí cambió sigue protegido", () => {
+    const { result, rerender } = renderHook(({ open, form }) => useDirtyDialog(open, form), {
+      initialProps: { open: true, form: { name: "a", group_mode: "individual" } },
+    });
+    rerender({ open: true, form: { name: "b", group_mode: "individual" } });
+    act(() => result.current.ajustarBase({ group_mode: "teacher_assigned" }));
+    rerender({ open: true, form: { name: "b", group_mode: "teacher_assigned" } });
+    expect(result.current.isDirty).toBe(true);
+  });
+});
+
 describe("useDirtyDialog — guardOpenChange", () => {
   it("permite abrir (next=true) sin preguntar nada", async () => {
     const setOpen = vi.fn();

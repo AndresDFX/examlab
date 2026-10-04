@@ -804,11 +804,11 @@ Alcance: verifica el ciclo completo de talleres y proyectos en Demo Global Corp 
 
 | ID | Caso | Precondición | Pasos | Resultado esperado |
 |---|---|---|---|---|
-| GR-01 | Activar grupos con un clic | Taller/Proyecto interno `individual` | 1. Grid → "Activar grupos" (icono UsersRound) | Cambia a `teacher_assigned` automáticamente; toast "grupo activado"; abre el editor de grupos |
+| GR-01 | Activar grupos con un clic | Taller/Proyecto interno `individual` | 1. Fila → «Editar» → «Grupos» en «Contenido y participantes» (icono UsersRound) | Cambia a `teacher_assigned` automáticamente; toast "grupo activado"; abre el editor de grupos |
 | GR-02 | Crear grupo + drag & drop | Editor de grupos abierto | 1. Crear grupo. 2. Arrastrar alumno de "Sin grupo" al grupo | Alumno se mueve; ring visual en drop target; queda como miembro |
 | GR-03 | Un alumno no puede estar en 2 grupos | Alumno ya en un grupo | 1. Arrastrarlo a otro grupo del mismo taller | Se mueve (trigger impide pertenencia doble en el mismo taller/proyecto) |
 | GR-04 | Modo mixto coexiste | Grupos activos + alumnos sin grupo | 1. Ver lista del estudiante para ambos casos | Con grupo → entrega/nota compartida; sin grupo → entrega individual, sin bloqueos |
-| GR-05 | Externo: grupos solo desde la fila | Actividad externa | 1. Abrir el form. 2. Usar "Grupos" en la fila | El form no muestra el selector de modo de grupo; la acción "Grupos" de la fila arma los grupos y en "Notas externas" se califica por grupo; editar el externo no le cambia el modo de grupo |
+| GR-05 | Externo: grupos desde «Editar» | Actividad externa | 1. Abrir el form. 2. Usar «Grupos» en «Contenido y participantes» | El form no muestra el selector de modo de grupo; el botón «Grupos» arma los grupos y en "Notas externas" se califica por grupo; editar el externo no le cambia el modo de grupo |
 
 **Checks UI/UX (GR):** responsive 375px (columnas de grupos apilan); claro/oscuro; loading/empty ("sin grupos"); toasts es-CO; touch targets ≥32px; drag & drop nativo con feedback visual accesible.
 

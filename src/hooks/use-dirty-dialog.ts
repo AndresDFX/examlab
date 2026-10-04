@@ -64,5 +64,18 @@ export function useDirtyDialog<T>(open: boolean, formState: T) {
       setOpen(next);
     };
 
-  return { isDirty, guardOpenChange };
+  /**
+   * Aplica a la FOTO de base el mismo cambio que el sistema acaba de aplicar al
+   * formulario, para un campo que ya quedó guardado por otro camino (p. ej. el
+   * modo de grupo, que se activa en la base al abrir «Grupos» desde «Editar»).
+   * Sin esto el diálogo preguntaría «¿Descartar los cambios?» por algo que el
+   * docente no tocó. Se ajusta la base y no se re-fotografía el formulario: así
+   * lo que el docente sí cambió sigue protegido.
+   */
+  const ajustarBase = (patch: Partial<T>) => {
+    if (initialRef.current === null) return;
+    initialRef.current = JSON.stringify({ ...JSON.parse(initialRef.current), ...patch });
+  };
+
+  return { isDirty, guardOpenChange, ajustarBase };
 }

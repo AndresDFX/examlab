@@ -313,7 +313,7 @@ entorno `jsdom`, setup en [src/test/setup.ts](../src/test/setup.ts).
 
 | ID      | Caso                                                                                                                                                                              | Estado |
 | ------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------ |
-| 24.1.1  | El listado de talleres muestra el botón **Preguntas** (icono `ListChecks`) por fila, además de los botones existentes (Asignación, Calificar, Editar, Eliminar).                  | [ ]    |
+| 24.1.1  | Al **editar** un taller, la sección **Contenido y participantes** muestra el botón **Preguntas** (icono `ListChecks`) junto a **Estudiantes asignados** y **Grupos**; ya no están en el menú de la fila.                  | [ ]    |
 | 24.1.2  | Al hacer clic en **Preguntas**, se abre un dialog con el `TeacherWorkshopQuestionsEditor` y dos pestañas: **Manual** e **IA**.                                                    | [ ]    |
 | 24.1.3  | **Manual / Abierta**: se puede crear una pregunta tipo `abierta` con `content`, `expected_rubric` y `points`. Se persiste en `workshop_questions` con `position` correlativo.     | [ ]    |
 | 24.1.4  | **Manual / Cerrada**: se pueden definir 2–4 opciones y marcar la correcta. Se persiste como `selected_option` esperada en `options.correct`.                                      | [ ]    |

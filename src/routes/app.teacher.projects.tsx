@@ -153,6 +153,7 @@ import { DataPagination } from "@/components/ui/data-pagination";
 import { ListSkeleton } from "@/components/ui/table-skeleton";
 import { formatDateTime, formatPercent } from "@/shared/lib/format";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { ConfigurarDesdeEditar } from "@/shared/components/ConfigurarDesdeEditar";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
 import {
@@ -480,6 +481,15 @@ function TeacherProjects() {
     [filteredProjects, sel],
   );
   const [open, setOpen] = useState(false);
+  /**
+   * Proyecto cuya asignación se abrió desde ESTE «Editar». Al guardar, no se
+   * re-asigna el curso entero sobre lo que el docente acaba de excluir ahí.
+   * Vive mientras el diálogo esté abierto.
+   */
+  const [asignacionAbiertaEn, setAsignacionAbiertaEn] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) setAsignacionAbiertaEn(null);
+  }, [open]);
   // Biblioteca de videos para el selector del form de proyecto. Carga
   // perezosa: solo cuando el dialog se abre, evita query al entrar a
   // la lista de proyectos.
@@ -543,10 +553,11 @@ function TeacherProjects() {
    * lo cambia a `teacher_assigned` silenciosamente para que el flujo
    * sea de un click — espejo del comportamiento en talleres.
    */
-  const openGroupsForProject = async (p: Project) => {
-    if (openingGroupsId) return;
+  const openGroupsForProject = async (p: Project): Promise<boolean> => {
+    if (openingGroupsId) return false;
     const mode = (p as any).group_mode ?? "individual";
     setOpeningGroupsId(p.id);
+    let activado = false;
     try {
       let updated = p;
       if (mode === "individual") {
@@ -556,8 +567,9 @@ function TeacherProjects() {
           .eq("id", p.id);
         if (error) {
           toast.error(friendlyError(error));
-          return;
+          return false;
         }
+        activado = true;
         updated = { ...p, group_mode: "teacher_assigned" } as Project;
         setProjects((prev) => prev.map((x) => (x.id === p.id ? updated : x)));
         toast.success(t("project.groupActivated"));
@@ -569,6 +581,25 @@ function TeacherProjects() {
     } finally {
       setOpeningGroupsId(null);
     }
+    return activado;
+  };
+
+  /**
+   * «Grupos» desde «Editar»: abrirlo activa el modo de grupo en la base, y el
+   * formulario abierto debajo lo desharía al guardar (escribe `group_mode` en
+   * un proyecto en línea). Mismo arreglo que en talleres.
+   */
+  const abrirGruposDesdeEditar = async (p: Project) => {
+    const activado = await openGroupsForProject(p);
+    if (!activado) return;
+    // La base refleja la base de datos; el formulario se alinea solo si seguía
+    // en «individual» (un modo elegido sin guardar se respeta).
+    projectDirty.ajustarBase({ group_mode: "teacher_assigned" });
+    setForm((f) =>
+      f.id === p.id && (f.group_mode ?? "individual") === "individual"
+        ? { ...f, group_mode: "teacher_assigned" }
+        : f,
+    );
   };
 
   const [assignOpen, setAssignOpen] = useState(false);
@@ -1278,7 +1309,29 @@ function TeacherProjects() {
       if (error || !created)
         return toast.error(friendlyUniqueViolation(error) ?? friendlyError(error, "Error al crear"));
       projectId = created.id;
-      toast.success(t("project.createdToast"));
+      // Las preguntas ya no están en el menú de la fila: el atajo evita que quien
+      // acaba de crear el proyecto tenga que buscarlas en «Editar».
+      const creado = {
+        ...form,
+        id: created.id,
+        course: {
+          name: "",
+          period: null,
+          language: courses.find((c) => c.id === form.course_id)?.language ?? null,
+        },
+      } as Project;
+      toast.success(
+        t("project.createdToast"),
+        form.is_external
+          ? undefined
+          : {
+              duration: 12000,
+              action: {
+                label: t("editarConfig.agregarPreguntas"),
+                onClick: () => openFilesDialog(creado),
+              },
+            },
+      );
       void logEvent({
         action: "project.created",
         category: "project",
@@ -1434,7 +1487,23 @@ function TeacherProjects() {
       // estudiantes del nuevo curso queden asignados para que entreguen y se
       // les compute nota en ese curso (goal #30/#31). Es idempotente:
       // autoAssignProject solo inserta los que faltan.
-      const added = await autoAssignProject(projectId, linked);
+      // Lo que el docente acaba de excluir en «Estudiantes asignados», desde este
+      // mismo «Editar», no se deshace al guardar: solo se asignan los cursos
+      // recién vinculados.
+      const cursosPrevios = new Set(
+        editing
+          ? editing.linked_course_ids?.length
+            ? editing.linked_course_ids
+            : editing.course_id
+              ? [editing.course_id]
+              : []
+          : [],
+      );
+      const cursosAAsignar =
+        editing && asignacionAbiertaEn === editing.id
+          ? linked.filter((cid) => !cursosPrevios.has(cid))
+          : linked;
+      const added = await autoAssignProject(projectId, cursosAAsignar);
       if (added > 0)
         toast.success(
           i18n.t("toast.routes_app_teacher_projects.studentsAutoAssigned", {
@@ -2960,24 +3029,8 @@ function TeacherProjects() {
                   <TableCell className="text-right">
                     <RowActionsMenu
                       actions={[
-                        {
-                          label: t("hc_routesAppTeacherProjects.actionProjectQuestions"),
-                          icon: ListChecks,
-                          onClick: () => openFilesDialog(p),
-                        },
-                        {
-                          label: t("hc_routesAppTeacherProjects.actionAssignStudents"),
-                          icon: Users,
-                          onClick: () => openAssignDialog(p),
-                        },
-                        // También en externos, como en talleres: una exposición
-                        // por grupos se arma acá y se califica por grupo.
-                        {
-                          label: t("hc_routesAppTeacherProjects.actionGroups"),
-                          icon: UsersRound,
-                          disabled: openingGroupsId != null,
-                          onClick: () => openGroupsForProject(p),
-                        },
+                        // Preguntas, asignación y grupos viven en «Editar»
+                        // (ConfigurarDesdeEditar): el menú queda para lo del día.
                         {
                           label: t("hc_routesAppTeacherProjects.actionSubmissionsGrading"),
                           icon: ClipboardList,
@@ -3078,6 +3131,44 @@ function TeacherProjects() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {(() => {
+              // Solo al EDITAR: un proyecto nuevo todavía no existe en la base.
+              const pActual = editing ? (projects.find((x) => x.id === editing.id) ?? editing) : null;
+              if (!pActual) return null;
+              return (
+                <ConfigurarDesdeEditar
+                  dirty={projectDirty.isDirty}
+                  acciones={[
+                    // Un proyecto externo no lleva preguntas (como en exámenes).
+                    !form.is_external && {
+                      key: "preguntas",
+                      label: t("editarConfig.preguntas"),
+                      icon: ListChecks,
+                      onClick: () => openFilesDialog(pActual),
+                    },
+                    {
+                      key: "estudiantes",
+                      label: t("editarConfig.estudiantes"),
+                      icon: Users,
+                      onClick: () => {
+                        setAsignacionAbiertaEn(pActual.id);
+                        void openAssignDialog(pActual);
+                      },
+                    },
+                    // También en externos, como en talleres: una exposición por
+                    // grupos se arma acá y se califica por grupo.
+                    {
+                      key: "grupos",
+                      label: t("editarConfig.grupos"),
+                      icon: UsersRound,
+                      busy: openingGroupsId === pActual.id,
+                      disabled: openingGroupsId != null,
+                      onClick: () => void abrirGruposDesdeEditar(pActual),
+                    },
+                  ]}
+                />
+              );
+            })()}
             {/*
              * Toggle "Actividad externa": cuando el proyecto ya ocurrió fuera
              * de la plataforma y solo se registra la nota. Esconde campos que

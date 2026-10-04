@@ -177,6 +177,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DateTimePicker } from "@/components/ui/date-picker";
 import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
+import { ConfigurarDesdeEditar } from "@/shared/components/ConfigurarDesdeEditar";
 import {
   Accordion,
   AccordionContent,
@@ -717,6 +718,15 @@ function TeacherWorkshops() {
     [sort.sorted, sel],
   );
   const [open, setOpen] = useState(false);
+  /**
+   * Taller cuya asignación se abrió desde ESTE «Editar». Al guardar, no se
+   * re-asigna el curso entero sobre lo que el docente acaba de excluir ahí.
+   * Vive mientras el diálogo esté abierto.
+   */
+  const [asignacionAbiertaEn, setAsignacionAbiertaEn] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open) setAsignacionAbiertaEn(null);
+  }, [open]);
   const [form, setForm] = useState<Partial<Workshop>>({});
   /** Sección "Cómo se entrega" del form: arranca cerrada porque todos sus
    *  campos ya traen un default razonable (ver `openNew`). */
@@ -932,10 +942,12 @@ function TeacherWorkshops() {
     }
   };
 
-  const openGroupsForWorkshop = async (ws: Workshop) => {
-    if (openingGroupsId) return;
+  /** Devuelve `true` si tuvo que activar el modo de grupo en la base. */
+  const openGroupsForWorkshop = async (ws: Workshop): Promise<boolean> => {
+    if (openingGroupsId) return false;
     const mode = (ws as any).group_mode ?? "individual";
     setOpeningGroupsId(ws.id);
+    let activado = false;
     try {
       let updatedWs = ws;
       if (mode === "individual") {
@@ -945,8 +957,9 @@ function TeacherWorkshops() {
           .eq("id", ws.id);
         if (error) {
           toast.error(friendlyError(error));
-          return;
+          return false;
         }
+        activado = true;
         updatedWs = { ...ws, group_mode: "teacher_assigned" } as Workshop;
         setWorkshops((prev) => prev.map((w) => (w.id === ws.id ? updatedWs : w)));
         toast.success(t("workshop.groupActivated"));
@@ -958,6 +971,28 @@ function TeacherWorkshops() {
     } finally {
       setOpeningGroupsId(null);
     }
+    return activado;
+  };
+
+  /**
+   * «Grupos» desde «Editar». Abrirlo activa el modo de grupo EN LA BASE, y el
+   * formulario que sigue abierto debajo todavía dice «individual»: al guardarlo
+   * lo desharía (el guardado escribe `group_mode` en un taller en línea) y los
+   * grupos recién armados quedarían sin efecto. Se alinea el formulario —y la
+   * foto del aviso de cambios, para que no pregunte por algo que no se tocó.
+   */
+  const abrirGruposDesdeEditar = async (ws: Workshop) => {
+    const activado = await openGroupsForWorkshop(ws);
+    if (!activado) return;
+    // La base refleja la base de datos. El formulario se alinea solo si seguía
+    // en «individual»: si el docente ya había elegido otro modo sin guardar, se
+    // respeta y sigue contando como cambio pendiente.
+    workshopDirty.ajustarBase({ group_mode: "teacher_assigned" });
+    setForm((f) =>
+      f.id === ws.id && (f.group_mode ?? "individual") === "individual"
+        ? { ...f, group_mode: "teacher_assigned" }
+        : f,
+    );
   };
 
   // SA accede a pantallas Docente para soporte / diagnóstico — sin SA
@@ -1562,7 +1597,20 @@ function TeacherWorkshops() {
       // los estudiantes del nuevo curso deben quedar asignados para que
       // entreguen y se les compute nota en ese curso (goal #30/#31). Es
       // idempotente — re-aplica matriculados sin duplicar assignments.
+      const cursosPrevios = new Set(
+        workshopCourses.get(form.id) ?? (originalCourseId ? [originalCourseId] : []),
+      );
+      const esRecuperacion = !!(form as any).parent_workshop_id;
+      const respetarAsignacion = asignacionAbiertaEn === form.id;
       for (const cid of finalCourseIds) {
+        const cursoNuevo = courseChanged || !cursosPrevios.has(cid);
+        // Una recuperación se asigna a quien la necesita (CrearRecuperacionTallerDialog):
+        // re-aplicar el curso entero se la mostraría a todos y dejaría «parcial»
+        // la nota de todo el curso mientras siga abierta.
+        if (esRecuperacion && !cursoNuevo) continue;
+        // Lo que el docente acaba de excluir en «Estudiantes asignados», desde
+        // este mismo «Editar», no se deshace al pulsar «Guardar».
+        if (respetarAsignacion && !cursoNuevo) continue;
         await autoAssignWorkshop(form.id, cid);
       }
       if (form.status === "published" || courseChanged) {
@@ -1676,6 +1724,20 @@ function TeacherWorkshops() {
           : i18n.t("toast.routes_app_teacher_workshops.workshopCreated", {
               defaultValue: "Taller creado correctamente",
             }),
+        // Las preguntas ya no están en el menú de la fila: el atajo evita que
+        // quien acaba de crear el taller tenga que buscarlas en «Editar».
+        isExternal
+          ? undefined
+          : {
+              duration: 12000,
+              action: {
+                label: t("editarConfig.agregarPreguntas"),
+                onClick: () => {
+                  setQuestionsWs(newWs as Workshop);
+                  setQuestionsOpen(true);
+                },
+              },
+            },
       );
       void logEvent({
         action: "workshop.created",
@@ -4255,32 +4317,12 @@ function TeacherWorkshops() {
                   <TableCell className="text-right">
                     <RowActionsMenu
                       actions={[
-                        {
-                          label: t("teacherWorkshops.actionAssign"),
-                          icon: Users,
-                          disabled: openingAssignId != null,
-                          onClick: () => openAssign(ws),
-                        },
-                        // También en externos: una exposición por grupos se
-                        // arma acá y se califica por grupo en «Notas externas».
-                        {
-                          label: t("teacherWorkshops.actionGroups"),
-                          icon: UsersRound,
-                          disabled: openingGroupsId != null,
-                          onClick: () => openGroupsForWorkshop(ws),
-                        },
+                        // Preguntas, asignación y grupos viven en «Editar»
+                        // (ConfigurarDesdeEditar): el menú queda para lo del día.
                         {
                           label: t("teacherWorkshops.actionShareLink"),
                           icon: Link2,
                           onClick: () => void compartirEnlace(ws),
-                        },
-                        {
-                          label: t("teacherWorkshops.actionQuestions"),
-                          icon: ListChecks,
-                          onClick: () => {
-                            setQuestionsWs(ws);
-                            setQuestionsOpen(true);
-                          },
                         },
                         {
                           label: t("teacherWorkshops.actionGrade"),
@@ -4400,6 +4442,49 @@ function TeacherWorkshops() {
             <DialogTitle>{form.id ? t("teacherWorkshops.dialogTitleEdit") : t("teacherWorkshops.dialogTitleNew")}</DialogTitle>
           </DialogHeader>
           <div className="space-y-3">
+            {(() => {
+              // Solo al EDITAR: un taller nuevo todavía no existe en la base.
+              const wsActual = form.id ? workshops.find((w) => w.id === form.id) : undefined;
+              if (!wsActual) return null;
+              return (
+                <ConfigurarDesdeEditar
+                  dirty={workshopDirty.isDirty}
+                  acciones={[
+                    // Una actividad externa no lleva preguntas (como en exámenes).
+                    !(form as any).is_external && {
+                      key: "preguntas",
+                      label: t("editarConfig.preguntas"),
+                      icon: ListChecks,
+                      onClick: () => {
+                        setQuestionsWs(wsActual);
+                        setQuestionsOpen(true);
+                      },
+                    },
+                    {
+                      key: "estudiantes",
+                      label: t("editarConfig.estudiantes"),
+                      icon: Users,
+                      busy: openingAssignId === wsActual.id,
+                      disabled: openingAssignId != null,
+                      onClick: () => {
+                        setAsignacionAbiertaEn(wsActual.id);
+                        void openAssign(wsActual);
+                      },
+                    },
+                    // También en externos: una exposición por grupos se arma
+                    // acá y se califica por grupo en «Notas externas».
+                    {
+                      key: "grupos",
+                      label: t("editarConfig.grupos"),
+                      icon: UsersRound,
+                      busy: openingGroupsId === wsActual.id,
+                      disabled: openingGroupsId != null,
+                      onClick: () => void abrirGruposDesdeEditar(wsActual),
+                    },
+                  ]}
+                />
+              );
+            })()}
             <div
               className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5"
               data-tour-id="workshop-field-external"

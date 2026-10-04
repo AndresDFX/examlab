@@ -648,7 +648,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="workshop-section-delivery"]',
     title: "Cómo se entrega",
     description:
-      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Ábrela solo si quieres cambiar algo — los grupos los administras desde el botón <em>Grupos</em> del grid.",
+      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Ábrela solo si quieres cambiar algo — los grupos se arman desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, al editar el taller.",
     side: "left",
     align: "start",
   },
@@ -660,7 +660,7 @@ export const TEACHER_TOUR: TourStep[] = [
     escapeBefore: true,
     title: "Proyectos",
     description:
-      "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, vos lo sustentas en persona y le pones un factor (0-1) que multiplica la nota.",
+      "Los <strong>proyectos</strong> son entregas finales más grandes. El alumno sube archivos + link al repo, lo sustenta en persona y tú le pones un factor (0-1) que multiplica la nota.",
     side: "right",
   },
   // ─── Demo INTERACTIVA del modal "Nuevo proyecto" ────────────────────
@@ -685,7 +685,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="project-field-group-mode"]',
     title: "Modo de trabajo",
     description:
-      "Individual, grupal o mixto. Los proyectos típicamente son grupales — define grupos desde el botón <em>Grupos</em> del grid antes de la fecha de entrega.",
+      "Individual, grupal o mixto. Los proyectos típicamente son grupales — define grupos desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, al editar el proyecto, antes de la fecha de entrega.",
     side: "left",
     align: "start",
   },
@@ -806,7 +806,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="whiteboard-field-description"]',
     title: "Descripción (opcional)",
     description:
-      "Notas internas para ti: contexto, qué temas cubre, etc. Los alumnos NO la ven — es solo para que vos te ubiques cuando tengas muchas.",
+      "Notas internas para ti: contexto, qué temas cubre, etc. Los alumnos NO la ven — es solo para que te ubiques cuando tengas muchas.",
     side: "left",
     align: "start",
   },
@@ -929,7 +929,7 @@ export const TEACHER_TOUR: TourStep[] = [
     route: "/app/certificates",
     title: "Certificaciones",
     description:
-      "Cuando un alumno aprueba el curso, acá puedes <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución, vos solo confirmas que lleguen.",
+      "Cuando un alumno aprueba el curso, acá puedes <strong>ver el certificado emitido</strong> y reenviárselo si lo perdió. El diseño lo define la institución; tú solo confirmas que lleguen.",
     side: "right",
   },
 

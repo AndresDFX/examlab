@@ -603,6 +603,14 @@ async function openVia(page, spec) {
     await item.click({ timeout: 5000 }).catch((e) => console.log(`  ⚠ openVia menuItem "${spec.menuItem}":`, e.message));
     await sleep(1300);
   }
+  if (spec.button) {
+    // Botón DENTRO de lo que se acaba de abrir. Ej. «Editar» → «Preguntas» de
+    // «Contenido y participantes»: las preguntas de talleres y proyectos ya no
+    // están en el menú de la fila. Nombre exacto, para no tomar otro botón.
+    const btn = page.getByRole("button", { name: new RegExp(`^${spec.button}$`, "i") }).first();
+    await btn.click({ timeout: 5000 }).catch((e) => console.log(`  ⚠ openVia button "${spec.button}":`, e.message));
+    await sleep(1300);
+  }
   if (spec.option) {
     // Opción de un shadcn Select (role="option"). Ej. cambiar el filtro de
     // estado a "Calificado" en la lista de talleres del alumno (s04).

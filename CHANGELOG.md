@@ -86,6 +86,43 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ✏️ Preguntas, estudiantes y grupos de un taller o proyecto se configuran desde «Editar»
+
+El menú de la fila de talleres llegaba a diez opciones, mezclando la configuración de la actividad con
+lo del día a día. Ahora **Preguntas**, **Estudiantes asignados** y **Grupos** están en la sección
+«Contenido y participantes» del diálogo de «Editar» (`ConfigurarDesdeEditar`), como en exámenes, cuya
+página de edición ya reunía preguntas y asignación. En el menú quedan Compartir enlace, Calificar,
+Publicar, Editar, Duplicar, Crear recuperatorio y Eliminar (proyectos: Entregas y calificación,
+Publicar, Editar, Duplicar, Eliminar).
+
+- Cada botón abre el **mismo diálogo de antes**, encima del formulario, y lo que se cambia ahí se guarda
+  en el acto, aparte del «Guardar» del formulario.
+- **Abrir «Grupos» activa el modo de grupo en la base**, y el formulario abierto debajo lo desharía al
+  guardar (escribe `group_mode` en una actividad en línea). Se alinea el formulario y la foto del aviso
+  de cambios (`useDirtyDialog.ajustarBase`), para que no pregunte «¿Descartar los cambios?» por algo que
+  el docente no tocó y siga protegiendo lo que sí cambió.
+- Al **crear** un taller o proyecto en línea, el aviso trae «Agregar preguntas»: sin él, quien acaba de
+  crearlo tenía que encontrarlas en «Editar».
+- **Guardar ya no deshace lo que se acaba de excluir.** Guardar el formulario re-asignaba el taller o
+  proyecto a TODO el curso (era el único camino que alcanzaba a quien se matricula tarde, y se
+  conserva). Con «Estudiantes asignados» al lado del «Guardar», excluir y guardar revertía la exclusión
+  en silencio: si en ese «Editar» se abrió la asignación, solo se asignan los cursos recién agregados.
+  Y una **recuperación de taller** ya no se re-asigna al guardar: se asigna a quien la necesita, y
+  re-aplicar el curso entero se la mostraba a todos y dejaba «parcial» la nota del curso mientras
+  seguía abierta (defecto previo).
+- En una actividad **externa** no se ofrece «Preguntas» (como en exámenes), y si el formulario tiene
+  cambios sin guardar la sección avisa que las ventanas trabajan con la versión guardada.
+- Textos de ayuda del modo de grupo, recorrido guiado (de paso, tres voseos que quedaban), planes de
+  QA, manual del docente y los specs de los videos `t04`/`t05` (`openVia` ganó `button`) apuntan a
+  «Editar». **Los videos t04 y t05 hay que regrabarlos**: su narración cambió.
+
+### 💾 Guardar de una vez la nota de todos los grupos
+
+En la ventana de grupos de un taller o proyecto externo había que pulsar «Guardar» en cada tarjeta.
+Los borradores pasaron a la ventana (`useNotasDeGrupos`) y «Guardar todas las notas (N)» guarda los
+grupos con una nota escrita y sin guardar, uno por uno con el mismo `calificar` de la tarjeta: se
+sigue preguntando antes de pisar una nota distinta, y se avisa una sola vez. Commit `a4b4ddd8`.
+
 ### 🗣️ La interfaz en español habla en tuteo (revisión transversal de traducción)
 
 Revisión de traducción y UI/UX. La paridad es/en ya estaba completa (10.417 claves en cada idioma, sin

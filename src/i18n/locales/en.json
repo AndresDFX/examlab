@@ -4456,9 +4456,6 @@
     "tableEmptyFirstBtn": "Create first workshop",
     "tableEmptyFiltered": "No results for the current filters.",
     "tableEmptyFilteredHint": "Clear the search or course filter to see all workshops.",
-    "actionAssign": "Assignment / exclude students",
-    "actionGroups": "Groups",
-    "actionQuestions": "Workshop questions",
     "actionGrade": "Grade",
     "actionEdit": "Edit",
     "actionDuplicate": "Duplicate",
@@ -4472,7 +4469,7 @@
     "groupModeIndividual": "Individual — each student submits separately",
     "groupModeRequired": "Group — everyone must be in a group to submit",
     "groupModeMixed": "Mixed — those with a group submit as a group, others individually",
-    "groupModeHint": "In Group or Mixed mode, manage groups from the \"Groups\" menu.",
+    "groupModeHint": "In Group or Mixed mode, groups are built with the «Groups» button under «Content and participants», above this form (available once saved).",
     "fieldTitle": "Title",
     "fieldCourses": "Courses",
     "fieldCoursesHint": "(select one or more)",
@@ -9264,10 +9261,7 @@
     "pauseReasonUnavailable": "The exam is paused, but the reason could not be sent: the platform needs updating. Let the student know some other way."
   },
   "hc_routesAppTeacherProjects": {
-    "actionAssignStudents": "Assign students",
     "actionDuplicate": "Duplicate",
-    "actionGroups": "Groups",
-    "actionProjectQuestions": "Project questions",
     "actionSubmissionsGrading": "Submissions and grading",
     "addVideo": "Add video",
     "aiBadge": "AI: {{pct}}%",
@@ -9420,7 +9414,7 @@
     "willReplaceDescription": "⚠ It will replace the current description.",
     "workMode": "Work mode",
     "workModeGroupRequired": "Group — everyone must be in a group to submit",
-    "workModeHint": "In Group or Mixed mode you manage the groups from the \"Groups\" menu.",
+    "workModeHint": "In Group or Mixed mode, groups are built with the «Groups» button under «Content and participants», above this form (available once saved).",
     "workModeIndividual": "Individual — each student submits separately",
     "workModeMixed": "Mixed — those with a group submit as a group, the rest individually",
     "zipLegacy": "(legacy ZIP)",
@@ -11309,5 +11303,14 @@
     "botonAsistenciaTitle": "Pick at random among those who attended today's class, or among everyone",
     "silenciar": "Mute",
     "activarSonido": "Turn sound on"
+  },
+  "editarConfig": {
+    "titulo": "Content and participants",
+    "hint": "What you change here is saved right away, without this form’s Save button.",
+    "preguntas": "Questions",
+    "estudiantes": "Assigned students",
+    "grupos": "Groups",
+    "agregarPreguntas": "Add questions",
+    "dirtyHint": "This form has unsaved changes: these windows work with the saved version."
   }
 }

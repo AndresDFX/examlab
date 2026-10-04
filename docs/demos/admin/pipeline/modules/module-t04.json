@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde acciones, el docente gestiona las preguntas del taller, organiza el trabajo en grupo, califica las entregas y duplica la actividad.",
+      "narration": "Desde acciones, el docente califica las entregas, publica y duplica la actividad. Las preguntas, los estudiantes asignados y los grupos se configuran al editar el taller.",
       "bufferMs": 700,
       "beats": [
         {
@@ -99,7 +99,8 @@
       "kind": "platform",
       "openVia": {
         "target": "rowaction:0",
-        "menuItem": "Preguntas"
+        "menuItem": "Editar",
+        "button": "Preguntas"
       },
       "tab": "Generar con IA",
       "narration": "Las preguntas del taller también se generan con inteligencia artificial: abrimos las preguntas del taller, le damos los temas... y generamos en vivo.",
