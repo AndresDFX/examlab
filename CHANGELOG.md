@@ -86,6 +86,14 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🔐 Los inicios de sesión fallidos vuelven a quedar registrados
+
+La pantalla de login llama `log_failed_login` en cada intento fallido, pero la función **no existía en
+esta base** (su migración, `20260513100000`, es de la época de Lovable y nunca se aplicó acá): en
+`audit_logs` no había un solo `user.login_failed`. Se notó al investigar a un estudiante que «no puede
+entrar hasta que le restablecen la clave». Mig `20262730000000` la restaura y, si el correo es de una
+cuenta, guarda su institución y su id, para que el Admin de la institución también la vea.
+
 ### ✏️ Preguntas, estudiantes y grupos de un taller o proyecto se configuran desde «Editar»
 
 El menú de la fila de talleres llegaba a diez opciones, mezclando la configuración de la actividad con
