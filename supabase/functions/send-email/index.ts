@@ -222,6 +222,22 @@ function renderEmailHtml(params: {
     : params.link?.startsWith("/auth/confirm-email-change")
       ? "Confirmar nuevo correo"
       : `Ver en ${brand}`;
+  // En cuenta y acceso, la dirección también va como TEXTO para copiar y pegar.
+  // Brevo reescribe todo <a href> por su redirección de seguimiento (no se puede
+  // apagar en correos transaccionales), y esa redirección puede no responder
+  // —pasó con la cuenta recién creada—: sin esta copia, el enlace para
+  // restablecer la contraseña quedaba inservible. Va sin <a> para que no se
+  // reescriba.
+  const copiable =
+    fullLink && params.link?.startsWith("/auth/")
+      ? `
+      <tr>
+        <td style="padding: 4px 32px 8px 32px; text-align: center;">
+          <p style="margin:0 0 4px 0; font-size:12px; color:#6b7280;">Si el botón no abre, copia esta dirección y pégala en el navegador:</p>
+          <p style="margin:0; font-size:12px; color:#111827; font-family:Consolas,Menlo,monospace; word-break:break-all;">${escapeHtml(fullLink)}</p>
+        </td>
+      </tr>`
+      : "";
   const cta = fullLink
     ? `
       <tr>
@@ -231,7 +247,7 @@ function renderEmailHtml(params: {
             ${escapeHtml(ctaLabel)}
           </a>
         </td>
-      </tr>`
+      </tr>${copiable}`
     : "";
 
   return `<!DOCTYPE html>
