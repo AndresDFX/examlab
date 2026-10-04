@@ -676,7 +676,14 @@ Deno.serve(async (req: Request) => {
     row.kind === "system" &&
     (row.link?.startsWith("/auth/reset-password") ||
       row.link?.startsWith("/auth/confirm-email-change"));
-  const brevoKey = Deno.env.get("BREVO_API_KEY");
+  // Interruptor explícito, apagado por defecto. Brevo ACEPTA el envío (201)
+  // aunque la cuenta tenga la plataforma de envío deshabilitada, y después no
+  // lo entrega («Your sending platform is currently disabled», 2026-10-04):
+  // como la API no falla, el respaldo SMTP nunca se activaba y los correos de
+  // restablecer contraseña se perdían. Solo se usa con BREVO_ACTIVO=1, una
+  // vez confirmado en los Logs de Brevo que la cuenta entrega.
+  const brevoKey =
+    Deno.env.get("BREVO_ACTIVO") === "1" ? Deno.env.get("BREVO_API_KEY") : undefined;
   if (esCuentaYAcceso && brevoKey) {
     const titulo = (row.title ?? "").trim().slice(0, 200);
     const asunto = titulo.toLowerCase().startsWith(fromName.toLowerCase())
