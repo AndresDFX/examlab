@@ -440,18 +440,21 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
 
   const renderFila = (row: Row, enGrupo: boolean) => (
     <TableRow key={row.userId}>
-      <TableCell className="max-w-40">
-        {/* La sangría va adentro: la celda trae `md:p-2`, que pisa un `pl-*`. */}
-        <div className={enGrupo ? "pl-5 min-w-0" : "min-w-0"}>
-          <div className="font-medium truncate" title={row.fullName}>
-            {row.fullName}
-          </div>
-          <div className="text-xs text-muted-foreground truncate" title={row.email}>
+      <TableCell className="max-w-[22rem] py-1.5">
+        {/* La sangría va adentro: la celda trae `md:p-2`, que pisa un `pl-*`.
+            Nombre y correo en UN renglón: con el correo debajo, cada fila medía
+            el doble y una lista de 35 no cabía en la pantalla. */}
+        <div
+          className={`flex items-baseline gap-2 min-w-0 ${enGrupo ? "pl-5" : ""}`}
+          title={`${row.fullName} · ${row.email}`}
+        >
+          <span className="font-medium truncate shrink">{row.fullName}</span>
+          <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
             {row.email}
-          </div>
+          </span>
         </div>
       </TableCell>
-      <TableCell>
+      <TableCell className="py-1.5">
         <DecimalInput
           min={0}
           max={maxScore}
@@ -461,16 +464,17 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
           className="h-8 text-sm min-w-16"
         />
       </TableCell>
-      <TableCell className="hidden sm:table-cell">
+      <TableCell className="hidden sm:table-cell py-1.5">
+        {/* Una línea de entrada; se estira (resize-y) cuando hace falta escribir más. */}
         <Textarea
-          rows={2}
+          rows={1}
           value={row.feedback}
           onChange={(e) => updateRow(row.userId, { feedback: e.target.value })}
           placeholder={t("externalGrades.feedbackPlaceholder")}
-          className="min-h-[44px] text-xs resize-y"
+          className="min-h-8 md:min-h-8 h-8 py-1.5 text-xs md:text-xs resize-y"
         />
       </TableCell>
-      <TableCell className="text-right">
+      <TableCell className="text-right py-1.5">
         <Button
           size="sm"
           variant="outline"
@@ -497,19 +501,19 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
     const b = borradorGrupo[grupoId] ?? { grade: null, feedback: "" };
     return (
       <TableRow key={`grupo-${grupoId}`} className="bg-muted/40 hover:bg-muted/40">
-        <TableCell className="max-w-40">
-          <div className="flex items-center gap-1.5 min-w-0">
-            <UsersRound className="h-3.5 w-3.5 text-primary shrink-0" aria-hidden />
+        <TableCell className="max-w-[22rem] py-1.5">
+          <div className="flex items-baseline gap-2 min-w-0">
+            <UsersRound className="h-3.5 w-3.5 text-primary shrink-0 self-center" aria-hidden />
             <span className="font-medium truncate" title={nombre}>
               {nombre}
             </span>
-          </div>
-          <div className="text-2xs text-muted-foreground">
-            {t("externalGrades.groupStatus", { graded: r.conNota, count: r.total })}
-            {r.distintas && ` · ${t("externalGrades.groupDistinct")}`}
+            <span className="text-2xs text-muted-foreground truncate shrink-[2]">
+              {t("externalGrades.groupStatus", { graded: r.conNota, count: r.total })}
+              {r.distintas && ` · ${t("externalGrades.groupDistinct")}`}
+            </span>
           </div>
         </TableCell>
-        <TableCell>
+        <TableCell className="py-1.5">
           <DecimalInput
             min={0}
             max={maxScore}
@@ -520,16 +524,16 @@ export function ExternalGradesEditor({ kind, refId, courseId }: Props) {
             aria-label={t("externalGrades.groupGradeAria", { group: nombre })}
           />
         </TableCell>
-        <TableCell className="hidden sm:table-cell">
+        <TableCell className="hidden sm:table-cell py-1.5">
           <Textarea
-            rows={2}
+            rows={1}
             value={b.feedback}
             onChange={(e) => editarBorrador(grupoId, { feedback: e.target.value })}
             placeholder={t("externalGrades.groupFeedbackPlaceholder")}
-            className="min-h-[44px] text-xs resize-y"
+            className="min-h-8 md:min-h-8 h-8 py-1.5 text-xs md:text-xs resize-y"
           />
         </TableCell>
-        <TableCell className="text-right">
+        <TableCell className="text-right py-1.5">
           <Button
             size="sm"
             variant="outline"
