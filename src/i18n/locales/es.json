@@ -10386,7 +10386,7 @@
     "errBadCredentials": "Correo o contraseña inválidos.",
     "errClosed": "El check-in de esta sesión está cerrado.",
     "errGeneric": "No se pudo registrar la asistencia. Intenta de nuevo.",
-    "errInvalidCode": "El código no es válido o expiró. Pedile al docente el código actual.",
+    "errInvalidCode": "Ese código no corresponde a esta asistencia. Revisa que estés usando el enlace y el código de tu curso; si sigue fallando, pídele el código al docente.",
     "errInvalidEmail": "Ese correo no está registrado en el curso de esta sesión.",
     "errNotEnrolled": "No estás matriculado en el curso de esta sesión.",
     "errNotStarted": "El check-in de esta sesión todavía no empezó.",

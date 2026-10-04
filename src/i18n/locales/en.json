@@ -10386,7 +10386,7 @@
     "errBadCredentials": "Invalid email or password.",
     "errClosed": "Check-in for this session is closed.",
     "errGeneric": "Attendance could not be recorded. Try again.",
-    "errInvalidCode": "The code is invalid or has expired. Ask your teacher for the current code.",
+    "errInvalidCode": "That code does not match this attendance. Check that you are using your course’s link and code; if it keeps failing, ask your teacher for the code.",
     "errInvalidEmail": "That email isn't registered in this session's course.",
     "errNotEnrolled": "You're not enrolled in this session's course.",
     "errNotStarted": "Check-in for this session hasn't started yet.",
