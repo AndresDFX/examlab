@@ -17,7 +17,12 @@ import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide
 import { Spinner } from "@/components/ui/spinner";
 import { SearchInput } from "@/components/ui/search-input";
 import { filtrarTablero } from "@/modules/workshops/buscar-en-grupos";
-import { NotaDeGrupoInline } from "@/modules/grading/NotaDeGrupoInline";
+import {
+  GuardarNotasDeGrupos,
+  NotaDeGrupoInline,
+  useNotasDeGrupos,
+  type GrupoACalificar,
+} from "@/modules/grading/NotaDeGrupoInline";
 import {
   useCalificarGrupo,
   type IntegranteACalificar,
@@ -76,6 +81,7 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   const [escala, setEscala] = useState(5);
   const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
   const { calificar, guardando: guardandoNota } = useCalificarGrupo("project", projectId);
+  const notasGrupos = useNotasDeGrupos(calificar, escala);
 
   /**
    * Cambiar un grupo NO recarga la pantalla (ver el mismo comentario en
@@ -256,6 +262,16 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
       }),
     );
 
+  /** Los grupos con integrantes, para «Guardar todas las notas». */
+  const gruposACalificar: GrupoACalificar[] = groups
+    .map((g) => ({
+      grupoId: g.id,
+      nombre: g.name,
+      integrantes: integrantesConNota(g, studentsByGroup.get(g.id) ?? []),
+    }))
+    .filter((g) => g.integrantes.length > 0);
+  const notasSinGuardar = esExterno ? notasGrupos.pendientes(gruposACalificar).length : 0;
+
   const createGroup = async () => {
     const name = newGroupName.trim();
     if (!name) {
@@ -388,6 +404,15 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
           </p>
           {esExterno && (
             <p className="text-xs text-muted-foreground">{t("gruposNota.hintProyecto")}</p>
+          )}
+          {esExterno && (
+            <div>
+              <GuardarNotasDeGrupos
+                cantidad={notasGrupos.guardandoTodas ? notasGrupos.enCurso : notasSinGuardar}
+                guardando={notasGrupos.guardandoTodas}
+                onGuardar={() => void notasGrupos.guardarTodas(gruposACalificar, notaGuardada)}
+              />
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -538,6 +563,9 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
                         calificar={calificar}
                         guardando={guardandoNota}
                         onGuardada={notaGuardada}
+                        borrador={notasGrupos.borradores[g.id]}
+                        onBorrador={(v) => notasGrupos.setBorrador(g.id, v)}
+                        bloqueado={notasGrupos.guardandoTodas}
                       />
                     )}
                     {ms.length === 0 ? (

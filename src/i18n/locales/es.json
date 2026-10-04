@@ -11243,7 +11243,11 @@
     "tableroHint": "Crea grupos y arrastra estudiantes. Pueden coexistir estudiantes con grupo (se califican juntos) y sin grupo (se califican individualmente). Cada estudiante puede pertenecer a un solo grupo a la vez.",
     "sinGrupoTitulo": "Sin grupo (se califican individualmente)",
     "sinGrupoHint": "Estos estudiantes se califican cada uno por su cuenta. Arrástralos a un grupo para calificarlos juntos.",
-    "hintProyecto": "Opcional: escribe la nota de cada grupo en su tarjeta y se guarda para todos sus integrantes. También puedes calificar después desde «Entregas y calificación»."
+    "hintProyecto": "Opcional: escribe la nota de cada grupo en su tarjeta y se guarda para todos sus integrantes. También puedes calificar después desde «Entregas y calificación».",
+    "guardarTodas": "Guardar todas las notas ({{count}})",
+    "guardadasTodas_one": "Se guardó la nota de {{count}} grupo.",
+    "guardadasTodas_other": "Se guardaron las notas de {{count}} grupos.",
+    "guardadasParcial": "Se guardaron {{saved}} de {{total}} grupos. Los demás conservan la nota escrita para que la revises."
   },
   "actividadExterna": {
     "sinNota": "Sin nota todavía",

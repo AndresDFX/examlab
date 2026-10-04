@@ -32,7 +32,12 @@ import {
 import { GruposDesdeImagenDialog } from "./GruposDesdeImagenDialog";
 import { filtrarTablero } from "./buscar-en-grupos";
 import { SearchInput } from "@/components/ui/search-input";
-import { NotaDeGrupoInline } from "@/modules/grading/NotaDeGrupoInline";
+import {
+  GuardarNotasDeGrupos,
+  NotaDeGrupoInline,
+  useNotasDeGrupos,
+  type GrupoACalificar,
+} from "@/modules/grading/NotaDeGrupoInline";
 import {
   useCalificarGrupo,
   type IntegranteACalificar,
@@ -127,6 +132,7 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
   const [escala, setEscala] = useState(5);
   const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
   const { calificar, guardando: guardandoNota } = useCalificarGrupo("workshop", workshopId);
+  const notasGrupos = useNotasDeGrupos(calificar, escala);
 
   /**
    * Cambiar un grupo NO recarga la pantalla. Antes cada movimiento hacía
@@ -366,6 +372,16 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
         feedback: n.feedback,
       }),
     );
+
+  /** Los grupos con integrantes, para «Guardar todas las notas». */
+  const gruposACalificar: GrupoACalificar[] = groups
+    .map((g) => ({
+      grupoId: g.id,
+      nombre: g.name,
+      integrantes: integrantesConNota(g, studentsByGroup.get(g.id) ?? []),
+    }))
+    .filter((g) => g.integrantes.length > 0);
+  const notasSinGuardar = esExterno ? notasGrupos.pendientes(gruposACalificar).length : 0;
 
   const createGroup = async () => {
     const name = newGroupName.trim();
@@ -663,6 +679,15 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
           </p>
           {esExterno && (
             <p className="text-xs text-muted-foreground">{t("gruposNota.hint")}</p>
+          )}
+          {esExterno && (
+            <div>
+              <GuardarNotasDeGrupos
+                cantidad={notasGrupos.guardandoTodas ? notasGrupos.enCurso : notasSinGuardar}
+                guardando={notasGrupos.guardandoTodas}
+                onGuardar={() => void notasGrupos.guardarTodas(gruposACalificar, notaGuardada)}
+              />
+            </div>
           )}
         </CardHeader>
         <CardContent className="space-y-3">
@@ -979,6 +1004,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
                         calificar={calificar}
                         guardando={guardandoNota}
                         onGuardada={notaGuardada}
+                        borrador={notasGrupos.borradores[g.id]}
+                        onBorrador={(v) => notasGrupos.setBorrador(g.id, v)}
+                        bloqueado={notasGrupos.guardandoTodas}
                       />
                     )}
                     {ms.length === 0 ? (

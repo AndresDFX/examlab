@@ -42,8 +42,10 @@ export function useCalificarGrupo(tipo: TipoDeActividadExterna, refId: string) {
     maximo: number;
     /** Por cada integrante guardado: para que la pantalla refleje lo nuevo. */
     onGuardada: (userId: string, nota: NotaGuardada) => void;
+    /** Sin el aviso de éxito: al guardar varios grupos se avisa una sola vez. */
+    silencioso?: boolean;
   }): Promise<boolean> => {
-    const { grupoId, nombre, integrantes, borrador, maximo, onGuardada } = args;
+    const { grupoId, nombre, integrantes, borrador, maximo, onGuardada, silencioso } = args;
     if (integrantes.length === 0) return false;
     const nota = borrador.grade;
     if (nota == null || Number.isNaN(nota)) {
@@ -120,7 +122,9 @@ export function useCalificarGrupo(tipo: TipoDeActividadExterna, refId: string) {
       );
       return false;
     }
-    toast.success(t("externalGrades.groupSaved", { group: nombre, count: guardadas }));
+    if (!silencioso) {
+      toast.success(t("externalGrades.groupSaved", { group: nombre, count: guardadas }));
+    }
     return true;
   };
 

@@ -11243,7 +11243,11 @@
     "tableroHint": "Create groups and drag students. Students with a group (graded together) and without one (graded individually) can coexist. Each student can belong to only one group at a time.",
     "sinGrupoTitulo": "No group (graded individually)",
     "sinGrupoHint": "These students are graded one by one. Drag them into a group to grade them together.",
-    "hintProyecto": "Optional: enter each group's grade on its card and it is saved for all of its members. You can also grade later from “Submissions and grading”."
+    "hintProyecto": "Optional: enter each group's grade on its card and it is saved for all of its members. You can also grade later from “Submissions and grading”.",
+    "guardarTodas": "Save all grades ({{count}})",
+    "guardadasTodas_one": "Saved the grade of {{count}} group.",
+    "guardadasTodas_other": "Saved the grades of {{count}} groups.",
+    "guardadasParcial": "Saved {{saved}} of {{total}} groups. The rest keep the grade you typed so you can review them."
   },
   "actividadExterna": {
     "sinNota": "Not graded yet",
