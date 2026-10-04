@@ -2634,21 +2634,16 @@ function Gradebook() {
                     return (
                       <TableRow key={row.student.id}>
                         <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
-                          <div className="flex items-start gap-1.5">
-                            <div className="min-w-0 flex-1">
-                              <div
-                                className="font-medium text-sm truncate"
-                                title={row.student.full_name}
-                              >
-                                {row.student.full_name}
-                              </div>
-                              <div
-                                className="text-xs text-muted-foreground truncate"
-                                title={row.student.institutional_email}
-                              >
-                                {row.student.institutional_email}
-                              </div>
-                            </div>
+                          <div
+                            className="flex items-baseline gap-2 min-w-0"
+                            title={`${row.student.full_name} · ${row.student.institutional_email}`}
+                          >
+                            <span className="font-medium text-sm truncate shrink">
+                              {row.student.full_name}
+                            </span>
+                            <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                              {row.student.institutional_email}
+                            </span>
                           </div>
                         </TableCell>
                         {row.cutGrades.map((cg, ci) => {
@@ -3063,8 +3058,13 @@ function renderCutDetailGrouped({
                 return (
                   <TableRow key={s.id}>
                     <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
-                      <div className="font-medium text-sm truncate" title={s.full_name}>{s.full_name}</div>
-                      <div className="text-xs text-muted-foreground truncate" title={s.institutional_email}>{s.institutional_email}</div>
+                      <div
+                        className="flex items-baseline gap-2 min-w-0"
+                        title={`${s.full_name} · ${s.institutional_email}`}
+                      >
+                        <span className="font-medium text-sm truncate shrink">{s.full_name}</span>
+                        <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">{s.institutional_email}</span>
+                      </div>
                     </TableCell>
                     {showWorkshops && (
                       <TableCell className="text-center text-sm tabular-nums">
@@ -3563,8 +3563,13 @@ function renderEditableGrid({
           {students.map((s) => (
             <TableRow key={s.id}>
               <TableCell className="sticky left-0 z-10 bg-card max-w-36 sm:max-w-48">
-                <div className="font-medium text-sm truncate" title={s.full_name}>{s.full_name}</div>
-                <div className="text-xs text-muted-foreground truncate" title={s.institutional_email}>{s.institutional_email}</div>
+                <div
+                  className="flex items-baseline gap-2 min-w-0"
+                  title={`${s.full_name} · ${s.institutional_email}`}
+                >
+                  <span className="font-medium text-sm truncate shrink">{s.full_name}</span>
+                  <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">{s.institutional_email}</span>
+                </div>
               </TableCell>
               {columns.map((col) => {
                 const g = getGrade(s.id, col);

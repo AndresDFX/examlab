@@ -487,12 +487,23 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
                       return (
                         <TableRow key={s.id} className={isDirty ? "bg-primary/5" : undefined}>
                           <TableCell className="font-medium text-sm">
-                            <div className="truncate">{s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession")}</div>
-                            {s.meeting_url && !isDirty && (
-                              <div className="text-3xs text-muted-foreground truncate">
-                                {s.meeting_url}
-                              </div>
-                            )}
+                            <div
+                              className="flex items-baseline gap-2 min-w-0"
+                              title={
+                                s.meeting_url && !isDirty
+                                  ? `${s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession")} · ${s.meeting_url}`
+                                  : (s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession"))
+                              }
+                            >
+                              <span className="truncate shrink">
+                                {s.title ?? t("hc_modulesCalendarLinkCalendarEventsDialog.untitledSession")}
+                              </span>
+                              {s.meeting_url && !isDirty && (
+                                <span className="text-3xs font-normal text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                                  {s.meeting_url}
+                                </span>
+                              )}
+                            </div>
                           </TableCell>
                           <TableCell className="hidden sm:table-cell text-xs text-muted-foreground tabular-nums">
                             {formatDateOnly(s.session_date)}

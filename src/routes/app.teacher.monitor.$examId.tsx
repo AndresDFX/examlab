@@ -2845,9 +2845,16 @@ function ExamMonitor() {
                       )}
                     </TableCell>
                     <TableCell>
-                      <div className="font-medium">{row.profile?.full_name ?? "—"}</div>
-                      <div className="text-xs text-muted-foreground">
-                        {row.profile?.institutional_email}
+                      <div
+                        className="flex items-baseline gap-2 min-w-0"
+                        title={`${row.profile?.full_name ?? "—"}${row.profile?.institutional_email ? ` · ${row.profile.institutional_email}` : ""}`}
+                      >
+                        <span className="font-medium truncate shrink">
+                          {row.profile?.full_name ?? "—"}
+                        </span>
+                        <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                          {row.profile?.institutional_email}
+                        </span>
                       </div>
                     </TableCell>
                     <TableCell className="hidden sm:table-cell">

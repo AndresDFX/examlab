@@ -3323,9 +3323,14 @@ function TeacherAttendance() {
                     return (
                       <TableRow key={s.id}>
                         <TableCell className="sticky left-0 z-10 bg-card">
-                          <div className="text-sm font-medium truncate">{s.full_name}</div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {s.institutional_email}
+                          <div
+                            className="flex items-baseline gap-2 min-w-0"
+                            title={`${s.full_name} · ${s.institutional_email}`}
+                          >
+                            <span className="text-sm font-medium truncate shrink">{s.full_name}</span>
+                            <span className="text-xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                              {s.institutional_email}
+                            </span>
                           </div>
                         </TableCell>
                         {sessions.map((sess) => {

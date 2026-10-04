@@ -1239,21 +1239,26 @@ function TeacherPolls() {
                     return (
                       <TableRow key={p.id}>
                         <TableCell className="font-medium">
-                          <div className="truncate" title={p.title}>
-                            {p.title}
+                          {/* Título y descripción en UN renglón: con la
+                              descripción debajo la fila medía el doble. El
+                              markdown NO se renderiza (genera bloques y rompe
+                              el truncado) ni se muestran los asteriscos crudos:
+                              se limpia la sintaxis. */}
+                          <div
+                            className="flex items-baseline gap-2 min-w-0"
+                            title={
+                              p.description
+                                ? `${p.title} · ${markdownToPlain(p.description)}`
+                                : p.title
+                            }
+                          >
+                            <span className="truncate shrink">{p.title}</span>
+                            {p.description && (
+                              <span className="text-2xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                                {markdownToPlain(p.description)}
+                              </span>
+                            )}
                           </div>
-                          {p.description && (
-                            // Celda truncada a una linea: aca NO se puede
-                            // renderizar el markdown (genera bloques y rompe
-                            // el truncado), pero tampoco corresponde mostrar
-                            // los asteriscos crudos. Se limpia la sintaxis.
-                            <div
-                              className="text-2xs text-muted-foreground truncate"
-                              title={markdownToPlain(p.description)}
-                            >
-                              {markdownToPlain(p.description)}
-                            </div>
-                          )}
                         </TableCell>
                         <TableCell className="hidden md:table-cell text-xs text-muted-foreground">
                           {/* Multi-curso: si hay >1 curso linkeado,

@@ -1047,11 +1047,16 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                             }
                           >
                             <TableCell className="text-xs">
-                              <div className="font-medium truncate max-w-[160px]">
-                                {r.student.full_name ?? "—"}
-                              </div>
-                              <div className="text-muted-foreground truncate max-w-[160px]">
-                                {r.student.institutional_email}
+                              <div
+                                className="flex items-baseline gap-2 min-w-0 max-w-[220px]"
+                                title={`${r.student.full_name ?? "—"} · ${r.student.institutional_email ?? ""}`}
+                              >
+                                <span className="font-medium truncate shrink">
+                                  {r.student.full_name ?? "—"}
+                                </span>
+                                <span className="text-muted-foreground truncate shrink-[2] hidden sm:inline">
+                                  {r.student.institutional_email}
+                                </span>
                               </div>
                             </TableCell>
                             <TableCell className="text-xs truncate max-w-[180px]">
@@ -1162,11 +1167,11 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
                       {aiFailedJobs.map((j) => (
                         <TableRow key={j.id}>
                           <TableCell className="text-xs">
-                            <div className="font-medium truncate max-w-[180px]">
+                            <div
+                              className="font-medium truncate max-w-[180px]"
+                              title={j.itemLabel ?? j.target_table}
+                            >
                               {j.itemLabel ?? j.target_table}
-                            </div>
-                            <div className="text-3xs text-muted-foreground">
-                              {j.target_table}
                             </div>
                           </TableCell>
                           <TableCell className="text-xs truncate max-w-[140px]">

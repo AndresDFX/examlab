@@ -2755,18 +2755,21 @@ function Inner() {
                         genReportsVisibles.map((r) => (
                           <TableRow key={r.id}>
                             <TableCell className="font-medium">
-                              <div className="truncate" title={nombrePlantillaViva(r)}>{nombrePlantillaViva(r)}</div>
-                              {/* La marca va acá, bajo el nombre, y no en una
-                                  columna nueva: el grid ya tiene 6 y la de
-                                  Firmas mide w-20, donde no entra un texto.
-                                  Además así se ve a 375px, que es donde el
-                                  resto de las columnas están ocultas. */}
-                              {misPendientes.has(r.id) && (
-                                <span className="mt-0.5 inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-3xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300">
-                                  <PenLine className="h-3 w-3 shrink-0" />
-                                  {t("reportStatus.rowPendingMine")}
-                                </span>
-                              )}
+                              {/* Nombre y marca en UN renglón: la marca va acá
+                                  —junto al nombre, no en una columna nueva ni en
+                                  una línea aparte— porque el grid ya tiene 6
+                                  columnas y la de Firmas mide w-20, donde no
+                                  entra un texto. Así también se ve a 375px,
+                                  donde el resto de las columnas están ocultas. */}
+                              <div className="flex items-center gap-2 min-w-0" title={nombrePlantillaViva(r)}>
+                                <span className="truncate shrink">{nombrePlantillaViva(r)}</span>
+                                {misPendientes.has(r.id) && (
+                                  <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-3xs font-medium bg-amber-500/15 text-amber-700 dark:text-amber-300 shrink-0">
+                                    <PenLine className="h-3 w-3 shrink-0" />
+                                    {t("reportStatus.rowPendingMine")}
+                                  </span>
+                                )}
+                              </div>
                               {/* En móvil las columnas Curso / Estudiante / Generado
                                   están ocultas (`hidden sm:table-cell`), así que dos
                                   informes de la misma plantilla se leen IGUALES y no

@@ -637,12 +637,23 @@ function CertificatesAdmin() {
                         </div>
                       </TableCell>
                       <TableCell className="text-muted-foreground hidden md:table-cell">
-                        <div className="truncate" title={c.course_name}>
-                          {c.course_name}
+                        {/* Curso y periodo en UN renglón (antes el periodo
+                            caía a una segunda línea y estiraba la fila). */}
+                        <div
+                          className="flex items-baseline gap-2 min-w-0"
+                          title={
+                            c.course_period
+                              ? `${c.course_name} · ${c.course_period}`
+                              : c.course_name
+                          }
+                        >
+                          <span className="truncate shrink">{c.course_name}</span>
+                          {c.course_period && (
+                            <span className="text-3xs text-muted-foreground truncate shrink-[2]">
+                              {c.course_period}
+                            </span>
+                          )}
                         </div>
-                        {c.course_period && (
-                          <div className="text-3xs text-muted-foreground">{c.course_period}</div>
-                        )}
                       </TableCell>
                       <TableCell className="text-right tabular-nums hidden sm:table-cell">
                         {Number(c.final_grade).toFixed(2)}

@@ -397,11 +397,16 @@ export function ActasManager({ onPrintActa }: Props) {
                     pagination.paginatedItems.map((a) => (
                       <TableRow key={a.id}>
                         <TableCell className="font-medium">
-                          <div className="truncate" title={a.curso_nombre}>
-                            {a.curso_nombre}
-                          </div>
-                          <div className="text-3xs text-muted-foreground font-mono mt-0.5 truncate">
-                            {a.integrity_hash.slice(0, 16)}…
+                          {/* Curso y hash de integridad en UN renglón (antes el
+                              hash caía a una segunda línea y estiraba la fila). */}
+                          <div
+                            className="flex items-baseline gap-2 min-w-0"
+                            title={`${a.curso_nombre} · ${a.integrity_hash}`}
+                          >
+                            <span className="truncate shrink">{a.curso_nombre}</span>
+                            <span className="text-3xs text-muted-foreground font-mono truncate shrink-[2] hidden sm:inline">
+                              {a.integrity_hash.slice(0, 16)}…
+                            </span>
                           </div>
                         </TableCell>
                         <TableCell className="hidden sm:table-cell">

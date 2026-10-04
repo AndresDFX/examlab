@@ -438,19 +438,22 @@ export function AdminProgramOverviewPanel() {
                       return (
                         <TableRow key={p.id}>
                           <TableCell className="font-medium">
-                            <div className="truncate" title={p.name}>
-                              {p.name}
+                            <div
+                              className="flex items-baseline gap-2 min-w-0"
+                              title={p.code ? `${p.name} · ${p.code}` : p.name}
+                            >
+                              <span className="truncate shrink">{p.name}</span>
+                              {p.code && (
+                                <span className="text-3xs text-muted-foreground font-mono truncate shrink-[2] hidden sm:inline">
+                                  {p.code}
+                                </span>
+                              )}
                               {!p.active && (
-                                <Badge variant="outline" className="ml-2 text-3xs">
+                                <Badge variant="outline" className="text-3xs shrink-0">
                                   {t("hc_modulesAdminAdminProgramOverviewPanel.inactive")}
                                 </Badge>
                               )}
                             </div>
-                            {p.code && (
-                              <div className="text-3xs text-muted-foreground font-mono mt-0.5 truncate" title={p.code}>
-                                {p.code}
-                              </div>
-                            )}
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-sm text-muted-foreground" truncate title={p.faculty ?? undefined}>
                             {p.faculty ?? "—"}

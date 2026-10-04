@@ -632,20 +632,20 @@ export function ErrorsPanel({ embedded = false }: Props) {
                             </button>
                           </TableCell>
                           <TableCell className="font-medium">
-                            <div className="truncate" title={g.action}>
-                              {g.action}
-                            </div>
-                            {g.sampleMessage && (
-                              <div
-                                className="text-2xs text-destructive truncate"
-                                title={g.sampleMessage}
-                              >
-                                {g.sampleMessage}
-                              </div>
-                            )}
-                            <div className="text-3xs text-muted-foreground mt-0.5">
-                              {t("hc_modulesAdminErrorsPanel.lastSeenLabel")}{" "}
-                              <DateCell value={g.lastSeen} variant="datetime" />
+                            <div
+                              className="flex items-baseline gap-2 min-w-0"
+                              title={`${g.action}${g.sampleMessage ? ` · ${g.sampleMessage}` : ""}`}
+                            >
+                              <span className="truncate shrink">{g.action}</span>
+                              {g.sampleMessage && (
+                                <span className="text-2xs text-destructive truncate shrink-[2] hidden sm:inline">
+                                  {g.sampleMessage}
+                                </span>
+                              )}
+                              <span className="text-3xs text-muted-foreground shrink-0 ml-auto hidden md:flex items-baseline gap-1 whitespace-nowrap">
+                                {t("hc_modulesAdminErrorsPanel.lastSeenLabel")}
+                                <DateCell value={g.lastSeen} variant="datetime" className="text-3xs" />
+                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="hidden md:table-cell text-xs text-muted-foreground">

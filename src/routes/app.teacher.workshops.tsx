@@ -5603,38 +5603,37 @@ function TeacherWorkshops() {
                               {grupoDeLaEntrega ? (
                                 // Entrega de GRUPO: la fila es del grupo, no de
                                 // quien la subió, y su nota es la de todos.
-                                <>
-                                  <div className="flex items-center gap-1.5 min-w-0">
-                                    <UsersRound
-                                      className="h-3.5 w-3.5 text-primary shrink-0"
-                                      aria-hidden
-                                    />
-                                    <span
-                                      className="font-medium text-sm truncate"
-                                      title={grupoDeLaEntrega.nombre}
-                                    >
-                                      {grupoDeLaEntrega.nombre}
-                                    </span>
-                                  </div>
-                                  <div
-                                    className="text-2xs text-muted-foreground truncate"
-                                    title={grupoDeLaEntrega.nombres.join(", ")}
-                                  >
+                                // Nombre del grupo e integrantes en UN renglón.
+                                <div
+                                  className="flex items-center gap-1.5 min-w-0"
+                                  title={`${grupoDeLaEntrega.nombre} · ${grupoDeLaEntrega.nombres.join(", ")}`}
+                                >
+                                  <UsersRound
+                                    className="h-3.5 w-3.5 text-primary shrink-0"
+                                    aria-hidden
+                                  />
+                                  <span className="font-medium text-sm truncate shrink">
+                                    {grupoDeLaEntrega.nombre}
+                                  </span>
+                                  <span className="text-2xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
                                     {t("gradingGroups.members", {
                                       count: grupoDeLaEntrega.nombres.length,
                                       names: grupoDeLaEntrega.nombres.join(", "),
                                     })}
-                                  </div>
-                                </>
+                                  </span>
+                                </div>
                               ) : (
-                                <>
-                                  <div className="font-medium text-sm truncate">
+                                <div
+                                  className="flex items-baseline gap-2 min-w-0"
+                                  title={`${sub.profile?.full_name ?? "—"}${sub.profile?.institutional_email ? ` · ${sub.profile.institutional_email}` : ""}`}
+                                >
+                                  <span className="font-medium text-sm truncate shrink">
                                     {sub.profile?.full_name ?? "—"}
-                                  </div>
-                                  <div className="text-2xs text-muted-foreground truncate">
+                                  </span>
+                                  <span className="text-2xs text-muted-foreground truncate shrink-[2] hidden sm:inline">
                                     {sub.profile?.institutional_email}
-                                  </div>
-                                </>
+                                  </span>
+                                </div>
                               )}
                             </TableCell>
                             <TableCell className="hidden sm:table-cell">

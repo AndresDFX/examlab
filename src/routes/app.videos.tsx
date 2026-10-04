@@ -927,43 +927,44 @@ function VideoLibrary() {
                           <MultiSelectCheckbox id={v.id} state={sel} />
                         </TableCell>
                         <TableCell className="max-w-md">
-                          <div className="flex items-start gap-3">
+                          {/* Título, descripción y enlace en UN renglón: antes
+                              iban apilados y cada fila medía tres renglones de
+                              alto. El enlace se conserva porque es la ÚNICA
+                              forma de abrir el video (el menú solo tiene Editar
+                              y Eliminar), así que trunca antes que el título;
+                              la descripción solo aparece en pantallas anchas. */}
+                          <div
+                            className="flex items-center gap-3 min-w-0"
+                            title={[v.title, v.description, v.url].filter(Boolean).join(" · ")}
+                          >
                             <div className="h-9 w-9 rounded-md bg-cyan-500/10 flex items-center justify-center shrink-0">
                               <VideoIcon className="h-4 w-4 text-cyan-600" />
                             </div>
-                            <div className="min-w-0">
-                              <div
-                                className="font-medium text-sm truncate flex items-center gap-1.5"
-                                title={v.title}
-                              >
-                                <span className="truncate">{v.title}</span>
-                                {/* Badge "Global plataforma" cuando
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <span className="font-medium text-sm truncate shrink">{v.title}</span>
+                              {/* Badge "Global plataforma" cuando
                                   tenant_id IS NULL — el catálogo central
                                   del SuperAdmin. Visible para cualquier
                                   caller que vea la fila vía RLS. */}
-                                {v.tenant_id === null && (
-                                  <Badge
-                                    variant="outline"
-                                    className="text-3xs gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
-                                  >
-                                    <Globe className="h-2.5 w-2.5" />
-                                    {t("videosPage.globalBadge")}
-                                  </Badge>
-                                )}
-                              </div>
-                              {v.description && (
-                                <p
-                                  className="text-xs text-muted-foreground truncate mt-0.5"
-                                  title={v.description}
+                              {v.tenant_id === null && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-3xs gap-0.5 border-violet-500/40 text-violet-600 dark:text-violet-400 shrink-0"
                                 >
+                                  <Globe className="h-2.5 w-2.5" />
+                                  {t("videosPage.globalBadge")}
+                                </Badge>
+                              )}
+                              {v.description && (
+                                <span className="text-xs text-muted-foreground truncate shrink-[2] hidden xl:inline">
                                   {v.description}
-                                </p>
+                                </span>
                               )}
                               <a
                                 href={v.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-2xs text-muted-foreground hover:underline truncate flex items-center gap-1 mt-0.5 max-w-full"
+                                className="text-2xs text-muted-foreground hover:underline flex items-center gap-1 min-w-0 shrink-[3]"
                                 title={v.url}
                               >
                                 <ExternalLink className="h-2.5 w-2.5 shrink-0" />
