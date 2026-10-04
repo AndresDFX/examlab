@@ -32,6 +32,7 @@
 // ──────────────────────────────────────────────────────────────────────
 
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { BREVO_SENDER_DEFAULT, enviarPorBrevo } from "../_shared/brevo.ts";
 import { adminClient, corsHeaders, jsonError, jsonResponse } from "../_shared/admin.ts";
 import { asciiEmailSubject, emailMimeContent, formatEmailAddress } from "../_shared/email.ts";
 
@@ -650,6 +651,57 @@ Deno.serve(async (req: Request) => {
   // Versión plana (mejor entregabilidad — algunos filtros antispam
   // penalizan correos solo-HTML). Texto = título + body crudo.
   const text = `${row.title}\n\n${row.body}${row.link ? `\n\nVer: ${appUrl.replace(/\/+$/, "")}${row.link}` : ""}`;
+
+  // 4b) Cuenta y acceso (restablecer contraseña, confirmar cambio de correo y
+  // la bienvenida con enlace para crear la contraseña) salen PRIMERO por Brevo:
+  // si no llegan, la persona se queda sin entrar. Si Brevo falla o no hay clave,
+  // siguen por el SMTP de siempre (ver _shared/brevo.ts).
+  const esCuentaYAcceso =
+    row.kind === "system" &&
+    (row.link?.startsWith("/auth/reset-password") ||
+      row.link?.startsWith("/auth/confirm-email-change"));
+  const brevoKey = Deno.env.get("BREVO_API_KEY");
+  if (esCuentaYAcceso && brevoKey) {
+    const titulo = (row.title ?? "").trim().slice(0, 200);
+    const asunto = titulo.toLowerCase().startsWith(fromName.toLowerCase())
+      ? titulo
+      : `${fromName}: ${titulo}`;
+    const rb = await enviarPorBrevo({
+      apiKey: brevoKey,
+      senderEmail: Deno.env.get("BREVO_SENDER_EMAIL") || BREVO_SENDER_DEFAULT,
+      senderName: fromName,
+      to: recipients,
+      subject: asunto,
+      html,
+      text,
+      replyTo: replyTo ?? null,
+      headers: { "X-Entity-Ref-ID": notificationId },
+    });
+    if (rb.ok) {
+      try {
+        await markDelivered(notificationId);
+        await auditEmail(notificationId, "email.delivered", "info", {
+          provider: "brevo",
+          brevo_message_id: rb.messageId,
+          brevo_ms: rb.ms,
+          recipients_count: recipients.length,
+          recipients,
+        });
+      } catch {
+        /* best-effort — el correo ya salió */
+      }
+      return jsonResponse({ ok: true, sent: true, provider: "brevo" });
+    }
+    try {
+      await auditEmail(notificationId, "email.brevo_failed", "warning", {
+        error: rb.error,
+        brevo_ms: rb.ms,
+        fallback: "smtp",
+      });
+    } catch {
+      /* best-effort */
+    }
+  }
 
   // 5) Conexión SMTP + envío. denomailer soporta STARTTLS automáticamente
   // si `tls: true` y maneja port 587 correctamente. Cualquier excepción
