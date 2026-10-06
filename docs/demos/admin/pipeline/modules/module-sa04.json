@@ -1,6 +1,6 @@
 {
   "id": "modulo-sa04",
-  "title": "Calculadora de costos",
+  "title": "Calculadora de precios",
   "series": "superadmin",
   "role": "SuperAdmin",
   "appPath": "/app/superadmin/pricing-calculator",
@@ -15,18 +15,18 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Una herramienta interna del SuperAdmin: estimar el costo de operar la plataforma y proponer un precio.",
+      "narration": "Una herramienta interna del SuperAdmin: estimar el costo de operar una institución y proponer un precio.",
       "card": {
         "kicker": "ExamLab · SuperAdmin",
-        "title": "Calculadora de costos",
+        "title": "Calculadora de precios",
         "subtitle": "Costo de operación y precio sugerido"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "parametros",
       "kind": "platform",
-      "narration": "Se ajustan los parámetros del negocio —volumen de uso, servicios de inteligencia artificial, infraestructura— y la calculadora estima el costo mensual y el precio recomendado. Es una herramienta interna, no visible para las instituciones.",
+      "narration": "Según el plan por tamaño de la institución, el modelo de operación y el uso de inteligencia artificial e infraestructura, la calculadora estima el costo mensual y el precio recomendado. Es una herramienta interna, no visible para las instituciones.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -36,7 +36,7 @@
           "side": "bottom",
           "focus": {
             "title": "Parámetros",
-            "body": "Uso, IA e infraestructura → costo y precio."
+            "body": "Plan, modelo, IA e infraestructura → costo y precio."
           }
         }
       ]
@@ -44,13 +44,13 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así, el SuperAdmin toma decisiones comerciales con números claros, sin salir de la plataforma.",
+      "narration": "Así, el SuperAdmin prepara una propuesta comercial con números claros, sin salir de la plataforma.",
       "card": {
         "kicker": "ExamLab · SuperAdmin",
-        "title": "ExamLab",
+        "title": "Calculadora de precios",
         "subtitle": "Costo y precio, al instante"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

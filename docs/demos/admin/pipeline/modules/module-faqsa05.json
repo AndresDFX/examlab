@@ -19,11 +19,11 @@
     {
       "id": "answer",
       "kind": "platform",
-      "narration": "En el panel de sistema revisas los diagnósticos de la plataforma: correo, notificaciones, tareas programadas y demás servicios. Cada tarjeta muestra si está en orden o si algo necesita atención.",
-      "bufferMs": 800,
+      "narration": "En Sistema, la pestaña Diagnósticos corre chequeos en vivo de los servicios: base de datos, almacenamiento, IA, notificaciones push, correo y tareas programadas. Al refrescar, cada tarjeta se pone verde si está en orden o roja si necesita atención.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/superadmin/system\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Sistema", "body": "El estado de la plataforma." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Diagnósticos", "body": "Una tarjeta por servicio." } }
+        { "target": "[data-tour-nav=\"/app/superadmin/system\"]", "scale": 1.5, "hold": 3000, "side": "right", "syncWord": "Sistema", "focus": { "title": "Sistema", "body": "El estado de la plataforma." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "syncWord": "refrescar", "focus": { "title": "Diagnósticos", "body": "Verde si está sano, rojo si necesita atención." } }
       ]
     }
   ]

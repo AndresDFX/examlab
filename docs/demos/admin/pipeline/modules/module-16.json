@@ -1,9 +1,9 @@
 {
   "id": "modulo-16",
-  "title": "Cola de IA",
+  "title": "Tareas de IA",
   "appPath": "/app/admin/ai-cron",
   "readySelectors": [
-    "text=Cola IA unificada",
+    "text=Tareas de IA en cola",
     ".divide-y"
   ],
   "voice": {
@@ -17,7 +17,7 @@
       "narration": "Toda la inteligencia artificial de ExamLab, en una sola cola.",
       "card": {
         "kicker": "ExamLab · Demo Global Corp",
-        "title": "Cola de IA",
+        "title": "Tareas de IA",
         "subtitle": "Rol: Administrador"
       },
       "bufferMs": 500
@@ -36,7 +36,7 @@
           "syncWord": "tablero",
           "focus": {
             "title": "Estado de la cola",
-            "body": "Pendientes, en proceso, fallidos y completados."
+            "body": "En espera, procesando, con error y listas."
           }
         },
         {
@@ -72,14 +72,14 @@
           }
         },
         {
-          "target": "button[title=\"Reintentar\"]",
+          "target": "button[title=\"Procesar ahora\"]",
           "scale": 1.9,
           "hold": 6500,
           "side": "left",
-          "syncWord": "reintentarlo",
+          "syncWord": "procesarlo",
           "focus": {
-            "title": "Reintentar",
-            "body": "Procesar ahora, cancelar o reintentar; todo queda auditado."
+            "title": "Procesar ahora",
+            "body": "Procesar al instante, cancelar o volver a la cola; todo queda auditado."
           }
         }
       ]

@@ -19,11 +19,12 @@
     {
       "id": "answer",
       "kind": "platform",
-      "narration": "En Configuración de módulos decides qué secciones del menú ve cada rol y en qué orden aparecen. Activas o desactivas cada módulo para docentes, estudiantes o administradores según lo que necesite la institución.",
+      "tab": "Módulos",
+      "narration": "En Configuración, la pestaña Módulos decide qué secciones del menú ve cada rol y en qué orden aparecen. Activas o desactivas cada módulo para docentes, estudiantes o administradores según lo que necesite la institución.",
       "bufferMs": 800,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/admin/settings\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Configuración", "body": "Los módulos del menú." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Visibilidad por rol", "body": "Activa, oculta y ordena por rol." } }
+        { "target": "[data-tour-nav=\"/app/admin/settings\"]", "scale": 1.5, "hold": 2800, "side": "right", "syncWord": "Configuración", "focus": { "title": "Configuración", "body": "La pestaña Módulos." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "syncWord": "orden", "focus": { "title": "Visibilidad por rol", "body": "Activa, oculta y ordena por rol." } }
       ]
     }
   ]

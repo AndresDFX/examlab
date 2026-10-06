@@ -83,7 +83,7 @@
       "id": "correos",
       "kind": "platform",
       "tab": "Correos",
-      "narration": "En Correos se prenden o apagan los avisos por email, categoría por categoría: la bienvenida a nuevos usuarios, la bienvenida al curso al inscribir a un estudiante, los recordatorios de entregas, los mensajes y más.",
+      "narration": "En Correos se decide qué avisa la plataforma, categoría por categoría —la campana, el email y la notificación push, juntos—: la bienvenida a nuevos usuarios, la bienvenida al curso al inscribir a un estudiante, los recordatorios de entregas, los mensajes y más.",
       "bufferMs": 800,
       "beats": [
         {

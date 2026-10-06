@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde acciones, el docente revisa las entregas y registra la sustentación. Los archivos esperados, los estudiantes asignados y los grupos se configuran al editar el proyecto.",
+      "narration": "Desde acciones, el docente revisa las entregas y registra la sustentación, que multiplica la nota de la entrega. Puede calificar a todo un grupo de una vez. Los archivos esperados, los estudiantes asignados y los grupos se configuran al editar el proyecto.",
       "bufferMs": 700,
       "beats": [
         {

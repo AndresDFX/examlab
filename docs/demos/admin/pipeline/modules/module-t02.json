@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados. Cada sesión se alinea con el material, mostrando la clase que le corresponde de forma automática.",
+      "narration": "Desde el menú de acciones de cada curso, el docente accede a su tablero, gestiona las sesiones de clase, el contenido y los estudiantes matriculados, y cambia el estado del curso: puede activarlo o volverlo a borrador. Al volver un curso a borrador, su material publicado también pasa a borrador, con un aviso que resume el impacto antes de confirmar.",
       "bufferMs": 800,
       "beats": [
         {
@@ -94,7 +94,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así el docente organiza sus cursos, sesiones y estudiantes desde un solo lugar, con todo alineado al plan académico.",
+      "narration": "Así el docente organiza sus cursos, sesiones y estudiantes desde un solo lugar, con el estado del curso y su material siempre sincronizados.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
         "title": "ExamLab",

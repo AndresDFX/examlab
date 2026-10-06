@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde acciones, el docente califica las entregas, publica y duplica la actividad. Las preguntas, los estudiantes asignados y los grupos se configuran al editar el taller.",
+      "narration": "Desde acciones, el docente califica las entregas —una por una o a todo un grupo de una vez—, publica y duplica la actividad, o crea un recuperatorio. Las preguntas, los estudiantes asignados y los grupos se configuran al editar el taller, donde también puede activar la sustentación para que la nota combine la entrega con su defensa.",
       "bufferMs": 700,
       "beats": [
         {
@@ -58,7 +58,7 @@
     {
       "id": "crear",
       "kind": "platform",
-      "narration": "Al crear un taller se elige el curso, con el curso actual y los abiertos priorizados, y se definen su título, la descripción y las instrucciones que guían al estudiante en la entrega.",
+      "narration": "Al crear un taller se elige el curso, con el curso actual y los abiertos priorizados, y se definen su título, la descripción y las instrucciones que guían al estudiante en la entrega. También puede ser grupal, con los grupos que arma el docente.",
       "bufferMs": 800,
       "openDialog": "createbtn",
       "beats": [

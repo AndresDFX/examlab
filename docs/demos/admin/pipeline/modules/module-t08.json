@@ -52,7 +52,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Abrimos el check-in con QR. Elegimos cuánto dura la ventana y cada cuánto rota el código, e iniciamos.",
+      "narration": "Abrimos el check-in con QR. Elegimos cuánto dura la ventana y cada cuánto rota el código de seguridad. Con un solo código se puede cubrir varias sesiones a la vez, e iniciamos.",
       "bufferMs": 700,
       "beats": [
         {
@@ -88,7 +88,7 @@
     {
       "id": "qr-hold",
       "kind": "platform",
-      "narration": "Y aquí está: un QR gigante en pantalla, con un código de seis dígitos que rota por seguridad y un contador de presentes en vivo. Los estudiantes lo escanean desde su celular y se marcan solos.",
+      "narration": "Y aquí está: un QR gigante en pantalla, con un código de seis dígitos que rota por seguridad, la hora de cierre a la vista y un contador de presentes en vivo. Quien no pueda escanear teclea el código a mano. Si falta tiempo, el docente estira la ventana con un toque, más cinco, diez o quince minutos. Los estudiantes lo escanean desde su celular y se marcan solos.",
       "bufferMs": 1200,
       "beats": [
         {

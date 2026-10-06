@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa13",
+  "kind": "faq",
+  "question": "¿Cómo le pregunto al Asistente IA cómo usar la plataforma?",
+  "title": "Asistente IA de la plataforma",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/assistant",
+  "readySelectors": ["[data-tour-nav=\"/app/assistant\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo le pregunto al Asistente IA cómo usar la plataforma?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Asistente IA", "subtitle": "Dudas de cómo usar ExamLab" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "El Asistente IA responde tus dudas de cómo usar y configurar la plataforma, con la documentación de ExamLab. Escribes tu pregunta en el chat y adapta la respuesta a tu rol. Es ayuda sobre la herramienta, no sobre los contenidos de un curso.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/assistant\"]", "scale": 1.5, "hold": 3000, "side": "right", "syncWord": "responde", "focus": { "title": "Asistente IA", "body": "Ayuda sobre la plataforma." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "syncWord": "pregunta", "focus": { "title": "Pregunta en el chat", "body": "Responde con la documentación de ExamLab." } }
+      ]
+    }
+  ]
+}

@@ -117,7 +117,7 @@
       "ready": [
         "[role=\"menu\"]"
       ],
-      "narration": "Y una pizarra no es solo dibujo: con Agregar hoja el docente suma hojas de distintos tipos en el mismo lienzo. Una hoja de dibujo para diagramas, una de texto para notas, una de código con compilador para mostrar ejemplos que se ejecutan de verdad, y una de consola con una terminal Linux real. Todo conviven en el mismo espacio de la clase.",
+      "narration": "Y una pizarra no es solo dibujo: con Agregar hoja el docente suma hojas de distintos tipos en el mismo lienzo. Una hoja de dibujo para diagramas, una de texto para notas, una de código con compilador, una de consola con una terminal Linux real, una hoja SQL con PostgreSQL de verdad en el navegador para demostrar consultas, y una de diagrama por texto. Todas conviven en el mismo espacio de la clase.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -128,7 +128,7 @@
           "syncWord": "tipos",
           "focus": {
             "title": "Hojas de varios tipos",
-            "body": "Dibujo, texto, código (con compilador) y consola Linux real."
+            "body": "Dibujo, texto, código, consola Linux, SQL real y diagrama."
           }
         }
       ]
@@ -136,7 +136,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así las pizarras te dan un lienzo completo —con hojas de dibujo, texto, código y consola— para explicar cualquier concepto y compartirlo en vivo con tu curso.",
+      "narration": "Así las pizarras te dan un lienzo completo —con hojas de dibujo, texto, código, consola, SQL y diagrama— para explicar cualquier concepto y compartirlo en vivo con tu curso.",
       "card": {
         "kicker": "ExamLab · Rol Docente",
         "title": "ExamLab",

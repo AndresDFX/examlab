@@ -26,7 +26,7 @@
       "id": "prompts",
       "kind": "platform",
       "tab": "Prompts",
-      "narration": "En Prompts se ajusta el criterio con el que la IA evalúa, por cada caso de uso: talleres, exámenes y proyectos. Es la política base de la institución, y cada docente puede afinarla para su propio curso.",
+      "narration": "En Prompts se ajusta el criterio con el que la inteligencia artificial trabaja, filtrando por módulo: talleres, exámenes, proyectos, los contenidos y hasta el Tutor del curso. Es la política base de la institución; cada prompt trae un valor por defecto que puedes restaurar con un clic, y cada docente puede afinarlo para su propio curso.",
       "bufferMs": 800,
       "beats": [
         {
@@ -34,10 +34,10 @@
           "scale": 1.25,
           "hold": 4500,
           "side": "bottom",
-          "syncWord": "caso",
+          "syncWord": "filtrando",
           "focus": {
             "title": "Filtrar por módulo",
-            "body": "Talleres, exámenes, proyectos, contenidos…"
+            "body": "Talleres, exámenes, proyectos, contenidos, Tutor del curso…"
           }
         },
         {
@@ -48,7 +48,7 @@
           "syncWord": "talleres",
           "focus": {
             "title": "Prompt por caso de uso",
-            "body": "El criterio con que la IA evalúa cada cosa."
+            "body": "El criterio con que la IA trabaja; con «Restaurar default» por si quieres volver al base."
           }
         }
       ]
@@ -57,7 +57,7 @@
       "id": "modelo",
       "kind": "platform",
       "tab": "Modelo",
-      "narration": "En Modelo se elige el proveedor —Google Gemini u OpenAI— y el modelo activo. Aquí también va la clave de la institución: sin ella, la calificación con IA no funciona.",
+      "narration": "En Modelo se elige el proveedor —Google Gemini u OpenAI— y el modelo activo. Aquí va la clave propia de la institución: sin ella, la calificación con inteligencia artificial no funciona. Y se pueden cargar claves de respaldo, para que la IA no se caiga si una agota su cuota.",
       "bufferMs": 800,
       "beats": [
         {

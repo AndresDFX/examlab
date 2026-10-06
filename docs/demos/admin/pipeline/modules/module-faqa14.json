@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa14",
+  "kind": "faq",
+  "question": "¿Dónde veo las tareas de IA pendientes de calificación y generación?",
+  "title": "Tareas de IA",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/ai-cron",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/ai-cron\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Dónde veo las tareas de inteligencia artificial pendientes?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Tareas de IA", "subtitle": "Calificación y generación" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Tareas de IA ves los trabajos de calificación y de generación con su estado: pendientes, en proceso, fallados o completados. Desde ahí puedes procesar un trabajo al instante, reintentar los que fallaron y ver el detalle del error.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/ai-cron\"]", "scale": 1.5, "hold": 3000, "side": "right", "syncWord": "trabajos", "focus": { "title": "Tareas de IA", "body": "Calificación y generación." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4400, "side": "bottom", "syncWord": "reintentar", "focus": { "title": "Estado y acciones", "body": "Procesar, reintentar y ver el error." } }
+      ]
+    }
+  ]
+}

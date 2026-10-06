@@ -1,0 +1,98 @@
+{
+  "id": "modulo-t15",
+  "title": "Estadísticas",
+  "series": "teacher",
+  "role": "Docente",
+  "appPath": "/app/teacher/statistics",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/teacher/statistics\"]",
+    "text=Estadísticas"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Estadísticas del curso, desde el rol Docente.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "Estadísticas",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 600
+    },
+    {
+      "id": "panorama",
+      "kind": "platform",
+      "narration": "Las estadísticas reúnen en una pantalla el pulso del curso: aprobación, asistencia, posibles copias y la tendencia por corte. El docente ve de un vistazo cómo va el grupo.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "firstcard",
+          "scale": 1.05,
+          "hold": 6500,
+          "side": "bottom",
+          "syncWord": "pantalla",
+          "focus": {
+            "title": "Pulso del curso",
+            "body": "Aprobación, asistencia, fraude y tendencia por corte."
+          }
+        }
+      ]
+    },
+    {
+      "id": "alerta",
+      "kind": "platform",
+      "narration": "Arriba de todo está la alerta temprana: un semáforo que señala, con nombre y motivo, a qué estudiantes conviene buscar esta semana. Marca en riesgo a quienes cruzan dos señales —baja asistencia, actividades reprobadas o sin entregar—, no por un solo tropiezo.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "text:Alerta temprana",
+          "scale": 1.1,
+          "hold": 9000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "alerta",
+          "focus": {
+            "title": "Alerta temprana",
+            "body": "A quién buscar esta semana, con nombre y motivo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "falta",
+      "kind": "platform",
+      "narration": "Y qué falta del corte separa lo que depende del docente de lo que depende del estudiante: lo que está por calificar, lo que quedó en curso y lo que nadie empezó. Cada quien sabe qué le toca hacer.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "text:Qué falta del corte",
+          "scale": 1.1,
+          "hold": 9000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "falta",
+          "focus": {
+            "title": "Qué falta del corte",
+            "body": "Por calificar, en curso y sin empezar — cada uno con su responsable."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así, las estadísticas te dicen no solo cómo va el curso, sino a quién acompañar y qué resolver primero.",
+      "card": {
+        "kicker": "ExamLab · Rol Docente",
+        "title": "ExamLab",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 600
+    }
+  ]
+}

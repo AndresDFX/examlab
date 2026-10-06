@@ -6,14 +6,23 @@
   "series": "faq",
   "role": "Admin",
   "appPath": "/app/certificates",
-  "readySelectors": ["[data-tour-nav=\"/app/certificates\"]"],
-  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "readySelectors": [
+    "[data-tour-nav=\"/app/certificates\"]"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
   "scenes": [
     {
       "id": "q",
       "kind": "card",
       "narration": "¿Cómo emito y gestiono los certificados de un curso?",
-      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Certificados", "subtitle": "Emitir y gestionar" },
+      "card": {
+        "kicker": "ExamLab · Ayuda rápida",
+        "title": "Certificados",
+        "subtitle": "Emitir y gestionar"
+      },
       "bufferMs": 400
     },
     {
@@ -22,8 +31,27 @@
       "narration": "En Certificados eliges el curso y emites el certificado a los estudiantes que lo aprobaron. Desde ahí también revisas los emitidos y, si hace falta, revocas uno.",
       "bufferMs": 700,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/certificates\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Certificados", "body": "Los certificados de la institución." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Emitir y revocar", "body": "Por curso y por estudiante." } }
+        {
+          "target": "[data-tour-nav=\"/app/certificates\"]",
+          "scale": 1.5,
+          "hold": 3000,
+          "side": "right",
+          "focus": {
+            "title": "Certificados",
+            "body": "Los certificados de la institución."
+          }
+        },
+        {
+          "target": "firstcard",
+          "scale": 1.15,
+          "hold": 4000,
+          "side": "bottom",
+          "focus": {
+            "title": "Emitir y revocar",
+            "body": "Por curso y por estudiante."
+          },
+          "syncWord": "revocas"
+        }
       ]
     }
   ]

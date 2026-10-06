@@ -27,18 +27,18 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "Los proyectos son entregas amplias, a menudo en grupo. Cada uno aparece como una tarjeta con su curso, su estado y su plazo. Para entregar, el estudiante pulsa Iniciar entrega.",
+      "narration": "Los proyectos son entregas amplias, a menudo en grupo. Cada uno aparece como una tarjeta con su curso, su estado, su plazo y cuánto aporta a la nota final del curso. Para entregar, el estudiante pulsa Iniciar entrega.",
       "bufferMs": 900,
       "beats": [
         {
           "target": "maincard",
           "scale": 1.06,
-          "hold": 7500,
+          "hold": 8000,
           "side": "bottom",
           "syncWord": "proyectos",
           "focus": {
             "title": "Tus proyectos",
-            "body": "Cada proyecto con su curso, estado y plazo."
+            "body": "Curso, estado, plazo y aporte a la nota final del curso."
           }
         }
       ]

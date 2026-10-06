@@ -1,8 +1,8 @@
 {
   "id": "modulo-faqs03",
   "kind": "faq",
-  "question": "¿Dónde veo mis notas?",
-  "title": "Ver mis notas",
+  "question": "¿Dónde veo mis calificaciones?",
+  "title": "Ver mis calificaciones",
   "series": "faq",
   "role": "Estudiante",
   "appPath": "/app/student/grades",
@@ -12,18 +12,18 @@
     {
       "id": "q",
       "kind": "card",
-      "narration": "¿Dónde consulto mis notas por curso y por corte?",
-      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mis notas", "subtitle": "Por curso y por corte" },
+      "narration": "¿Dónde consulto mis calificaciones por curso y por corte?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Mis calificaciones", "subtitle": "Por curso y por corte" },
       "bufferMs": 400
     },
     {
       "id": "answer",
       "kind": "platform",
-      "narration": "En Notas ves cada curso con tus calificaciones por corte y el promedio ponderado. Lo que aún no tiene nota cuenta como pendiente, así que siempre sabes cómo vas y qué te falta por entregar.",
+      "narration": "En Calificaciones ves cada curso con tus notas por corte y el promedio ponderado. La nota cuenta solo lo que ya pasó en el curso: lo que todavía no se dio no te resta, y mientras falten actividades verás una nota parcial.",
       "bufferMs": 800,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/student/grades\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Notas", "body": "Tus calificaciones por curso." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Por corte y ponderado", "body": "Lo pendiente cuenta hasta que aparezca la nota." } }
+        { "target": "[data-tour-nav=\"/app/student/grades\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Calificaciones", "body": "Tus notas por curso." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Por corte y ponderado", "body": "Cuenta solo lo que ya se dio; antes del cierre es parcial." } }
       ]
     }
   ]

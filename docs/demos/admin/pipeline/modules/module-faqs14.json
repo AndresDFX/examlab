@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs14",
+  "kind": "faq",
+  "question": "¿Por qué mi consulta SQL no da el resultado que espero?",
+  "title": "Preguntas de base de datos (SQL)",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/student/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "Respondo una pregunta de base de datos, pero mi consulta SQL no da el resultado que espero.",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Preguntas de SQL", "subtitle": "Base de datos en tu navegador" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "La base de datos corre dentro de tu navegador y arranca limpia cada vez que ejecutas, así que tus tablas y tus datos deben estar en la misma hoja. Lo que dejes como comentario no se ejecuta. Y si usas un aviso como RAISE NOTICE, su texto aparece bajo el resultado. Al entregar se guarda tu consulta y lo que devolvió, que es lo que se califica.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/exams\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Exámenes", "body": "Donde aparecen las preguntas de SQL." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Base de datos limpia", "body": "Incluye tu esquema; lo comentado no corre." } }
+      ]
+    }
+  ]
+}

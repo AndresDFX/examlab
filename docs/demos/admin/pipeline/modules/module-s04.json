@@ -27,28 +27,18 @@
     {
       "id": "vista",
       "kind": "platform",
-      "openVia": { "target": "combobox:1", "option": "Calificado" },
-      "narration": "Los talleres son actividades prácticas con entrega y calificación. El estudiante revisa las instrucciones, desarrolla su trabajo y lo entrega antes de la fecha límite. Después recibe su nota y la retroalimentación detallada del docente.",
-      "bufferMs": 800,
+      "narration": "Los talleres son actividades prácticas con entrega y calificación. Cada tarjeta muestra el curso, el plazo y cuánto aporta ese taller a la nota final del curso. El estudiante puede filtrar por fecha para encontrar lo que vence pronto, revisa las instrucciones y desarrolla su trabajo.",
+      "bufferMs": 1000,
       "beats": [
         {
-          "target": "[data-tour-nav=\"/app/student/workshops\"]",
-          "scale": 1.5,
-          "hold": 3600,
-          "side": "right",
-          "focus": {
-            "title": "Talleres",
-            "body": "Tus actividades prácticas."
-          }
-        },
-        {
           "target": "firstcard",
-          "scale": 1.15,
-          "hold": 5500,
+          "scale": 1.12,
+          "hold": 6500,
           "side": "bottom",
+          "syncWord": "práctica",
           "focus": {
             "title": "Tus talleres",
-            "body": "Entrega y retroalimentación."
+            "body": "Curso, plazo y cuánto aporta a la nota final del curso."
           }
         }
       ]
@@ -56,17 +46,19 @@
     {
       "id": "resultado",
       "kind": "platform",
-      "narration": "Cuando el docente califica, el estudiante ve en la misma tarjeta del taller su nota y la retroalimentación detallada. Aquí, por ejemplo, este taller quedó calificado con una observación del docente sobre su trabajo.",
-      "bufferMs": 900,
+      "narration": "Mientras un taller está por calificar, la retroalimentación todavía no aparece. Recién cuando el docente lo califica, el estudiante ve en la misma tarjeta su nota y el botón Ver detalle y retroalimentación, con el comentario del docente sobre su trabajo.",
+      "bufferMs": 1000,
       "beats": [
         {
-          "target": "text:Excelente trabajo",
-          "scale": 1.08,
+          "target": "text:Ver detalle y retroalimentación",
+          "scale": 1.12,
           "hold": 6500,
           "side": "top",
+          "scroll": true,
+          "syncWord": "califica",
           "focus": {
             "title": "Nota y retroalimentación",
-            "body": "El estudiante recibe su calificación y el comentario del docente."
+            "body": "Se habilitan recién cuando el taller queda calificado."
           }
         }
       ]
@@ -74,7 +66,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así, los talleres reúnen instrucciones, entrega y retroalimentación en un solo lugar para el estudiante.",
+      "narration": "Así, los talleres reúnen instrucciones, entrega, peso en la nota y retroalimentación en un solo lugar para el estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "ExamLab",

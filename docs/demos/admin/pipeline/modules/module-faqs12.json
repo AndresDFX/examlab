@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs12",
+  "kind": "faq",
+  "question": "¿Por qué no veo la retroalimentación de mi taller o examen?",
+  "title": "No veo la retroalimentación",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/workshops",
+  "readySelectors": ["[data-tour-nav=\"/app/student/workshops\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "Ya entregué, pero no me aparece la retroalimentación. ¿Por qué?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "No veo la retroalimentación", "subtitle": "Aparece cuando está calificado" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "La retroalimentación se muestra recién cuando tu entrega está calificada. Mientras aparece como Por calificar, falta que la inteligencia artificial o el docente terminen de revisarla, así que la nota todavía no existe. Apenas quede calificada, se habilita el botón para ver el detalle y los comentarios.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/workshops\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Talleres", "body": "El estado de cada entrega." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Por calificar", "body": "La retroalimentación llega al quedar calificado." } }
+      ]
+    }
+  ]
+}

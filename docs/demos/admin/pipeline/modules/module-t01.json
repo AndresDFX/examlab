@@ -54,7 +54,7 @@
     {
       "id": "modulos",
       "kind": "platform",
-      "narration": "Desde el menú, el docente gestiona sus cursos, exámenes, talleres y proyectos, el libro de notas y la asistencia. Todo lo necesario para enseñar y evaluar.",
+      "narration": "Desde el menú, el docente gestiona sus cursos, exámenes, talleres y proyectos, el libro de notas, la asistencia y las estadísticas del curso con alerta temprana. Todo lo necesario para enseñar y evaluar.",
       "bufferMs": 800,
       "beats": [
         {

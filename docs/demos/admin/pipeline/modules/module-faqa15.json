@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqa15",
+  "kind": "faq",
+  "question": "¿Cómo creo plantillas de documentos e informes?",
+  "title": "Documentos y plantillas",
+  "series": "faq",
+  "role": "Admin",
+  "appPath": "/app/admin/report-templates",
+  "readySelectors": ["[data-tour-nav=\"/app/admin/report-templates\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Cómo creo plantillas de documentos e informes para la institución?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Documentos", "subtitle": "Plantillas de informes" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "En Documentos defines plantillas con variables que se completan solas, como el nombre del estudiante o la nota, para generar informes, actas y acuerdos. Los docentes las usan en sus cursos y los estudiantes pueden firmarlos cuando se requiere.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/admin/report-templates\"]", "scale": 1.5, "hold": 3000, "side": "right", "syncWord": "plantillas", "focus": { "title": "Documentos", "body": "Las plantillas de la institución." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4400, "side": "bottom", "syncWord": "variables", "focus": { "title": "Plantillas con variables", "body": "Informes, actas y acuerdos." } }
+      ]
+    }
+  ]
+}

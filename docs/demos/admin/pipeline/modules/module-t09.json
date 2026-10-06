@@ -90,7 +90,7 @@
       "ready": [
         "[role=\"dialog\"]"
       ],
-      "narration": "Y no todo tiene que generarlo la inteligencia artificial: ExamLab también acepta tu propio material. Con Subir externo cargas presentaciones, documentos, PDF, código o notebooks que ya tengas, con la misma ficha del curso.",
+      "narration": "Y no todo tiene que generarlo la inteligencia artificial: ExamLab también acepta tu propio material. Con Subir externo cargas presentaciones, documentos, PDF, imágenes, código o notebooks que ya tengas, con la misma ficha del curso. Las imágenes y los PDF se ven dentro de la plataforma —y las imágenes hasta se editan y anotan—, y el código y los notebooks se ejecutan ahí mismo.",
       "bufferMs": 900,
       "beats": [
         {

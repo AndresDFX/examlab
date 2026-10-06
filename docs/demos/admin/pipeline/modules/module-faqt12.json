@@ -22,7 +22,7 @@
       "narration": "En la sección de trabajos de IA ves la cola de calificación con su estado: pendientes, en proceso y fallidos. Puedes abrir cada trabajo para ver el error completo y, si falló, reintentarlo o procesarlo de inmediato.",
       "bufferMs": 800,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/teacher/ai-cron\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Cron", "body": "La cola de trabajos de IA." } },
+        { "target": "[data-tour-nav=\"/app/teacher/ai-cron\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Tareas de IA", "body": "La cola de trabajos de IA." } },
         { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Estado y reintento", "body": "Ve el error y reintenta o procesa ya." } }
       ]
     }

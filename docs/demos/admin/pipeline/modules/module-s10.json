@@ -61,17 +61,30 @@
       "ready": [
         "text=mientras se cumpla"
       ],
-      "narration": "Al abrir el tutor de un curso, el estudiante conversa con él como con un profesor auxiliar. Aquí le pregunta la diferencia entre un ciclo mientras y un ciclo para; el tutor no le entrega la respuesta hecha: lo guía con preguntas y se apoya en el material de la clase para que llegue solo a la conclusión.",
-      "bufferMs": 1000,
+      "narration": "Al abrir el tutor de un curso, el estudiante conversa con él como con un profesor auxiliar. Aquí le pregunta la diferencia entre un ciclo mientras y un ciclo para; el tutor no le entrega la respuesta hecha: lo guía con preguntas y se apoya en el material de la clase para que llegue solo a la conclusión. Y escribiendo el símbolo numeral puede señalar un archivo puntual del curso para que el tutor responda sobre ese documento en concreto.",
+      "bufferMs": 1200,
       "beats": [
         {
           "target": "text:mientras se cumpla",
           "scale": 1.05,
-          "hold": 7000,
+          "hold": 6500,
           "side": "top",
+          "syncWord": "auxiliar",
           "focus": {
             "title": "Chat con el tutor",
             "body": "Guía socrática anclada al material del curso."
+          }
+        },
+        {
+          "target": "textarea",
+          "scale": 1.1,
+          "hold": 5000,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "numeral",
+          "focus": {
+            "title": "Referenciar con #",
+            "body": "Escribe # y elige un archivo del curso para preguntar sobre él."
           }
         }
       ]

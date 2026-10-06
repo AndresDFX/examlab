@@ -19,10 +19,10 @@
     {
       "id": "answer",
       "kind": "platform",
-      "narration": "En Certificados aparecen los que la institución te ha emitido por los cursos aprobados. Desde cada uno descargas el archivo para guardarlo o compartirlo cuando lo necesites.",
+      "narration": "En Certificaciones aparecen las que la institución te ha emitido por los cursos aprobados. Desde cada una descargas el archivo para guardarlo o compartirlo cuando lo necesites. Mientras un curso no cierre, su nota es parcial y todavía no se emite el certificado.",
       "bufferMs": 700,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/student/certificates\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Certificados", "body": "Los que te ha emitido la institución." } },
+        { "target": "[data-tour-nav=\"/app/student/certificates\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Certificaciones", "body": "Las que te ha emitido la institución." } },
         { "target": "firstcard", "scale": 1.15, "hold": 4000, "side": "bottom", "focus": { "title": "Descargar", "body": "Guarda o comparte tu certificado." } }
       ]
     }

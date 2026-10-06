@@ -25,39 +25,51 @@
       "bufferMs": 2200
     },
     {
-      "id": "vista",
+      "id": "checkin",
       "kind": "platform",
-      "narration": "El estudiante revisa las sesiones de clase de cada uno de sus cursos. Cuando el docente abre el check-in, se marca presente escaneando un código que rota cada pocos segundos. Así su asistencia queda registrada al instante, sin pasar lista manual.",
-      "bufferMs": 800,
+      "narration": "El estudiante elige un curso y revisa sus sesiones de clase. Cuando el docente abre el check-in, se marca presente escaneando el código QR, que rota cada pocos segundos, o escribiendo el código a mano. Su asistencia queda registrada al instante, sin pasar lista.",
+      "bufferMs": 900,
       "beats": [
-        {
-          "target": "[data-tour-nav=\"/app/student/attendance\"]",
-          "scale": 1.5,
-          "hold": 3600,
-          "side": "right",
-          "focus": {
-            "title": "Asistencia",
-            "body": "Tus sesiones de clase."
-          }
-        },
         {
           "target": "text:Check-in de asistencia disponible",
           "scale": 1.1,
-          "hold": 6000,
+          "hold": 6500,
           "side": "bottom",
+          "syncWord": "check-in",
           "focus": {
             "title": "Check-in disponible",
-            "body": "Cuando el docente lo abre: escanea el QR o escribe el código rotativo."
+            "body": "Escanea el QR rotativo o escribe el código para marcarte presente."
+          }
+        }
+      ]
+    },
+    {
+      "id": "porcentaje",
+      "kind": "platform",
+      "narration": "Para cada curso ve su porcentaje de asistencia, calculado sobre las sesiones que ya se dieron. Una sesión que se dio y no tiene su marca cuenta como ausente, igual que en su nota; la leyenda lo explica. Si asistió pero no quedó registrado, lo habla con su docente.",
+      "bufferMs": 1200,
+      "beats": [
+        {
+          "target": "text:% asistencia",
+          "scale": 1.15,
+          "hold": 6000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "porcentaje",
+          "focus": {
+            "title": "Tu porcentaje",
+            "body": "Sobre las sesiones ya dadas; una sin marca cuenta como ausente."
           }
         },
         {
           "target": "firstcard",
-          "scale": 1.12,
+          "scale": 1.1,
           "hold": 4500,
           "side": "bottom",
+          "syncWord": "leyenda",
           "focus": {
-            "title": "Tu asistencia",
-            "body": "Historial de sesiones de clase."
+            "title": "Historial de sesiones",
+            "body": "Presente, tardanza, justificado o ausente sin marca."
           }
         }
       ]
@@ -65,7 +77,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Con el check-in por código rotativo, tu asistencia queda registrada al instante y de forma confiable.",
+      "narration": "Con el check-in por código rotativo y el porcentaje sobre las sesiones ya dadas, el estudiante sabe siempre cómo va su asistencia.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "ExamLab",

@@ -24,7 +24,7 @@
     {
       "id": "auditoria",
       "kind": "platform",
-      "narration": "La auditoría registra quién hizo qué y cuándo: inicios de sesión, cambios, calificaciones y eliminaciones. Se puede filtrar por curso, categoría, evento o nivel, exportar a CSV, y solo muestra la actividad de esta institución. Es la herramienta para responder reclamos e investigar incidentes.",
+      "narration": "La auditoría registra quién hizo qué y cuándo: inicios de sesión, cambios, calificaciones y eliminaciones. Se puede filtrar por curso, categoría, evento o nivel, exportar a CSV, y solo muestra la actividad de esta institución. Y junto a la auditoría, una pestaña de errores del sistema agrupa las fallas técnicas para su seguimiento. Es la herramienta para responder reclamos e investigar incidentes.",
       "bufferMs": 900,
       "beats": [
         {

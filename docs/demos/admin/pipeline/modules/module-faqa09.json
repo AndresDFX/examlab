@@ -19,11 +19,11 @@
     {
       "id": "answer",
       "kind": "platform",
-      "narration": "En Auditoría encuentras el registro de las acciones importantes de la institución, con quién las hizo y cuándo. Puedes filtrar y buscar para investigar un evento o dar seguimiento a un cambio.",
-      "bufferMs": 800,
+      "narration": "En Auditoría encuentras el registro de las acciones importantes de la institución —incluidos los inicios de sesión fallidos—, con quién las hizo y cuándo. Una segunda pestaña, Errores, agrupa los incidentes de la plataforma, y puedes pedir que la IA los analice y sugiera cómo resolverlos.",
+      "bufferMs": 900,
       "beats": [
-        { "target": "[data-tour-nav=\"/app/admin/audit-logs\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Auditoría", "body": "El registro de actividad." } },
-        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Eventos registrados", "body": "Quién hizo qué y cuándo; con filtros." } }
+        { "target": "[data-tour-nav=\"/app/admin/audit-logs\"]", "scale": 1.5, "hold": 3000, "side": "right", "syncWord": "acciones", "focus": { "title": "Auditoría", "body": "El registro de actividad." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4600, "side": "bottom", "syncWord": "Errores", "focus": { "title": "Auditoría y Errores", "body": "Eventos, logins fallidos e incidentes con IA." } }
       ]
     }
   ]

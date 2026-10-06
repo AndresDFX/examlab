@@ -1,3 +1,10 @@
+// ⚠️ DEPRECADO — NO EJECUTAR. Los specs de la serie Estudiante
+// (docs/demos/admin/pipeline/modules/module-s*.json) ya NO se generan desde este
+// archivo: se mantienen a mano. Este generador quedó atrás (escribe a un scratch,
+// no produce s03b/s03c/s14, no tiene syncWord ni los flujos openVia/typeInto, y su
+// estructura de escenas es más pobre). Correrlo SOBREESCRIBIRÍA y perdería todo eso.
+// Se conserva solo como referencia histórica de la primera versión de la serie.
+// Si hay que tocar un guion de Estudiante, editá el module-sNN.json correspondiente.
 import { writeFileSync } from "node:fs";
 const DIR = "C:/Temp/examlab-rec/modules";
 const V = { name: "es-CO-GonzaloNeural", rate: "-4%" };

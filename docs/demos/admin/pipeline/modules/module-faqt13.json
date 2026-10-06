@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqt13",
+  "kind": "faq",
+  "question": "¿Por qué mis estudiantes no ven el examen o taller que publiqué?",
+  "title": "Publicar no es asignar",
+  "series": "faq",
+  "role": "Docente",
+  "appPath": "/app/teacher/exams",
+  "readySelectors": ["[data-tour-nav=\"/app/teacher/exams\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "Publiqué un examen, pero mis estudiantes dicen que no lo ven. ¿Por qué?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Publicar no es asignar", "subtitle": "Y el curso no puede estar en borrador" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Publicar y asignar son dos cosas distintas. El estudiante solo ve una actividad que le fue asignada, así que además de publicarla debes asignarla a los estudiantes del curso. Y si el curso todavía está en borrador, su material también queda en borrador: primero activa el curso y luego publica y asigna.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/teacher/exams\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Exámenes", "body": "Publicar y asignar son distintos." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Asigna a los estudiantes", "body": "Y activa el curso si está en borrador." } }
+      ]
+    }
+  ]
+}

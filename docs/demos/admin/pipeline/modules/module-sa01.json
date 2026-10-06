@@ -18,22 +18,23 @@
       "narration": "Demostración del rol SuperAdmin en ExamLab: la operación de toda la plataforma, por encima de cada institución.",
       "card": {
         "kicker": "ExamLab · Serie de demostración",
-        "title": "Plataforma ExamLab",
+        "title": "Panel del SuperAdmin",
         "subtitle": "Rol: SuperAdmin"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "identidad",
       "kind": "platform",
-      "narration": "El SuperAdmin opera la plataforma completa. A diferencia de un administrador de institución, no está atado a una sola marca: gestiona todas las instituciones desde un mismo lugar.",
+      "narration": "El SuperAdmin opera la plataforma completa. A diferencia del administrador de una institución, no está atado a una sola marca: gestiona todas las instituciones desde un mismo lugar.",
       "bufferMs": 800,
       "beats": [
         {
           "target": "[data-tour-id=\"brand\"]",
           "scale": 1.7,
-          "hold": 3600,
+          "hold": 3400,
           "side": "right",
+          "syncWord": "plataforma",
           "focus": {
             "title": "Plataforma",
             "body": "Vista de plataforma, no de una sola institución."
@@ -42,8 +43,9 @@
         {
           "target": "[data-tour-id=\"role-switcher\"]",
           "scale": 1.6,
-          "hold": 3400,
+          "hold": 3200,
           "side": "right",
+          "syncWord": "marca",
           "focus": {
             "title": "Tu rol",
             "body": "Operás como SuperAdmin."
@@ -54,7 +56,7 @@
     {
       "id": "modulos",
       "kind": "platform",
-      "narration": "Desde el menú, el SuperAdmin tiene las herramientas de plataforma: las instituciones, los diagnósticos del sistema, la calculadora de costos y el soporte a los administradores.",
+      "narration": "Desde el menú tenés las herramientas de plataforma: las Instituciones, el Sistema con sus diagnósticos de salud, la calculadora de Precios y el Soporte a los administradores.",
       "bufferMs": 900,
       "beats": [
         {
@@ -62,7 +64,7 @@
           "scale": 1.55,
           "hold": 2400,
           "side": "right",
-          "syncWord": "instituciones",
+          "syncWord": "Instituciones",
           "focus": {
             "title": "Instituciones",
             "body": "Crear y administrar cada institución."
@@ -73,10 +75,10 @@
           "scale": 1.55,
           "hold": 2200,
           "side": "right",
-          "syncWord": "diagnósticos",
+          "syncWord": "Sistema",
           "focus": {
-            "title": "Diagnósticos",
-            "body": "Salud del sistema de un vistazo."
+            "title": "Sistema",
+            "body": "Salud de la plataforma de un vistazo."
           }
         },
         {
@@ -84,10 +86,10 @@
           "scale": 1.55,
           "hold": 2200,
           "side": "right",
-          "syncWord": "costos",
+          "syncWord": "Precios",
           "focus": {
-            "title": "Costos",
-            "body": "Calculadora interna de precio."
+            "title": "Precios",
+            "body": "Calculadora interna de costo y precio."
           }
         },
         {
@@ -95,7 +97,7 @@
           "scale": 1.55,
           "hold": 2400,
           "side": "right",
-          "syncWord": "soporte",
+          "syncWord": "Soporte",
           "focus": {
             "title": "Soporte",
             "body": "Peticiones de los administradores."
@@ -136,8 +138,7 @@
           "scale": 1.3,
           "hold": 2000,
           "side": "bottom",
-          "syncWord": "instituciones",
-          "syncOccurrence": 2,
+          "syncWord": "recientes",
           "focus": {
             "title": "Instituciones recientes",
             "body": "Las últimas instituciones creadas."
@@ -162,10 +163,10 @@
       "narration": "Así, desde un solo panel, el SuperAdmin ve el estado de toda la plataforma y llega a cada herramienta de operación con un clic.",
       "card": {
         "kicker": "ExamLab · Rol SuperAdmin",
-        "title": "ExamLab",
+        "title": "Panel del SuperAdmin",
         "subtitle": "Una vista sobre todas las instituciones"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

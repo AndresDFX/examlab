@@ -27,7 +27,7 @@
     {
       "id": "consolidado",
       "kind": "platform",
-      "narration": "El gradebook reúne toda la nota del curso en una sola pantalla. El curso usa escala de cero a cinco y se aprueba con tres. En el consolidado, cada estudiante tiene su nota por corte y su nota final ponderada.",
+      "narration": "El libro de notas reúne toda la calificación del curso en una sola pantalla. El curso usa escala de cero a cinco y se aprueba con tres. En el consolidado, cada estudiante tiene su nota por corte y su nota final ponderada. La nota es relativa: cuenta solo lo que ya se dio, así que a mitad de semestre muestra una nota parcial, sin castigar lo que todavía no ocurre.",
       "bufferMs": 900,
       "beats": [
         {
@@ -58,7 +58,7 @@
     {
       "id": "detalle",
       "kind": "platform",
-      "narration": "Con un clic en Detalle, el docente ve de dónde sale esa nota: los talleres, los exámenes, los proyectos y la asistencia, cada uno con su peso. Y todo se exporta a un archivo de notas con un botón.",
+      "narration": "Con un clic en Detalle, el docente ve de dónde sale esa nota: los talleres, los exámenes, los proyectos y la asistencia, cada uno con su peso. Los supletorios y recuperatorios aparecen anidados dentro de su actividad original. Y todo se exporta a un archivo de notas con un botón.",
       "bufferMs": 900,
       "beats": [
         {

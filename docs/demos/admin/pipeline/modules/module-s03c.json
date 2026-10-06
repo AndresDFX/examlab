@@ -27,27 +27,29 @@
     {
       "id": "lista",
       "kind": "platform",
-      "narration": "Cuando un examen ya está calificado, en la lista aparece la opción de ver el detalle. Ahí no solo está la nota: está el examen completo, pregunta por pregunta, con lo que respondiste y con la retroalimentación del docente.",
-      "bufferMs": 800,
+      "narration": "Mientras el examen está por calificar, el estudiante solo ve su estado: la retroalimentación no aparece todavía, porque la nota aún no existe. Recién cuando queda calificado se habilita el botón Ver detalle y retroalimentación. Ahí no solo está la nota: está el examen completo, pregunta por pregunta, con lo que respondió y con el comentario del docente.",
+      "bufferMs": 900,
       "beats": [
         {
           "target": "[data-tour-nav=\"/app/student/exams\"]",
           "scale": 1.5,
           "hold": 3200,
           "side": "right",
+          "syncWord": "calificar",
           "focus": {
             "title": "Exámenes",
             "body": "Tus exámenes y sus resultados."
           }
         },
         {
-          "target": "a[href*=\"0cb9b237\"]",
-          "scale": 1.25,
-          "hold": 4200,
+          "target": "text:Ver detalle y retroalimentación",
+          "scale": 1.2,
+          "hold": 5000,
           "side": "top",
+          "syncWord": "calificado",
           "focus": {
-            "title": "Ver detalle",
-            "body": "Entra al examen ya calificado."
+            "title": "Ver detalle y retroalimentación",
+            "body": "Solo aparece cuando el examen ya está calificado."
           }
         }
       ]
@@ -56,7 +58,7 @@
       "id": "revision",
       "kind": "platform",
       "openVia": {
-        "target": "a[href*=\"0cb9b237\"]"
+        "target": "text:Ver detalle y retroalimentación"
       },
       "narration": "Acá está tu examen revisado. Cada pregunta muestra tu respuesta, el puntaje que obtuviste y el comentario con el que el docente explica por qué. Antes de preguntar, vale la pena leer esa retroalimentación: muchas veces la duda ya está resuelta ahí.",
       "bufferMs": 900,

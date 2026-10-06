@@ -1,6 +1,6 @@
 {
   "id": "modulo-11",
-  "title": "Informes",
+  "title": "Documentos",
   "appPath": "/app/admin/report-templates",
   "readySelectors": [
     "main table",
@@ -14,10 +14,10 @@
     {
       "id": "intro",
       "kind": "card",
-      "narration": "Los informes: las plantillas de actas y boletines en PDF.",
+      "narration": "Documentos: las plantillas de actas y boletines en PDF.",
       "card": {
         "kicker": "ExamLab · Demo Global Corp",
-        "title": "Informes",
+        "title": "Documentos",
         "subtitle": "Rol: Administrador"
       },
       "bufferMs": 500
@@ -107,7 +107,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así, con plantillas globales y variables dinámicas, generás actas y boletines en PDF con los datos reales de cada estudiante.",
+      "narration": "Así, con plantillas globales y variables dinámicas, generas actas y boletines en PDF con los datos reales de cada estudiante.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "ExamLab",

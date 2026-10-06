@@ -27,7 +27,7 @@
     {
       "id": "vista",
       "kind": "platform",
-      "narration": "El listado reúne las evaluaciones del docente con su curso, las fechas de inicio y fin, y el estado de cada una.",
+      "narration": "El listado reúne las evaluaciones del docente con su curso, las fechas de inicio y fin, y el estado de cada una. Se puede ordenar por cualquier columna y filtrar por curso o por rango de fechas. Los supletorios y recuperatorios aparecen anidados dentro de la fila de su parcial.",
       "bufferMs": 800,
       "beats": [
         {
@@ -45,7 +45,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Desde acciones, el docente edita el examen, gestiona sus preguntas, lo asigna a los estudiantes y abre el monitoreo en vivo durante la prueba.",
+      "narration": "Desde acciones, el docente publica o vuelve a borrador la evaluación, la edita, la simula como estudiante sin que dé nota, crea un recuperatorio o un supletorio, y abre el monitoreo en vivo durante la prueba. Al editar, las preguntas y los estudiantes asignados se configuran en la misma pantalla.",
       "bufferMs": 700,
       "beats": [
         {
@@ -167,7 +167,7 @@
     {
       "id": "ia-resultado",
       "kind": "platform",
-      "narration": "En segundos, las preguntas quedan en el examen: con su enunciado, su tipo y su puntaje. Listas para revisar, ajustar o eliminar.",
+      "narration": "En segundos, las preguntas quedan en el examen: con su enunciado, su tipo y su puntaje. Listas para revisar, ajustar o eliminar. Y si ya tienes un parcial escrito, también puedes pegar el texto e identificar las preguntas, o importarlas del banco.",
       "bufferMs": 800,
       "beats": [
         {

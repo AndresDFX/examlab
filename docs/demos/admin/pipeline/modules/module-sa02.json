@@ -21,7 +21,7 @@
         "title": "Instituciones",
         "subtitle": "Una plataforma, muchas instituciones"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     },
     {
       "id": "listado",
@@ -45,6 +45,7 @@
           "scale": 1.15,
           "hold": 4200,
           "side": "bottom",
+          "syncWord": "búsqueda",
           "focus": {
             "title": "Instituciones",
             "body": "Cada una con su identidad, usuarios y cursos."
@@ -55,7 +56,7 @@
     {
       "id": "acciones",
       "kind": "platform",
-      "narration": "Por cada institución, el SuperAdmin puede ver la plataforma como esa institución, iniciar sesión como su administrador para dar soporte, gestionar sus usuarios y ajustar su marca y sus cuotas. Es control total, con trazabilidad.",
+      "narration": "Por cada institución, el SuperAdmin puede verla como si estuviera dentro, iniciar sesión como su administrador para dar soporte, gestionar sus usuarios y ajustar su marca y sus cuotas. Es control total, con trazabilidad.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -76,10 +77,10 @@
       "narration": "Así, una sola plataforma atiende a muchas instituciones, cada una aislada y con su propia experiencia, administradas centralmente por el SuperAdmin.",
       "card": {
         "kicker": "ExamLab · SuperAdmin",
-        "title": "ExamLab",
+        "title": "Instituciones",
         "subtitle": "Aislamiento por institución, control central"
       },
-      "bufferMs": 600
+      "bufferMs": 500
     }
   ]
 }

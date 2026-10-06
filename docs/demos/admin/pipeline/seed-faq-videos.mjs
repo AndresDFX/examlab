@@ -39,7 +39,7 @@ const H = { apikey: ANON, Authorization: `Bearer ${TOKEN}` };
 
 const onlyIds = process.argv.slice(2);
 const specFiles = readdirSync(MODULES)
-  .filter((f) => /^module-faq[ats]\d+\.json$/.test(f))
+  .filter((f) => /^module-faq(?:sa|[ats])\d+\.json$/.test(f))
   .filter((f) => !onlyIds.length || onlyIds.some((id) => f === `module-${id}.json`))
   .sort();
 

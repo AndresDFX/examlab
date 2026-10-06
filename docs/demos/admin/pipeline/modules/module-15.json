@@ -25,7 +25,7 @@
     {
       "id": "cuenta",
       "kind": "platform",
-      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y al cerrar sesión, el contexto de la institución se limpia por completo.",
+      "narration": "Al pie del menú vive tu cuenta. El selector de rol cambia entre tus perfiles —Administrador, Docente, Estudiante— reconfigurando lo que ves. La campana muestra las notificaciones; el sobre, los mensajes internos. Y desde aquí cierras tu sesión de forma segura cuando terminas.",
       "bufferMs": 900,
       "beats": [
         {
@@ -69,10 +69,10 @@
           "hold": 4200,
           "side": "right",
           "overpan": true,
-          "syncWord": "cerrar",
+          "syncWord": "cierras",
           "focus": {
             "title": "Cerrar sesión",
-            "body": "Limpia por completo el contexto de la institución."
+            "body": "Sales de la plataforma de forma segura."
           }
         }
       ]
@@ -80,7 +80,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así, desde el pie del menú controlas tu identidad y tu sesión: alternas de rol, sigues avisos y mensajes, y sales con la seguridad de que el contexto queda limpio.",
+      "narration": "Así, desde el pie del menú controlas tu identidad y tu sesión: alternas de rol, sigues avisos y mensajes, y cierras sesión cuando terminas.",
       "card": {
         "kicker": "ExamLab · Rol Administrador",
         "title": "ExamLab",

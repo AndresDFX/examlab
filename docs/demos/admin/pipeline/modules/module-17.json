@@ -1,0 +1,88 @@
+{
+  "id": "modulo-17",
+  "title": "Asistente IA",
+  "appPath": "/app/assistant",
+  "readySelectors": [
+    "text=Tu Asistente IA",
+    "text=Preguntas frecuentes"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "El Asistente IA: tu ayuda para usar y configurar ExamLab, sin salir de la plataforma.",
+      "card": {
+        "kicker": "ExamLab · Demo Global Corp",
+        "title": "Asistente IA",
+        "subtitle": "Rol: Administrador"
+      },
+      "bufferMs": 500
+    },
+    {
+      "id": "asistente",
+      "kind": "platform",
+      "narration": "El Asistente IA responde en lenguaje natural tus dudas sobre cómo usar y configurar la plataforma, con base en la documentación de ExamLab. Trae preguntas frecuentes según tu rol, para arrancar con un clic.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "text:Tu Asistente IA",
+          "scale": 1.2,
+          "hold": 4500,
+          "side": "bottom",
+          "syncWord": "natural",
+          "focus": {
+            "title": "Asistente IA",
+            "body": "Responde cómo usar y configurar ExamLab, con su documentación."
+          }
+        },
+        {
+          "target": "text:Preguntas frecuentes",
+          "scale": 1.15,
+          "hold": 5000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "frecuentes",
+          "focus": {
+            "title": "Preguntas frecuentes",
+            "body": "Atajos según tu rol: importar usuarios, configurar la IA, emitir certificados…"
+          }
+        }
+      ]
+    },
+    {
+      "id": "preguntar",
+      "kind": "platform",
+      "narration": "Escribís tu pregunta y el asistente te responde al instante. Y si algo no está en la documentación, te sugiere abrir un ticket de soporte.",
+      "bufferMs": 800,
+      "beats": [
+        {
+          "target": "main textarea",
+          "scale": 1.3,
+          "hold": 4000,
+          "side": "top",
+          "scroll": true,
+          "syncWord": "pregunta",
+          "focus": {
+            "title": "Preguntá lo que necesites",
+            "body": "En lenguaje natural; respuesta al instante."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Así tenés una guía de uso de ExamLab siempre a mano, que responde con la documentación de la plataforma.",
+      "card": {
+        "kicker": "ExamLab · Rol Administrador",
+        "title": "ExamLab",
+        "subtitle": "Demo Global Corp"
+      },
+      "bufferMs": 500
+    }
+  ]
+}

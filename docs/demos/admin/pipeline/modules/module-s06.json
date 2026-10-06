@@ -25,29 +25,60 @@
       "bufferMs": 2200
     },
     {
-      "id": "vista",
+      "id": "resumen",
       "kind": "platform",
-      "narration": "El estudiante consulta sus calificaciones de cada curso, organizadas por corte. La vista muestra el aporte de cada examen, taller y proyecto al consolidado. Y al final, la nota definitiva del curso, ponderada según el esquema de evaluación.",
-      "bufferMs": 800,
+      "narration": "El estudiante elige un curso y ve una tarjeta por cada corte, con el peso de cada uno y su nota. El corte en marcha queda señalado como corte actual. Y al final, la nota del curso ponderada según el esquema de evaluación.",
+      "bufferMs": 900,
       "beats": [
-        {
-          "target": "[data-tour-nav=\"/app/student/grades\"]",
-          "scale": 1.5,
-          "hold": 3600,
-          "side": "right",
-          "focus": {
-            "title": "Calificaciones",
-            "body": "Tu desempeño por curso."
-          }
-        },
         {
           "target": "firstcard",
           "scale": 1.12,
-          "hold": 5500,
+          "hold": 5000,
           "side": "bottom",
+          "syncWord": "corte",
           "focus": {
-            "title": "Tus notas",
-            "body": "Consolidado por corte y nota final."
+            "title": "Resumen por corte",
+            "body": "Una tarjeta por corte con su peso y su nota; el corte en marcha queda señalado."
+          }
+        }
+      ]
+    },
+    {
+      "id": "relativa",
+      "kind": "platform",
+      "narration": "La nota es relativa a lo que ya pasó: cuenta solo las actividades que cerraron y las sesiones que ya se dieron. Por eso, mientras el curso avanza, se muestra como nota parcial. Lo entregado que falta calificar no cuenta hasta tener su nota.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "text:Nota parcial",
+          "scale": 1.2,
+          "hold": 6000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "parcial",
+          "focus": {
+            "title": "Nota parcial",
+            "body": "Cuenta solo lo que ya se dio en el curso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "desglose",
+      "kind": "platform",
+      "narration": "Al abrir un corte, el estudiante ve el desglose: cada examen, taller, proyecto y la asistencia, con el aporte de cada uno a la nota final del curso. Así entiende de dónde sale su calificación, pieza por pieza.",
+      "bufferMs": 1000,
+      "beats": [
+        {
+          "target": "text:Corte actual",
+          "scale": 1.15,
+          "hold": 6000,
+          "side": "bottom",
+          "scroll": true,
+          "syncWord": "desglose",
+          "focus": {
+            "title": "Desglose del corte",
+            "body": "Cada actividad y la asistencia, con su aporte a la nota final."
           }
         }
       ]
@@ -55,7 +86,7 @@
     {
       "id": "outro",
       "kind": "card",
-      "narration": "Así el estudiante ve, en un solo lugar, su desempeño por corte y su nota final de cada curso.",
+      "narration": "Así el estudiante ve, en un solo lugar, el aporte de cada actividad, su avance por corte y la nota final del curso.",
       "card": {
         "kicker": "ExamLab · Rol Estudiante",
         "title": "ExamLab",

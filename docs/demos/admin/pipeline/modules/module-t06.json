@@ -27,7 +27,7 @@
     {
       "id": "intro2",
       "kind": "platform",
-      "narration": "El módulo de preguntas guarda enunciados reutilizables, organizados por curso, que luego importas a exámenes, talleres o proyectos. Y lo más potente: generar una pregunta con inteligencia artificial a partir de un simple tema.",
+      "narration": "El módulo de preguntas guarda enunciados reutilizables, organizados por curso, que luego importas a exámenes, talleres o proyectos. Admite muchos tipos, incluso preguntas de base de datos con PostgreSQL real en el navegador. Y lo más potente: generar una pregunta con inteligencia artificial a partir de un simple tema, o identificarlas pegando un texto que ya tengas.",
       "bufferMs": 800,
       "beats": [
         {

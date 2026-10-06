@@ -26,7 +26,7 @@
       "id": "alta",
       "kind": "platform",
       "openDialog": "createbtn",
-      "narration": "Creamos una persona con Nuevo usuario. Escribimos su nombre completo y su correo institucional. Le damos una contraseña inicial que deberá cambiar en su primer ingreso. Marcamos sus roles —administrador, docente o estudiante— y, si queremos, la inscribimos directamente en un curso.",
+      "narration": "Creamos una persona con Nuevo usuario. Escribimos su nombre completo y su correo institucional. Le damos una contraseña inicial que deberá cambiar en su primer ingreso. Marcamos sus roles —administrador, docente o estudiante— y, si queremos, la inscribimos directamente en uno o varios cursos.",
       "bufferMs": 900,
       "beats": [
         {
@@ -75,8 +75,8 @@
           "side": "right",
           "syncWord": "inscribimos",
           "focus": {
-            "title": "Inscribir en un curso",
-            "body": "Opcional: la matricula al crearla."
+            "title": "Inscribir en cursos",
+            "body": "Opcional: la matriculas en uno o varios al crearla."
           }
         }
       ]

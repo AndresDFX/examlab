@@ -1,0 +1,30 @@
+{
+  "id": "modulo-faqs13",
+  "kind": "faq",
+  "question": "¿Me cuenta como falta si no hice el check-in de una clase?",
+  "title": "Cómo se cuenta mi asistencia",
+  "series": "faq",
+  "role": "Estudiante",
+  "appPath": "/app/student/attendance",
+  "readySelectors": ["[data-tour-nav=\"/app/student/attendance\"]"],
+  "voice": { "name": "es-CO-GonzaloNeural", "rate": "-4%" },
+  "scenes": [
+    {
+      "id": "q",
+      "kind": "card",
+      "narration": "¿Me cuenta como falta si no quedé marcado en una clase?",
+      "card": { "kicker": "ExamLab · Ayuda rápida", "title": "Cómo se cuenta la asistencia", "subtitle": "Sin registro en una clase que se dio" },
+      "bufferMs": 400
+    },
+    {
+      "id": "answer",
+      "kind": "platform",
+      "narration": "Si una clase se dio y tú no quedaste con registro de asistencia, esa clase cuenta como falta. Por eso el porcentaje de asistencia que ves es el mismo que usa tu nota del corte. Un llegada tarde cuenta como que asististe, y una ausencia justificada no te resta. Si crees que hay un error, escríbele a tu docente.",
+      "bufferMs": 800,
+      "beats": [
+        { "target": "[data-tour-nav=\"/app/student/attendance\"]", "scale": 1.5, "hold": 3000, "side": "right", "focus": { "title": "Asistencia", "body": "Tu registro por sesión." } },
+        { "target": "firstcard", "scale": 1.15, "hold": 4200, "side": "bottom", "focus": { "title": "Sin registro = falta", "body": "El porcentaje coincide con tu nota del corte." } }
+      ]
+    }
+  ]
+}
