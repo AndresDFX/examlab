@@ -32,9 +32,11 @@ import {
   X,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
+import { Toaster } from "@/components/ui/sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { partesCuentaAtras } from "./rotation-countdown";
-import { formatTime } from "@/shared/lib/format";
+import { horaDeCierre, relojDeCierre } from "./cierre-check-in";
+import { formatDateShort, formatTime } from "@/shared/lib/format";
 import i18n from "@/i18n";
 import {
   requestFullscreen as requestFullscreenCompat,
@@ -127,27 +129,18 @@ interface Props {
   ) => void;
 }
 
+const formatoCierre = { hora: (d: Date) => formatTime(d), dia: (d: Date) => formatDateShort(d) };
+
 /**
- * Tiempo restante hasta el cierre, en la unidad que se pueda leer de un vistazo.
- *
- * Devolvía `m:ss`, que con una ventana de 6 horas daba **"359:56"** — el mismo
- * defecto que el contador de rotación de al lado, y por la misma razón: el
- * formato se escribió cuando el check-in duraba minutos. Bajo una hora se sigue
- * mostrando `m:ss`, que es lo útil cuando la ventana se está cerrando.
+ * Los avisos de ESTA pantalla van a un Toaster propio, montado adentro. El de
+ * <body> no se ve en pantalla completa (el navegador solo pinta el elemento
+ * proyectado), así que «Se agregaron 5 minutos» o un error no se veían. Y el
+ * Toaster de adentro tiene `id` a propósito: uno sin `id` muestra TODOS los
+ * avisos de la app, incluidos los de mensajes privados y notificaciones, con
+ * su texto — en el proyector del salón o en la pantalla compartida.
  */
-function textoRestante(ms: number, t: (k: string, o?: Record<string, unknown>) => string): string {
-  if (ms <= 0) return "0:00";
-  const total = Math.floor(ms / 1000);
-  if (total < 3600) {
-    const m = Math.floor(total / 60);
-    const s = total % 60;
-    return `${m}:${s.toString().padStart(2, "0")}`;
-  }
-  const cd = partesCuentaAtras(total);
-  return t(`hc_modulesAttendanceAttendanceCheckInProjector.remaining_${cd.unidad}`, {
-    count: cd.valor,
-  });
-}
+const TOASTER_PROYECTOR = "check-in-proyector";
+const aviso = { toasterId: TOASTER_PROYECTOR };
 
 export function AttendanceCheckInProjector({
   state,
@@ -181,6 +174,19 @@ export function AttendanceCheckInProjector({
   >([]);
   const [extendiendo, setExtendiendo] = useState(false);
   /**
+   * Resalta el reloj un instante después de un +5, para que el ojo vaya al
+   * número que cambió. Con un contador y no un booleano: un segundo +5 dentro
+   * del resaltado tiene que volver a arrancarlo, no apagarlo antes de tiempo.
+   */
+  const [extensiones, setExtensiones] = useState(0);
+  const [resaltarCierre, setResaltarCierre] = useState(false);
+  useEffect(() => {
+    if (extensiones === 0) return;
+    setResaltarCierre(true);
+    const id = window.setTimeout(() => setResaltarCierre(false), 1500);
+    return () => window.clearTimeout(id);
+  }, [extensiones]);
+  /**
    * El callback en un ref, y NO en las deps del effect del realtime: el padre
    * lo pasa como arrow inline, así que meterlo en las deps re-suscribiría el
    * canal y re-armaría el sondeo en cada render.
@@ -199,9 +205,9 @@ export function AttendanceCheckInProjector({
   const copiarEnlace = async () => {
     try {
       await navigator.clipboard.writeText(qrUrl);
-      toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopied"));
+      toast.success(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopied"), aviso);
     } catch {
-      toast.error(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopyFailed"));
+      toast.error(i18n.t("toast.modules_attendance_AttendanceCheckInProjector.linkCopyFailed"), aviso);
     }
   };
 
@@ -228,13 +234,19 @@ export function AttendanceCheckInProjector({
                 error,
                 i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendFailed"),
               ),
+          aviso,
         );
         return;
       }
       setMsToClose(new Date(r.closes_at).getTime() - Date.now());
       onExtended?.(r.closes_at);
+      setExtensiones((n) => n + 1);
       toast.success(
-        i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendOk", { count: minutos }),
+        i18n.t("toast.modules_attendance_AttendanceCheckInProjector.extendOk", {
+          count: minutos,
+          time: horaDeCierre(new Date(r.closes_at), new Date(), formatoCierre),
+        }),
+        aviso,
       );
     } finally {
       setExtendiendo(false);
@@ -496,7 +508,7 @@ export function AttendanceCheckInProjector({
         p_session_id: state.sessionId,
       });
       if (error) {
-        toast.error(friendlyError(error));
+        toast.error(friendlyError(error), aviso);
         return;
       }
       const cerradas = Number((data as { closed?: number } | null)?.closed ?? 1);
@@ -557,6 +569,9 @@ export function AttendanceCheckInProjector({
         ajustando ? "z-40" : "z-[100]",
       )}
     >
+      {/* Solo los avisos de esta pantalla (ver TOASTER_PROYECTOR). Los que se
+          disparan justo antes de desmontarla —cerró, venció— van al de <body>. */}
+      <Toaster id={TOASTER_PROYECTOR} richColors position="top-right" expand visibleToasts={6} />
 
       {/* Top bar */}
       <div className="flex items-center justify-between gap-2 px-3 sm:px-6 py-2 sm:py-3 border-b">
@@ -567,14 +582,17 @@ export function AttendanceCheckInProjector({
               <span className="text-muted-foreground"> — {state.sessionLabel}</span>
             )}
           </div>
-          <Badge variant="secondary" className="text-xs whitespace-nowrap">
-            {t("hc_modulesAttendanceAttendanceCheckInProjector.closesIn", {
-              time: textoRestante(msToClose, t),
+          {/* La HORA de cierre y no el tiempo que falta: es el dato que mueven
+              los botones de al lado, así que un +5 se ve tal cual (01:59 →
+              02:04). El tiempo que falta va abajo, con el reloj del salón. */}
+          <Badge variant="secondary" className="text-xs whitespace-nowrap tabular-nums">
+            {t("hc_modulesAttendanceAttendanceCheckInProjector.closesUntil", {
+              time: horaDeCierre(new Date(state.closesAt), new Date(), formatoCierre),
             })}
           </Badge>
-          {/* Pegado al contador a propósito: el docente mira el tiempo que
-              queda y ahí mismo tiene cómo estirarlo, sin salir del proyector
-              ni tener que cerrar y reabrir (que cambiaría todos los códigos). */}
+          {/* Pegado a la hora de cierre a propósito: el docente ve hasta cuándo
+              va y ahí mismo tiene cómo estirarlo, sin salir del proyector ni
+              tener que cerrar y reabrir (que cambiaría todos los códigos). */}
           <div className="flex items-center gap-1">
             <Button
               variant="outline"
@@ -771,6 +789,39 @@ export function AttendanceCheckInProjector({
                 {" "}
                 / {state.totalEnrolled}
               </span>
+            </div>
+          </div>
+
+          {/* Cuánto le queda a la ventana, en un reloj que baja cada segundo:
+              es lo que el salón necesita saber, y un +5 se ve en el acto. Más
+              chico que el código y los presentes, que son lo principal. Va
+              debajo de los presentes y no del código para no quedar pegado a
+              «Cambia en…», que es otra cuenta (la del código). */}
+          <div
+            className={cn(
+              "flex flex-col items-center lg:items-start gap-1 rounded-md px-2 py-1 -mx-2 transition-colors duration-700",
+              resaltarCierre && "bg-primary/15",
+            )}
+          >
+            <div className="text-xs uppercase tracking-wider text-muted-foreground">
+              {t("hc_modulesAttendanceAttendanceCheckInProjector.closesInLabel")}
+            </div>
+            <div className="text-3xl sm:text-5xl font-semibold tabular-nums">
+              {(() => {
+                const r = relojDeCierre(msToClose);
+                return (
+                  <>
+                    {r.dias > 0 && (
+                      <span className="text-xl sm:text-3xl mr-2">
+                        {t("hc_modulesAttendanceAttendanceCheckInProjector.remaining_days", {
+                          count: r.dias,
+                        })}
+                      </span>
+                    )}
+                    {r.reloj}
+                  </>
+                );
+              })()}
             </div>
           </div>
 

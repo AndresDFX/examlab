@@ -86,6 +86,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### ⏱️ El proyector del check-in muestra cada +5 en el acto
+
+Un docente sumó +5 en el proyector y no vio ningún cambio. La extensión sí se había guardado (el
+cierre pasó de 01:54 a 01:59), pero el cartel decía «Cierra en 7 horas», redondeado HACIA ARRIBA a
+horas enteras: 6 h 02 min y 6 h 17 min se leen igual. Y el aviso «Se agregaron 5 minutos» se monta
+en `<body>`, que en pantalla completa no se pinta: no había ninguna señal.
+
+- El cartel junto a los botones muestra la **hora de cierre** («Hasta 01:59», con la fecha si no es
+  hoy), que es justo lo que los botones mueven.
+- Debajo de «Presentes», un **reloj que baja cada segundo** («Cierra en 6:00:12») y se resalta un
+  instante tras cada +5. Helpers puros en `src/modules/attendance/cierre-check-in.ts`, con tests.
+- Los avisos del proyector (extender, copiar enlace, errores) van a un `Toaster` propio montado
+  DENTRO de él, así que se ven en pantalla completa. Ese Toaster tiene `id` y los avisos lo apuntan
+  con `toasterId`: **uno sin `id` muestra todos los avisos de la app** —incluidos los de mensajes
+  privados y notificaciones, con su texto— y los habría puesto en el proyector del salón. Los
+  avisos que salen justo antes de desmontarlo (cerró, venció) siguen yendo al de `<body>`.
+- El aviso de tope decía «máximo de 4 horas»; el tope real es un año desde que se abrió.
+
 ### 🔐 Los inicios de sesión fallidos vuelven a quedar registrados
 
 La pantalla de login llama `log_failed_login` en cada intento fallido, pero la función **no existía en
