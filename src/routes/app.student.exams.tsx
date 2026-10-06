@@ -48,6 +48,7 @@ import { formatDateTime } from "@/shared/lib/format";
 import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
+import { retroDeExamenVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
@@ -713,20 +714,25 @@ function StudentExams() {
                         {t("hc_routesAppStudentExams.retryExam")}
                       </Button>
                     </Link>
-                    <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
-                      <Button variant="ghost" size="sm" className="w-full">
-                        <MessageSquareText className="h-4 w-4 mr-1" />
-                        {t("exam.viewDetail")}
-                      </Button>
-                    </Link>
+                    {retroDeExamenVisible(submission) && (
+                      <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
+                        <Button variant="ghost" size="sm" className="w-full">
+                          <MessageSquareText className="h-4 w-4 mr-1" />
+                          {t("exam.viewDetail")}
+                        </Button>
+                      </Link>
+                    )}
                   </div>
                 ) : completed ? (
+                  // La retroalimentación se ve recién con nota (retroalimentacion-visible.ts).
+                  !retroDeExamenVisible(submission) ? null : (
                   <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />
                       {t("exam.viewDetail")}
                     </Button>
                   </Link>
+                  )
                 ) : submission?.status === "en_progreso" && !isOpen && now > end ? (
                   <div className="space-y-2">
                     <Button

@@ -68,6 +68,7 @@ import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { DatePicker } from "@/components/ui/date-picker";
+import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
@@ -844,7 +845,10 @@ function StudentProjects() {
                     ai_feedback: submission?.ai_feedback,
                   }) && <PendingAiGradeBanner variant="compact" />}
 
-                {(submission?.teacher_feedback || submission?.ai_feedback) && (
+                {/* La retroalimentación se ve recién CALIFICADO: «Por calificar»
+                    es un resultado a medias (retroalimentacion-visible.ts). */}
+                {retroDeTallerVisible(submission) &&
+                  (submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
                       <MessageSquare className="h-3 w-3" />
@@ -889,7 +893,7 @@ function StudentProjects() {
                   </Button>
                 )}
 
-                {submission && (
+                {submission && retroDeTallerVisible(submission) && (
                   <Link to="/app/student/project/$projectId" params={{ projectId: project.id }}>
                     <Button variant="secondary" size="sm" className="w-full">
                       <MessageSquareText className="h-4 w-4 mr-1" />

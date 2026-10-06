@@ -9,6 +9,7 @@
  *  - Si la submission existe pero está `entregado` (sin calificación
  *    todavía): estado pendiente.
  */
+import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -435,7 +436,7 @@ function StudentProjectDetail() {
             </CardContent>
           </Card>
 
-          {(submission.teacher_feedback || submission.ai_feedback) && (
+          {retroDeTallerVisible(submission) && (submission.teacher_feedback || submission.ai_feedback) && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{t("project.review.feedback")}</CardTitle>
@@ -572,7 +573,7 @@ function StudentProjectDetail() {
                         //  - No hay `ans` o todo es null → realmente no se
                         //    subió nada todavía.
                         <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
-                          {ans && (ans.ai_feedback || ans.ai_grade != null)
+                          {ans && retroDeTallerVisible(submission) && (ans.ai_feedback || ans.ai_grade != null)
                             ? t("hc_routesAppStudentProjectProjectId.noCodeFilesGraded")
                             : t("hc_routesAppStudentProjectProjectId.noCodeFilesYet")}
                         </div>

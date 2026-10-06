@@ -11,6 +11,7 @@
  *    estado pendiente.
  */
 import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
+import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -578,7 +579,7 @@ function StudentWorkshopDetail() {
             </CardContent>
           </Card>
 
-          {(submission.teacher_feedback || submission.ai_feedback) && (
+          {retroDeTallerVisible(submission) && (submission.teacher_feedback || submission.ai_feedback) && (
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">{t("exam.review.feedback")}</CardTitle>
@@ -630,7 +631,7 @@ function StudentWorkshopDetail() {
                   <CardContent className="space-y-3 text-sm">
                     <MarkdownInline>{q.content}</MarkdownInline>
                     {renderAnswer(q, ans)}
-                    {ans?.ai_feedback && (
+                    {retroDeTallerVisible(submission) && ans?.ai_feedback && (
                       <div className="border-t pt-3">
                         <div className="text-xs rounded-md border-l-2 border-primary/50 bg-muted/40 pl-3 py-2">
                           <span className="font-medium text-foreground block mb-1">
