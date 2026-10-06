@@ -17,7 +17,8 @@ const FF = `${BIN}/ffmpeg.exe`, FP = `${BIN}/ffprobe.exe`;
 const AUDIO = "C:/Temp/examlab-rec/audio2";
 const MODULE_PATH = process.argv[2] ?? "C:/Temp/examlab-rec/modules/module-01.json";
 const SPEC = JSON.parse(readFileSync(MODULE_PATH, "utf8"));
-const OUTDIR = `C:/Projects/Personal/examlab/docs/demos/${SPEC.series ?? "admin"}/output`;
+// DEMO_OUT=output-v2 graba una versión nueva sin pisar los videos publicados.
+const OUTDIR = `C:/Projects/Personal/examlab/docs/demos/${SPEC.series ?? "admin"}/${process.env.DEMO_OUT ?? "output"}`;
 const N = SPEC.scenes.length;
 const RAW = `C:/Temp/examlab-rec/out/${SPEC.id}-raw.webm`;
 const OUT = `${OUTDIR}/${SPEC.id}.mp4`;
