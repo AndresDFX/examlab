@@ -98,7 +98,7 @@
       "id": "ia-vivo",
       "kind": "platform",
       "openVia": {
-        "target": "rowaction:0",
+        "target": "rowaction:1",
         "menuItem": "Editar",
         "button": "Preguntas"
       },

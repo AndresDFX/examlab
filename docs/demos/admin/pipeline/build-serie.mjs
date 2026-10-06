@@ -30,7 +30,7 @@ if (!roles.length) {
 }
 
 for (const role of roles) {
-  const dir = `${REPO}/${role}/output`;
+  const dir = `${REPO}/${role}/${process.env.DEMO_OUT ?? "output"}`;
   const files = readdirSync(dir)
     .filter((f) => /^modulo-.*\.mp4$/.test(f))
     .sort(); // nombres zero-padded (modulo-01, modulo-s01, modulo-t01) → orden correcto
@@ -40,7 +40,7 @@ for (const role of roles) {
   }
   const listPath = `C:/Temp/examlab-rec/_serie-${role}.txt`;
   writeFileSync(listPath, files.map((f) => `file '${dir}/${f}'`).join("\n") + "\n");
-  const out = `${REPO}/${role}/serie-${role}-completa.mp4`;
+  const out = `${REPO}/${role}/serie-${role}-completa${process.env.DEMO_OUT ? "-" + process.env.DEMO_OUT.replace("output-", "") : ""}.mp4`;
   console.log(`\n=== ${role}: ${files.length} módulos → serie-${role}-completa.mp4 (web) ===`);
   files.forEach((f) => console.log("  + " + f));
   // Re-encode a tamaño web (CRF 30 + faststart) → un solo archivo subible.

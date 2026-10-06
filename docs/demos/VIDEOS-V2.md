@@ -1,14 +1,19 @@
 # Videos demo — versión 2 (octubre 2026)
 
-Grabados el 2026-10-06 con los guiones actualizados (`cb640832`) sobre la app publicada
-(`app.examlab.workers.dev`), institución **Demo Global Corp**. La versión anterior queda intacta en
-`docs/demos/<serie>/output/`; esta vive en `docs/demos/<serie>/output-v2/` (`DEMO_OUT=output-v2`).
+Grabados el 2026-10-06 con los guiones actualizados sobre la app publicada (`app.examlab.workers.dev`),
+institución **Demo Global Corp**. La versión anterior queda intacta en `docs/demos/<serie>/output/`;
+esta vive en `docs/demos/<serie>/output-v2/`.
+
+## Series completas
+
+- [student](student/serie-student-completa-v2.mp4) — 00:13:35
+- [admin](admin/serie-admin-completa-v2.mp4) — 00:14:47
+- [teacher](teacher/serie-teacher-completa-v2.mp4) — 00:15:07
 
 ## No grabados en esta versión
 
-- **Necesitan IA en vivo y hoy no hay API key:** t03 Exámenes, t04 Talleres, t05 Proyectos, t06 Banco de preguntas, t09 Contenidos (generación con IA). Siguen valiendo los de `output/`.
-- **SuperAdmin** (sa01–sa05, faqsa01–faqsa06): el login ya no ofrece la vista de plataforma y el grabador los rechaza; además sus pantallas muestran instituciones reales.
-- **t14** Calendario docente: depende de una cuenta de Google conectada (descartado desde julio).
+- **SuperAdmin** (sa01–sa05, faqsa01–faqsa06): el login ya no ofrece la vista de plataforma y sus pantallas muestran instituciones reales.
+- **t14** Calendario docente: depende de una cuenta de Google conectada.
 
 ## Videos
 
@@ -95,8 +100,13 @@ Grabados el 2026-10-06 con los guiones actualizados (`cb640832`) sobre la app pu
 | student | [modulo-s14](student/output-v2/modulo-s14.mp4) | 00:42 |
 | teacher | [modulo-t01](teacher/output-v2/modulo-t01.mp4) | 00:51 |
 | teacher | [modulo-t02](teacher/output-v2/modulo-t02.mp4) | 00:58 |
+| teacher | [modulo-t03](teacher/output-v2/modulo-t03.mp4) | 01:37 |
+| teacher | [modulo-t04](teacher/output-v2/modulo-t04.mp4) | 01:21 |
+| teacher | [modulo-t05](teacher/output-v2/modulo-t05.mp4) | 01:29 |
+| teacher | [modulo-t06](teacher/output-v2/modulo-t06.mp4) | 01:05 |
 | teacher | [modulo-t07](teacher/output-v2/modulo-t07.mp4) | 00:58 |
-| teacher | [modulo-t08](teacher/output-v2/modulo-t08.mp4) | 01:06 |
+| teacher | [modulo-t08](teacher/output-v2/modulo-t08.mp4) | 01:07 |
+| teacher | [modulo-t09](teacher/output-v2/modulo-t09.mp4) | 00:54 |
 | teacher | [modulo-t10](teacher/output-v2/modulo-t10.mp4) | 00:36 |
 | teacher | [modulo-t11](teacher/output-v2/modulo-t11.mp4) | 01:34 |
 | teacher | [modulo-t12](teacher/output-v2/modulo-t12.mp4) | 00:41 |
