@@ -98,6 +98,54 @@ const TEMPLATES: Record<string, { labelKey: string; code: string }> = {
     G --> H([Fin])
     E --> H`,
   },
+  // Modelo C4 (contexto, contenedores, componentes): Mermaid 11 los dibuja
+  // nativos, y el material de Arquitectura de UNIAJ los usa en sus talleres.
+  c4Context: {
+    labelKey: "diagramEditor.tmplC4Context",
+    code: `C4Context
+    title Contexto — Sistema de matrículas
+    Person(estudiante, "Estudiante", "Se matricula en las asignaturas")
+    Person(admin, "Registro académico", "Abre los periodos y valida cupos")
+    System(matriculas, "Sistema de matrículas", "Gestiona inscripciones y cupos")
+    System_Ext(pagos, "Pasarela de pagos", "Cobra la matrícula")
+    System_Ext(correo, "Servidor de correo", "Envía confirmaciones")
+    Rel(estudiante, matriculas, "Se inscribe en", "HTTPS")
+    Rel(admin, matriculas, "Configura periodos")
+    Rel(matriculas, pagos, "Solicita el cobro", "API REST")
+    Rel(matriculas, correo, "Envía la confirmación", "SMTP")`,
+  },
+  c4Container: {
+    labelKey: "diagramEditor.tmplC4Container",
+    code: `C4Container
+    title Contenedores — Sistema de matrículas
+    Person(estudiante, "Estudiante")
+    System_Boundary(sm, "Sistema de matrículas") {
+        Container(web, "Aplicación web", "React", "Interfaz del estudiante")
+        Container(api, "API", "Node.js", "Reglas de inscripción y cupos")
+        ContainerDb(db, "Base de datos", "PostgreSQL", "Estudiantes, cursos y matrículas")
+    }
+    System_Ext(pagos, "Pasarela de pagos")
+    Rel(estudiante, web, "Usa", "HTTPS")
+    Rel(web, api, "Llama", "JSON/HTTPS")
+    Rel(api, db, "Lee y escribe", "SQL")
+    Rel(api, pagos, "Solicita el cobro", "API REST")`,
+  },
+  c4Component: {
+    labelKey: "diagramEditor.tmplC4Component",
+    code: `C4Component
+    title Componentes — API de matrículas
+    Container(web, "Aplicación web", "React")
+    ContainerDb(db, "Base de datos", "PostgreSQL")
+    Container_Boundary(api, "API") {
+        Component(ctrl, "Controlador de matrículas", "Express", "Recibe las solicitudes")
+        Component(cupos, "Servicio de cupos", "Node.js", "Valida que haya cupo")
+        Component(repo, "Repositorio", "SQL", "Acceso a datos")
+    }
+    Rel(web, ctrl, "Llama", "JSON/HTTPS")
+    Rel(ctrl, cupos, "Usa")
+    Rel(cupos, repo, "Consulta")
+    Rel(repo, db, "Lee y escribe", "SQL")`,
+  },
 };
 
 interface DiagramEditorProps {

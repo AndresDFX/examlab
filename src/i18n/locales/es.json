@@ -5521,7 +5521,10 @@
     "errorSyntax": "Sintaxis Mermaid inválida",
     "errorGeneric": "Error de sintaxis en el diagrama",
     "rendering": "Renderizando...",
-    "emptyHint": "Escribe código Mermaid y cambia a vista previa"
+    "emptyHint": "Escribe código Mermaid y cambia a vista previa",
+    "tmplC4Context": "C4 · Contexto",
+    "tmplC4Container": "C4 · Contenedores",
+    "tmplC4Component": "C4 · Componentes"
   },
   "tutorIndex": {
     "title": "Asistente IA",

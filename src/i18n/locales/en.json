@@ -5521,7 +5521,10 @@
     "errorSyntax": "Invalid Mermaid syntax",
     "errorGeneric": "Syntax error in diagram",
     "rendering": "Rendering...",
-    "emptyHint": "Write Mermaid code and switch to preview"
+    "emptyHint": "Write Mermaid code and switch to preview",
+    "tmplC4Context": "C4 · Context",
+    "tmplC4Container": "C4 · Containers",
+    "tmplC4Component": "C4 · Components"
   },
   "tutorIndex": {
     "title": "AI Assistant",
