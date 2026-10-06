@@ -905,6 +905,11 @@ El docente marca sesiones extra en el diálogo de check-in y el curso escanea **
 - **Cerrar es del grupo** (`teacher_close_attendance_check_in_group`, desde cualquiera de sus
   sesiones): cerrar solo el ancla dejaba las hermanas abiertas con la misma semilla — el código
   seguía sirviendo y no se veía.
+- **Extender (+5 / +10 / +15) también es del grupo** (mig `20262740000000`): estirar solo la
+  sesión proyectada dejaba a las hermanas cerrando a la hora vieja, y pasada esa hora el mismo
+  código marcaba una sola. Nunca acorta a una hermana que ya cerraba después. **«Ajustar» la hora
+  de cierre desde el formulario sigue siendo SOLO de la sesión** (la RPC de una sesión no conoce el
+  grupo): es el hueco que queda.
 - **Tope de 20 y un solo CURSO por grupo** (`mixed_courses`): un código que cruza cursos es una
   puerta a marcar asistencia en una clase a la que el alumno no va, y uno que cubre media asignatura
   deja de ser «la clase de hoy».

@@ -86,6 +86,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🧷 +5 en un check-in de varias sesiones las estira todas
+
+Con un código para varias sesiones (asistencia múltiple), +5 / +10 / +15 estiraba solo la sesión
+proyectada: las demás cerraban a la hora vieja, y pasada esa hora el mismo código marcaba una sola.
+Ahora `teacher_extend_attendance_check_in` estira el grupo entero, sin acortar a ninguna sesión que
+ya cerrara después, y rechaza una sesión en la papelera como ya lo hacían abrir y ajustar (mig
+`20262740000000`). La misma migración hace que «marcar pendientes como ausentes» exija lo mismo: la
+sesión es de la institución de quien llama y no está en la papelera. Cerrar sigue permitido en la
+papelera, a propósito: es como se apaga un check-in que quedó abierto. Verificado contra PGlite (25
+comprobaciones). Queda un hueco: «Ajustar» la hora de cierre desde el formulario sigue cambiando
+solo la sesión.
+
 ### ⏱️ El proyector del check-in muestra cada +5 en el acto
 
 Un docente sumó +5 en el proyector y no vio ningún cambio. La extensión sí se había guardado (el
