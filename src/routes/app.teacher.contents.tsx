@@ -22,6 +22,7 @@ import { Badge } from "@/components/ui/badge";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import {
   Dialog,
   DialogContent,
@@ -943,6 +944,25 @@ function TeacherContents() {
         .then(async ({ error: invErr, data: invData }) => {
           if (invErr || (invData as { error?: string })?.error) {
             const detail = await extractEdgeError(invErr, invData);
+            // Fallo de proveedor/transporte → no perder la petición: encolamos
+            // una tarea de REGENERAR sobre la fila que YA existe (evita crear un
+            // contenido duplicado) para que el worker/cron la retome. Regla del
+            // dueño: seguir como async cuando el API está caído.
+            if (esFalloReintentable({ error: invErr, data: invData, detalle: detail })) {
+              const { error: enqErr } = await db.from("ai_generation_queue").insert({
+                kind: "content_generation",
+                invoke_target: "ai-generation-worker",
+                body: { contentGeneration: true, regenerate: true, target_id: created.id },
+                source_table: "generated_contents",
+                source_id: created.id,
+                course_id: courseId || null,
+                created_by: user.id,
+              });
+              if (!enqErr) {
+                toast.info(t("aiQueue.fallbackQueued"));
+                return;
+              }
+            }
             toast.error(
               friendlyError(
                 invErr ?? new Error(detail || t("hc_routesAppTeacherContents.startGenerationError")),

@@ -92,6 +92,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🔁 Generación con IA: si el proveedor falla, la petición se encola en vez de perderse
+
+- **Antes**, cuando la IA estaba en modo sincrónico y la llamada al proveedor fallaba (caída, timeout,
+  429, 5xx), el docente solo veía un toast de error y **su solicitud se perdía**. Ahora, ante un fallo
+  de proveedor/transporte, la petición se mete en `ai_generation_queue` con **la misma payload** que
+  tendría en modo diferido y se procesa automáticamente (aparece en «Cola IA → Generaciones»). Es la
+  regla del dueño: la IA sincrónica que falla debe seguir **como si fuera asíncrona**.
+- Cubre los 7 flujos de generación: **banco de preguntas**, **preguntas de examen**, **preguntas de
+  taller**, **archivos/preguntas de proyecto** (auto desde la descripción y manual), **preguntas de
+  reto en vivo (Kahoot)**, **generar contenido** y **regenerar contenido** (completo y por clase).
+- **No** se encola lo que fallaría idéntico: validación (400, `prompt_too_large`), falta el curso,
+  401/403, y cuenta sin créditos (402) — esos siguen mostrando el error accionable. La clasificación
+  vive en un helper puro con tests: `src/modules/ai/fallo-reintentable.ts` (espejo del
+  `TRANSIENT_ERROR_PATTERN` del worker; invariante cross-file en `CLAUDE.md`).
+- **Contenido** reusa la fila existente de `generated_contents` en modo *regenerar* para no crear un
+  duplicado al encolar. Toast compartido `aiQueue.fallbackQueued` (es/en).
+
+Riesgo aceptado: si el proveedor sí generó pero el gateway respondió 5xx o timeout, la cola vuelve a generar y pueden quedar preguntas duplicadas; el docente las borra. El tope de uso por hora (429 `rate_limited`) NO se encola: es el límite del usuario.
+
 ### 🧩 Hoja SQL: seleccionar ya no mueve el editor, y `RAISE NOTICE` se ve
 
 - **Copiar y pegar se sentía roto** en la hoja SQL de la pizarra. Medido con Playwright en una hoja

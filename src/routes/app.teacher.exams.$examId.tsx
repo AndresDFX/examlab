@@ -77,6 +77,7 @@ import {
 import { Equal, Library, ScanText } from "lucide-react";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import i18n from "@/i18n";
 import { LANGUAGE_LABEL, UI_EXECUTABLE_LANGUAGES } from "@/modules/code/language-support";
 import {
@@ -1094,6 +1095,25 @@ function ExamEditor() {
     // a `ai_generation_queue` (mig 20260603070000). El docente puede
     // procesarlos después desde el panel de Cola IA cuando tenga
     // código activo, o un admin los puede ejecutar por él.
+    // Builder único de la fila de cola por tipo: se usa tanto en el camino
+    // async (gate) como cuando la llamada sync falla y caemos a la cola.
+    const buildQueueRow = (row: (typeof aiTargetRows)[number], userId: string) => ({
+      kind: "exam_questions",
+      invoke_target: "ai-generate-questions",
+      source_table: "exams",
+      source_id: examId,
+      course_id: exam?.course_id ?? null,
+      created_by: userId,
+      body: {
+        examId,
+        topics: aiTopics,
+        type: row.type,
+        count: row.count,
+        language: row.type === "codigo" ? row.language : undefined,
+        targetTable: "questions",
+        alBanco,
+      },
+    });
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
@@ -1111,23 +1131,7 @@ function ExamEditor() {
         );
         return;
       }
-      const rows = aiTargetRows.map((row) => ({
-        kind: "exam_questions",
-        invoke_target: "ai-generate-questions",
-        source_table: "exams",
-        source_id: examId,
-        course_id: exam?.course_id ?? null,
-        created_by: userRes.user!.id,
-        body: {
-          examId,
-          topics: aiTopics,
-          type: row.type,
-          count: row.count,
-          language: row.type === "codigo" ? row.language : undefined,
-          targetTable: "questions",
-          alBanco,
-        },
-      }));
+      const rows = aiTargetRows.map((row) => buildQueueRow(row, userRes.user!.id));
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
       if (enqErr) {
         toast.error(
@@ -1153,7 +1157,11 @@ function ExamEditor() {
     }
     setAiLoading(true);
     let totalInserted = 0;
+    // Filas cuyo intento sync falló por proveedor/transporte: se encolan al
+    // final para no perder la petición (regla del dueño: seguir como async).
+    const fallbackRows: ReturnType<typeof buildQueueRow>[] = [];
     try {
+      const { data: userRes } = await supabase.auth.getUser();
       for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
           body: {
@@ -1167,6 +1175,10 @@ function ExamEditor() {
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
+          if (userRes.user && esFalloReintentable({ error, data, detalle: detail })) {
+            fallbackRows.push(buildQueueRow(row, userRes.user.id));
+            continue;
+          }
           toast.error(
             i18n.t("toast.routes_app_teacher_exams_examId.errorInType", {
               defaultValue: "Error en {{type}}: {{detail}}",
@@ -1180,6 +1192,17 @@ function ExamEditor() {
           );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
+        }
+      }
+      if (fallbackRows.length > 0) {
+        const { error: enqErr } = await (supabase as any)
+          .from("ai_generation_queue")
+          .insert(fallbackRows);
+        if (enqErr) {
+          toast.error(friendlyError(enqErr));
+        } else {
+          toast.info(t("aiQueue.fallbackQueued"));
+          setAiTopics("");
         }
       }
       if (totalInserted > 0) {

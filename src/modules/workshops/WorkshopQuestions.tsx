@@ -85,6 +85,7 @@ import {
   preValidateZipInBrowser,
 } from "@/shared/lib/code-upload";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import {
   getProcessingMode,
   readOverrideExpiry,
@@ -663,6 +664,26 @@ export function TeacherWorkshopQuestionsEditor({
     // a `ai_generation_queue` (mig 20260603070000). El docente puede
     // procesarlos después desde el panel de Cola IA cuando tenga
     // código activo, o un admin los puede ejecutar por él.
+    // Builder único de la fila de cola por tipo: se usa tanto en el camino
+    // async (gate) como cuando la llamada sync falla y caemos a la cola.
+    const buildQueueRow = (row: (typeof aiTargetRows)[number], userId: string) => ({
+      kind: "workshop_questions",
+      invoke_target: "ai-generate-questions",
+      source_table: "workshops",
+      source_id: workshopId,
+      course_id: courseId ?? null,
+      created_by: userId,
+      body: {
+        topics: aiTopics,
+        type: row.type,
+        count: row.count,
+        examId: workshopId,
+        language: row.type === "codigo" ? row.language : undefined,
+        courseLanguage,
+        targetTable: "workshop_questions",
+        alBanco,
+      },
+    });
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
@@ -679,24 +700,7 @@ export function TeacherWorkshopQuestionsEditor({
         );
         return;
       }
-      const rows = aiTargetRows.map((row) => ({
-        kind: "workshop_questions",
-        invoke_target: "ai-generate-questions",
-        source_table: "workshops",
-        source_id: workshopId,
-        course_id: courseId ?? null,
-        created_by: user.user!.id,
-        body: {
-          topics: aiTopics,
-          type: row.type,
-          count: row.count,
-          examId: workshopId,
-          language: row.type === "codigo" ? row.language : undefined,
-          courseLanguage,
-          targetTable: "workshop_questions",
-          alBanco,
-        },
-      }));
+      const rows = aiTargetRows.map((row) => buildQueueRow(row, user.user!.id));
       const { error: enqErr } = await dbAny3.from("ai_generation_queue").insert(rows);
       if (enqErr) {
         toast.error(
@@ -717,7 +721,11 @@ export function TeacherWorkshopQuestionsEditor({
     }
     setAiLoading(true);
     let totalInserted = 0;
+    // Filas cuyo intento sync falló por proveedor/transporte: se encolan al
+    // final para no perder la petición (regla del dueño: seguir como async).
+    const fallbackRows: ReturnType<typeof buildQueueRow>[] = [];
     try {
+      const { data: userRes } = await supabase.auth.getUser();
       for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
           body: {
@@ -733,6 +741,10 @@ export function TeacherWorkshopQuestionsEditor({
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
+          if (userRes.user && esFalloReintentable({ error, data, detalle: detail })) {
+            fallbackRows.push(buildQueueRow(row, userRes.user.id));
+            continue;
+          }
           toast.error(
             i18n.t("toast.modules_workshops_WorkshopQuestions.errorInType", {
               defaultValue: "Error en {{type}}: {{detail}}",
@@ -746,6 +758,18 @@ export function TeacherWorkshopQuestionsEditor({
           );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
+        }
+      }
+      if (fallbackRows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: enqErr } = await (supabase as any)
+          .from("ai_generation_queue")
+          .insert(fallbackRows);
+        if (enqErr) {
+          toast.error(friendlyError(enqErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotQueueGeneration")));
+        } else {
+          toast.info(t("aiQueue.fallbackQueued"));
+          setAiTopics("");
         }
       }
       if (totalInserted > 0) {

@@ -37,6 +37,7 @@ import { useTranslation } from "react-i18next";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import { useAuth } from "@/hooks/use-auth";
 
 // generated_contents aún no figura en types.ts auto-generados.
@@ -101,17 +102,10 @@ export function RegenerateContentDialog({
     // `ai_generation_queue` con `regenerate=true` + `target_id`. El
     // worker actualiza la fila existente y dispara generate-contents
     // cuando un admin procese la cola o el docente active un código.
-    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
-    if (decision === "cancel") return;
-    if (decision === "proceed-async") {
-      if (!user?.id) {
-        toast.error(
-          t("contents.regenerateSessionInvalid", {
-            defaultValue: "Sesión no válida. Recarga la página.",
-          }),
-        );
-        return;
-      }
+    // Builder único de la fila de cola (modo regenerar sobre la fila que ya
+    // existe): se usa tanto en el camino async (gate) como cuando la llamada
+    // sync falla y caemos a la cola.
+    const buildQueueRow = (userId: string) => {
       const enqueueBody: Record<string, unknown> = {
         contentGeneration: true,
         regenerate: true,
@@ -130,7 +124,7 @@ export function RegenerateContentDialog({
               class_instructions: instructions.trim() ? instructions.trim() : null,
             }),
       };
-      const { error: enqErr } = await db.from("ai_generation_queue").insert({
+      return {
         kind: "content_generation",
         invoke_target: "ai-generation-worker",
         body: enqueueBody,
@@ -139,8 +133,21 @@ export function RegenerateContentDialog({
         // nuevo" se usa el NIL UUID porque la fila aún no existe).
         source_id: target.contentId,
         course_id: null,
-        created_by: user.id,
-      });
+        created_by: userId,
+      };
+    };
+    const decision = await aiGate.ensureAuthorized({ allowQueue: true });
+    if (decision === "cancel") return;
+    if (decision === "proceed-async") {
+      if (!user?.id) {
+        toast.error(
+          t("contents.regenerateSessionInvalid", {
+            defaultValue: "Sesión no válida. Recarga la página.",
+          }),
+        );
+        return;
+      }
+      const { error: enqErr } = await db.from("ai_generation_queue").insert(buildQueueRow(user.id));
       if (enqErr) {
         toast.error(friendlyError(enqErr, "No se pudo encolar la regeneración"));
         return;
@@ -198,6 +205,16 @@ export function RegenerateContentDialog({
           .then(async ({ error: invErr, data: invData }) => {
             if (invErr || (invData as { error?: string })?.error) {
               const detail = await extractEdgeError(invErr, invData);
+              // Fallo de proveedor/transporte → no perder la petición: encolar.
+              if (user?.id && esFalloReintentable({ error: invErr, data: invData, detalle: detail })) {
+                const { error: enqErr } = await db
+                  .from("ai_generation_queue")
+                  .insert(buildQueueRow(user.id));
+                if (!enqErr) {
+                  toast.info(t("aiQueue.fallbackQueued"));
+                  return;
+                }
+              }
               toast.error(friendlyError(invErr ?? new Error(detail || "Falló la regeneración")));
             }
           });
@@ -218,17 +235,31 @@ export function RegenerateContentDialog({
               class_instructions: instructions.trim() ? instructions.trim() : null,
             },
           })
-          .then(({ data, error: invErr }) => {
-            if (invErr) {
-              toast.error(friendlyError(invErr));
+          .then(async ({ data, error: invErr }) => {
+            const falloData =
+              data && typeof data === "object" && (data as { ok?: boolean }).ok === false
+                ? data
+                : null;
+            if (invErr || falloData) {
+              const detail = await extractEdgeError(invErr, data);
+              // Fallo de proveedor/transporte → no perder la petición: encolar.
+              if (user?.id && esFalloReintentable({ error: invErr, data, detalle: detail })) {
+                const { error: enqErr } = await db
+                  .from("ai_generation_queue")
+                  .insert(buildQueueRow(user.id));
+                if (!enqErr) {
+                  toast.info(t("aiQueue.fallbackQueued"));
+                  return;
+                }
+              }
+              toast.error(
+                invErr
+                  ? friendlyError(invErr)
+                  : (falloData as { error?: string } | null)?.error ?? "Falló la regeneración",
+              );
               return;
             }
-            if (data && typeof data === "object" && (data as { ok?: boolean }).ok === false) {
-              const msg = (data as { error?: string }).error ?? "Falló la regeneración";
-              toast.error(msg);
-            } else {
-              toast.success(t("contents.regeneratedClassToast", { class: target.classNumber }));
-            }
+            toast.success(t("contents.regeneratedClassToast", { class: target.classNumber }));
           });
       }
 

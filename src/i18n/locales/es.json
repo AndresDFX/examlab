@@ -2770,7 +2770,8 @@
     "gateProceedAsync": "Continuar en cola",
     "gateActivate": "Activar IA inmediata",
     "workerReportedFailure": "La tarea falló al procesarse",
-    "unknownError": "Error desconocido"
+    "unknownError": "Error desconocido",
+    "fallbackQueued": "La IA no respondió en este momento. Dejamos tu solicitud en cola y se procesará automáticamente; la verás en Tareas de IA."
   },
   "tenantQuota": {
     "defaultTitle": "Licencias de usuarios",

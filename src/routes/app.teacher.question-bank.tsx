@@ -74,6 +74,8 @@ import {
 } from "lucide-react";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { defaultScenario, parseScenario } from "@/modules/network/scenario";
 import { ImportExportMenu } from "@/shared/components/ImportExportMenu";
@@ -705,30 +707,31 @@ function QuestionBankPage() {
       return;
     }
     const count = Math.max(1, Math.min(20, Math.round(aiCount) || 5));
+    // Builder único: la fila de cola es idéntica tanto si el gate decide
+    // encolar como si la llamada sync falla y caemos a la cola (misma payload).
+    const buildQueueRow = () => ({
+      kind: "question_bank",
+      invoke_target: "ai-generate-questions",
+      source_table: "courses",
+      source_id: courseId,
+      course_id: courseId,
+      created_by: user.id,
+      body: {
+        topics: aiTopics,
+        type: aiType,
+        count,
+        examId: courseId,
+        targetTable: "question_bank",
+        // El worker invoca el edge con service_role (sin user JWT); el
+        // edge usa este created_by como actor para question_bank.created_by.
+        created_by: user.id,
+      },
+    });
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
 
     if (decision === "proceed-async") {
-      const { error: enqErr } = await db.from("ai_generation_queue").insert([
-        {
-          kind: "question_bank",
-          invoke_target: "ai-generate-questions",
-          source_table: "courses",
-          source_id: courseId,
-          course_id: courseId,
-          created_by: user.id,
-          body: {
-            topics: aiTopics,
-            type: aiType,
-            count,
-            examId: courseId,
-            targetTable: "question_bank",
-            // El worker invoca el edge con service_role (sin user JWT); el
-            // edge usa este created_by como actor para question_bank.created_by.
-            created_by: user.id,
-          },
-        },
-      ]);
+      const { error: enqErr } = await db.from("ai_generation_queue").insert([buildQueueRow()]);
       if (enqErr) {
         toast.error(friendlyError(enqErr, t("questionBank.aiEnqueueError")));
         return;
@@ -767,7 +770,22 @@ function QuestionBankPage() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const edgeErr = error ?? (data as any)?.error;
       if (edgeErr) {
-        toast.error(friendlyError(edgeErr));
+        // La IA sincrónica falló. Si el fallo es de proveedor/transporte, no
+        // perdemos la petición: la encolamos para que el worker la procese
+        // (regla del dueño: seguir como async cuando el API está caído).
+        const detail = await extractEdgeError(error, data);
+        if (esFalloReintentable({ error, data, detalle: detail })) {
+          const { error: enqErr } = await db
+            .from("ai_generation_queue")
+            .insert([buildQueueRow()]);
+          if (!enqErr) {
+            toast.info(t("aiQueue.fallbackQueued"));
+            setAiOpen(false);
+            setAiTopics("");
+            return;
+          }
+        }
+        toast.error(detail ? detail : friendlyError(edgeErr));
         return;
       }
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

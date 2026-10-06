@@ -76,6 +76,7 @@ import { PythonGuiRunner, PYTHON_GUI_STARTER } from "@/modules/code/PythonGuiRun
 import { ProjectIntroVideoGate } from "@/modules/projects/ProjectIntroVideoGate";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
@@ -565,6 +566,23 @@ export function TeacherProjectFilesEditor({
     // de bloquear encolamos a `ai_generation_queue` (mig 20260603070000).
     // El docente puede procesarlo después desde el panel de Cola IA, o
     // que un admin lo ejecute. Mismo patrón que talleres.
+    // Builder único de la fila de cola: se usa tanto en el camino async
+    // (gate) como cuando la llamada sync falla y caemos a la cola.
+    const buildQueueRow = (userId: string) => ({
+      kind: "project_files",
+      invoke_target: "ai-generate-questions",
+      source_table: "projects",
+      source_id: projectId,
+      course_id: autoCourseId,
+      created_by: userId,
+      body: {
+        projectQuestionsAutoGeneration: true,
+        projectId,
+        description: autoDescription,
+        courseId: autoCourseId,
+        courseLanguage,
+      },
+    });
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
@@ -582,21 +600,9 @@ export function TeacherProjectFilesEditor({
         );
         return;
       }
-      const { error: enqErr } = await dbAny.from("ai_generation_queue").insert({
-        kind: "project_files",
-        invoke_target: "ai-generate-questions",
-        source_table: "projects",
-        source_id: projectId,
-        course_id: autoCourseId,
-        created_by: userRes.user.id,
-        body: {
-          projectQuestionsAutoGeneration: true,
-          projectId,
-          description: autoDescription,
-          courseId: autoCourseId,
-          courseLanguage,
-        },
-      });
+      const { error: enqErr } = await dbAny
+        .from("ai_generation_queue")
+        .insert(buildQueueRow(userRes.user.id));
       if (enqErr) {
         toast.error(friendlyError(enqErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
         return;
@@ -624,6 +630,18 @@ export function TeacherProjectFilesEditor({
         // Mostrar el motivo REAL del edge (ej. "Límite de uso de IA" 429) en vez
         // del genérico "non-2xx" de supabase.invoke. Igual que el generador de Kahoot.
         const detail = await extractEdgeError(error, data);
+        // Fallo de proveedor/transporte → no perder la petición: encolar.
+        const { data: userRes } = await supabase.auth.getUser();
+        if (userRes.user && esFalloReintentable({ error, data, detalle: detail })) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { error: enqErr } = await (supabase as any)
+            .from("ai_generation_queue")
+            .insert(buildQueueRow(userRes.user.id));
+          if (!enqErr) {
+            toast.info(t("aiQueue.fallbackQueued"));
+            return;
+          }
+        }
         toast.error(detail || friendlyError(error, t("hc_modulesProjectsProjectFiles.errGeneratingAi")));
       } else if (data?.inserted) {
         toast.success(
@@ -718,6 +736,31 @@ export function TeacherProjectFilesEditor({
       return;
     }
 
+    // Builder único de la fila de cola por tipo: se usa tanto en el camino
+    // async (gate) como cuando la llamada sync falla y caemos a la cola.
+    const buildQueueRow = (
+      row: (typeof aiTargetRows)[number],
+      userId: string,
+      projectDescription: string | null,
+    ) => ({
+      kind: "project_files",
+      invoke_target: "ai-generate-questions",
+      source_table: "projects",
+      source_id: projectId,
+      course_id: projectCourseId,
+      created_by: userId,
+      body: {
+        topics: aiTopics,
+        type: row.type,
+        count: row.count,
+        examId: projectId,
+        language: row.type === "codigo_zip" ? row.language : undefined,
+        courseLanguage,
+        targetTable: "project_files",
+        projectDescription,
+        alBanco,
+      },
+    });
     // Mismo gate que generateFromDescription: allowQueue=true → encolamos
     // a `ai_generation_queue` cuando el docente está en async sin código.
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
@@ -744,25 +787,9 @@ export function TeacherProjectFilesEditor({
         );
         return;
       }
-      const rows = aiTargetRows.map((row) => ({
-        kind: "project_files",
-        invoke_target: "ai-generate-questions",
-        source_table: "projects",
-        source_id: projectId,
-        course_id: projectCourseId,
-        created_by: userRes.user!.id,
-        body: {
-          topics: aiTopics,
-          type: row.type,
-          count: row.count,
-          examId: projectId,
-          language: row.type === "codigo_zip" ? row.language : undefined,
-          courseLanguage,
-          targetTable: "project_files",
-          projectDescription,
-          alBanco,
-        },
-      }));
+      const rows = aiTargetRows.map((row) =>
+        buildQueueRow(row, userRes.user!.id, projectDescription),
+      );
       const { error: enqErr } = await dbAny.from("ai_generation_queue").insert(rows);
       if (enqErr) {
         toast.error(friendlyError(enqErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
@@ -780,6 +807,9 @@ export function TeacherProjectFilesEditor({
     }
     setAiLoading(true);
     let totalInserted = 0;
+    // Filas cuyo intento sync falló por proveedor/transporte: se encolan al
+    // final para no perder la petición (regla del dueño: seguir como async).
+    const fallbackRows: ReturnType<typeof buildQueueRow>[] = [];
     try {
       const { data: proj } = await db
         .from("projects")
@@ -788,6 +818,7 @@ export function TeacherProjectFilesEditor({
         .maybeSingle();
       const projectDescription =
         (proj as { description?: string | null } | null)?.description ?? null;
+      const { data: userRes } = await supabase.auth.getUser();
 
       for (const row of aiTargetRows) {
         const { data, error } = await supabase.functions.invoke("ai-generate-questions", {
@@ -805,6 +836,10 @@ export function TeacherProjectFilesEditor({
         });
         if (error || data?.error) {
           const detail = await extractEdgeError(error, data);
+          if (userRes.user && esFalloReintentable({ error, data, detalle: detail })) {
+            fallbackRows.push(buildQueueRow(row, userRes.user.id, projectDescription));
+            continue;
+          }
           toast.error(
             i18n.t("toast.modules_projects_ProjectFiles.errorInType", {
               defaultValue: "Error en {{type}}: {{detail}}",
@@ -816,6 +851,18 @@ export function TeacherProjectFilesEditor({
           );
         } else {
           totalInserted += data?.inserted?.length ?? 0;
+        }
+      }
+      if (fallbackRows.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: enqErr } = await (supabase as any)
+          .from("ai_generation_queue")
+          .insert(fallbackRows);
+        if (enqErr) {
+          toast.error(friendlyError(enqErr, t("hc_modulesProjectsProjectFiles.errEnqueueGeneration")));
+        } else {
+          toast.info(t("aiQueue.fallbackQueued"));
+          setAiTopics("");
         }
       }
       if (totalInserted > 0) {

@@ -2770,7 +2770,8 @@
     "gateProceedAsync": "Continue in queue",
     "gateActivate": "Activate immediate AI",
     "workerReportedFailure": "The task failed while processing",
-    "unknownError": "Unknown error"
+    "unknownError": "Unknown error",
+    "fallbackQueued": "The AI didn't respond right now. We queued your request and it will be processed automatically; you'll see it under AI jobs."
   },
   "tenantQuota": {
     "defaultTitle": "User licenses",

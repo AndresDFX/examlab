@@ -43,6 +43,7 @@ import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { useAiAuthorizationGate } from "@/modules/ai/AiAuthorizationGate";
+import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import { QuestionBankImportDialog } from "@/modules/code/QuestionBankImportDialog";
 import { KAHOOT_SHAPES } from "@/modules/polls/kahoot";
 import { KahootShapeIcon } from "@/modules/polls/KahootShapeIcon";
@@ -288,6 +289,23 @@ export function KahootQuestionsEditor({
     const count = Math.max(1, Math.min(20, Math.round(aiCount) || 5));
     // Mismo gate que talleres/parciales: sync inline, código de IA inmediata,
     // o encolar en ai_generation_queue (allowQueue).
+    // Builder único de la fila de cola: se usa tanto si el gate decide
+    // encolar como si la llamada sync falla y caemos a la cola.
+    const buildQueueRow = (userId: string, courseId: string | null) => ({
+      kind: "kahoot_questions",
+      invoke_target: "ai-generate-questions",
+      source_table: "polls",
+      source_id: poll.id,
+      course_id: courseId,
+      created_by: userId,
+      body: {
+        topics: aiTopics,
+        type: "kahoot",
+        count,
+        examId: poll.id,
+        targetTable: "kahoot_questions",
+      },
+    });
     const decision = await aiGate.ensureAuthorized({ allowQueue: true });
     if (decision === "cancel") return;
     if (decision === "proceed-async") {
@@ -301,24 +319,10 @@ export function KahootQuestionsEditor({
         .select("course_id")
         .eq("id", poll.id)
         .maybeSingle();
-      const { error: enqErr } = await db.from("ai_generation_queue").insert([
-        {
-          kind: "kahoot_questions",
-          invoke_target: "ai-generate-questions",
-          source_table: "polls",
-          source_id: poll.id,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          course_id: (pollRow as any)?.course_id ?? null,
-          created_by: user.user.id,
-          body: {
-            topics: aiTopics,
-            type: "kahoot",
-            count,
-            examId: poll.id,
-            targetTable: "kahoot_questions",
-          },
-        },
-      ]);
+      const { error: enqErr } = await db
+        .from("ai_generation_queue")
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .insert([buildQueueRow(user.user.id, (pollRow as any)?.course_id ?? null)]);
       if (enqErr) {
         toast.error(friendlyError(enqErr, "No se pudo encolar la generación"));
         return;
@@ -346,6 +350,26 @@ export function KahootQuestionsEditor({
         // y NO lee el body → el docente solo veía ese genérico inútil. extractEdgeError
         // lee el JSON del body (error.context) y muestra el motivo accionable.
         const detail = await extractEdgeError(error, data);
+        // Fallo de proveedor/transporte → no perder la petición: encolar.
+        if (esFalloReintentable({ error, data, detalle: detail })) {
+          const { data: user } = await supabase.auth.getUser();
+          const { data: pollRow } = await db
+            .from("polls")
+            .select("course_id")
+            .eq("id", poll.id)
+            .maybeSingle();
+          if (user.user) {
+            const { error: enqErr } = await db
+              .from("ai_generation_queue")
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              .insert([buildQueueRow(user.user.id, (pollRow as any)?.course_id ?? null)]);
+            if (!enqErr) {
+              toast.info(t("aiQueue.fallbackQueued"));
+              setAiTopics("");
+              return;
+            }
+          }
+        }
         toast.error(detail || friendlyError(error));
         return;
       }
