@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import userEvent from "@testing-library/user-event";
 import type { EstadoMonaco } from "@/modules/code/use-monaco-listo";
@@ -17,9 +17,42 @@ import { isSqlAnswerBlank, parseSqlAnswer } from "@/modules/database/sql-answer"
  */
 const estadoMonaco = { estado: "cargando" as EstadoMonaco, lento: false };
 
-vi.mock("@monaco-editor/react", () => ({
-  default: () => <div data-testid="monaco" />,
-}));
+// Un editor falso con lo justo para que el runner lea una selección: así se
+// puede probar dónde aparece el aviso de «se ejecuta solo lo seleccionado».
+const editorFalso = vi.hoisted(() => {
+  const estado = { vacia: true, alCambiar: null as null | (() => void) };
+  return {
+    seleccionar(hay: boolean) {
+      estado.vacia = !hay;
+      estado.alCambiar?.();
+    },
+    crear() {
+      return {
+        onDidChangeCursorSelection: (cb: () => void) => {
+          estado.alCambiar = cb;
+          return { dispose() {} };
+        },
+        addCommand: () => null,
+        getModel: () => ({ getValueInRange: () => "SELECT 1", getOffsetAt: () => 0 }),
+        getSelections: () =>
+          estado.vacia ? [] : [{ isEmpty: () => false, startLineNumber: 1, startColumn: 1 }],
+      };
+    },
+  };
+});
+
+vi.mock("@monaco-editor/react", async () => {
+  const { useEffect } = await import("react");
+  return {
+    default: (props: { onMount?: (editor: unknown, monaco: unknown) => void }) => {
+      useEffect(() => {
+        props.onMount?.(editorFalso.crear(), { KeyMod: { CtrlCmd: 0 }, KeyCode: { Enter: 0 } });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, []);
+      return <div data-testid="monaco" />;
+    },
+  };
+});
 
 vi.mock("@/modules/code/use-monaco-listo", async () => {
   const real = await vi.importActual<typeof import("@/modules/code/use-monaco-listo")>(
@@ -31,6 +64,13 @@ vi.mock("@/modules/code/use-monaco-listo", async () => {
     useMonacoListo: () => estadoMonaco,
   };
 });
+
+// La base: un doble que permite emitir avisos como lo hace PGlite (por el
+// callback `onNotice` de `exec`, y solo por ahí).
+const { fakeExec } = vi.hoisted(() => ({ fakeExec: vi.fn() }));
+vi.mock("@/modules/database/pglite-loader", () => ({
+  createEphemeralDb: async () => ({ exec: fakeExec, query: vi.fn(), close: async () => {} }),
+}));
 
 const { SqlRunner } = await import("@/modules/database/SqlRunner");
 
@@ -140,5 +180,57 @@ describe("SqlRunner sin el editor", () => {
     montar({ value: null, onChange: () => {} });
     expect(screen.getByTestId("monaco")).toBeInTheDocument();
     expect(screen.queryByPlaceholderText("Escribe acá tu consulta SQL")).not.toBeInTheDocument();
+  });
+});
+
+describe("SqlRunner — lo que imprime la base", () => {
+  it("RAISE NOTICE se muestra con su sentencia y se guarda con la respuesta", async () => {
+    // PGlite entrega los avisos SOLO por `onNotice`: sin pasarlo, un
+    // procedimiento que avisa «Insumo 3 dado de baja» no mostraba nada.
+    fakeExec.mockImplementation(
+      async (sql: string, opts?: { onNotice?: (n: { severity: string; message: string }) => void }) => {
+        if (sql.includes("RAISE NOTICE")) {
+          opts?.onNotice?.({ severity: "NOTICE", message: "Insumo 3 dado de baja" });
+        }
+        return [];
+      },
+    );
+    const user = userEvent.setup();
+    const cambios: string[] = [];
+    estadoMonaco.estado = "error";
+    montar({ value: null, onChange: (v) => cambios.push(v) });
+
+    await user.type(
+      screen.getByPlaceholderText("Escribe acá tu consulta SQL"),
+      "DO $$ BEGIN RAISE NOTICE 'x'; END $$;",
+    );
+    await user.click(screen.getByRole("button", { name: /Ejecutar/ }));
+
+    expect(await screen.findByText(/Insumo 3 dado de baja/)).toBeInTheDocument();
+    const guardado = parseSqlAnswer(cambios[cambios.length - 1]);
+    expect(guardado?.results[0].notices).toEqual(["NOTICE:  Insumo 3 dado de baja"]);
+  });
+
+  it("el aviso de la SELECCIÓN aparece debajo del editor, no arriba", async () => {
+    // Arriba cambiaba el alto del bloque fijo en cuanto se marcaba texto y
+    // corría el editor ~25 px bajo el mouse: un arrastre de punta a punta
+    // quedaba en «CR». Es el «copiar y pegar es raro» que se reportó.
+    estadoMonaco.estado = "listo";
+    montar({ value: JSON.stringify({ bdSql: 1, sql: "SELECT 1;", results: [] }), onChange: () => {} });
+    act(() => editorFalso.seleccionar(true));
+    const editor = screen.getByTestId("monaco");
+    const aviso = await screen.findByText(/Se ejecuta solo lo seleccionado/);
+    expect(editor.compareDocumentPosition(aviso) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // El botón dice lo que va a correr.
+    expect(screen.getByRole("button", { name: /Ejecutar selecci/ })).toBeInTheDocument();
+    act(() => editorFalso.seleccionar(false));
+  });
+
+  it("el aviso del costo de la primera corrida también va debajo", () => {
+    estadoMonaco.estado = "error";
+    montar({ value: null, onChange: () => {} });
+    const caja = screen.getByPlaceholderText("Escribe acá tu consulta SQL");
+    const aviso = screen.getByText(/La primera ejecución descarga el motor/);
+    expect(caja.compareDocumentPosition(aviso) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

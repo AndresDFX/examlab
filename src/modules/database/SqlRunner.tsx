@@ -80,6 +80,8 @@ import { appendSqlBlock, LIST_TABLES_SQL } from "@/modules/database/sql-help";
 import { SqlTablesHelp } from "@/modules/database/SqlTablesHelp";
 import {
   formatCell,
+  formatNotice,
+  MAX_NOTICES,
   MAX_PERSISTED_ROWS,
   parseSqlAnswer,
   renderTable,
@@ -439,12 +441,30 @@ export function SqlRunner({
       //    SU sentencia y lo que era correcto surte efecto.
       const next: SqlStatementResult[] = [];
       for (const sentencia of splitSqlStatements(sqlToRun)) {
+        // `RAISE NOTICE` / `INFO` / `WARNING`: PGlite los entrega SOLO por este
+        // callback y sin él se pierden en silencio — un procedimiento que avisa
+        // «Insumo 3 dado de baja» no mostraba nada y parecía no haber corrido.
+        // Van con SU sentencia, incluso si después falla: un NOTICE seguido de
+        // un RAISE EXCEPTION es justo lo que se depura.
+        const avisos: string[] = [];
+        let totalDeAvisos = 0;
+        const onNotice = (n: Parameters<typeof formatNotice>[0]) => {
+          totalDeAvisos++;
+          if (avisos.length < MAX_NOTICES) avisos.push(formatNotice(n));
+        };
+        const marcasDeAvisos = () =>
+          avisos.length > 0
+            ? { notices: avisos, ...(totalDeAvisos > MAX_NOTICES ? { noticesTruncated: true } : {}) }
+            : {};
         try {
-          const out = await db.exec(sentencia.sql);
+          const out = await db.exec(sentencia.sql, { onNotice });
+          const conAvisos = marcasDeAvisos();
           if (!out || out.length === 0) {
-            next.push({ sql: sentencia.sql, columns: [], rows: [], affectedRows: 0 });
+            next.push({ sql: sentencia.sql, columns: [], rows: [], affectedRows: 0, ...conAvisos });
           } else {
-            for (const r of out) next.push(toStatementResult(sentencia.sql, r));
+            out.forEach((r, i) =>
+              next.push({ ...toStatementResult(sentencia.sql, r), ...(i === 0 ? conAvisos : {}) }),
+            );
           }
         } catch (e) {
           next.push({
@@ -452,6 +472,7 @@ export function SqlRunner({
             columns: [],
             rows: [],
             error: e instanceof Error ? e.message : String(e),
+            ...marcasDeAvisos(),
           });
         }
         if (cancelledRef.current) return;
@@ -642,8 +663,38 @@ export function SqlRunner({
       ? bloqueMonaco
       : bloqueCargandoEditor;
 
+  /* Avisos que dependen de la SELECCIÓN o de la corrida. Van con los
+     resultados, DEBAJO del editor, y no en el bloque de arriba: ahí, el aviso
+     de la selección aparecía en cuanto se marcaba texto, empujaba el editor
+     ~25 px hacia abajo y lo achicaba, así que el arrastre del mouse terminaba en
+     otra línea —una selección de punta a punta quedaba en «CR»— y al soltarla
+     todo volvía a subir. Copiar y pegar se sentía roto por eso. */
+  const avisosDeEjecucion = (
+    <>
+      {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
+      {running && <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>}
+
+      {/* Que se pueda correr un fragmento no se descubre solo: sin este aviso
+          el usuario asume que el botón siempre corre la hoja entera. */}
+      {!running && hasSelection && (
+        <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
+      )}
+
+      {/* Si la selección falla por algo de más arriba, el motivo tiene que estar
+          en pantalla: el contexto corre sin mostrar sus resultados. */}
+      {!running && contextoFallido > 0 && (
+        <p className="flex items-start gap-1.5 text-2xs text-warning-on-subtle">
+          <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+          {t("bdSql.contextFailed", { count: contextoFallido })}
+        </p>
+      )}
+    </>
+  );
+
   const bloqueResultados = (
     <>
+      {avisosDeEjecucion}
+
       {loadError && (
         /* Que el motor no cargue NO es quedarse sin responder, y hay que
            decirlo: el SQL escrito se guarda igual y la propia directiva de
@@ -668,17 +719,20 @@ export function SqlRunner({
       )}
 
       {setupError && (
-        <div className="rounded-md border border-amber-400/40 bg-amber-500/5 p-2 text-2xs text-amber-700 dark:text-amber-300">
+        <div className="rounded-md border border-warning/40 bg-warning/5 p-2 text-2xs text-warning-on-subtle">
           <strong>{t("bdSql.setupErrorTitle")}</strong> {setupError}
         </div>
       )}
 
       {/* Estado vacío: sin esto, debajo del editor no había NADA y no quedaba
             claro que hubiera que pulsar Ejecutar para ver algo. */}
-      {results.length === 0 && !loadError && !setupError && (
-        <p className="rounded-md border border-dashed p-3 text-center text-2xs text-muted-foreground">
-          {t("bdSql.emptyHint")}
-        </p>
+      {results.length === 0 && !loadError && !setupError && !running && (
+        <div className="space-y-1 rounded-md border border-dashed p-3 text-center text-2xs text-muted-foreground">
+          <p>{t("bdSql.emptyHint")}</p>
+          {/* El costo de la primera corrida, ANTES de pulsar: si solo apareciera
+              durante la ejecución, la espera larga llegaría sin explicación. */}
+          <p>{t("bdSql.firstRunHintIdle")}</p>
+        </div>
       )}
 
       {results.length > 0 && (
@@ -688,6 +742,21 @@ export function SqlRunner({
               <p className="mb-1 text-3xs text-muted-foreground" style={zoomStyle("--text-3xs")}>
                 {t("bdSql.statementN", { n: i + 1 })}
               </p>
+              {/* Antes del resultado, como los imprime psql: es el orden en que
+                  ocurrieron. */}
+              {r.notices && r.notices.length > 0 && (
+                <pre
+                  className="mb-1 whitespace-pre-wrap break-words border-l-2 border-primary/50 pl-2 font-mono text-2xs"
+                  style={zoomStyle("--text-2xs")}
+                >
+                  {r.notices.join("\n")}
+                </pre>
+              )}
+              {r.noticesTruncated && (
+                <p className="mb-1 text-3xs text-muted-foreground" style={zoomStyle("--text-3xs")}>
+                  {t("bdSql.noticesTruncated", { max: MAX_NOTICES })}
+                </p>
+              )}
               {r.error ? (
                 <p
                   className="whitespace-pre-wrap break-words font-mono text-2xs text-destructive"
@@ -771,15 +840,31 @@ export function SqlRunner({
                   title={modoTexto ? undefined : t("bdSql.runShortcut")}
                 >
                   {running ? (
-                    <Spinner size="xs" className="mr-1" />
+                    <Spinner size="md" className="mr-1" />
                   ) : (
                     <Play className="mr-1 h-4 w-4" />
                   )}
-                  {running
-                    ? t("bdSql.running")
-                    : hasSelection
-                      ? t("bdSql.runSelection")
-                      : t("bdSql.run")}
+                  {/* Los tres rótulos ocupan la MISMA celda y el botón toma el
+                      ancho del más largo: si cambiara de ancho al seleccionar,
+                      en una pantalla angosta la fila saltaría a dos renglones y
+                      correría el editor bajo el mouse (ver `avisosDeEjecucion`). */}
+                  <span className="grid">
+                    {(
+                      [
+                        ["running", running, t("bdSql.running")],
+                        ["selection", !running && hasSelection, t("bdSql.runSelection")],
+                        ["run", !running && !hasSelection, t("bdSql.run")],
+                      ] as const
+                    ).map(([clave, activo, rotulo]) => (
+                      <span
+                        key={clave}
+                        aria-hidden={!activo}
+                        className={cn("col-start-1 row-start-1", !activo && "invisible")}
+                      >
+                        {rotulo}
+                      </span>
+                    ))}
+                  </span>
                 </Button>
               )}
             </div>
@@ -800,31 +885,10 @@ export function SqlRunner({
             Es la única superficie que EJECUTA y queda sin la ayuda; cubrirla pide
             un editor propio para el alumno, que es trabajo aparte. */}
           {!readOnly && <SqlTablesHelp onInsert={insertListTables} />}
-
-          {/* Primera ejecución: avisar el costo ANTES de que parezca colgado. */}
-          {running && <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHint")}</p>}
-
-          {/* Antes de la primera corrida el aviso de los 16 MB no se veía (solo
-            aparecía DURANTE la ejecución), así que la espera larga llegaba sin
-            explicación. Acá se anticipa, y solo mientras no haya resultados. */}
-          {!running && results.length === 0 && (
-            <p className="text-2xs text-muted-foreground">{t("bdSql.firstRunHintIdle")}</p>
-          )}
-
-          {/* Que se pueda correr un fragmento no se descubre solo: sin este
-            aviso el usuario asume que el botón siempre corre la hoja entera. */}
-          {!running && hasSelection && (
-            <p className="text-2xs text-muted-foreground">{t("bdSql.selectionHint")}</p>
-          )}
-
-          {/* Si la selección falla por algo de más arriba, el motivo tiene que
-            estar en pantalla: el contexto corre sin mostrar sus resultados. */}
-          {!running && contextoFallido > 0 && (
-            <p className="flex items-start gap-1.5 text-2xs text-amber-700 dark:text-amber-300">
-              <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
-              {t("bdSql.contextFailed", { count: contextoFallido })}
-            </p>
-          )}
+          {/* Nada de lo que está ARRIBA del editor puede aparecer o desaparecer
+              mientras se trabaja: cambiaría su alto y lo correría bajo el mouse.
+              Los avisos de la selección y de la corrida van debajo, con los
+              resultados (`avisosDeEjecucion`). */}
         </div>
 
         {/* En modo herramienta se espera la lectura del reparto antes de montar

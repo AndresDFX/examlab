@@ -92,6 +92,19 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 
+### 🧩 Hoja SQL: seleccionar ya no mueve el editor, y `RAISE NOTICE` se ve
+
+- **Copiar y pegar se sentía roto** en la hoja SQL de la pizarra. Medido con Playwright en una hoja
+  real: al seleccionar texto aparecía ARRIBA del editor el aviso «se ejecuta solo lo seleccionado»,
+  que lo empujaba 25 px hacia abajo y lo achicaba; un arrastre del mouse de punta a punta de una línea
+  quedaba en «CR» y, al soltar la selección, todo volvía a subir. Los avisos que dependen de la
+  selección o de la corrida van ahora DEBAJO del editor, con los resultados, y el botón Ejecutar ya no
+  cambia de ancho al seleccionar. Vale también para las preguntas `bd_sql` de examen y taller.
+- **`RAISE NOTICE` no mostraba nada**: PGlite entrega los avisos SOLO por el callback `onNotice` de
+  `exec`, y el runner no lo pasaba. Ahora cada sentencia guarda sus avisos en formato psql
+  («NOTICE:  …»), que se ven en el runner, en la revisión del docente y en el texto que califica la
+  IA, con una regla nueva en su instrucción: son salida, no errores.
+
 ### 📊 El porcentaje de asistencia dice lo mismo que la nota, en todas las pantallas
 
 La nota ya contaba el vacío como falta —en una sesión que se dio (alguien tiene marca), quien no

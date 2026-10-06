@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   formatCell,
+  formatNotice,
   isSqlAnswerBlank,
+  MAX_NOTICES,
   MAX_PERSISTED_ROWS,
   parseSqlAnswer,
   renderTable,
@@ -192,5 +194,67 @@ describe("isSqlAnswerBlank — lo que insertó un botón no es una respuesta", (
     // Camino sin serializar (respuesta vieja o de otro flujo).
     expect(isSqlAnswerBlank(LIST_TABLES_SQL)).toBe(true);
     expect(isSqlAnswerBlank("select 1")).toBe(false);
+  });
+});
+
+describe("avisos de Postgres (RAISE NOTICE)", () => {
+  it("se formatean como psql, con DETAIL y HINT cuando vienen", () => {
+    expect(formatNotice({ severity: "NOTICE", message: "Insumo 3 dado de baja" })).toBe(
+      "NOTICE:  Insumo 3 dado de baja",
+    );
+    expect(formatNotice({ severity: "WARNING", message: "ojo", detail: "d", hint: "h" })).toBe(
+      "WARNING:  ojo\nDETAIL:  d\nHINT:  h",
+    );
+    // Sin severidad (no debería pasar) se asume NOTICE en vez de dejar «:  …».
+    expect(formatNotice({ message: "x" })).toBe("NOTICE:  x");
+  });
+
+  it("se guardan con su sentencia y sobreviven ida y vuelta", () => {
+    const a = answer({
+      results: [{ sql: "CALL p()", columns: [], rows: [], affectedRows: 0, notices: ["NOTICE:  hola"] }],
+    });
+    expect(parseSqlAnswer(serializeSqlAnswer(a))?.results[0].notices).toEqual(["NOTICE:  hola"]);
+  });
+
+  it("se recortan: un RAISE NOTICE dentro de un bucle no debe inflar la respuesta", () => {
+    const muchos = Array.from({ length: MAX_NOTICES + 20 }, (_, i) => `NOTICE:  ${i}`);
+    const a = answer({ results: [{ sql: "DO $$ … $$", columns: [], rows: [], notices: muchos }] });
+    const leido = parseSqlAnswer(serializeSqlAnswer(a))?.results[0];
+    expect(leido?.notices).toHaveLength(MAX_NOTICES);
+    // Y se dice: una salida recortada no puede leerse como un bucle más corto.
+    expect(leido?.noticesTruncated).toBe(true);
+    expect(sqlResultsForDisplay(serializeSqlAnswer(a))).toContain(
+      `recortado a los primeros ${MAX_NOTICES} avisos`,
+    );
+  });
+
+  it("una respuesta guardada antes de existir los avisos sigue leyéndose igual", () => {
+    expect(parseSqlAnswer(serializeSqlAnswer(answer()))?.results[0].notices).toBeUndefined();
+  });
+
+  it("llegan al texto que lee quien califica, ANTES del resultado (como psql)", () => {
+    const raw = serializeSqlAnswer(
+      answer({
+        results: [
+          {
+            sql: "CALL sp_baja(3)",
+            columns: [],
+            rows: [],
+            affectedRows: 0,
+            notices: ["NOTICE:  Insumo 3 dado de baja"],
+          },
+          {
+            sql: "CALL sp_baja(9)",
+            columns: [],
+            rows: [],
+            error: "El insumo 9 no existe",
+            notices: ["NOTICE:  buscando 9"],
+          },
+        ],
+      }),
+    );
+    const txt = sqlResultsForDisplay(raw) ?? "";
+    expect(txt).toContain("CALL sp_baja(3)\nNOTICE:  Insumo 3 dado de baja\nOK");
+    expect(txt).toContain("NOTICE:  buscando 9\nERROR: El insumo 9 no existe");
   });
 });

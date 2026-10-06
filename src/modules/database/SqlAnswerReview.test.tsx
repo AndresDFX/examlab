@@ -63,4 +63,25 @@ describe("SqlAnswerReview", () => {
     rerender(<SqlAnswerReview value="SELECT * FROM viejo" />);
     expect(screen.getByText("SELECT * FROM viejo")).toBeTruthy();
   });
+
+  it("muestra lo que imprimió RAISE NOTICE, y avisa si se recortó", () => {
+    // En un ejercicio de PL/pgSQL esa salida suele ser lo que se pide: quien
+    // califica tiene que verla, y saber si es completa.
+    const valor = serializeSqlAnswer({
+      sql: "CALL sp_baja(3);",
+      results: [
+        {
+          sql: "CALL sp_baja(3)",
+          columns: [],
+          rows: [],
+          affectedRows: 0,
+          notices: ["NOTICE:  Insumo 3 dado de baja"],
+          noticesTruncated: true,
+        },
+      ],
+    });
+    render(<SqlAnswerReview value={valor} />);
+    expect(screen.getByText(/Insumo 3 dado de baja/)).toBeTruthy();
+    expect(screen.getByText(/primeros 50 avisos/)).toBeTruthy();
+  });
 });

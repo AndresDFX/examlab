@@ -17,6 +17,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle, Database } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 import {
+  MAX_NOTICES,
   MAX_PERSISTED_ROWS,
   parseSqlAnswer,
   type SqlStatementResult,
@@ -36,6 +37,18 @@ function Resultado({ r, n }: { r: SqlStatementResult; n: number }) {
       <pre className="whitespace-pre-wrap break-words rounded bg-muted/40 px-2 py-1 font-mono text-2xs">
         {r.sql.trim()}
       </pre>
+      {/* Lo que imprimió con RAISE NOTICE: en un ejercicio de PL/pgSQL suele ser
+          justo lo que se pide, así que quien califica tiene que verlo. */}
+      {r.notices && r.notices.length > 0 && (
+        <pre className="whitespace-pre-wrap break-words border-l-2 border-primary/50 pl-2 font-mono text-2xs">
+          {r.notices.join("\n")}
+        </pre>
+      )}
+      {r.noticesTruncated && (
+        <p className="text-3xs text-muted-foreground">
+          {t("sqlAnswerReview.noticesTruncated", { max: MAX_NOTICES })}
+        </p>
+      )}
       {r.error ? (
         <p className="flex items-start gap-1 text-2xs text-destructive">
           <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" aria-hidden />

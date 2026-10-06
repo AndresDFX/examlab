@@ -45,6 +45,16 @@ export interface PgliteResult {
   affectedRows?: number;
 }
 
+/** Opciones de `exec` que usa el runner. */
+export interface PgliteExecOptions {
+  /**
+   * Recibe los `RAISE NOTICE` / `INFO` / `WARNING`. PGlite los entrega SOLO a
+   * este callback: sin él se descartan en silencio (medido con 0.5.4), y un
+   * procedimiento que «no imprime nada» se lee como que no se ejecutó.
+   */
+  onNotice?: (notice: { severity?: string; message?: string; detail?: string; hint?: string }) => void;
+}
+
 /** Instancia mínima que consumimos. No tipamos toda la API de PGlite: solo lo
  *  que usa el runner, para que una subida de versión no rompa el build por
  *  campos que no tocamos. */
@@ -54,7 +64,7 @@ export interface PgliteDb {
   /** Ejecuta N sentencias separadas por `;` y devuelve un resultado por cada
    *  una. Es lo que usa el runner: un ejercicio de SQL casi nunca es una sola
    *  sentencia. */
-  exec: (sql: string) => Promise<PgliteResult[]>;
+  exec: (sql: string, options?: PgliteExecOptions) => Promise<PgliteResult[]>;
   close: () => Promise<void>;
 }
 

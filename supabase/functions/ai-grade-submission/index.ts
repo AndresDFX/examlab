@@ -251,7 +251,11 @@ function itemDirectiveForType(it: BatchItem): string {
       `SQL leyéndolo — NO pongas 0 por no haber ejecutado, pero podés descontar por no verificar.\n` +
       `4. Hay MUCHAS formas correctas de escribir la misma consulta. No exijas una redacción ` +
       `concreta: evaluá corrección y resultado, no estilo.\n` +
-      `5. El resultado puede venir RECORTADO a las primeras filas — no penalices por eso.\n`
+      `5. El resultado puede venir RECORTADO a las primeras filas — no penalices por eso.\n` +
+      `6. Las líneas NOTICE / INFO / WARNING son lo que el SQL imprimió con RAISE (o un aviso de ` +
+      `Postgres, como el de DROP … IF EXISTS): son SALIDA, no errores. En un ejercicio de PL/pgSQL ` +
+      `suelen ser justo la evidencia que pide el enunciado. También pueden venir recortados a los ` +
+      `primeros; no penalices por eso.\n`
     );
   }
   if (t === "diagrama") {

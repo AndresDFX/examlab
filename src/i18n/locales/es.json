@@ -10550,7 +10550,8 @@
     "listTablesAppendNote": "Se agrega al final de lo que ya escribiste; no reemplaza nada.",
     "zoomIn": "Agrandar el texto",
     "zoomOut": "Reducir el texto",
-    "zoomReset": "Restablecer el tamaño del texto"
+    "zoomReset": "Restablecer el tamaño del texto",
+    "noticesTruncated": "Se muestran los primeros {{max}} avisos."
   },
   "sqlAssistant": {
     "title": "Generar SQL con IA",
@@ -11131,7 +11132,8 @@
     "affected_other": "OK — {{count}} filas afectadas",
     "noRows": "(0 filas)",
     "truncated": "Se guardan solo las primeras {{max}} filas.",
-    "noAnswer": "Sin respuesta"
+    "noAnswer": "Sin respuesta",
+    "noticesTruncated": "Se muestran los primeros {{max}} avisos."
   },
   "conversacionesPendientes": {
     "title": "Conversaciones pendientes:",

@@ -31,6 +31,15 @@ export interface SqlStatementResult {
   affectedRows?: number;
   /** Mensaje de error de Postgres, si la sentencia falló. */
   error?: string;
+  /**
+   * Lo que la sentencia imprimió con `RAISE NOTICE` / `INFO` / `WARNING`, en el
+   * formato de psql («NOTICE:  …»). Es la salida que se busca al enseñar
+   * PL/pgSQL, y también la del `DROP … IF EXISTS` que no encontró nada.
+   */
+  notices?: string[];
+  /** Hubo más avisos de los que se guardan (`MAX_NOTICES`): se dice, para que
+   *  una salida recortada no se lea como un bucle que corrió menos veces. */
+  noticesTruncated?: boolean;
 }
 
 export interface SqlAnswer {
@@ -52,6 +61,33 @@ const MAX_SQL_CHARS = 100_000;
 export const MAX_PERSISTED_ROWS = 50;
 /** Tope de celdas individuales (un TEXT largo no debe inflar el JSON). */
 const MAX_CELL_CHARS = 500;
+/** Tope de avisos por sentencia: un `RAISE NOTICE` dentro de un bucle puede
+ *  emitir miles. Se guardan los primeros, que es lo que se lee. */
+export const MAX_NOTICES = 50;
+
+/** Un aviso de Postgres tal como lo entrega PGlite (`NoticeMessage`). */
+export interface AvisoDePostgres {
+  severity?: string;
+  message?: string;
+  detail?: string;
+  hint?: string;
+}
+
+/** Recorta un texto largo para que no infle el JSON guardado. */
+function recortar(x: string): string {
+  return x.length > MAX_CELL_CHARS ? x.slice(0, MAX_CELL_CHARS) + "…" : x;
+}
+
+/**
+ * Un aviso con el formato de psql: «NOTICE:  mensaje», y debajo DETAIL y HINT
+ * si los trae. Es como lo ve cualquiera que ya usó Postgres.
+ */
+export function formatNotice(n: AvisoDePostgres): string {
+  const lineas = [`${(n.severity || "NOTICE").toUpperCase()}:  ${n.message ?? ""}`];
+  if (n.detail) lineas.push(`DETAIL:  ${n.detail}`);
+  if (n.hint) lineas.push(`HINT:  ${n.hint}`);
+  return recortar(lineas.join("\n"));
+}
 
 /**
  * Formatea una celda de Postgres a texto.
@@ -81,6 +117,8 @@ export function serializeSqlAnswer(answer: SqlAnswer): string {
     rows: (r.rows ?? []).slice(0, MAX_PERSISTED_ROWS),
     ...(r.affectedRows !== undefined ? { affectedRows: r.affectedRows } : {}),
     ...(r.error ? { error: r.error } : {}),
+    ...(r.notices?.length ? { notices: r.notices.slice(0, MAX_NOTICES).map(recortar) } : {}),
+    ...(r.noticesTruncated || (r.notices?.length ?? 0) > MAX_NOTICES ? { noticesTruncated: true } : {}),
   }));
   return JSON.stringify({
     bdSql: 1,
@@ -107,6 +145,10 @@ export function parseSqlAnswer(raw: unknown): SqlAnswer | null {
           : [],
         ...(typeof o.affectedRows === "number" ? { affectedRows: o.affectedRows } : {}),
         ...(typeof o.error === "string" && o.error ? { error: o.error } : {}),
+        ...(Array.isArray(o.notices) && o.notices.length
+          ? { notices: o.notices.map((x) => String(x)) }
+          : {}),
+        ...(o.noticesTruncated === true ? { noticesTruncated: true } : {}),
       };
     });
     return {
@@ -178,7 +220,14 @@ export function sqlResultsForDisplay(raw: unknown): string | null {
 }
 
 function renderStatementBlock(r: SqlStatementResult, n: number): string {
-  const head = `── Sentencia ${n} ──\n${r.sql.trim()}`;
+  // Los avisos van ANTES del resultado, como los imprime psql: es el orden en
+  // que ocurrieron, y es lo primero que mira quien califica un PL/pgSQL.
+  const avisos = r.notices?.length
+    ? `\n${r.notices.join("\n")}${
+        r.noticesTruncated ? `\n… (recortado a los primeros ${MAX_NOTICES} avisos)` : ""
+      }`
+    : "";
+  const head = `── Sentencia ${n} ──\n${r.sql.trim()}${avisos}`;
   if (r.error) return `${head}\nERROR: ${r.error}`;
   if (r.columns.length === 0) {
     const n2 = r.affectedRows ?? 0;

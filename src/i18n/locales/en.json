@@ -10550,7 +10550,8 @@
     "listTablesAppendNote": "It is added at the end of what you already wrote; it does not replace anything.",
     "zoomIn": "Increase text size",
     "zoomOut": "Decrease text size",
-    "zoomReset": "Reset text size"
+    "zoomReset": "Reset text size",
+    "noticesTruncated": "Showing the first {{max}} notices."
   },
   "sqlAssistant": {
     "title": "Generate SQL with AI",
@@ -11131,7 +11132,8 @@
     "affected_other": "OK — {{count}} rows affected",
     "noRows": "(0 rows)",
     "truncated": "Only the first {{max}} rows are stored.",
-    "noAnswer": "No answer"
+    "noAnswer": "No answer",
+    "noticesTruncated": "Showing the first {{max}} notices."
   },
   "conversacionesPendientes": {
     "title": "Pending conversations:",

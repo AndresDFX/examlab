@@ -1862,6 +1862,18 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   que están más arriba**, sin mostrar sus resultados: con base nueva por corrida, sin eso una consulta
   suelta no tiene contra qué correr. Si alguna de esas falla se avisa el CONTEO (no el detalle), porque
   es la causa de que la selección falle.
+- **`RAISE NOTICE` / `INFO` / `WARNING` se capturan POR SENTENCIA** con el callback `onNotice` de
+  `exec`. PGlite entrega los avisos SOLO por ahí: sin el callback se descartan en silencio (medido con
+  0.5.4), y un procedimiento que avisa «Insumo 3 dado de baja» no mostraba nada, como si no hubiera
+  corrido. Se guardan en `notices` del resultado (formato psql, `formatNotice`, con tope) y se ven en
+  el runner, en `SqlAnswerReview` y en el texto que califica la IA, ANTES del resultado de su
+  sentencia, como los imprime psql.
+- **Nada ARRIBA del editor puede cambiar de alto mientras se trabaja.** El aviso de «se ejecuta solo
+  lo seleccionado» aparecía arriba al marcar texto: corría el editor ~25 px bajo el mouse, un arrastre
+  de punta a punta quedaba en «CR» y al soltar todo volvía a subir — reportado como «copiar y pegar es
+  raro». Los avisos que dependen de la selección o de la corrida van con los resultados
+  (`avisosDeEjecucion`), y el botón Ejecutar apila sus tres rótulos en una celda para no cambiar de
+  ancho. Al agregar un aviso nuevo al runner, va abajo.
 - **La ayuda "¿qué tablas hay?" vive en UN lugar** ([SqlTablesHelp.tsx](src/modules/database/SqlTablesHelp.tsx)
   + el módulo puro [sql-help.ts](src/modules/database/sql-help.ts), donde están `LIST_TABLES_SQL` y
   `appendSqlBlock`). Se monta **solo donde el SQL se EJECUTA** (el runner, que cubre examen, taller y
@@ -1887,9 +1899,9 @@ El alumno escribe SQL y lo ejecuta contra un **PostgreSQL de verdad** que corre 
   equivoca en el esquema, el estudiante tiene que poder distinguirlo de su propio error.
 - **Calificación por IA** reusando el pipeline existente: el SQL va como `userAnswer` y las tablas de
   resultado por `executionOutput` — el **mismo campo** que usa `so_consola` para su transcript. La
-  directiva del edge fija 5 reglas: un error de Postgres no es 0 automático, 0 filas no es un error,
-  SQL sin ejecutar se califica leyéndolo, hay muchas formas correctas, y el resultado puede venir
-  recortado.
+  directiva del edge fija 6 reglas: un error de Postgres no es 0 automático, 0 filas no es un error,
+  SQL sin ejecutar se califica leyéndolo, hay muchas formas correctas, el resultado puede venir
+  recortado, y las líneas NOTICE / INFO / WARNING son salida (lo que imprimió RAISE), no errores.
 - **Flujos cubiertos** (13 archivos): exámenes (editor + toma + revisión), talleres (editor + toma +
   calificación), proyectos, banco de preguntas, importación desde el banco, y el re-grade del docente.
   Al agregar un tipo nuevo, el `Record<QuestionType, string>` del diálogo de importación **rompe el
