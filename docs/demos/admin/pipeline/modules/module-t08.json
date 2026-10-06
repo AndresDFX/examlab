@@ -41,7 +41,10 @@
             "body": "Columnas = clases, filas = estudiantes."
           }
         }
-      ]
+      ],
+      "openVia": {
+        "target": "button:Fundamentos de Programación"
+      }
     },
     {
       "id": "qr",

@@ -60,7 +60,7 @@
           "hold": 4200,
           "side": "right",
           "overpan": true,
-          "syncWord": "cerrar",
+          "syncWord": "cierra",
           "focus": {
             "title": "Cerrar sesión",
             "body": "Sales de tu cuenta de forma segura."
