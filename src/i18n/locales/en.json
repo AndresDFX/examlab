@@ -6189,7 +6189,7 @@
     "importSessionsUnmatchedSuffix": " · {{count}} without cut (name doesn't match)",
     "launchPoll": "Launch poll",
     "legend": "Legend:",
-    "legendNoRecord": "— = no record",
+    "legendNoRecord": "— = not marked (counts as an absence in a session that was held)",
     "libraryVideoLabel": "Library video",
     "libraryVideoPlaceholder": "Library video (opt.)",
     "loadCoursesError": "We couldn't load your courses",
@@ -6295,7 +6295,11 @@
     "manualCodeInvalid": "The code must be 6 digits.",
     "manualCodeFixesRotation": "A code you choose does not rotate: it stays valid for the whole window.",
     "manualCodeChangeInvalidates": "Changing the code invalidates the one the class is looking at.",
-    "errInvalidManualCode": "The code you chose must be 6 digits (numbers only). Leave it empty to let the platform generate one."
+    "errInvalidManualCode": "The code you chose must be 6 digits (numbers only). Leave it empty to let the platform generate one.",
+    "pctTitle_one": "Attended {{asistio}} of {{count}} session held.",
+    "pctTitle_other": "Attended {{asistio}} of {{count}} sessions held.",
+    "pctSinMarca_one": "1 of them has no mark and counts as an absence, same as in the grade.",
+    "pctSinMarca_other": "{{count}} of them have no mark and count as absences, same as in the grade."
   },
   "privacy": {
     "contents": "Contents",
@@ -6377,7 +6381,6 @@
     "noCourses": "You're not enrolled in any course yet.",
     "noRecordsHint": "Your teacher hasn't marked your attendance in any session of this course yet.",
     "noSessions": "No attendance sessions registered in this course.",
-    "overRegistered": "out of {{count}} recorded",
     "presentCount": "Present",
     "recordingTitle": "Recording · {{title}}",
     "reqGo": "Open",
@@ -6394,7 +6397,13 @@
     "statusPresent": "Present",
     "subtitle": "Attendance record your teacher has uploaded for your courses.",
     "viewVideo": "View video",
-    "alsoMarkedIn": "You were also marked in {{count}} more session(s) with this same code: {{sessions}}."
+    "alsoMarkedIn": "You were also marked in {{count}} more session(s) with this same code: {{sessions}}.",
+    "statusAbsentNoMark": "Absent (not marked)",
+    "statusAbsentNoMarkHint": "Your attendance wasn't recorded for this session, so it counts as an absence. If you attended, talk to your teacher.",
+    "overGiven_one": "out of {{count}} session held",
+    "overGiven_other": "out of {{count}} sessions held",
+    "noMarkLegend_one": "A session that was held has no attendance mark for you: it counts as an absence, same as in your grade. If you attended, talk to your teacher.",
+    "noMarkLegend_other": "{{count}} sessions that were held have no attendance mark for you: they count as absences, same as in your grade. If you attended, talk to your teacher."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Showing",

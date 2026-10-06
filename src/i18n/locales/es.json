@@ -6189,7 +6189,7 @@
     "importSessionsUnmatchedSuffix": " · {{count}} sin corte (nombre no coincide)",
     "launchPoll": "Lanzar encuesta",
     "legend": "Leyenda:",
-    "legendNoRecord": "— = sin registro",
+    "legendNoRecord": "— = sin marca (en una sesión dada cuenta como falta)",
     "libraryVideoLabel": "Video de la biblioteca",
     "libraryVideoPlaceholder": "Video de biblioteca (opc.)",
     "loadCoursesError": "No pudimos cargar tus cursos",
@@ -6295,7 +6295,11 @@
     "manualCodeInvalid": "El código debe ser de 6 dígitos.",
     "manualCodeFixesRotation": "Un código elegido no rota: vale igual toda la ventana.",
     "manualCodeChangeInvalidates": "Cambiar el código deja sin efecto el que la clase está mirando.",
-    "errInvalidManualCode": "El código que elegiste debe ser de 6 dígitos (solo números). Déjalo vacío si prefieres que la plataforma lo genere."
+    "errInvalidManualCode": "El código que elegiste debe ser de 6 dígitos (solo números). Déjalo vacío si prefieres que la plataforma lo genere.",
+    "pctTitle_one": "Asistió a {{asistio}} de {{count}} sesión dada.",
+    "pctTitle_other": "Asistió a {{asistio}} de {{count}} sesiones dadas.",
+    "pctSinMarca_one": "1 de ellas no tiene marca y cuenta como falta, igual que en la nota.",
+    "pctSinMarca_other": "{{count}} de ellas no tienen marca y cuentan como falta, igual que en la nota."
   },
   "privacy": {
     "contents": "Contenido",
@@ -6377,7 +6381,6 @@
     "noCourses": "No estás matriculado en ningún curso todavía.",
     "noRecordsHint": "El docente aún no ha marcado tu asistencia en ninguna sesión de este curso.",
     "noSessions": "No hay sesiones de asistencia registradas en este curso.",
-    "overRegistered": "sobre {{count}} registradas",
     "presentCount": "Presentes",
     "recordingTitle": "Grabación · {{title}}",
     "reqGo": "Ir",
@@ -6394,7 +6397,13 @@
     "statusPresent": "Presente",
     "subtitle": "Registro de asistencia que el docente ha cargado para tus cursos.",
     "viewVideo": "Ver video",
-    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más con este mismo código: {{sessions}}."
+    "alsoMarkedIn": "También quedaste marcado en {{count}} sesión(es) más con este mismo código: {{sessions}}.",
+    "statusAbsentNoMark": "Ausente (sin marca)",
+    "statusAbsentNoMarkHint": "Tu asistencia no quedó registrada en esta sesión, así que cuenta como falta. Si asististe, habla con tu docente.",
+    "overGiven_one": "sobre {{count}} sesión dada",
+    "overGiven_other": "sobre {{count}} sesiones dadas",
+    "noMarkLegend_one": "Una sesión que se dio no tiene tu marca de asistencia: cuenta como falta, igual que en tu nota. Si asististe, habla con tu docente.",
+    "noMarkLegend_other": "{{count}} sesiones que se dieron no tienen tu marca de asistencia: cuentan como falta, igual que en tu nota. Si asististe, habla con tu docente."
   },
   "hc_componentsUiDataPagination": {
     "showing": "Mostrando",

@@ -48,7 +48,13 @@ import { isNotebookFile } from "@/modules/code/notebook";
 import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { MediaViewerDialog } from "@/modules/contents/MediaViewerDialog";
 import { isViewableMedia, isImageFile } from "@/modules/contents/media-files";
-import { formatDateOnly, formatWeekdayName } from "@/shared/lib/format";
+import { formatDateOnly, formatWeekdayName, todayLocalISO } from "@/shared/lib/format";
+import {
+  AUSENTE_SIN_MARCA,
+  asistenciaDelEstudiante,
+  estadoVisibleDeSesion,
+  sesionesDadasParaEstudiante,
+} from "@/modules/attendance/asistencia-del-estudiante";
 import { Spinner } from "@/components/ui/spinner";
 import { SectionLoader } from "@/components/ui/loaders";
 import { Input } from "@/components/ui/input";
@@ -203,7 +209,8 @@ type BrandRow = {
   author_default: string | null;
 };
 
-type AttendanceStatus = "present" | "absent" | "late" | "justified";
+/** Lo que guarda `attendance_records.status`: presente / ausente / tarde / justificado. */
+type AttendanceStatus = string;
 
 type AttendanceRecord = {
   session_id: string;
@@ -514,6 +521,24 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [globalContents, setGlobalContents] = useState<ContentRow[]>([]);
   const [brand, setBrand] = useState<BrandRow | null>(null);
   const [attendance, setAttendance] = useState<Map<string, AttendanceStatus>>(new Map());
+  /** Sesiones del curso que se dieron (alguien tiene marca), según el servidor;
+   *  null = la función no respondió y se aproxima con las sesiones ya pasadas. */
+  const [sesionesDadasIds, setSesionesDadasIds] = useState<Set<string> | null>(null);
+  // Qué sesiones se dieron: el estudiante no ve las marcas de los demás, así que
+  // lo dice el servidor (la misma señal que usa «Mis notas»).
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await db.rpc("senales_nota_relativa", { _course_id: course.id });
+      if (cancelled) return;
+      setSesionesDadasIds(
+        error ? null : new Set(((data as { sesiones_dadas?: string[] } | null)?.sesiones_dadas ?? [])),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [course.id]);
   const [scheduled, setScheduled] = useState<ScheduledItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [downloadingPath, setDownloadingPath] = useState<string | null>(null);
@@ -870,24 +895,34 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
     [sessions],
   );
 
+  // Las sesiones que se dieron: las del servidor más las que tienen marca
+  // propia, con la misma regla que la página de Asistencia.
+  const dadas = useMemo(
+    () =>
+      sesionesDadasParaEstudiante(
+        sesionesDadasIds,
+        sessions,
+        (sid) => attendance.has(sid),
+        todayLocalISO(),
+      ),
+    [sesionesDadasIds, sessions, attendance],
+  );
+
+  // Misma regla que la nota (asistencia-del-estudiante.ts): en una sesión que
+  // se dio, el vacío es una falta, y «tarde» cuenta como asistió.
   const attendanceStats = useMemo(() => {
-    const total = pastSessions.length;
-    if (total === 0) return null;
+    const a = asistenciaDelEstudiante(sessions, dadas, (sid) => attendance.get(sid));
+    if (a.dadas === 0) return null;
     let present = 0;
-    let absent = 0;
     let late = 0;
-    let justified = 0;
-    for (const s of pastSessions) {
+    for (const s of sessions) {
+      if (!dadas.has(s.id)) continue;
       const st = attendance.get(s.id);
-      if (st === "present") present++;
-      else if (st === "absent") absent++;
-      else if (st === "late") late++;
-      else if (st === "justified") justified++;
+      if (st === "presente") present++;
+      else if (st === "tarde" || st === "tardanza") late++;
     }
-    const attended = present + late + justified;
-    const pct = Math.round((attended / total) * 100);
-    return { total, present, absent, late, justified, attended, pct };
-  }, [pastSessions, attendance]);
+    return { total: a.dadas, present, late, absent: a.falto, attended: a.asistio, pct: a.pct ?? 0 };
+  }, [sessions, dadas, attendance]);
 
   /**
    * Telemetría de consumo de material. Va sin await para no demorar la
@@ -1304,6 +1339,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               title={t("courseBoard.upcoming")}
               sessions={upcomingSessions}
               attendance={attendance}
+              dadas={dadas}
               filesForSession={filesForSession}
               itemsForSession={itemsForSession}
               contents={contents}
@@ -1321,6 +1357,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
               title={t("courseBoard.past")}
               sessions={pastSessions}
               attendance={attendance}
+              dadas={dadas}
               filesForSession={filesForSession}
               itemsForSession={itemsForSession}
               contents={contents}
@@ -1417,6 +1454,7 @@ function SessionGroup({
   title,
   sessions,
   attendance,
+  dadas,
   filesForSession,
   itemsForSession,
   contents,
@@ -1431,6 +1469,8 @@ function SessionGroup({
   title: string;
   sessions: SessionRow[];
   attendance: Map<string, AttendanceStatus>;
+  /** Sesiones que se dieron: en ellas, sin marca es una falta. */
+  dadas: ReadonlySet<string>;
   filesForSession: (s: SessionRow) => ContentFileEntry[];
   itemsForSession: (s: SessionRow) => ScheduledItem[];
   contents: Record<string, ContentRow>;
@@ -1456,7 +1496,7 @@ function SessionGroup({
         {sessions.map((s) => {
           const files = filesForSession(s);
           const items = itemsForSession(s);
-          const att = attendance.get(s.id);
+          const att = estadoVisibleDeSesion(s.id, dadas, (sid) => attendance.get(sid));
           const content = s.content_id ? contents[s.content_id] : null;
           return (
             <Card key={s.id}>
@@ -1768,7 +1808,7 @@ function ContentFileChip({
   );
 }
 
-function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
+function AttendanceBadge({ status }: { status: AttendanceStatus | null | undefined }) {
   const { t } = useTranslation();
   if (!status) {
     return (
@@ -1778,7 +1818,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
       </Badge>
     );
   }
-  if (status === "present") {
+  if (status === "presente") {
     return (
       <Badge
         variant="outline"
@@ -1789,7 +1829,19 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
       </Badge>
     );
   }
-  if (status === "absent") {
+  if (status === AUSENTE_SIN_MARCA) {
+    return (
+      <Badge
+        variant="outline"
+        className="text-3xs border-dashed border-destructive/30 bg-destructive/5 text-destructive"
+        title={t("studentAttendance.statusAbsentNoMarkHint")}
+      >
+        <XCircle className="h-3 w-3 mr-1" />
+        {t("studentAttendance.statusAbsentNoMark")}
+      </Badge>
+    );
+  }
+  if (status === "ausente") {
     return (
       <Badge variant="destructive" className="text-3xs">
         <XCircle className="h-3 w-3 mr-1" />
@@ -1797,7 +1849,7 @@ function AttendanceBadge({ status }: { status: AttendanceStatus | undefined }) {
       </Badge>
     );
   }
-  if (status === "late") {
+  if (status === "tarde" || status === "tardanza") {
     return (
       <Badge
         variant="outline"

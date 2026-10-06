@@ -282,6 +282,21 @@ describe("computeAttendanceBySession", () => {
     expect(r[0].presentPct).toBe(25);
     expect(r[1].presentPct).toBe(50);
   });
+
+  it("deja fuera las sesiones que nadie marcó y cuenta 'tarde' como presente", () => {
+    // s3 es futura (o no se pasó lista): con 0 % arrastraba el promedio del curso.
+    const sessions: AttendanceSession[] = [
+      { id: "s1", course_id: "c1", session_date: "2026-09-30", cut_id: null },
+      { id: "s3", course_id: "c1", session_date: "2026-10-20", cut_id: null },
+    ];
+    const records: AttendanceRecord[] = [
+      { session_id: "s1", user_id: "u1", status: "presente" },
+      { session_id: "s1", user_id: "u2", status: "tarde" },
+    ];
+    const r = computeAttendanceBySession(sessions, records, 4);
+    expect(r.map((x) => x.date)).toEqual(["2026-09-30"]);
+    expect(r[0].presentCount).toBe(2);
+  });
 });
 
 describe("computeCutTrend", () => {

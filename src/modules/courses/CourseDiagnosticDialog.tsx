@@ -26,6 +26,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { todasLasFilas } from "@/shared/lib/todas-las-filas";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
   Dialog,
@@ -527,10 +528,15 @@ export function CourseDiagnosticDialog({ open, onOpenChange, courseId, courseNam
       const sessionIds: string[] = ((sessions ?? []) as Array<{ id: string }>).map((s) => s.id);
       let records: Array<{ session_id: string; user_id: string; status: string }> = [];
       if (sessionIds.length) {
-        const { data: ar } = await db
-          .from("attendance_records")
-          .select("session_id, user_id, status")
-          .in("session_id", sessionIds);
+        // Paginado: PostgREST corta en 1000 filas sin avisar.
+        const { data: ar } = await todasLasFilas((desde: number, hasta: number) =>
+          db
+            .from("attendance_records")
+            .select("session_id, user_id, status")
+            .in("session_id", sessionIds)
+            .order("id")
+            .range(desde, hasta),
+        );
         records = (ar ?? []) as Array<{ session_id: string; user_id: string; status: string }>;
       }
       const attRows = summarizeAttendance(

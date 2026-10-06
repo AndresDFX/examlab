@@ -154,6 +154,9 @@ import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
 import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
+import { asistenciaDelEstudiante } from "@/modules/attendance/asistencia-del-estudiante";
+import { sesionesDadas } from "@/modules/grading/nota-relativa";
+import { todasLasFilas } from "@/shared/lib/todas-las-filas";
 // Helpers PUROS de CSV de sesiones — extraídos para testear sin montar
 // el componente (ver src/modules/sessions/csv.test.ts). El template, el
 // builder de filas y el parser viven ahí; acá solo los componemos con
@@ -862,10 +865,17 @@ function TeacherAttendance() {
         // Load all records for this course's sessions
         const sessionIds = (sess ?? []).map((s: any) => s.id);
         if (sessionIds.length) {
-          const { data: recs, error: recsErr } = await supabase
-            .from("attendance_records")
-            .select("*")
-            .in("session_id", sessionIds);
+          // Paginado: PostgREST corta en 1000 filas sin avisar, y un curso de 90
+          // estudiantes las pasa en pocas semanas. Con «vacío = falta» (la regla
+          // de la nota), una marca que no llegó es una falta inventada.
+          const { data: recs, error: recsErr } = await todasLasFilas<Record_>((desde, hasta) =>
+            supabase
+              .from("attendance_records")
+              .select("*")
+              .in("session_id", sessionIds)
+              .order("id")
+              .range(desde, hasta),
+          );
           if (!aplicable()) return;
           if (recsErr) {
             fallo(recsErr);
@@ -1440,6 +1450,14 @@ function TeacherAttendance() {
     return records.find((r) => r.session_id === sessionId && r.user_id === userId)?.status ?? "";
   };
 
+  // El % de asistencia usa la regla de la NOTA: cuentan las sesiones que se
+  // dieron (alguien tiene marca) y en ellas el vacío es una falta. Dividiendo
+  // por TODAS las sesiones, las futuras y las que no tenían lista contaban
+  // como faltas de todo el curso y el % salía más bajo que el de la nota.
+  const sesionesConLista = sesionesDadas(records);
+  const asistenciaDe = (userId: string) =>
+    asistenciaDelEstudiante(sessions, sesionesConLista, (sid) => getStatus(sid, userId));
+
   // Marcar todos presentes en la sesión (sobrescribe ausentes / vacíos).
   // Es un loop secuencial de N round-trips (93 alumnos ⇒ varios segundos):
   // sin indicador el docente no sabía si estaba pasando algo, y los errores
@@ -1557,10 +1575,9 @@ function TeacherAttendance() {
         const label = sess.title ? `${sess.session_date} - ${sess.title}` : sess.session_date;
         row[label] = getStatus(sess.id, s.id) || "—";
       });
-      const total = sessions.length;
-      const present = sessions.filter((sess) => getStatus(sess.id, s.id) === "presente").length;
+      const { pct } = asistenciaDe(s.id);
       row[t("teacherAttendance.csvAttendancePct", { defaultValue: "% Asistencia" })] =
-        total > 0 ? `${Math.round((present / total) * 100)}%` : "—";
+        pct == null ? "—" : `${pct}%`;
       return row;
     });
     return toCSV(csvRows);
@@ -3314,12 +3331,8 @@ function TeacherAttendance() {
                     </TableRow>
                   )}
                   {filteredStudents.map((s) => {
-                    const total = sessions.length;
-                    const present = sessions.filter((sess) => {
-                      const st = getStatus(sess.id, s.id);
-                      return st === "presente";
-                    }).length;
-                    const pct = total > 0 ? Math.round((present / total) * 100) : 0;
+                    const asis = asistenciaDe(s.id);
+                    const pct = asis.pct;
                     return (
                       <TableRow key={s.id}>
                         <TableCell className="sticky left-0 z-10 bg-card">
@@ -3369,10 +3382,29 @@ function TeacherAttendance() {
                         })}
                         <TableCell className="text-center">
                           <Badge
-                            variant={pct >= 80 ? "default" : pct >= 60 ? "secondary" : "destructive"}
+                            variant={
+                              pct == null
+                                ? "outline"
+                                : pct >= 80
+                                  ? "default"
+                                  : pct >= 60
+                                    ? "secondary"
+                                    : "destructive"
+                            }
                             className="text-3xs"
+                            title={[
+                              t("teacherAttendance.pctTitle", {
+                                asistio: asis.asistio,
+                                count: asis.dadas,
+                              }),
+                              asis.sinMarca > 0
+                                ? t("teacherAttendance.pctSinMarca", { count: asis.sinMarca })
+                                : "",
+                            ]
+                              .filter(Boolean)
+                              .join(" ")}
                           >
-                            {pct}%
+                            {pct == null ? "—" : `${pct}%`}
                           </Badge>
                         </TableCell>
                       </TableRow>

@@ -101,9 +101,21 @@ describe("computeStudentAttendance — las tres reglas de justicia", () => {
     expect(out.absent).toBe(0);
   });
 
-  it("ignora registros de otros estudiantes", () => {
-    const records = [rec("s1", "u1", "presente"), rec("s2", "u2", "ausente")];
-    expect(computeStudentAttendance("u1", sessions, records).absent).toBe(0);
+  it("el estado de otro estudiante no se le atribuye", () => {
+    const records = [rec("s1", "u1", "presente"), rec("s1", "u2", "ausente")];
+    const out = computeStudentAttendance("u1", sessions, records);
+    expect(out.absent).toBe(0);
+    expect(out.rate).toBe(1);
+  });
+
+  it("un vacío en una sesión que se dio es una falta (misma regla que la nota)", () => {
+    // El docente marcó a u2 en s2 (la sesión se dio) y a u1 no: u1 faltó. Las
+    // sesiones s3 y s4, que nadie marcó, no cuentan para nadie.
+    const records = [rec("s1", "u1", "presente"), rec("s2", "u2", "presente")];
+    const out = computeStudentAttendance("u1", sessions, records);
+    expect(out.considered).toBe(2);
+    expect(out.absent).toBe(1);
+    expect(out.rate).toBe(0.5);
   });
 
   it("mezcla real: 2 presentes, 1 ausente, 1 justificada → 2/3", () => {

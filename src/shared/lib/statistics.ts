@@ -5,6 +5,9 @@ import {
   type FilaDeTaller,
 } from "@/modules/grading/nota-con-recuperacion";
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
+import { countsAsPresent } from "@/modules/grading/grade";
+import { sesionesDadas } from "@/modules/grading/nota-relativa";
+import { todasLasFilas } from "@/shared/lib/todas-las-filas";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 
 /**
@@ -353,14 +356,20 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
           .select("kind, ref_id, score, user_a, user_b")
           .in("ref_id", [...examIds, ...workshopIds, ...projectIds])
       : Promise.resolve({ data: [] }),
+    // Paginado: con «vacío = falta», una marca que PostgREST dejó fuera del
+    // corte de 1000 filas sería una falta inventada en la Alerta temprana.
     (attendanceSessionsRaw ?? []).length
-      ? supabase
-          .from("attendance_records")
-          .select("session_id, user_id, status")
-          .in(
-            "session_id",
-            (attendanceSessionsRaw ?? []).map((s: { id: string }) => s.id),
-          )
+      ? todasLasFilas((desde, hasta) =>
+          supabase
+            .from("attendance_records")
+            .select("session_id, user_id, status")
+            .in(
+              "session_id",
+              (attendanceSessionsRaw ?? []).map((s: { id: string }) => s.id),
+            )
+            .order("id")
+            .range(desde, hasta),
+        )
       : Promise.resolve({ data: [] }),
   ]);
 
@@ -715,18 +724,25 @@ export function computeFraudStats(
   };
 }
 
-/** % asistencia por sesión (ordenadas por fecha). */
+/**
+ * % asistencia por sesión (ordenadas por fecha), solo de las sesiones que se
+ * DIERON —las que tienen alguna marca—, con la misma regla que la nota
+ * (`asistenciaDelCorte`). Una sesión que nadie marcó —futura, o en la que no
+ * se pasó lista— salía con 0 % y arrastraba el promedio del curso hacia abajo.
+ */
 export function computeAttendanceBySession(
   sessions: AttendanceSession[],
   records: AttendanceRecord[],
   totalEnrolled: number,
 ): Array<{ date: string; presentPct: number; presentCount: number; total: number }> {
   if (totalEnrolled === 0) return [];
+  const dadas = sesionesDadas(records);
   return [...sessions]
+    .filter((s) => dadas.has(s.id))
     .sort((a, b) => a.session_date.localeCompare(b.session_date))
     .map((s) => {
       const present = records.filter(
-        (r) => r.session_id === s.id && r.status === "presente",
+        (r) => r.session_id === s.id && countsAsPresent(r.status),
       ).length;
       return {
         date: s.session_date,

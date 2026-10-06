@@ -27,7 +27,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateOnly } from "@/shared/lib/format";
+import { formatDateOnly, todayLocalISO } from "@/shared/lib/format";
+import {
+  AUSENTE_SIN_MARCA,
+  asistenciaDelEstudiante,
+  estadoVisibleDeSesion,
+  sesionesDadasParaEstudiante,
+} from "@/modules/attendance/asistencia-del-estudiante";
 import {
   Select,
   SelectContent,
@@ -56,6 +62,8 @@ import {
   Code2,
   BookOpen,
   Palette,
+  Clock3,
+  type LucideIcon,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
@@ -171,7 +179,12 @@ type Record_ = {
   note: string | null;
 };
 
-function statusMeta(status: string | null | undefined) {
+function statusMeta(status: string | null | undefined): {
+  label: string;
+  hint?: string;
+  icon: LucideIcon | null;
+  className: string;
+} {
   switch (status) {
     case "presente":
       return {
@@ -185,10 +198,11 @@ function statusMeta(status: string | null | undefined) {
         icon: X,
         className: "bg-destructive/10 text-destructive border-destructive/30",
       };
+    case "tarde":
     case "tardanza":
       return {
         label: i18n.t("studentAttendance.statusLate"),
-        icon: CheckCircle2,
+        icon: Clock3,
         className: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30",
       };
     case "justificado":
@@ -196,6 +210,15 @@ function statusMeta(status: string | null | undefined) {
         label: i18n.t("studentAttendance.statusJustified"),
         icon: CheckCircle2,
         className: "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30",
+      };
+    case AUSENTE_SIN_MARCA:
+      // El vacío de una sesión que SÍ se dio: cuenta como falta en la nota, y
+      // decir «Sin registro» lo hacía pasar por algo que no importa.
+      return {
+        label: i18n.t("studentAttendance.statusAbsentNoMark"),
+        hint: i18n.t("studentAttendance.statusAbsentNoMarkHint"),
+        icon: X,
+        className: "bg-destructive/5 text-destructive border-destructive/30 border-dashed",
       };
     default:
       return {
@@ -213,6 +236,9 @@ function StudentAttendance() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [records, setRecords] = useState<Record_[]>([]);
+  /** Sesiones del curso que se dieron (alguien tiene marca), según el servidor.
+   *  null = la función no respondió: se aproxima con lo propio (ver `dadas`). */
+  const [sesionesDadasIds, setSesionesDadasIds] = useState<Set<string> | null>(null);
   const [loadingCourses, setLoadingCourses] = useState(true);
   const [loadingData, setLoadingData] = useState(false);
   // Si la query de cursos matriculados falla, el usuario veía "Sin
@@ -318,7 +344,7 @@ function StudentAttendance() {
     let cancelled = false;
     (async () => {
       setLoadingData(true);
-      const [{ data: sess }, { data: recs }] = await Promise.all([
+      const [{ data: sess }, { data: recs }, senalesRes] = await Promise.all([
         // Cast a `any` porque las columnas recording_url/recording_video_id/
         // notes_url se agregan en migraciones nuevas y types.ts auto-generado
         // todavía no las incluye hasta el próximo Publish en Lovable.
@@ -337,11 +363,18 @@ function StudentAttendance() {
           .from("attendance_records")
           .select("id, session_id, status, note")
           .eq("user_id", user.id),
+        // Qué sesiones se dieron: el estudiante no ve las marcas de los demás,
+        // así que lo dice el servidor (la misma señal que usa «Mis notas»).
+        db.rpc("senales_nota_relativa", { _course_id: selectedCourseId }),
       ]);
       if (cancelled) return;
       const sessions = (sess ?? []) as Session[];
       setSessions(sessions);
       setRecords((recs ?? []) as Record_[]);
+      const senales = senalesRes?.error
+        ? null
+        : (senalesRes?.data as { sesiones_dadas?: string[] } | null);
+      setSesionesDadasIds(senales ? new Set(senales.sesiones_dadas ?? []) : null);
       // Carga URLs de los videos referenciados en `recording_video_id`
       // para poder embebrlos directo en el dialog sin un segundo round-trip
       // cuando el estudiante hace click.
@@ -664,23 +697,38 @@ function StudentAttendance() {
     return records.filter((r) => sessionIds.has(r.session_id));
   }, [records, sessions]);
 
+  // Las sesiones que se dieron: las del servidor más las que tienen marca
+  // propia (un check-in hecho con la página abierta), ver el helper.
+  const dadas = useMemo(
+    () =>
+      sesionesDadasParaEstudiante(
+        sesionesDadasIds,
+        sessions,
+        (sid) => recordBySession.has(sid),
+        todayLocalISO(),
+      ),
+    [sesionesDadasIds, sessions, recordBySession],
+  );
+
+  // Misma regla que la nota: en una sesión que se dio, el vacío es una falta.
+  // Antes el % se calculaba solo sobre las sesiones con marca propia, así que
+  // quien tenía solo marcas de «presente» veía 100 % mientras la nota le
+  // contaba las faltas.
+  const estadoPropio = useCallback(
+    (sid: string) => recordBySession.get(sid)?.status,
+    [recordBySession],
+  );
   const stats = useMemo(() => {
-    const total = sessions.length;
-    let presente = 0;
-    let ausente = 0;
-    let otros = 0;
-    let registradas = 0;
-    for (const s of sessions) {
-      const r = recordBySession.get(s.id);
-      if (!r) continue;
-      registradas++;
-      if (r.status === "presente") presente++;
-      else if (r.status === "ausente") ausente++;
-      else otros++;
-    }
-    const pct = registradas > 0 ? Math.round((presente / registradas) * 100) : null;
-    return { total, presente, ausente, otros, registradas, pct };
-  }, [sessions, recordBySession]);
+    const a = asistenciaDelEstudiante(sessions, dadas, estadoPropio);
+    return {
+      total: sessions.length,
+      presente: a.asistio,
+      ausente: a.falto,
+      sinMarca: a.sinMarca,
+      dadas: a.dadas,
+      pct: a.pct,
+    };
+  }, [sessions, dadas, estadoPropio]);
 
   if (!user) {
     return <p className="text-muted-foreground p-6">{t("studentAttendance.loginRequired")}</p>;
@@ -840,10 +888,7 @@ function StudentAttendance() {
                   {stats.pct == null ? "—" : `${stats.pct}%`}
                 </div>
                 <div className="text-3xs text-muted-foreground">
-                  {t("studentAttendance.overRegistered", {
-                    count: stats.registradas,
-                    defaultValue: "sobre {{count}} registradas",
-                  })}
+                  {t("studentAttendance.overGiven", { count: stats.dadas })}
                 </div>
               </CardContent>
             </Card>
@@ -854,6 +899,13 @@ function StudentAttendance() {
               <CardTitle className="text-base">{t("studentAttendance.detailBySession")}</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
+              {/* Visible y no solo en el `title` de la insignia: en un teléfono
+                  no hay hover, y es lo primero que alguien va a reclamar. */}
+              {!loadingData && stats.sinMarca > 0 && (
+                <p className="px-4 pt-3 text-2xs text-muted-foreground">
+                  {t("studentAttendance.noMarkLegend", { count: stats.sinMarca })}
+                </p>
+              )}
               {loadingData && (
                 <p className="text-sm text-muted-foreground p-6">
                   <Spinner size="md" inline className="mr-2" />
@@ -887,7 +939,7 @@ function StudentAttendance() {
                     <TableBody>
                       {sessions.map((s) => {
                         const rec = recordBySession.get(s.id);
-                        const meta = statusMeta(rec?.status);
+                        const meta = statusMeta(estadoVisibleDeSesion(s.id, dadas, estadoPropio));
                         const Icon = meta.icon;
                         const video = s.recording_video_id
                           ? recordingVideoMap[s.recording_video_id]
@@ -925,7 +977,11 @@ function StudentAttendance() {
                               )}
                             </TableCell>
                             <TableCell>
-                              <Badge variant="outline" className={`${meta.className} text-xs`}>
+                              <Badge
+                                variant="outline"
+                                className={`${meta.className} text-xs`}
+                                title={meta.hint}
+                              >
                                 {Icon && <Icon className="h-3 w-3 mr-1" />}
                                 {meta.label}
                               </Badge>
@@ -1074,7 +1130,7 @@ function StudentAttendance() {
             </CardContent>
           </Card>
 
-          {courseRecords.length === 0 && sessions.length > 0 && !loadingData && (
+          {courseRecords.length === 0 && sessions.length > 0 && !loadingData && stats.dadas === 0 && (
             <p className="text-xs text-muted-foreground text-center">
               {t("studentAttendance.noRecordsHint", {
                 defaultValue:

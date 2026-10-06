@@ -18,6 +18,7 @@
  * mirar a las dos semanas.
  */
 
+import { countsAsPresent } from "@/modules/grading/grade";
 import {
   effectiveGrade,
   isApproved,
@@ -107,26 +108,36 @@ const REASON_SEVERITY: Record<RiskReasonKind, number> = {
  *  - `justificado` sale del denominador. Una ausencia con excusa no puede
  *    empujar a nadie al semáforo rojo — es el error que más rápido hace
  *    que un docente deje de confiar en la herramienta.
- *  - Solo cuentan las sesiones donde el estudiante TIENE registro. Si el
- *    docente no tomó asistencia, no hay filas y tratar "sin registro" como
- *    ausente marcaría al curso entero.
+ *  - Solo cuentan las sesiones que se DIERON: las que tienen alguna marca, de
+ *    quien sea. Si el docente no tomó asistencia no hay filas, y tratar esa
+ *    sesión como falta marcaría al curso entero. Pero en una sesión que SÍ se
+ *    dio, el estudiante sin marca FALTÓ: los docentes marcan a los que vienen
+ *    y casi nunca a los que no. Es la regla de la nota (`asistenciaDelCorte`,
+ *    nota-relativa.ts); contando solo las marcas propias, quien nunca fue
+ *    tenía 100 % o «sin dato» y el semáforo no avisaba por asistencia jamás.
  */
 export function computeStudentAttendance(
   userId: string,
   sessions: AttendanceSession[],
   records: AttendanceRecord[],
 ): { rate: number | null; absent: number; considered: number } {
+  // Un registro de una sesión que no pertenece al curso (o que se borró) no
+  // cuenta ni para decidir si la sesión se dio.
   const sessionIds = new Set(sessions.map((s) => s.id));
+  const dadas = new Set<string>();
+  const propio = new Map<string, string>();
+  for (const r of records) {
+    if (!sessionIds.has(r.session_id)) continue;
+    dadas.add(r.session_id);
+    if (r.user_id === userId) propio.set(r.session_id, r.status);
+  }
   let attended = 0;
   let absent = 0;
-  for (const r of records) {
-    if (r.user_id !== userId) continue;
-    // Un registro de una sesión que no pertenece al curso (o que se borró)
-    // no debe contar.
-    if (!sessionIds.has(r.session_id)) continue;
-    if (r.status === "presente" || r.status === "tarde") attended++;
-    else if (r.status === "ausente") absent++;
+  for (const sid of dadas) {
+    const st = propio.get(sid);
+    if (countsAsPresent(st)) attended++;
     // `justificado` (y cualquier estado futuro) se ignora a propósito.
+    else if (st === undefined || st === "ausente") absent++;
   }
   const considered = attended + absent;
   return {
