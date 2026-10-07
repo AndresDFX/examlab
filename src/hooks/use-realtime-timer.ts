@@ -34,6 +34,19 @@ interface UseRealtimeTimerOptions {
   onWarningsCleared?: (estado: { focusWarnings: number; events: unknown[] }) => void;
 }
 
+/**
+ * Cada cuánto se consultan las órdenes del docente (pausa, tiempo extra, borrado
+ * de advertencias). 10 s y no 4 s: con 60 alumnos eran 15 consultas por segundo
+ * solo para esto (caída del 2026-10-06). Pero en los dos últimos minutos se
+ * vuelve a 4 s: un tiempo extra concedido justo al final tiene que llegar antes
+ * de que el reloj llegue a cero, o el examen se entrega solo.
+ */
+export const SEGUNDOS_RELOJ_FINO = 120;
+
+export function msEntreSondeos(segundosRestantes: number): number {
+  return segundosRestantes > 0 && segundosRestantes <= SEGUNDOS_RELOJ_FINO ? 4_000 : 10_000;
+}
+
 export function useRealtimeTimer({
   examId,
   userId,
@@ -65,7 +78,7 @@ export function useRealtimeTimer({
   // Callbacks via ref: el padre (TakeExam) los pasa INLINE y re-renderiza CADA
   // SEGUNDO por el tick del timer. Si onTimeAdded/onPause/onResume estuvieran en
   // las deps de los efectos de poll y de suscripción Realtime, esos efectos se
-  // recrearían cada segundo → el poll resetearía su interval de 4s (y nunca
+  // recrearían cada segundo → el poll resetearía su intervalo (y nunca
   // dispararía) y el canal Realtime se removería + re-suscribiría cada segundo
   // (churn + ventana en la que se pierden eventos add_time — causa raíz del tiempo
   // extra perdido). Con refs, ambos efectos dependen solo de [examId, userId].
@@ -239,7 +252,8 @@ export function useRealtimeTimer({
     // el canal cada segundo cuando el padre re-renderiza por el tick.
   }, [examId, userId]);
 
-  // Polling fallback: re-fetch controls every 4 s in case Realtime doesn't fire
+  // Polling fallback: re-fetch controls (cada 10 s, o 4 s al final: ver
+  // `msEntreSondeos`) in case Realtime doesn't fire
   const lastPollRef = useRef<string | null>(null);
   // Último estado pausa/reanuda YA notificado al alumno (vía Realtime o poll). El
   // poll emite el toast SOLO en transición contra este ref → cubre el caso de
@@ -310,10 +324,15 @@ export function useRealtimeTimer({
       }
     };
 
-    // 10 s y no 4 s: con 60 alumnos eran 15 consultas por segundo solo para
-    // esto (caída del 2026-10-06). Una pausa o tiempo extra del docente llega
-    // hasta 10 s después.
-    const id = setInterval(poll, 10_000);
+    // Ver `msEntreSondeos`: el tick es corto y el intervalo real depende de
+    // cuánto tiempo le queda al alumno.
+    let ultimoSondeo = Date.now();
+    const id = setInterval(() => {
+      const ahora = Date.now();
+      if (ahora - ultimoSondeo < msEntreSondeos(secondsRef.current)) return;
+      ultimoSondeo = ahora;
+      void poll();
+    }, 2_000);
     return () => clearInterval(id);
     // `aplicarBorradoDeAdvertencias` es estable (useCallback sin deps); se omite
     // para no recrear el interval, que es el defecto que este archivo ya

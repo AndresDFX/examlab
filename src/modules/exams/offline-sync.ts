@@ -4,6 +4,8 @@
  */
 import { get, set, del, keys } from "idb-keyval";
 import { supabase } from "@/integrations/supabase/client";
+import type { Json } from "@/integrations/supabase/types";
+import { combinarCopiaConServidor } from "./exam-session";
 
 const PENDING_PREFIX = "pending-sync-";
 
@@ -14,16 +16,23 @@ export interface PendingAnswer {
   timestamp: number;
 }
 
-/** Save answers locally (IndexedDB) for offline resilience */
-export async function saveAnswersLocally(examId: string, data: PendingAnswer): Promise<void> {
+/**
+ * Guarda la copia local (IndexedDB, con localStorage de respaldo). Devuelve si
+ * quedó guardada: en el modo por defecto del examen es el único respaldo de la
+ * pregunta en curso, y si no se pudo (navegación privada, cuota) el examen cae
+ * a guardar en la base.
+ */
+export async function saveAnswersLocally(examId: string, data: PendingAnswer): Promise<boolean> {
   try {
     await set(`${PENDING_PREFIX}${examId}`, data);
+    return true;
   } catch {
     // Fallback to localStorage
     try {
       localStorage.setItem(`${PENDING_PREFIX}${examId}`, JSON.stringify(data));
+      return true;
     } catch {
-      /* silent */
+      return false;
     }
   }
 }
@@ -42,19 +51,37 @@ export async function clearLocalAnswers(examId: string): Promise<void> {
   }
 }
 
-/** La copia local de UN examen, o null si no hay (o el almacenamiento falla). */
-export async function leerRespuestasLocales(examId: string): Promise<PendingAnswer | null> {
+/**
+ * La copia local de UN examen, o null si no hay, si el almacenamiento falla o si
+ * tarda más de `msMax`: la pantalla de toma la espera antes de abrir el examen, y
+ * un IndexedDB colgado no puede dejar al alumno sin examen.
+ */
+export async function leerRespuestasLocales(
+  examId: string,
+  msMax = 2_000,
+): Promise<PendingAnswer | null> {
+  const lectura = (async () => {
+    try {
+      const data = await get(`${PENDING_PREFIX}${examId}`);
+      if (data) return data as PendingAnswer;
+    } catch {
+      /* sigue con localStorage */
+    }
+    try {
+      const raw = localStorage.getItem(`${PENDING_PREFIX}${examId}`);
+      return raw ? (JSON.parse(raw) as PendingAnswer) : null;
+    } catch {
+      return null;
+    }
+  })();
+  let tope: ReturnType<typeof setTimeout> | undefined;
+  const vencida = new Promise<null>((resolve) => {
+    tope = setTimeout(() => resolve(null), msMax);
+  });
   try {
-    const data = await get(`${PENDING_PREFIX}${examId}`);
-    if (data) return data as PendingAnswer;
-  } catch {
-    /* sigue con localStorage */
-  }
-  try {
-    const raw = localStorage.getItem(`${PENDING_PREFIX}${examId}`);
-    return raw ? (JSON.parse(raw) as PendingAnswer) : null;
-  } catch {
-    return null;
+    return await Promise.race([lectura, vencida]);
+  } finally {
+    if (tope) clearTimeout(tope);
   }
 }
 
@@ -107,37 +134,26 @@ export async function syncPendingAnswers(): Promise<number> {
 
   for (const { examId, data } of pending) {
     try {
-      // Guard anti-sobreescritura por SESIÓN: no pisar el estado de OTRA sesión
-      // activa con un pending local rezagado. Si el alumno reanudó en otro
-      // dispositivo/pestaña, esa sesión (con su __session_id) es la vigente y ya
-      // escribió sus answers en el servidor; este pending es de una sesión vieja.
-      // Comparamos el __session_id embebido en answers: si difieren, descartamos
-      // sin escribir. (NO usamos updated_at como guard: la escritura de
-      // extra_seconds del docente lo bumpea y descartaría answers offline válidas
-      // de la MISMA sesión → falso positivo con pérdida de trabajo.)
+      // Misma regla que al reanudar (`combinarCopiaConServidor`): la copia se
+      // sube solo si es de la misma sesión, más nueva por `__saved_at` y con
+      // respuestas DISTINTAS; y se suben solo las respuestas — los metadatos
+      // (advertencias, desglose) son del servidor. Antes se subía la copia
+      // entera con su `focus_warnings`, y desde que la copia se guarda sin
+      // tocar la base eso revertía una advertencia que el docente ya había
+      // perdonado. Costo aceptado: un strike registrado sin red, que el cliente
+      // vivo no alcanzó a subir, se pierde si el alumno recarga.
       const { data: serverRow } = await supabase
         .from("submissions")
         .select("answers")
         .eq("id", data.submissionId)
         .maybeSingle();
-      const serverAnswers = serverRow?.answers as Record<string, unknown> | null;
-      const localAnswers = data.answers as Record<string, unknown> | null;
-      const serverSession = serverAnswers?.__session_id;
-      const localSession = localAnswers?.__session_id;
-      if (serverSession && localSession && serverSession !== localSession) {
-        await clearLocalAnswers(examId);
-        continue;
-      }
-      // Guard de FRESCURA: no pisar answers del server MÁS NUEVAS con un pending
-      // local rezagado de la MISMA sesión (el alumno siguió trabajando online tras
-      // el snapshot offline). __saved_at se escribe idéntico en server+local en
-      // cada autosave/evento; si el server es >= al local, ya tiene esto o algo más
-      // nuevo → descartamos el pending sin sobreescribir. Inmune a extra_seconds
-      // (que NO toca answers.__saved_at). Solo aplica cuando ambos lo tienen; si
-      // falta (entregas viejas), caemos al comportamiento previo.
-      const serverSavedAt = Number(serverAnswers?.__saved_at ?? 0);
-      const localSavedAt = Number(localAnswers?.__saved_at ?? 0);
-      if (serverSavedAt > 0 && localSavedAt > 0 && serverSavedAt >= localSavedAt) {
+      const serverAnswers = (serverRow?.answers ?? {}) as Record<string, unknown>;
+      const combinado = combinarCopiaConServidor(
+        serverAnswers,
+        { submissionId: data.submissionId, answers: (data.answers ?? {}) as Record<string, unknown> },
+        data.submissionId,
+      );
+      if (!combinado.usoLocal) {
         await clearLocalAnswers(examId);
         continue;
       }
@@ -149,10 +165,7 @@ export async function syncPendingAnswers(): Promise<number> {
       // distinguir "escribí 1 fila" de "matcheó 0" (entrega ya no en progreso).
       const { data: updated, error } = await supabase
         .from("submissions")
-        .update({
-          answers: data.answers,
-          focus_warnings: data.warnings,
-        })
+        .update({ answers: combinado.answers as Json })
         .eq("id", data.submissionId)
         .eq("status", "en_progreso")
         .select("id");

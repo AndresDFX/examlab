@@ -642,16 +642,54 @@ de ~1,4 que con la regla correcta son ~4,0.
 
 ### Session lock (sin migración DB)
 
-Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at` como heartbeat implícito (autosave cada 1.5s). Ventana de expiración: 10s. No se necesitan columnas adicionales.
+Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at`, que mantiene fresco el latido (`MS_ENTRE_LATIDOS`, solo toca `updated_at`). Ventana de expiración: 10s. No se necesitan columnas adicionales.
 
 ```ts
 // localStorage key: examlab_exam_session_${examId}
 function getOrCreateLocalSession(examId: string): string { ... }
 ```
 
+### Guardado: al cambiar de pregunta, no tras cada cambio (configurable)
+
+Mig [20262750000000](supabase/migrations/20262750000000_examen_autoguardado_configurable.sql). Por
+defecto el examen escribe `submissions.answers` en la base **al cambiar de pregunta y al entregar**;
+tras cada cambio solo deja la copia local (la cola de `offline-sync.ts`), que se sube al recargar o
+al volver la red. `app_settings.exam_autosave_mode = 'continuo'` recupera el guardado 1,5 s después
+de cada cambio (Configuración → General).
+
+- **Por qué**: cada guardado reescribe la fila ENTERA de `answers`. El 2026-10-06, con 60 alumnos en
+  examen, eso agotó la E/S de la instancia y la base dejó de responder — tercera caída por la misma
+  causa (ver CHANGELOG).
+- **Copia y servidor se combinan con UNA regla** (`combinarCopiaConServidor`, en exam-session.ts):
+  la usan la reanudación y `syncPendingAnswers`. La copia gana solo si es de este intento, de la misma
+  sesión, más nueva por `__saved_at` y con respuestas DISTINTAS, y de ella se toman solo las
+  respuestas: los metadatos (advertencias, desglose) son del servidor. Sin eso una copia re-sellada
+  revertía una advertencia que el docente ya había perdonado. Por lo mismo la copia **no se re-sella
+  si no cambió nada** (firma de `firmaDeRespuestas`). Se lee ANTES que la entrega del servidor, con
+  tope de 2 s: la sincronización al montar la sube y la BORRA.
+- **Reanudar escribe el reclamo de la sesión en la base enseguida** (las dos ramas de reanudación
+  llaman `saveAnswersNow`). El latido solo refresca `updated_at`, así que sin esa escritura la base
+  seguiría con el `__session_id` del dispositivo anterior —y fresco—, y ese dispositivo podría entrar
+  en paralelo hasta el primer cambio de pregunta.
+- **Subida periódica** (`MS_SUBIDA_PERIODICA`, un minuto): si hay cambios que la base no tiene, el
+  latido lleva las respuestas en vez de solo `updated_at`. Acota lo que se pierde si el dispositivo se
+  apaga y el intento vence (el cierre automático usa lo que tiene la base) y deja ver el avance de una
+  pregunta larga en el monitor. Si la copia local no se puede guardar (navegación privada, cuota), se
+  guarda en la base.
+- **Los guardados «de paso» pasan por `guardarDePaso`**: el debounce tras cada cambio, el clic en una
+  opción y salir del área de respuesta (`onBlur`, que burbujea: en un editor de código lo dispara hasta
+  pulsar «Ejecutar»). Al agregar uno nuevo, usar esa función y NO `saveAnswersNow`, que escribe la fila
+  entera en la base: así era antes, y «solo al cambiar de pregunta» era en realidad dos escrituras por
+  pregunta más una por cada clic. `saveAnswersNow` queda para Anterior/Siguiente, la entrega, el fin del
+  tiempo y la salida con advertencia.
+- **Costo aceptado**: entre subidas la base va hasta un minuto atrasada, así que el monitor del
+  docente ve las respuestas con ese retraso, y lo escrito en el último minuto se pierde si el
+  dispositivo se apaga y el intento vence antes de volver a abrirlo. El reloj consulta las órdenes del
+  docente cada 10 s, y cada 4 s en los dos últimos minutos (`msEntreSondeos`).
+
 ### Proctoring — `recordWarning(type)`
 
-Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. Usa `blurLockUntil` (debounce 500ms) para evitar strikes rápidos. Hace fire-and-forget a Supabase + el autosave de 1.5s recoge lo que falle.
+Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. Usa `blurLockUntil` (debounce 500ms) para evitar strikes rápidos. Hace fire-and-forget a Supabase + el siguiente guardado (al cambiar de pregunta o al entregar) recoge lo que falle.
 
 **IMPORTANTE:** Para el botón "Atrás" del navegador, el modal de confirmación hace `await supabase.update(...)` antes de `navigate()` — esto es crítico porque el componente se desmonta al navegar y el autosave timer se cancela.
 
@@ -794,7 +832,7 @@ deshace**: activar el curso no republica nada, igual que reabrir no reabre.
 ### Borrador LOCAL de talleres y proyectos sin entregar
 
 El taller y el proyecto se responden dentro de un diálogo y **solo escriben en la base al ENTREGAR**;
-un clic afuera se llevaba todo. El examen ya estaba cubierto (autoguarda cada 1,5 s + `offline-sync`),
+un clic afuera se llevaba todo. El examen ya estaba cubierto (guardado al cambiar de pregunta + `offline-sync`),
 así que el agujero eran estos dos ([borrador-local.ts](src/modules/submissions/borrador-local.ts)).
 
 - `localStorage` y **no** IndexedDB: `offline-sync` resuelve otro problema (una cola de entregas
@@ -1214,7 +1252,7 @@ están en ella** (`notifications`, `submissions`, `exam_timer_controls`, `exams`
 `projects`, `attendance_sessions`, `generated_contents`, `courses`, `project_submissions`,
 `project_submission_files`, `workshop_submissions`, `workshop_submission_answers`). Esas
 suscripciones **nunca disparan**: el dato lo entrega el sondeo (la campanita cada 60 s, el reloj
-del examen cada 4 s, el monitor cada 60 s), y los comentarios de `use-realtime-timer` ya lo daban
+del examen cada 10 s, el monitor cada 60 s), y los comentarios de `use-realtime-timer` ya lo daban
 por hecho llamándolo «poll de respaldo».
 
 - **Antes de escribir una suscripción nueva, verificá que la tabla esté publicada**:
@@ -1636,7 +1674,7 @@ menú de fila del grid de exámenes, justo antes de «Editar». Abre **la misma 
 alumno ([TakeExamScreen.tsx](src/modules/exams/TakeExamScreen.tsx)) y **no guarda ni califica nada**.
 
 - **La garantía NO es un `if` repartido**: la pantalla escribe en ONCE lugares (crear la entrega, el
-  autoguardado de 1,5 s, el latido del bloqueo de sesión, tres caminos de proctoring, la entrega, el
+  guardado de respuestas, el latido del bloqueo de sesión, tres caminos de proctoring, la entrega, el
   aviso al docente, la reanudación y la cancelación de trabajos de IA). Repartir el gate entre los
   once deja el arreglo a merced de que quien agregue el DOCE se acuerde, y el modo de falla no es un
   error visible: es una fila real en `submissions` que entra al gradebook, a los pendientes de

@@ -117,6 +117,8 @@ import {
   applyExtraTime,
   restoreQuestionIndex,
   respuestasAlReanudar,
+  firmaDeRespuestas,
+  debeSubirRespuestas,
   latidoEsRedundante,
   MS_BLOQUEO_SESION,
   MS_ENTRE_LATIDOS,
@@ -358,9 +360,15 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
    *  `questions` en las deps, así que leerlas del closure daría la lista vacía
    *  del primer render y ningún evento sabría en qué pregunta ocurrió. */
   const questionsRef = useRef<Question[]>([]);
-  // Cuándo escribió por última vez el autoguardado. Lo lee el latido para no
-  // duplicar una escritura que ya se hizo.
+  // Cuándo se guardaron por última vez las respuestas EN LA BASE. Lo lee el
+  // latido para no duplicar una escritura y para decidir la subida periódica.
   const ultimoGuardadoRef = useRef(0);
+  // Firma del contenido que tiene la base (lo último que escribió
+  // `saveAnswersNow`) y del último guardado, local o en la base. Con la primera
+  // el latido sabe si hay cambios sin subir; con la segunda la copia local no se
+  // re-sella cuando no cambió nada (ver `combinarCopiaConServidor`).
+  const firmaEnServidorRef = useRef("");
+  const firmaGuardadaRef = useRef("");
   // Ref para datos del examen necesarios en callbacks (evita closures stale).
   const examRef = useRef<Exam | null>(null);
   const submissionStartedAtRef = useRef<string | null>(null);
@@ -875,7 +883,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             }),
           );
         }
-        // Claim the session: inject our session ID into answers (persisted by next autosave)
+        // Claim the session: inject our session ID into answers (se escribe en la
+        // base al final de esta rama, con `saveAnswersNow`).
         const claimedAnswers = { ...restaurar.answers, __session_id: localSessionId };
         answersRef.current = claimedAnswers;
 
@@ -900,6 +909,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         currentIdxRef.current = persistedIdx;
         setExam(e);
         setStarted(true);
+        // El reclamo de la sesión tiene que llegar a la base YA. El latido solo
+        // refresca `updated_at`: sin esta escritura la base seguiría con el
+        // `__session_id` del dispositivo anterior (y fresco), así que ese
+        // dispositivo podría volver a entrar en paralelo hasta el primer cambio
+        // de pregunta. Antes lo hacía el guardado tras cada cambio.
+        void saveAnswersNow();
         return;
       }
 
@@ -985,7 +1000,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       // Guard against race condition: both devices on the start screen simultaneously.
       const { data: existing } = await db
         .from("submissions")
-        .select("id, answers, updated_at, started_at")
+        .select("id, answers, updated_at, started_at, focus_warnings")
         .eq("exam_id", examId)
         .eq("user_id", user.id)
         .eq("status", "en_progreso")
@@ -1009,6 +1024,21 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         setSubmissionStartedAt((existing as any).started_at ?? null);
         setAnswers(claimedAnswers);
         answersRef.current = claimedAnswers;
+        // Advertencias y pregunta visible del intento que se toma, ANTES de
+        // escribir: si no, el guardado de abajo escribiría `focus_warnings = 0`
+        // y el intento perdería sus advertencias.
+        const advertencias = (existing as any).focus_warnings ?? 0;
+        setWarnings(advertencias);
+        warningsRef.current = advertencias;
+        warningEventsRef.current = Array.isArray(restaurar.answers.__warning_events)
+          ? restaurar.answers.__warning_events
+          : [];
+        const idx = restoreQuestionIndex(restaurar.answers, questionsRef.current.length);
+        setCurrentIdx(idx);
+        currentIdxRef.current = idx;
+        // El reclamo de la sesión llega a la base enseguida (ver la otra rama de
+        // reanudación en `runLoad`).
+        void saveAnswersNow();
       }
 
       if (!sid) {
@@ -1262,6 +1292,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // postgres_changes de esta fila de submissions y hacer merge hacia abajo cuando
     // el server trae focus_warnings menor (requiere prueba multi-cliente).
     const currentWarnings = warningsRef.current;
+    const firma = firmaDeRespuestas(currentAnswers);
+    firmaGuardadaRef.current = firma;
     if (isOnline()) {
       // El error del UPDATE se ignoraba por completo: si el guardado
       // fallaba (RLS, red, 5xx) el alumno seguía viendo "respuestas
@@ -1276,11 +1308,14 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           .update({ answers: currentAnswers, focus_warnings: currentWarnings })
           .eq("id", submissionIdRef.current);
         setSaveFailed(!!error);
-        // El latido mira esta marca para no repetir una escritura que el
-        // autoguardado ya hizo (ver `latidoEsRedundante`). Solo cuenta si de
-        // verdad se guardó: si falló, `updated_at` no se movió y el latido
-        // TIENE que correr.
-        if (!error) ultimoGuardadoRef.current = Date.now();
+        // El latido mira estas marcas para no repetir una escritura que ya se
+        // hizo (ver `latidoEsRedundante`) y para saber si hay cambios sin subir.
+        // Solo cuentan si de verdad se guardó: si falló, `updated_at` no se
+        // movió y el latido TIENE que correr.
+        if (!error) {
+          ultimoGuardadoRef.current = Date.now();
+          firmaEnServidorRef.current = firma;
+        }
         if (error) console.error("[ExamLab] autosave failed:", error);
       } catch (e) {
         setSaveFailed(true);
@@ -1301,19 +1336,29 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     }
   }, [examId]);
 
-  // Copia local inmediata, sin tocar la base.
+  // Copia local inmediata, sin tocar la base. No se re-sella si no cambió nada:
+  // una copia «más nueva» sin contenido nuevo, al sincronizarse, revertiría lo
+  // que el servidor cambió después. Si el dispositivo no puede guardarla
+  // (navegación privada, cuota), se guarda en la base: es el único respaldo de
+  // la pregunta en curso.
   const guardarCopiaLocal = useCallback(() => {
-    if (!submissionIdRef.current) return;
+    if (simulacro || submittedRef.current || !submissionIdRef.current) return;
+    const sinSello = { ...answersRef.current, __current_idx: currentIdxRef.current };
+    const firma = firmaDeRespuestas(sinSello);
+    if (firma === firmaGuardadaRef.current) return;
     const savedAt = Date.now();
-    const current = { ...answersRef.current, __current_idx: currentIdxRef.current, __saved_at: savedAt };
+    const current = { ...sinSello, __saved_at: savedAt };
     answersRef.current = current;
+    firmaGuardadaRef.current = firma;
     void saveAnswersLocally(examId, {
       submissionId: submissionIdRef.current,
       answers: current,
       warnings: warningsRef.current,
       timestamp: savedAt,
-    }).catch((e) => console.error("[ExamLab] local answers save failed:", e));
-  }, [examId]);
+    }).then((ok) => {
+      if (!ok) void saveAnswersNow();
+    });
+  }, [examId, simulacro, saveAnswersNow]);
 
   // Guardado «de paso»: tras cada cambio, al elegir una opción y al salir del
   // área de respuesta. En modo continuo va a la base, como siempre; si no, solo
@@ -1823,17 +1868,30 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // 56 s del 22-09).
   //
   // Mandar solo `updated_at` deja el mismo efecto sobre el lock y saca la
-  // columna pesada del camino. Lo que el alumno escribe lo sigue guardando el
-  // debounce de arriba, que corre 1,5 s después de cada cambio real.
+  // columna pesada del camino. Lo que el alumno escribe se guarda en la base al
+  // cambiar de pregunta, y el latido lo sube como mucho una vez por minuto si
+  // quedó algo sin subir.
   useEffect(() => {
     if (!started) return;
     const id = setInterval(() => {
       if (submittedRef.current || isPaused || !submissionIdRef.current) return;
-      // Un alumno que está respondiendo ya refresca `updated_at` con cada
-      // autoguardado; latir encima no aporta nada y duplica la escritura sobre
-      // la tabla más caliente. El latido queda para el alumno QUIETO, que es
-      // para quien se hizo.
+      // Si un guardado en la base acaba de refrescar `updated_at`, latir encima
+      // no aporta nada y duplica la escritura sobre la tabla más caliente.
       if (latidoEsRedundante(Date.now() - ultimoGuardadoRef.current)) return;
+      // Subida periódica: si la base no tiene lo último y el último guardado fue
+      // hace más de un minuto, este tick lleva las respuestas en vez de solo
+      // `updated_at` (ver `MS_SUBIDA_PERIODICA`).
+      const actuales = { ...answersRef.current, __current_idx: currentIdxRef.current };
+      if (
+        debeSubirRespuestas(
+          firmaDeRespuestas(actuales),
+          firmaEnServidorRef.current,
+          Date.now() - ultimoGuardadoRef.current,
+        )
+      ) {
+        void saveAnswersNow();
+        return;
+      }
       void db
         .from("submissions")
         .update({ updated_at: new Date().toISOString() })
@@ -1847,7 +1905,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         });
     }, MS_ENTRE_LATIDOS);
     return () => clearInterval(id);
-  }, [started, isPaused]);
+  }, [started, isPaused, saveAnswersNow]);
 
   // Proctoring: focus tracking, contextmenu/key blocking, fullscreen enforcement
   useEffect(() => {

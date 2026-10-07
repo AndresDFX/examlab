@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   controlsData: [] as Array<Record<string, unknown>>,
 }));
 
-// Mock de supabase: el hook hace queries iniciales, polling cada 4s y se
+// Mock de supabase: el hook hace queries iniciales, polling (10 s, o 4 s al final) y se
 // suscribe a un channel. Para los tests del countdown puro devolvemos
 // `data: []` por defecto; los tests específicos pueden setear
 // `mocks.controlsData` antes de montar el hook.

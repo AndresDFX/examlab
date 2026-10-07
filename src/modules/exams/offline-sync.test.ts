@@ -6,9 +6,11 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // el branch "IndexedDB no disponible".
 const idbStore = new Map<string, unknown>();
 let idbBroken = false;
+let idbHang = false;
 
 vi.mock("idb-keyval", () => ({
   get: vi.fn(async (k: string) => {
+    if (idbHang) return new Promise(() => {});
     if (idbBroken) throw new Error("idb broken");
     return idbStore.get(k);
   }),
@@ -34,6 +36,7 @@ vi.mock("idb-keyval", () => ({
 // `vi.hoisted` (el factory de vi.mock se hoistea por encima de los `const`).
 const mockSync = vi.hoisted(() => ({
   result: { data: [{ id: "sub-1" }] as Array<{ id: string }>, error: null as unknown },
+  ultimoUpdate: null as Record<string, unknown> | null,
 }));
 // Resultado del read de sesión que syncPendingAnswers hace ANTES del update
 // (`.select("answers").eq("id",...).maybeSingle()`). Default: fila sin sesión →
@@ -46,7 +49,10 @@ vi.mock("@/integrations/supabase/client", () => {
   const makeChain = () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chain: any = {
-      update: () => chain,
+      update: (payload: Record<string, unknown>) => {
+        mockSync.ultimoUpdate = payload;
+        return chain;
+      },
       select: () => chain,
       eq: () => chain,
       // Read del guard de sesión (terminal .maybeSingle()).
@@ -65,6 +71,7 @@ import {
   clearLocalAnswers,
   getPendingSyncs,
   isOnline,
+  leerRespuestasLocales,
   saveAnswersLocally,
   syncPendingAnswers,
   type PendingAnswer,
@@ -73,7 +80,9 @@ import {
 beforeEach(() => {
   idbStore.clear();
   idbBroken = false;
+  idbHang = false;
   localStorage.clear();
+  mockSync.ultimoUpdate = null;
   // Default: el UPDATE matcheó 1 fila (entrega en_progreso) → sync exitoso.
   mockSync.result = { data: [{ id: "sub-1" }], error: null };
   // Default: el read de sesión no encuentra otra sesión → guard no dispara.
@@ -202,7 +211,7 @@ describe("syncPendingAnswers", () => {
   it("borra del store tras sync exitoso (entrega en_progreso → 1 fila actualizada)", async () => {
     await saveAnswersLocally("exam-sync", {
       submissionId: "sub-1",
-      answers: {},
+      answers: { q1: "respuesta" },
       warnings: 0,
       timestamp: 0,
     });
@@ -262,7 +271,7 @@ describe("syncPendingAnswers", () => {
     mockSync.result = { data: [], error: { message: "network error" } };
     await saveAnswersLocally("exam-err", {
       submissionId: "sub-e",
-      answers: {},
+      answers: { q1: "respuesta" },
       warnings: 0,
       timestamp: 0,
     });
@@ -270,5 +279,67 @@ describe("syncPendingAnswers", () => {
     expect(synced).toBe(0);
     // con error NO se limpia → sobrevive para reintentar
     expect(idbStore.has("pending-sync-exam-err")).toBe(true);
+  });
+});
+
+describe("syncPendingAnswers: las advertencias son del servidor", () => {
+  it("una copia re-sellada sin respuestas nuevas NO revierte una advertencia perdonada", async () => {
+    // El docente perdonó: el servidor quedó sin eventos. La copia tiene un sello
+    // mayor (se re-selló) pero las mismas respuestas y los eventos viejos.
+    mockServer.result = {
+      data: { answers: { __session_id: "A", __saved_at: 100, q1: "x", __warning_events: [] } },
+    };
+    await saveAnswersLocally("exam-perdon", {
+      submissionId: "sub-p",
+      answers: { __session_id: "A", __saved_at: 200, q1: "x", __warning_events: [{ t: 1 }, { t: 2 }] },
+      warnings: 2,
+      timestamp: 200,
+    });
+    expect(await syncPendingAnswers()).toBe(0);
+    expect(mockSync.ultimoUpdate).toBeNull();
+    expect(idbStore.has("pending-sync-exam-perdon")).toBe(false);
+  });
+
+  it("con respuestas nuevas sube SOLO las respuestas: ni focus_warnings ni los eventos de la copia", async () => {
+    mockServer.result = {
+      data: { answers: { __session_id: "A", __saved_at: 100, q1: "viejo", __warning_events: [] } },
+    };
+    await saveAnswersLocally("exam-nuevo", {
+      submissionId: "sub-n",
+      answers: { __session_id: "A", __saved_at: 200, q1: "nuevo", __warning_events: [{ t: 1 }] },
+      warnings: 1,
+      timestamp: 200,
+    });
+    expect(await syncPendingAnswers()).toBe(1);
+    expect(mockSync.ultimoUpdate).not.toBeNull();
+    expect(mockSync.ultimoUpdate).not.toHaveProperty("focus_warnings");
+    const subidas = mockSync.ultimoUpdate!.answers as Record<string, unknown>;
+    expect(subidas.q1).toBe("nuevo");
+    expect(subidas.__warning_events).toEqual([]);
+  });
+});
+
+describe("saveAnswersLocally / leerRespuestasLocales", () => {
+  const copia: PendingAnswer = { submissionId: "s", answers: { q1: "a" }, warnings: 0, timestamp: 1 };
+
+  it("saveAnswersLocally dice si la copia quedó guardada", async () => {
+    expect(await saveAnswersLocally("exam-ok", copia)).toBe(true);
+    idbBroken = true;
+    const spy = vi.spyOn(Storage.prototype, "setItem").mockImplementation(() => {
+      throw new Error("cuota");
+    });
+    expect(await saveAnswersLocally("exam-sin-espacio", copia)).toBe(false);
+    spy.mockRestore();
+  });
+
+  it("leerRespuestasLocales devuelve la copia del examen", async () => {
+    await saveAnswersLocally("exam-leer", copia);
+    expect(await leerRespuestasLocales("exam-leer")).toEqual(copia);
+    expect(await leerRespuestasLocales("exam-que-no-existe")).toBeNull();
+  });
+
+  it("un IndexedDB colgado no deja al alumno sin examen: vence y devuelve null", async () => {
+    idbHang = true;
+    expect(await leerRespuestasLocales("exam-colgado", 20)).toBeNull();
   });
 });

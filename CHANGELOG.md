@@ -41,6 +41,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
+- **El examen escribe la entrega en la base al cambiar de pregunta y al entregar, no tras cada cambio** (mig `20262750000000`, 2026-10-06). Entre medio queda la copia local (`offline-sync.ts`), y al reanudar esa copia le gana al servidor si es de este intento, de la misma sesión y más nueva (`respuestasAlReanudar`, leída ANTES que el servidor). El modo anterior existe como opción por institución (`app_settings.exam_autosave_mode = 'continuo'`), no como defecto: con 60 alumnos a la vez tumbó la base. Al agregar una escritura periódica al examen, contarla por alumno y por segundo antes de mergear.
 - **«Vencido» = pasó el plazo Y no entregó.** Pasar el plazo, solo, no vence nada. El predicado es `estaVencido` de **`src/modules/submissions/entrega-hecha.ts`**, que es además el dueño de la ÚNICA lista de «todavía no entregó» del proyecto (`ESTADOS_SIN_ENTREGAR`; `courses/diagnostic.ts` la importa y un test fija que `isSubmittedStatus` sea esa misma función). La lista es **negra, no blanca**: se enumera lo no entregado y cualquier otro estado cuenta como entrega hecha, porque los estados nuevos de estas tablas nacen del pipeline de calificación —aparecen DESPUÉS de entregar— y con lista blanca cada uno se cae al peor default. Así fue como `ai_revisado` dejó 37 entregas reales marcadas «Vencido» y fuera del filtro por defecto del alumno. En una tarjeta, «pasó el plazo» sigue siendo una variable APARTE cuando gobierna si la entrega continúa abierta.
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
 - **Finalizar curso exige SIN pendientes de calificación** (mig 20260972): `set_course_status`→finalizado RAISE si hay pendientes; `auto_finalize_courses` (cron) no finaliza cursos vencidos con pendientes y notifica a sus docentes. "Pendiente" = lógica del Diagnóstico (`course_pending_grading_count`). Esa función es **interna** (SECURITY DEFINER, SIN GRANT a `authenticated` desde mig `20260974` — los callers internos la conservan); NO invocarla desde el cliente.
@@ -91,6 +92,46 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > o sea que HOY su IA no califica y la cola se les acumula (UNIAJ tenía 33 jobs parados).
 > Si alguna vez se vuelve a usar, el orden es el que ya documenta la mig `20261650000000`:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
+> **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
+> verificó con Claude Haiku; está **pendiente rotarla**.
+
+### 🩺 La base se cayó con 60 estudiantes en examen: el examen guarda al cambiar de pregunta
+
+- **Qué pasó** (2026-10-06, ~19:00 hora de Bogotá): durante la Evaluación de Corte 1 de Introducción a
+  la Ingeniería (LB141F y SB141C) la base dejó de responder — Database, PostgREST, Auth y Storage en
+  «Unhealthy», 522 para todos — y se reinició desde el panel. 32 intentos quedaron cerrados por
+  vencimiento y 5 por advertencias. Es la **tercera** caída por la misma restricción: la instancia es
+  el tier más chico y su E/S va por créditos (ver las entradas del 19-09 y el 22-09).
+- **Qué la cargaba**: el autoguardado reescribía la fila ENTERA de `answers` 1,5 s después de cada
+  pausa al escribir; con 60 alumnos escribiendo código son varias reescrituras por segundo de la tabla
+  más caliente. El reloj, además, consultaba `exam_timer_controls` cada 4 s por alumno.
+- **El arreglo, sin subir de plan**: por defecto el examen escribe en la base al cambiar de pregunta y
+  al entregar; tras cada cambio solo deja la copia local, que se sube al recargar o al volver la red.
+  Configurable por institución en Configuración → General (`app_settings.exam_autosave_mode`:
+  `al_cambiar_pregunta` | `continuo`). El reloj sondea cada 10 s: una pausa o tiempo extra del docente
+  llega hasta 10 s después.
+- **Lo que obligó un segundo cambio**: con el guardado espaciado, la copia local pasa a ser el respaldo
+  de la pregunta en curso, y al reanudar la pantalla restauraba SIEMPRE la entrega del servidor —la
+  vieja— que el siguiente cambio de pregunta escribía encima. `respuestasAlReanudar` (con tests) usa la
+  copia si es de este intento, de la misma sesión y más nueva por `__saved_at`.
+- **Lo que encontró la revisión de consistencia y se corrigió antes de publicar**: reanudar no
+  escribía el reclamo de la sesión (otro dispositivo podía entrar en paralelo), y una copia local
+  re-sellada sin cambios, al sincronizarse, revertía una advertencia perdonada por el docente. Ahora
+  reanudar escribe en la base, la copia no se re-sella sin cambios, y copia y servidor se combinan con
+  una sola regla (`combinarCopiaConServidor`) que nunca sube las advertencias. Además: clic en una
+  opción y salir del área de respuesta tampoco escriben en la base (`guardarDePaso`), el latido sube
+  las respuestas como mucho una vez por minuto si hay cambios, y el reloj consulta cada 4 s en los
+  dos últimos minutos para que un tiempo extra concedido al final llegue a tiempo.
+- **Costo aceptado**: la base va hasta un minuto atrasada respecto de lo que el alumno escribe; el
+  monitor lo ve con ese retraso, y ese último minuto se pierde si el dispositivo se apaga y el intento
+  vence antes de volver a abrirlo.
+- **Lo que esto NO arregla**: el techo de E/S sigue ahí, y el latido del bloqueo de sesión (solo
+  `updated_at`, cada 5 s) pasa a ser la escritura más frecuente del examen. Queda el plan de
+  optimización por tiempos.
+- **Operativo**: las dos evaluaciones se reabrieron hasta el viernes 9 de octubre a las 11:59 p. m., con
+  tiempo relativo (90 min desde que cada uno empieza) y un intento más (`retry_mode = last`: cuenta el
+  último).
+- Commits `658bf38b`, `1535ce1f`, `93828d58` y el de la revisión.
 
 ### 🔁 Generación con IA: si el proveedor falla, la petición se encola en vez de perderse
 

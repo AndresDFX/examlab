@@ -56,40 +56,90 @@ export interface CopiaLocalDeRespuestas {
   answers: Record<string, unknown>;
 }
 
+/** Modos de guardado del examen (`app_settings.exam_autosave_mode`). Espejo del
+ *  CHECK de la migración `20262750000000`; un test compara las dos listas. */
+export const MODOS_GUARDADO_EXAMEN = ["al_cambiar_pregunta", "continuo"] as const;
+
+/** Las claves que empiezan con `__` son metadatos del intento (sesión, pregunta
+ *  visible, advertencias, desglose de la nota…), no respuestas. */
+const esMetadato = (clave: string) => clave.startsWith("__");
+
 /**
- * Qué respuestas restaurar al reanudar un intento: las del servidor o la copia
- * local del dispositivo.
+ * Firma del CONTENIDO de unas respuestas: todo menos `__saved_at`, que es el
+ * sello de cuándo se guardaron. Dos guardados con la misma firma no tienen nada
+ * nuevo, y re-sellar sin cambios hace que la copia local parezca más nueva que
+ * el servidor sin serlo (ver `combinarCopiaConServidor`).
+ */
+export function firmaDeRespuestas(answers: Record<string, unknown>): string {
+  return JSON.stringify(answers, (k, v) => (k === "__saved_at" ? undefined : v));
+}
+
+/**
+ * Qué escribir al combinar la copia local del dispositivo con la entrega del
+ * servidor. Es la regla ÚNICA para los dos momentos en que se combinan: al
+ * reanudar el intento (qué mostrar) y al sincronizar la copia pendiente (qué
+ * subir).
  *
  * Desde que el examen guarda en la base solo al cambiar de pregunta, la copia
- * local es el respaldo de lo que el alumno escribió en la pregunta en curso. Si
- * al reanudar se restaurara siempre el servidor, la pantalla mostraría la
- * versión vieja y el siguiente cambio de pregunta la volvería a escribir encima.
+ * local es el respaldo de lo que el alumno escribió en la pregunta en curso. La
+ * copia gana solo si:
+ *  - es de ESTE intento;
+ *  - es de la misma sesión (si otro dispositivo tomó el intento, el servidor es
+ *    el vigente);
+ *  - es más nueva por `__saved_at` (si alguno no tiene sello, se acepta: es el
+ *    comportamiento que ya tenía la sincronización con copias viejas);
+ *  - y tiene respuestas DISTINTAS. Sin esto, una copia re-sellada sin cambios
+ *    «ganaba» y, al subirla, revertía lo que el servidor cambió después — por
+ *    ejemplo una advertencia que el docente perdonó.
  *
- * Mismo criterio que `syncPendingAnswers`: la copia gana solo si es de ESTE
- * intento, de la misma sesión (si otro dispositivo tomó el intento, el
- * servidor es el vigente) y más nueva por `__saved_at`. Las advertencias se
- * toman del servidor, que las recibe al instante desde el proctoring.
+ * Cuando gana, se toman de la copia SOLO las respuestas, la pregunta visible y
+ * el sello. Todos los metadatos del servidor se conservan: las advertencias los
+ * registra el proctoring en el servidor al instante y el docente puede
+ * perdonarlas, y el desglose de la nota no es del alumno.
  */
-export function respuestasAlReanudar(
+export function combinarCopiaConServidor(
   servidor: Record<string, unknown>,
   local: CopiaLocalDeRespuestas | null | undefined,
   submissionId: string,
 ): { answers: Record<string, unknown>; usoLocal: boolean } {
-  if (!local || local.submissionId !== submissionId || !local.answers) {
-    return { answers: servidor, usoLocal: false };
-  }
+  const sinCambios = { answers: servidor, usoLocal: false };
+  if (!local || local.submissionId !== submissionId || !local.answers) return sinCambios;
   const copia = local.answers;
   const sesionServidor = servidor.__session_id;
   const sesionLocal = copia.__session_id;
-  if (sesionServidor && sesionLocal && sesionServidor !== sesionLocal) {
-    return { answers: servidor, usoLocal: false };
-  }
+  if (sesionServidor && sesionLocal && sesionServidor !== sesionLocal) return sinCambios;
   const guardadoServidor = Number(servidor.__saved_at ?? 0);
   const guardadoLocal = Number(copia.__saved_at ?? 0);
-  if (!(guardadoLocal > guardadoServidor)) return { answers: servidor, usoLocal: false };
-  const answers: Record<string, unknown> = { ...copia };
-  if (servidor.__warning_events !== undefined) answers.__warning_events = servidor.__warning_events;
+  if (guardadoServidor > 0 && guardadoLocal > 0 && guardadoLocal <= guardadoServidor) return sinCambios;
+  const respuestas = Object.keys(copia).filter((k) => !esMetadato(k));
+  const distinta = respuestas.some((k) => JSON.stringify(copia[k]) !== JSON.stringify(servidor[k]));
+  if (!distinta) return sinCambios;
+  const answers: Record<string, unknown> = { ...servidor };
+  for (const k of respuestas) answers[k] = copia[k];
+  if (copia.__current_idx !== undefined) answers.__current_idx = copia.__current_idx;
+  if (copia.__saved_at !== undefined) answers.__saved_at = copia.__saved_at;
   return { answers, usoLocal: true };
+}
+
+/** Lo que muestra la pantalla al reanudar: la misma regla que la sincronización. */
+export const respuestasAlReanudar = combinarCopiaConServidor;
+
+/**
+ * Subida periódica: en el modo por defecto la base recibe las respuestas al
+ * cambiar de pregunta, y además el latido las lleva si hay cambios que la base
+ * no tiene y el último guardado fue hace más de esto. Acota lo que se pierde si
+ * el dispositivo se apaga y el intento vence (el cierre automático usa lo que
+ * tiene la base), y deja que el monitor del docente vea el avance de una
+ * pregunta larga. Con 60 alumnos es a lo sumo una escritura pesada por segundo.
+ */
+export const MS_SUBIDA_PERIODICA = 60_000;
+
+export function debeSubirRespuestas(
+  firmaActual: string,
+  firmaEnServidor: string,
+  msDesdeUltimoGuardado: number,
+): boolean {
+  return firmaActual !== firmaEnServidor && msDesdeUltimoGuardado >= MS_SUBIDA_PERIODICA;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -104,20 +154,18 @@ export const MS_BLOQUEO_SESION = 10_000;
 /** Cada cuánto late la pantalla de examen para refrescar `updated_at`. */
 export const MS_ENTRE_LATIDOS = 5_000;
 
-/** Si el autoguardado escribió hace menos de esto, el latido se SALTA. */
+/** Si un guardado en la base ocurrió hace menos de esto, el latido se SALTA. */
 export const MS_GUARDADO_RECIENTE = 3_000;
 
 /**
  * ¿El latido de este tick es redundante?
  *
  * ── Qué ahorra ────────────────────────────────────────────────────────
- * El autoguardado y el latido escriben la MISMA fila, y el autoguardado ya
- * refresca `updated_at` — que es lo único que el bloqueo mira. O sea que un
- * alumno que está respondiendo pagaba las dos escrituras, y la del latido no
- * aportaba nada. Con 32 exámenes a la vez eran 384 escrituras por minuto solo
- * de latido, sobre la tabla más pesada y la misma que barre el cron de cierre.
- * El latido existe para el alumno QUIETO (leyendo, pensando), que es cuando el
- * autoguardado no dispara.
+ * Un guardado en la base y el latido escriben la MISMA fila, y el guardado ya
+ * refresca `updated_at` — que es lo único que el bloqueo mira —, así que el
+ * latido de ese tick no aporta nada. Desde que el examen guarda en la base solo
+ * al cambiar de pregunta (y no tras cada cambio), esto se salta pocas veces: el
+ * latido es la escritura más frecuente del examen.
  *
  * ── El margen, que es lo que hay que no romper ────────────────────────
  * Saltarse un tick retrasa el refresco como máximo `MS_GUARDADO_RECIENTE +

@@ -11,6 +11,11 @@ import {
   applyClearAllWarnings,
   applyClearOneWarning,
   respuestasAlReanudar,
+  combinarCopiaConServidor,
+  firmaDeRespuestas,
+  debeSubirRespuestas,
+  MS_SUBIDA_PERIODICA,
+  MODOS_GUARDADO_EXAMEN,
   applyExtraTime,
   computeExtraSeconds,
   latidoEsRedundante,
@@ -644,45 +649,96 @@ describe("la ventana del bloqueo no vive duplicada en la pantalla de examen", ()
   });
 });
 
-describe("respuestasAlReanudar", () => {
+describe("combinarCopiaConServidor (reanudar y sincronizar)", () => {
   const servidor = { __session_id: "A", __saved_at: 100, q1: "viejo", __warning_events: [{ t: 1 }] };
   const copia = (answers: Record<string, unknown>, submissionId = "sub-1") => ({ submissionId, answers });
 
-  it("usa la copia local cuando es más nueva, del mismo intento y de la misma sesión", () => {
-    const r = respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "nuevo" }), "sub-1");
-    expect(r.usoLocal).toBe(true);
-    expect(r.answers.q1).toBe("nuevo");
+  it("reanudar usa la MISMA regla que la sincronización", () => {
+    expect(respuestasAlReanudar).toBe(combinarCopiaConServidor);
   });
 
-  it("las advertencias salen del servidor, aunque la copia traiga otras", () => {
-    const r = respuestasAlReanudar(
-      servidor,
-      copia({ __session_id: "A", __saved_at: 200, q1: "nuevo", __warning_events: [] }),
+  it("usa la copia local cuando es más nueva, del mismo intento, de la misma sesión y con respuestas distintas", () => {
+    const r = combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "nuevo" }), "sub-1");
+    expect(r.usoLocal).toBe(true);
+    expect(r.answers.q1).toBe("nuevo");
+    expect(r.answers.__saved_at).toBe(200);
+  });
+
+  it("los metadatos salen del servidor: advertencias (que el docente pudo perdonar) y desglose de la nota", () => {
+    const conDesglose = { ...servidor, __breakdown: { q1: 3 }, __manual_overrides: { q1: 4 } };
+    const r = combinarCopiaConServidor(
+      conDesglose,
+      copia({ __session_id: "A", __saved_at: 200, q1: "nuevo", __warning_events: [{ t: 1 }, { t: 2 }] }),
       "sub-1",
     );
     expect(r.answers.__warning_events).toEqual([{ t: 1 }]);
+    expect(r.answers.__breakdown).toEqual({ q1: 3 });
+    expect(r.answers.__manual_overrides).toEqual({ q1: 4 });
+  });
+
+  it("una copia re-sellada SIN respuestas nuevas no gana (no revierte lo que cambió en el servidor)", () => {
+    const r = combinarCopiaConServidor(
+      { ...servidor, __warning_events: [] },
+      copia({ __session_id: "A", __saved_at: 999, q1: "viejo", __warning_events: [{ t: 1 }, { t: 2 }] }),
+      "sub-1",
+    );
+    expect(r.usoLocal).toBe(false);
+    expect(r.answers.__warning_events).toEqual([]);
   });
 
   it("no usa la copia si es más vieja o igual que el servidor", () => {
-    expect(respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 100, q1: "x" }), "sub-1").usoLocal).toBe(false);
-    expect(respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 50, q1: "x" }), "sub-1").usoLocal).toBe(false);
+    expect(combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 100, q1: "x" }), "sub-1").usoLocal).toBe(false);
+    expect(combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 50, q1: "x" }), "sub-1").usoLocal).toBe(false);
   });
 
   it("no usa la copia de OTRO intento", () => {
-    const r = respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "x" }, "sub-2"), "sub-1");
+    const r = combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "x" }, "sub-2"), "sub-1");
     expect(r.usoLocal).toBe(false);
     expect(r.answers).toBe(servidor);
   });
 
   it("no usa la copia si otro dispositivo tomó el intento (otra sesión)", () => {
-    const r = respuestasAlReanudar(servidor, copia({ __session_id: "B", __saved_at: 200, q1: "x" }), "sub-1");
+    const r = combinarCopiaConServidor(servidor, copia({ __session_id: "B", __saved_at: 200, q1: "x" }), "sub-1");
     expect(r.usoLocal).toBe(false);
   });
 
-  it("sin copia, o con un servidor sin marca de guardado, se comporta como la sincronización", () => {
-    expect(respuestasAlReanudar(servidor, null, "sub-1").usoLocal).toBe(false);
-    const r = respuestasAlReanudar({ q1: "viejo" }, copia({ __saved_at: 10, q1: "nuevo" }), "sub-1");
+  it("sin copia no hace nada; si a alguno le falta el sello, decide el contenido", () => {
+    expect(combinarCopiaConServidor(servidor, null, "sub-1").usoLocal).toBe(false);
+    const r = combinarCopiaConServidor({ q1: "viejo" }, copia({ __saved_at: 10, q1: "nuevo" }), "sub-1");
     expect(r.usoLocal).toBe(true);
     expect(r.answers.q1).toBe("nuevo");
+    expect(combinarCopiaConServidor({ q1: "igual" }, copia({ q1: "igual" }), "sub-1").usoLocal).toBe(false);
+  });
+});
+
+describe("firma y subida periódica", () => {
+  it("la firma ignora el sello de guardado y nada más", () => {
+    expect(firmaDeRespuestas({ q1: "a", __saved_at: 1 })).toBe(firmaDeRespuestas({ q1: "a", __saved_at: 2 }));
+    expect(firmaDeRespuestas({ q1: "a" })).not.toBe(firmaDeRespuestas({ q1: "b" }));
+    expect(firmaDeRespuestas({ q1: "a", __current_idx: 0 })).not.toBe(firmaDeRespuestas({ q1: "a", __current_idx: 1 }));
+  });
+
+  it("el latido sube las respuestas solo si hay cambios sin subir y pasó el minuto", () => {
+    expect(debeSubirRespuestas("x", "y", MS_SUBIDA_PERIODICA)).toBe(true);
+    expect(debeSubirRespuestas("x", "y", MS_SUBIDA_PERIODICA - 1)).toBe(false);
+    expect(debeSubirRespuestas("x", "x", MS_SUBIDA_PERIODICA * 10)).toBe(false);
+  });
+
+  it("la subida periódica es como mucho una por minuto: con 60 alumnos, una escritura por segundo", () => {
+    expect(MS_SUBIDA_PERIODICA).toBeGreaterThanOrEqual(60_000);
+  });
+});
+
+describe("modos de guardado del examen", () => {
+  it("la lista del cliente es la misma que el CHECK de la migración", () => {
+    const sql = readFileSync(
+      resolve(process.cwd(), "supabase/migrations/20262750000000_examen_autoguardado_configurable.sql"),
+      "utf8",
+    );
+    const m = sql.match(/exam_autosave_mode IN \(([^)]*)\)/);
+    expect(m).not.toBeNull();
+    const enSql = (m![1].match(/'([^']+)'/g) ?? []).map((x) => x.slice(1, -1));
+    expect(enSql).toEqual([...MODOS_GUARDADO_EXAMEN]);
+    expect(sql).toContain(`DEFAULT '${MODOS_GUARDADO_EXAMEN[0]}'`);
   });
 });
