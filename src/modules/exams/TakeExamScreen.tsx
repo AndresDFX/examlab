@@ -1301,6 +1301,29 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     }
   }, [examId]);
 
+  // Copia local inmediata, sin tocar la base.
+  const guardarCopiaLocal = useCallback(() => {
+    if (!submissionIdRef.current) return;
+    const savedAt = Date.now();
+    const current = { ...answersRef.current, __current_idx: currentIdxRef.current, __saved_at: savedAt };
+    answersRef.current = current;
+    void saveAnswersLocally(examId, {
+      submissionId: submissionIdRef.current,
+      answers: current,
+      warnings: warningsRef.current,
+      timestamp: savedAt,
+    }).catch((e) => console.error("[ExamLab] local answers save failed:", e));
+  }, [examId]);
+
+  // Guardado «de paso»: tras cada cambio, al elegir una opción y al salir del
+  // área de respuesta. En modo continuo va a la base, como siempre; si no, solo
+  // deja la copia local, y la base se escribe al cambiar de pregunta (Anterior /
+  // Siguiente llaman a `saveAnswersNow`) y al entregar.
+  const guardarDePaso = useCallback(() => {
+    if (autoguardadoContinuo) void saveAnswersNow();
+    else guardarCopiaLocal();
+  }, [autoguardadoContinuo, saveAnswersNow, guardarCopiaLocal]);
+
   const performSubmit = useCallback(
     async (markSuspicious = false) => {
       // SIMULACRO: corta ACÁ, y no por prolijidad. Lo que sigue llama a
@@ -1771,30 +1794,14 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     };
   }, [examId, started, syncToSeconds]);
 
-  // Guardado tras cada cambio (debounce). En modo continuo va a la base; si no,
-  // solo deja la copia local, que se sube si el navegador se cierra o se corta
-  // la red, y la base se escribe al cambiar de pregunta y al entregar (los
-  // botones de navegación llaman a `saveAnswersNow`). El bloqueo de sesión no
-  // depende de esto: lo sostiene el latido, que solo toca `updated_at`.
+  // Guardado tras cada cambio (debounce). Ver `guardarDePaso`: en el modo por
+  // defecto no toca la base. El bloqueo de sesión no depende de esto: lo
+  // sostiene el latido, que solo toca `updated_at`.
   useEffect(() => {
     if (!started || !submissionIdRef.current) return;
-    const t = setTimeout(() => {
-      if (autoguardadoContinuo) {
-        void saveAnswersNow();
-        return;
-      }
-      const savedAt = Date.now();
-      const current = { ...answersRef.current, __current_idx: currentIdxRef.current, __saved_at: savedAt };
-      answersRef.current = current;
-      void saveAnswersLocally(examId, {
-        submissionId: submissionIdRef.current!,
-        answers: current,
-        warnings: warningsRef.current,
-        timestamp: savedAt,
-      }).catch((e) => console.error("[ExamLab] local answers save failed:", e));
-    }, 1500);
+    const t = setTimeout(guardarDePaso, 1500);
     return () => clearTimeout(t);
-  }, [answers, warnings, started, saveAnswersNow, autoguardadoContinuo, examId]);
+  }, [answers, warnings, started, guardarDePaso]);
 
   // Heartbeat del session-lock. El autosave de arriba es un DEBOUNCE: solo se
   // re-arma cuando cambian `answers`/`warnings`, así que un alumno INACTIVO
@@ -3082,7 +3089,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                           checked={answers[q.id] === ci}
                           onChange={() => {
                             updateAnswer(q.id, ci);
-                            saveAnswersNow();
+                            guardarDePaso();
                           }}
                           className="mt-1"
                         />
@@ -3127,7 +3134,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                                       ? Array.from(new Set([...sel, ci])).sort((a, b) => a - b)
                                       : sel.filter((x) => x !== ci);
                                     updateAnswer(q.id, next);
-                                    saveAnswersNow();
+                                    guardarDePaso();
                                   }}
                                   className="mt-1"
                                 />
@@ -3147,7 +3154,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     })()}
                   </div>
                 ) : q.type === "codigo" ? (
-                  <div onBlur={saveAnswersNow} className="space-y-2">
+                  <div onBlur={guardarDePaso} className="space-y-2">
                     <div className="flex flex-wrap items-center justify-end">
                       <CodeRunnerPicker
                         language={lang}
@@ -3201,14 +3208,14 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     />
                   </div>
                 ) : q.type === "diagrama" ? (
-                  <div onBlur={saveAnswersNow}>
+                  <div onBlur={guardarDePaso}>
                     <DiagramEditor
                       value={answers[q.id] ?? ""}
                       onChange={(code) => updateAnswer(q.id, code)}
                     />
                   </div>
                 ) : q.type === "java_gui" ? (
-                  <div onBlur={saveAnswersNow}>
+                  <div onBlur={guardarDePaso}>
                     {(() => {
                       // El default depende del framework — JAVAFX_STARTER
                       // si la pregunta es JavaFX. Sin esto el alumno veía
@@ -3230,7 +3237,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     })()}
                   </div>
                 ) : q.type === "python_gui" ? (
-                  <div onBlur={saveAnswersNow}>
+                  <div onBlur={guardarDePaso}>
                     <PythonGuiRunner
                       value={answers[q.id] ?? q.starter_code ?? PYTHON_GUI_STARTER}
                       onChange={(v) => updateAnswer(q.id, v)}
@@ -3240,7 +3247,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                   </div>
                 ) : q.type === "red_consola" ? (
                   networkScenarios[q.id] ? (
-                    <div onBlur={saveAnswersNow}>
+                    <div onBlur={guardarDePaso}>
                       <NetworkConsole
                         scenario={networkScenarios[q.id]}
                         value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
@@ -3255,7 +3262,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     </p>
                   )
                 ) : q.type === "bd_sql" ? (
-                  <div onBlur={saveAnswersNow}>
+                  <div onBlur={guardarDePaso}>
                     <SqlRunner
                       value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
                       onChange={(v) => updateAnswer(q.id, v)}
@@ -3267,7 +3274,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                   </div>
                 ) : q.type === "red_gui" ? (
                   networkScenarios[q.id] ? (
-                    <div onBlur={saveAnswersNow}>
+                    <div onBlur={guardarDePaso}>
                       <NetworkTopologyEditor
                         scenario={networkScenarios[q.id]}
                         value={typeof answers[q.id] === "string" ? (answers[q.id] as string) : null}
@@ -3285,7 +3292,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                   <OpenAnswerTextarea
                     value={String(answers[q.id] ?? "")}
                     onChange={(v) => updateAnswer(q.id, v)}
-                    onBlur={saveAnswersNow}
+                    onBlur={guardarDePaso}
                     placeholder={t("hc_routesAppStudentTakeExamId.yourAnswerPlaceholder")}
                     max={maxOpenChars}
                     caracteresRapidos={caracteresParaTipo(q.type) ?? undefined}
