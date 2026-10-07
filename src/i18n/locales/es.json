@@ -5387,7 +5387,10 @@
     "labelMaxMissingHint": "Cuántas actividades puede dejar sin entregar sin que se marque el motivo. Con 2, se marca a partir de la tercera.",
     "labelCiudad": "Ciudad de la sede",
     "placeholderCiudad": "Ej.: Cali",
-    "hintCiudad": "La usan los informes que la piden, como el Acuerdo Pedagógico. Se escribe una vez acá en vez de en cada documento."
+    "hintCiudad": "La usan los informes que la piden, como el Acuerdo Pedagógico. Se escribe una vez acá en vez de en cada documento.",
+    "labelAutosaveContinuo": "Guardar el examen mientras el estudiante escribe",
+    "autosaveContinuoOn": "Se guarda en la plataforma unos segundos después de cada cambio. Es lo que más carga la base: con muchos estudiantes a la vez puede dejarla lenta.",
+    "autosaveContinuoOff": "Se guarda en la plataforma al pasar de pregunta y al entregar. Mientras tanto queda una copia en el dispositivo del estudiante, que se recupera si se le cierra el navegador."
   },
   "superadminSupport": {
     "title": "Soporte",

@@ -310,7 +310,10 @@ export function useRealtimeTimer({
       }
     };
 
-    const id = setInterval(poll, 4000);
+    // 10 s y no 4 s: con 60 alumnos eran 15 consultas por segundo solo para
+    // esto (caída del 2026-10-06). Una pausa o tiempo extra del docente llega
+    // hasta 10 s después.
+    const id = setInterval(poll, 10_000);
     return () => clearInterval(id);
     // `aplicarBorradoDeAdvertencias` es estable (useCallback sin deps); se omite
     // para no recrear el interval, que es el defecto que este archivo ya

@@ -5387,7 +5387,10 @@
     "labelMaxMissingHint": "How many activities may be left unsubmitted before the reason is flagged. With 2, it flags from the third onward.",
     "labelCiudad": "Campus city",
     "placeholderCiudad": "e.g. Cali",
-    "hintCiudad": "Used by the reports that ask for it, like the Pedagogical Agreement. Set once here instead of in every document."
+    "hintCiudad": "Used by the reports that ask for it, like the Pedagogical Agreement. Set once here instead of in every document.",
+    "labelAutosaveContinuo": "Save the exam while the student types",
+    "autosaveContinuoOn": "Saved to the platform a few seconds after each change. This is the heaviest load on the database: with many students at once it can slow it down.",
+    "autosaveContinuoOff": "Saved to the platform when moving to another question and on submit. In between, a copy stays on the student's device and is recovered if the browser closes."
   },
   "superadminSupport": {
     "title": "Support",

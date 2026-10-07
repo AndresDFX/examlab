@@ -267,6 +267,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // y mantiene bajo el costo de tokens de la IA. El admin lo modifica
   // desde Settings (rango 100..50000).
   const [maxOpenChars, setMaxOpenChars] = useState(DEFAULT_MAX_OPEN_ANSWER_CHARS);
+  // app_settings.exam_autosave_mode. Por defecto se guarda en la base solo al
+  // cambiar de pregunta y al entregar: guardar tras cada cambio reescribe la fila
+  // entera de `answers`, y con 60 alumnos a la vez agotó la E/S de la instancia
+  // (caída del 2026-10-06). Mientras la columna no exista, queda este defecto.
+  const [autoguardadoContinuo, setAutoguardadoContinuo] = useState(false);
   const [warnings, setWarnings] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   // `preparingSubmit`: cubre la ventana entre el click en "Finalizar" y el
@@ -581,6 +586,16 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         .single();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       let e: any = examData;
+      // Consulta aparte: si la columna todavía no existe, falla sola sin
+      // arrastrar la lectura de pantalla completa de arriba.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      void (db as any)
+        .from("app_settings")
+        .select("exam_autosave_mode")
+        .maybeSingle()
+        .then(({ data: m }: { data: { exam_autosave_mode?: string } | null }) => {
+          setAutoguardadoContinuo(m?.exam_autosave_mode === "continuo");
+        });
       void settingsPromise.then(
         ({
           data: s,
@@ -1734,14 +1749,30 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     };
   }, [examId, started, syncToSeconds]);
 
-  // Auto-save answers (debounced, also runs on warning increments)
+  // Guardado tras cada cambio (debounce). En modo continuo va a la base; si no,
+  // solo deja la copia local, que se sube si el navegador se cierra o se corta
+  // la red, y la base se escribe al cambiar de pregunta y al entregar (los
+  // botones de navegación llaman a `saveAnswersNow`). El bloqueo de sesión no
+  // depende de esto: lo sostiene el latido, que solo toca `updated_at`.
   useEffect(() => {
     if (!started || !submissionIdRef.current) return;
     const t = setTimeout(() => {
-      saveAnswersNow();
+      if (autoguardadoContinuo) {
+        void saveAnswersNow();
+        return;
+      }
+      const savedAt = Date.now();
+      const current = { ...answersRef.current, __current_idx: currentIdxRef.current, __saved_at: savedAt };
+      answersRef.current = current;
+      void saveAnswersLocally(examId, {
+        submissionId: submissionIdRef.current!,
+        answers: current,
+        warnings: warningsRef.current,
+        timestamp: savedAt,
+      }).catch((e) => console.error("[ExamLab] local answers save failed:", e));
     }, 1500);
     return () => clearTimeout(t);
-  }, [answers, warnings, started, saveAnswersNow]);
+  }, [answers, warnings, started, saveAnswersNow, autoguardadoContinuo, examId]);
 
   // Heartbeat del session-lock. El autosave de arriba es un DEBOUNCE: solo se
   // re-arma cuando cambian `answers`/`warnings`, así que un alumno INACTIVO

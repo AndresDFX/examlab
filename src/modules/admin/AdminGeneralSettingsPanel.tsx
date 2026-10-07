@@ -88,6 +88,7 @@ interface AppSettings {
    *  curso los muestra a docentes y estudiantes (mig 20262640000000). Apagado
    *  por defecto. */
   session_pending_enabled: boolean;
+  exam_autosave_mode: "al_cambiar_pregunta" | "continuo";
   updated_at: string;
 }
 
@@ -103,6 +104,7 @@ export function AdminGeneralSettingsPanel() {
   // ¿Ya existe la columna del interruptor? Sin la migración aplicada, mandarla
   // en el UPDATE haría fallar el guardado de TODO el panel.
   const [hayColumnaPendientes, setHayColumnaPendientes] = useState(false);
+  const [hayColumnaAutoguardado, setHayColumnaAutoguardado] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -122,6 +124,7 @@ export function AdminGeneralSettingsPanel() {
     }
     if (data) {
       setHayColumnaPendientes("session_pending_enabled" in data);
+      setHayColumnaAutoguardado("exam_autosave_mode" in data);
       // Coalesce de campos que pueden faltar si la migración aún no se publicó
       // (mantiene el Input controlado y no rompe el panel pre-Publish).
       const r = {
@@ -143,6 +146,7 @@ export function AdminGeneralSettingsPanel() {
           data.early_alert_max_missing ??
           DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
         session_pending_enabled: data.session_pending_enabled === true,
+        exam_autosave_mode: data.exam_autosave_mode === "continuo" ? "continuo" : "al_cambiar_pregunta",
       } as AppSettings;
       setRow(r);
       setDraft(r);
@@ -258,6 +262,7 @@ export function AdminGeneralSettingsPanel() {
           ...(hayColumnaPendientes
             ? { session_pending_enabled: draft.session_pending_enabled }
             : {}),
+          ...(hayColumnaAutoguardado ? { exam_autosave_mode: draft.exam_autosave_mode } : {}),
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -508,6 +513,29 @@ export function AdminGeneralSettingsPanel() {
               </div>
             </label>
           </div>
+          {hayColumnaAutoguardado && (
+            <label className="sm:col-span-3 flex items-start gap-3 rounded-lg border p-3 cursor-pointer hover:bg-muted/40">
+              <input
+                type="checkbox"
+                className="mt-0.5 h-4 w-4"
+                checked={draft.exam_autosave_mode === "continuo"}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    exam_autosave_mode: e.target.checked ? "continuo" : "al_cambiar_pregunta",
+                  })
+                }
+              />
+              <div className="flex-1">
+                <div className="text-sm font-medium">{t("adminGeneralSettings.labelAutosaveContinuo")}</div>
+                <p className="text-2xs text-muted-foreground mt-0.5">
+                  {draft.exam_autosave_mode === "continuo"
+                    ? t("adminGeneralSettings.autosaveContinuoOn")
+                    : t("adminGeneralSettings.autosaveContinuoOff")}
+                </p>
+              </div>
+            </label>
+          )}
         </CardContent>
       </Card>
 
