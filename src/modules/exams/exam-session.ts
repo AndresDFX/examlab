@@ -50,6 +50,48 @@ export function restoreQuestionIndex(
   return idx;
 }
 
+/** Copia local de las respuestas, con la forma que guarda `offline-sync.ts`. */
+export interface CopiaLocalDeRespuestas {
+  submissionId: string;
+  answers: Record<string, unknown>;
+}
+
+/**
+ * Qué respuestas restaurar al reanudar un intento: las del servidor o la copia
+ * local del dispositivo.
+ *
+ * Desde que el examen guarda en la base solo al cambiar de pregunta, la copia
+ * local es el respaldo de lo que el alumno escribió en la pregunta en curso. Si
+ * al reanudar se restaurara siempre el servidor, la pantalla mostraría la
+ * versión vieja y el siguiente cambio de pregunta la volvería a escribir encima.
+ *
+ * Mismo criterio que `syncPendingAnswers`: la copia gana solo si es de ESTE
+ * intento, de la misma sesión (si otro dispositivo tomó el intento, el
+ * servidor es el vigente) y más nueva por `__saved_at`. Las advertencias se
+ * toman del servidor, que las recibe al instante desde el proctoring.
+ */
+export function respuestasAlReanudar(
+  servidor: Record<string, unknown>,
+  local: CopiaLocalDeRespuestas | null | undefined,
+  submissionId: string,
+): { answers: Record<string, unknown>; usoLocal: boolean } {
+  if (!local || local.submissionId !== submissionId || !local.answers) {
+    return { answers: servidor, usoLocal: false };
+  }
+  const copia = local.answers;
+  const sesionServidor = servidor.__session_id;
+  const sesionLocal = copia.__session_id;
+  if (sesionServidor && sesionLocal && sesionServidor !== sesionLocal) {
+    return { answers: servidor, usoLocal: false };
+  }
+  const guardadoServidor = Number(servidor.__saved_at ?? 0);
+  const guardadoLocal = Number(copia.__saved_at ?? 0);
+  if (!(guardadoLocal > guardadoServidor)) return { answers: servidor, usoLocal: false };
+  const answers: Record<string, unknown> = { ...copia };
+  if (servidor.__warning_events !== undefined) answers.__warning_events = servidor.__warning_events;
+  return { answers, usoLocal: true };
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Latido del bloqueo de sesión
 // ─────────────────────────────────────────────────────────────────────────────

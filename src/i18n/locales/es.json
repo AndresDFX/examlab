@@ -3720,7 +3720,8 @@
       "examLoadFailed": "No se pudo cargar el examen.",
       "couldNotReenterFullscreen": "No se pudo volver a pantalla completa. Intenta de nuevo o usa la tecla F11.",
       "warningsClearedByTeacher": "El docente revisó tus advertencias. Ahora tienes {{count}}.",
-      "examIsExternal": "Este examen se presenta fuera de la plataforma; aquí solo se registra la nota."
+      "examIsExternal": "Este examen se presenta fuera de la plataforma; aquí solo se registra la nota.",
+      "localAnswersRecovered": "Recuperamos lo que tenías escrito en este dispositivo."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversación limpiada"

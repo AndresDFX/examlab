@@ -10,6 +10,7 @@ import {
   MS_GUARDADO_RECIENTE,
   applyClearAllWarnings,
   applyClearOneWarning,
+  respuestasAlReanudar,
   applyExtraTime,
   computeExtraSeconds,
   latidoEsRedundante,
@@ -640,5 +641,48 @@ describe("la ventana del bloqueo no vive duplicada en la pantalla de examen", ()
     // Los literales que había: la comparación de la ventana y el período.
     expect(ruta).not.toMatch(/ageMs\s*<\s*\d/);
     expect(ruta).not.toMatch(/\}\s*,\s*5000\s*\)\s*;/);
+  });
+});
+
+describe("respuestasAlReanudar", () => {
+  const servidor = { __session_id: "A", __saved_at: 100, q1: "viejo", __warning_events: [{ t: 1 }] };
+  const copia = (answers: Record<string, unknown>, submissionId = "sub-1") => ({ submissionId, answers });
+
+  it("usa la copia local cuando es más nueva, del mismo intento y de la misma sesión", () => {
+    const r = respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "nuevo" }), "sub-1");
+    expect(r.usoLocal).toBe(true);
+    expect(r.answers.q1).toBe("nuevo");
+  });
+
+  it("las advertencias salen del servidor, aunque la copia traiga otras", () => {
+    const r = respuestasAlReanudar(
+      servidor,
+      copia({ __session_id: "A", __saved_at: 200, q1: "nuevo", __warning_events: [] }),
+      "sub-1",
+    );
+    expect(r.answers.__warning_events).toEqual([{ t: 1 }]);
+  });
+
+  it("no usa la copia si es más vieja o igual que el servidor", () => {
+    expect(respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 100, q1: "x" }), "sub-1").usoLocal).toBe(false);
+    expect(respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 50, q1: "x" }), "sub-1").usoLocal).toBe(false);
+  });
+
+  it("no usa la copia de OTRO intento", () => {
+    const r = respuestasAlReanudar(servidor, copia({ __session_id: "A", __saved_at: 200, q1: "x" }, "sub-2"), "sub-1");
+    expect(r.usoLocal).toBe(false);
+    expect(r.answers).toBe(servidor);
+  });
+
+  it("no usa la copia si otro dispositivo tomó el intento (otra sesión)", () => {
+    const r = respuestasAlReanudar(servidor, copia({ __session_id: "B", __saved_at: 200, q1: "x" }), "sub-1");
+    expect(r.usoLocal).toBe(false);
+  });
+
+  it("sin copia, o con un servidor sin marca de guardado, se comporta como la sincronización", () => {
+    expect(respuestasAlReanudar(servidor, null, "sub-1").usoLocal).toBe(false);
+    const r = respuestasAlReanudar({ q1: "viejo" }, copia({ __saved_at: 10, q1: "nuevo" }), "sub-1");
+    expect(r.usoLocal).toBe(true);
+    expect(r.answers.q1).toBe("nuevo");
   });
 });

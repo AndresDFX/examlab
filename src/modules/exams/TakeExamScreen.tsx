@@ -80,6 +80,8 @@ import {
   isOnline,
   setupOfflineSync,
   clearLocalAnswers,
+  leerRespuestasLocales,
+  type PendingAnswer,
 } from "@/modules/exams/offline-sync";
 import { useTranslation } from "react-i18next";
 import { OpenAnswerTextarea } from "@/components/ui/open-answer-textarea";
@@ -114,6 +116,7 @@ import {
   computeExtraSeconds,
   applyExtraTime,
   restoreQuestionIndex,
+  respuestasAlReanudar,
   latidoEsRedundante,
   MS_BLOQUEO_SESION,
   MS_ENTRE_LATIDOS,
@@ -319,6 +322,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   const submittedRef = useRef(false);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
+  // Copia local de las respuestas leída al cargar (ver `respuestasAlReanudar`).
+  const copiaLocalRef = useRef<PendingAnswer | null>(null);
   const warningsRef = useRef(0);
   const answersRef = useRef<Record<string, any>>({});
   // Cache the Supabase access token so beforeunload can use it in a keepalive fetch
@@ -569,6 +574,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // parseo) dejaba la pantalla en <PageLoader/> indefinidamente y el
     // alumno no sabía si su examen existía o la app estaba rota.
     const runLoad = async () => {
+      // La copia local se lee ANTES que la entrega del servidor. La sincronización
+      // offline que corre al montar la sube y después la BORRA: leída al final
+      // podría ya no estar mientras la entrega que se leyó del servidor es la
+      // vieja. Leída primero, o la tenemos, o el servidor ya la recibió.
+      copiaLocalRef.current = simulacro ? null : await leerRespuestasLocales(examId);
       // `courses.language` se introduce en migraciones recientes; cast hasta refrescar tipos.
       // Setting global de pantalla completa. Lo leemos en paralelo al
       // fetch del examen — si falla, asumimos true (más seguro).
@@ -854,8 +864,19 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           return;
         }
 
+        // Si este dispositivo tiene una copia más nueva de ESTE intento (lo escrito
+        // en la pregunta en curso, que todavía no se había guardado en la base),
+        // se reanuda desde ella.
+        const restaurar = respuestasAlReanudar(existingAnswers, copiaLocalRef.current, resumeTarget.id);
+        if (restaurar.usoLocal) {
+          toast.info(
+            i18n.t("toast.routes_app_student_take_examId.localAnswersRecovered", {
+              defaultValue: "Recuperamos lo que tenías escrito en este dispositivo.",
+            }),
+          );
+        }
         // Claim the session: inject our session ID into answers (persisted by next autosave)
-        const claimedAnswers = { ...existingAnswers, __session_id: localSessionId };
+        const claimedAnswers = { ...restaurar.answers, __session_id: localSessionId };
         answersRef.current = claimedAnswers;
 
         // Reanudar el intento en curso (o re-abrir la entrega sin calificar)
@@ -874,7 +895,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // Restaurar la pregunta donde el estudiante se quedó, acotada al total
         // actual de preguntas (el docente pudo eliminar preguntas entre sesiones
         // → un índice fuera de rango dejaría la pantalla en blanco sin navegación).
-        const persistedIdx = restoreQuestionIndex(existingAnswers, qs?.length);
+        const persistedIdx = restoreQuestionIndex(restaurar.answers, qs?.length);
         setCurrentIdx(persistedIdx);
         currentIdxRef.current = persistedIdx;
         setExam(e);
@@ -980,7 +1001,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           return;
         }
         // Take over
-        const claimedAnswers = { ...existingAnswers, __session_id: sessionIdRef.current };
+        const restaurar = respuestasAlReanudar(existingAnswers, copiaLocalRef.current, existing.id);
+        const claimedAnswers = { ...restaurar.answers, __session_id: sessionIdRef.current };
         sid = existing.id;
         setSubmissionId(sid);
         submissionIdRef.current = sid;

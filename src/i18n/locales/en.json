@@ -3720,7 +3720,8 @@
       "examLoadFailed": "Could not load the exam.",
       "couldNotReenterFullscreen": "Could not return to fullscreen. Try again or press F11.",
       "warningsClearedByTeacher": "Your teacher reviewed your warnings. You now have {{count}}.",
-      "examIsExternal": "This exam is taken outside the platform; only the grade is recorded here."
+      "examIsExternal": "This exam is taken outside the platform; only the grade is recorded here.",
+      "localAnswersRecovered": "We recovered what you had written on this device."
     },
     "routes_app_student_tutor_courseId": {
       "conversationCleared": "Conversation cleared"

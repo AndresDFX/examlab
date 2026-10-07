@@ -42,6 +42,22 @@ export async function clearLocalAnswers(examId: string): Promise<void> {
   }
 }
 
+/** La copia local de UN examen, o null si no hay (o el almacenamiento falla). */
+export async function leerRespuestasLocales(examId: string): Promise<PendingAnswer | null> {
+  try {
+    const data = await get(`${PENDING_PREFIX}${examId}`);
+    if (data) return data as PendingAnswer;
+  } catch {
+    /* sigue con localStorage */
+  }
+  try {
+    const raw = localStorage.getItem(`${PENDING_PREFIX}${examId}`);
+    return raw ? (JSON.parse(raw) as PendingAnswer) : null;
+  } catch {
+    return null;
+  }
+}
+
 /** Get all pending syncs */
 export async function getPendingSyncs(): Promise<{ examId: string; data: PendingAnswer }[]> {
   const results: { examId: string; data: PendingAnswer }[] = [];
