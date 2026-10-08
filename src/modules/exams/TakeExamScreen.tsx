@@ -97,6 +97,7 @@ import {
   salidaDePantallaCompletaCuentaComoStrike,
   ocultarCuentaComoStrike,
   GRACIA_OCULTO_MOVIL_MS,
+  creaStrikesDiferidos,
   creaVentanasDeProctoring,
   entornoDePuntero,
   shouldMarkSuspicious,
@@ -1937,7 +1938,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // que viene detrás y el cambio quedaría sin registrar. Ver
     // `creaVentanasDeProctoring`.
     const ventanas = creaVentanasDeProctoring(500);
-    let lastBlurAt = 0;
+    // Strikes de escritorio por blur / ocultarse / soltar pantalla completa:
+    // se cobran un instante después, para que CERRAR o RECARGAR la página
+    // (que dispara esos mismos eventos) no cuente. Ver `creaStrikesDiferidos`.
+    const diferidos = creaStrikesDiferidos();
+    let regresoTrasDialogo: number | undefined;
 
     /**
      * La pregunta en la que el alumno está parado, por ID.
@@ -2177,56 +2182,40 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       recordWarning("pantallazo");
     };
 
-    // Show native "Leave site?" dialog on browser/tab close (full reload/close).
-    // SPA navigation is handled by useBlocker above.
-    // blur may or may not fire before beforeunload depending on the browser.
-    // We use lastBlurAt to know if blur already incremented the count.
-    // If not, we increment here before sending the keepalive fetch.
+    // Cerrar o recargar la página NO suma advertencia (antes sumaba y podía
+    // cerrar el intento): el corte puede ser un cuelgue, un apagón o el
+    // internet, y volver a entrar ya exige pantalla completa. Se guardan las
+    // respuestas y queda una señal blanda para que el docente vea cuántas
+    // veces salió y volvió. Lo fija `salida-de-la-pagina.test.ts`.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
       e.preventDefault();
       e.returnValue = "";
+      diferidos.marcarSalida();
+      // Si el estudiante cancela el diálogo «¿Salir del sitio?», la página
+      // sigue viva y el proctoring tiene que volver a contar.
+      window.clearTimeout(regresoTrasDialogo);
+      regresoTrasDialogo = window.setTimeout(() => diferidos.marcarRegreso(), 3000);
       if (!submissionIdRef.current || !authTokenRef.current) return;
-      // Grace period de reanudación: si el alumno todavía no entró a
-      // pantalla completa (resume tras eliminación de strike, recarga,
-      // etc.), cerrar la tab NO suma strike — está en la antesala del
-      // examen, no abusando. Misma regla que recordWarning.
-      if (!hasEverEnteredFullscreenRef.current) {
-        // Persistir respuestas sin tocar focus_warnings ni status.
-        fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
+      let answersToSend = answersRef.current;
+      if (hasEverEnteredFullscreenRef.current) {
+        warningEventsRef.current = [
+          ...warningEventsRef.current,
           {
-            method: "PATCH",
-            headers: {
-              "Content-Type": "application/json",
-              apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-              Authorization: `Bearer ${authTokenRef.current}`,
-              Prefer: "return=minimal",
-            },
-            body: JSON.stringify({ answers: answersRef.current }),
-            keepalive: true,
+            type: "salida_de_la_pagina",
+            at: new Date().toISOString(),
+            questionIdx:
+              exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
+            questionId: preguntaActual()?.id ?? null,
+            suma: false,
           },
-        );
-        return;
-      }
-      // If blur fired within the last 200ms it already incremented warningsRef — just persist.
-      // Otherwise increment here (browser close on platforms where blur doesn't precede beforeunload).
-      const blurJustFired = Date.now() - lastBlurAt < 200;
-      const warningsToSend = blurJustFired ? warningsRef.current : warningsRef.current + 1;
-      const body: Record<string, unknown> = {
-        focus_warnings: warningsToSend,
-        answers: answersRef.current,
-      };
-      if (shouldMarkSuspicious(warningsToSend, maxWarnings)) {
-        // Se cierra la entrega, pero como «completado»: ver el comentario del
-        // estado en `performSubmit`. Y se marca el cierre por el mismo motivo
-        // que allá — sin esto el alumno reabre su propia suspensión.
-        body.status = "completado";
-        body.submitted_at = new Date().toISOString();
-        body.closed_at = new Date().toISOString();
-        body.close_reason = "advertencias";
-        body.closed_by = user?.id ?? null;
-        submittedRef.current = true;
+        ];
+        answersToSend = {
+          ...answersRef.current,
+          __warning_events: warningEventsRef.current,
+          __saved_at: Date.now(),
+        };
+        answersRef.current = answersToSend;
       }
       fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
@@ -2238,11 +2227,14 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             Authorization: `Bearer ${authTokenRef.current}`,
             Prefer: "return=minimal",
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ answers: answersToSend }),
           keepalive: true,
         },
       );
     };
+    // `pagehide` llega también donde `beforeunload` no (Safari, móvil).
+    const onPageHide = () => diferidos.marcarSalida();
+    const onFocus = () => diferidos.marcarRegreso();
 
     /**
      * Deja constancia de algo que el docente debería ver pero que NO suma
@@ -2317,11 +2309,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         registrarSenalBlanda("blur_movil");
         return;
       }
-      // Solo se marca cuando el blur SUMÓ: `onBeforeUnload` usa esta marca para
-      // no contar dos veces el cierre de la ventana, y si la pusiéramos igual
-      // en móvil dejaría de contar ese cierre.
-      lastBlurAt = Date.now();
-      recordWarning("pestaña");
+      diferidos.diferir("pestaña", recordWarning);
     };
     // El menú contextual sigue bloqueado en la página, PERO no sobre los
     // campos de respuesta: ahí es donde viven las sugerencias del corrector
@@ -2431,7 +2419,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // queda como señal blanda. El overlay de «volvé a pantalla completa» se
         // muestra igual, porque el examen sí necesita volver.
         if (salidaDePantallaCompletaCuentaComoStrike(entornoPuntero)) {
-          recordWarning("fullscreen_exit");
+          diferidos.diferir("fullscreen_exit", recordWarning);
         } else {
           registrarSenalBlanda("fullscreen_exit_movil");
         }
@@ -2464,8 +2452,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     const onVisibility = () => {
       if (document.visibilityState === "hidden") {
         if (salidaDePantallaCompletaCuentaComoStrike(entornoPuntero)) {
-          // Computador: ocultarse ES cambiar de pestaña. Sin espera.
-          recordWarning("visibility_hidden");
+          // Computador: ocultarse ES cambiar de pestaña (con la espera mínima
+          // que distingue cambiar de pestaña de cerrar la página).
+          diferidos.diferir("visibility_hidden", recordWarning);
           return;
         }
         // Móvil: la decisión se toma al volver. Lo que distingue «se fue» de
@@ -2488,6 +2477,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       // este es el momento exacto en que el token puede haber vencido sin que
       // nadie lo notara. Se renueva acá, antes de que el alumno pulse nada.
       void asegurarSesionFresca();
+      diferidos.marcarRegreso();
       if (ocultoDesde != null) {
         const ms = Date.now() - ocultoDesde;
         ocultoDesde = null;
@@ -2495,6 +2485,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       }
     };
     window.addEventListener("beforeunload", onBeforeUnload);
+    window.addEventListener("pagehide", onPageHide);
+    window.addEventListener("focus", onFocus);
     window.addEventListener("blur", onBlur);
     document.addEventListener("visibilitychange", onVisibility);
     document.addEventListener("contextmenu", onContext);
@@ -2510,6 +2502,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     return () => {
       window.removeEventListener("popstate", onPopstate, true);
       window.removeEventListener("beforeunload", onBeforeUnload);
+      window.removeEventListener("pagehide", onPageHide);
+      window.removeEventListener("focus", onFocus);
+      window.clearTimeout(regresoTrasDialogo);
+      diferidos.cancelarTodo();
       window.removeEventListener("blur", onBlur);
       document.removeEventListener("visibilitychange", onVisibility);
       document.removeEventListener("contextmenu", onContext);

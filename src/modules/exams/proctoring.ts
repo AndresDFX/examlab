@@ -50,6 +50,10 @@ export type WarningType =
   // suelta el propio sistema al abrir sus superficies (teclado, burbuja del
   // corrector), no el estudiante.
   | "fullscreen_exit_movil"
+  // Señal blanda: la página del examen se cerró o se recargó (a propósito, por
+  // error, por un cuelgue o porque se cayó el internet). NO suma strike: volver
+  // a entrar ya exige pantalla completa, y el docente ve cuántas veces pasó.
+  | "salida_de_la_pagina"
   | (string & {});
 
 export interface WarningEvent {
@@ -123,6 +127,8 @@ export function warningLabel(type: WarningType): string {
       return "Pantalla oculta un instante en móvil (no suma)";
     case "fullscreen_exit_movil":
       return "Salida de pantalla completa en móvil (no suma)";
+    case "salida_de_la_pagina":
+      return "Cerró o recargó el examen (no suma)";
     default:
       return String(type);
   }
@@ -516,4 +522,60 @@ export function permiteMenuContextual(target: EventTarget | null): boolean {
     // menú es parte de cómo se trabaja ahí.
     target.closest(".monaco-editor") !== null
   );
+}
+
+/**
+ * Cuánto se espera, en computador, antes de cobrar el strike de `blur`,
+ * `visibility_hidden` o `fullscreen_exit`.
+ *
+ * Cerrar o recargar la pestaña dispara esos MISMOS eventos justo antes de que
+ * la página muera, y antes se cobraban en el acto: el estudiante al que se le
+ * cerró el navegador, se le cayó el internet o recargó por error volvía con una
+ * advertencia (o con el examen cerrado). Esperando un instante, si la página se
+ * está yendo el temporizador nunca corre; si sigue viva —cambió de pestaña de
+ * verdad— el strike llega igual, menos de un segundo después.
+ */
+export const ESPERA_STRIKE_DIFERIDO_MS = 700;
+
+/**
+ * Strikes de escritorio diferidos, para que SALIR de la página no cuente.
+ *
+ * · `diferir` programa el strike; un gesto que dispara varios eventos (blur +
+ *   visibilidad + pantalla completa) deja UNO solo pendiente.
+ * · `marcarSalida` (beforeunload / pagehide) cancela el pendiente y descarta lo
+ *   que llegue mientras la página se va.
+ * · `marcarRegreso` (foco o página visible de nuevo, o el diálogo «¿Salir?»
+ *   cancelado) vuelve a la normalidad.
+ */
+export function creaStrikesDiferidos(
+  esperaMs: number = ESPERA_STRIKE_DIFERIDO_MS,
+  programar: (fn: () => void, ms: number) => unknown = (fn, ms) => setTimeout(fn, ms),
+  cancelar: (id: unknown) => void = (id) => clearTimeout(id as ReturnType<typeof setTimeout>),
+) {
+  let pendiente: unknown = null;
+  let saliendo = false;
+  return {
+    diferir(tipo: string, contar: (tipo: string) => void): void {
+      if (saliendo || pendiente !== null) return;
+      pendiente = programar(() => {
+        pendiente = null;
+        if (!saliendo) contar(tipo);
+      }, esperaMs);
+    },
+    marcarSalida(): void {
+      saliendo = true;
+      if (pendiente !== null) cancelar(pendiente);
+      pendiente = null;
+    },
+    marcarRegreso(): void {
+      saliendo = false;
+    },
+    saliendo(): boolean {
+      return saliendo;
+    },
+    cancelarTodo(): void {
+      if (pendiente !== null) cancelar(pendiente);
+      pendiente = null;
+    },
+  };
 }

@@ -1,6 +1,6 @@
 # Advertencias del examen: que salir por error y volver no cuente
 
-Estado: **plan, sin implementar** (2026-10-08).
+Estado: **puntos 1, 2 y 5 implementados en la rama `fix/advertencias-al-reingresar` (sin publicar)**; 3 y 4 pendientes (2026-10-08).
 
 ## Qué pasa hoy
 
