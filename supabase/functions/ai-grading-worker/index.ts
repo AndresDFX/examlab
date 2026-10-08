@@ -48,6 +48,7 @@ interface QueueJob {
   field_feedback: string;
   field_likelihood: string | null;
   field_reasons: string | null;
+  course_id?: string | null;
   attempts: number;
 }
 
@@ -206,10 +207,23 @@ Deno.serve(async (req) => {
       const targetUrl = `${Deno.env.get("SUPABASE_URL")}/functions/v1/${job.invoke_target}`;
       const forwardedAuth =
         incomingAuth || `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""}`;
+      // Las RPC de reclamo no devuelven `course_id`: se lee de la fila.
+      let courseId = job.course_id ?? null;
+      if (!courseId && !job.body?.courseId) {
+        const { data: fila } = await adminClient
+          .from("ai_grading_queue")
+          .select("course_id")
+          .eq("id", job.id)
+          .maybeSingle();
+        courseId = (fila as { course_id?: string | null } | null)?.course_id ?? null;
+      }
       const aiRes = await fetch(targetUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: forwardedAuth },
-        body: JSON.stringify(job.body),
+        // El curso va en el body: sin él, ai-grade-submission no sabe la institución
+        // y cae a la IA compartida de la plataforma en vez de la propia (ai_mode=own).
+        // Así se agotó la cuota de Gemini de todos con exámenes de UNIAJ en cola.
+        body: JSON.stringify({ courseId: courseId ?? undefined, ...job.body }),
       });
 
       if (!aiRes.ok) {
