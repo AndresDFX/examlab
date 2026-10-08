@@ -147,7 +147,9 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   Paola Quiñones (3,13 → 3,50); y el texto de Bryan Ramos y César López, sin cambiar su nota. A Juan
   Guillermo Ramírez se le recuperó la pregunta 7 del pantallazo que adjuntó (4,0 → 4,75). **Sin copia
   en ningún lado**: Josuhan Beltrán (Seminario, reabierto para que vuelva a responder) y tres de
-  «Joins en SQL» (Jhovanny Rodríguez, Joseph Orozco, Erik Carmona), de un taller ya cerrado. Para
+  «Joins en SQL» (Jhovanny Rodríguez, Joseph Orozco, Erik Carmona): por decisión del docente el
+  taller se reabrió para todo el curso hasta el 9 de octubre a las 23:59 y sus entregas volvieron a
+  `en_progreso` (con un solo intento por taller, quienes ya tenían nota no pueden volver a entregar). Para
   buscar casos así: una pregunta SIN fila, o con fila vacía creada minutos después que las demás, es
   una escritura que falló — el envío escribe una fila por pregunta, aunque esté en blanco.
 - **Lo que esto NO arregla**: la lentitud misma. Cada nota por pregunta que escribe la IA dispara el
