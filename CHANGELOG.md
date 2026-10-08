@@ -138,9 +138,18 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   ENTREGA (transición a un estado de entrega), no al crear la fila; y el trigger, que corre en cada
   actualización de la entrega, ya no consulta taller, curso y correo antes de saber si tiene algo que
   registrar. Verificada en PGlite (8 casos).
-- **Datos**: se reabrieron las entregas de Anyi Daniela Oliveros y Juan David Montoya (todo o casi
-  todo en blanco) para que vuelvan a entregar, y a Juan Guillermo Ramírez se le recuperó la pregunta
-  7 del pantallazo que adjuntó (taller 4,0 → 4,75).
+- **Datos — las respuestas perdidas se RECUPERARON del trabajo de calificación.** Desde el 9 de
+  septiembre cada entrega se encola con su cuerpo de calificación (`ai_grading_queue.body`: `items`
+  con el texto de cada abierta y `plainAnswers` con cada selección), o sea con las respuestas tal como
+  las mandó el navegador. Con eso se repusieron y recalificaron: Anyi Daniela Oliveros 0,5 → 4,5,
+  Juan David Montoya 2,75 → 4,5 y Juan Fernando Osorio 2,9 → 4,15 (LB141F, entrega devuelta a su
+  hora original); en «Joins en SQL» (BD II) la pregunta 4 de Víctor Izquierdo (3,56 → 4,31) y de
+  Paola Quiñones (3,13 → 3,50); y el texto de Bryan Ramos y César López, sin cambiar su nota. A Juan
+  Guillermo Ramírez se le recuperó la pregunta 7 del pantallazo que adjuntó (4,0 → 4,75). **Sin copia
+  en ningún lado**: Josuhan Beltrán (Seminario, reabierto para que vuelva a responder) y tres de
+  «Joins en SQL» (Jhovanny Rodríguez, Joseph Orozco, Erik Carmona), de un taller ya cerrado. Para
+  buscar casos así: una pregunta SIN fila, o con fila vacía creada minutos después que las demás, es
+  una escritura que falló — el envío escribe una fila por pregunta, aunque esté en blanco.
 - **Lo que esto NO arregla**: la lentitud misma. Cada nota por pregunta que escribe la IA dispara el
   recálculo de la entrega (`tg_workshop_answer_graded_recompute`), y con un curso entregando a la vez
   eso suma carga justo en el peor momento. Es el mismo techo de E/S de las otras caídas. El envío
