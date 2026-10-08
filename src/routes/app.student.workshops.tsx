@@ -927,7 +927,13 @@ function StudentWorkshops() {
                     }}
                   >
                     <ListChecks className="h-4 w-4 mr-1" />
-                    {submission ? t("common.update") : t("workshop.startSubmission")}
+                    {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
+                        el docente) no es una entrega: no se «actualiza», se sigue. */}
+                    {entregaHecha(submission)
+                      ? t("common.update")
+                      : submission
+                        ? t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering")
+                        : t("workshop.startSubmission")}
                   </Button>
                 )}
 
@@ -953,7 +959,7 @@ function StudentWorkshops() {
                     re-editar y borrar. Misma regla que en el submit
                     de WorkshopQuestions. */}
                 {(() => {
-                  if (!isOpen || !submission) return null;
+                  if (!isOpen || !submission || !entregaHecha(submission)) return null;
                   const canDelete = !attemptsExhausted;
                   return canDelete ? (
                     <Button
@@ -972,7 +978,7 @@ function StudentWorkshops() {
                   );
                 })()}
 
-                {workshop.status === "published" && isOverdue && !submission && (
+                {workshop.status === "published" && isOverdue && !entregaHecha(submission) && (
                   <p className="text-xs text-destructive text-center">
                     {t("exam.windowClosedHelp")}
                   </p>

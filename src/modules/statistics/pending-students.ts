@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
 
 /**
  * "Pendientes por estudiante" del módulo de Estadísticas del docente.
@@ -742,9 +743,12 @@ async function collectActivityPending(opts: {
   if (activityIds.length > 0) {
     const { data: subRaw } = await dbAny
       .from(opts.subTable)
-      .select(`${opts.subFk}, user_id`)
+      .select(`${opts.subFk}, user_id, status`)
       .in(opts.subFk, activityIds);
     for (const s of (subRaw ?? []) as Array<Record<string, unknown>>) {
+      // Una fila no es una entrega: un taller o proyecto nace `en_progreso` al
+      // pulsar «Entregar» y solo pasa a `entregado` con las respuestas guardadas.
+      if (!esEstadoDeEntrega(s.status as string | null)) continue;
       const orig = originalOf.get(String(s[opts.subFk])) ?? String(s[opts.subFk]);
       submitted.add(`${orig}::${String(s.user_id)}`);
     }

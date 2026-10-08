@@ -850,6 +850,15 @@ así que el agujero eran estos dos ([borrador-local.ts](src/modules/submissions/
 - Complemento: salir de esos modales es **solo por la X** (`onEscapeKeyDown` / `onPointerDownOutside`
   / `onInteractOutside` con `preventDefault`, como `ForceChangePasswordDialog`). El borrador ya evita
   perder el trabajo, pero un cierre accidental igual hace creer que se perdió la entrega.
+- **Al entregar, primero las respuestas y después `entregado`.** Una entrega nueva nace en
+  `en_progreso`; si UNA respuesta no se guarda, el envío se corta sin marcar, sin calificar y sin
+  borrar el borrador. Al revés —como era hasta el 2026-10-07— una base lenta dejaba entregas
+  «entregadas» y calificadas con lo de la pantalla, sin las respuestas en la base y sin borrador. Lo
+  fija `entrega-guarda-antes.test.ts`; al tocar el submit de taller o proyecto, no muevas esas
+  escrituras. Un archivo que no se sube corta igual. Consecuencia: en talleres y proyectos «tiene
+  fila» ya NO significa «entregó» — se pregunta por `entregaHecha`, nunca por la existencia de la
+  fila. Y en una entrega individual sin entregar, el borrador le gana a lo que quedó en la base
+  (`borradorManda`).
 
 ### Actividades externas (`is_external` en exams, workshops y projects)
 

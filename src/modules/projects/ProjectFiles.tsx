@@ -17,6 +17,7 @@ import {
   guardarBorrador as guardarBorradorLocal,
   leerBorrador as leerBorradorLocal,
 } from "@/modules/submissions/borrador-local";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { logEvent } from "@/shared/lib/audit";
@@ -1681,6 +1682,9 @@ export function StudentProjectTaker({
         repository_url?: string;
       } | null;
       setAttemptCount(Number(subRow?.attempt_count ?? 0));
+      // Ver `combinarConBorrador`: en una entrega individual que todavía no se
+      // entregó, lo del servidor lo escribió este alumno y el borrador es más nuevo.
+      borradorMandaRef.current = !groupId && !!subRow && !entregaHecha(subRow);
       // "Calificada" = status calificado o final_grade asignado. Si
       // alguna de las dos condiciones se cumple, el intento ya se gastó
       // y el alumno no puede re-entregar (consistente con la regla
@@ -1767,6 +1771,7 @@ export function StudentProjectTaker({
   const answersRef = useRef(answers);
   answersRef.current = answers;
   const borradorRestauradoRef = useRef(false);
+  const borradorMandaRef = useRef(false);
 
   // Restaurar UNA vez, ya cargado lo del servidor. `combinarConBorrador` solo
   // rellena lo que quedó vacío: en un proyecto grupal, lo que subió un
@@ -1776,7 +1781,9 @@ export function StudentProjectTaker({
     borradorRestauradoRef.current = true;
     const guardado = leerBorradorLocal(claveBorradorProyecto);
     if (!guardado) return;
-    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas);
+    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas, {
+      borradorManda: borradorMandaRef.current,
+    });
     if (recuperadas.length === 0) return;
     setAnswers(respuestas);
     toast.info(t("borradorLocal.recuperado", { count: recuperadas.length }));
@@ -2273,27 +2280,29 @@ export function StudentProjectTaker({
         setSubmitting(false);
         return;
       }
+      // Una entrega `calificado` no la puede reabrir el estudiante (candado de
+      // la cabecera, mig 20261034000000). Se corta ANTES de escribir nada: si
+      // no, las secciones nuevas pisarían las calificadas y recién después la
+      // base rechazaría el cambio de estado.
+      if (existingRow?.status === "calificado") {
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.alreadyGraded", {
+            defaultValue:
+              "Este proyecto ya está calificado. Para entregarlo de nuevo, pídele a tu docente que te lo reabra.",
+          }),
+          { duration: 10000 },
+        );
+        return;
+      }
+      // ── `entregado` va DESPUÉS de guardar las respuestas ────────────────
+      // Mismo arreglo que talleres (ver WorkshopQuestions.tsx): marcar
+      // primero y seguir de largo cuando una sección no se guardaba dejaba la
+      // entrega «entregada», calificada con lo que había en pantalla y sin el
+      // borrador local. Una entrega nueva nace en `en_progreso` (las
+      // secciones necesitan su id) y ya con el intento contado, para que un
+      // reintento tras un fallo no lo cuente dos veces.
       if (existing?.id) {
         submissionId = existing.id;
-        // El error se descartaba: si este UPDATE fallaba, la entrega NO
-        // quedaba marcada como `entregado` (ni el link del repo) y el alumno
-        // igual veía la pantalla de éxito.
-        const { error: updErr } = await db
-          .from("project_submissions")
-          .update({
-            status: "entregado",
-            submitted_at: new Date().toISOString(),
-            repository_url: url,
-            user_id: user.id,
-            attempt_count: nextAttemptCount,
-          })
-          .eq("id", submissionId);
-        if (updErr) {
-          toast.error(
-            friendlyError(updErr, t("hc_modulesProjectsProjectFiles.errCreateSubmission")),
-          );
-          return;
-        }
       } else {
         const { data: created, error } = await db
           .from("project_submissions")
@@ -2301,8 +2310,7 @@ export function StudentProjectTaker({
             project_id: projectId,
             user_id: user.id,
             group_id: groupId ?? null,
-            status: "entregado",
-            submitted_at: new Date().toISOString(),
+            status: "en_progreso",
             repository_url: url,
             attempt_count: nextAttemptCount,
           })
@@ -2316,34 +2324,6 @@ export function StudentProjectTaker({
           return;
         }
         submissionId = created.id;
-      }
-      // Actualizar state local — el botón ya se deshabilita si quedó
-      // exhausto. Si todavía hay intentos disponibles, el alumno puede
-      // re-entregar (aunque la mayoría usa max_attempts=1).
-      setAttemptCount(nextAttemptCount);
-
-      // ── Reset inmediato de la cabecera, ANTES de calificar nada ────────
-      // Una entrega previa YA CALIFICADA (con defensa registrada) deja
-      // `defense_factor`/`final_grade` puestos. Sin este reset, mientras la
-      // calificación de la entrega NUEVA esté pendiente —minutos en modo
-      // sync, hasta una hora en modo async, porque el cron corre cada
-      // hora— la pantalla seguiría mostrando la nota y la sustentación del
-      // intento ANTERIOR, como si la re-entrega ya tuviera nota. El
-      // navegador no puede tocar estas columnas directo (candado de la
-      // cabecera desde el 30 de junio); por eso este reset va por el edge,
-      // con `service_role`, igual que la calificación misma.
-      //
-      // Falla no-crítica: si esta llamada no responde, la entrega YA quedó
-      // registrada arriba (status='entregado') y la calificación de abajo
-      // la va a sobreescribir de todas formas apenas corra — el peor caso
-      // es un instante de UI mostrando el estado viejo, no una entrega
-      // perdida.
-      try {
-        await supabase.functions.invoke("ai-grade-submission", {
-          body: { projectResetForResubmit: true, submissionId },
-        });
-      } catch (e) {
-        console.error("[project-submit] reset de cabecera fallo (no bloqueante)", e);
       }
 
       // ── Resolución del modo IA ──
@@ -2395,6 +2375,8 @@ export function StudentProjectTaker({
          *  la rúbrica de Swing vs JavaFX. */
         framework?: string | null;
       }> = [];
+      // Secciones cuyos archivos no se pudieron subir (ver el corte de abajo).
+      const fallosDeSubida: Array<{ qid: string; message: string }> = [];
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
@@ -2485,7 +2467,7 @@ export function StudentProjectTaker({
                 t("hc_modulesProjectsProjectFiles.feedbackZipUploadError", { detail: upErr.message }),
                 { duration: 8000 },
               );
-              zeroed.push({ qid: q.id, reason: "zip_error_subida" });
+              fallosDeSubida.push({ qid: q.id, message: upErr.message });
             } else {
               payload.zip_path = zipPath;
               pendingEnqueues.push({
@@ -2621,7 +2603,7 @@ export function StudentProjectTaker({
                 }),
                 { duration: 8000 },
               );
-              zeroed.push({ qid: q.id, reason: "zip_error_subida" });
+              fallosDeSubida.push({ qid: q.id, message: upFailed[0].error?.message ?? "" });
             } else {
               const uploadedPaths = uploads.map((u) => u.path);
               payload.code_paths = uploadedPaths;
@@ -2705,6 +2687,36 @@ export function StudentProjectTaker({
       const hayAlgoQueCalificar =
         batchItems.length > 0 || zeroed.length > 0 || Object.keys(plainAnswers).length > 0;
 
+      // Un archivo que no se subió NO es una sección en blanco: antes se
+      // declaraba cero y la entrega seguía, y los archivos elegidos se perdían
+      // (no viven en el borrador). Se corta igual que con una sección que no se
+      // guarda: el alumno reintenta con los archivos todavía elegidos.
+      if (fallosDeSubida.length > 0) {
+        void logEvent({
+          action: "submission.project.answers_save_failed",
+          category: "project",
+          severity: "error",
+          entityType: "project_submission",
+          entityId: submissionId,
+          metadata: {
+            project_id: projectId,
+            etapa: "subida_de_archivos",
+            failed: fallosDeSubida.length,
+            errors: fallosDeSubida.slice(0, 5),
+          },
+        });
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.answersSaveFailed", {
+            defaultValue:
+              "Tu proyecto NO se entregó: no se pudieron guardar {{count}} sección(es) ({{detail}}). Lo que hiciste sigue acá; revisa tu conexión y vuelve a pulsar «Entregar».",
+            count: fallosDeSubida.length,
+            detail: fallosDeSubida[0].message,
+          }),
+          { duration: 15000 },
+        );
+        return;
+      }
+
       // ── Persistencia: upsert por qid ──
       // Antes hacíamos await sin chequear el error — si la migración de
       // `code_paths` no estaba aplicada (PostgREST returns "column ...
@@ -2726,6 +2738,9 @@ export function StudentProjectTaker({
       // TRANSITORIO: un PGRST204 real (columna sin migrar) sigue cayendo en
       // la rama de abajo, no tiene sentido reintentarlo.
       const OPTIONAL_COLS = ["code_paths"];
+      // Las secciones que NO quedaron en la base. Con una sola, la entrega no
+      // sigue (ver el corte después de este bucle).
+      const fallosAlGuardar: Array<{ qid: string; error: unknown }> = [];
       for (const qid of Object.keys(payloadsByQid)) {
         const payload = payloadsByQid[qid];
 
@@ -2749,14 +2764,7 @@ export function StudentProjectTaker({
               .upsert(slim, { onConflict: "submission_id,file_id" }) as any);
             if (retryErr) {
               console.error("[project-submit] upsert retry failed", qid, retryErr);
-              toast.error(
-                i18n.t("toast.modules_projects_ProjectFiles.sectionGradeSaveFailed", {
-                  defaultValue:
-                    "No se pudo guardar la calificación de una sección: {{detail}}",
-                  detail: retryErr.message,
-                }),
-                { duration: 10000 },
-              );
+              fallosAlGuardar.push({ qid, error: retryErr });
             } else {
               console.warn(
                 "[project-submit] columnas nuevas (code_paths/zip_truncated/zip_chars_used) no disponibles — guardada nota sin esos campos. Aplica las migraciones pendientes.",
@@ -2764,18 +2772,93 @@ export function StudentProjectTaker({
             }
           } else {
             console.error("[project-submit] upsert failed", qid, error);
-            toast.error(
-              i18n.t("toast.modules_projects_ProjectFiles.sectionGradeSaveFailed", {
-                defaultValue:
-                  "No se pudo guardar la calificación de una sección: {{detail}}",
-                detail: friendlyError(error),
-              }),
-              {
-                duration: 10000,
-              },
-            );
+            fallosAlGuardar.push({ qid, error });
           }
         }
+      }
+
+      if (fallosAlGuardar.length > 0) {
+        void logEvent({
+          action: "submission.project.answers_save_failed",
+          category: "project",
+          severity: "error",
+          entityType: "project_submission",
+          entityId: submissionId,
+          metadata: {
+            project_id: projectId,
+            failed: fallosAlGuardar.length,
+            total: Object.keys(payloadsByQid).length,
+            errors: fallosAlGuardar.slice(0, 5).map((f) => ({
+              file_id: f.qid,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              code: (f.error as any)?.code ?? null,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              message: String((f.error as any)?.message ?? f.error).slice(0, 300),
+            })),
+          },
+        });
+        toast.error(
+          i18n.t("toast.modules_projects_ProjectFiles.answersSaveFailed", {
+            defaultValue:
+              "Tu proyecto NO se entregó: no se pudieron guardar {{count}} sección(es) ({{detail}}). Lo que hiciste sigue acá; revisa tu conexión y vuelve a pulsar «Entregar».",
+            count: fallosAlGuardar.length,
+            detail: friendlyError(fallosAlGuardar[0].error),
+          }),
+          { duration: 15000 },
+        );
+        return;
+      }
+
+      // Con todas las secciones en la base, recién ahora la entrega pasa a
+      // `entregado`. Si este UPDATE falla, lo guardado queda y el alumno
+      // reintenta sin que se haya calificado nada.
+      {
+        const { data: marcadas, error: updErr } = await db
+          .from("project_submissions")
+          .update({
+            status: "entregado",
+            submitted_at: new Date().toISOString(),
+            repository_url: url,
+            user_id: user.id,
+            attempt_count: nextAttemptCount,
+          })
+          .eq("id", submissionId)
+          .select("id");
+        // Sin `.select` un UPDATE que la RLS filtra devuelve éxito y 0 filas.
+        if (updErr || !marcadas?.length) {
+          toast.error(
+            friendlyError(updErr, t("hc_modulesProjectsProjectFiles.errCreateSubmission")),
+          );
+          return;
+        }
+      }
+      // Actualizar state local — el botón ya se deshabilita si quedó
+      // exhausto. Si todavía hay intentos disponibles, el alumno puede
+      // re-entregar (aunque la mayoría usa max_attempts=1).
+      setAttemptCount(nextAttemptCount);
+
+      // ── Reset de la cabecera, ANTES de calificar nada ──────────────────
+      // Una entrega previa YA CALIFICADA (con defensa registrada) deja
+      // `defense_factor`/`final_grade` puestos. Sin este reset, mientras la
+      // calificación de la entrega NUEVA esté pendiente —minutos en modo
+      // sync, hasta una hora en modo async, porque el cron corre cada
+      // hora— la pantalla seguiría mostrando la nota y la sustentación del
+      // intento ANTERIOR, como si la re-entrega ya tuviera nota. El
+      // navegador no puede tocar estas columnas directo (candado de la
+      // cabecera desde el 30 de junio); por eso este reset va por el edge,
+      // con `service_role`, igual que la calificación misma.
+      //
+      // Falla no-crítica: si esta llamada no responde, la entrega YA quedó
+      // registrada arriba (status='entregado') y la calificación de abajo
+      // la va a sobreescribir de todas formas apenas corra — el peor caso
+      // es un instante de UI mostrando el estado viejo, no una entrega
+      // perdida.
+      try {
+        await supabase.functions.invoke("ai-grade-submission", {
+          body: { projectResetForResubmit: true, submissionId },
+        });
+      } catch (e) {
+        console.error("[project-submit] reset de cabecera fallo (no bloqueante)", e);
       }
 
       // ── Encolado: SIEMPRE, en los dos modos, ANTES de disparar la IA ───
@@ -2862,7 +2945,7 @@ export function StudentProjectTaker({
       }
 
       // ── El alumno queda libre ACÁ ───────────────────────────────────────
-      // `status='entregado'` ya quedó escrito al inicio del submit; la nota
+      // `status='entregado'` ya quedó escrito arriba, con las secciones guardadas; la nota
       // la va a escribir el servidor cuando termine (ya sea el disparo de
       // abajo o, si eso falla/tarda, el cron horario). `graded.grade = null`
       // es "entregado y sin nota todavía" — NO "sacó cero".
@@ -3534,7 +3617,12 @@ export function StudentProjectTaker({
             alumno (no en lo que ya consumió). Color escala con urgencia:
             normal → ámbar (1 restante) → rojo (0 restantes). */}
         {(() => {
-          const remaining = Math.max(0, effectiveMaxAttempts - attemptCount);
+          // Misma fórmula que talleres: mientras la entrega no tenga nota, el
+          // intento en curso sigue disponible (una fila `en_progreso` ya trae
+          // contado su intento y mostraba «0 / 1» con el botón habilitado).
+          const remaining = lastSubmissionGraded
+            ? Math.max(0, effectiveMaxAttempts - attemptCount)
+            : Math.max(1, effectiveMaxAttempts - attemptCount);
           const isLast = remaining === 1;
           return (
             <div className="flex items-center justify-center gap-1.5 text-2xs">

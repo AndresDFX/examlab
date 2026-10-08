@@ -150,3 +150,30 @@ describe("combinarConBorrador", () => {
     expect(r.recuperadas).toEqual(["q1"]);
   });
 });
+
+describe("combinarConBorrador con borradorManda (entrega individual sin entregar)", () => {
+  it("el borrador gana donde el servidor tiene algo distinto, y lo cuenta como recuperado", () => {
+    const r = combinarConBorrador(
+      { q1: "versión vieja que quedó en la base", q2: "igual" },
+      { q1: "lo último que escribió", q2: "igual" },
+      { borradorManda: true },
+    );
+    expect(r.respuestas).toEqual({ q1: "lo último que escribió", q2: "igual" });
+    expect(r.recuperadas).toEqual(["q1"]);
+  });
+
+  it("compara por contenido: una opción múltiple igual no se cuenta como recuperada", () => {
+    const r = combinarConBorrador({ q1: [0, 2] }, { q1: [0, 2] }, { borradorManda: true });
+    expect(r.recuperadas).toEqual([]);
+  });
+
+  it("un borrador vacío no borra lo que tiene el servidor", () => {
+    const r = combinarConBorrador({ q1: "guardada" }, { q1: "" }, { borradorManda: true });
+    expect(r.respuestas.q1).toBe("guardada");
+  });
+
+  it("sin la opción (grupo, o ya entregada) el servidor sigue mandando", () => {
+    const r = combinarConBorrador({ q1: "la del compañero" }, { q1: "la mía, vieja" });
+    expect(r.respuestas.q1).toBe("la del compañero");
+  });
+});

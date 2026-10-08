@@ -91,7 +91,8 @@ export type DiagPendingRow = {
 // (borrador / en progreso). Una fila con uno de estos NO es una entrega real:
 // no debe contar como "pendiente de calificar". Los exámenes crean la fila al
 // INICIAR (status 'en_progreso') y sólo pasa a 'completado'/'sospechoso' al
-// entregar; talleres/proyectos sólo crean la fila al entregar ('entregado').
+// entregar. Talleres/proyectos la crean al pulsar «Entregar», también en
+// 'en_progreso', y la pasan a 'entregado' recién con las respuestas guardadas.
 /** ¿La submission representa una entrega REAL del estudiante? Falso para
  *  borradores / en progreso. Status nulo/desconocido → true (no ocultar
  *  pendientes legítimos por un estado inesperado).

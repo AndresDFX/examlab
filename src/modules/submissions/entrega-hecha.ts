@@ -43,8 +43,10 @@
  * donde el nombre dice de qué se trata; `diagnostic.ts` la importa.
  *
  * Los exámenes crean la fila al INICIAR (`en_progreso`) y solo pasan a
- * `completado`/`sospechoso` al entregar; talleres y proyectos crean la fila
- * recién al entregar.
+ * `completado`/`sospechoso` al entregar. Talleres y proyectos la crean al
+ * pulsar «Entregar», también en `en_progreso`, y la pasan a `entregado` recién
+ * con las respuestas guardadas: si el guardado falla, la fila queda sin ser
+ * una entrega.
  */
 export const ESTADOS_SIN_ENTREGAR: readonly string[] = [
   "en_progreso",

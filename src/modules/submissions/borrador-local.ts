@@ -17,11 +17,12 @@
  * `beforeunload` (IndexedDB no garantiza terminar ahí), y el volumen es texto.
  *
  * ── Qué NO hace ──────────────────────────────────────────────────────
- * No reemplaza la entrega ni cuenta como tal, y al restaurar NUNCA pisa una
+ * No reemplaza la entrega ni cuenta como tal, y al restaurar no pisa una
  * respuesta que el servidor ya tenga: solo rellena las que están vacías. Un
  * taller en grupo puede tener la respuesta de un compañero guardada mientras
  * este dispositivo tenía un borrador viejo, y hacerla desaparecer sería peor que
- * el problema original.
+ * el problema original. La única excepción es `borradorManda` (ver
+ * `combinarConBorrador`): entrega individual que todavía no se entregó.
  */
 
 /** Sube con el formato; una versión distinta se descarta en vez de interpretarse mal. */
@@ -141,13 +142,26 @@ export function borrarBorrador(clave: string): void {
 export function combinarConBorrador(
   delServidor: Record<string, unknown>,
   borrador: Record<string, unknown> | null | undefined,
+  opciones: {
+    /**
+     * El borrador GANA también donde el servidor tiene algo distinto. Solo para
+     * una entrega INDIVIDUAL que todavía no se entregó (`en_progreso`): lo que
+     * hay en la base lo escribió este mismo estudiante en un envío que no se
+     * completó o que el docente reabrió, y el borrador es lo último que
+     * escribió. En grupo NUNCA: ahí el servidor puede traer lo de un compañero.
+     */
+    borradorManda?: boolean;
+  } = {},
 ): { respuestas: Record<string, unknown>; recuperadas: string[] } {
   if (!borrador) return { respuestas: delServidor, recuperadas: [] };
   const out = { ...delServidor };
   const recuperadas: string[] = [];
   for (const [qid, valor] of Object.entries(borrador)) {
     if (esVacia(valor)) continue;
-    if (!esVacia(out[qid])) continue;
+    if (!esVacia(out[qid])) {
+      if (!opciones.borradorManda) continue;
+      if (JSON.stringify(out[qid]) === JSON.stringify(valor)) continue;
+    }
     out[qid] = valor;
     recuperadas.push(qid);
   }

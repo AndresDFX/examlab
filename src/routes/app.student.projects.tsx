@@ -889,7 +889,13 @@ function StudentProjects() {
                     }}
                   >
                     <ListChecks className="h-4 w-4 mr-1" />
-                    {submission ? t("project.update") : t("project.start")}
+                    {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
+                        el docente) no es una entrega: no se «actualiza», se sigue. */}
+                    {entregaHecha(submission)
+                      ? t("project.update")
+                      : submission
+                        ? t("hc_modulesProjectsProjectFiles.keepAnswering")
+                        : t("project.start")}
                   </Button>
                 )}
 
@@ -915,7 +921,7 @@ function StudentProjects() {
                     re-editar/borrar — el contador no aumenta hasta
                     que se califique. Misma regla que en el submit. */}
                 {(() => {
-                  if (!isOpen || !submission || esExterno) return null;
+                  if (!isOpen || !submission || !entregaHecha(submission) || esExterno) return null;
                   const canDelete = !attemptsExhausted;
                   return canDelete ? (
                     <Button
@@ -934,7 +940,7 @@ function StudentProjects() {
                   );
                 })()}
 
-                {project.status === "published" && isOverdue && !submission && !esExterno && (
+                {project.status === "published" && isOverdue && !entregaHecha(submission) && !esExterno && (
                   <p className="text-xs text-destructive text-center">
                     {t("project.windowClosedHelp")}
                   </p>

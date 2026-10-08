@@ -37,6 +37,13 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Recuperaciones de TALLER: mismo modelo, mismo núcleo** (`workshops.parent_workshop_id` + `makeup_kind` + `recovery_rule`, mig `20262660000000`). El pliegue lo hace el mismo módulo que exámenes (`plegarRecuperaciones` + `notaDeTallerConRecuperaciones`); su espejo SQL es `workshop_effective_raw_grade` (desde la mig `20262670000000` el acta usa `taller_nota_en_escala`, que pliega en la escala del curso), que —a diferencia del de exámenes— **respeta la sustentación** (usa la regla de `notaEfectivaDeTaller`, no `final_grade ?? ai_grade`), alineando el acta con el gradebook/estudiante/boletín (solo afecta actas futuras). Dos diferencias con exámenes, ambas del taller: la nota sale de UNA entrega (grupo con precedencia) vía `notaEfectivaDeTaller`, y como los talleres son **M:N** (`workshop_courses`, peso/corte por curso) la recuperación toma el peso/corte del ORIGINAL en ese curso y se EXCLUYE de las sumas de bucket. El estudiante ve la recuperación como un taller asignado por `workshop_assignments` (solo los elegidos), sin insignia de corte/peso. Publicar una recuperación avisa solo a sus asignados (`_notify_workshop_publication`). Verificado en PGlite.
 - **Calificar por grupo** (mig `20262700000000`). En una actividad **en línea** el grupo entrega UNA fila compartida (`group_id`) y su nota ES la del grupo: las pantallas la muestran como del grupo, y en el libro de notas editar la celda de un integrante edita la de todos (se guarda una vez por entrega). En un taller **externo** la nota es UNA FILA POR INTEGRANTE (`group_id NULL`): «Calificar al grupo» escribe la misma nota en cada una, y cada integrante se puede ajustar después; antes de pisar una nota distinta se pregunta. Por eso **en una actividad externa (taller o proyecto) esa fila no le impide a nadie cambiar de grupo** (es la nota del docente, no una entrega), mientras que en una en línea el bloqueo de la mig `20261068000000` sigue igual (migs `20262700000000` talleres y `20262710000000` proyectos). Y **el estudiante no puede borrar su fila en una actividad externa**: la política de «borrar mi entrega dentro del plazo» la excluye, porque ahí borrarla es borrar la nota. Las pantallas del estudiante buscan la entrega del GRUPO solo en una actividad en línea (`entregaEsDelGrupo`): en una externa buscan la fila propia, o la nota quedaría escondida. La escritura de una nota externa vive UNA vez (`grading/notas-externas.ts`) y la acción de grupo también (`use-calificar-grupo.ts`), compartidas por «Notas externas» y la ventana de grupos.
 - **Una actividad EXTERNA tiene inicio y fin como cualquier otra; lo que no tiene es entrega** (2026-10-01). Lo que impide presentarla o entregarla NO son sus fechas —antes la ventana de 0 s del examen externo era, de hecho, la única barrera—: se corta por `is_external` (pantalla de toma, listas y tablero del estudiante, recordatorios de «vence pronto» con la mig `20262720000000`). Al agregar una superficie que deje entregar, presentar o recordar, cortar por `is_external`, nunca por fechas. Sus fechas siguen exentas del tope al fin del curso (front y trigger `cap_*_to_course`), y la nota de una externa no depende de ellas: cuenta cuando tiene notas cargadas.
+- **Al entregar un taller o un proyecto, primero las respuestas y después `entregado`** (2026-10-07).
+  La fila nace en `en_progreso` (con el intento ya contado) y pasa a `entregado` recién cuando TODAS
+  las respuestas y archivos quedaron en la base. Si algo falla, el envío se corta: no se marca, no se
+  califica y no se borra el borrador local. Lo fija `entrega-guarda-antes.test.ts`. Por eso «tiene
+  fila» ya no significa «entregó» en talleres y proyectos: se pregunta por `entregaHecha` /
+  `estado_es_entrega`, nunca por la existencia de la fila. La auditoría registra «entregado» en la
+  transición a entrega (mig `20262760000000`), no al crear la fila.
 - **El español de la interfaz es TUTEO (es-CO)**, nunca voseo: lo fija `src/i18n/sin-voseo.test.ts` sobre `es.json`. Los textos fuera del archivo de traducciones (recorrido guiado, política de privacidad, `defaultValue`) siguen la misma regla.
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
@@ -94,6 +101,63 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
+
+### 🧾 Entregar un taller o un proyecto ya no pierde respuestas cuando la base va lenta
+
+- **Pedido**: estudiantes de Introducción a la Ingeniería (LB141F) reportaron que el «Taller de
+  Corte 1 — La matriz de un sistema» les salió calificado con preguntas «sin responder» que sí habían
+  respondido. Buscar la causa raíz y arreglarla.
+- **Causa**: la entrega se marcaba `entregado` PRIMERO y después guardaba cada respuesta, una por
+  una. Si alguna no se guardaba, **seguía de largo**: calificaba con lo que había en pantalla,
+  mostraba «entregado» y **borraba el borrador local**, que era la única copia. El taller vencía el
+  5 de octubre y esa noche (21:48–22:10) un curso entero entregó a la vez sobre la instancia más
+  chica: medido en las filas, las respuestas de UNA entrega tardaron hasta 19 minutos en escribirse
+  y varias no llegaron. La firma en la base es inconfundible: filas con puntos de la IA y SIN
+  respuesta (el calificador recibió la respuesta del navegador; la base nunca). Hay **11 entregas**
+  con esa firma desde septiembre, en talleres de varios cursos; las que se perdieron y además se
+  calificaron como vacías no dejan firma, así que puede haber más.
+- **Arreglo** (`WorkshopQuestions.tsx` y `ProjectFiles.tsx`, que tenía el mismo defecto): una
+  entrega nueva nace en `en_progreso`, se guardan las respuestas y **recién con todas en la base**
+  pasa a `entregado`. Si una falla, se corta: no se marca, no se califica, no se borra el borrador,
+  y el aviso dice que NO se entregó y que lo escrito sigue en pantalla. El intento ya va contado en
+  la fila nueva, así que reintentar no lo cuenta dos veces. Los fallos ahora quedan en la auditoría
+  (`submission.workshop.answers_save_failed` / `submission.project.answers_save_failed`): hasta hoy
+  solo iban a la consola del navegador y por eso no se puede saber qué error dio la base esa noche.
+  Lo fija `src/modules/submissions/entrega-guarda-antes.test.ts`, que lee las dos pantallas del disco.
+- **Con el mismo criterio** (revisión de consistencia): un archivo o ZIP que no se sube también corta
+  el envío (antes se declaraba cero y los archivos elegidos se perdían, porque no viven en el
+  borrador); el UPDATE final exige que haya tocado la fila (`.select("id")`); una entrega
+  `calificado` se rechaza ANTES de escribir nada (el candado de la cabecera no deja que el alumno la
+  saque de ese estado, y con el orden nuevo las respuestas habrían quedado pisadas); y en una entrega
+  individual sin entregar el borrador local le gana a lo que quedó en la base
+  (`combinarConBorrador(…, { borradorManda })`). En las listas del estudiante, una fila `en_progreso`
+  ofrece «Seguir respondiendo» y no «Actualizar» ni «Eliminar mi entrega»; en «Pendientes por
+  estudiante» ya no cuenta como entregada; y el contador de intentos de proyectos usa la fórmula de
+  talleres.
+- **Migración `20262760000000`**: la auditoría registra `submission.*.submitted` cuando la entrega SE
+  ENTREGA (transición a un estado de entrega), no al crear la fila; y el trigger, que corre en cada
+  actualización de la entrega, ya no consulta taller, curso y correo antes de saber si tiene algo que
+  registrar. Verificada en PGlite (8 casos).
+- **Datos**: se reabrieron las entregas de Anyi Daniela Oliveros y Juan David Montoya (todo o casi
+  todo en blanco) para que vuelvan a entregar, y a Juan Guillermo Ramírez se le recuperó la pregunta
+  7 del pantallazo que adjuntó (taller 4,0 → 4,75).
+- **Lo que esto NO arregla**: la lentitud misma. Cada nota por pregunta que escribe la IA dispara el
+  recálculo de la entrega (`tg_workshop_answer_graded_recompute`), y con un curso entregando a la vez
+  eso suma carga justo en el peor momento. Es el mismo techo de E/S de las otras caídas. El envío
+  sigue siendo N escrituras en serie (una por respuesta): un RPC transaccional cerraría la ventana del
+  todo. Y si el guardado falla con el plazo ya vencido, la fila queda `en_progreso` y «Vencido»: el
+  docente tiene que extender el plazo (la prueba de que fue a tiempo es el `created_at` de la fila).
+
+### 🤖 La cola de calificación usa la IA de la institución, no la compartida
+
+- **Causa**: el worker de la cola (`ai-grading-worker`) no le pasaba el curso a
+  `ai-grade-submission`; sin curso, el calificador no sabía la institución y caía a la IA COMPARTIDA
+  de la plataforma (Gemini) aunque la institución estuviera en `ai_mode='own'`. Con la cuota de Gemini
+  agotada, la cola de UNIAJ quedó parada y los estudiantes veían notas parciales (la pregunta abierta
+  en 0, «Sin respuesta») o el desglose de un intento anterior.
+- **Arreglo**: el worker lee `course_id` de la fila de la cola y lo manda en el cuerpo. Las RPC de
+  reclamo no devuelven esa columna, por eso se lee aparte. Se calificaron a mano, con el curso, los
+  32 trabajos pendientes o fallidos desde septiembre.
 
 ### 🩺 La base se cayó con 60 estudiantes en examen: el examen guarda al cambiar de pregunta
 

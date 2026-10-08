@@ -8,6 +8,7 @@ import {
   guardarBorrador as guardarBorradorLocal,
   leerBorrador as leerBorradorLocal,
 } from "@/modules/submissions/borrador-local";
+import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import {
   getUnansweredIndices,
   type QuestionForAnswered,
@@ -1555,6 +1556,9 @@ export function StudentWorkshopTaker({
         final_grade?: number | null;
       } | null;
       setAttemptCount(Number(subRowHydrate?.attempt_count ?? 0));
+      // Ver `combinarConBorrador`: en una entrega individual que todavía no se
+      // entregó, lo del servidor lo escribió este alumno y el borrador es más nuevo.
+      borradorMandaRef.current = !groupId && !!subRowHydrate && !entregaHecha(subRowHydrate);
       setLastSubmissionGraded(
         subRowHydrate != null &&
           (subRowHydrate.status === "calificado" || subRowHydrate.final_grade != null),
@@ -1657,6 +1661,7 @@ export function StudentWorkshopTaker({
   const answersRef = useRef(answers);
   answersRef.current = answers;
   const borradorRestauradoRef = useRef(false);
+  const borradorMandaRef = useRef(false);
 
   // Restaurar UNA vez, ya cargado lo del servidor. `combinarConBorrador` solo
   // rellena lo que quedó vacío: en un taller grupal, la respuesta que subió un
@@ -1666,7 +1671,9 @@ export function StudentWorkshopTaker({
     borradorRestauradoRef.current = true;
     const guardado = leerBorradorLocal(claveBorradorTaller);
     if (!guardado) return;
-    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas);
+    const { respuestas, recuperadas } = combinarConBorrador(answersRef.current, guardado.respuestas, {
+      borradorManda: borradorMandaRef.current,
+    });
     if (recuperadas.length === 0) return;
     setAnswers(respuestas);
     // Restaurar en silencio deja al estudiante sin saber si lo que ve lo
@@ -1979,37 +1986,34 @@ export function StudentWorkshopTaker({
         setSubmitting(false);
         return;
       }
+      // Una entrega `calificado` no la puede reabrir el estudiante: el candado
+      // de la cabecera (mig 20261034000000) rechaza que la saque de ese estado.
+      // Se corta ANTES de escribir nada; si no, las respuestas nuevas pisarían
+      // las calificadas y recién después la base rechazaría el cambio de estado.
+      if (existingRow?.status === "calificado") {
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.alreadyGraded", {
+            defaultValue:
+              "Este taller ya está calificado. Para entregarlo de nuevo, pídele a tu docente que te lo reabra.",
+          }),
+          { duration: 10000 },
+        );
+        return;
+      }
+      // ── La entrega se marca `entregado` RECIÉN cuando sus respuestas están
+      // guardadas (ver «Persistencia» más abajo). Antes se marcaba primero y,
+      // si después fallaba el guardado de alguna respuesta, el envío seguía
+      // igual: se calificaba con lo que había en pantalla, se mostraba
+      // «entregado» y se borraba el borrador local — la única copia. Así se
+      // perdieron respuestas de varios estudiantes la noche del 5 de octubre,
+      // con la base lenta por todo un curso entregando a la vez.
+      //
+      // Una entrega nueva nace en `en_progreso` porque las respuestas
+      // necesitan su id. Ya lleva el `attempt_count` del intento: si el
+      // guardado falla y el alumno reintenta, esa fila existe sin nota y el
+      // reintento no vuelve a contar el intento.
       if (existingRow?.id) {
         submissionId = existingRow.id;
-        // El error de este UPDATE se ignoraba: si fallaba (RLS/red), la
-        // entrega NO quedaba marcada como `entregado` y el alumno igual veía
-        // la pantalla de éxito. Abortamos con el motivo visible.
-        const { error: updErr } = await dbAny2
-          .from("workshop_submissions")
-          .update({
-            status: "entregado",
-            submitted_at: new Date().toISOString(),
-            user_id: user.id, // último editor (auditoría)
-            attempt_count: nextAttemptCount,
-            // Acá NO se limpia la nota del intento anterior, aunque un intento
-            // nuevo la invalide. El candado de la cabecera
-            // (20261034000000_submissions_guard_grade_columns) se dispara con
-            // CUALQUIER cambio de `ai_grade` / `ai_feedback`, incluido ponerlos
-            // en NULL, y el alumno no es staff: este UPDATE se rebotaba entero
-            // con «No autorizado…», o sea que el segundo intento ni se podía
-            // entregar. La limpieza no hace falta: la consolidación del
-            // servidor corre inmediatamente después y sobreescribe las dos
-            // columnas con la nota del intento nuevo — también cuando el taller
-            // no tiene preguntas de IA, porque las deterministas ahora se
-            // califican del lado del servidor.
-          })
-          .eq("id", submissionId);
-        if (updErr) {
-          toast.error(
-            friendlyError(updErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotCreateSubmission")),
-          );
-          return;
-        }
       } else {
         const { data: created, error } = await dbAny2
           .from("workshop_submissions")
@@ -2017,8 +2021,7 @@ export function StudentWorkshopTaker({
             workshop_id: workshopId,
             user_id: user.id,
             group_id: groupId ?? null,
-            status: "entregado",
-            submitted_at: new Date().toISOString(),
+            status: "en_progreso",
             attempt_count: nextAttemptCount,
           })
           .select("id")
@@ -2035,10 +2038,6 @@ export function StudentWorkshopTaker({
         }
         submissionId = created.id;
       }
-      // Sync local state — afecta el botón "entregar" que se deshabilita
-      // si el conteo alcanza el cap (mismo patrón que proyectos).
-      setAttemptCount(nextAttemptCount);
-
       // ── Calificación en dos fases ──
       // Fase 1: scorea localmente las cerradas y empty; bucketea las
       //   abiertas (codigo/diagrama/abierta/java_gui con respuesta) para
@@ -2090,6 +2089,8 @@ export function StudentWorkshopTaker({
       const aiOverrideActiveEarly = !!readOverrideExpiry();
       const useAsyncAiEarly = aiModeEarly === "async" && !aiOverrideActiveEarly;
       const rootFolder = groupId ?? user.id;
+      // Preguntas cuyos archivos no se pudieron subir (ver el corte de abajo).
+      const fallosDeSubida: Array<{ qid: string; message: string }> = [];
 
       for (const q of questions) {
         const raw = answers[q.id] ?? "";
@@ -2154,7 +2155,7 @@ export function StudentWorkshopTaker({
                     }),
                     { duration: 8000 },
                   );
-                  zeroed.push({ qid: q.id, reason: "zip_error_subida" });
+                  fallosDeSubida.push({ qid: q.id, message: upErr.message });
                 } else {
                   payload.zip_path = zipPath;
                   const aiBody: Record<string, unknown> = {
@@ -2257,7 +2258,7 @@ export function StudentWorkshopTaker({
                     }),
                     { duration: 8000 },
                   );
-                  zeroed.push({ qid: q.id, reason: "zip_error_subida" });
+                  fallosDeSubida.push({ qid: q.id, message: upFailed[0].error?.message ?? "" });
                 } else {
                   const uploadedPaths = uploads.map((u) => u.path);
                   payload.code_paths = uploadedPaths;
@@ -2382,10 +2383,43 @@ export function StudentWorkshopTaker({
         payloadsByQid[q.id] = payload;
       }
 
+      // Un archivo que no se subió NO es una pregunta en blanco: antes se
+      // declaraba cero y la entrega seguía, y los archivos elegidos se perdían
+      // (no viven en el borrador). Se corta igual que con una respuesta que no
+      // se guarda: el alumno reintenta con los archivos todavía elegidos.
+      if (fallosDeSubida.length > 0) {
+        void logEvent({
+          action: "submission.workshop.answers_save_failed",
+          category: "workshop",
+          severity: "error",
+          entityType: "workshop_submission",
+          entityId: submissionId,
+          metadata: {
+            workshop_id: workshopId,
+            etapa: "subida_de_archivos",
+            failed: fallosDeSubida.length,
+            errors: fallosDeSubida.slice(0, 5),
+          },
+        });
+        toast.error(
+          i18n.t("toast.modules_workshops_WorkshopQuestions.answersSaveFailed", {
+            defaultValue:
+              "Tu taller NO se entregó: no se pudieron guardar {{count}} respuesta(s) ({{detail}}). Lo que escribiste sigue acá; revisa tu conexión y vuelve a pulsar «Entregar».",
+            count: fallosDeSubida.length,
+            detail: fallosDeSubida[0].message,
+          }),
+          { duration: 15000 },
+        );
+        return;
+      }
+
       // ── Persistencia: upsert por qid — ANTES de llamar a la IA ─────────
-      // El error de cada upsert se descartaba: una respuesta podía NO
-      // guardarse y el alumno veía "Calificación: X" igual. Recolectamos los
-      // fallos y los mostramos (sin abortar: lo ya guardado debe quedar).
+      // Si alguna respuesta no se guarda, la entrega NO sigue: no se marca
+      // `entregado`, no se califica y no se borra el borrador local. Lo ya
+      // guardado queda (los upserts son idempotentes) y el alumno reintenta
+      // con todo lo que escribió todavía en pantalla. Seguir de largo era
+      // calificar con lo que había en memoria y dejar en la base filas vacías:
+      // la nota y la evidencia no coincidían, y lo abierto se perdía.
       //
       // ── Con reintento corto (`withDbRetry`) ────────────────────────────
       // Caso real que lo originó: en una entrega de UNIAJ, la respuesta de
@@ -2429,16 +2463,75 @@ export function StudentWorkshopTaker({
         }
       }
       if (upsertErrors.length > 0) {
+        // Hasta ahora estos fallos solo iban a la consola del navegador, y por
+        // eso no se pudo saber qué error dio la base el 5 de octubre.
+        void logEvent({
+          action: "submission.workshop.answers_save_failed",
+          category: "workshop",
+          severity: "error",
+          entityType: "workshop_submission",
+          entityId: submissionId,
+          metadata: {
+            workshop_id: workshopId,
+            failed: upsertErrors.length,
+            total: Object.keys(payloadsByQid).length,
+            errors: upsertErrors.slice(0, 5).map((e) => ({
+              question_id: e.qid,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              code: (e.error as any)?.code ?? null,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              message: String((e.error as any)?.message ?? e.error).slice(0, 300),
+            })),
+          },
+        });
         toast.error(
           i18n.t("toast.modules_workshops_WorkshopQuestions.answersSaveFailed", {
             defaultValue:
-              "No se pudieron guardar {{count}} respuesta(s). Primero: {{detail}}. Revisa tu conexión y vuelve a entregar.",
+              "Tu taller NO se entregó: no se pudieron guardar {{count}} respuesta(s) ({{detail}}). Lo que escribiste sigue acá; revisa tu conexión y vuelve a pulsar «Entregar».",
             count: upsertErrors.length,
             detail: friendlyError(upsertErrors[0].error),
           }),
-          { duration: 12000 },
+          { duration: 15000 },
         );
+        return;
       }
+
+      // Recién ahora, con todas las respuestas en la base, la entrega pasa a
+      // `entregado`. Si este UPDATE falla, las respuestas ya quedaron y el
+      // alumno reintenta: no se califica nada todavía.
+      {
+        const { data: marcadas, error: updErr } = await dbAny2
+          .from("workshop_submissions")
+          .update({
+            status: "entregado",
+            submitted_at: new Date().toISOString(),
+            user_id: user.id, // último editor (auditoría)
+            attempt_count: nextAttemptCount,
+            // Acá NO se limpia la nota del intento anterior, aunque un intento
+            // nuevo la invalide. El candado de la cabecera
+            // (20261034000000_submissions_guard_grade_columns) se dispara con
+            // CUALQUIER cambio de `ai_grade` / `ai_feedback`, incluido ponerlos
+            // en NULL, y el alumno no es staff: este UPDATE se rebotaba entero
+            // con «No autorizado…», o sea que el segundo intento ni se podía
+            // entregar. La limpieza no hace falta: la consolidación del
+            // servidor corre inmediatamente después y sobreescribe las dos
+            // columnas con la nota del intento nuevo — también cuando el taller
+            // no tiene preguntas de IA, porque las deterministas ahora se
+            // califican del lado del servidor.
+          })
+          .eq("id", submissionId)
+          .select("id");
+        // Sin `.select` un UPDATE que la RLS filtra devuelve éxito y 0 filas.
+        if (updErr || !marcadas?.length) {
+          toast.error(
+            friendlyError(updErr, t("hc_modulesWorkshopsWorkshopQuestions.couldNotCreateSubmission")),
+          );
+          return;
+        }
+      }
+      // Sync local state — afecta el botón "entregar" que se deshabilita
+      // si el conteo alcanza el cap (mismo patrón que proyectos).
+      setAttemptCount(nextAttemptCount);
 
       // Reutilizamos la detección hecha arriba para que el comportamiento
       // sea consistente entre `codigo_zip` (loop) y `batchItems` (Fase 2).
@@ -2641,10 +2734,10 @@ export function StudentWorkshopTaker({
       }
 
       // ── El alumno queda libre ACÁ ──────────────────────────────────────
-      // La entrega ya quedó en `entregado` con la nota de IA limpia (arriba,
-      // en el UPDATE del intento). El "pendiente" se DERIVA de `ai_grade`
-      // NULL — no hay marcador que escribir, y el navegador del alumno no
-      // podría escribirlo aunque quisiéramos (candado de la cabecera).
+      // La entrega ya quedó en `entregado` (arriba, después de guardar las
+      // respuestas). La nota la escribe el servidor; mientras tanto la pantalla
+      // la muestra pendiente — el navegador del alumno no puede escribir nada
+      // de la nota (candado de la cabecera).
       setGraded({ grade: null, breakdown });
       // Entregado: el borrador local ya no representa nada pendiente.
       borrarBorradorLocal(claveBorradorTaller);
