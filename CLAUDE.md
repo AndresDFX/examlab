@@ -693,6 +693,28 @@ Definida dentro del proctoring `useEffect` con deps `[started, performSubmit]`. 
 
 **IMPORTANTE:** Para el botón "Atrás" del navegador, el modal de confirmación hace `await supabase.update(...)` antes de `navigate()` — esto es crítico porque el componente se desmonta al navegar y el autosave timer se cancela.
 
+### Cerrar o recargar la página: se anota, no suma (salvo que el examen lo pida)
+
+Desde el 2026-10-08 `onBeforeUnload` guarda las respuestas y anota el evento `salida_de_la_pagina`
+(`suma:false`); el monitor muestra cuántas veces salió y volvió (ícono `DoorOpen` junto a las
+advertencias). El corte puede ser un cuelgue, un apagón o el internet, y antes sumaba —y al tope
+cerraba el intento— sin dejar evento que perdonar.
+
+- **Qué se manda lo decide `cuerpoAlSalirDeLaPagina`** (`proctoring.ts`, con tests). No armes el
+  contador ni el cierre a mano en `onBeforeUnload`: lo fija `salida-de-la-pagina.test.ts`.
+- **Estricto es OPT-IN por examen** (`exams.reload_counts_as_warning`, mig `20262770000000`): la
+  salida suma con su evento (`suma:true`, se puede perdonar) y al tope cierra el intento desde el
+  propio `beforeunload`. Como ahí no queda cliente que encole la calificación, el trigger
+  `trg_encolar_cierre_por_advertencias` la encola en la base (deduplica con la de `performSubmit`).
+- **Los strikes de escritorio por `blur` / ocultarse / soltar pantalla completa se cobran 700 ms
+  después** (`creaStrikesDiferidos`), uno por gesto, y `beforeunload`/`pagehide` cancelan el
+  pendiente: el cierre de la página dispara esos mismos eventos. Un evento nuevo de escritorio que
+  pueda dispararse al cerrar va por `diferidos.diferir`, no por `recordWarning` directo.
+- **Las recargas que pide la plataforma no cuentan nunca** (versión nueva del service worker,
+  archivo viejo tras un despliegue, recuperación de un error): se hacen con `recargarLaApp()`
+  ([recarga-propia.ts](src/shared/lib/recarga-propia.ts)); el script previo a la hidratación de
+  `__root.tsx` marca la misma bandera a mano. Una recarga nueva que haga la app, por ese helper.
+
 ### Nada que comunique con otra persona se monta durante el examen
 
 El shell monta CINCO superficies de mensajería y notificaciones —las dos del pie del sidebar, las dos
@@ -704,8 +726,10 @@ flotante. Empezar el examen lo invocaba.
 Lo que lo hace un agujero de proctoring y no un detalle visual: es `fixed z-50` —flota sobre el
 examen incluso en pantalla completa— y su contenido son `<Link>` del router. Salir por ahí es
 navegación del SPA: **sin recarga no hay `beforeunload` y sin `popstate` no hay diálogo de salida**,
-así que no cuesta ninguna advertencia. Escribir la URL a mano sí cuesta strike (recarga → el
-`beforeunload` del examen suma y cierra si corresponde); un `<Link>` no.
+así que no cuesta ninguna advertencia. Escribir la URL a mano sí cuesta strike: ir a la barra de
+direcciones le quita el foco a la página (`blur`) y ese strike se cobra antes de que la navegación
+cierre nada; un `<Link>` no. Lo que ya NO suma por defecto es la recarga en sí (ver «Cerrar o
+recargar la página» arriba).
 
 **Al agregar cualquier superficie nueva al shell que lleve fuera del examen o comunique con otra
 persona, va detrás del mismo guard.** Lo cuida `mensajeria-en-examen.test.ts`, que lee `AppLayout.tsx`

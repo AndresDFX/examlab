@@ -50,9 +50,11 @@ export type WarningType =
   // suelta el propio sistema al abrir sus superficies (teclado, burbuja del
   // corrector), no el estudiante.
   | "fullscreen_exit_movil"
-  // Señal blanda: la página del examen se cerró o se recargó (a propósito, por
-  // error, por un cuelgue o porque se cayó el internet). NO suma strike: volver
-  // a entrar ya exige pantalla completa, y el docente ve cuántas veces pasó.
+  // La página del examen se cerró o se recargó (a propósito, por error, por un
+  // cuelgue o porque se cayó el internet). Por defecto NO suma: volver a entrar
+  // ya exige pantalla completa, y el docente ve cuántas veces pasó. Suma solo si
+  // el examen lo pide (`reload_counts_as_warning`), y eso lo dice la marca
+  // `suma` del evento — por eso la etiqueta no lleva «(no suma)».
   | "salida_de_la_pagina"
   | (string & {});
 
@@ -128,7 +130,7 @@ export function warningLabel(type: WarningType): string {
     case "fullscreen_exit_movil":
       return "Salida de pantalla completa en móvil (no suma)";
     case "salida_de_la_pagina":
-      return "Cerró o recargó el examen (no suma)";
+      return "Cerró o recargó el examen";
     default:
       return String(type);
   }
@@ -578,4 +580,54 @@ export function creaStrikesDiferidos(
       pendiente = null;
     },
   };
+}
+
+/**
+ * Lo que se manda al servidor cuando la página del examen se cierra o se
+ * recarga, en el `fetch` keepalive de `beforeunload`.
+ *
+ * Por defecto solo las respuestas: cerrar puede ser un cuelgue, un apagón o el
+ * internet, y antes cada salida sumaba una advertencia —y podía cerrar el
+ * intento— sin dejar siquiera un evento que el docente pudiera perdonar. Con
+ * `cuentaComoAdvertencia` (el examen tiene `reload_counts_as_warning`) suma
+ * una y, al llegar al tope, cierra el intento igual que un strike cualquiera.
+ *
+ * El evento `salida_de_la_pagina` ya tiene que venir dentro de `answers`, con
+ * `suma` igual a `cuentaComoAdvertencia`: así el contador y el evento viajan en
+ * la MISMA escritura y perdonarlo descuenta lo que sumó.
+ */
+export function cuerpoAlSalirDeLaPagina(args: {
+  answers: Record<string, unknown>;
+  warnings: number;
+  maxWarnings: number;
+  cuentaComoAdvertencia: boolean;
+  ahoraIso: string;
+  userId: string | null;
+}): { body: Record<string, unknown>; warnings: number; cierra: boolean } {
+  if (!args.cuentaComoAdvertencia) {
+    return { body: { answers: args.answers }, warnings: args.warnings, cierra: false };
+  }
+  const warnings = args.warnings + 1;
+  const body: Record<string, unknown> = { answers: args.answers, focus_warnings: warnings };
+  const cierra = shouldMarkSuspicious(warnings, args.maxWarnings);
+  if (cierra) {
+    // Como el cierre de `performSubmit` por advertencias: «completado» y con la
+    // marca de cierre, que es lo que impide que el alumno reabra su propia
+    // suspensión (`tg_block_reopen_closed_attempt`).
+    body.status = "completado";
+    body.submitted_at = args.ahoraIso;
+    body.closed_at = args.ahoraIso;
+    body.close_reason = "advertencias";
+    body.closed_by = args.userId;
+  }
+  return { body, warnings, cierra };
+}
+
+/**
+ * Cuántas veces el estudiante cerró o recargó el examen y volvió a entrar.
+ * El monitor lo muestra aparte de las advertencias: no castiga, deja decidir.
+ */
+export function contarSalidasDeLaPagina(events: readonly { type?: unknown }[] | null | undefined): number {
+  if (!Array.isArray(events)) return 0;
+  return events.filter((e) => e?.type === "salida_de_la_pagina").length;
 }

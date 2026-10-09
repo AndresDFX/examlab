@@ -48,6 +48,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Filtros de grids**: el filtro de ESTADO abre por defecto en lo vigente/activo (no "Todos"); el usuario puede cambiar a Todos/cerrados. (`c3271a5`)
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
+- **Cerrar o recargar el examen NO suma advertencia por defecto** (2026-10-08). El corte puede ser un cuelgue, un apagón o el internet, y antes sumaba una —y al tope cerraba el intento— sin dejar siquiera un evento que perdonar. Ahora se guardan las respuestas y queda el evento `salida_de_la_pagina` (`suma:false`); el monitor muestra cuántas veces salió y volvió, aparte de las advertencias. Lo que se manda al salir lo decide `cuerpoAlSalirDeLaPagina` (`proctoring.ts`, con tests). Quien lo quiera estricto lo enciende POR EXAMEN (`exams.reload_counts_as_warning`, mig `20262770000000`, apagado por defecto): ahí la salida suma con su evento (`suma:true`, se puede perdonar). Para que cerrar no se cobre por los eventos que el propio cierre dispara, los strikes de escritorio por `blur` / ocultarse / soltar pantalla completa se cobran **700 ms después** (`creaStrikesDiferidos`) y `beforeunload`/`pagehide` cancelan el pendiente; un gesto deja UN strike. Al agregar un evento nuevo al proctoring de escritorio que pueda dispararse al cerrar la página, pasarlo por `diferidos.diferir`, no por `recordWarning` directo. Y toda recarga que haga la propia app va por `recargarLaApp()` (`recarga-propia.ts`): esas no cuentan nunca.
 - **El examen escribe la entrega en la base al cambiar de pregunta y al entregar, no tras cada cambio** (mig `20262750000000`, 2026-10-06). Entre medio queda la copia local (`offline-sync.ts`), y al reanudar esa copia le gana al servidor si es de este intento, de la misma sesión y más nueva (`respuestasAlReanudar`, leída ANTES que el servidor). El modo anterior existe como opción por institución (`app_settings.exam_autosave_mode = 'continuo'`), no como defecto: con 60 alumnos a la vez tumbó la base. Al agregar una escritura periódica al examen, contarla por alumno y por segundo antes de mergear.
 - **«Vencido» = pasó el plazo Y no entregó.** Pasar el plazo, solo, no vence nada. El predicado es `estaVencido` de **`src/modules/submissions/entrega-hecha.ts`**, que es además el dueño de la ÚNICA lista de «todavía no entregó» del proyecto (`ESTADOS_SIN_ENTREGAR`; `courses/diagnostic.ts` la importa y un test fija que `isSubmittedStatus` sea esa misma función). La lista es **negra, no blanca**: se enumera lo no entregado y cualquier otro estado cuenta como entrega hecha, porque los estados nuevos de estas tablas nacen del pipeline de calificación —aparecen DESPUÉS de entregar— y con lista blanca cada uno se cae al peor default. Así fue como `ai_revisado` dejó 37 entregas reales marcadas «Vencido» y fuera del filtro por defecto del alumno. En una tarjeta, «pasó el plazo» sigue siendo una variable APARTE cuando gobierna si la entrega continúa abierta.
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
@@ -101,6 +102,50 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **1)** cargar el secret, **2)** verificarlo, **3)** recién ahí cambiar el proveedor.
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
+
+### 🚪 Salir del examen por error y volver ya no suma advertencias
+
+- **Pedido**: un estudiante que cierra el examen por error, se le cuelga el navegador o se le cae el
+  internet, y vuelve, NO debe sumar advertencias; solo cuentan los incumplimientos de verdad dentro del
+  examen. Y en el monitor, con las preguntas al azar, el contador tiene que decir cuánto lleva cada
+  estudiante. Planes: `docs/plans/advertencias-al-reingresar.md` (y la propuesta del monitor).
+- **Causa**: `beforeunload` sumaba una advertencia en cada cierre o recarga —y al tope cerraba el
+  intento— sin agregar un evento a `__warning_events`: el docente veía «3/3» con dos eventos y no
+  podía perdonar el tercero. Y en escritorio el mismo cierre disparaba `blur`, `visibilitychange` y
+  `fullscreenchange`, que también cobraban.
+- **Arreglo** (commit `e43cd4a5` + este): cerrar o recargar guarda las respuestas y anota
+  `salida_de_la_pagina` sin sumar; los strikes de escritorio se cobran 700 ms después y el cierre los
+  cancela, así que salir de la pestaña de verdad sigue sumando (una sola vez por gesto). Pantallazo,
+  pegar donde no se permite y el botón «atrás» siguen igual.
+- **Opción por examen** (mig `20262770000000`, apagada por defecto): «Cerrar o recargar el examen
+  cuenta como advertencia», en el formulario de edición y en el de creación, junto a la de copiar y
+  pegar. Encendida, cada salida suma con su evento y al tope cierra el intento; si el estudiante
+  cancela el «¿Salir del sitio?», ve el aviso y, si el intento se cerró, la página se recarga. La
+  pantalla «Antes de comenzar» la lista entre lo que cuenta como advertencia (y, de paso, ya no dice
+  que copiar y pegar «no generan advertencia» cuando el examen tiene esa opción encendida).
+- **Un cierre por advertencias desde `beforeunload` también se califica**: ahí no queda cliente que
+  encole, así que el trigger `trg_encolar_cierre_por_advertencias` llama a `enqueue_attempt_grading`
+  en la transición a cerrado por advertencias (deduplica con lo que encola `performSubmit`, que usa
+  el mismo kind). Es el agujero que la mig `20262250000000` cerró para el cron y el docente.
+- **Las recargas que pide la plataforma no cuentan nunca** (versión nueva, archivo viejo tras un
+  despliegue, recuperación de un error): `recargarLaApp()` (`src/shared/lib/recarga-propia.ts`) marca
+  la recarga y el examen no la cobra ni la anota. Sin esto, con la opción encendida, un despliegue a
+  mitad del parcial le sumaba una advertencia a todo el curso.
+- `clone_exam` copia la opción nueva y, de paso, `allow_exam_notes` (las notas de apoyo se quedaban
+  permitidas en la copia aunque el original las tuviera desactivadas), las dos con el resto de la
+  supervisión. Verificada en PGlite: 13 casos entre las dos corridas (columna, copia, trigger que
+  encola solo en la transición por advertencias y que no revierte el cierre si encolar falla).
+- **Monitor**: junto a las advertencias, un ícono de puerta con cuántas veces salió y volvió (con el
+  texto de si sumó o no en ese examen), y «Revisar advertencias» se ofrece también cuando solo hay
+  salidas, para ver cuándo y en qué pregunta. La celda «Respondidas» ya contaba respondidas sin importar el
+  orden; ahora el detalle dice que es «según lo último guardado» y, si el examen mezcla preguntas,
+  que la posición es la de SU orden («va en su pregunta 12 (… no es tu pregunta 12)»). Helper puro
+  `avance-del-intento.ts`.
+- **Tests**: `salida-de-la-pagina.test.ts` (diferidos, cuerpo al salir, evento, y tests que leen
+  del disco que `onBeforeUnload` no arma a mano el contador ni el cierre y que toda recarga de la
+  plataforma va marcada) y `avance-del-intento.test.ts`.
+- **Pendiente para el dueño**: si hace falta un tope de reingresos que avise al docente (hoy solo se
+  muestran).
 
 ### 🧾 Entregar un taller o un proyecto ya no pierde respuestas cuando la base va lenta
 

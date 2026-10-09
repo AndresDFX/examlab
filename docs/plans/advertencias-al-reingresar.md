@@ -1,6 +1,6 @@
 # Advertencias del examen: que salir por error y volver no cuente
 
-Estado: **puntos 1, 2 y 5 implementados en la rama `fix/advertencias-al-reingresar` (sin publicar)**; 3 y 4 pendientes (2026-10-08).
+Estado: **implementado** (2026-10-08): puntos 1, 2, 3, 4 y 5. Queda abierta la segunda decisión de abajo (tope de reingresos).
 
 ## Qué pasa hoy
 
@@ -46,8 +46,25 @@ lo prohíbe.
 
 ## Decisiones para el dueño
 
-- ¿Salir de la página no cuenta nunca, o se deja la opción por examen del punto 4?
-- ¿Un tope de reingresos (p. ej. 5) que avise al docente, o solo mostrarlos?
+- ¿Salir de la página no cuenta nunca, o se deja la opción por examen del punto 4? → **Se dejó la
+  opción por examen**, apagada por defecto (`exams.reload_counts_as_warning`, mig `20262770000000`).
+- ¿Un tope de reingresos (p. ej. 5) que avise al docente, o solo mostrarlos? → **Por ahora solo se
+  muestran** (ícono de puerta junto a las advertencias del monitor). Pendiente de decidir.
+
+## Cómo quedó
+
+- El punto 2 se resolvió distinto de la ventana de 1,5 s: los strikes de escritorio (`blur`,
+  `visibility_hidden`, `fullscreen_exit`) se cobran 700 ms después (`creaStrikesDiferidos`), uno solo
+  por gesto, y `beforeunload` / `pagehide` cancelan el pendiente. Así el cierre de la página no cobra
+  los eventos que él mismo dispara, y cambiar de pestaña de verdad sigue sumando.
+- Lo que se manda al salir lo decide `cuerpoAlSalirDeLaPagina` (`proctoring.ts`): por defecto solo
+  las respuestas; con la opción del examen, suma con su evento (`suma: true`, se puede perdonar) y al
+  tope cierra el intento.
+- Con la opción encendida, un cierre desde `beforeunload` no tiene cliente que encole la
+  calificación: lo encola el trigger `trg_encolar_cierre_por_advertencias` (misma mig).
+- Las recargas que pide la propia plataforma (versión nueva, archivo viejo, recuperación de un
+  error) no cuentan nunca ni se anotan: `recargarLaApp()` en `src/shared/lib/recarga-propia.ts`.
+- La pantalla «Antes de comenzar» avisa la opción cuando está encendida.
 
 ## Archivos a tocar
 

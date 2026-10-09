@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { routeTree } from "./routeTree.gen";
+import { recargarLaApp } from "@/shared/lib/recarga-propia";
 /**
  * Misma detección que ErrorBoundary + __root.tsx. Si cualquier ruta lazy
  * intenta cargar un chunk que el deploy nuevo ya invalidó, recargamos
@@ -29,7 +30,8 @@ function reloadOnceForStaleChunk(): void {
   } catch {
     /* sessionStorage bloqueado — recargar igual */
   }
-  window.location.reload();
+  // La pide la plataforma, no el usuario: un examen no se la cobra.
+  recargarLaApp();
 }
 
 /**

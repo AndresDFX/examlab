@@ -226,7 +226,12 @@ function RootShell({ children }: { children: React.ReactNode }) {
                   navigator.serviceWorker.addEventListener('controllerchange', function () {
                     if (refreshing) return;
                     refreshing = true;
-                    if (window.__hadController) window.location.reload();
+                    // Recarga que pide la PLATAFORMA (versión nueva): el examen
+                    // no se la cobra al estudiante. Ver recarga-propia.ts.
+                    if (window.__hadController) {
+                      window.__examlabRecargaPropia = true;
+                      window.location.reload();
+                    }
                   });
 
                   window.addEventListener('load', function () {
@@ -269,6 +274,7 @@ function RootShell({ children }: { children: React.ReactNode }) {
                     if (sessionStorage.getItem('examlab:reloaded') === '1') return;
                     sessionStorage.setItem('examlab:reloaded', '1');
                   } catch (e) {}
+                  window.__examlabRecargaPropia = true;
                   window.location.reload();
                 }
                 function isChunkError(msg) {

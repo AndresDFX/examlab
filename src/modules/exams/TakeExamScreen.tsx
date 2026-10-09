@@ -99,6 +99,7 @@ import {
   GRACIA_OCULTO_MOVIL_MS,
   creaStrikesDiferidos,
   creaVentanasDeProctoring,
+  cuerpoAlSalirDeLaPagina,
   entornoDePuntero,
   shouldMarkSuspicious,
   avisaDelLimite,
@@ -112,6 +113,7 @@ import { seededShuffle, examShuffleSeed } from "@/modules/exams/shuffle";
 import { useCourseLanguage } from "@/hooks/use-course-language";
 import { useApprovedExamNote } from "@/modules/exams/ExamNotesManager";
 import { logEvent } from "@/shared/lib/audit";
+import { esRecargaPropia } from "@/shared/lib/recarga-propia";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import {
   computeExtraSeconds,
@@ -186,6 +188,8 @@ type Exam = {
   /** Opcional en el tipo por compatibilidad con entornos sin la migración
    *  20262600000000, igual que `must_change_password` en el perfil. */
   clipboard_counts_as_warning?: boolean | null;
+  /** Opcional por compatibilidad con entornos sin la migración 20262770000000. */
+  reload_counts_as_warning?: boolean | null;
   /** Máximo de intentos permitidos (>=1). Si es 1 o null, no se muestra contador. */
   max_attempts?: number | null;
   /** Modo de cálculo de la nota final entre intentos: last_only / average / highest. */
@@ -254,6 +258,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   /** ¿En ESTE examen el portapapeles suma advertencia? OPT-IN: sin la columna
    *  —o con ella apagada— el comportamiento es el de siempre. */
   const portapapelesSuma = exam?.clipboard_counts_as_warning === true;
+  /** ¿En ESTE examen cerrar o recargar la página suma advertencia? OPT-IN
+   *  (`reload_counts_as_warning`): apagado, salir y volver solo se anota. */
+  const cierreSuma = exam?.reload_counts_as_warning === true;
   const [questions, setQuestions] = useState<Question[]>([]);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
   const [submissionStartedAt, setSubmissionStartedAt] = useState<string | null>(null);
@@ -1977,10 +1984,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         type,
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
-        // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro,
-        // salirDelEnsayo, t] —
-        // NO incluye currentIdx, así que al avanzar de pregunta los
+        // useEffect que define recordWarning/Copy/Screenshot NO incluye
+        // currentIdx en sus deps, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
         questionIdx:
@@ -2093,10 +2098,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         type: eventType,
         at: new Date(now).toISOString(),
         // currentIdxRef.current (no `currentIdx` del closure): el
-        // useEffect que define recordWarning/Copy/Screenshot tiene deps
-        // [started, performSubmit, maxWarnings, requireFullscreen, simulacro,
-        // salirDelEnsayo, t] —
-        // NO incluye currentIdx, así que al avanzar de pregunta los
+        // useEffect que define recordWarning/Copy/Screenshot NO incluye
+        // currentIdx en sus deps, así que al avanzar de pregunta los
         // listeners seguían registrando el índice viejo. El monitor del
         // docente veía strikes anclados a la pregunta equivocada.
         questionIdx:
@@ -2182,23 +2185,51 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       recordWarning("pantallazo");
     };
 
-    // Cerrar o recargar la página NO suma advertencia (antes sumaba y podía
-    // cerrar el intento): el corte puede ser un cuelgue, un apagón o el
+    // Cerrar o recargar la página NO suma advertencia por defecto (antes sumaba
+    // y podía cerrar el intento): el corte puede ser un cuelgue, un apagón o el
     // internet, y volver a entrar ya exige pantalla completa. Se guardan las
-    // respuestas y queda una señal blanda para que el docente vea cuántas
-    // veces salió y volvió. Lo fija `salida-de-la-pagina.test.ts`.
+    // respuestas y queda el evento `salida_de_la_pagina`, para que el docente
+    // vea cuántas veces salió y volvió. Suma solo si el examen lo pide
+    // (`reload_counts_as_warning`), y QUÉ se manda lo decide
+    // `cuerpoAlSalirDeLaPagina`. Lo fija `salida-de-la-pagina.test.ts`.
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
       e.preventDefault();
       e.returnValue = "";
       diferidos.marcarSalida();
-      // Si el estudiante cancela el diálogo «¿Salir del sitio?», la página
-      // sigue viva y el proctoring tiene que volver a contar.
+      // Si el estudiante cancela el diálogo «¿Salir del sitio?», la página sigue
+      // viva: el proctoring vuelve a contar y, si esta salida sumó, se le avisa.
+      // Si además cerró el intento, se recarga para que lo vea cerrado en vez
+      // de seguir respondiendo sobre una entrega que ya terminó.
+      let sumo = false;
+      let cerro = false;
       window.clearTimeout(regresoTrasDialogo);
-      regresoTrasDialogo = window.setTimeout(() => diferidos.marcarRegreso(), 3000);
+      regresoTrasDialogo = window.setTimeout(() => {
+        diferidos.marcarRegreso();
+        if (cerro) {
+          window.location.reload();
+          return;
+        }
+        if (sumo) {
+          toast.warning(
+            i18n.t("toast.routes_app_student_take_examId.warningWithLabel", {
+              defaultValue: "Advertencia {{count}}/{{max}}: {{label}}",
+              count: warningsRef.current,
+              max: maxWarnings,
+              label: warningLabel("salida_de_la_pagina"),
+            }),
+          );
+        }
+      }, 3000);
       if (!submissionIdRef.current || !authTokenRef.current) return;
+      // Antes de entrar a pantalla completa (reanudación) ni cuenta ni se anota:
+      // es la antesala del examen. Misma regla que `recordWarning`. Tampoco una
+      // recarga que pidió la PLATAFORMA (versión nueva, archivo viejo): el
+      // estudiante no salió de ningún lado.
+      const dentro = hasEverEnteredFullscreenRef.current && !esRecargaPropia();
+      const suma = dentro && cierreSuma;
       let answersToSend = answersRef.current;
-      if (hasEverEnteredFullscreenRef.current) {
+      if (dentro) {
         warningEventsRef.current = [
           ...warningEventsRef.current,
           {
@@ -2207,7 +2238,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             questionIdx:
               exam?.navigation_type === "secuencial" ? currentIdxRef.current : null,
             questionId: preguntaActual()?.id ?? null,
-            suma: false,
+            suma,
           },
         ];
         answersToSend = {
@@ -2216,6 +2247,26 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           __saved_at: Date.now(),
         };
         answersRef.current = answersToSend;
+      }
+      const salida = cuerpoAlSalirDeLaPagina({
+        answers: answersToSend,
+        warnings: warningsRef.current,
+        maxWarnings,
+        cuentaComoAdvertencia: suma,
+        ahoraIso: new Date().toISOString(),
+        userId: user?.id ?? null,
+      });
+      if (suma) {
+        // El contador local sigue al que se manda: si la página sobrevive (el
+        // diálogo se canceló), el próximo strike parte de acá y no pisa el de
+        // la base con uno menor.
+        warningsRef.current = salida.warnings;
+        setWarnings(salida.warnings);
+        sumo = true;
+      }
+      if (salida.cierra) {
+        submittedRef.current = true;
+        cerro = true;
       }
       fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
@@ -2227,7 +2278,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
             Authorization: `Bearer ${authTokenRef.current}`,
             Prefer: "return=minimal",
           },
-          body: JSON.stringify({ answers: answersToSend }),
+          body: JSON.stringify(salida.body),
           keepalive: true,
         },
       );
@@ -2518,7 +2569,17 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       document.removeEventListener("wheel", onWheel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [started, performSubmit, maxWarnings, requireFullscreen, simulacro, salirDelEnsayo, t]);
+  }, [
+    started,
+    performSubmit,
+    maxWarnings,
+    requireFullscreen,
+    simulacro,
+    salirDelEnsayo,
+    portapapelesSuma,
+    cierreSuma,
+    t,
+  ]);
 
   /** Cancela un run en curso para `questionId`. No mata el worker remoto
    *  (CheerpJ no expone API; edge function ya está corriendo server-side),
@@ -2809,11 +2870,18 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                     {requireFullscreen && (
                       <li>{t("hc_routesAppStudentTakeExamId.exitFullscreenAction")}</li>
                     )}
+                    {/* Solo si el examen lo pide: un castigo que puede cerrar
+                        el intento tiene que estar escrito antes de empezar. */}
+                    {cierreSuma && (
+                      <li>{t("hc_routesAppStudentTakeExamId.closeOrReloadAction")}</li>
+                    )}
                   </ul>
                 </li>
                 <li>
                   <strong>{t("hc_routesAppStudentTakeExamId.copyPasteCutRightClick")}</strong>{" "}
-                  {t("hc_routesAppStudentTakeExamId.copyPasteCutDisabledRest")}
+                  {portapapelesSuma
+                    ? t("hc_routesAppStudentTakeExamId.copyPasteCutCountsRest")
+                    : t("hc_routesAppStudentTakeExamId.copyPasteCutDisabledRest")}
                 </li>
                 {/* El corrector ortográfico se nombra EXPLÍCITAMENTE: es la
                     duda que más aparece («si corrijo, ¿me cuenta?») y la

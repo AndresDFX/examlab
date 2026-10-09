@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { logEvent } from "@/shared/lib/audit";
+import { recargarLaApp } from "@/shared/lib/recarga-propia";
 import i18n from "@/i18n";
 
 /**
@@ -62,7 +63,8 @@ function reloadOnceForStaleChunk(): void {
   } catch {
     /* sessionStorage bloqueado en safari incognito — recarga igual */
   }
-  window.location.reload();
+  // La pide la plataforma, no el usuario: un examen no se la cobra.
+  recargarLaApp();
 }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -151,7 +153,7 @@ function DefaultFallback({ error, onReset }: { error: Error; onReset: () => void
         )}
         <div className="flex items-center justify-center gap-3">
           <Button onClick={onReset}>{t("hc_sharedComponentsErrorBoundary.retry")}</Button>
-          <Button variant="outline" onClick={() => window.location.reload()}>
+          <Button variant="outline" onClick={recargarLaApp}>
             {t("hc_sharedComponentsErrorBoundary.reloadPage")}
           </Button>
         </div>

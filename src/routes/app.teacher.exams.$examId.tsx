@@ -555,6 +555,12 @@ function ExamEditor() {
       // comportamiento histórico (pegar se anota y no penaliza).
       payload.clipboard_counts_as_warning =
         (exam as { clipboard_counts_as_warning?: boolean }).clipboard_counts_as_warning === true;
+      // Solo si la fila ya trae la columna (mig 20262770000000): mandarla antes
+      // de que exista la migración haría fallar el guardado entero.
+      if ("reload_counts_as_warning" in exam) {
+        payload.reload_counts_as_warning =
+          (exam as { reload_counts_as_warning?: boolean }).reload_counts_as_warning === true;
+      }
       payload.schedule_type = ((exam as any).schedule_type ?? "normal") as string;
       payload.retry_mode = ((exam as any).retry_mode ?? "last") as string;
       // Default true: si el docente nunca tocó el toggle, asume el
@@ -1752,6 +1758,24 @@ function ExamEditor() {
                       <HelpHint>{t("hc_routesAppTeacherExamsExamId.clipboardCountsHint")}</HelpHint>
                     </Label>
                   </div>
+                  {/* OPT-IN. Apagado, cerrar o recargar la página solo queda
+                      anotado (el monitor muestra cuántas veces salió y volvió).
+                      Se muestra solo si la fila ya trae la columna. */}
+                  {"reload_counts_as_warning" in exam && (
+                    <div className="flex items-start gap-2">
+                      <Switch
+                        id="reload-counts"
+                        checked={(exam as any).reload_counts_as_warning === true}
+                        onCheckedChange={(v) =>
+                          setExam({ ...exam, reload_counts_as_warning: v } as any)
+                        }
+                      />
+                      <Label htmlFor="reload-counts" className="font-normal">
+                        {t("hc_routesAppTeacherExamsExamId.reloadCountsLabel")}{" "}
+                        <HelpHint>{t("hc_routesAppTeacherExamsExamId.reloadCountsHint")}</HelpHint>
+                      </Label>
+                    </div>
+                  )}
                 </div>
               )}
               {/* Pair Inicio/Fin: DateTimePicker es ancho; en mobile a

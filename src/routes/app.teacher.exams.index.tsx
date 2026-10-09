@@ -748,6 +748,12 @@ function TeacherExams() {
       );
       basePayload.clipboard_counts_as_warning =
         (form as { clipboard_counts_as_warning?: boolean }).clipboard_counts_as_warning === true;
+      // Solo cuando se ENCIENDE: apagado coincide con el default de la columna,
+      // y omitirlo deja crear exámenes aunque la mig 20262770000000 todavía no
+      // se haya aplicado.
+      if ((form as { reload_counts_as_warning?: boolean }).reload_counts_as_warning === true) {
+        basePayload.reload_counts_as_warning = true;
+      }
     }
     // Single-course weight validation
     if (!isMultiCourse && form.cut_id && (form as any).weight != null) {
@@ -2006,6 +2012,19 @@ function TeacherExams() {
                     <Label htmlFor="clipboard-counts-new" className="font-normal">
                       {t("hc_routesAppTeacherExamsExamId.clipboardCountsLabel")}{" "}
                       <HelpHint>{t("hc_routesAppTeacherExamsExamId.clipboardCountsHint")}</HelpHint>
+                    </Label>
+                  </div>
+                  <div className="sm:col-span-2 flex items-start gap-2">
+                    <Switch
+                      id="reload-counts-new"
+                      checked={(form as any).reload_counts_as_warning === true}
+                      onCheckedChange={(v) =>
+                        setForm({ ...form, reload_counts_as_warning: v } as any)
+                      }
+                    />
+                    <Label htmlFor="reload-counts-new" className="font-normal">
+                      {t("hc_routesAppTeacherExamsExamId.reloadCountsLabel")}{" "}
+                      <HelpHint>{t("hc_routesAppTeacherExamsExamId.reloadCountsHint")}</HelpHint>
                     </Label>
                   </div>
                   <div>

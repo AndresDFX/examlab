@@ -55,9 +55,17 @@ import {
   BrainCircuit,
   UserX,
   UserCheck,
+  DoorOpen,
 } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { warningLabel, warningEventTimestamp, type WarningEvent, MAX_WARNINGS } from "@/modules/exams/proctoring";
+import {
+  warningLabel,
+  warningEventTimestamp,
+  contarSalidasDeLaPagina,
+  type WarningEvent,
+  MAX_WARNINGS,
+} from "@/modules/exams/proctoring";
+import { avanceDelIntento } from "@/modules/exams/avance-del-intento";
 import { WarningEventsCard } from "@/modules/exams/WarningEventsCard";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { statusLabel } from "@/shared/utils/status-labels";
@@ -111,7 +119,6 @@ import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import i18n from "@/i18n";
 import {
   contarPlantillaIntacta,
-  countAnswered,
   type QuestionForAnswered,
 } from "@/modules/exams/answered";
 
@@ -2816,12 +2823,6 @@ function ExamMonitor() {
               {filteredStudentRows.map((row) => {
                 const latest = row.latest;
                 const inProg = !!row.inProgress;
-                // Pregunta actual del intento en curso. Persistida por el
-                // taker en answers.__current_idx en cada autosave (1.5s).
-                const currentIdx =
-                  inProg && typeof row.inProgress?.answers?.__current_idx === "number"
-                    ? (row.inProgress.answers.__current_idx as number)
-                    : null;
                 // El checkbox de fila solo aplica a estudiantes con un
                 // `latest` en estado final (los seleccionables para
                 // recalificación). El resto recibe un placeholder vacío
@@ -2901,11 +2902,15 @@ function ExamMonitor() {
                         if (!sub || questions.length === 0) {
                           return <span className="text-muted-foreground">—</span>;
                         }
-                        const respondidas = countAnswered(
+                        // Lo que mide el avance es cuántas respondió, no en qué
+                        // posición está: con la mezcla cada uno tiene su orden,
+                        // y su «pregunta 12» no es la 12 del docente.
+                        const avance = avanceDelIntento(
                           questions as QuestionForAnswered[],
                           sub.answers as Record<string, unknown> | null,
+                          { enCurso: inProg, mezcla: !!exam?.shuffle_enabled },
                         );
-                        const enBlanco = questions.length - respondidas;
+                        const { respondidas, enBlanco } = avance;
                         // «En blanco» son dos cosas OPUESTAS para el docente y
                         // hasta acá se veían igual: no haber llegado a la
                         // pregunta, o haber visto el editor y no escribir nada.
@@ -2915,15 +2920,23 @@ function ExamMonitor() {
                           questions as QuestionForAnswered[],
                           sub.answers as Record<string, unknown> | null,
                         );
-                        const base =
-                          inProg && currentIdx != null
-                            ? t("monitor.answeredHintInProgress", {
-                                n: Math.min(currentIdx + 1, questions.length),
-                                total: questions.length,
-                              })
-                            : enBlanco === 0
-                              ? t("monitor.answeredHintNoBlanks")
-                              : t("monitor.answeredHintBlank", { count: enBlanco });
+                        const base = inProg
+                          ? [
+                              t("monitor.answeredHintProgress", {
+                                answered: respondidas,
+                                total: avance.total,
+                              }),
+                              avance.posicion == null
+                                ? null
+                                : avance.ordenPropio
+                                  ? t("monitor.answeredHintPositionShuffled", { n: avance.posicion })
+                                  : t("monitor.answeredHintPosition", { n: avance.posicion }),
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")
+                          : enBlanco === 0
+                            ? t("monitor.answeredHintNoBlanks")
+                            : t("monitor.answeredHintBlank", { count: enBlanco });
                         const pista =
                           sinTocar > 0
                             ? `${base} · ${t("monitor.answeredHintTemplate", { count: sinTocar })}`
@@ -2946,12 +2959,42 @@ function ExamMonitor() {
                       )}
                     </TableCell>
                     <TableCell className="hidden lg:table-cell">
-                      <Badge
-                        variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
-                        className="text-3xs tabular-nums"
-                      >
-                        {latest.focus_warnings}/{exam?.max_warnings ?? MAX_WARNINGS}
-                      </Badge>
+                      {(() => {
+                        // Salir y volver (cerrar o recargar la página) va APARTE
+                        // de las advertencias: por defecto no castiga, pero el
+                        // docente tiene que poder verlo para decidir.
+                        const salidas = contarSalidasDeLaPagina(
+                          (latest.answers?.__warning_events ?? []) as WarningEvent[],
+                        );
+                        const textoSalidas =
+                          salidas > 0
+                            ? `${t("monitor.reentries", { count: salidas })}. ${
+                                exam?.reload_counts_as_warning === true
+                                  ? t("monitor.reentriesCount")
+                                  : t("monitor.reentriesNoCount")
+                              }`
+                            : "";
+                        return (
+                          <div className="flex flex-nowrap items-center gap-1.5">
+                            <Badge
+                              variant={latest.focus_warnings > 0 ? "destructive" : "outline"}
+                              className="text-3xs tabular-nums shrink-0"
+                            >
+                              {latest.focus_warnings}/{exam?.max_warnings ?? MAX_WARNINGS}
+                            </Badge>
+                            {salidas > 0 && (
+                              <span
+                                className="inline-flex shrink-0 items-center gap-0.5 text-2xs text-muted-foreground tabular-nums"
+                                title={textoSalidas}
+                              >
+                                <DoorOpen className="h-3 w-3" aria-hidden="true" />
+                                {salidas}
+                                <span className="sr-only">{textoSalidas}</span>
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })()}
                     </TableCell>
                     <TableCell>
                       {/* Diálogo: combina "conversaciones abiertas" (ámbar)
@@ -3108,9 +3151,15 @@ function ExamMonitor() {
                           />
                         )}
                         {/* Perdonar strikes SIN esperar a que el intento
-                            termine. Se ofrece solo si hay algo que borrar:
-                            un botón que abre una lista vacía no ayuda. */}
-                        {inProg && (row.inProgress?.focus_warnings ?? 0) > 0 && (
+                            termine. Se ofrece solo si hay algo que revisar
+                            —advertencias, o salidas de la página, que no suman
+                            pero dicen cuándo y en qué pregunta—: un botón que
+                            abre una lista vacía no ayuda. */}
+                        {inProg &&
+                          ((row.inProgress?.focus_warnings ?? 0) > 0 ||
+                            contarSalidasDeLaPagina(
+                              (row.inProgress?.answers?.__warning_events ?? []) as WarningEvent[],
+                            ) > 0) && (
                           <RowAction
                             label={t("monitor.reviewWarnings")}
                             icon={ShieldAlert}
@@ -3258,7 +3307,10 @@ function ExamMonitor() {
                             /* El else que faltaba: acá es donde el docente se
                                queda sin salida con un intento en curso. */
                             <>
-                              {a.focus_warnings > 0 && (
+                              {(a.focus_warnings > 0 ||
+                                contarSalidasDeLaPagina(
+                                  (a.answers?.__warning_events ?? []) as WarningEvent[],
+                                ) > 0) && (
                                 <RowAction
                                   label={t("monitor.reviewWarnings")}
                                   icon={ShieldAlert}
