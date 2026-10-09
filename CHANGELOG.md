@@ -103,6 +103,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
 
+### 🗓️ SB141B: la asistencia del 1 de octubre había quedado en la clase del 8
+
+- **Caso** (2026-10-09, WhatsApp): Alison Cadena aparecía con la clase del 1 de octubre pendiente
+  aunque la había registrado.
+- **Causa**: 26 registros hechos el 1 de octubre en SB141B quedaron guardados en la sesión del 8 de
+  octubre (no pasó en ningún otro curso ni otro día). Es la época de los arreglos del ancla del
+  check-in (migs `20262360000000` / `20262370000000`).
+- **Dato corregido**: a los 7 que no tenían registro en la clase del 1 (Alison Cadena, José David
+  Animero, Jilmer Balanta, Juan Camilo Caicedo, Mateo Larrahondo, Luis Fernando Jácome, Nathalia
+  Jerez) se les registró presente esa clase. Los registros del 8 se dejaron como están.
+
 ### 📝 Evaluación de Corte 1 (SB141C) calificada con respuestas que llegaron tarde
 
 - **Caso** (2026-10-08, WhatsApp): Cristhian Moreno veía 1,6 en la Evaluación de Corte 1 «siempre»,
