@@ -103,6 +103,25 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
 
+### 📝 Evaluación de Corte 1 (SB141C) calificada con respuestas que llegaron tarde
+
+- **Caso** (2026-10-08, WhatsApp): Cristhian Moreno veía 1,6 en la Evaluación de Corte 1 «siempre»,
+  y decía que no podía firmar asistencia ni hacer la diagnóstica.
+- **Causa del 1,6**: presentó el 6 de octubre, durante la caída de la base. Su intento se cerró por
+  vencimiento con lo que la base alcanzó a guardar (las dos de selección múltiple en blanco y la
+  abierta cortada en «Materi») y se calificó así. Su dispositivo guardó la copia completa y la subió
+  cuando volvió a abrir el examen el 8; su segundo intento quedó en cola. **La cola de calificación
+  no se drena sola desde hace días** (42 trabajos pendientes, el más viejo del 8 a las 03:58 UTC, sin
+  ningún intento de proceso): el cron `ai-grading-worker-hourly` no está llegando al worker, y
+  llamarlo a mano sí funciona. Se procesaron sus dos trabajos: los dos intentos quedaron en **4,8**.
+- **Otros con el mismo síntoma** (calificados con respuestas que hoy están completas en la base):
+  una entrega de SB141C (3,47) y una de LB141F (1,25), las dos con su recalificación en la cola, y
+  un intento de SB141C reabierto y en curso (1,9).
+- **Asistencia y diagnóstica**: no había nada bloqueándolo. Tiene firmado el Acuerdo y respondida
+  la encuesta, `attendance_requirements_pending` da vacío para las sesiones 1 a 3 y el enlace del
+  curso está abierto hasta el 9 a las 11:59 p. m. La diagnóstica cerró el 27 de septiembre, pesa 0 %
+  y ya no es requisito de asistencia.
+
 ### 🚪 Salir del examen por error y volver ya no suma advertencias
 
 - **Pedido**: un estudiante que cierra el examen por error, se le cuelga el navegador o se le cae el
