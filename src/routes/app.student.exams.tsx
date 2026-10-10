@@ -45,7 +45,7 @@ import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
 import { CortePesoBadges } from "@/components/ui/corte-peso";
 import { indiceDeCortes, resolverCorteYPeso } from "@/modules/grading/corte-y-peso";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
@@ -699,8 +699,17 @@ function StudentExams() {
                         <CheckCircle2 className="h-3 w-3 mr-1" />
                       )}
                       {grade != null
-                        ? t("exam.gradeLabel", { grade, max: exam.course?.grade_scale_max ?? 5 })
+                        ? t("exam.gradeLabel", {
+                            grade: formatNumber(Number(grade), { maximumFractionDigits: 2 }),
+                            max: exam.course?.grade_scale_max ?? 5,
+                          })
                         : t("exam.submitted")}
+                    </Badge>
+                  ) : isOpen && submission?.status === "en_progreso" ? (
+                    // Mismo estado que cuentan los contadores de arriba: decía
+                    // «Disponible» mientras el contador decía «En progreso 1».
+                    <Badge className="bg-warning text-warning-foreground shrink-0">
+                      {t("hc_routesAppStudentExams.filterInProgress")}
                     </Badge>
                   ) : isOpen ? (
                     <Badge className="bg-success text-success-foreground shrink-0">

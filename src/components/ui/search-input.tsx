@@ -52,6 +52,10 @@ export function SearchInput({
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={resolvedPlaceholder}
+          // Tecla «Buscar» en el teclado del teléfono. Sin `type="search"`: WebKit le
+          // agrega su propia X, que duplicaría el botón de limpiar de al lado.
+          inputMode="search"
+          enterKeyHint="search"
           className="pl-8 pr-8"
         />
         {value && (

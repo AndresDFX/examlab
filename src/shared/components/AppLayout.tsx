@@ -991,6 +991,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
     }
     return true;
   });
+
+  // Módulo actual, para la barra superior del teléfono: decía siempre «ExamLab»
+  // y no había forma de saber en qué sección se estaba sin mirar la barra de
+  // abajo (auditoría móvil 2026-10-10). El prefijo más largo gana.
+  const moduloActual = visibleNav
+    .filter((n) => n.to !== "/app" && location.pathname.startsWith(n.to))
+    .sort((a, b) => b.to.length - a.to.length)[0];
   // Aplicamos el orden configurado por el Admin desde el panel "Módulos".
   // Si dos items mapean al mismo módulo (raro), o el item no tiene
   // módulo asociado (ej. /app/admin/users), conservan su posición
@@ -1686,7 +1693,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </div>
             )}
             <div className="min-w-0">
-              <div className="font-semibold truncate leading-tight">ExamLab</div>
+              <div className="font-semibold truncate leading-tight">
+                {moduloActual ? t(moduloActual.labelKey) : "ExamLab"}
+              </div>
               {isSuperAdminCrossTenant ? (
                 <div className="text-3xs text-sidebar-foreground/60 truncate leading-tight">
                   {t("tenant.platformBrand")}

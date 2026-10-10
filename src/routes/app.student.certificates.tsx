@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Award, Download, Copy, ExternalLink, Hash, Lock, Search, X } from "lucide-react";
-import { formatDateLong, formatDateOnly } from "@/shared/lib/format";
+import { formatDateLong, formatDateOnly, formatNumber } from "@/shared/lib/format";
 import { downloadCertificate, buildVerifyUrl } from "@/modules/certificates/certificate-pdf";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { usePagination } from "@/hooks/use-pagination";
@@ -451,7 +451,7 @@ function StudentCertificates() {
                     </div>
                     <div className="text-right shrink-0">
                       <div className="text-2xl font-bold tabular-nums">
-                        {Number(cert.final_grade).toFixed(2)}
+                        {formatNumber(Number(cert.final_grade), { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </div>
                       <div className="text-2xs text-muted-foreground">
                         / {cert.grade_scale_max}

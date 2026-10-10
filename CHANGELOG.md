@@ -152,3 +152,12 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   la actividad reciente del inicio muestra la etiqueta de Auditoría en vez de «workshop.created»;
   el buscador global lleva al Admin a su lista de Cursos filtrada (`?q=`) y no al tablero del
   docente; durante el examen no se ofrece el menú móvil, que no llevaba a ningún lado.
+- **Séptima tanda** (resto de la auditoría móvil): notas y pesos con coma (`formatNumber`) en las
+  vistas del estudiante; `Button` es `type="button"` por defecto (los 8 `<form>` declaran su
+  envío); pie del diálogo pegado abajo en el teléfono y el error del taller nombra el campo; verde de
+  éxito a 4,8:1 (era 3,4:1); «Nuevo usuario» siempre; búsqueda con tecla «Buscar»; botones de fila
+  de 44 px en pantallas táctiles; confirmaciones no destructivas con la acción abajo; distintivo «En
+  progreso» coherente con los contadores; Asistencia del estudiante con fecha corta y contadores en
+  dos columnas; etiquetas del taller asociadas a su campo; «No volver a preguntar en este examen» en
+  la navegación secuencial; selectores de curso en dos líneas; aviso de vocero tocable entero;
+  barra superior del teléfono con el nombre del módulo.

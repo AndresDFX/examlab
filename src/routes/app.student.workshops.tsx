@@ -67,7 +67,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
@@ -831,7 +831,7 @@ function StudentWorkshops() {
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       {grade != null
                         ? workshop.course
-                          ? `${workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2)}/${workshop.course.grade_scale_max}`
+                          ? `${formatNumber(workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${workshop.course.grade_scale_max}`
                           : `${grade}`
                         : t("exam.submitted")}
                     </Badge>

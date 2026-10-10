@@ -1216,15 +1216,15 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
         </Alert>
       )}
       {!loading && sinVocero.length > 0 && (
+        // El aviso entero es la puerta (P5): antes solo la primera línea, de 20 px
+        // de alto, respondía al toque (auditoría móvil 2026-10-10).
+        <Link to="/app/teacher/students" className="block rounded-md hover:bg-amber-500/5">
         <Alert className="border-amber-500/40 bg-amber-500/10 py-2.5">
           <AlertDescription className="flex flex-col gap-1.5 sm:flex-row sm:flex-wrap sm:items-center sm:gap-x-4 sm:gap-y-1 text-amber-800 dark:text-amber-300">
-            <Link
-              to="/app/teacher/students"
-              className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline"
-            >
+            <span className="inline-flex items-center gap-1.5 font-medium underline-offset-2 hover:underline">
               <Mic className="h-4 w-4 shrink-0" />
               {t("dashboard.teacher.coursesWithoutVocero", { count: sinVocero.length })}
-            </Link>
+            </span>
             {/* Los nombres, no solo el conteo: con varios cursos, "2 cursos
                 sin vocero" obliga a abrir la pantalla para saber CUÁLES. */}
             <span className="text-2xs text-amber-700/80 dark:text-amber-400/80">
@@ -1232,6 +1232,7 @@ function TeacherDashboard({ userId }: { userId: string | undefined }) {
             </span>
           </AlertDescription>
         </Alert>
+        </Link>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <Stat

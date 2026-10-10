@@ -63,7 +63,7 @@ import { StatCard } from "@/components/ui/stat-card";
 import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
@@ -761,7 +761,7 @@ function StudentProjects() {
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       {grade != null
                         ? project.course
-                          ? `${project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2)}/${project.course.grade_scale_max}`
+                          ? `${formatNumber(project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${project.course.grade_scale_max}`
                           : `${grade}`
                         : t("project.submitted")}
                     </Badge>

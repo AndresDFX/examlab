@@ -16,6 +16,7 @@
  * su `Route` y el chunk se separa como siempre.
  */
 import { useNavigate } from "@tanstack/react-router";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { clienteDeSimulacro } from "@/modules/exams/cliente-simulacro";
@@ -312,6 +313,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // Modal de confirmación para "Siguiente" en navegación secuencial:
   // el alumno debe entender explícitamente que no podrá regresar.
   const [confirmNextOpen, setConfirmNextOpen] = useState(false);
+  // «No volver a preguntar en este examen»: la advertencia se ve la primera vez,
+  // pero repetirla en cada pregunta (52 toques en un examen de 26) la volvía
+  // ruido que se acepta sin leer (auditoría móvil 2026-10-10). Solo en memoria:
+  // al recargar vuelve a preguntar.
+  const [noConfirmarSiguiente, setNoConfirmarSiguiente] = useState(false);
+  const [marcaNoConfirmar, setMarcaNoConfirmar] = useState(false);
   const [codeOutputs, setCodeOutputs] = useState<Record<string, string>>({});
   const [runningCode, setRunningCode] = useState<Record<string, boolean>>({});
   const [offline, setOffline] = useState(!isOnline());
@@ -3484,7 +3491,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
         {currentIdx < questions.length - 1 ? (
           <Button
             onClick={() => {
-              if (exam.navigation_type === "secuencial") {
+              if (exam.navigation_type === "secuencial" && !noConfirmarSiguiente) {
                 setConfirmNextOpen(true);
               } else {
                 const next = currentIdx + 1;
@@ -3530,6 +3537,13 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
               </div>
             </DialogDescription>
           </DialogHeader>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <Checkbox
+              checked={marcaNoConfirmar}
+              onCheckedChange={(v) => setMarcaNoConfirmar(v === true)}
+            />
+            {t("hc_routesAppStudentTakeExamId.dontAskAgain")}
+          </label>
           <DialogFooter className="gap-2 sm:gap-0">
             <Button type="button" variant="outline" onClick={() => setConfirmNextOpen(false)}>
               {t("common.cancel")}
@@ -3538,6 +3552,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
               type="button"
               onClick={() => {
                 setConfirmNextOpen(false);
+                if (marcaNoConfirmar) setNoConfirmarSiguiente(true);
                 const next = currentIdx + 1;
                 currentIdxRef.current = next; // sincronizar ref antes del save síncrono
                 setCurrentIdx(next);

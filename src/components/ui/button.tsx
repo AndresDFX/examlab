@@ -71,6 +71,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={disabled || (!asChild && pending)}
         onClick={asChild ? onClick : wrappedClick}
+        // `type="button"` por defecto: el default HTML es "submit", así que un
+        // «Cancelar» o «Importar del banco» dentro de un <form> lo enviaba con
+        // Enter (auditoría móvil 2026-10-10). Los 8 formularios del repo declaran
+        // su envío con `type="submit"` explícito; `{...props}` lo respeta.
+        type={asChild ? undefined : "button"}
         {...props}
       />
     );

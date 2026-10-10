@@ -110,7 +110,7 @@ export function RowActionsMenu({
           // grabación enfocar con precisión el botón de acciones de una fila
           // (vs. resaltar la fila entera). No afecta el comportamiento.
           data-row-actions=""
-          className={cn("h-8 w-8", className)}
+          className={cn("h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11", className)}
           onClick={(e) => e.stopPropagation()}
         >
           <MoreVertical className="h-4 w-4" />

@@ -93,7 +93,7 @@ export const RowAction = forwardRef<HTMLButtonElement, RowActionProps>(function 
           disabled={disabled || loading}
           asChild={asChild}
           className={cn(
-            "h-8 w-8",
+            "h-8 w-8 pointer-coarse:h-11 pointer-coarse:w-11",
             tone === "destructive" &&
               "text-destructive hover:bg-destructive/10 hover:text-destructive",
             className,

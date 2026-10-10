@@ -4000,6 +4000,7 @@
       "duplicated": "Pizarra duplicada: \"{{name}}\""
     },
     "routes_app_teacher_workshops": {
+      "titleRequired": "Escribe el título del taller.",
       "bulkMovedToTrash": "{{count}} taller(es) enviado(s) a papelera",
       "workshopFromUrlMissing": "El taller referenciado en la URL ya no existe o no tienes acceso a él.",
       "workshopFromNotificationMissing": "El taller referenciado en la notificación ya no existe o no tienes acceso a él.",
@@ -8495,6 +8496,7 @@
     "dateFilterLabel": "Filtrar por fecha de entrega"
   },
   "hc_routesAppStudentTakeExamId": {
+    "dontAskAgain": "No volver a preguntar en este examen",
     "fullscreenHelpIOS": "Permite la pantalla completa cuando el navegador la pida y vuelve a intentar. Si no te la ofrece, instala la app desde Safari (Compartir → 'Añadir a pantalla de inicio') y abre el examen desde el ícono.",
     "fullscreenHelpDesktop": "Habilita la pantalla completa en tu navegador o usa una computadora.",
     "aStudent": "Un estudiante",

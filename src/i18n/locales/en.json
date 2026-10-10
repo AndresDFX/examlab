@@ -4000,6 +4000,7 @@
       "duplicated": "Whiteboard duplicated: \"{{name}}\""
     },
     "routes_app_teacher_workshops": {
+      "titleRequired": "Enter the workshop title.",
       "bulkMovedToTrash": "{{count}} workshop(s) moved to trash",
       "workshopFromUrlMissing": "The workshop referenced in the URL no longer exists or you don't have access to it.",
       "workshopFromNotificationMissing": "The workshop referenced in the notification no longer exists or you don't have access to it.",
@@ -8495,6 +8496,7 @@
     "dateFilterLabel": "Filter by due date"
   },
   "hc_routesAppStudentTakeExamId": {
+    "dontAskAgain": "Don’t ask again in this exam",
     "fullscreenHelpIOS": "Allow full screen when your browser asks, then try again. If it isn't offered, install the app from Safari (Share → 'Add to Home Screen') and open the exam from the icon.",
     "fullscreenHelpDesktop": "Enable fullscreen in your browser or use a computer.",
     "aStudent": "A student",

@@ -1377,8 +1377,10 @@ function TeacherWorkshops() {
     if (saving) return; // anti doble-submit: el save hace N inserts/updates
     if (!form.title || !user) {
       toast.error(
-        i18n.t("toast.routes_app_teacher_workshops.completeFields", {
-          defaultValue: "Completa los campos",
+        // Nombrar el campo: «Completa los campos» no decía cuál faltaba, y en el
+        // teléfono, con el teclado abierto, el campo vacío no estaba a la vista.
+        i18n.t("toast.routes_app_teacher_workshops.titleRequired", {
+          defaultValue: "Escribe el título del taller.",
         }),
       );
       return;
@@ -4514,8 +4516,9 @@ function TeacherWorkshops() {
                 {t("teacherWorkshops.sectionWhatTitle")}
               </p>
               <div data-tour-id="workshop-field-title">
-                <Label required>{t("teacherWorkshops.fieldTitle")}</Label>
+                <Label required htmlFor="ws-title">{t("teacherWorkshops.fieldTitle")}</Label>
                 <Input
+                  id="ws-title"
                   value={form.title ?? ""}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                 />
@@ -4757,16 +4760,18 @@ function TeacherWorkshops() {
                 </>
               )}
               <div>
-                <Label>{t("teacherWorkshops.fieldDescription")}</Label>
+                <Label htmlFor="ws-description">{t("teacherWorkshops.fieldDescription")}</Label>
                 <Textarea
+                  id="ws-description"
                   value={form.description ?? ""}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                 />
               </div>
               {!(form as any).is_external && (
                 <div>
-                  <Label>{t("teacherWorkshops.fieldInstructions")}</Label>
+                  <Label htmlFor="ws-instructions">{t("teacherWorkshops.fieldInstructions")}</Label>
                   <Textarea
+                    id="ws-instructions"
                     rows={4}
                     value={form.instructions ?? ""}
                     onChange={(e) => setForm({ ...form, instructions: e.target.value })}

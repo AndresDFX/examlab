@@ -27,7 +27,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SectionLoader } from "@/components/ui/loaders";
 import { PageHeader } from "@/components/ui/page-header";
-import { formatDateOnly, todayLocalISO } from "@/shared/lib/format";
+import { formatDateOnly, formatDateOnlyShort, todayLocalISO } from "@/shared/lib/format";
 import {
   AUSENTE_SIN_MARCA,
   asistenciaDelEstudiante,
@@ -767,12 +767,14 @@ function StudentAttendance() {
                 value={selectedCourseId ?? undefined}
                 onValueChange={(v) => setSelectedCourseId(v)}
               >
-                <SelectTrigger>
+                {/* Hasta dos líneas: truncado a una, «Arquitectura de Software — Gru…» no
+                    distinguía el grupo A del B (auditoría móvil 2026-10-10). */}
+                <SelectTrigger className="h-auto min-h-9 py-2 text-left [&>span]:line-clamp-2 [&>span]:whitespace-normal">
                   <SelectValue placeholder={t("studentAttendance.selectCourse")} />
                 </SelectTrigger>
                 <SelectContent>
                   {courses.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
+                    <SelectItem key={c.id} value={c.id} className="whitespace-normal">
                       {c.name}
                       {c.period ? ` · ${c.period}` : ""}
                     </SelectItem>
@@ -850,7 +852,7 @@ function StudentAttendance() {
 
       {!loadingCourses && courses.length > 0 && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card>
               <CardContent className="p-4">
                 <div className="text-xs text-muted-foreground">
@@ -946,8 +948,10 @@ function StudentAttendance() {
                           : null;
                         return (
                           <TableRow key={s.id}>
-                            <TableCell className="font-medium tabular-nums">
-                              {formatDateOnly(s.session_date)}
+                            {/* Fecha corta y sin cortes: «13 de jun de 2026» se partía en
+                                4 renglones en un teléfono (auditoría móvil 2026-10-10). */}
+                            <TableCell className="font-medium tabular-nums whitespace-nowrap">
+                              {formatDateOnlyShort(s.session_date)}
                             </TableCell>
                             <TableCell className="text-sm">
                               {/* Resumido y en UNA línea, igual que en la

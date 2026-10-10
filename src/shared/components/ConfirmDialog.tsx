@@ -103,7 +103,11 @@ export function ConfirmProvider({ children }: { children: ReactNode }) {
               </div>
             </div>
           </AlertDialogHeader>
-          <AlertDialogFooter>
+          {/* En el teléfono los botones se apilan. Lo normal («Publicar») va ABAJO,
+              en la zona del pulgar: «Cancelar» abajo hacía que el gesto natural
+              cancelara (auditoría móvil 2026-10-10). Lo destructivo conserva
+              «Cancelar» abajo, a propósito: ahí el toque natural no debe borrar. */}
+          <AlertDialogFooter className={cn(tone !== "destructive" && "max-sm:flex-col max-sm:gap-2")}>
             <AlertDialogCancel onClick={() => handleClose(false)}>
               {state.cancelLabel ?? t("common.cancel", { defaultValue: "Cancelar" })}
             </AlertDialogCancel>

@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { formatDateOnly, todayLocalISO } from "@/shared/lib/format";
+import { formatDateOnly, todayLocalISO, formatNumber } from "@/shared/lib/format";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RowAction } from "@/components/ui/row-action";
@@ -607,7 +607,7 @@ function StudentGrades() {
   const course = courses.find((c) => c.id === courseId);
 
   const passes = course && finalGrade != null ? finalGrade >= course.passing_grade : null;
-  const fmt = (n: number | null) => (n == null ? "—" : n.toFixed(2));
+  const fmt = (n: number | null) => formatNumber(n, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   /** En qué va cada corte, desde las notas y no desde las fechas. */
   const resumenes = resumirCortes(
     cutsBreakdown.map((cb) => cb.items.map((i) => ({ kind: i.kind, grade: i.grade }))),
@@ -650,12 +650,12 @@ function StudentGrades() {
               {/* w-full en móvil (el selector es el control principal de la
                   pantalla y a 375px un ancho fijo deja el tap target corto);
                   ancho fijo desde sm. Mismo patrón que Asistencia. */}
-              <SelectTrigger className="w-full sm:w-64">
+              <SelectTrigger className="w-full sm:w-80 h-auto min-h-9 py-2 text-left [&>span]:line-clamp-2 [&>span]:whitespace-normal">
                 <SelectValue placeholder={t("common.course")} />
               </SelectTrigger>
               <SelectContent>
                 {courses.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
+                  <SelectItem key={c.id} value={c.id} className="whitespace-normal">
                     {c.name}
                     {c.period ? ` · ${c.period}` : ""}
                   </SelectItem>
@@ -995,7 +995,7 @@ function KindGroup({
           </span>
         </div>
         <div className="text-xs text-muted-foreground inline-flex items-center gap-2 tabular-nums whitespace-nowrap">
-          <span>{i18n.t("studentGrades.bucketWeight", { weight: bucketWeight.toFixed(1) })}</span>
+          <span>{i18n.t("studentGrades.bucketWeight", { weight: formatNumber(bucketWeight, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })}</span>
           <span>·</span>
           <span>
             {i18n.t("studentGrades.subtotal")}{" "}
@@ -1031,7 +1031,7 @@ function KindGroup({
                 )}
               </TableCell>
               <TableCell className="hidden sm:table-cell text-right text-xs tabular-nums text-muted-foreground">
-                {it.weight != null ? `${Number(it.weight).toFixed(1)}%` : "—"}
+                {it.weight != null ? `${formatNumber(Number(it.weight), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
               </TableCell>
               <TableCell className="text-right tabular-nums">
                 {it.rawGrade != null ? `${it.rawGrade} / ${it.rawMax}` : "—"}

@@ -111,6 +111,12 @@ const DialogFooter = ({ className, ...props }: React.HTMLAttributes<HTMLDivEleme
     className={cn(
       "flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-2",
       "-mx-4 sm:-mx-6 -mb-4 sm:-mb-6 px-4 sm:px-6 pt-3 pb-4 sm:pb-6 bg-background border-t",
+      // En el teléfono el pie queda pegado abajo mientras se desplaza: con el
+      // teclado abierto, «Crear» quedaba a 1.660 px en una ventana de 284 y no se
+      // veía (auditoría móvil 2026-10-10). El fondo es opaco y el pie ocupa su
+      // lugar en el flujo, así que al final del contenido no tapa el último campo
+      // (lo que motivó dejarlo en flujo normal, con un fondo semitransparente).
+      "max-sm:sticky max-sm:-bottom-4 max-sm:z-10",
       className,
     )}
     {...props}

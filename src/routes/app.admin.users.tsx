@@ -1947,8 +1947,9 @@ function AdminUsers() {
             />
             <Button size="sm" onClick={openNew} data-tour-id="create-user">
               <Plus className="h-4 w-4 mr-1" />
-              <span className="hidden xs:inline">{t("adminUsers.btnNewUser")}</span>
-              <span className="xs:hidden">{t("adminUsers.btnNew")}</span>
+              {/* Siempre «Nuevo usuario»: en el teléfono decía solo «Nuevo», sin decir
+                  qué crea (auditoría móvil 2026-10-10). */}
+              {t("adminUsers.btnNewUser")}
             </Button>
           </>
         }
