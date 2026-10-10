@@ -161,3 +161,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   dos columnas; etiquetas del taller asociadas a su campo; «No volver a preguntar en este examen» en
   la navegación secuencial; selectores de curso en dos líneas; aviso de vocero tocable entero;
   barra superior del teléfono con el nombre del módulo.
+- **Octava tanda**: libro de notas con una tarjeta por estudiante en el teléfono (notas por corte y
+  final; tocar un corte abre su detalle); la cabecera del examen arranca pegada a la barra de la app
+  (había ~40 px vacíos encima, robados al editor de código); los talleres en línea sin preguntas
+  muestran «Agregar preguntas» en su propia fila (antes ⋯ → Editar → Preguntas).

@@ -916,6 +916,33 @@ function TeacherWorkshops() {
   // Questions editor
   const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
   const [questionsOpen, setQuestionsOpen] = useState(false);
+  // Talleres en línea sin ninguna pregunta: muestran «Agregar preguntas» en su
+  // propia fila. Llegar por ⋯ → Editar → Preguntas eran 3 toques y dos diálogos
+  // apilados justo cuando el taller está vacío (auditoría móvil 2026-10-10).
+  const [sinPreguntas, setSinPreguntas] = useState<Set<string>>(new Set());
+  // Al cerrar el diálogo de preguntas, ese taller sale de «sin preguntas» si
+  // ya tiene alguna (el atajo de su fila deja de mostrarse).
+  useEffect(() => {
+    if (questionsOpen || !questionsWs || !sinPreguntas.has(questionsWs.id)) return;
+    let cancelled = false;
+    const id = questionsWs.id;
+    void supabase
+      .from("workshop_questions")
+      .select("id", { count: "exact", head: true })
+      .eq("workshop_id", id)
+      .then(({ count }) => {
+        if (cancelled || !count) return;
+        setSinPreguntas((prev) => {
+          const next = new Set(prev);
+          next.delete(id);
+          return next;
+        });
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [questionsOpen]);
   const [groupsOpen, setGroupsOpen] = useState(false);
   const [groupsWs, setGroupsWs] = useState<Workshop | null>(null);
 
@@ -1111,9 +1138,17 @@ function TeacherWorkshops() {
     // "37 publicados" sobre una tabla de 4 filas.
     // El mapa M:N va como 3er argumento: un taller creado en otro curso pero
     // COMPARTIDO al mío es mío y tiene que verse (ver course-scope.ts).
-    setWorkshops(
-      visibleForScopedCourses((ws ?? []) as any[], courseScope, wcMap) as any,
-    );
+    const visibles = visibleForScopedCourses((ws ?? []) as any[], courseScope, wcMap) as any[];
+    setWorkshops(visibles as any);
+    const enLinea = visibles.filter((w) => !w.is_external).map((w) => w.id as string);
+    if (enLinea.length) {
+      const { data: qs } = await supabase
+        .from("workshop_questions")
+        .select("workshop_id")
+        .in("workshop_id", enLinea);
+      const conPreguntas = new Set((qs ?? []).map((q: { workshop_id: string }) => q.workshop_id));
+      setSinPreguntas(new Set(enLinea.filter((id) => !conPreguntas.has(id))));
+    } else setSinPreguntas(new Set());
     } finally {
       setLoading(false);
     }
@@ -4249,6 +4284,19 @@ function TeacherWorkshops() {
                           />
                         )}
                       </div>
+                      {sinPreguntas.has(ws.id) && (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0 self-start text-xs"
+                          onClick={() => {
+                            setQuestionsWs(ws);
+                            setQuestionsOpen(true);
+                          }}
+                        >
+                          {t("editarConfig.agregarPreguntas")}
+                        </Button>
+                      )}
                       <span className="text-xs text-muted-foreground sm:hidden truncate">
                         {(() => {
                           const wcIds = workshopCourses.get(ws.id);

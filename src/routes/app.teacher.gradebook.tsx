@@ -1,4 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { formatNumber } from "@/shared/lib/format";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
@@ -2553,7 +2554,53 @@ function Gradebook() {
               {t("hc_routesAppTeacherGradebook.readOnly")}
             </Badge>
           </div>
-          <CardContent className="p-0 max-h-[70dvh] overflow-auto">
+          {/* En el teléfono, una tarjeta por estudiante: la matriz de cortes se
+              desplazaba en horizontal (578 px en 356) y no se podía recorrer con
+              el pulgar (auditoría móvil 2026-10-10). Desde sm sigue la tabla. */}
+          <ul className="sm:hidden divide-y">
+            {consolidated
+              .filter((r) => filteredStudents.some((s) => s.id === r.student.id))
+              .map((row) => {
+                const aprueba =
+                  row.finalGrade != null ? row.finalGrade >= selectedCourse.passing_grade : null;
+                return (
+                  <li key={row.student.id} className="px-4 py-3 space-y-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <span className="font-medium text-sm min-w-0 break-words">
+                        {row.student.full_name}
+                      </span>
+                      <Badge
+                        variant={aprueba === false ? "destructive" : "secondary"}
+                        className="shrink-0 tabular-nums"
+                      >
+                        {t("gradebook.finalColumn")}:{" "}
+                        {formatNumber(row.finalGrade, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {cuts.map((c) => {
+                        const cg = row.cutGrades.find((g) => g.cutId === c.id);
+                        return (
+                          <button
+                            key={c.id}
+                            type="button"
+                            className="tabular-nums underline-offset-2 hover:underline min-h-8"
+                            onClick={() => {
+                              setDetailCutId(c.id);
+                              setDetailStudentId(row.student.id);
+                            }}
+                          >
+                            {c.name}:{" "}
+                            {formatNumber(cg?.grade ?? null, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </li>
+                );
+              })}
+          </ul>
+          <CardContent className="hidden sm:block p-0 max-h-[70dvh] overflow-auto">
             <Table>
               <TableHeader sticky>
                 <TableRow>

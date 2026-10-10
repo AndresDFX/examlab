@@ -3034,7 +3034,7 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
         </div>
       )}
       {/* Sticky header with timer — full-bleed on mobile via negative margins matching AppLayout's px-4 */}
-      <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
+      <div className="sticky top-14 md:top-0 z-20 bg-background/95 backdrop-blur border-b -mx-4 md:-mx-8 -mt-5 md:-mt-8 px-4 md:px-8 py-3 mb-4 sm:mb-5 flex items-center justify-between gap-2 sm:gap-3">
         <div className="min-w-0 flex-1">
           <div className="font-semibold truncate text-sm sm:text-base">{exam.title}</div>
           <div className="text-2xs sm:text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-0.5">
