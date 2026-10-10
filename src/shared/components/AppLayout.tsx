@@ -1441,7 +1441,10 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-sidebar-foreground hover:bg-sidebar-accent"
+                // En el examen el menú no lleva a ningún lado (la navegación está
+                // bloqueada): ofrecerlo hacía creer que la app no respondía
+                // (auditoría móvil 2026-10-10).
+                className={cn("text-sidebar-foreground hover:bg-sidebar-accent", isTakingExam && "hidden")}
                 aria-label={t("hc_sharedComponentsAppLayout.menu")}
               >
                 <Menu className="h-5 w-5" />

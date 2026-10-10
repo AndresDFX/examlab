@@ -677,7 +677,7 @@ function AdminDashboard() {
                         />
                         <div className="flex-1 min-w-0">
                           <div className="text-sm font-medium truncate" title={ev.action}>
-                            {ev.action}
+                            {t(`audit.actionLabels.${ev.action}`, { defaultValue: ev.action })}
                           </div>
                           <div className="text-2xs text-muted-foreground truncate">
                             {ev.actor_email ?? t("hc_routesAppIndex.system")}

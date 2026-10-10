@@ -1,4 +1,5 @@
 import { createFileRoute, useSearch } from "@tanstack/react-router";
+import { parametroComoTexto } from "@/shared/lib/parametro-de-busqueda";
 import { useEffect, useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { softDeleteCourseCascade } from "@/modules/trash/soft-delete";
@@ -121,7 +122,9 @@ export const Route = createFileRoute("/app/admin/courses")({
   component: AdminCourses,
   validateSearch: (
     s: Record<string, unknown>,
-  ): { fromSubject?: string; subjectFilter?: string } => ({
+  ): { fromSubject?: string; subjectFilter?: string; q?: string } => ({
+    // `q`: lo manda el buscador global con el nombre del curso.
+    q: parametroComoTexto(s.q),
     // `fromSubject=<id>` viene del menú 'Crear curso desde esta
     // asignatura' en /admin Universidad → Asignaturas. Al recibirlo,
     // este route abre el dialog 'Nuevo curso' con campos pre-rellenados
@@ -260,7 +263,12 @@ export function AdminCourses() {
   const routeSearch = useSearch({ strict: false }) as {
     subjectFilter?: string;
     fromSubject?: string;
+    q?: string;
   };
+  const busquedaDeUrl = routeSearch.q ?? "";
+  useEffect(() => {
+    if (busquedaDeUrl) setSearch(busquedaDeUrl);
+  }, [busquedaDeUrl]);
   const subjectFilter = routeSearch.subjectFilter ?? null;
   const fromSubject = routeSearch.fromSubject ?? null;
 

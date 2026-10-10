@@ -147,3 +147,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   partir las acciones hasta `xl` (en iPad vertical «Nueva sesión» quedaba fuera de la pantalla);
   taller nuevo sin curso marcado salvo que haya uno solo; «Eliminar mi entrega» separado del botón
   de arriba; el enlace de «Reanudar examen» ocupa todo el botón.
+- **Sexta tanda**: los filtros de Estadísticas se parten en iPad; la confirmación de borrar curso,
+  proyecto, contenido, taller y pizarra dice que va a la Papelera (decía «no se puede deshacer»);
+  la actividad reciente del inicio muestra la etiqueta de Auditoría en vez de «workshop.created»;
+  el buscador global lleva al Admin a su lista de Cursos filtrada (`?q=`) y no al tablero del
+  docente; durante el examen no se ofrece el menú móvil, que no llevaba a ningún lado.

@@ -299,8 +299,12 @@ async function searchCourses(q: string, s: SearchScope): Promise<PaletteHit[]> {
       kind: "course",
       title: r.name,
       subtitle: r.period,
-      to: "/app/teacher/board/$courseId",
-      params: { courseId: r.id },
+      // Admin/SuperAdmin: su lista de Cursos filtrada por el nombre. El tablero
+      // es la vista del DOCENTE; el administrador que buscaba un curso caía ahí
+      // (auditoría móvil 2026-10-10).
+      ...(s.canSearchUsers
+        ? { to: "/app/admin/courses", search: { q: r.name } }
+        : { to: "/app/teacher/board/$courseId", params: { courseId: r.id } }),
     }),
   );
 }
