@@ -924,7 +924,7 @@ function StudentGrades() {
                           <KindBadge kind={it.kind} />
                         </TableCell>
                         <TableCell className="text-right tabular-nums">
-                          {it.rawGrade != null ? `${it.rawGrade} / ${it.rawMax}` : "—"}
+                          {it.rawGrade != null ? `${formatNumber(Number(it.rawGrade), { maximumFractionDigits: 2 })} / ${formatNumber(Number(it.rawMax), { maximumFractionDigits: 2 })}` : "—"}
                         </TableCell>
                         <TableCell className="text-right tabular-nums">{fmt(it.grade)}</TableCell>
                       </TableRow>
@@ -1034,7 +1034,7 @@ function KindGroup({
                 {it.weight != null ? `${formatNumber(Number(it.weight), { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%` : "—"}
               </TableCell>
               <TableCell className="text-right tabular-nums">
-                {it.rawGrade != null ? `${it.rawGrade} / ${it.rawMax}` : "—"}
+                {it.rawGrade != null ? `${formatNumber(Number(it.rawGrade), { maximumFractionDigits: 2 })} / ${formatNumber(Number(it.rawMax), { maximumFractionDigits: 2 })}` : "—"}
               </TableCell>
               <TableCell className="text-right tabular-nums font-medium">{fmt(it.grade)}</TableCell>
               <TableCell className="hidden md:table-cell">
