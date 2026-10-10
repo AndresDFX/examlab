@@ -7763,6 +7763,7 @@
     "submittingOverlaySubtitle": "Estamos guardando tus respuestas y calificando. No cierres esta ventana."
   },
   "hc_router": {
+    "offline": "Sin conexión. Cuando vuelva la red, la página se recarga sola.",
     "updating": "Actualizando…",
     "errorTitle": "Algo salió mal",
     "errorDescription": "Ocurrió un error inesperado. Por favor intenta de nuevo.",

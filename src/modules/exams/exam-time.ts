@@ -83,10 +83,17 @@ export function getExamAccessState(window: ExamWindow, now: number = Date.now())
   return "open";
 }
 
-/** "MM:SS" format used by the exam timer header. */
+/** Reloj del encabezado del examen: "MM:SS" bajo una hora, "H:MM:SS" con más,
+ *  "Nd Hh" con más de un día. Siempre "MM:SS" mostraba «644115:44» en un examen
+ *  con la ventana abierta hasta 2027 (auditoría móvil 2026-10-10). */
 export function formatTimerMMSS(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
-  const mins = Math.floor(safe / 60);
+  const p = (n: number) => String(n).padStart(2, "0");
+  const dias = Math.floor(safe / 86400);
+  const horas = Math.floor((safe % 86400) / 3600);
+  const mins = Math.floor((safe % 3600) / 60);
   const secs = safe % 60;
-  return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  if (dias > 0) return `${dias}d ${horas}h`;
+  if (horas > 0) return `${horas}:${p(mins)}:${p(secs)}`;
+  return `${p(mins)}:${p(secs)}`;
 }

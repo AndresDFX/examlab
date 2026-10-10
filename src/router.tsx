@@ -26,7 +26,23 @@ function isChunkLoadError(err: unknown): boolean {
   );
 }
 
+// Sin red, recargar deja la página en blanco o colgada: se espera a la red.
+let esperandoRed = false;
 function reloadOnceForStaleChunk(): void {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    if (!esperandoRed) {
+      esperandoRed = true;
+      window.addEventListener(
+        "online",
+        () => {
+          esperandoRed = false;
+          reloadOnceForStaleChunk();
+        },
+        { once: true },
+      );
+    }
+    return;
+  }
   try {
     // Una recarga automática cada 60 s como mucho (misma regla que el script
     // de __root.tsx): la marca ya no se borra al cargar, así que una falla
@@ -71,7 +87,11 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
   if (chunkError) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-        <p>{t("hc_router.updating")}</p>
+        <p>
+          {typeof navigator !== "undefined" && navigator.onLine === false
+            ? t("hc_router.offline")
+            : t("hc_router.updating")}
+        </p>
         {/* Si la guarda ya recargó hace menos de un minuto, la recarga automática
             no vuelve a ocurrir: sin este botón la pantalla quedaba sin salida. */}
         <Button size="sm" onClick={() => recargarLaApp()}>

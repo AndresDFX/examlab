@@ -1,3 +1,4 @@
+import { formatTimerMMSS } from "@/modules/exams/exam-time";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -341,9 +342,7 @@ export function useRealtimeTimer({
   }, [examId, userId]);
 
   const formattedTime = useCallback(() => {
-    const mins = Math.floor(secondsLeft / 60);
-    const secs = secondsLeft % 60;
-    return `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    return formatTimerMMSS(secondsLeft);
   }, [secondsLeft]);
 
   /** Permite sincronizar el timer con una nueva cantidad de segundos

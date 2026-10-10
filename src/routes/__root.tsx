@@ -269,7 +269,17 @@ function RootShell({ children }: { children: React.ReactNode }) {
                 // Si un dynamic import falla (deploy nuevo borró el chunk con
                 // hash que el HTML viejo todavía referencia), recargamos UNA
                 // vez. Marcador en sessionStorage para evitar bucles.
+                // Sin red, recargar deja la página en blanco (iPhone) o colgada
+                // (Android): se espera a que vuelva la red y se recarga entonces.
+                var esperandoRed = false;
+                window.addEventListener('online', function () {
+                  if (!esperandoRed) return;
+                  esperandoRed = false;
+                  window.__examlabRecargaPropia = true;
+                  window.location.reload();
+                });
                 function reloadOnce() {
+                  if (navigator.onLine === false) { esperandoRed = true; return; }
                   try {
                     // Guarda por TIEMPO (una recarga cada 60 s), no por evento:
                     // antes la marca se borraba en cada 'load' y una falla

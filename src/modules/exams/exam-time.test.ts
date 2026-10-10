@@ -164,7 +164,9 @@ describe("formatTimerMMSS", () => {
   });
 
   it("handles long durations", () => {
-    expect(formatTimerMMSS(3600)).toBe("60:00");
+    expect(formatTimerMMSS(3600)).toBe("1:00:00");
+    expect(formatTimerMMSS(5400)).toBe("1:30:00");
+    expect(formatTimerMMSS(38646944)).toBe("447d 7h");
   });
 
   it("clamps negative values to 00:00", () => {

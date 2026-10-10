@@ -64,7 +64,7 @@ describe("useRealtimeTimer — inicialización", () => {
     const { result } = renderHook(() =>
       useRealtimeTimer({ examId: "e", userId: "u", initialSeconds: 75 * 60 + 7 }),
     );
-    expect(result.current.formattedTime).toBe("75:07");
+    expect(result.current.formattedTime).toBe("1:15:07");
   });
 
   it("inicializa después si initialSeconds llega = 0 y luego > 0", () => {

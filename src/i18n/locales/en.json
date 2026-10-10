@@ -7763,6 +7763,7 @@
     "submittingOverlaySubtitle": "We're saving your answers and grading them. Don't close this window."
   },
   "hc_router": {
+    "offline": "No connection. The page will reload by itself when the network is back.",
     "updating": "Updating…",
     "errorTitle": "Something went wrong",
     "errorDescription": "An unexpected error occurred. Please try again.",

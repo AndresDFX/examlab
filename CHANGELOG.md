@@ -138,3 +138,6 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   con columnas calificadas (mig `20262790000000`), ya no da 400 en el inicio del estudiante. Las
   páginas públicas y el login quedan cubiertos por los topes de sesión (1,5 s) y de red (20 s / 30 s):
   ya no pueden esperar indefinidamente.
+- **Cuarta tanda** (de la auditoría móvil): sin red, un chunk que no baja ya no recarga al vacío
+  (página en blanco en iPhone): se espera al evento `online` y se avisa «Sin conexión…»; el reloj
+  del examen pasa a «H:MM:SS» y «Nd Hh» (una ventana hasta 2027 mostraba «644115:44»).
