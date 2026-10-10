@@ -645,7 +645,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // intento en curso sigue intacto en DB; al reconectar podrá
         // reanudar sin perder respuestas.
         const msg = (eErr as { message?: string } | null)?.message ?? "";
-        const isNetwork = !navigator.onLine || /fetch|network/i.test(msg);
+        const isNetwork = !navigator.onLine || /fetch|network|load failed|connection was lost|appears to be offline/i.test(msg);
         if (isNetwork) {
           toast.warning(
             i18n.t("toast.routes_app_student_take_examId.offlineRetrying", {

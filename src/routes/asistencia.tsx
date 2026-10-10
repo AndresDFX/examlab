@@ -41,6 +41,7 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { Spinner } from "@/components/ui/spinner";
 import { toast } from "sonner";
 import { CheckCircle2, XCircle, CalendarCheck, LogIn } from "lucide-react";
+import { parametroComoTexto } from "@/shared/lib/parametro-de-busqueda";
 
 /** Lo que devuelven las RPC de marcado. `already` = la asistencia YA estaba. */
 interface RequisitoPendiente {
@@ -104,8 +105,8 @@ interface InfoPublica {
 
 export const Route = createFileRoute("/asistencia")({
   validateSearch: (s: Record<string, unknown>) => ({
-    session: typeof s.session === "string" ? s.session : "",
-    code: typeof s.code === "string" ? s.code : "",
+    session: parametroComoTexto(s.session) ?? "",
+    code: parametroComoTexto(s.code) ?? "",
   }),
   head: () => ({
     meta: [{ title: "Asistencia · ExamLab" }, { name: "robots", content: "noindex, nofollow" }],

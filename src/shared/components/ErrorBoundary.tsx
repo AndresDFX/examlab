@@ -45,7 +45,10 @@ function isChunkLoadError(err: Error): boolean {
     msg.includes("ChunkLoadError") ||
     msg.includes("Loading chunk") ||
     msg.includes("Failed to fetch dynamically imported module") ||
-    msg.includes("Importing a module script failed")
+    msg.includes("Importing a module script failed") ||
+    // WebKit, cuando un chunk que ya no existe llega como index.html (Cloudflare
+    // en modo SPA responde 200 text/html): ver public/sw.js.
+    msg.includes("is not a valid JavaScript MIME type")
   );
 }
 

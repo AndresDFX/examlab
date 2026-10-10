@@ -103,6 +103,36 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
 
+### 📱 «Se queda cargando» en iPhone: sesión con tope, enlace de asistencia y pestaña vieja
+
+- **Caso** (2026-10-10): un estudiante de SB141C con iPhone (Safari 27.0.1) reportó que la plataforma
+  «se queda cargando, como si fuera mi internet». La investigación (logs + reproducción en WebKit)
+  confirmó que el 6-oct le tocó la caída de la base y que hoy la app le cargó pero no le mostraba
+  nada; en el camino aparecieron defectos que afectan a otros.
+- **Sesión con tope** (`persistent-storage.ts`): auth-js lee este almacenamiento en el arranque y en
+  CADA petición, y el IndexedDB de WebKit puede no responder nunca: la app entera quedaba en
+  «Cargando…» sin salir una petición. Ahora se lee primero localStorage (se escribe primero y en el
+  acto, así que es lo más nuevo), IndexedDB queda de respaldo con tope de 1,5 s, y al primer
+  vencimiento se deja de esperarlo. Cerrar sesión deja una marca para que un borrado vencido en
+  IndexedDB no «resucite» la sesión.
+- **Red con tope** (`fetch-con-tope.ts`): /auth/v1 20 s y /rest/v1 30 s. Una renovación colgada
+  dejaba pendiente toda la app; abortada, auth-js la trata como error de red reintentable y no borra
+  la sesión. Funciones, storage y realtime siguen sin tope.
+- **Enlace de asistencia**: TanStack parsea la query con JSON.parse y `?code=446320` llegaba como
+  número; el validateSearch lo descartaba y la página abría con el código vacío (6 de 7 cursos de
+  UNIAJ). Igual el PIN del reto en vivo y `?q=` de Usuarios. `parametroComoTexto`.
+- **Pestaña vieja de Safari**: un chunk que ya no existe Cloudflare lo responde 200 con el
+  index.html; WebKit da «is not a valid JavaScript MIME type», que ningún detector reconocía. Los
+  cuatro detectores lo reconocen (test que lee los archivos), y `sw.js` (examlab-v11, purga lo
+  envenenado) ya no guarda HTML bajo un .js: responde 404, que hasta el código viejo reconoce.
+- **Safari «Load failed»**: el examen lo mostraba como «Examen no encontrado» y db-retry no
+  reintentaba.
+- **Pendiente** (no hecho todavía): la lista de exámenes/talleres esconde lo cerrado sin decirlo (el
+  recordatorio lleva ahí sin el id); el recuadro «Instala ExamLab en tu iPhone» tapa «Iniciar
+  examen» y el código de asistencia; páginas públicas y login con spinner sin salida; la guarda
+  `examlab:reloaded` se borra en cada load (bucle); Markdown con lookbehind rompe en iOS < 16.4;
+  `kahoot_course_leaderboard` da 400 (user_id ambiguo).
+
 ### ⏰ Corte 1 (UNIAJ): todo lo que tiene nota, abierto hasta el sábado 10 de octubre a las 11:59 p. m.
 
 - **Pedido** (2026-10-10): ampliar para todos los estudiantes los entregables del Corte 1 con nota

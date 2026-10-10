@@ -95,6 +95,7 @@ import {
   BulkDeleteDialog,
 } from "@/components/ui/multi-select";
 import { BulkPasswordDialog } from "@/shared/components/BulkPasswordDialog";
+import { parametroComoTexto } from "@/shared/lib/parametro-de-busqueda";
 
 export const Route = createFileRoute("/app/admin/users")({
   component: AdminUsers,
@@ -102,7 +103,7 @@ export const Route = createFileRoute("/app/admin/users")({
   // usuario — las acciones viven en la fila del grid —, así que el resultado
   // abre el módulo con el filtro ya escrito y la persona a la vista.
   validateSearch: (s: Record<string, unknown>): { q?: string } => ({
-    q: typeof s.q === "string" ? s.q : undefined,
+    q: parametroComoTexto(s.q),
   }),
 });
 

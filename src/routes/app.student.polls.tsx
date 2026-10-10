@@ -17,6 +17,7 @@
  *   - 'never'       → nunca al alumno.
  */
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { parametroComoTexto } from "@/shared/lib/parametro-de-busqueda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -79,7 +80,7 @@ export const Route = createFileRoute("/app/student/polls")({
   // al juego. La seguridad la enforza el RPC kahoot_join_game (matrícula).
   validateSearch: (search: Record<string, unknown>): { poll?: string; kahootPin?: string } => ({
     poll: typeof search.poll === "string" ? search.poll : undefined,
-    kahootPin: typeof search.kahootPin === "string" ? search.kahootPin : undefined,
+    kahootPin: parametroComoTexto(search.kahootPin),
   }),
 });
 

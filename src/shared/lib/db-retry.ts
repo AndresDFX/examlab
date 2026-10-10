@@ -38,7 +38,7 @@ const TRANSIENT_SQLSTATES = new Set(["57014", "40001", "40P01", "55P03"]);
  *  request nunca llegó a Postgres) — mismo vocabulario que ya reconoce
  *  `friendlyError` para errores de red. */
 const TRANSIENT_MESSAGE_PATTERN =
-  /failed to fetch|network|timeout|timed out|econnreset|econnrefused/i;
+  /failed to fetch|load failed|connection was lost|appears to be offline|network|timeout|timed out|tiempo de espera|econnreset|econnrefused/i;
 
 /**
  * true si el error es transitorio y vale la pena reintentar la MISMA

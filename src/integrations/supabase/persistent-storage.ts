@@ -9,9 +9,7 @@
 // La interfaz que espera Supabase v2 (`SupportedStorage`) acepta
 // retornos sync o Promise; usamos async todo el tiempo, es seguro.
 //
-// Estrategia de migración: si la fila ya vive en `localStorage` (tabs
-// previos al cambio), la portamos a IndexedDB en la primera lectura
-// para que el usuario no se vea forzado a re-loggear después del deploy.
+// Desde 2026-10-10 se lee primero localStorage (ver el orden más abajo).
 
 import { createStore, get, set, del } from "idb-keyval";
 
@@ -70,51 +68,84 @@ function writeLocalStorage(key: string, value: string | null): void {
   }
 }
 
+/**
+ * Tope para cada operación de IndexedDB. Medido en producción (2026-10-10):
+ * auth-js lee este almacenamiento en el arranque y en CADA petición, así que si
+ * el IndexedDB de WebKit no responde —un bug conocido de Safari, y también una
+ * transacción retenida por otra pestaña congelada por iOS— toda la app queda
+ * esperando: «Cargando…» y después «No pudimos conectar con el servidor», sin
+ * que salga una sola petición. Un estudiante con iPhone lo leyó como «es mi
+ * internet». Con el tope, lo peor que pasa es esperar este tiempo UNA vez.
+ */
+export const MS_TOPE_INDEXEDDB = 1500;
+
+/** Tras el primer vencimiento se deja de esperar a IndexedDB por el resto de la
+ *  vida de la página: auth-js lee el almacenamiento cientos de veces por carga,
+ *  y pagar el tope en cada lectura sería otro cuelgue, solo que más lento. */
+let indexedDbColgado = false;
+
+/** Solo para pruebas. */
+export function _reiniciarEstadoIndexedDb(): void {
+  indexedDbColgado = false;
+}
+
+const VENCIDO = Symbol("vencido");
+
+async function conTope<T>(p: Promise<T>): Promise<T | typeof VENCIDO> {
+  if (indexedDbColgado) return VENCIDO;
+  let id: ReturnType<typeof setTimeout> | undefined;
+  const tope = new Promise<typeof VENCIDO>((res) => {
+    id = setTimeout(() => res(VENCIDO), MS_TOPE_INDEXEDDB);
+  });
+  try {
+    const r = await Promise.race([p, tope]);
+    if (r === VENCIDO) indexedDbColgado = true;
+    return r;
+  } catch {
+    return VENCIDO;
+  } finally {
+    if (id) clearTimeout(id);
+  }
+}
+
+// ── Orden de lectura y escritura ──────────────────────────────────────────
+// localStorage se escribe PRIMERO y en el acto (es síncrono: no puede
+// colgarse), así que cuando tiene un valor es siempre el más nuevo. Por eso se
+// LEE primero: IndexedDB queda como respaldo durable para el caso que motivó
+// este archivo —Chrome Android vacía el localStorage de la PWA—, y solo se
+// consulta cuando localStorage no tiene nada. Leer primero IndexedDB, como
+// antes, además podía devolver una sesión vieja si una escritura en IndexedDB
+// quedó atrás.
+//
+// Cerrar sesión deja una marca en localStorage: si el del() de IndexedDB vence,
+// la sesión borrada sigue ahí, y sin la marca la próxima lectura (localStorage
+// vacío → IndexedDB) la «resucitaría».
+const MARCA_BORRADO = "__borrado";
+
 export const persistentAuthStorage = {
   async getItem(key: string): Promise<string | null> {
-    // Primero IndexedDB (la "fuente de verdad" tras la migración).
-    const fromIdb = await get<string>(key, store);
-    if (fromIdb != null) return fromIdb;
-    // Migración perezosa: el usuario tenía sesión en localStorage del
-    // cliente anterior. La portamos a IndexedDB y la devolvemos. Las
-    // siguientes lecturas ya vienen de IndexedDB directamente.
     const fromLs = readLocalStorage(key);
-    if (fromLs != null) {
-      try {
-        await set(key, fromLs, store);
-      } catch {
-        // Si IndexedDB no está disponible (modo incógnito Firefox en
-        // ciertas builds), seguimos devolviendo el valor de localStorage
-        // — al menos el usuario no se queda fuera.
-      }
-      return fromLs;
-    }
-    return null;
+    if (fromLs != null) return fromLs;
+    if (readLocalStorage(key + MARCA_BORRADO) != null) return null;
+    const fromIdb = await conTope(get<string>(key, store));
+    if (fromIdb === VENCIDO || fromIdb == null) return null;
+    // localStorage fue desalojado y IndexedDB lo tenía: se repara la copia.
+    writeLocalStorage(key, fromIdb);
+    return fromIdb;
   },
   async setItem(key: string, value: string): Promise<void> {
     // Best-effort: pedir persistencia al primer setItem (cuando el
     // alumno acaba de loguearse). Fire-and-forget — no bloqueamos.
     void requestPersistentStorage();
-    try {
-      await set(key, value, store);
-    } catch {
-      // IndexedDB falló — fall back a localStorage para no perder la
-      // sesión de la sesión actual.
-      writeLocalStorage(key, value);
-      return;
-    }
-    // Doble escritura como red de seguridad: si IndexedDB se queda
-    // corrupto en algún device específico, el cliente anterior puede
-    // recuperar la sesión de localStorage. Es una key (~2KB), no
-    // compromete cuota.
     writeLocalStorage(key, value);
+    writeLocalStorage(key + MARCA_BORRADO, null);
+    await conTope(set(key, value, store));
   },
   async removeItem(key: string): Promise<void> {
-    try {
-      await del(key, store);
-    } catch {
-      // ignore
-    }
     writeLocalStorage(key, null);
+    writeLocalStorage(key + MARCA_BORRADO, "1");
+    const r = await conTope(del(key, store));
+    // Borrado de verdad en IndexedDB: la marca ya no hace falta.
+    if (r !== VENCIDO) writeLocalStorage(key + MARCA_BORRADO, null);
   },
 };

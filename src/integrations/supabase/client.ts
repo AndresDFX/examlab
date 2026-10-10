@@ -2,6 +2,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Database } from './types';
 import { persistentAuthStorage } from './persistent-storage';
+import { crearFetchConTope } from './fetch-con-tope';
 
 function createSupabaseClient() {
   // Use import.meta.env for client-side (Vite build-time replacement)
@@ -32,7 +33,8 @@ function createSupabaseClient() {
       // donde un cambio de app puede romper el redirect implícito.
       flowType: 'pkce',
       detectSessionInUrl: true,
-    }
+    },
+    global: { fetch: crearFetchConTope() },
   });
 }
 

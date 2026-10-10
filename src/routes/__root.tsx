@@ -284,7 +284,8 @@ function RootShell({ children }: { children: React.ReactNode }) {
                     msg.indexOf('ChunkLoadError') !== -1 ||
                     msg.indexOf('Loading chunk') !== -1 ||
                     msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
-                    msg.indexOf('Importing a module script failed') !== -1
+                    msg.indexOf('Importing a module script failed') !== -1 ||
+                    msg.indexOf('is not a valid JavaScript MIME type') !== -1
                   );
                 }
                 window.addEventListener('error', function (ev) {

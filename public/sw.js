@@ -29,7 +29,8 @@
 // v10 fuerza la purga de cualquier chunk JS viejo que aún referenciara esas
 // URLs muertas, para que tras el deploy no quede un bundle stale apuntando a
 // i.copy.sh.
-const CACHE_NAME = "examlab-v10";
+// v11 (2026-10-10): purga los .js/.css que v10 guardó con el index.html adentro.
+const CACHE_NAME = "examlab-v11";
 // Solo cacheamos assets inmutables (los que llevan hash en el nombre).
 // El HTML siempre se sirve desde la red — si la red falla, mostramos un
 // fallback offline mínimo construido al vuelo, no uno cacheado.
@@ -182,6 +183,16 @@ self.addEventListener("fetch", (event) => {
         (cached) =>
           cached ||
           fetch(request).then((response) => {
+            // Un .js/.css que ya no existe (pestaña con el código de un despliegue
+            // anterior) Cloudflare lo responde 200 con el index.html, por el modo
+            // SPA. Guardarlo envenenaba el caché para siempre, y el navegador da un
+            // error de MIME que la recuperación no reconocía. Un 404 hace que el
+            // import falle con un error que hasta el código VIEJO de esa pestaña
+            // reconoce, y la recarga trae la versión nueva.
+            const tipo = response.headers.get("content-type") || "";
+            if (/.(js|css)$/.test(url.pathname) && tipo.includes("text/html")) {
+              return new Response("", { status: 404, statusText: "Not Found" });
+            }
             if (response.ok) {
               const clone = response.clone();
               // `.catch(() => {})` defensivo: cualquier fallo de cacheo
