@@ -103,6 +103,17 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
 
+### 📝 Encuesta de satisfacción 2026-2 como requisito de asistencia (UNIAJ)
+
+- **Pedido** (2026-10-10): volver a publicar «Satisfacción con ExamLab» en los cursos de 2026-2, con
+  respuestas aparte de las de 2026-1, y exigirla para registrar asistencia en las sesiones que faltan
+  y en las siguientes, hasta nuevo aviso. Es para un anexo de postulación (Premios CIDESCO 2026); la de
+  2026-1 tuvo menos de 5 respuestas de estudiantes y no se puede reportar.
+- **Hecho**: encuesta nueva «Satisfacción con ExamLab — 2026-2» (mismas 6 preguntas, con la
+  ortografía corregida), publicada en los 7 cursos de 2026-2 y puesta como requisito (`poll`) en sus
+  84 sesiones. El diálogo de check-in carga los requisitos existentes, así que abrir una asistencia no
+  la quita. **Sesiones que se creen después no la traen solas.**
+
 ### 🗓️ SB141B: la asistencia del 1 de octubre había quedado en la clase del 8
 
 - **Caso** (2026-10-09, WhatsApp): Alison Cadena aparecía con la clase del 1 de octubre pendiente
