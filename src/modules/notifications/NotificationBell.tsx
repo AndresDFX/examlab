@@ -82,6 +82,9 @@ export function NotificationBell({
             isSidebar &&
               "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-foreground",
           )}
+          // Botón de solo ícono: sin nombre, el lector de pantalla lo anunciaba
+          // como «botón» a secas (auditoría móvil 2026-10-10).
+          aria-label={t("notifications.title")}
         >
           <Bell className="h-4 w-4" />
           {unreadCount > 0 && (
