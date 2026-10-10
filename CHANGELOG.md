@@ -133,6 +133,8 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
   la guarda de recarga por chunk es por TIEMPO (una cada 60 s, ya no se borra en `load`) y
   «Actualizando…» trae un botón; Markdown sin remark-gfm donde no hay lookbehind (iOS < 16.4) y el
   .pptx sin lookbehind.
-- **Pendiente**: el recordatorio sigue llevando a la lista sin el id del examen; páginas públicas y
-  login con spinner sin salida (mitigado por los topes de sesión y red); `kahoot_course_leaderboard`
-  da 400 (user_id ambiguo).
+- **Tercera tanda**: el recordatorio del examen lleva `?exam=<id>` (mig `20262780000000`) y la
+  lista suma el estado de ese examen al filtro, así se ve aunque haya cerrado; `kahoot_course_leaderboard`
+  con columnas calificadas (mig `20262790000000`), ya no da 400 en el inicio del estudiante. Las
+  páginas públicas y el login quedan cubiertos por los topes de sesión (1,5 s) y de red (20 s / 30 s):
+  ya no pueden esperar indefinidamente.

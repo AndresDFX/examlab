@@ -6,7 +6,8 @@ import {
 } from "@/shared/lib/rango-de-fechas";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { parametroComoTexto } from "@/shared/lib/parametro-de-busqueda";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MultiSelectFilter } from "@/components/ui/multi-select-filter";
 import { supabase } from "@/integrations/supabase/client";
@@ -52,7 +53,15 @@ import { retroDeExamenVisible } from "@/modules/submissions/retroalimentacion-vi
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 
-export const Route = createFileRoute("/app/student/exams")({ component: StudentExams });
+export const Route = createFileRoute("/app/student/exams")({
+  component: StudentExams,
+  // `?exam=<id>`: el recordatorio «Tu examen … inicia pronto» (mig
+  // 20262780000000) trae el id para que la lista lo muestre aunque el filtro por
+  // defecto lo deje afuera (p. ej. porque ya cerró).
+  validateSearch: (s: Record<string, unknown>): { exam?: string } => ({
+    exam: parametroComoTexto(s.exam),
+  }),
+});
 
 type ExamRow = {
   exam: {
@@ -161,6 +170,7 @@ function StudentExams() {
   const { user } = useAuth();
   const { t } = useTranslation();
   const [rows, setRows] = useState<ExamRow[]>([]);
+  const { exam: examEnfocado } = Route.useSearch();
   // `cut_id` → nombre. Se carga aparte y no por embed porque el embed de
   // `grade_cuts` desde `exams` obligaría a pedirlo dentro del `!inner` de
   // `exam_assignments`, que ya tiene tres niveles; y son pocas filas.
@@ -443,6 +453,18 @@ function StudentExams() {
     });
     return sorted;
   }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
+
+  // Si se llegó con `?exam=<id>`, su estado entra al filtro: el estudiante vino
+  // a ver ESE examen. Una sola vez por id, para no pelear con el filtro manual.
+  const enfocadoRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!examEnfocado || enfocadoRef.current === examEnfocado) return;
+    const fila = rows.find((r) => r.exam.id === examEnfocado);
+    if (!fila) return;
+    enfocadoRef.current = examEnfocado;
+    const estado = getExamDisplayStatus(fila, now);
+    setStatusFilter((prev) => (prev.includes(estado) ? prev : [...prev, estado]));
+  }, [examEnfocado, rows, now]);
 
   // Exámenes que solo el filtro de ESTADO deja afuera (típicamente los
   // cerrados). Se dicen en pantalla: un recordatorio que trae al estudiante acá
