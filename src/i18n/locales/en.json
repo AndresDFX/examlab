@@ -8057,6 +8057,9 @@
     "sortStartDesc": "Start: descending",
     "sortTitleAsc": "Title A→Z",
     "noFilterMatches": "No matches for the current filters.",
+    "hiddenByStatus_one": "1 exam is hidden by its status (for example, closed): {{titles}}.",
+    "hiddenByStatus_other": "{{count}} exams are hidden by their status (for example, closed): {{titles}}.",
+    "showHidden": "Show them",
     "clearFilters": "Clear filters",
     "emptyTitle": "No exams yet",
     "emptyHint": "When your teacher assigns an exam, it'll appear here.",
@@ -8615,6 +8618,9 @@
     "roleTutor": "Tutor"
   },
   "hc_routesAppStudentWorkshops": {
+    "hiddenByStatus_one": "1 workshop is hidden by its status (for example, overdue or closed): {{titles}}.",
+    "hiddenByStatus_other": "{{count}} workshops are hidden by their status (for example, overdue or closed): {{titles}}.",
+    "showHidden": "Show them",
     "loadWorkshopsError": "We couldn't load your workshops.",
     "loadWorkshopsErrorTitle": "We couldn't load your workshops",
     "submissionDeleted": "Submission deleted",

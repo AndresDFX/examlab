@@ -444,6 +444,24 @@ function StudentExams() {
     return sorted;
   }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
 
+  // Exámenes que solo el filtro de ESTADO deja afuera (típicamente los
+  // cerrados). Se dicen en pantalla: un recordatorio que trae al estudiante acá
+  // después del cierre le mostraba «Sin coincidencias», y no tenía cómo saber
+  // que su examen existía y había cerrado (caso real, 2026-10-10).
+  const ocultosPorEstado = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (coincideFiltro(statusFilter, getExamDisplayStatus(r, now))) return false;
+      if (!coincideFiltro(courseFilter, r.exam.course_id)) return false;
+      if (!enRangoDeFechas(r.exam.end_time, rangoFechas)) return false;
+      if (!q) return true;
+      return (
+        r.exam.title.toLowerCase().includes(q) ||
+        (r.exam.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now, rangoFechas]);
+
   // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
   // del grid de 2 columnas (6 filas en mobile). El resetKey concatena
   // TODOS los filtros activos para que aplicar cualquiera vuelva a la
@@ -565,6 +583,27 @@ function StudentExams() {
         {loading && (
           <div className="md:col-span-2 flex justify-center py-10">
             <Spinner size="md" />
+          </div>
+        )}
+        {!loading && ocultosPorEstado.length > 0 && (
+          <div className="md:col-span-2 flex flex-wrap items-center gap-2 rounded-md border bg-muted/50 p-3 text-sm">
+            <span className="flex-1 min-w-0">
+              {t("hc_routesAppStudentExams.hiddenByStatus", {
+                count: ocultosPorEstado.length,
+                titles: ocultosPorEstado.map((r) => r.exam.title).join(", "),
+              })}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setStatusFilter((prev) => [
+                  ...new Set([...prev, ...ocultosPorEstado.map((r) => getExamDisplayStatus(r, now))]),
+                ])
+              }
+            >
+              {t("hc_routesAppStudentExams.showHidden")}
+            </Button>
           </div>
         )}
         {!loading && visibleRows.length === 0 && (

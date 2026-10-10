@@ -23,6 +23,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Share, Plus, X } from "lucide-react";
+import { useRouterState } from "@tanstack/react-router";
+import { debeMostrarAvisoIos } from "./aviso-ios";
 
 const STORAGE_KEY = "examlab_ios_install_dismissed_at";
 /** Días de "silencio" tras descartar el banner. Después vuelve a salir
@@ -67,6 +69,7 @@ function wasRecentlyDismissed(): boolean {
 export function IosInstallBanner() {
   const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
     if (!isIos()) return;
@@ -77,7 +80,7 @@ export function IosInstallBanner() {
     return () => clearTimeout(t);
   }, []);
 
-  if (!visible) return null;
+  if (!visible || !debeMostrarAvisoIos(pathname)) return null;
 
   const dismiss = () => {
     try {
@@ -127,7 +130,7 @@ export function IosInstallBanner() {
         <button
           type="button"
           onClick={dismiss}
-          className="shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted"
+          className="shrink-0 h-8 w-8 inline-flex items-center justify-center rounded-md text-muted-foreground hover:bg-muted"
           aria-label={t("hc_modulesPwaIosInstallBanner.close")}
         >
           <X className="h-4 w-4" />

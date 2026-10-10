@@ -212,7 +212,9 @@ export function stripInlineMarkdown(raw: string): string {
   // Bold: **text** / __text__
   out = out.replace(/(\*\*|__)([^*_]+?)\1/g, "$2");
   // Italic: *text* / _text_ — guardamos los espacios alrededor.
-  out = out.replace(/(?<!\w)[*_]([^*_\n]+?)[*_](?!\w)/g, "$1");
+  // Sin lookbehind: Safari lo soporta desde 16.4 y en un iPhone más viejo esta
+  // línea lanzaba al armar el .pptx. El carácter previo se captura y se devuelve.
+  out = out.replace(/(^|[^\w])[*_]([^*_\n]+?)[*_](?!\w)/g, "$1$2");
   // Strikethrough: ~~text~~
   out = out.replace(/~~([^~]+?)~~/g, "$1");
   // Inline code: `code`

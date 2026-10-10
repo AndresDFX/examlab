@@ -13,6 +13,7 @@
  */
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { soportaLookbehind } from "@/shared/lib/soporta-lookbehind";
 import remarkBreaks from "remark-breaks";
 
 export function MarkdownInline({ children }: { children: string }) {
@@ -42,7 +43,7 @@ export function MarkdownInline({ children }: { children: string }) {
         // breaks: salto de línea simple del textarea → <br> (los docentes
         // escriben con Enter normal y esperan ver el salto; sin esto,
         // markdown colapsaría newlines simples a espacio).
-        remarkPlugins={[remarkGfm, remarkBreaks]}
+        remarkPlugins={soportaLookbehind() ? [remarkGfm, remarkBreaks] : [remarkBreaks]}
         allowedElements={[
           "h1", "h2", "h3", "h4", "h5", "h6",
           "p", "strong", "em", "del", "br",

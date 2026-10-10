@@ -271,8 +271,13 @@ function RootShell({ children }: { children: React.ReactNode }) {
                 // vez. Marcador en sessionStorage para evitar bucles.
                 function reloadOnce() {
                   try {
-                    if (sessionStorage.getItem('examlab:reloaded') === '1') return;
-                    sessionStorage.setItem('examlab:reloaded', '1');
+                    // Guarda por TIEMPO (una recarga cada 60 s), no por evento:
+                    // antes la marca se borraba en cada 'load' y una falla
+                    // persistente recargaba sin fin. Misma regla en router.tsx
+                    // y ErrorBoundary.tsx.
+                    var previa = Number(sessionStorage.getItem('examlab:reloaded')) || 0;
+                    if (Date.now() - previa < 60000) return;
+                    sessionStorage.setItem('examlab:reloaded', String(Date.now()));
                   } catch (e) {}
                   window.__examlabRecargaPropia = true;
                   window.location.reload();
@@ -297,10 +302,6 @@ function RootShell({ children }: { children: React.ReactNode }) {
                   var reason = ev.reason;
                   var msg = reason && (reason.message || reason.toString());
                   if (isChunkError(msg)) reloadOnce();
-                });
-                // Si la navegación cargó OK, limpiamos la marca de recarga.
-                window.addEventListener('load', function () {
-                  try { sessionStorage.removeItem('examlab:reloaded'); } catch (e) {}
                 });
               })();
             `,

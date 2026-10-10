@@ -559,6 +559,23 @@ function StudentWorkshops() {
     return sorted;
   }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
 
+  // Talleres que solo el filtro de ESTADO deja afuera (vencidos, cerrados). Se
+  // dicen en pantalla: sin esto, entrar después del plazo mostraba una lista
+  // vacía sin explicación (ver la misma regla en app.student.exams.tsx).
+  const ocultosPorEstado = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (coincideFiltro(statusFilter, getWorkshopDisplayStatus(r, now))) return false;
+      if (!coincideFiltro(courseFilter, r.workshop.course_id)) return false;
+      if (!enRangoDeFechas(r.workshop.due_date, rangoFechas)) return false;
+      if (!q) return true;
+      return (
+        r.workshop.title.toLowerCase().includes(q) ||
+        (r.workshop.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now, rangoFechas]);
+
   // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
   // del grid de 2 columnas. resetKey concatena TODOS los filtros activos
   // para que aplicar cualquiera vuelva a página 1.
@@ -686,6 +703,27 @@ function StudentWorkshops() {
         {loading && (
           <div className="md:col-span-2 flex justify-center py-10">
             <Spinner size="md" />
+          </div>
+        )}
+        {!loading && ocultosPorEstado.length > 0 && (
+          <div className="md:col-span-2 flex flex-wrap items-center gap-2 rounded-md border bg-muted/50 p-3 text-sm">
+            <span className="flex-1 min-w-0">
+              {t("hc_routesAppStudentWorkshops.hiddenByStatus", {
+                count: ocultosPorEstado.length,
+                titles: ocultosPorEstado.map((r) => r.workshop.title).join(", "),
+              })}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setStatusFilter((prev) => [
+                  ...new Set([...prev, ...ocultosPorEstado.map((r) => getWorkshopDisplayStatus(r, now))]),
+                ])
+              }
+            >
+              {t("hc_routesAppStudentWorkshops.showHidden")}
+            </Button>
           </div>
         )}
         {!loading && visibleRows.length === 0 && (

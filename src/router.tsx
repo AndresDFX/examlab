@@ -28,8 +28,12 @@ function isChunkLoadError(err: unknown): boolean {
 
 function reloadOnceForStaleChunk(): void {
   try {
-    if (sessionStorage.getItem("examlab:reloaded") === "1") return;
-    sessionStorage.setItem("examlab:reloaded", "1");
+    // Una recarga automática cada 60 s como mucho (misma regla que el script
+    // de __root.tsx): la marca ya no se borra al cargar, así que una falla
+    // persistente no se vuelve un bucle.
+    const previa = Number(sessionStorage.getItem("examlab:reloaded")) || 0;
+    if (Date.now() - previa < 60_000) return;
+    sessionStorage.setItem("examlab:reloaded", String(Date.now()));
   } catch {
     /* sessionStorage bloqueado — recargar igual */
   }
@@ -66,8 +70,13 @@ function DefaultErrorComponent({ error, reset }: { error: Error; reset: () => vo
 
   if (chunkError) {
     return (
-      <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-        {t("hc_router.updating")}
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+        <p>{t("hc_router.updating")}</p>
+        {/* Si la guarda ya recargó hace menos de un minuto, la recarga automática
+            no vuelve a ocurrir: sin este botón la pantalla quedaba sin salida. */}
+        <Button size="sm" onClick={() => recargarLaApp()}>
+          {t("arranque.reintentar")}
+        </Button>
       </div>
     );
   }
