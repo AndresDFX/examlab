@@ -59,6 +59,25 @@ en los cursos de UNIAJ a propósito.
 - **Verificar** releyendo la base y probando cada enlace con `rpc/attendance_check_in_public_info`
   (`open`, `email_only`, `closes_at`).
 
+### Ampliar el plazo de lo que ya cerró (hecho el 2026-10-10)
+
+- **Exámenes normales de una franja** (un parcial de clase): extender `end_time` a secas le da a
+  quien empieza a mediodía 12 horas. Pasarlos a `schedule_type = relativo` con su
+  `time_limit_minutes`. El reloj es `min(inicio + límite, end_time)`, así que el mensaje dice hasta
+  qué hora hay que empezar para tener el tiempo completo.
+- **Antes, revisar `exam_timer_controls` con `add_time`**: el tiempo extra es por examen y
+  estudiante, NO por intento, y el cliente además lo suma a la VENTANA del examen. Un extra dado
+  para estirar un intento viejo (el del 7 de octubre por la caída: ~75 h) deja a esa persona con
+  el examen abierto días después y regala horas en los intentos nuevos. Quitarlo, y revisar antes
+  los intentos `en_progreso` que dependían de él.
+- **No reabrir un original si alguien ya presentó su supletorio** sin cubrirlo: el supletorio solo
+  llena la ausencia, así que si esa persona presenta el original reabierto, la nota del original
+  reemplaza la del supletorio. En exámenes la lista del estudiante ya muestra el original cubierto;
+  en **talleres no**: desasignarle el original (la nota no cambia: la asignación de la
+  recuperación ya cuenta como asignada).
+- Un intento abandonado y **vacío** que impide un intento nuevo se borra como lo hace el monitor
+  («Eliminar intento»): sin respuestas, no se pierde nada.
+
 ## 3. Enlaces y códigos por curso (2026-2)
 
 Mismo código y mismo enlace en cada reapertura, a propósito: los enlaces viejos de los grupos

@@ -103,6 +103,37 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > **2026-10-06**: se volvió a cargar una key en el secret del repo (`AWS_BEARER_TOKEN_BEDROCK`) y se
 > verificó con Claude Haiku; está **pendiente rotarla**.
 
+### ⏰ Corte 1 (UNIAJ): todo lo que tiene nota, abierto hasta el sábado 10 de octubre a las 11:59 p. m.
+
+- **Pedido** (2026-10-10): ampliar para todos los estudiantes los entregables del Corte 1 con nota
+  hasta ese día a las 11:59 p. m., y avisar por correo y por WhatsApp.
+- **Hecho** (como el docente, en los 7 cursos de 2026-2): el taller de corte de 6 cursos (SB141B no
+  tiene: su 10 % es la exposición, ya calificada); las evaluaciones de LB141F y SB141C (2 intentos,
+  cuenta la más alta); el Parcial 1 de Programación II y de Seminario pasó a tiempo relativo de 2 h
+  (1 intento: solo lo presenta quien no lo hizo). El recuperatorio de SB141B ya cerraba ese día. La
+  asistencia del Corte 1 se reabrió con el mismo código y enlace de cada curso, con los requisitos
+  que ya tenía (Acuerdo, encuesta de inicio y la de satisfacción 2026-2).
+- **No se reabrió** el Parcial 1 de Bases de Datos II ni el de Arquitectura: todos lo presentaron,
+  en el original o en el supletorio. Tampoco sus recuperaciones, que eran para estudiantes puntuales.
+- **Dos correcciones para que «hasta hoy» fuera cierto para todos**:
+  - El tiempo extra del 7 de octubre (28 estudiantes de LB141F y SB141C, ~75 h para continuar los
+    intentos cortados por la caída de la base) seguía vigente. Como el extra es por examen y no por
+    intento, y el cliente además lo suma a la ventana, esos 28 tenían la evaluación abierta hasta el
+    martes 13 y ~76 h por intento nuevo. Se quitó. Un intento abandonado el 8 de octubre sin
+    ninguna respuesta (11 s) se borró: sin el extra, el cierre automático lo habría cerrado vacío y
+    le habría gastado a ese estudiante su segundo intento.
+  - En Arquitectura, a quien ya entregó el supletorio del taller se le quitó la asignación del
+    taller original: le habría aparecido como pendiente, y entregarlo reemplazaba la nota del
+    supletorio. La nota no cambia.
+- **Hallazgos para producto**: (1) `exam_timer_controls.add_time` no sirve para estirar UN intento:
+  sigue vivo en los siguientes y corre la ventana del examen en el cliente; (2) la lista de talleres
+  del estudiante no reconoce que un supletorio entregado cubre el original (la de exámenes sí).
+- **La plataforma no avisa** en UNIAJ: el aviso es el correo y el WhatsApp del docente. La lista de
+  correos sale con el criterio de `send-email` (institucional y personal, sin direcciones de
+  `email_suppressions`). **Al cierre hay que procesar a mano la cola de calificación**: el cron no la
+  drena.
+- El procedimiento quedó en la skill `cierre-de-corte` («Ampliar el plazo de lo que ya cerró»).
+
 ### 📝 Encuesta de satisfacción 2026-2 como requisito de asistencia (UNIAJ)
 
 - **Pedido** (2026-10-10): volver a publicar «Satisfacción con ExamLab» en los cursos de 2026-2, con
