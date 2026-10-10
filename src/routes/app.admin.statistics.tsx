@@ -479,7 +479,7 @@ function AdminStatistics() {
               son client-side (datasets ya en memoria). Tenant dispara
               re-load porque la lista de courses sí cambia con tenant. */}
           <Card>
-            <CardContent className="p-3 flex flex-col sm:flex-row gap-2">
+            <CardContent className="p-3 flex flex-col sm:flex-row sm:flex-wrap gap-2">
               {/* Filtro institución — solo SuperAdmin con ≥1 tenant.
                   Aplica `.eq('tenant_id', X)` a la query principal de
                   courses → todo el pipeline de summaries hereda el filtro. */}
@@ -487,7 +487,7 @@ function AdminStatistics() {
                   SuperAdmin tenga al menos una institución cargada, consistente
                   con Usuarios/Cursos/Certificados/Errores/Cola/Auditoría. */}
               {isSuperAdminCaller && tenants.length > 0 && (
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 min-w-0 sm:min-w-40 space-y-1">
                   <label className="text-xs text-muted-foreground">
                     {t("tenant.filterTenantLabel")}
                   </label>
@@ -507,7 +507,7 @@ function AdminStatistics() {
                 </div>
               )}
               {programs.length > 0 && (
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0 sm:min-w-40 space-y-1">
                 <label className="text-xs text-muted-foreground">
                   {t("hc_routesAppAdminStatistics.programLabel")}
                 </label>
@@ -529,7 +529,7 @@ function AdminStatistics() {
               </div>
               )}
               {periods.length > 0 && (
-              <div className="flex-1 space-y-1">
+              <div className="flex-1 min-w-0 sm:min-w-40 space-y-1">
                 <label className="text-xs text-muted-foreground">
                   {t("hc_routesAppAdminStatistics.periodLabel")}
                 </label>
@@ -555,7 +555,7 @@ function AdminStatistics() {
                   programa elegido (cascada Programa → Asignatura) en
                   `visibleSubjects`; con "Todos" se muestran todas. */}
               {subjects.length > 0 && (
-                <div className="flex-1 space-y-1">
+                <div className="flex-1 min-w-0 sm:min-w-40 space-y-1">
                   <label className="text-xs text-muted-foreground">
                     {t("hc_routesAppAdminStatistics.subjectLabel")}
                   </label>
