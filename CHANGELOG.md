@@ -141,3 +141,9 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Cuarta tanda** (de la auditoría móvil): sin red, un chunk que no baja ya no recarga al vacío
   (página en blanco en iPhone): se espera al evento `online` y se avisa «Sin conexión…»; el reloj
   del examen pasa a «H:MM:SS» y «Nd Hh» (una ventana hasta 2027 mostraba «644115:44»).
+- **Quinta tanda** (auditoría móvil, reporte en Descargas): casillas con área de toque de 44 px
+  (pseudo-elemento, el cuadro sigue de 16 px); opciones de menú dentro de la regla táctil de 44 px y
+  separador obligatorio antes de una acción destructiva en `RowActionsMenu`; `PageHeader` deja
+  partir las acciones hasta `xl` (en iPad vertical «Nueva sesión» quedaba fuera de la pantalla);
+  taller nuevo sin curso marcado salvo que haya uno solo; «Eliminar mi entrega» separado del botón
+  de arriba; el enlace de «Reanudar examen» ocupa todo el botón.

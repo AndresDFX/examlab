@@ -1003,7 +1003,7 @@ function StudentWorkshops() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="w-full text-destructive hover:text-destructive"
+                      className="w-full mt-3 text-destructive hover:text-destructive"
                       onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
                     >
                       <Trash2 className="h-3.5 w-3.5 mr-1" />

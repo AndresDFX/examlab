@@ -19,6 +19,10 @@ const Checkbox = React.forwardRef<
       "inline-flex items-center justify-center appearance-none leading-none box-border",
       "peer h-4 w-4 min-h-4 min-w-4 max-h-4 max-w-4 shrink-0 grow-0 p-0",
       "rounded-sm border border-primary shadow",
+      // El cuadro se ve de 16 px, pero el área que responde al dedo se amplía a
+      // 44 px con un pseudo-elemento (auditoría móvil 2026-10-10: 16 px en todas
+      // las listas con selección múltiple). No mueve nada del diseño.
+      "relative after:absolute after:-inset-3.5 after:content-['']",
       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
       "disabled:cursor-not-allowed disabled:opacity-50",
       "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",

@@ -204,7 +204,12 @@ export function RowActionsMenu({
           }
           return (
             <span key={idx}>
-              {action.separatorBefore && idx > 0 && <DropdownMenuSeparator />}
+              {/* Una acción destructiva siempre lleva separador, aunque el llamador no lo
+                  pida: pegada al resto en 32 px, en un teléfono se tocaba por error
+                  (auditoría móvil 2026-10-10). */}
+              {(action.separatorBefore || action.tone === "destructive") && idx > 0 && (
+                <DropdownMenuSeparator className="my-2" />
+              )}
               {item}
             </span>
           );

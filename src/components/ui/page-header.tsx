@@ -73,8 +73,11 @@ export function PageHeader({
             <p className="text-sm text-muted-foreground">{subtitle}</p>
           ) : null}
         </div>
+        {/* Hasta xl las acciones pueden partirse en dos líneas: en un iPad vertical,
+            con el menú lateral abierto, «sm:flex-nowrap» las empujaba fuera de la
+            pantalla («Nueva sesión» quedaba cortado; auditoría móvil 2026-10-10). */}
         {actions ? (
-          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full sm:max-w-none sm:shrink-0 sm:flex-nowrap">
+          <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full xl:max-w-none xl:shrink-0 xl:flex-nowrap">
             {actions}
           </div>
         ) : null}

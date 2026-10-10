@@ -769,7 +769,7 @@ function StudentExams() {
                   )}
                 {completed && !noAttemptsLeft && isOpen ? (
                   <div className="space-y-2">
-                    <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
+                    <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
                       <Button size="sm" className="w-full">
                         <Play className="h-4 w-4 mr-1" />
                         {t("hc_routesAppStudentExams.retryExam")}
@@ -832,7 +832,7 @@ function StudentExams() {
                     </p>
                   </div>
                 ) : isOpen ? (
-                  <Link to="/app/student/take/$examId" params={{ examId: exam.id }}>
+                  <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
                     <Button size="sm" className="w-full">
                       <Play className="h-4 w-4 mr-1" />
                       {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}

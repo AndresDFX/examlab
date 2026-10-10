@@ -1236,7 +1236,11 @@ function TeacherWorkshops() {
   const openNew = () => {
     const now = new Date();
     const due = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    const first = courses[0]?.id;
+    // Solo se marca un curso de antemano si es el ÚNICO: con varios, el primero
+    // quedaba marcado fuera de la vista en el teléfono y el taller se creaba en
+    // un curso que nadie eligió (auditoría móvil 2026-10-10). Misma regla que
+    // `resolverSeleccionInicial`.
+    const first = courses.length === 1 ? courses[0]?.id : undefined;
     setForm({
       title: "",
       course_id: first,
