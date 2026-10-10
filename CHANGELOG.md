@@ -82,6 +82,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- Móvil: la cabecera del examen queda pegada a la barra de la app (hueco 0) y la campanita de avisos tiene nombre accesible («Notificaciones»). Verificado en Safari (WebKit) contra producción.
 
 > Se despliega solo al pushear a `main` (GitHub Actions). Incluye **84 migraciones**
 > (de `20261600000000_bd_sql_support` a `20262430000000_timer_controls_superadmin_y_reapertura_puntual`,
