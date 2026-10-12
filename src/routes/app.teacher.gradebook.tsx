@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { formatNumber } from "@/shared/lib/format";
+import { formatNumber, todayLocalISO } from "@/shared/lib/format";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
@@ -1596,7 +1596,7 @@ function Gradebook() {
   // ───────── La nota de cada estudiante (peso = % de la nota final)
   // El cálculo es el de nota-del-curso.ts, el MISMO de «Mis notas» y del
   // boletín: la nota es RELATIVA a lo que ya se dio. Una sesión cuenta si
-  // alguien quedó marcado en ella; una actividad abierta todavía no le baja la
+  // alguien quedó marcado en ella y ya llegó su fecha; una actividad abierta todavía no le baja la
   // nota a nadie; una entregada sin calificar espera al docente. Antes este
   // archivo tenía su propia copia, y las sesiones futuras entraban como faltas
   // de todo el curso.
@@ -1616,7 +1616,7 @@ function Gradebook() {
       proyectos: projects,
       unionProyectos: prjUnion,
       sesiones: attSessions,
-      sesionesDadas: sesionesDadas(attRecords),
+      sesionesDadas: sesionesDadas(attRecords, attSessions, todayLocalISO()),
       conNota: actividadesConNota({
         intentos: examSubs,
         entregasTaller: wsSubs,
@@ -3216,7 +3216,7 @@ function renderStudentCutDetail({
   nota: NotaCompleta | undefined;
 }) {
   // Sesiones PROGRAMADAS en el corte (FK cut_id, mig 20260509020000); la nota
-  // de asistencia es sobre las que se DIERON (con al menos una marca).
+  // de asistencia es sobre las que se DIERON (con al menos una marca y la fecha cumplida).
   const programadas = attSessions.filter((s) => s.cut_id === cut.id).length;
   const asis = nota?.asistencia.get(cut.id);
   const presentCount = asis?.presentes ?? 0;

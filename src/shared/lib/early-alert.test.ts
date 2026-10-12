@@ -130,6 +130,13 @@ describe("computeStudentAttendance — las tres reglas de justicia", () => {
     expect(out.absent).toBe(1);
     expect(out.considered).toBe(3);
   });
+
+  it("una sesión futura ya marcada por otros no le cuenta falta (clase autónoma revisada antes)", () => {
+    const conFutura = [session("s1"), { ...session("s9"), session_date: "2026-11-02" }];
+    const records = [rec("s1", "u1", "presente"), rec("s9", "u2", "presente")];
+    const out = computeStudentAttendance("u1", conFutura, records, "2026-10-12");
+    expect(out).toEqual({ rate: 1, absent: 0, considered: 1 });
+  });
 });
 
 describe("levelForReasons — hacen falta 2 señales para el rojo", () => {

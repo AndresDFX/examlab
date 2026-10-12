@@ -16,6 +16,7 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { formatDateOnly, todayLocalISO, formatNumber } from "@/shared/lib/format";
+import { sesionesDadasParaEstudiante } from "@/modules/attendance/asistencia-del-estudiante";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { RowAction } from "@/components/ui/row-action";
@@ -386,17 +387,18 @@ function StudentGrades() {
         );
 
         // Señales del servidor. Si la función todavía no existe (el frontend
-        // puede desplegarse antes que la migración), se aproximan con lo propio:
-        // una sesión cuenta si ya pasó o si el estudiante tiene marca.
+        // puede desplegarse antes que la migración), se aproximan por fecha. Es
+        // la misma regla que Asistencia y el tablero del curso: una sesión de
+        // fecha futura no cuenta aunque tenga marcas (la clase autónoma se revisa
+        // por adelantado).
         const senales = senalesRes?.error ? null : (senalesRes?.data as any);
         const hoy = todayLocalISO();
-        const sesionesDadasSet: Set<string> = senales
-          ? new Set<string>(senales.sesiones_dadas ?? [])
-          : new Set(
-              allSessions
-                .filter((s) => s.session_date <= hoy || estadoPorSesion.has(s.id))
-                .map((s) => s.id),
-            );
+        const sesionesDadasSet = sesionesDadasParaEstudiante(
+          senales ? new Set<string>(senales.sesiones_dadas ?? []) : null,
+          allSessions,
+          (sid) => estadoPorSesion.has(sid),
+          hoy,
+        );
         const conNota = senales
           ? {
               examenes: new Set<string>(senales.examenes_con_nota ?? []),

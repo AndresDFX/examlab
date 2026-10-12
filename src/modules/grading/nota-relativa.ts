@@ -15,10 +15,14 @@
  * ── Qué es «ya se dio» ─────────────────────────────────────────────────
  *
  * - **Una sesión** se dio si ALGUIEN tiene marca de asistencia en ella (la
- *   lista se tomó). Sin ninguna marca no se sabe si hubo clase, así que no
- *   entra. Es el mismo criterio que ya usan la Alerta temprana y los
- *   pendientes por estudiante; con otro, el curso entero aparece con una
- *   falta cada vez que el docente no pasa lista.
+ *   lista se tomó) Y su fecha ya llegó. Sin ninguna marca no se sabe si hubo
+ *   clase, así que no entra. Es el mismo criterio que ya usan la Alerta
+ *   temprana y los pendientes por estudiante; con otro, el curso entero
+ *   aparece con una falta cada vez que el docente no pasa lista. La fecha
+ *   importa porque una clase AUTÓNOMA se marca «revisada» cuando el estudiante
+ *   quiera: medido en 6303C el 2026-10-12, tres estudiantes revisaron por
+ *   adelantado la del 2 de noviembre y a los otros quince ya les contaba una
+ *   falta en un corte que no había empezado.
  * - **Una actividad en línea** se dio cuando cerró: pasó su plazo o el docente
  *   la cerró. Si el estudiante tiene asignada una recuperación publicada, cuando
  *   cerró también: a quien le falta la nota puede estar esperando el supletorio.
@@ -45,10 +49,26 @@ import { computeWeightedGrade, countsAsPresent, scaleAttendance, type GradedItem
 
 // ── Asistencia ─────────────────────────────────────────────────────────
 
-/** Las sesiones que se dieron: las que tienen al menos una marca de asistencia. */
-export function sesionesDadas(registros: Iterable<{ session_id: string }>): Set<string> {
+/**
+ * Las sesiones que se dieron: las que tienen al menos una marca de asistencia
+ * y cuya fecha (`session_date`, DATE) es de hoy o anterior. `hoyISO` es la
+ * fecha LOCAL (`todayLocalISO()`), no la de `toISOString()`, que de noche en
+ * Colombia ya es mañana. Una sesión sin fecha no se puede tomar por futura.
+ * Espejo en SQL: mig 20262800000000 (`senales_nota_relativa` y el acta).
+ */
+export function sesionesDadas(
+  registros: Iterable<{ session_id: string }>,
+  sesiones: Iterable<{ id: string; session_date: string | null }>,
+  hoyISO: string,
+): Set<string> {
+  const conMarca = new Set<string>();
+  for (const r of registros) if (r.session_id) conMarca.add(r.session_id);
   const dadas = new Set<string>();
-  for (const r of registros) if (r.session_id) dadas.add(r.session_id);
+  for (const s of sesiones) {
+    if (!conMarca.has(s.id)) continue;
+    if (s.session_date && s.session_date.slice(0, 10) > hoyISO) continue;
+    dadas.add(s.id);
+  }
   return dadas;
 }
 

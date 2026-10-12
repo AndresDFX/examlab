@@ -31,7 +31,7 @@ import {
   notaDeTallerConRecuperaciones,
 } from "@/modules/grading/nota-con-recuperacion";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
-import { formatDate, formatDateOnly } from "@/shared/lib/format";
+import { formatDate, formatDateOnly, todayLocalISO } from "@/shared/lib/format";
 import { resolveTenantLogoUrl } from "@/modules/tenants/tenant";
 import {
   formatScheduleText,
@@ -1047,7 +1047,7 @@ export async function buildReportContext(args: BuildReportArgs): Promise<Templat
     cut_id: string | null;
     session_date: string | null;
   }>;
-  const dadas = sesionesDadas(attRecsAll);
+  const dadas = sesionesDadas(attRecsAll, sessionsRows, todayLocalISO());
   const datosParaNota: DatosParaNota = {
     courseId,
     escala: { min: escalaMin, max: escalaMax },

@@ -260,7 +260,7 @@ describe("computeAttendanceBySession", () => {
     const sessions: AttendanceSession[] = [
       { id: "s1", course_id: "c1", session_date: "2026-09-30", cut_id: null },
     ];
-    expect(computeAttendanceBySession(sessions, [], 0)).toEqual([]);
+    expect(computeAttendanceBySession(sessions, [], 0, "2026-10-12")).toEqual([]);
   });
 
   it("calcula presentPct correctamente y ordena por fecha", () => {
@@ -274,7 +274,7 @@ describe("computeAttendanceBySession", () => {
       { session_id: "s2", user_id: "u1", status: "presente" },
       { session_id: "s2", user_id: "u2", status: "presente" },
     ];
-    const r = computeAttendanceBySession(sessions, records, 4);
+    const r = computeAttendanceBySession(sessions, records, 4, "2026-10-12");
     // Ordenado por fecha ascendente
     expect(r[0].date).toBe("2026-09-30");
     expect(r[1].date).toBe("2026-10-02");
@@ -293,9 +293,22 @@ describe("computeAttendanceBySession", () => {
       { session_id: "s1", user_id: "u1", status: "presente" },
       { session_id: "s1", user_id: "u2", status: "tarde" },
     ];
-    const r = computeAttendanceBySession(sessions, records, 4);
+    const r = computeAttendanceBySession(sessions, records, 4, "2026-10-12");
     expect(r.map((x) => x.date)).toEqual(["2026-09-30"]);
     expect(r[0].presentCount).toBe(2);
+  });
+
+  it("deja fuera una sesión futura aunque alguien ya la haya marcado", () => {
+    // La clase autónoma se marca «revisada» antes de su fecha.
+    const sessions: AttendanceSession[] = [
+      { id: "s1", course_id: "c1", session_date: "2026-09-30", cut_id: null },
+      { id: "s9", course_id: "c1", session_date: "2026-11-02", cut_id: null },
+    ];
+    const records: AttendanceRecord[] = [
+      { session_id: "s1", user_id: "u1", status: "presente" },
+      { session_id: "s9", user_id: "u2", status: "presente" },
+    ];
+    expect(computeAttendanceBySession(sessions, records, 4, "2026-10-12").map((x) => x.date)).toEqual(["2026-09-30"]);
   });
 });
 

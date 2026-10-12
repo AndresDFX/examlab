@@ -19,6 +19,8 @@
  */
 
 import { countsAsPresent } from "@/modules/grading/grade";
+import { sesionesDadas } from "@/modules/grading/nota-relativa";
+import { todayLocalISO } from "@/shared/lib/format";
 import {
   effectiveGrade,
   isApproved,
@@ -115,21 +117,21 @@ const REASON_SEVERITY: Record<RiskReasonKind, number> = {
  *    y casi nunca a los que no. Es la regla de la nota (`asistenciaDelCorte`,
  *    nota-relativa.ts); contando solo las marcas propias, quien nunca fue
  *    tenía 100 % o «sin dato» y el semáforo no avisaba por asistencia jamás.
+ *    Las sesiones dadas salen de `sesionesDadas`, la misma función de la nota:
+ *    una sesión con fecha futura no cuenta aunque alguien ya la haya marcado.
  */
 export function computeStudentAttendance(
   userId: string,
   sessions: AttendanceSession[],
   records: AttendanceRecord[],
+  hoyISO: string = todayLocalISO(),
 ): { rate: number | null; absent: number; considered: number } {
   // Un registro de una sesión que no pertenece al curso (o que se borró) no
   // cuenta ni para decidir si la sesión se dio.
-  const sessionIds = new Set(sessions.map((s) => s.id));
-  const dadas = new Set<string>();
+  const dadas = sesionesDadas(records, sessions, hoyISO);
   const propio = new Map<string, string>();
   for (const r of records) {
-    if (!sessionIds.has(r.session_id)) continue;
-    dadas.add(r.session_id);
-    if (r.user_id === userId) propio.set(r.session_id, r.status);
+    if (dadas.has(r.session_id) && r.user_id === userId) propio.set(r.session_id, r.status);
   }
   let attended = 0;
   let absent = 0;
@@ -169,6 +171,7 @@ export function classifyStudent(
   records: AttendanceRecord[],
   course: CourseInfo,
   thresholds: RiskThresholds = DEFAULT_RISK_THRESHOLDS,
+  hoyISO: string = todayLocalISO(),
 ): StudentRisk {
   // ── Universo de actividades ──
   // Se deriva de las entregas existentes. Limitación conocida: una
@@ -205,7 +208,7 @@ export function classifyStudent(
     if (!mine.has(refId)) missingCount++;
   }
 
-  const attendance = computeStudentAttendance(userId, sessions, records);
+  const attendance = computeStudentAttendance(userId, sessions, records, hoyISO);
   const averageGrade = gradedCount === 0 ? null : gradeSum / gradedCount;
 
   // ── Motivos ──
@@ -280,10 +283,11 @@ export function classifyCourse(
   records: AttendanceRecord[],
   course: CourseInfo,
   thresholds: RiskThresholds = DEFAULT_RISK_THRESHOLDS,
+  hoyISO: string = todayLocalISO(),
 ): StudentRisk[] {
   const out: StudentRisk[] = [];
   for (const uid of enrolledIds) {
-    out.push(classifyStudent(uid, allSubs, sessions, records, course, thresholds));
+    out.push(classifyStudent(uid, allSubs, sessions, records, course, thresholds, hoyISO));
   }
   // Más riesgo primero; a igual nivel, más motivos primero; luego por
   // promedio ascendente para que arriba quede el caso más urgente.

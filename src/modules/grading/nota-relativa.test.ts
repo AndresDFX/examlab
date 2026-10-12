@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { esIntentoFinalizado } from "@/modules/exams/exam-attempts";
@@ -19,12 +19,33 @@ const HOY = Date.parse("2026-09-30T17:00:00Z");
 
 describe("sesionesDadas / asistenciaDelCorte", () => {
   it("una sesión se dio si ALGUIEN tiene marca, sea cual sea", () => {
-    const dadas = sesionesDadas([
-      { session_id: "s1" },
-      { session_id: "s1" },
-      { session_id: "s2" },
-    ]);
+    const dadas = sesionesDadas(
+      [{ session_id: "s1" }, { session_id: "s1" }, { session_id: "s2" }],
+      [
+        { id: "s1", session_date: "2026-09-21" },
+        { id: "s2", session_date: "2026-09-28" },
+        { id: "s3", session_date: "2026-09-29" },
+      ],
+      "2026-09-30",
+    );
     expect([...dadas].sort()).toEqual(["s1", "s2"]);
+  });
+
+  it("una sesión de fecha futura no se dio aunque ya tenga marcas (clase autónoma revisada antes)", () => {
+    // 6303C, 2026-10-12: tres estudiantes revisaron la autónoma del 2 de
+    // noviembre y a los otros quince ya les contaba una falta.
+    const sesiones = [
+      { id: "hoy", session_date: "2026-10-12" },
+      { id: "nov", session_date: "2026-11-02" },
+    ];
+    const dadas = sesionesDadas([{ session_id: "hoy" }, { session_id: "nov" }], sesiones, "2026-10-12");
+    expect([...dadas]).toEqual(["hoy"]);
+    const r = asistenciaDelCorte(sesiones, dadas, () => undefined, ESCALA);
+    expect(r.dadas).toBe(1);
+  });
+
+  it("una sesión sin fecha no se toma por futura", () => {
+    expect([...sesionesDadas([{ session_id: "s1" }], [{ id: "s1", session_date: null }], "2026-10-12")]).toEqual(["s1"]);
   });
 
   it("el denominador son las sesiones DADAS: la futura y la que no se marcó no son faltas", () => {
@@ -251,6 +272,36 @@ describe("notaDelEstudiante", () => {
  * que avisa que falta el otro. La paridad completa se verificó contra PGlite con
  * los datos reales (ver CHANGELOG).
  */
+/**
+ * La regla de «sesión dada» se redefinió en 20262800000000 (además de la marca,
+ * la fecha). Se lee la ÚLTIMA definición de cada función entre todas las
+ * migraciones: una migración futura que copie el cuerpo de 20262670000000
+ * devolvería la falta a quien no revisó por adelantado una clase autónoma, y
+ * sin esto nada fallaría.
+ */
+describe("espejo SQL: una sesión solo se dio desde su fecha (mig 20262800000000)", () => {
+  const dir = resolve(__dirname, "../../../supabase/migrations");
+  const ultima = (fn: string) => {
+    let def = "";
+    for (const archivo of readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
+      const sql = readFileSync(resolve(dir, archivo), "utf8");
+      const i = sql.indexOf(`CREATE OR REPLACE FUNCTION public.${fn}(`);
+      if (i < 0) continue;
+      const fin = sql.indexOf("CREATE OR REPLACE FUNCTION", i + 10);
+      def = sql.slice(i, fin < 0 ? undefined : fin);
+    }
+    return def;
+  };
+  const FECHA = "s.session_date <= (now() AT TIME ZONE 'America/Bogota')::date";
+
+  it.each(["senales_nota_relativa", "generate_course_acta"])("%s exige la marca Y la fecha", (fn) => {
+    const def = ultima(fn);
+    expect(def).not.toBe("");
+    expect(def).toContain("EXISTS (SELECT 1 FROM public.attendance_records r WHERE r.session_id = s.id)");
+    expect(def).toContain(FECHA);
+  });
+});
+
 describe("espejo SQL de la nota relativa (mig 20262670000000)", () => {
   const sql = readFileSync(
     resolve(__dirname, "../../../supabase/migrations/20262670000000_nota_relativa.sql"),
@@ -269,7 +320,7 @@ describe("espejo SQL de la nota relativa (mig 20262670000000)", () => {
     expect(reglas).toHaveLength(3); // exámenes, talleres, proyectos
   });
 
-  it("la asistencia cuenta solo sesiones con alguna marca y fuera de la papelera", () => {
+  it("en esta versión la asistencia contaba sesiones con alguna marca y fuera de la papelera", () => {
     expect(sql).toMatch(/s\.deleted_at IS NULL\s+AND EXISTS \(SELECT 1 FROM public\.attendance_records r WHERE r\.session_id = s\.id\)/);
     expect(sql).toContain("ar.status IN ('presente', 'tarde')");
   });

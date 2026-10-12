@@ -236,7 +236,7 @@ function StudentAttendance() {
   const [selectedCourseId, setSelectedCourseId] = useState<string | null>(null);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [records, setRecords] = useState<Record_[]>([]);
-  /** Sesiones del curso que se dieron (alguien tiene marca), según el servidor.
+  /** Sesiones del curso que se dieron (alguien tiene marca y ya llegó su fecha), según el servidor.
    *  null = la función no respondió: se aproxima con lo propio (ver `dadas`). */
   const [sesionesDadasIds, setSesionesDadasIds] = useState<Set<string> | null>(null);
   const [loadingCourses, setLoadingCourses] = useState(true);

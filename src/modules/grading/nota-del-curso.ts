@@ -95,7 +95,7 @@ export interface DatosParaNota {
   unionProyectos: ReadonlyMap<string, FilaDeUnion>;
   /** Sin papelera. `session_date` (DATE) solo decide si la nota es parcial. */
   sesiones: readonly { id: string; cut_id?: string | null; session_date?: string | null }[];
-  /** Las que tienen al menos una marca (`sesionesDadas`). */
+  /** Las que tienen al menos una marca y cuya fecha ya llegó (`sesionesDadas`). */
   sesionesDadas: ReadonlySet<string>;
   /** Actividades en las que algún estudiante del curso ya tiene nota. */
   conNota: {

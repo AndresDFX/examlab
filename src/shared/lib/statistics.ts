@@ -7,6 +7,7 @@ import {
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
 import { countsAsPresent } from "@/modules/grading/grade";
 import { sesionesDadas } from "@/modules/grading/nota-relativa";
+import { todayLocalISO } from "@/shared/lib/format";
 import { todasLasFilas } from "@/shared/lib/todas-las-filas";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 
@@ -726,7 +727,7 @@ export function computeFraudStats(
 
 /**
  * % asistencia por sesión (ordenadas por fecha), solo de las sesiones que se
- * DIERON —las que tienen alguna marca—, con la misma regla que la nota
+ * DIERON —las que tienen alguna marca y ya llegó su fecha—, con la misma regla que la nota
  * (`asistenciaDelCorte`). Una sesión que nadie marcó —futura, o en la que no
  * se pasó lista— salía con 0 % y arrastraba el promedio del curso hacia abajo.
  */
@@ -734,9 +735,10 @@ export function computeAttendanceBySession(
   sessions: AttendanceSession[],
   records: AttendanceRecord[],
   totalEnrolled: number,
+  hoyISO: string = todayLocalISO(),
 ): Array<{ date: string; presentPct: number; presentCount: number; total: number }> {
   if (totalEnrolled === 0) return [];
-  const dadas = sesionesDadas(records);
+  const dadas = sesionesDadas(records, sessions, hoyISO);
   return [...sessions]
     .filter((s) => dadas.has(s.id))
     .sort((a, b) => a.session_date.localeCompare(b.session_date))

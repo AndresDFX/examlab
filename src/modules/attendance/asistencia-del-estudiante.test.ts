@@ -44,8 +44,8 @@ describe("asistencia del estudiante (misma regla que la nota)", () => {
       { session_id: "s2", user_id: "u2", status: "presente" },
       { session_id: "s3", user_id: "u1", status: "tarde" },
     ];
-    const dadas = sesionesDadas(registros);
-    const todas = ses("s1", "s2", "s3", "s4");
+    const todas = ses("s1", "s2", "s3", "s4").map((s) => ({ ...s, session_date: "2026-10-01" }));
+    const dadas = sesionesDadas(registros, todas, "2026-10-12");
     for (const u of ["u1", "u2"]) {
       const estado = (sid: string) =>
         registros.find((r) => r.session_id === sid && r.user_id === u)?.status ?? null;
@@ -86,8 +86,14 @@ describe("sesiones dadas vistas por el estudiante", () => {
     expect([...dadas]).toEqual(["s1"]);
   });
 
-  it("sin la señal del servidor se aproxima: ya pasó (hoy incluido) o tiene marca", () => {
-    const dadas = sesionesDadasParaEstudiante(null, ses, (id) => id === "s3", "2026-10-05");
-    expect([...dadas].sort()).toEqual(["s1", "s2", "s3"]);
+  it("sin la señal del servidor se aproxima: ya pasó (hoy incluido)", () => {
+    const dadas = sesionesDadasParaEstudiante(null, ses, () => false, "2026-10-05");
+    expect([...dadas].sort()).toEqual(["s1", "s2"]);
+  });
+
+  it("una sesión futura no cuenta aunque tenga marca propia o la mande el servidor", () => {
+    // La clase autónoma se marca «revisada» antes de su fecha.
+    expect([...sesionesDadasParaEstudiante(null, ses, (id) => id === "s3", "2026-10-05")].sort()).toEqual(["s1", "s2"]);
+    expect([...sesionesDadasParaEstudiante(new Set(["s1", "s3"]), ses, (id) => id === "s3", "2026-10-05")]).toEqual(["s1"]);
   });
 });

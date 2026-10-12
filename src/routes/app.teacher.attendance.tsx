@@ -1451,10 +1451,10 @@ function TeacherAttendance() {
   };
 
   // El % de asistencia usa la regla de la NOTA: cuentan las sesiones que se
-  // dieron (alguien tiene marca) y en ellas el vacío es una falta. Dividiendo
+  // dieron (alguien tiene marca y ya llegó su fecha) y en ellas el vacío es una falta. Dividiendo
   // por TODAS las sesiones, las futuras y las que no tenían lista contaban
   // como faltas de todo el curso y el % salía más bajo que el de la nota.
-  const sesionesConLista = sesionesDadas(records);
+  const sesionesConLista = sesionesDadas(records, sessions, todayLocalISO());
   const asistenciaDe = (userId: string) =>
     asistenciaDelEstudiante(sessions, sesionesConLista, (sid) => getStatus(sid, userId));
 

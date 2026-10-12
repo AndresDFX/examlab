@@ -2302,7 +2302,7 @@
     "attendanceTitle": "Attendance ({{present}}/{{total}} sessions)",
     "attendanceNoSessions": "Attendance (no sessions assigned to this period)",
     "scaleExplanation": "Score = what you got out of the total for the activity · Grade = that score converted to the course scale, which is what counts toward your final grade.",
-    "footerNote": "The course grade is the weighted average of the workshops, exams, projects and attendance of each grading period, using the weights set by the teacher. Only what has already happened counts: a session, once attendance was taken; an activity, once it closed. Work you submitted that is awaiting grading does not count until it is graded, and anything you did not submit for a closed activity counts as 0.",
+    "footerNote": "The course grade is the weighted average of the workshops, exams, projects and attendance of each grading period, using the weights set by the teacher. Only what has already happened counts: a session, once its date has come and attendance was taken; an activity, once it closed. Work you submitted that is awaiting grading does not count until it is graded, and anything you did not submit for a closed activity counts as 0.",
     "loadErrorFallback": "We couldn't load your grades right now."
   },
   "studentPolls": {
@@ -11176,7 +11176,7 @@
   "notaRelativa": {
     "notaParcial": "Partial grade",
     "soloLoQueSeDio": "Only what has already taken place in the course counts.",
-    "explicacion": "The grade is relative to what has already happened: a session counts once someone was marked in it, and an activity once it closed or, if it is external, once it has grades. Submitted work awaiting grading does not count until it is graded, and anything not assigned to a student does not count as 0 for them.",
+    "explicacion": "The grade is relative to what has already happened: a session counts once its date has come and someone was marked in it, and an activity once it closed or, if it is external, once it has grades. Submitted work awaiting grading does not count until it is graded, and anything not assigned to a student does not count as 0 for them.",
     "certificadoParcialHint": "There are still open or ungraded activities, or sessions still to be held. The certificate is issued with the final grade.",
     "certificadosParciales_one": "{{count}} student passes based on the course so far, but their grade is still partial: the certificate is issued with the final grade.",
     "certificadosParciales_other": "{{count}} students pass based on the course so far, but their grade is still partial: the certificate is issued with the final grade.",

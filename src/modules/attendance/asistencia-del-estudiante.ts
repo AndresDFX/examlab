@@ -3,8 +3,9 @@
  * (`asistenciaDelCorte` en grading/nota-relativa.ts):
  *
  *  - Cuentan solo las sesiones que se DIERON: las que tienen al menos una marca
- *    de alguien (`sesionesDadas`). Sin ninguna marca no se sabe si hubo clase
- *    —o es una sesión futura—, así que no entra para nadie.
+ *    de alguien y cuya fecha ya llegó (`sesionesDadas`). Sin ninguna marca no se
+ *    sabe si hubo clase, así que no entra para nadie; una futura tampoco, aunque
+ *    alguien ya haya revisado la clase autónoma por adelantado.
  *  - En una sesión que se dio, quien no tiene marca FALTÓ. Los docentes marcan
  *    a los que vinieron y casi nunca a los que no: un vacío es una ausencia.
  *  - Asistió = `presente` o `tarde` (`countsAsPresent`, el mismo predicado de
@@ -65,7 +66,11 @@ export function asistenciaDelEstudiante(
  * su sesión todavía no figura y la fila diría «Presente» mientras el porcentaje
  * la ignora. Una marca propia prueba que la sesión se dio, así que se suma. Sin
  * la señal del servidor se aproxima como «Mis notas»: la que ya pasó (hoy
- * incluido) o la que tiene marca.
+ * incluido).
+ *
+ * Una sesión con fecha FUTURA no se dio nunca, aunque tenga marca: la clase
+ * autónoma se marca «revisada» cuando el estudiante quiera, y contarla antes de
+ * su fecha le pone falta a todo el que no se adelantó (`sesionesDadas`).
  */
 export function sesionesDadasParaEstudiante(
   servidor: ReadonlySet<string> | null,
@@ -73,9 +78,10 @@ export function sesionesDadasParaEstudiante(
   conMarcaPropia: (sessionId: string) => boolean,
   hoyISO: string,
 ): Set<string> {
-  const dadas = new Set<string>(servidor ?? []);
+  const dadas = new Set<string>();
   for (const s of sesiones) {
-    if (conMarcaPropia(s.id) || (!servidor && s.session_date <= hoyISO)) dadas.add(s.id);
+    if (s.session_date.slice(0, 10) > hoyISO) continue;
+    if (servidor ? servidor.has(s.id) || conMarcaPropia(s.id) : true) dadas.add(s.id);
   }
   return dadas;
 }

@@ -521,7 +521,7 @@ function CourseBoard({ course, onBack }: { course: CourseRow; onBack: () => void
   const [globalContents, setGlobalContents] = useState<ContentRow[]>([]);
   const [brand, setBrand] = useState<BrandRow | null>(null);
   const [attendance, setAttendance] = useState<Map<string, AttendanceStatus>>(new Map());
-  /** Sesiones del curso que se dieron (alguien tiene marca), según el servidor;
+  /** Sesiones del curso que se dieron (alguien tiene marca y ya llegó su fecha), según el servidor;
    *  null = la función no respondió y se aproxima con las sesiones ya pasadas. */
   const [sesionesDadasIds, setSesionesDadasIds] = useState<Set<string> | null>(null);
   // Qué sesiones se dieron: el estudiante no ve las marcas de los demás, así que
