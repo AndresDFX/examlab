@@ -81,3 +81,7 @@ __pycache__/
 # (temporales, exports, carpetas de universidades aún sin agregar como
 # submódulo) que alguien deje caer directo en universidades/<nombre>/.
 universidades/*/
+
+# Datos personales que se trabajan localmente (listas de correos, notas de estudiantes).
+# El repo es público: lo que va acá NUNCA se commitea.
+/privado/
