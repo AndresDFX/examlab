@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { corteYPesoEnCurso } from "@/modules/grading/nota-relativa";
 import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
 
 /**
@@ -6,8 +7,10 @@ import { esEstadoDeEntrega } from "@/modules/submissions/entrega-hecha";
  *
  * Responde una pregunta operativa distinta de la Alerta temprana: no "a quién
  * hay que buscar por riesgo de deserción", sino "qué le falta HACER a cada
- * estudiante, ahora" — firmar un documento, responder una encuesta abierta,
- * presentar un examen, entregar un taller o un proyecto.
+ * estudiante, ahora" — firmar un documento, responder una encuesta que se exige
+ * para la asistencia, presentar un examen, entregar un taller o un proyecto.
+ *
+ * Solo cuenta lo que SUMA a la nota (ver `sumaALaNota` y `encuestasExigidas`).
  *
  * A diferencia de `statistics.ts` (que carga UN curso a fondo), este loader
  * trabaja sobre un CONJUNTO de cursos para poder mostrar el agregado
@@ -359,6 +362,47 @@ export function pollIsOpen(
   return true;
 }
 
+/**
+ * ¿La actividad suma a la nota de ESTE curso? Peso mayor que 0 y un corte, con
+ * la misma resolución que la nota (`corteYPesoEnCurso`: la fila de unión con
+ * corte; si no, la de la actividad cuando es de este curso).
+ *
+ * Lo que no suma no es un pendiente (decisión del docente, 2026-10-12): la
+ * «Prueba diagnóstica» y los talleres de práctica valen 0 %, y el informe que se
+ * manda al grupo los cobraba como deuda — un estudiante reclamaba por algo que
+ * no le cambia la nota.
+ */
+export function sumaALaNota(
+  deUnion: { cut_id?: string | null; weight?: number | null } | null | undefined,
+  propia: { course_id?: string | null; cut_id?: string | null; weight?: number | null },
+  courseId: string,
+): boolean {
+  const { cutId, weight } = corteYPesoEnCurso(deUnion, propia, courseId);
+  return cutId != null && weight > 0;
+}
+
+/**
+ * Las encuestas que el docente EXIGE en cada curso: las que son requisito de
+ * asistencia de alguna sesión del curso (fuera de la papelera). Una encuesta no
+ * tiene peso; la única forma en que toca la nota es bloqueando la asistencia, y
+ * por eso es lo único que la vuelve un pendiente. Una encuesta voluntaria —o una
+ * que todavía no se exige, como la de satisfacción hasta el final del semestre—
+ * no se le cobra a nadie. Devuelve claves `${poll_id}::${course_id}`.
+ */
+export function encuestasExigidas(
+  requisitos: Iterable<{ item_id: string; session_id: string }>,
+  sesiones: Iterable<{ id: string; course_id: string }>,
+): Set<string> {
+  const cursoDe = new Map<string, string>();
+  for (const s of sesiones) cursoDe.set(s.id, s.course_id);
+  const exigidas = new Set<string>();
+  for (const r of requisitos) {
+    const curso = cursoDe.get(r.session_id);
+    if (curso) exigidas.add(`${r.item_id}::${curso}`);
+  }
+  return exigidas;
+}
+
 /** Resultado crudo compartido entre `loadPendingStudents` (solo pendientes) y
  *  `loadAllStudentsPending` (universo completo, para el export). */
 type PendingData = {
@@ -413,7 +457,7 @@ async function loadPendingData(
   // quien no presentó el parcial y sí su supletorio ya no lo tiene pendiente.
   const { data: examRaw } = await dbAny
     .from("exams")
-    .select("id, course_id, parent_exam_id")
+    .select("id, course_id, parent_exam_id, cut_id, weight")
     .in("course_id", courseIds)
     .neq("status", "draft")
     .is("deleted_at", null);
@@ -421,9 +465,12 @@ async function loadPendingData(
     id: string;
     course_id: string;
     parent_exam_id: string | null;
+    cut_id: string | null;
+    weight: number | null;
   }>;
   const originalOf = new Map(allExams.map((e) => [e.id, e.parent_exam_id ?? e.id]));
-  const exams = allExams.filter((e) => !e.parent_exam_id);
+  // Solo los que suman a la nota: la diagnóstica y los quices de 0 % no se cobran.
+  const exams = allExams.filter((e) => !e.parent_exam_id && sumaALaNota(null, e, e.course_id));
   const examIds = allExams.map((e) => e.id);
   const examPresented = new Set<string>(); // `${exam_id ORIGINAL}::${user_id}`
   if (examIds.length > 0) {
@@ -463,7 +510,7 @@ async function loadPendingData(
   // ── Proyectos sin entregar (M:N vía project_courses) ────────────────
   await collectActivityPending({
     joinTable: "project_courses",
-    embed: "project:projects(id, status, deleted_at)",
+    embed: "project:projects(id, status, deleted_at, course_id, cut_id, weight)",
     subTable: "project_submissions",
     subFk: "project_id",
     kind: "proyecto",
@@ -497,6 +544,24 @@ async function loadPendingData(
     const openPollIds = new Set(openPolls.map((p) => p.id));
     if (openPollIds.size > 0) {
       const openIdList = [...openPollIds];
+      // Solo cuenta la encuesta que se EXIGE para la asistencia (`encuestasExigidas`).
+      const { data: reqRaw } = await dbAny
+        .from("attendance_session_requirements")
+        .select("item_id, session_id")
+        .eq("kind", "poll")
+        .in("item_id", openIdList);
+      const requisitos = (reqRaw ?? []) as Array<{ item_id: string; session_id: string }>;
+      const sesionesReq = Array.from(new Set(requisitos.map((r) => r.session_id)));
+      const sesionesVigentes: Array<{ id: string; course_id: string }> = [];
+      for (let i = 0; i < sesionesReq.length; i += 100) {
+        const { data: sRaw } = await dbAny
+          .from("attendance_sessions")
+          .select("id, course_id")
+          .in("id", sesionesReq.slice(i, i + 100))
+          .is("deleted_at", null);
+        sesionesVigentes.push(...((sRaw ?? []) as Array<{ id: string; course_id: string }>));
+      }
+      const exigidas = encuestasExigidas(requisitos, sesionesVigentes);
       const [{ data: votes }, { data: mixed }] = await Promise.all([
         dbAny.from("poll_responses").select("poll_id, user_id").in("poll_id", openIdList),
         dbAny.from("poll_question_responses").select("poll_id, user_id").in("poll_id", openIdList),
@@ -510,6 +575,7 @@ async function loadPendingData(
       // la encuesta donde el estudiante está matriculado.
       for (const pc of pollCourses) {
         if (!openPollIds.has(pc.poll_id)) continue;
+        if (!exigidas.has(`${pc.poll_id}::${pc.course_id}`)) continue;
         const students = studentsByCourse.get(pc.course_id);
         if (!students) continue;
         for (const uid of students) {
@@ -715,7 +781,7 @@ async function collectActivityPending(opts: {
 }): Promise<void> {
   const { data: joinRaw } = await dbAny
     .from(opts.joinTable)
-    .select(`course_id, ${opts.embed}`)
+    .select(`course_id, cut_id, weight, ${opts.embed}`)
     .in("course_id", opts.courseIds);
   const key = opts.embed.split(":")[0]; // "workshop" / "project"
   // Recuperación → original: una recuperación NO es una actividad pendiente
@@ -736,6 +802,10 @@ async function collectActivityPending(opts: {
     const parent = parentField ? (item[parentField] as string | null) : null;
     originalOf.set(item.id, parent ?? item.id);
     if (parent) continue; // las recuperaciones no se listan como pendientes
+    // Lo que no suma a la nota de este curso no es un pendiente (`sumaALaNota`).
+    const union = { cut_id: (r.cut_id as string | null) ?? null, weight: (r.weight as number | null) ?? null };
+    const propia = item as { course_id?: string | null; cut_id?: string | null; weight?: number | null };
+    if (!sumaALaNota(union, propia, String(r.course_id))) continue;
     activities.push({ id: item.id, courseId: String(r.course_id) });
   }
   const activityIds = Array.from(originalOf.keys());

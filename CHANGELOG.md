@@ -83,6 +83,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- Pendientes por estudiante (Estadísticas e informe exportable): solo cuenta lo que suma a la nota. Un examen, taller o proyecto de 0 % o sin corte —la «Prueba diagnóstica», los talleres de práctica— ya no es pendiente, y una encuesta lo es solo si es requisito de asistencia de alguna sesión del curso.
 - Skill `notas-a-uniajc`: pasa la nota de un corte de ExamLab a la plataforma académica de la UNIAJC por el navegador (en seco por defecto; con `--registrar` escribe y vuelve a abrir cada grupo para verificar). Antes de leer una nota exige dejar ExamLab ajustado: cola vacía, puntajes registrados como fracción corregidos, reclamos respondidos y la regla de asistencia del corte. Las credenciales van en `.env.uniajc`, que no se commitea.
 - Notas: una sesión solo cuenta como dictada desde su fecha (mig `20262800000000` + `sesionesDadas`). Una clase autónoma revisada por adelantado ya no le pone falta al resto del curso: en 6303C el Corte 3 salía en 0,00 para 15 estudiantes por la autónoma del 2 de noviembre. Aplica al libro de notas, «Mis notas», el boletín, el acta, la Alerta temprana y los porcentajes de asistencia.
 - Móvil: la cabecera del examen queda pegada a la barra de la app (hueco 0) y la campanita de avisos tiene nombre accesible («Notificaciones»). Verificado en Safari (WebKit) contra producción.

@@ -2842,7 +2842,7 @@
     "fraudEmpty": "No integrity alerts. Run 'Detect copies' per activity to populate pairs.",
     "allCourses": "All courses",
     "pendingTitle": "Pending by student",
-    "pendingDesc": "Who still needs to sign a document, answer an open poll, present an exam, or submit a workshop or project.",
+    "pendingDesc": "Who still needs to sign a document, answer a poll required for attendance, or present an exam or submit a workshop or project that counts toward the grade.",
     "pendingColStudent": "Student",
     "pendingColCourses": "Course(s)",
     "pendingColTotal": "Total",

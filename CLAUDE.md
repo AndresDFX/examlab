@@ -1571,6 +1571,14 @@ Lo que no se deduce leyendo el código:
 (la Alerta temprana responde otra cosa: a quién buscar por riesgo). Seis tipos: `firma`, `encuesta`,
 `examen`, `taller`, `proyecto` y **`asistencia`**.
 
+- **Solo cuenta lo que suma a la nota** (decisión del docente, 2026-10-12). Un examen, taller o
+  proyecto es pendiente solo con peso mayor que 0 y corte en ese curso (`sumaALaNota`, misma
+  resolución que la nota: `corteYPesoEnCurso`); la «Prueba diagnóstica» y los talleres de práctica
+  de 0 % no se cobran. Una encuesta no tiene peso: es pendiente solo si es **requisito de asistencia**
+  de una sesión del curso (`encuestasExigidas`), que es lo único que la hace tocar la nota. Origen:
+  el informe que se manda al grupo le cobraba a un estudiante la encuesta de satisfacción, que no
+  se exige hasta el final del semestre.
+
 - **La regla de asistencia es lo único delicado acá** (`asistenciasFaltantes`, PURA y con tests): un
   estudiante sin registro en una sesión significa dos cosas OPUESTAS — que faltó, o que el docente
   no pasó lista ese día. Si no se distinguen, el curso ENTERO aparece pendiente cada vez que alguien

@@ -3,8 +3,10 @@ import {
   aggregateAllStudents,
   aggregatePending,
   asistenciasFaltantes,
+  encuestasExigidas,
   filterItemsByKind,
   pollIsOpen,
+  sumaALaNota,
   type PendingItem,
 } from "./pending-students";
 
@@ -257,5 +259,45 @@ describe("asistenciasFaltantes", () => {
       curso,
     );
     expect(r).toEqual([]);
+  });
+});
+
+describe("sumaALaNota — lo que no suma a la nota no es pendiente", () => {
+  it("la diagnóstica de 0 % no suma; el parcial con peso y corte sí", () => {
+    expect(sumaALaNota(null, { course_id: "c1", cut_id: "k1", weight: 0 }, "c1")).toBe(false);
+    expect(sumaALaNota(null, { course_id: "c1", cut_id: "k1", weight: 10 }, "c1")).toBe(true);
+  });
+
+  it("sin corte no suma aunque tenga peso (un taller de práctica suelto)", () => {
+    expect(sumaALaNota(null, { course_id: "c1", cut_id: null, weight: 10 }, "c1")).toBe(false);
+  });
+
+  it("manda la fila del curso: un taller compartido suma con el peso y el corte de ESE curso", () => {
+    const taller = { course_id: "c1", cut_id: "k1", weight: 0 };
+    expect(sumaALaNota({ cut_id: "k2", weight: 10 }, taller, "c2")).toBe(true);
+    expect(sumaALaNota({ cut_id: "k2", weight: 0 }, taller, "c2")).toBe(false);
+    // En un curso secundario sin fila con corte, el corte de la actividad es de otro curso.
+    expect(sumaALaNota(null, { course_id: "c1", cut_id: "k1", weight: 10 }, "c2")).toBe(false);
+  });
+});
+
+describe("encuestasExigidas — solo cuenta la encuesta que se exige para la asistencia", () => {
+  const sesiones = [
+    { id: "s1", course_id: "c1" },
+    { id: "s2", course_id: "c2" },
+  ];
+
+  it("una encuesta es exigida en el curso de la sesión que la pide", () => {
+    const e = encuestasExigidas([{ item_id: "p1", session_id: "s1" }], sesiones);
+    expect(e.has("p1::c1")).toBe(true);
+    expect(e.has("p1::c2")).toBe(false);
+  });
+
+  it("una encuesta voluntaria (sin requisito) no se cobra en ningún curso", () => {
+    expect(encuestasExigidas([], sesiones).size).toBe(0);
+  });
+
+  it("un requisito de una sesión en la papelera (ausente de la lista) no cuenta", () => {
+    expect(encuestasExigidas([{ item_id: "p1", session_id: "s9" }], sesiones).size).toBe(0);
   });
 });
