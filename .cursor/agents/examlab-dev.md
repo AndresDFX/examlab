@@ -124,6 +124,11 @@ SMTP (`SMTP_HOST/PORT/USER/PASSWORD`, `EMAIL_FROM`). Si una tarea los necesita, 
 usuario**: no los derives ni improvises un fallback. Las de grabación de demos están en
 `.env.recording`.
 
+Las del portal académico de la UNIAJC (para pasar notas a la universidad) están en `.env.uniajc`:
+las usa la skill `notas-a-uniajc`, que es la única que debe tocar ese portal. Los datos personales
+de trabajo (CSV de notas, listas de correos, informes) van en `privado/`, que está en `.gitignore`:
+el repo es público y **nada con nombres, documentos o notas de estudiantes se commitea**.
+
 El usuario **sí** tiene acceso al dashboard de Supabase: para diagnósticos, dale queries SQL de una
 sola pasada para que las corra en el SQL Editor.
 

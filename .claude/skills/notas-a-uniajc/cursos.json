@@ -1,0 +1,21 @@
+{
+  "_leeme": "Configuración del periodo para los scripts de notas-a-uniajc. Se actualiza CADA SEMESTRE. 'libro' es el texto que identifica el curso en el selector del libro de calificaciones de ExamLab; 'materia' y 'grupo' son como aparecen en Academusoft (el grupo del portal no lleva el sufijo que ExamLab agrega: 641A-2 → 641A). 'evaluaciones' dice qué evaluación del portal corresponde a cada corte; 'evaluacionesConfirmadas' son las que ya se vieron en el portal: una sin confirmar se verifica la primera vez (el script falla mostrando las que ofrece el portal si el nombre no existe).",
+  "periodo": "2026-2",
+  "docente": "Julian Andres Castaño Espinosa",
+  "correoDocente": "julianacastano@profesores.uniajc.edu.co",
+  "evaluaciones": {
+    "1": "EVALUACIÓN FORMATIVA I",
+    "2": "EVALUACIÓN FORMATIVA II",
+    "3": "EVALUACIÓN FORMATIVA III"
+  },
+  "evaluacionesConfirmadas": ["1"],
+  "cursos": [
+    { "archivo": "Arquitectura 6303C", "libro": "6303C", "asignatura": "Arquitectura de Sistemas Computacionales", "materia": "ARQUITECTURA DE SISTEMAS COMPUTACIONALES", "codigo": "FI303380", "grupo": "6303C" },
+    { "archivo": "Bases de Datos II 641A-2", "libro": "641A-2", "asignatura": "Bases de Datos II", "materia": "BASES DE DATOS II", "codigo": "FI303215", "grupo": "641A" },
+    { "archivo": "Introduccion LB141F", "libro": "LB141F", "asignatura": "Introducción a la Ingeniería", "materia": "INTRODUCCION A LA INGENIERIA", "codigo": "FI300101", "grupo": "LB141F" },
+    { "archivo": "Introduccion SB141B", "libro": "SB141B", "asignatura": "Introducción a la Ingeniería", "materia": "INTRODUCCION A LA INGENIERIA", "codigo": "FI300101", "grupo": "SB141B" },
+    { "archivo": "Introduccion SB141C", "libro": "SB141C", "asignatura": "Introducción a la Ingeniería", "materia": "INTRODUCCION A LA INGENIERIA", "codigo": "FI300101", "grupo": "SB141C" },
+    { "archivo": "Programacion II 341C", "libro": "II-2026-2-341C", "asignatura": "Programación II", "materia": "PROGRAMACION II", "codigo": "FI303204", "grupo": "341C" },
+    { "archivo": "Seminario de Sistemas 341C", "libro": "Sistemas-2026-2-341C", "asignatura": "Seminario de Sistemas", "materia": "SEMINARIO DE SISTEMAS", "codigo": "FI303301", "grupo": "341C" }
+  ]
+}

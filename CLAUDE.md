@@ -19,6 +19,8 @@ bun run dev              # localhost:8080 (verificado 2026-09-30; el puerto real
   VITE_VAPID_PUBLIC_KEY="BAg2gqFTm-P9_gNuumcJPQF7fj-6e2XjlSDZJGTGa2YMvZSDdKD6C6S3pc88UM7mvBNrlcebXUXeJzqKp4bROVo"
   ```
 - `.env.recording` — credenciales para grabar los tours HeyGen (ver "Cuentas de testing" abajo). Solo necesario si vas a re-grabar.
+- `.env.uniajc` — usuario y clave del portal académico de la UNIAJC (Campus TI) y del SuperAdmin de ExamLab, para pasar notas a la universidad con la skill `notas-a-uniajc`. Solo necesario si vas a pasar o sincronizar notas.
+- `privado/` — datos personales que se trabajan en local (listas de correos, CSV de notas, informes). Está en `.gitignore` y **nunca** se commitea: el repo es público.
 
 **Validaciones rápidas**:
 - `bun tsc --noEmit` (o `node ./node_modules/typescript/bin/tsc --noEmit`) debe dar `EXIT=0`. **`npx tsc` NO sirve**: no resuelve el TypeScript local y sale con un aviso que parece un error de tipos.
@@ -125,6 +127,27 @@ dependencias de software**.
 `universidades/*/` está en `.gitignore` — no oculta los submódulos ya registrados (eso es un
 gitlink en el índice, `.gitignore` no toca lo que ya está tracked), es para que no se cuelen
 archivos sueltos si alguien deja algo directo en esa carpeta antes de que sea un submódulo real.
+
+## Notas de ExamLab a la universidad (UNIAJC)
+
+La skill `notas-a-uniajc` ([SKILL.md](.claude/skills/notas-a-uniajc/SKILL.md)) pasa la nota de un
+corte al portal académico de la UNIAJC (Academusoft, «Ingresar Calificaciones») manejando el
+navegador, y la **mantiene sincronizada**: si algo del corte cambia después en ExamLab, volver a
+correrla escribe solo las filas que difieren y verifica reabriendo cada grupo. El Corte 1 de
+2026-2 se registró así el 2026-10-12 (181 estudiantes, verificados uno por uno).
+
+- **Primero ExamLab, después la universidad.** `revisar-corte.cjs` (solo lectura) dice qué falta
+  resolver antes de leer notas. Una copia tomada antes de tiempo queda vieja en la universidad y
+  nadie avisa: pasó el 7 de octubre, con reintentos todavía sin calificar.
+- La nota que se sube es la de la **pantalla del libro de calificaciones** (`leer-libro.cjs`), no
+  una consulta propia: lo que ve el estudiante en ExamLab y en la universidad es lo mismo.
+- Reglas del portal: un decimal con punto y redondeo con la mitad hacia arriba, de modo que un
+  2,95–2,99 queda en 3.0 y aprueba. Sin nota ⇒ **NP**, que el portal registra como 0,0. **Nunca
+  bloquear el grupo.**
+- Decisiones del docente: sin ninguna asistencia en el corte, el corte vale 0, salvo trabajo
+  propio en línea. A una entrega reabierta y no reenviada se le devuelve la nota que tenía.
+- `cursos.json` se actualiza **cada semestre**, y la evaluación de cada corte se confirma en el
+  portal la primera vez: el 2026-10-12 solo existía «EVALUACIÓN FORMATIVA I».
 
 ## Plataforma y despliegue
 
