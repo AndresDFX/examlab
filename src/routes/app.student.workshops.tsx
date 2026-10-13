@@ -32,7 +32,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha, estaVencido } from "@/modules/submissions/entrega-hecha";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  TarjetaDeActividad,
+  CuerpoDeTarjeta,
+  AccionesDeTarjeta,
+} from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
@@ -811,7 +815,7 @@ function StudentWorkshops() {
               Number(workshop.max_attempts ?? globalWorkshopMax ?? 1) &&
             (submission.status === "calificado" || submission.final_grade != null);
           return (
-            <Card
+            <TarjetaDeActividad
               key={workshop.id}
               ref={workshop.id === deepLinkId ? cardEnfocadaRef : undefined}
               className={
@@ -820,7 +824,7 @@ function StudentWorkshops() {
                   : undefined
               }
             >
-              <CardContent className="p-5 space-y-3">
+              <CuerpoDeTarjeta>
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
                     <CursoDeLaActividad curso={workshop.course?.name} />
@@ -956,6 +960,8 @@ function StudentWorkshops() {
                   </div>
                 )}
 
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta>
                 {/* Modo grupal estricto SIN grupo: no se puede entregar.
                     Mostramos un aviso en lugar del CTA. */}
                 {isOpen && blockedNoGroup && (
@@ -1039,8 +1045,8 @@ function StudentWorkshops() {
                     {t("exam.windowClosedHelp")}
                   </p>
                 )}
-              </CardContent>
-            </Card>
+              </AccionesDeTarjeta>
+            </TarjetaDeActividad>
           );
         })}
       </div>

@@ -15,7 +15,11 @@ import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { estaAprobada, varianteDeNota } from "@/modules/grading/aprobacion";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  TarjetaDeActividad,
+  CuerpoDeTarjeta,
+  AccionesDeTarjeta,
+} from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
@@ -686,8 +690,8 @@ function StudentExams() {
           const reviewExamId = completed && submission?.exam_id ? submission.exam_id : exam.id;
           const noAttemptsLeft = attemptsUsed >= maxAttempts;
           return (
-            <Card key={exam.id}>
-              <CardContent className="p-5 space-y-3">
+            <TarjetaDeActividad key={exam.id}>
+              <CuerpoDeTarjeta>
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
                     <CursoDeLaActividad curso={exam.course?.name} />
@@ -794,6 +798,8 @@ function StudentExams() {
                   ((exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true) && (
                     <StudentExamNotes examId={exam.id} userId={user.id} />
                   )}
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta>
                 {completed && !noAttemptsLeft && isOpen ? (
                   <div className="space-y-2">
                     <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
@@ -886,8 +892,8 @@ function StudentExams() {
                     </p>
                   </div>
                 )}
-              </CardContent>
-            </Card>
+              </AccionesDeTarjeta>
+            </TarjetaDeActividad>
           );
         })}
       </div>

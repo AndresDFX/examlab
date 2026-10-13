@@ -29,7 +29,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha, estaVencido } from "@/modules/submissions/entrega-hecha";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  TarjetaDeActividad,
+  CuerpoDeTarjeta,
+  AccionesDeTarjeta,
+} from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
@@ -760,8 +764,8 @@ function StudentProjects() {
             (submission.status === "calificado" || submission.final_grade != null);
 
           return (
-            <Card key={project.id}>
-              <CardContent className="p-5 space-y-3">
+            <TarjetaDeActividad key={project.id}>
+              <CuerpoDeTarjeta>
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
                     <CursoDeLaActividad curso={project.course?.name} />
@@ -884,6 +888,8 @@ function StudentProjects() {
                   </div>
                 )}
 
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta>
                 {/* Modo grupal estricto SIN grupo: bloqueo de entrega. */}
                 {isOpen && !esExterno && blockedNoGroup && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
@@ -963,8 +969,8 @@ function StudentProjects() {
                     {t("project.windowClosedHelp")}
                   </p>
                 )}
-              </CardContent>
-            </Card>
+              </AccionesDeTarjeta>
+            </TarjetaDeActividad>
           );
         })}
       </div>
