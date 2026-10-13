@@ -18,6 +18,16 @@ import {
   scoreDeterministic,
 } from "../_shared/deterministic-scoring.ts";
 import { consolidarNotaTaller, patchCabeceraTaller } from "../_shared/workshop-grading.ts";
+import {
+  EXT_TEXTO_LEGIBLE,
+  NOMBRES_SIN_EXTENSION,
+  esRuidoDeZip,
+  extensionesPermitidas,
+  leerPoliticaZip,
+  revisarArchivosDelZip,
+  type PoliticaZip,
+} from "../_shared/contenido-zip.ts";
+import { leerDocumentosDelZip } from "../_shared/leer-entrega-zip.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2457,9 +2467,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       // por completo, permitiendo que el ZIP contuviera PDFs, imágenes
       // o cualquier basura — la edge solo descartaba esos archivos
       // antes del prompt, sin avisar al estudiante. Ahora SIEMPRE
-      // rechazamos archivos no-código con un error claro. Si el
-      // docente quiere aceptar README/PDFs, eso se hace en otra
-      // pregunta del proyecto (no en codigo_zip).
+      // rechazamos archivos no-código con un error claro. Para que la
+      // entrega acepte documentos u otros archivos, el docente la
+      // configura (`options.zip`, ver la política de más abajo).
       const explicitAllowed = Array.isArray(allowedExtensions)
         ? allowedExtensions
             .filter((e): e is string => typeof e === "string")
@@ -2485,7 +2495,53 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         "desktop.ini",
         ".ds_store",
       ]);
-      if (cleanedAllowed.length > 0) {
+      // Qué puede traer el ZIP lo configura el docente en la entrega (`options.zip`, ver
+      // `_shared/contenido-zip.ts`). Se lee de la BASE por `questionId`, que mandan los cuatro caminos
+      // que califican un ZIP (la entrega del estudiante, la cola y las dos recalificaciones del docente).
+      let politicaZip: PoliticaZip = { contenido: "codigo", extensiones: [] };
+      if (typeof body.questionId === "string" && UUID_RE.test(body.questionId)) {
+        const { data: filaZip, error: errZip } = await adminClient
+          .from(body.workshopCodeZipGrading ? "workshop_questions" : "project_files")
+          .select("options")
+          .eq("id", body.questionId)
+          .maybeSingle();
+        // Sin la regla, rechazar sería decidir con la de «solo código» algo que la entrega quizá acepta.
+        // Un error lanzado sale como 5xx, que la cola sí reintenta.
+        if (errZip) throw new Error(`No se pudo leer la configuración de la entrega: ${errZip.message}`);
+        politicaZip = leerPoliticaZip((filaZip as { options?: unknown } | null)?.options);
+      }
+      // «codigo» sigue exactamente por el camino de siempre (el `else` de abajo).
+      const zipAbierto = politicaZip.contenido !== "codigo";
+      if (zipAbierto) {
+        // «documentos» acepta código de CUALQUIER lenguaje: la lista general, no la del lenguaje.
+        const permitidas = extensionesPermitidas(politicaZip, Array.from(CODE_EXT));
+        const { rechazados } = revisarArchivosDelZip(allPaths, permitidas, {
+          sinExtension: politicaZip.contenido === "documentos",
+        });
+        if (rechazados.length > 0) {
+          const sample = rechazados.slice(0, 5).join(", ");
+          const more = rechazados.length > 5 ? ` (+${rechazados.length - 5} más)` : "";
+          const permitidasTxt =
+            politicaZip.contenido === "lista"
+              ? `Solo se aceptan archivos ${politicaZip.extensiones.map((e) => `.${e}`).join(", ")}`
+              : "Solo se aceptan código, documentos (PDF, Word, PowerPoint, Excel, texto), diagramas e imágenes";
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: `El ZIP contiene archivos que esta entrega no acepta. ${permitidasTxt}. Archivos rechazados: ${sample}${more}.`,
+              grade: 0,
+              feedback: "",
+              ai_likelihood: 0,
+              ai_detected: false,
+              ai_reasons: "",
+              rejected_reason: "extension_mismatch",
+              rejected_files: rechazados.slice(0, 50),
+              allowed_extensions: permitidas,
+            }),
+            { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+      } else if (cleanedAllowed.length > 0) {
         const allowedSet = new Set(cleanedAllowed);
         // Helper: ¿este path es ruido auto-generado que toleramos?
         // Aplica a TODO el subárbol; no usamos `startsWith` porque las
@@ -2725,16 +2781,22 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         return collapseWhitespace(src);
       };
 
+      // Lo que la IA no puede leer, para nombrárselo (solo con un ZIP abierto; ver más abajo).
+      const noLeidos: string[] = [];
+      let pdfParcial = false;
       let totalSavedChars = 0;
       for (const path of allPaths) {
         const lower = path.toLowerCase();
         const ext = lower.split(".").pop() ?? "";
         const baseName = lower.split("/").pop() ?? "";
+        // Con un ZIP abierto entra la carpeta entera: el ruido del IDE (.idea/*.xml, node_modules) no se lee.
+        if (zipAbierto && esRuidoDeZip(path)) continue;
         const isWhitelisted =
           CODE_EXT.has(ext) ||
           baseName === "makefile" ||
           baseName === "dockerfile" ||
-          baseName === ".gitignore";
+          baseName === ".gitignore" ||
+          (zipAbierto && (EXT_TEXTO_LEGIBLE.includes(ext) || NOMBRES_SIN_EXTENSION.includes(baseName)));
         if (!isWhitelisted) continue;
         totalWhitelisted++;
         const data = unzipped[path];
@@ -2759,8 +2821,18 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             perFileTruncated++;
           }
         }
+        // Con un ZIP abierto entran CSV, SVG o diagramas que pesan mucho: un tope por archivo, para que uno
+        // grande no deje a la IA sin leer el código que viene después.
+        if (zipAbierto && text.length > 20_000) {
+          text = text.slice(0, 20_000) + "\n…[truncado]…";
+          perFileTruncated++;
+        }
         if (totalChars + text.length > MAX_CHARS) {
           totalLimitReached = true;
+          if (zipAbierto) {
+            noLeidos.push(path);
+            continue;
+          }
           break;
         }
         totalChars += text.length;
@@ -2773,8 +2845,36 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           `[zip-grading] minified saved ${totalSavedChars} chars (${codeFiles.length} files, ${totalChars} chars total)`,
         );
       }
+      // ── ZIP abierto: Word, PowerPoint y PDF también se leen (`_shared/leer-entrega-zip.ts`) ──
+      // Lo que no se puede leer se le NOMBRA a la IA, para que no lo cuente como faltante.
+      if (zipAbierto) {
+        const lectura = await leerDocumentosDelZip(
+          unzipped,
+          allPaths,
+          new Set(codeFiles.map((f) => f.path)),
+          MAX_CHARS - totalChars,
+        );
+        codeFiles.push(...lectura.archivos);
+        totalChars += lectura.caracteres;
+        if (lectura.tope) totalLimitReached = true;
+        noLeidos.push(...lectura.noLeidos);
+        pdfParcial = lectura.pdfParcial;
+      }
       const wasTruncated = totalLimitReached || perFileTruncated > 0;
 
+      if (codeFiles.length === 0 && zipAbierto) {
+        // Nada legible (solo imágenes o PDF escaneados): sin nota. Un 0 se leería como «no entregó»;
+        // la entrega queda por calificar y el docente pone la nota en su ventana de calificación.
+        return new Response(
+          JSON.stringify({
+            ok: false,
+            error:
+              "La IA no pudo leer ningún archivo de esta entrega (por ejemplo, solo imágenes o PDF escaneados). La califica el docente.",
+            rejected_reason: "sin_contenido_legible",
+          }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
       if (codeFiles.length === 0) {
         return new Response(
           JSON.stringify({
@@ -2798,6 +2898,16 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
       const fileSection = codeFiles.map((f) => `─── ${f.path} ───\n${f.content}\n`).join("\n");
+      const tituloContenido = zipAbierto
+        ? `Contenido de la entrega (${codeFiles.length} archivo(s) legibles):`
+        : `Código fuente entregado (${codeFiles.length} archivo(s)):`;
+      const avisoNoLeidos =
+        noLeidos.length > 0
+          ? `\n\nArchivos de la entrega que NO puedes leer (imágenes, hojas de cálculo, PDF escaneados o que superaron el tope): ${noLeidos.slice(0, 30).join(", ")}${noLeidos.length > 30 ? ` (+${noLeidos.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no poder leerlos; califica lo que sí puedes leer y dilo en la retroalimentación.`
+          : "";
+      const avisoPdfParcial = pdfParcial
+        ? "\n\nDe algún PDF solo se leyeron las primeras páginas (lo dice su encabezado): no bajes la nota por lo que no viste."
+        : "";
       const projectCtx =
         projectDescription && String(projectDescription).trim()
           ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
@@ -2816,9 +2926,9 @@ Descripción: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
 Puntaje máximo: ${maxPoints}
 
-Código fuente entregado (${codeFiles.length} archivo(s)):
+${tituloContenido}
 
-${fileSection}
+${fileSection}${avisoNoLeidos}${avisoPdfParcial}
 
 Idioma de salida obligatorio: ${pfLangName}.`,
           },

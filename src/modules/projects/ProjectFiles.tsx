@@ -91,12 +91,18 @@ import {
 import { friendlyError } from "@/shared/lib/db-errors";
 import { withDbRetry } from "@/shared/lib/db-retry";
 import {
-  LANG_TO_EXT,
   LANG_OPTIONS,
   MAX_CODE_FILES_TOTAL_BYTES,
   MAX_CODE_FILES_COUNT,
-  isFileAllowed,
-  preValidateZipInBrowser,
+  acceptDeEntrega,
+  archivoPermitidoEnEntrega,
+  leerPoliticaZip,
+  normalizarExtensiones,
+  opcionesConPoliticaZip,
+  permitidosDeEntregaZip,
+  prevalidarZipDeEntrega,
+  queAceptaLaEntrega,
+  type ContenidoZip,
 } from "@/shared/lib/code-upload";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -177,6 +183,9 @@ export function TeacherProjectFilesEditor({
   const [qLanguage, setQLanguage] = useState("java");
   // Scaffolding flujo ZIP único — toggle por slot (solo aplica a codigo_zip).
   const [qZipSingle, setQZipSingle] = useState(false);
+  // Qué puede traer el ZIP (`options.zip`): ver `_shared/contenido-zip.ts`.
+  const [qZipContenido, setQZipContenido] = useState<ContenidoZip>("codigo");
+  const [qZipExtensiones, setQZipExtensiones] = useState("");
   // Framework GUI para preguntas java_gui. Default swing; persiste
   // en options.java_framework. Misma semántica que WorkshopQuestions.
   const [qJavaFramework, setQJavaFramework] = useState<"swing" | "javafx">("swing");
@@ -201,6 +210,8 @@ export function TeacherProjectFilesEditor({
     setQPoints(1);
     setQLanguage("java");
     setQZipSingle(false);
+    setQZipContenido("codigo");
+    setQZipExtensiones("");
     setQJavaFramework("swing");
     setQNetworkScenario(JSON.stringify(defaultScenario(), null, 2));
     setQSetupSql("");
@@ -223,6 +234,9 @@ export function TeacherProjectFilesEditor({
     setQPoints(q.points);
     setQLanguage(q.language ?? "java");
     setQZipSingle(Boolean(q.zip_single));
+    const politicaZip = leerPoliticaZip(q.options);
+    setQZipContenido(politicaZip.contenido);
+    setQZipExtensiones(politicaZip.extensiones.join(", "));
     const fw = (q.options as { java_framework?: string } | null)?.java_framework;
     setQJavaFramework(fw === "javafx" ? "javafx" : "swing");
     const net = (q.options as { network?: unknown } | null)?.network;
@@ -344,6 +358,14 @@ export function TeacherProjectFilesEditor({
         return;
       }
     }
+    if (
+      qType === "codigo_zip" &&
+      qZipContenido === "lista" &&
+      normalizarExtensiones(qZipExtensiones).length === 0
+    ) {
+      toast.error(t("projectFiles.zipListaVacia"));
+      return;
+    }
     // red_consola: valida el escenario JSON antes de armar el payload.
     let networkOptions: { network: unknown } | null = null;
     if (qType === "red_consola" || qType === "red_gui") {
@@ -381,7 +403,12 @@ export function TeacherProjectFilesEditor({
               ? networkOptions
               : qType === "bd_sql"
                 ? { db: { setupSql: qSetupSql } }
-                : null;
+                : qType === "codigo_zip"
+                  ? opcionesConPoliticaZip(null, {
+                      contenido: qZipContenido,
+                      extensiones: normalizarExtensiones(qZipExtensiones),
+                    })
+                  : null;
     // Para proyectos: el tipo 'codigo' implica entrega ZIP (codigo_zip).
     // Solo persistimos 'language' si la pregunta es realmente código —
     // el ZIP no fija un lenguaje porque puede traer múltiples archivos.
@@ -1154,24 +1181,62 @@ export function TeacherProjectFilesEditor({
           )}
           {qType === "codigo_zip" && (
             <>
-              <div>
-                <Label required>
-                  {t("projectFiles.labelMainLanguage")}{" "}
-                  <HelpHint>{t("help.projectLanguageExtensionHint")}</HelpHint>
+              <div className="space-y-2">
+                <Label>
+                  {t("projectFiles.zipContenidoLabel")}{" "}
+                  <HelpHint>{t("projectFiles.zipContenidoHint")}</HelpHint>
                 </Label>
-                <Select value={qLanguage} onValueChange={setQLanguage}>
+                <Select
+                  value={qZipContenido}
+                  onValueChange={(v) => setQZipContenido(v as ContenidoZip)}
+                >
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {LANG_OPTIONS.map((o) => (
-                      <SelectItem key={o.value} value={o.value}>
-                        {o.label}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="codigo">{t("projectFiles.zipContenido.codigo")}</SelectItem>
+                    <SelectItem value="documentos">
+                      {t("projectFiles.zipContenido.documentos")}
+                    </SelectItem>
+                    <SelectItem value="cualquiera">
+                      {t("projectFiles.zipContenido.cualquiera")}
+                    </SelectItem>
+                    <SelectItem value="lista">{t("projectFiles.zipContenido.lista")}</SelectItem>
                   </SelectContent>
                 </Select>
+                {qZipContenido === "lista" && (
+                  <Input
+                    aria-label={t("projectFiles.zipContenido.lista")}
+                    value={qZipExtensiones}
+                    onChange={(e) => setQZipExtensiones(e.target.value)}
+                    placeholder={t("projectFiles.zipExtensionesPlaceholder")}
+                  />
+                )}
+                <p className="text-2xs text-muted-foreground">
+                  {t(`projectFiles.zipContenidoAyuda.${qZipContenido}`)}
+                </p>
               </div>
+              {/* El lenguaje solo acota «Solo código fuente»: con las demás opciones no influye. */}
+              {qZipContenido === "codigo" && (
+                <div>
+                  <Label required>
+                    {t("projectFiles.labelMainLanguage")}{" "}
+                    <HelpHint>{t("help.projectLanguageExtensionHint")}</HelpHint>
+                  </Label>
+                  <Select value={qLanguage} onValueChange={setQLanguage}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {LANG_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
                 {qZipSingle ? (
                   <>
@@ -1181,12 +1246,14 @@ export function TeacherProjectFilesEditor({
                     <strong>{t("hc_modulesProjectsProjectFiles.zipSingleModeWhole")}</strong>{" "}
                     {t("hc_modulesProjectsProjectFiles.zipSingleModeDescPart3")}
                   </>
-                ) : (
+                ) : qZipContenido === "codigo" ? (
                   <>
                     {t("hc_modulesProjectsProjectFiles.multiFileDescPart1")}{" "}
                     <strong>{t("hc_modulesProjectsProjectFiles.multiFileSourceFiles")}</strong>{" "}
                     {t("hc_modulesProjectsProjectFiles.multiFileDescPart2")}
                   </>
+                ) : (
+                  t("projectFiles.multiFileSegunContenido")
                 )}
               </div>
               <div className="flex items-start justify-between gap-3 rounded-md border border-amber-400/40 bg-amber-500/5 p-3">
@@ -2089,8 +2156,8 @@ export function StudentProjectTaker({
       const q = questions[i];
       if (q.type !== "codigo_zip") continue;
       const raw = answers[q.id];
-      const langKey = (q.language ?? "").toLowerCase().trim();
-      const allowedExts = LANG_TO_EXT[langKey] ?? null;
+      const permitidos = permitidosDeEntregaZip(q.language, q.options);
+      const allowedExts = permitidos.extensiones;
       if (q.zip_single) {
         const zipFile = raw instanceof File ? raw : null;
         if (!zipFile) continue;
@@ -2111,7 +2178,7 @@ export function StudentProjectTaker({
           });
           continue;
         }
-        const preCheck = await preValidateZipInBrowser(zipFile, allowedExts);
+        const preCheck = await prevalidarZipDeEntrega(zipFile, permitidos, t);
         if (!preCheck.ok) {
           codeQuestionErrors.push({
             qNumber: i + 1,
@@ -2129,7 +2196,7 @@ export function StudentProjectTaker({
             : [];
         if (filesArr.length === 0) continue;
         if (allowedExts) {
-          const violations = filesArr.filter((f) => !isFileAllowed(f.name, allowedExts));
+          const violations = filesArr.filter((f) => !archivoPermitidoEnEntrega(f.name, permitidos));
           if (violations.length > 0) {
             const sample = violations
               .slice(0, 5)
@@ -2138,7 +2205,7 @@ export function StudentProjectTaker({
             const more = violations.length > 5
               ? t("hc_modulesProjectsProjectFiles.moreCountSuffix", { count: violations.length - 5 })
               : "";
-            const allowedLabel = allowedExts.map((e) => `.${e}`).join(", ");
+            const allowedLabel = queAceptaLaEntrega(permitidos, t);
             codeQuestionErrors.push({
               qNumber: i + 1,
               message: t("hc_modulesProjectsProjectFiles.questionDisallowedFiles", {
@@ -2441,12 +2508,14 @@ export function StudentProjectTaker({
           } else {
             // Pre-validación cliente-side: descomprimir el ZIP en el
             // navegador y verificar que TODOS los archivos adentro sean
-            // de extensión permitida. Si hay UN PDF (o cualquier otro
-            // no-código) → rechazo inmediato sin gastar Storage ni IA.
-            // El server tiene la misma validación como red final.
-            const zipLangKey = (q.language ?? "").toLowerCase().trim();
-            const zipAllowed = LANG_TO_EXT[zipLangKey] ?? null;
-            const preCheck = await preValidateZipInBrowser(zipFile, zipAllowed);
+            // de lo que la entrega acepta (`options.zip`; por defecto, solo
+            // código) → rechazo inmediato sin gastar Storage ni IA.
+            // El server aplica la misma regla como red final.
+            const preCheck = await prevalidarZipDeEntrega(
+              zipFile,
+              permitidosDeEntregaZip(q.language, q.options),
+              t,
+            );
             if (!preCheck.ok) {
               toast.error(preCheck.error, { duration: 10000 });
               zeroed.push({ qid: q.id, reason: "zip_invalido" });
@@ -2499,8 +2568,8 @@ export function StudentProjectTaker({
             : raw instanceof File
               ? [raw]
               : [];
-          const langKey = (q.language ?? "").toLowerCase().trim();
-          const allowedExtensions = LANG_TO_EXT[langKey] ?? null;
+          const permitidosZip = permitidosDeEntregaZip(q.language, q.options);
+          const allowedExtensions = permitidosZip.extensiones;
           // Sentinel LOCAL (ya no `payload.ai_feedback`: esa columna la
           // escribe el servidor). Cuando queda seteado, la pregunta se manda
           // al servidor como "vacía" con el motivo — nunca escribimos
@@ -2520,7 +2589,9 @@ export function StudentProjectTaker({
             // archivos viejos). Whitelist puro: anything no permitido
             // por extensión rechaza, incluye `.gitignore`/`.env`/etc.
             if (allowedExtensions) {
-              const violations = filesArr.filter((f) => !isFileAllowed(f.name, allowedExtensions));
+              const violations = filesArr.filter(
+                (f) => !archivoPermitidoEnEntrega(f.name, permitidosZip),
+              );
               if (violations.length > 0) {
                 const sample = violations
                   .slice(0, 5)
@@ -2531,7 +2602,7 @@ export function StudentProjectTaker({
                       count: violations.length - 5,
                     })
                   : "";
-                const allowedLabel = allowedExtensions.map((e) => `.${e}`).join(", ");
+                const allowedLabel = queAceptaLaEntrega(permitidosZip, t);
                 toast.error(
                   t("hc_modulesProjectsProjectFiles.feedbackDisallowedFiles", {
                     sample,
@@ -3414,6 +3485,14 @@ export function StudentProjectTaker({
                       <span className="font-mono">.zip</span>
                       {t("hc_modulesProjectsProjectFiles.compressFolderPart2")}
                     </p>
+                    {(() => {
+                      const permitidos = permitidosDeEntregaZip(q.language, q.options);
+                      return permitidos.politica.contenido === "codigo" ? null : (
+                        <p className="text-2xs text-muted-foreground">
+                          {t("projectFiles.zipPuedeTraer", { que: queAceptaLaEntrega(permitidos, t) })}
+                        </p>
+                      );
+                    })()}
                     {currentZip && (
                       <div className="flex items-center justify-between gap-2 text-2xs">
                         <Badge variant="secondary" className="text-3xs gap-1 pr-1">
@@ -3440,14 +3519,10 @@ export function StudentProjectTaker({
             {q.type === "codigo_zip" &&
               !q.zip_single &&
               (() => {
-                const langKey = (q.language ?? "").toLowerCase().trim();
-                const allowedExts = LANG_TO_EXT[langKey] ?? null;
-                const acceptAttr = allowedExts
-                  ? allowedExts.map((e) => `.${e}`).join(",")
-                  : undefined;
-                const allowedLabel = allowedExts
-                  ? allowedExts.map((e) => `.${e}`).join(", ")
-                  : t("hc_modulesProjectsProjectFiles.sourceCodeFiles");
+                const permitidos = permitidosDeEntregaZip(q.language, q.options);
+                const allowedExts = permitidos.extensiones;
+                const acceptAttr = acceptDeEntrega(permitidos);
+                const allowedLabel = queAceptaLaEntrega(permitidos, t);
                 const current: File[] = Array.isArray(answers[q.id])
                   ? (answers[q.id] as File[])
                   : answers[q.id] instanceof File
@@ -3473,7 +3548,9 @@ export function StudentProjectTaker({
                         // archivos sin extensión, sin necesidad de
                         // mantener una blacklist aparte.
                         if (allowedExts) {
-                          const bad = picked.filter((f) => !isFileAllowed(f.name, allowedExts));
+                          const bad = picked.filter(
+                            (f) => !archivoPermitidoEnEntrega(f.name, permitidos),
+                          );
                           if (bad.length > 0) {
                             const sample = bad
                               .slice(0, 5)
@@ -3550,13 +3627,22 @@ export function StudentProjectTaker({
                       }}
                       className="block w-full text-xs file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:bg-primary file:text-primary-foreground file:cursor-pointer hover:file:bg-primary/90"
                     />
-                    <p className="text-2xs text-muted-foreground">
-                      {t("hc_modulesProjectsProjectFiles.multiFilePickPart1")}{" "}
-                      <span className="font-mono">{allowedLabel}</span>
-                      {t("hc_modulesProjectsProjectFiles.multiFilePickPart2", {
-                        max: MAX_CODE_FILES_COUNT,
-                      })}
-                    </p>
+                    {permitidos.politica.contenido === "codigo" ? (
+                      <p className="text-2xs text-muted-foreground">
+                        {t("hc_modulesProjectsProjectFiles.multiFilePickPart1")}{" "}
+                        <span className="font-mono">{allowedLabel}</span>
+                        {t("hc_modulesProjectsProjectFiles.multiFilePickPart2", {
+                          max: MAX_CODE_FILES_COUNT,
+                        })}
+                      </p>
+                    ) : (
+                      <p className="text-2xs text-muted-foreground">
+                        {t("projectFiles.multiFilePickSegunContenido", {
+                          que: allowedLabel,
+                          max: MAX_CODE_FILES_COUNT,
+                        })}
+                      </p>
+                    )}
                     {current.length > 0 && (
                       <div className="space-y-1">
                         <div className="flex items-center justify-between gap-2 text-2xs text-muted-foreground">

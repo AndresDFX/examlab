@@ -4717,6 +4717,31 @@
     "bulkImportCourseHintMulti": "Applies to CSV rows that do NOT carry a course. In the CSV you can list several separated by “|”."
   },
   "projectFiles": {
+    "zipContenidoLabel": "What the ZIP may contain",
+    "zipContenidoHint": "By default, source code only. For a project with a report, diagrams or screenshots, allow documents or any file. The AI reads code, text, Word, PowerPoint and PDF; the teacher reviews the rest.",
+    "zipContenido": {
+      "codigo": "Source code only",
+      "documentos": "Code and documents (PDF, Word, PowerPoint, Excel, images)",
+      "cualquiera": "Any file",
+      "lista": "Only these extensions"
+    },
+    "zipContenidoAyuda": {
+      "codigo": "The ZIP is rejected if it contains anything other than code in the chosen language.",
+      "documentos": "Accepts code in any language, project configuration (such as manifest.mf or build.xml), documents, presentations, spreadsheets, text, diagrams, images and the Dockerfile.",
+      "cualquiera": "No file is rejected. The AI reads what it can and names the rest for the teacher to review.",
+      "lista": "Only the extensions you type are accepted, separated by commas. Files without an extension, such as the Dockerfile, are not accepted."
+    },
+    "multiFileSegunContenido": "The student uploads loose files, not zipped: the ones allowed by “What the ZIP may contain” are accepted.",
+    "multiFilePickSegunContenido": "Select one or more files from your device, not zipped. This submission accepts {{que}}. Limit: 50 MB in total and up to {{max}} files.",
+    "zipRechazados": "The ZIP contains files this submission doesn't accept: {{archivos}}. This submission accepts {{que}}.",
+    "zipIlegible": "The ZIP could not be read (damaged or password-protected).",
+    "zipExtensionesPlaceholder": "pdf, docx, java",
+    "zipListaVacia": "Type at least one extension for “Only these extensions”.",
+    "zipPuedeTraer": "This ZIP may contain {{que}}.",
+    "zipQue": {
+      "documentos": "code, documents (PDF, Word, PowerPoint, Excel, text), diagrams and images",
+      "cualquiera": "any type of file: code, documents, diagrams or images"
+    },
     "tabList": "Questions ({{count}})",
     "tabManual": "Add manually",
     "tabEditQuestion": "Edit question",

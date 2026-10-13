@@ -7,6 +7,11 @@
  * (fflate) NO vive acá — la hace el handler del edge con los bytes ya
  * descargados de Storage; acá solo van las transformaciones puras
  * string/JSON → texto.
+ *
+ * OJO: `_shared/leer-entrega-zip.ts` IMPORTA esta copia (lee Word y PowerPoint de un ZIP de entrega para
+ * `ai-grade-submission`). El despliegue de edges solo publica la carpeta que cambió, así que un cambio
+ * ACÁ no le llega a `ai-grade-submission` hasta que algo en `_shared/` cambie: tocar también ese módulo
+ * (o volver a desplegarlo a mano).
  */
 
 export function extensionOf(name: string | null | undefined): string {

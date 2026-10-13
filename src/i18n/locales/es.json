@@ -4717,6 +4717,31 @@
     "bulkImportCourseHintMulti": "Se aplica a las filas del CSV que NO traigan curso. En el CSV puedes poner varios separados con «|»."
   },
   "projectFiles": {
+    "zipContenidoLabel": "Qué puede traer el ZIP",
+    "zipContenidoHint": "Por defecto, solo código fuente. Para un proyecto con informe, diagramas o capturas, permite documentos o cualquier archivo. La IA lee código, texto, Word, PowerPoint y PDF; lo demás lo revisa el docente.",
+    "zipContenido": {
+      "codigo": "Solo código fuente",
+      "documentos": "Código y documentos (PDF, Word, PowerPoint, Excel, imágenes)",
+      "cualquiera": "Cualquier archivo",
+      "lista": "Solo estas extensiones"
+    },
+    "zipContenidoAyuda": {
+      "codigo": "Se rechaza el ZIP si trae algo que no sea código del lenguaje elegido.",
+      "documentos": "Acepta código de cualquier lenguaje, la configuración del proyecto (como manifest.mf o build.xml), documentos, presentaciones, hojas de cálculo, texto, diagramas, imágenes y el Dockerfile.",
+      "cualquiera": "No se rechaza ningún archivo. La IA lee lo que puede y nombra el resto para que el docente lo revise.",
+      "lista": "Solo se aceptan las extensiones que escribas, separadas por comas. Los archivos sin extensión, como el Dockerfile, no entran."
+    },
+    "multiFileSegunContenido": "El alumno sube archivos sueltos, sin comprimir: se aceptan los que permite «Qué puede traer el ZIP».",
+    "multiFilePickSegunContenido": "Selecciona uno o varios archivos desde tu equipo, sin comprimir. Esta entrega acepta {{que}}. Tope: 50 MB en total y hasta {{max}} archivos.",
+    "zipRechazados": "El ZIP trae archivos que esta entrega no acepta: {{archivos}}. Esta entrega acepta {{que}}.",
+    "zipIlegible": "No se pudo leer el ZIP (dañado o protegido con contraseña).",
+    "zipExtensionesPlaceholder": "pdf, docx, java",
+    "zipListaVacia": "Escribe al menos una extensión para «Solo estas extensiones».",
+    "zipPuedeTraer": "Este ZIP puede traer {{que}}.",
+    "zipQue": {
+      "documentos": "código, documentos (PDF, Word, PowerPoint, Excel, texto), diagramas e imágenes",
+      "cualquiera": "cualquier tipo de archivo: código, documentos, diagramas o imágenes"
+    },
     "tabList": "Preguntas ({{count}})",
     "tabManual": "Agregar manual",
     "tabEditQuestion": "Editar pregunta",

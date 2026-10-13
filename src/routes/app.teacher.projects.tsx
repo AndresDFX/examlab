@@ -2437,6 +2437,8 @@ function TeacherProjects() {
           {
             body: {
               projectCodeZipGrading: true,
+              // El servidor lee de esta entrega qué puede traer el ZIP (`options.zip`).
+              questionId: file.id,
               codePaths,
               zipPath,
               noMinify: true,

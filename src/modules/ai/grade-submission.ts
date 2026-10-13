@@ -226,6 +226,9 @@ export function buildProjectJobs(
         fileId: f.id,
         body: {
           projectCodeZipGrading: true,
+          // Para que el servidor lea qué puede traer el ZIP (`options.zip`). Sin `submissionId` no escribe
+          // la nota él mismo: la escribe el worker en su destino.
+          questionId: f.id,
           codePaths,
           zipPath,
           noMinify: true,
