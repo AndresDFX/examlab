@@ -1085,12 +1085,12 @@ Lo que no se deduce:
   (sin los que están en la papelera), igual que la ventana de grupos: con solo el ancla, un grupo con
   integrantes de otro curso se calificaba a medias.
 
-### Proyectos: sustentación + link al repo obligatorio
+### Proyectos: sustentación + link al repo (obligatorio salvo que el proyecto lo apague)
 
 La nota final del proyecto = `submission_grade × defense_factor`. Sin sustentación, `final_grade=null` (el estudiante ve "Falta sustentación").
 
 - **DB** (migración 20260507170000): `project_submissions.submission_grade`, `defense_factor` (0..1, CHECK), `defense_notes`, `defense_at`, `repository_url`. Backfill: para entregas ya calificadas pone `submission_grade = final_grade` y `defense_factor = 1` para preservar el comportamiento previo.
-- **Estudiante**: el `submit` exige un link `https?://...` (validación en cliente, columna NULLABLE en DB para no romper históricos). La IA califica → llena `submission_grade`, deja `final_grade=null`. UI explica que la nota final llega tras la sustentación.
+- **Estudiante**: el `submit` exige un link `https?://...` (validación en cliente, columna NULLABLE en DB para no romper históricos) **salvo que el proyecto lo apague** (`projects.requires_repository`, mig `20262820000000`, por defecto `true`; se apaga en «Editar» → «Pedir link al repositorio»). Apagado, la entrega no toca `repository_url` (se conserva un link ya entregado) y «Duplicar» copia la opción. La regla es `pideRepositorio` ([repositorio.ts](src/modules/projects/repositorio.ts)), que trata la columna ausente como `true`: al leer el proyecto para decidirlo, usar `select("*")` y no una lista, o una base sin la migración tumba la carga entera. La IA califica → llena `submission_grade`, deja `final_grade=null`. UI explica que la nota final llega tras la sustentación.
 - **Docente**: en el dialog de calificación se muestra el link prominente con borde ámbar y advertencia "verificar fechas vs entrega". Cada submission tiene un `<DefensePanel>` con: nota entrega + input factor 0–1 + preview de nota final + notas + botón "Guardar sustentación". Al guardar persiste `defense_factor`/`defense_notes`/`defense_at` y recalcula `final_grade = submission_grade × factor`.
 - **Verificación de fechas vs commits**: el sistema solo persiste el link y la fecha de entrega — la comparación contra fechas de modificación del repo es manual del docente. La verificación automática vía API de GitHub/Drive queda como mejora futura (requiere OAuth y casos edge).
 

@@ -132,6 +132,7 @@ import { CheckCircle2, Lock, ExternalLink, Video, Upload, FileUp } from "lucide-
 import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
 import { BulkImportDefensesDialog } from "@/modules/projects/BulkImportDefensesDialog";
+import { pideRepositorio, requiresRepositoryAlGuardar } from "@/modules/projects/repositorio";
 import { DefensePanel } from "@/modules/grading/DefensePanel";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
@@ -233,6 +234,9 @@ type Project = {
   /** Intentos máximos para este proyecto. NULL → usa el default global
    *  (app_settings.default_project_max_attempts). */
   max_attempts?: number | null;
+  /** Si la entrega pide el link al repositorio. FALSE solo si el docente lo
+   *  apagó; ausente (base sin la migración 20262820000000) cuenta como TRUE. */
+  requires_repository?: boolean | null;
   status: "draft" | "published" | "closed";
   is_external?: boolean;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
@@ -1250,6 +1254,8 @@ function TeacherProjects() {
       // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
       // es externo — en externos no hay entrega digital.
       payload.group_mode = form.group_mode ?? "individual";
+      // Link al repositorio: solo se manda si se apagó o se vuelve a encender.
+      Object.assign(payload, requiresRepositoryAlGuardar(form, editing));
     }
     // Validate weight per course and collect into payload for the primary course.
     const editingId = editing?.id;
@@ -3291,6 +3297,23 @@ function TeacherProjects() {
                       max_attempts: e.target.value ? Number(e.target.value) : null,
                     })
                   }
+                />
+              </div>
+            )}
+            {!(form as any).is_external && (
+              <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/30 p-2.5">
+                <div className="space-y-0.5">
+                  <Label htmlFor="project-requires-repository" className="text-sm">
+                    {t("hc_routesAppTeacherProjects.requiresRepository")}
+                  </Label>
+                  <p className="text-2xs text-muted-foreground leading-tight">
+                    {t("hc_routesAppTeacherProjects.requiresRepositoryHint")}
+                  </p>
+                </div>
+                <Switch
+                  id="project-requires-repository"
+                  checked={pideRepositorio(form)}
+                  onCheckedChange={(v) => setForm({ ...form, requires_repository: v })}
                 />
               </div>
             )}

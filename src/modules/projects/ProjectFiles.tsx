@@ -81,6 +81,7 @@ import { esFalloReintentable } from "@/modules/ai/fallo-reintentable";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { QuestionOptionsPreview } from "@/modules/questions/QuestionOptionsPreview";
+import { pideRepositorio } from "@/modules/projects/repositorio";
 import { HelpHint } from "@/components/ui/help-hint";
 import { Checkbox } from "@/components/ui/checkbox";
 import { formatFileSize, formatFileSizeShort } from "@/shared/lib/format";
@@ -1593,6 +1594,8 @@ export function StudentProjectTaker({
   // perdió el proyecto.
   const [graded, setGraded] = useState<{ grade: number | null } | null>(null);
   const [repositoryUrl, setRepositoryUrl] = useState<string>("");
+  // Si este proyecto pide el link al repositorio (ver `pideRepositorio`).
+  const [pideEnlace, setPideEnlace] = useState(true);
   // projects.description — contexto global que viaja a la edge function
   // de calificación junto con cada pregunta (workshopQuestionGrading +
   // projectCodeZipGrading) para que la IA evalúe con el alcance del
@@ -1695,13 +1698,10 @@ export function StudentProjectTaker({
       const [{ data: qs }, { data: proj }, { data: videosData }, { data: settingsRow }] =
         await Promise.all([
           db.from("project_files").select("*").eq("project_id", projectId).order("position"),
-          // Incluimos `max_attempts` (override por proyecto). NULL → fall
-          // back al default global de `app_settings`.
-          db
-            .from("projects")
-            .select("description, course_id, max_attempts")
-            .eq("id", projectId)
-            .maybeSingle(),
+          // `*` y no una lista: trae `max_attempts` (override por proyecto; NULL →
+          // default global de `app_settings`) y `requires_repository`, sin que una
+          // columna que todavía no existe en la base tumbe la carga entera.
+          db.from("projects").select("*").eq("id", projectId).maybeSingle(),
           db
             .from("project_intro_videos")
             .select("id, url, title, position")
@@ -1719,6 +1719,7 @@ export function StudentProjectTaker({
       const globalMax = (settingsRow as { default_project_max_attempts?: number | null } | null)
         ?.default_project_max_attempts;
       setEffectiveMaxAttempts(Number(projMax ?? globalMax ?? 1));
+      setPideEnlace(pideRepositorio(proj as { requires_repository?: boolean | null } | null));
       const loadedVideos =
         (videosData as Array<{
           id: string;
@@ -2115,11 +2116,11 @@ export function StudentProjectTaker({
       );
       return;
     }
-    // Link al repositorio: obligatorio. Validamos URL razonable
-    // (cualquier http/https) — el filtro fino (GitHub vs Drive vs otra)
+    // Link al repositorio: obligatorio cuando el proyecto lo pide. Validamos URL
+    // razonable (cualquier http/https) — el filtro fino (GitHub vs Drive vs otra)
     // queda al docente al revisar manualmente.
-    const url = repositoryUrl.trim();
-    if (!url) {
+    const url = pideEnlace ? repositoryUrl.trim() : "";
+    if (pideEnlace && !url) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.repositoryUrlRequired", {
           defaultValue: "El link al repositorio (GitHub o Drive) es obligatorio",
@@ -2127,7 +2128,7 @@ export function StudentProjectTaker({
       );
       return;
     }
-    if (!/^https?:\/\/\S+\.\S+/i.test(url)) {
+    if (pideEnlace && !/^https?:\/\/\S+\.\S+/i.test(url)) {
       toast.error(
         i18n.t("toast.modules_projects_ProjectFiles.invalidUrl", {
           defaultValue: "Ingresa una URL válida (debe empezar con http:// o https://)",
@@ -2135,6 +2136,9 @@ export function StudentProjectTaker({
       );
       return;
     }
+    // Si el proyecto no pide el link, la entrega no toca la columna: un link que el
+    // estudiante entregó antes de que el docente apagara la opción se conserva.
+    const repoPayload = pideEnlace ? { repository_url: url } : {};
     // ── Pre-validación de archivos/ZIPs ANTES de crear la submission ──
     // Issues reportados:
     //   1) Multi-file: archivos con extensión no permitida no rechazaban
@@ -2378,7 +2382,7 @@ export function StudentProjectTaker({
             user_id: user.id,
             group_id: groupId ?? null,
             status: "en_progreso",
-            repository_url: url,
+            ...repoPayload,
             attempt_count: nextAttemptCount,
           })
           .select("id")
@@ -2889,7 +2893,7 @@ export function StudentProjectTaker({
           .update({
             status: "entregado",
             submitted_at: new Date().toISOString(),
-            repository_url: url,
+            ...repoPayload,
             user_id: user.id,
             attempt_count: nextAttemptCount,
           })
@@ -3220,28 +3224,30 @@ export function StudentProjectTaker({
         />
       )}
 
-      {/* Link al repositorio: obligatorio. Permite al docente verificar
-          fechas de modificación contra la fecha de entrega. */}
-      <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm">
-            {t("hc_modulesProjectsProjectFiles.repositoryLinkTitle")}{" "}
-            <span className="text-destructive">*</span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <Input
-            type="url"
-            placeholder={t("hc_modulesProjectsProjectFiles.repositoryLinkPlaceholder")}
-            value={repositoryUrl}
-            onChange={(e) => setRepositoryUrl(e.target.value)}
-          />
-          <p className="text-2xs text-muted-foreground">
-            <strong>{t("hc_modulesProjectsProjectFiles.repositoryRequiredLabel")}</strong>
-            {t("hc_modulesProjectsProjectFiles.repositoryHint")}
-          </p>
-        </CardContent>
-      </Card>
+      {/* Link al repositorio: obligatorio cuando el proyecto lo pide. Permite al
+          docente verificar fechas de modificación contra la fecha de entrega. */}
+      {pideEnlace && (
+        <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-500/10">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">
+              {t("hc_modulesProjectsProjectFiles.repositoryLinkTitle")}{" "}
+              <span className="text-destructive">*</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            <Input
+              type="url"
+              placeholder={t("hc_modulesProjectsProjectFiles.repositoryLinkPlaceholder")}
+              value={repositoryUrl}
+              onChange={(e) => setRepositoryUrl(e.target.value)}
+            />
+            <p className="text-2xs text-muted-foreground">
+              <strong>{t("hc_modulesProjectsProjectFiles.repositoryRequiredLabel")}</strong>
+              {t("hc_modulesProjectsProjectFiles.repositoryHint")}
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {questions.map((q, idx) => (
         <Card key={q.id}>

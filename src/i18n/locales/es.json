@@ -9439,6 +9439,8 @@
     "reopenSubmissionButton": "Reabrir entrega",
     "reopenSubmissionConfirm": "Reabrir",
     "reopenSubmissionTitle": "¿Reabrir entrega del estudiante?",
+    "requiresRepository": "Pedir link al repositorio (GitHub o Drive)",
+    "requiresRepositoryHint": "Apágalo si el proyecto no tiene código ni carpeta que revisar: el estudiante entrega solo sus archivos.",
     "resourceName": "proyectos",
     "searchPlaceholder": "Buscar proyecto por título…",
     "searchStudentPlaceholder": "Buscar estudiante por nombre o correo…",

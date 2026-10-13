@@ -9439,6 +9439,8 @@
     "reopenSubmissionButton": "Reopen submission",
     "reopenSubmissionConfirm": "Reopen",
     "reopenSubmissionTitle": "Reopen the student's submission?",
+    "requiresRepository": "Require the repository link (GitHub or Drive)",
+    "requiresRepositoryHint": "Turn it off if the project has no code or folder to review: the student only submits their files.",
     "resourceName": "projects",
     "searchPlaceholder": "Search project by title…",
     "searchStudentPlaceholder": "Search student by name or email…",

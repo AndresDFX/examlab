@@ -131,7 +131,7 @@ Pizarras digitales (estilo Excalidraw) para diagramar en clase, con **librerías
 
 Entregas más grandes con **sustentación**, link al repositorio y entrega de código en ZIP.
 
-- **🤖 Genera los archivos/criterios del proyecto con IA.** El estudiante entrega un link `https://...` obligatorio y, si aplica, un ZIP con su código (la **IA lo descomprime y califica**).
+- **🤖 Genera los archivos/criterios del proyecto con IA.** El estudiante entrega un link `https://...` (obligatorio, salvo que lo apagues en «Editar» → «Pedir link al repositorio») y, si aplica, un ZIP con su código (la **IA lo descomprime y califica**).
 - La nota final = nota de entrega × **factor de sustentación**: tú registras la sustentación en el panel de calificación. Soporta **trabajo en grupo** y **detección de plagio**.
 - **Editar la nota de entrega** (override de la nota ponderada por IA): si necesitas ajustar la nota base antes o después de la sustentación, puedes editarla manualmente en el panel del estudiante — el sistema recalcula la nota final aplicando el factor de sustentación que registres.
 - **Importar sustentaciones en lote (CSV)**: desde el módulo de Proyectos puedes subir un CSV con los factores y observaciones de sustentación de muchos estudiantes a la vez, en lugar de uno por uno. Útil al terminar una jornada de sustentaciones presenciales.
