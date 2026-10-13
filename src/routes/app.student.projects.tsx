@@ -71,6 +71,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
+import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -489,6 +491,21 @@ function StudentProjects() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 
+  // Proyectos homónimos en otro curso del estudiante: la tarjeta lo avisa.
+  const homonimas = useMemo(
+    () =>
+      homonimasEnOtrosCursos(
+        rows.map((r) => ({
+          id: r.project.id,
+          title: r.project.title,
+          courseId: r.project.course_id,
+          courseName: r.project.course?.name,
+          courseStatus: (r.project.course as { status?: string | null } | undefined)?.status,
+        })),
+      ),
+    [rows],
+  );
+
   // Stats estables (no se mueven al filtrar).
   const stats = useMemo(() => {
     let available = 0;
@@ -747,8 +764,9 @@ function StudentProjects() {
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
-                    <div className="text-xs text-muted-foreground">{project.course?.name}</div>
+                    <CursoDeLaActividad curso={project.course?.name} />
                     <h3 className="font-semibold truncate">{project.title}</h3>
+                    <AvisoActividadHomonima cursos={homonimas.get(project.id)} />
                     <CortePesoBadges
                       valor={(() => {
                         const f = filaQueManda(cortePesoPorProyecto.get(project.id), project);

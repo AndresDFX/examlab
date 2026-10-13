@@ -52,6 +52,8 @@ import { StatCard } from "@/components/ui/stat-card";
 import { retroDeExamenVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
+import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 
 export const Route = createFileRoute("/app/student/exams")({
   component: StudentExams,
@@ -396,6 +398,21 @@ function StudentExams() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 
+  // Exámenes homónimos en otro curso del estudiante: la tarjeta lo avisa.
+  const homonimas = useMemo(
+    () =>
+      homonimasEnOtrosCursos(
+        rows.map((r) => ({
+          id: r.exam.id,
+          title: r.exam.title,
+          courseId: r.exam.course_id,
+          courseName: r.exam.course?.name,
+          courseStatus: r.exam.course?.status,
+        })),
+      ),
+    [rows],
+  );
+
   // Stats estables del listado completo (no se mueven al filtrar).
   const stats = useMemo(() => {
     let available = 0;
@@ -673,8 +690,9 @@ function StudentExams() {
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
-                    <div className="text-xs text-muted-foreground">{exam.course?.name}</div>
+                    <CursoDeLaActividad curso={exam.course?.name} />
                     <h3 className="font-semibold truncate">{exam.title}</h3>
+                    <AvisoActividadHomonima cursos={homonimas.get(exam.id)} />
                     {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
                     {!exam.parent_exam_id && (
                       <CortePesoBadges

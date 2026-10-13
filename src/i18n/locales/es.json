@@ -11183,6 +11183,7 @@
     "certificadosOmitidos_one": "{{count}} aprobado más queda afuera porque su nota todavía es parcial.",
     "certificadosOmitidos_other": "{{count}} aprobados más quedan afuera porque su nota todavía es parcial.",
     "motivoAbierta": "Abierta: todavía no cuenta",
+    "motivoAbiertaSinEntregar": "Abierta: entrégala antes del cierre o contará 0",
     "motivoPorCalificar": "Por calificar: todavía no cuenta",
     "motivoCuentaCero": "Sin nota: cuenta 0",
     "motivoPesoCero": "Peso 0 %: no suma a la nota",
@@ -11361,5 +11362,9 @@
     "tipo_workshop": "Talleres",
     "tipo_project": "Proyectos",
     "tipo_attendance": "Asistencia"
+  },
+  "actividadHomonima": {
+    "aviso_one": "Ojo: en {{cursos}} hay otra actividad con este mismo nombre. Son distintas y cada una cuenta en su curso.",
+    "aviso_other": "Ojo: en {{cursos}} hay otras actividades con este mismo nombre. Son distintas y cada una cuenta en su curso."
   }
 }

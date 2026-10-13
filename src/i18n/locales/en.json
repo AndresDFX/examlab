@@ -11183,6 +11183,7 @@
     "certificadosOmitidos_one": "{{count}} more passing student is left out because their grade is still partial.",
     "certificadosOmitidos_other": "{{count}} more passing students are left out because their grade is still partial.",
     "motivoAbierta": "Open: does not count yet",
+    "motivoAbiertaSinEntregar": "Open: submit it before it closes or it will count as 0",
     "motivoPorCalificar": "Awaiting grading: does not count yet",
     "motivoCuentaCero": "No grade: counts as 0",
     "motivoPesoCero": "0% weight: does not add to the grade",
@@ -11361,5 +11362,9 @@
     "tipo_workshop": "Workshops",
     "tipo_project": "Projects",
     "tipo_attendance": "Attendance"
+  },
+  "actividadHomonima": {
+    "aviso_one": "Heads up: {{cursos}} has another activity with this same name. They are different, and each one counts in its own course.",
+    "aviso_other": "Heads up: {{cursos}} have other activities with this same name. They are different, and each one counts in its own course."
   }
 }

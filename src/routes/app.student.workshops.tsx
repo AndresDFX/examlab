@@ -77,6 +77,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
+import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
+import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 
 export const Route = createFileRoute("/app/student/workshops")({
   // Enlace directo a UN taller: `/app/student/workshops?workshop=<id>`. Solo
@@ -499,6 +501,21 @@ function StudentWorkshops() {
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [rows]);
 
+  // Talleres homónimos en otro curso del estudiante: la tarjeta lo avisa.
+  const homonimas = useMemo(
+    () =>
+      homonimasEnOtrosCursos(
+        rows.map((r) => ({
+          id: r.workshop.id,
+          title: r.workshop.title,
+          courseId: r.workshop.course_id,
+          courseName: r.workshop.course?.name,
+          courseStatus: (r.workshop.course as { status?: string | null } | undefined)?.status,
+        })),
+      ),
+    [rows],
+  );
+
   // Quick-stats arriba del listado. El conteo se basa en rows
   // completas (NO filtradas) para que sean métricas estables del curso
   // del alumno — independientes de qué tenga escrito en el buscador.
@@ -806,8 +823,9 @@ function StudentWorkshops() {
               <CardContent className="p-5 space-y-3">
                 <div className="flex justify-between items-start gap-2">
                   <div className="min-w-0 space-y-1">
-                    <div className="text-xs text-muted-foreground">{workshop.course?.name}</div>
+                    <CursoDeLaActividad curso={workshop.course?.name} />
                     <h3 className="font-semibold truncate">{workshop.title}</h3>
+                    <AvisoActividadHomonima cursos={homonimas.get(workshop.id)} />
                     {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
                     {!(workshop as { parent_workshop_id?: string | null }).parent_workshop_id && (
                       <CortePesoBadges

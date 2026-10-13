@@ -14,6 +14,7 @@
 import { esIntentoFinalizado, type AttemptForGrade } from "@/modules/exams/exam-attempts";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { diaDe } from "@/shared/lib/rango-de-fechas";
+import { corteNoTermino, itemDejaNotaParcial } from "./corte-parcial";
 import { notaEfectivaDeTaller } from "./nota-efectiva";
 import {
   notaDeExamenParaEstudiante,
@@ -377,25 +378,18 @@ function notaEsParcial(d: DatosParaNota, items: readonly DetalleDeItem[], ahora:
   const cortes = new Set(d.cortes.map((c) => c.id));
   // Entregada y sin calificar; o abierta, salvo en un curso finalizado: ahí lo
   // único que puede seguir «sin darse» es una externa sin ninguna nota, que ya
-  // no se va a dar y no puede dejar la nota abierta para siempre.
+  // no se va a dar y no puede dejar la nota abierta para siempre. El predicado
+  // por ítem vive en corte-parcial.ts, compartido con la señal por corte de
+  // «Mis notas», para que no puedan divergir.
   const pendiente = items.some(
-    (i) =>
-      i.cutId != null &&
-      cortes.has(i.cutId) &&
-      i.weight > 0 &&
-      ((!d.cursoFinalizado && !i.seDio) || (!i.cuenta && i.entrego)),
+    (i) => i.cutId != null && cortes.has(i.cutId) && itemDejaNotaParcial(i, !!d.cursoFinalizado),
   );
   if (pendiente) return true;
   if (d.cursoFinalizado) return false;
   const hoy = diaDe(new Date(ahora));
   // Un corte que no terminó puede recibir actividades que el docente todavía no
   // creó: sin esto, un corte vacío dejaba emitir certificados a mitad de semestre.
-  if (d.cortes.some((c) => {
-    const fin = diaDe(c.end_date ?? null);
-    return fin != null && hoy != null && fin >= hoy;
-  })) {
-    return true;
-  }
+  if (d.cortes.some((c) => corteNoTermino(c.end_date, ahora))) return true;
   const conAsistencia = new Set(
     d.cortes.filter((c) => pesoEfectivo(c.attendance_weight) > 0).map((c) => c.id),
   );

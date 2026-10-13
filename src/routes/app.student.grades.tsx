@@ -56,6 +56,7 @@ import {
   notaDelEstudianteEnCurso,
   type DetalleDeItem,
 } from "@/modules/grading/nota-del-curso";
+import { corteEsParcial, corteNoTermino } from "@/modules/grading/corte-parcial";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { EmptyState, ErrorState } from "@/components/ui/empty-state";
 import { TableSkeleton } from "@/components/ui/table-skeleton";
@@ -114,6 +115,13 @@ type CutBreakdown = {
   cut: Cut;
   items: ItemRow[];
   grade: number | null;
+  /**
+   * La nota de ESTE corte todavía puede cambiar: tiene una actividad propia
+   * abierta o entregada sin calificar. Mientras sea `true` la nota no se
+   * presenta como definitiva (sin verde «ganado»), porque al cerrar lo que
+   * falta puede caer. Ver corte-parcial.ts.
+   */
+  parcial: boolean;
 };
 
 function StudentGrades() {
@@ -419,11 +427,12 @@ function StudentGrades() {
         const unionProyectos = new Map(
           ((pcRows ?? []) as any[]).map((r) => [r.project_id ?? r.project?.id, r]),
         );
+        const cursoFinalizado = course.status === "finalizado";
         const nota = notaDelEstudianteEnCurso(
           {
             courseId,
             escala,
-            cursoFinalizado: course.status === "finalizado",
+            cursoFinalizado,
             cortes: cuts,
             examenes,
             talleres,
@@ -460,14 +469,21 @@ function StudentGrades() {
           const v = rango > 0 ? ((score - escala.min) / rango) * escala.max : score;
           return Math.round(v * 100) / 100;
         };
-        const motivoDe = (i: DetalleDeItem): string | null => {
+        const motivoDe = (i: DetalleDeItem, externa: boolean): string | null => {
           if (i.score != null) return null;
           // Sin corte no suma (lo dice la tarjeta «Sin corte asignado»); con
           // peso 0 tampoco mueve la nota, y decir «cuenta 0» confunde.
           if (i.cutId == null) return null;
           if (i.weight <= 0) return t("notaRelativa.motivoPesoCero");
           if (i.cuenta) return t("notaRelativa.motivoCuentaCero");
-          if (!i.seDio) return t("notaRelativa.motivoAbierta");
+          if (!i.seDio) {
+            // Abierta y sin entregar: se avisa que contará 0 si no entrega antes
+            // del cierre. No a una externa (no se entrega) ni a una que no se le
+            // asignó (`actividadCuenta` no le cuenta 0).
+            return externa || i.entrego || !i.asignada
+              ? t("notaRelativa.motivoAbierta")
+              : t("notaRelativa.motivoAbiertaSinEntregar");
+          }
           return i.entrego
             ? t("notaRelativa.motivoPorCalificar")
             : t("notaRelativa.motivoNoAsignada");
@@ -477,6 +493,14 @@ function StudentGrades() {
         const proyectoPorId = new Map(proyectos.map((p) => [p.id, p]));
 
         const rows: ItemRow[] = nota.items.map((i) => {
+          // Una externa no se entrega: su aviso de «abierta» no debe decir
+          // «entrégala». El dato vive en la fila de la actividad (`is_external`).
+          const externa =
+            i.tipo === "examen"
+              ? !!examPorId.get(i.id)?.is_external
+              : i.tipo === "taller"
+                ? !!tallerPorId.get(i.id)?.is_external
+                : !!proyectoPorId.get(i.id)?.is_external;
           const base = {
             id: i.id,
             cut_id: i.cutId,
@@ -485,7 +509,7 @@ function StudentGrades() {
             rawMax: escala.max,
             weight: i.weight,
             cuenta: i.cuenta,
-            motivo: motivoDe(i),
+            motivo: motivoDe(i, externa),
           };
           if (i.tipo === "examen") {
             // Estado y enlace: los intentos del examen de donde salió la nota.
@@ -576,6 +600,14 @@ function StudentGrades() {
             cut,
             items: attItem ? [...cutItems, attItem] : cutItems,
             grade: nota.cutGrades.find((g) => g.cutId === cut.id)?.grade ?? null,
+            // Desde los ítems reales del corte (no las filas de la UI, que suman
+            // la asistencia sintética), más un corte que no terminó: los mismos
+            // predicados de `notaEsParcial`, en corte-parcial.ts.
+            parcial:
+              corteEsParcial(
+                nota.items.filter((i) => i.cutId === cut.id),
+                cursoFinalizado,
+              ) || (!cursoFinalizado && corteNoTermino(cut.end_date, Date.now())),
           };
         });
 
@@ -614,9 +646,18 @@ function StudentGrades() {
   const resumenes = resumirCortes(
     cutsBreakdown.map((cb) => cb.items.map((i) => ({ kind: i.kind, grade: i.grade }))),
   );
-  /** Verde si aprueba, rojo si no: lo primero que el estudiante busca. */
-  const colorDeNota = (n: number | null) =>
-    n == null || !course ? "" : n >= course.passing_grade ? "text-success" : "text-destructive";
+  /** Verde si aprueba, rojo si no: lo primero que el estudiante busca. Una nota
+   *  PARCIAL que aprueba va en color neutro: el verde se lee como «ganado» y
+   *  todavía puede caer al cerrar lo que falta (ver corte-parcial.ts). El rojo
+   *  se mantiene: es la señal que empuja a entregar lo que sigue abierto. */
+  const colorDeNota = (n: number | null, esParcial = false) =>
+    n == null || !course
+      ? ""
+      : n >= course.passing_grade
+        ? esParcial
+          ? ""
+          : "text-success"
+        : "text-destructive";
 
   // Si la query de notas del curso seleccionado falló, no queremos
   // mostrar la tabla vacía como si estuviera "sin datos" — eso confunde
@@ -702,14 +743,23 @@ function StudentGrades() {
                     </div>
                     {r.conNotas ? (
                       <>
-                        <div className={`text-2xl font-semibold tabular-nums ${colorDeNota(cb.grade)}`}>
+                        <div
+                          className={`text-2xl font-semibold tabular-nums ${colorDeNota(cb.grade, cb.parcial)}`}
+                        >
                           {fmt(cb.grade)}
                         </div>
-                        <div className="text-2xs text-muted-foreground">
-                          {t("studentGrades.gradedCount", {
-                            graded: cb.items.filter((i) => i.grade != null).length,
-                            total: cb.items.length,
-                          })}
+                        <div className="flex flex-wrap items-center gap-1 text-2xs text-muted-foreground">
+                          {cb.parcial && (
+                            <Badge variant="outline" className="text-3xs">
+                              {t("notaRelativa.notaParcial")}
+                            </Badge>
+                          )}
+                          <span>
+                            {t("studentGrades.gradedCount", {
+                              graded: cb.items.filter((i) => i.grade != null).length,
+                              total: cb.items.length,
+                            })}
+                          </span>
                         </div>
                       </>
                     ) : (
@@ -728,11 +778,15 @@ function StudentGrades() {
             })}
             <Card
               className={
-                passes === true
-                  ? "border-success/40 bg-success/5"
-                  : passes === false
-                    ? "border-destructive/40 bg-destructive/5"
-                    : ""
+                // Parcial: sin el verde de «aprobando», que afirma un resultado que
+                // todavía puede caer. El rojo sí queda: avisa a quien va perdiendo.
+                passes == null
+                  ? ""
+                  : passes
+                    ? parcial
+                      ? ""
+                      : "border-success/40 bg-success/5"
+                    : "border-destructive/40 bg-destructive/5"
               }
             >
               <CardContent className="p-4 space-y-1">
@@ -743,23 +797,35 @@ function StudentGrades() {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </div>
                 <div className="text-2xl font-semibold tabular-nums">{fmt(finalGrade)}</div>
-                {passes === true && (
-                  <div className="flex items-center gap-1 text-xs text-success">
-                    <CheckCircle2 className="h-3 w-3" /> {t("studentGrades.statusPassing")}
-                  </div>
-                )}
-                {passes === false && (
-                  <div className="flex items-center gap-1 text-xs text-destructive">
-                    <XCircle className="h-3 w-3" /> {t("studentGrades.statusFailing")}
-                  </div>
-                )}
-                {passes == null && (
-                  <div className="text-xs text-muted-foreground">{t("studentGrades.statusNoGrades")}</div>
-                )}
                 {parcial && finalGrade != null && (
-                  <div className="text-2xs text-muted-foreground">
-                    {t("notaRelativa.notaParcial")} · {t("notaRelativa.soloLoQueSeDio")}
+                  // Mientras la nota pueda cambiar no se dice «Aprobando»: se avisa
+                  // que es parcial, con el mismo patrón del libro del docente.
+                  <div className="inline-flex flex-wrap items-center gap-1.5 text-xs">
+                    <Badge variant="outline" className="text-3xs whitespace-nowrap shrink-0">
+                      {t("notaRelativa.notaParcial")}
+                    </Badge>
+                    <span className="text-muted-foreground">{t("notaRelativa.soloLoQueSeDio")}</span>
                   </div>
+                )}
+                {/* «Aprobando» espera a que la nota sea definitiva; «Por debajo» no. */}
+                {!(parcial && finalGrade != null && passes) && (
+                  <>
+                    {passes === true && (
+                      <div className="flex items-center gap-1 text-xs text-success">
+                        <CheckCircle2 className="h-3 w-3" /> {t("studentGrades.statusPassing")}
+                      </div>
+                    )}
+                    {passes === false && (
+                      <div className="flex items-center gap-1 text-xs text-destructive">
+                        <XCircle className="h-3 w-3" /> {t("studentGrades.statusFailing")}
+                      </div>
+                    )}
+                    {passes == null && (
+                      <div className="text-xs text-muted-foreground">
+                        {t("studentGrades.statusNoGrades")}
+                      </div>
+                    )}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -828,18 +894,34 @@ function StudentGrades() {
                             aria-hidden
                           />
                           <CardTitle className="text-base truncate">{cb.cut.name}</CardTitle>
-                          <EstadoDeCorteBadge estado={r.estado} />
-                        </div>
-                        <p className="text-xs text-muted-foreground">
-                          {t("studentGrades.cutWeight", { weight: cb.cut.weight })}{" "}
-                          {r.conNotas ? (
-                            <span className={`font-semibold tabular-nums ${colorDeNota(cb.grade)}`}>
-                              {fmt(cb.grade)}
-                            </span>
+                          {/* «Calificado» y «Nota parcial» a la vez se contradicen. */}
+                          {cb.parcial && r.estado === "con_notas" ? (
+                            <Badge variant="outline" className="text-3xs whitespace-nowrap shrink-0">
+                              {t("notaRelativa.notaParcial")}
+                            </Badge>
                           ) : (
-                            <span className="font-medium">{t("estadoCortes.sinNotas")}</span>
+                            <EstadoDeCorteBadge estado={r.estado} />
                           )}
-                        </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+                          <span>
+                            {t("studentGrades.cutWeight", { weight: cb.cut.weight })}{" "}
+                            {r.conNotas ? (
+                              <span
+                                className={`font-semibold tabular-nums ${colorDeNota(cb.grade, cb.parcial)}`}
+                              >
+                                {fmt(cb.grade)}
+                              </span>
+                            ) : (
+                              <span className="font-medium">{t("estadoCortes.sinNotas")}</span>
+                            )}
+                          </span>
+                          {cb.parcial && r.conNotas && (
+                            <Badge variant="outline" className="text-3xs">
+                              {t("notaRelativa.notaParcial")}
+                            </Badge>
+                          )}
+                        </div>
                         <SintesisDeCorte resumen={r} />
                       </div>
                       {cb.cut.start_date && cb.cut.end_date && (
