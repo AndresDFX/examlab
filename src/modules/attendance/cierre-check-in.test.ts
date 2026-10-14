@@ -6,32 +6,39 @@ const MIN = 60 * S;
 const H = 60 * MIN;
 const DIA = 24 * H;
 
-describe("reloj del cierre del check-in", () => {
-  it("con horas: H:MM:SS", () => {
-    expect(relojDeCierre(6 * H + 12 * S)).toEqual({ dias: 0, reloj: "6:00:12" });
+describe("tiempo que le queda al check-in", () => {
+  it("con unidades: «5:58:36» no decía si eran horas o minutos", () => {
+    expect(relojDeCierre(5 * H + 58 * MIN + 36 * S)).toEqual({ dias: 0, reloj: "5 h 58 min" });
+    expect(relojDeCierre(6 * H + 12 * S)).toEqual({ dias: 0, reloj: "6 h" });
   });
 
-  it("sumar 5 minutos se ve en el reloj (con el cartel por horas no se veía)", () => {
-    const antes = relojDeCierre(6 * H + 2 * MIN);
-    const despues = relojDeCierre(6 * H + 7 * MIN);
-    expect(antes.reloj).toBe("6:02:00");
-    expect(despues.reloj).toBe("6:07:00");
+  it("sumar 5 minutos se ve (con el cartel por horas enteras no se veía)", () => {
+    expect(relojDeCierre(5 * H + 58 * MIN).reloj).toBe("5 h 58 min");
+    expect(relojDeCierre(6 * H + 3 * MIN).reloj).toBe("6 h 3 min");
   });
 
-  it("bajo una hora: M:SS", () => {
-    expect(relojDeCierre(59 * MIN + 7 * S)).toEqual({ dias: 0, reloj: "59:07" });
-    expect(relojDeCierre(4 * MIN + 59 * S)).toEqual({ dias: 0, reloj: "4:59" });
+  it("bajo una hora, solo minutos", () => {
+    expect(relojDeCierre(59 * MIN + 7 * S)).toEqual({ dias: 0, reloj: "59 min" });
+    expect(relojDeCierre(1 * MIN)).toEqual({ dias: 0, reloj: "1 min" });
   });
 
-  it("con días: los días aparte y las horas con dos dígitos", () => {
-    expect(relojDeCierre(2 * DIA + 3 * H + 59 * MIN + 12 * S)).toEqual({ dias: 2, reloj: "03:59:12" });
+  it("nunca promete más tiempo del que queda", () => {
+    expect(relojDeCierre(4 * MIN + 59 * S).reloj).toBe("4 min");
+    expect(relojDeCierre(1 * H + 59 * S).reloj).toBe("1 h");
   });
 
-  it("baja segundo a segundo y llega a 0:00 al cerrar, no antes", () => {
-    expect(relojDeCierre(1999).reloj).toBe("0:01");
-    expect(relojDeCierre(999).reloj).toBe("0:00");
-    expect(relojDeCierre(0).reloj).toBe("0:00");
-    expect(relojDeCierre(-5000)).toEqual({ dias: 0, reloj: "0:00" });
+  it("los segundos, solo en el último minuto, y llega a 0 s al cerrar, no antes", () => {
+    expect(relojDeCierre(59 * S).reloj).toBe("59 s");
+    expect(relojDeCierre(1999).reloj).toBe("1 s");
+    expect(relojDeCierre(999).reloj).toBe("0 s");
+    expect(relojDeCierre(0).reloj).toBe("0 s");
+    expect(relojDeCierre(-5000)).toEqual({ dias: 0, reloj: "0 s" });
+  });
+
+  it("con días: los días aparte (los traduce quien llama) y el resto con unidades", () => {
+    expect(relojDeCierre(2 * DIA + 3 * H + 59 * MIN + 12 * S)).toEqual({ dias: 2, reloj: "3 h 59 min" });
+    expect(relojDeCierre(1 * DIA + 15 * MIN)).toEqual({ dias: 1, reloj: "15 min" });
+    expect(relojDeCierre(2 * DIA + 30 * S)).toEqual({ dias: 2, reloj: "" });
   });
 });
 

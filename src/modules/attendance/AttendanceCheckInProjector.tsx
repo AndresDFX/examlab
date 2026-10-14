@@ -792,11 +792,11 @@ export function AttendanceCheckInProjector({
             </div>
           </div>
 
-          {/* Cuánto le queda a la ventana, en un reloj que baja cada segundo:
-              es lo que el salón necesita saber, y un +5 se ve en el acto. Más
-              chico que el código y los presentes, que son lo principal. Va
-              debajo de los presentes y no del código para no quedar pegado a
-              «Cambia en…», que es otra cuenta (la del código). */}
+          {/* Cuánto le queda a la ventana, con unidades («5 h 58 min»): es lo que
+              el salón necesita saber, y un +5 se ve en el acto. Más chico que el
+              código y los presentes, que son lo principal. Va debajo de los
+              presentes y no del código para no quedar pegado a «El código cambia
+              en…», que es otra cuenta. */}
           <div
             className={cn(
               "flex flex-col items-center lg:items-start gap-1 rounded-md px-2 py-1 -mx-2 transition-colors duration-700",

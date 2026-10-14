@@ -960,8 +960,8 @@ Docente proyecta el QR/código (`AttendanceCheckInProjector`), el estudiante se 
 |----|------|-------------|-------|--------------------|
 | AS-01 | Abrir check-in (docente) | Rol Docente en `/app/teacher/attendance`, sesión creada | Iniciar check-in con duración + rotación desde el dialog | RPC `teacher_open_attendance_check_in`; se abre el proyector; `check_in_open=true` |
 | AS-02 | Validación de parámetros | Dialog de check-in | Duración fuera de 1–240 min o rotación fuera de 15–600 s | El campo acota/rechaza el valor fuera de rango |
-| AS-03 | Proyector: QR + código + rotación | Check-in abierto | Observar el proyector | QR grande (deep-link `?session=&code=`), código "123 456", barra "rota en N s", countdown de cierre |
-| AS-04 | Rotación del código | Proyector abierto | Esperar a que pase un período de rotación | El código y el QR cambian automáticamente al nuevo período (recalculado en cliente, sin llamar al server) |
+| AS-03 | Proyector: QR + código + rotación | Check-in abierto | Observar el proyector | QR grande (enlace a la sesión, sin el código), código "123 456", barra con «El código cambia en N minutos» y «El check-in cierra en 5 h 58 min» |
+| AS-04 | Rotación del código | Proyector abierto | Esperar a que pase un período de rotación | El código cambia automáticamente al nuevo período (recalculado en cliente, sin llamar al server); el QR no cambia, porque no lleva el código |
 | AS-05 | Contador de presentes en vivo | Proyector abierto | Marcar a un alumno desde otra sesión/dispositivo | El contador "X / Y" sube en tiempo real (canal realtime sobre `attendance_records`) |
 | AS-06 | Pantalla completa | Proyector | Clic **Pantalla completa** / **Salir de pantalla completa** | Alterna Fullscreen API sin cerrar el check-in |
 | AS-07 | Cerrar check-in | Proyector abierto | Clic **Cerrar check-in** | RPC de cierre; sale de fullscreen; luego confirm "marcar pendientes como ausentes" |

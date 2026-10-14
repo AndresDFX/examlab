@@ -6,37 +6,45 @@
  * 6 h 02 min y 6 h 17 min se leen igual. Por eso son dos datos, y los dos
  * cambian con cada +5:
  *
- *  - un reloj que baja cada segundo (`relojDeCierre`), para el salón, y
+ *  - lo que le queda a la ventana (`relojDeCierre`), para el salón, y
  *  - la hora exacta de cierre (`horaDeCierre`), al lado de los botones, que es
  *    justo lo que el docente está moviendo.
  *
+ * El tiempo restante va CON UNIDADES ("5 h 58 min"), no como reloj. Como reloj
+ * («5:58:36») no decía si eran horas o minutos, y al lado del «El código cambia
+ * en 2 minutos» se leía como otra cuenta de minutos (reportado el 2026-10-13).
+ * Con minutos de precisión cada +5 se sigue viendo: 5 h 58 min pasa a 6 h 3 min.
+ *
  * PURO: sin `Date.now()` adentro ni i18n. El que llama pasa la hora actual y
- * traduce los días.
+ * traduce los días; "h", "min" y "s" se escriben igual en español y en inglés.
  */
 
 export interface RelojDeCierre {
   /** Días enteros que quedan; 0 si falta menos de un día. */
   dias: number;
-  /** El resto como reloj: "6:00:12", "59:07", o "03:59:12" cuando hay días. */
+  /**
+   * El resto, con unidades: "5 h 58 min", "6 h", "59 min" o, en el último
+   * minuto, "45 s". Vacío cuando quedan días exactos (lo dicen los días).
+   */
   reloj: string;
 }
 
-const dos = (n: number) => String(n).padStart(2, "0");
-
 export function relojDeCierre(msRestantes: number): RelojDeCierre {
-  // `floor` y no `ceil`: es un reloj que baja segundo a segundo, y tiene que
-  // llegar a 0:00 justo cuando la ventana se cierra, no un segundo antes.
+  // `floor` y no `ceil`: es un plazo para el salón, y nunca puede prometer más
+  // tiempo del que queda. «4 min» con 4:59 por delante apura de más; «5 min»
+  // con 4:01 haría llegar tarde a alguien. La cuenta del código (rotation-countdown.ts)
+  // redondea al revés A PROPÓSITO: ahí lo caro es que el código cambie antes de lo
+  // anunciado mientras alguien lo teclea.
   const total = Math.max(0, Math.floor((Number(msRestantes) || 0) / 1000));
   const dias = Math.floor(total / 86400);
   const resto = total % 86400;
   const h = Math.floor(resto / 3600);
   const m = Math.floor((resto % 3600) / 60);
   const s = resto % 60;
-  // Con días delante, las horas van con dos dígitos para que el reloj no
-  // cambie de ancho al pasar de 10 a 9 horas.
-  if (dias > 0) return { dias, reloj: `${dos(h)}:${dos(m)}:${dos(s)}` };
-  if (h > 0) return { dias: 0, reloj: `${h}:${dos(m)}:${dos(s)}` };
-  return { dias: 0, reloj: `${m}:${dos(s)}` };
+  if (h > 0) return { dias, reloj: m > 0 ? `${h} h ${m} min` : `${h} h` };
+  if (m > 0) return { dias, reloj: `${m} min` };
+  // Los segundos solo en el último minuto, y nunca detrás de días.
+  return { dias, reloj: dias > 0 ? "" : `${s} s` };
 }
 
 /** True si las dos fechas caen el mismo día del calendario LOCAL. */
