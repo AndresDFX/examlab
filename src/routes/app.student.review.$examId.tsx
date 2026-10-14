@@ -19,7 +19,7 @@ import {
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
 import { PageHeader } from "@/components/ui/page-header";
 import { ErrorState } from "@/components/ui/empty-state";
-import { formatDateTime } from "@/shared/lib/format";
+import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { desgloseEfectivo } from "@/modules/grading/deterministic-scoring";
 import { CodeRunOutput } from "@/modules/code/CodeRunOutput";
@@ -445,8 +445,10 @@ function StudentExamReview() {
           </div>
           <div className="text-right">
             <div className="text-2xl font-semibold tabular-nums">
+              {/* Con coma, como la tarjeta de la lista: «4.8 / 5» acá y «4,8/5» allá
+                  se leían como dos notas distintas. */}
               {(effectiveGrade ?? finalGrade) != null
-                ? `${effectiveGrade ?? finalGrade} / ${gradeMax}`
+                ? `${formatNumber(effectiveGrade ?? finalGrade, { maximumFractionDigits: 2 })} / ${gradeMax}`
                 : "—"}
             </div>
             {/* Multi-intento con modo highest/average: la nota que cuenta para
@@ -466,7 +468,9 @@ function StudentExamReview() {
               submission.ai_grade != null &&
               submission.final_override_grade !== submission.ai_grade && (
                 <div className="text-3xs text-muted-foreground">
-                  {t("exam.review.priorValue", { value: submission.ai_grade })}
+                  {t("exam.review.priorValue", {
+                    value: formatNumber(submission.ai_grade, { maximumFractionDigits: 2 }),
+                  })}
                 </div>
               )}
           </div>

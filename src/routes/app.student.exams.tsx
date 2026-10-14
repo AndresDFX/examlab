@@ -54,6 +54,8 @@ import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
 import { retroDeExamenVisible } from "@/modules/submissions/retroalimentacion-visible";
+import { tarjetaDeExamen } from "@/modules/exams/tarjeta-de-examen";
+import type { FilaDeExamen } from "@/modules/grading/nota-con-recuperacion";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
@@ -111,6 +113,10 @@ type ExamRow = {
     final_override_grade: number | null;
     focus_warnings: number | null;
   };
+  /** La nota del examen con la MISMA regla que el detalle y «Mis notas» (ver tarjeta-de-examen.ts). */
+  nota: number | null;
+  /** A qué examen lleva «Ver detalle» (ver `tarjetaDeExamen`). */
+  examIdRevision: string;
   attemptsUsed: number;
   maxAttempts: number;
 };
@@ -255,7 +261,7 @@ function StudentExams() {
       const { data: asg, error: asgErr } = await supabase
         .from("exam_assignments")
         .select(
-          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, passing_grade, max_exam_attempts))",
+          "exam:exams!inner(id, title, description, start_time, end_time, time_limit_minutes, parent_exam_id, retry_mode, makeup_kind, recovery_rule, created_at, max_attempts, max_warnings, is_external, allow_exam_notes, status, deleted_at, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, passing_grade, max_exam_attempts))",
         )
         .eq("user_id", user.id)
         .neq("exam.status", "draft")
@@ -282,14 +288,17 @@ function StudentExams() {
             Boolean(e) && !e.deleted_at && !e.is_external && (e.status ?? "published") !== "draft",
         );
       const assignedIds = exams.map((e: any) => e.id);
-      let makeupRows: { id: string; parent_exam_id: string | null }[] = [];
+      // Con lo que `notaDeExamenParaEstudiante` necesita para plegar supletorios y
+      // recuperatorios en la nota de la tarjeta.
+      let makeupRows: FilaDeExamen[] = [];
       if (assignedIds.length) {
         const { data: mr } = await supabase
           .from("exams")
-          .select("id, parent_exam_id")
+          .select("id, parent_exam_id, retry_mode, makeup_kind, recovery_rule, created_at, status, deleted_at")
           .in("parent_exam_id", assignedIds)
           .is("deleted_at", null);
-        makeupRows = mr ?? [];
+        // `types.ts` no tiene `makeup_kind`/`recovery_rule` (llegaron por migración después).
+        makeupRows = (mr ?? []) as unknown as FilaDeExamen[];
       }
       const submissionExamIds = [...new Set([...assignedIds, ...makeupRows.map((m) => m.id)])];
       type SubRow = {
@@ -301,22 +310,15 @@ function StudentExams() {
         focus_warnings: number | null;
         /** Marca de intento terminado (advertencias, docente o vencimiento). */
         closed_at: string | null;
+        created_at: string;
       };
       const { data: subs } = submissionExamIds.length
         ? await supabase
             .from("submissions")
-            .select("id, exam_id, status, ai_grade, final_override_grade, focus_warnings, closed_at")
+            .select("id, exam_id, status, ai_grade, final_override_grade, focus_warnings, closed_at, created_at")
             .in("exam_id", submissionExamIds)
             .eq("user_id", user.id)
         : { data: [] as SubRow[] };
-
-      const findSubmission = (examId: string): SubRow | undefined => {
-        const list = subs as SubRow[] | undefined;
-        let sub = list?.find((s) => s.exam_id === examId);
-        if (sub) return sub;
-        const makeupIds = makeupRows.filter((m) => m.parent_exam_id === examId).map((m) => m.id);
-        return list?.find((s) => makeupIds.includes(s.exam_id));
-      };
 
       const countAttempts = (examId: string): number => {
         // Solo cuenta intentos YA CALIFICADOS. Una entrega `completado`
@@ -358,9 +360,12 @@ function StudentExams() {
         exams.map((e: any) => {
           const courseMax = Number(e.course?.max_exam_attempts ?? 1) || 1;
           const examMax = e.max_attempts != null ? Number(e.max_attempts) : courseMax;
+          const tarjeta = tarjetaDeExamen(e as FilaDeExamen, [e as FilaDeExamen, ...makeupRows], (subs ?? []) as SubRow[]);
           return {
             exam: e,
-            submission: findSubmission(e.id),
+            submission: tarjeta.intento,
+            nota: tarjeta.nota,
+            examIdRevision: tarjeta.examIdRevision,
             attemptsUsed: countAttempts(e.id),
             maxAttempts: Math.max(1, examMax),
           };
@@ -680,14 +685,15 @@ function StudentExams() {
             )}
           </div>
         )}
-        {pagination.paginatedItems.map(({ exam, submission, attemptsUsed, maxAttempts }) => {
+        {pagination.paginatedItems.map(({ exam, submission, nota, examIdRevision, attemptsUsed, maxAttempts }) => {
           const start = new Date(exam.start_time).getTime();
           const end = new Date(exam.end_time).getTime();
           const isOpen = now >= start && now <= end;
           const completed =
             submission?.status === "completado" || submission?.status === "sospechoso";
-          const grade = submission?.final_override_grade ?? submission?.ai_grade;
-          const reviewExamId = completed && submission?.exam_id ? submission.exam_id : exam.id;
+          // La nota del examen según su modo (y sus recuperaciones), la misma que «Ver detalle».
+          const grade = nota;
+          const reviewExamId = completed && submission ? examIdRevision : exam.id;
           const noAttemptsLeft = attemptsUsed >= maxAttempts;
           return (
             <TarjetaDeActividad key={exam.id}>
@@ -747,11 +753,12 @@ function StudentExams() {
                     </Badge>
                   )}
                 </div>
-                {/* Banner pendiente IA: examen ya entregado pero sin
-                    nota asignada todavía. La query solo trae `ai_grade`
-                    + `final_override_grade`; null en ambos === la IA
-                    no escribió aún (modo async sin override del docente). */}
-                {completed && grade == null && <PendingAiGradeBanner variant="compact" />}
+                {/* Banner pendiente IA: el ÚLTIMO intento está entregado y sin nota
+                    (`ai_grade` y `final_override_grade` en null: la IA no escribió aún
+                    y el docente no la puso). Se mira el intento y no la nota del
+                    examen: con un intento anterior calificado, la nota de la tarjeta
+                    existe y el aviso igual tiene que decir que el último está en cola. */}
+                {completed && !retroDeExamenVisible(submission) && <PendingAiGradeBanner variant="compact" />}
 
                 {exam.description && (
                   <p className="text-sm text-muted-foreground line-clamp-2">

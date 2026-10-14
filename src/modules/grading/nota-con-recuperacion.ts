@@ -205,7 +205,7 @@ export interface FilaDeExamen {
  * acta, que ya excluye los ítems en borrador. Un examen publicado, presentado
  * y devuelto a borrador es el único caso donde esto cambia algo.
  */
-const recuperacionVigente = (e: FilaDeExamen) => e.status !== "draft" && !e.deleted_at;
+export const recuperacionVigente = (e: FilaDeExamen) => e.status !== "draft" && !e.deleted_at;
 
 export function notaDeExamenParaEstudiante<I extends AttemptForGrade & { exam_id: string }>(
   examen: FilaDeExamen,
