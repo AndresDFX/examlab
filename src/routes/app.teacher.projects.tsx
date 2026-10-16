@@ -133,6 +133,8 @@ import { CourseListCell } from "@/components/ui/course-list-cell";
 import { TeacherProjectFilesEditor } from "@/modules/projects/ProjectFiles";
 import { BulkImportDefensesDialog } from "@/modules/projects/BulkImportDefensesDialog";
 import { pideRepositorio, requiresRepositoryAlGuardar } from "@/modules/projects/repositorio";
+import { QuienArmaLosGrupos } from "@/modules/grupos/QuienArmaLosGrupos";
+import { esModoGrupal, gruposAlGuardar, topesInvalidos } from "@/modules/grupos/grupos-estudiante";
 import { DefensePanel } from "@/modules/grading/DefensePanel";
 import { AssignSelector } from "@/shared/components/AssignSelector";
 import { FeedbackThread } from "@/modules/grading/FeedbackThread";
@@ -240,6 +242,10 @@ type Project = {
   status: "draft" | "published" | "closed";
   is_external?: boolean;
   group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+  /** Los grupos los arman los estudiantes (mig 20262830000000); ausente = el docente. */
+  students_form_groups?: boolean | null;
+  group_size_min?: number | null;
+  group_size_max?: number | null;
   course?: { name: string; period: string | null; language?: string | null };
   // Lista de IDs de cursos vinculados (incluye course_id primario)
   linked_course_ids?: string[];
@@ -1207,6 +1213,15 @@ function TeacherProjects() {
       toast.error(t("common.endDateBeforeStart"));
       return;
     }
+    if (
+      !isExternal &&
+      esModoGrupal(form.group_mode) &&
+      form.students_form_groups &&
+      topesInvalidos(form.group_size_min, form.group_size_max)
+    ) {
+      toast.error(t("gruposEstudiante.docente.topesInvalidos"));
+      return;
+    }
     // Patrón "campos desactivados": cuando is_external=true, omitir
     // campos sin sentido (instrucciones, link) del payload para no
     // insertar dummies. `max_files` se omite SIEMPRE — la cantidad real
@@ -1254,6 +1269,8 @@ function TeacherProjects() {
       // Modo de trabajo (individual / grupal / mixto). Solo aplica si NO
       // es externo — en externos no hay entrega digital.
       payload.group_mode = form.group_mode ?? "individual";
+      // Quién arma los grupos + topes (la columna nueva solo si se usa).
+      Object.assign(payload, gruposAlGuardar(form, editing));
       // Link al repositorio: solo se manda si se apagó o se vuelve a encender.
       Object.assign(payload, requiresRepositoryAlGuardar(form, editing));
     }
@@ -3230,9 +3247,16 @@ function TeacherProjects() {
                     </SelectItem>
                   </SelectContent>
                 </Select>
-                <p className="text-2xs text-muted-foreground leading-tight">
-                  {t("hc_routesAppTeacherProjects.workModeHint")}
-                </p>
+                {!esModoGrupal(form.group_mode) && (
+                  <p className="text-2xs text-muted-foreground leading-tight">
+                    {t("hc_routesAppTeacherProjects.workModeHint")}
+                  </p>
+                )}
+                <QuienArmaLosGrupos
+                  modo={form.group_mode}
+                  valor={form}
+                  onChange={(cambios) => setForm({ ...form, ...cambios })}
+                />
               </div>
             )}
             <div data-tour-id="project-field-title">

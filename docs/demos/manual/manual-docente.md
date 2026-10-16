@@ -111,7 +111,7 @@ Crea, aplica y monitorea exámenes en línea con proctoring.
 Actividades evaluables, individuales o **en grupo**, con calificación asistida por IA.
 
 - **🤖 Genera el taller completo o pregunta por pregunta con IA.**
-- **Trabajo en grupo**: activa "Trabajo en grupo" para que un grupo comparta **una sola entrega y una sola nota**. Desde el botón **Grupos** de **Contenido y participantes** (al editar el taller) armas los equipos **arrastrando** las tarjetas de estudiantes entre "Sin grupo" y cada grupo. Pueden convivir estudiantes con grupo (entrega compartida) y sin grupo (entrega individual) en el mismo taller.
+- **Trabajo en grupo**: activa "Trabajo en grupo" para que un grupo comparta **una sola entrega y una sola nota**. Desde el botón **Grupos** de **Contenido y participantes** (al editar el taller) armas los equipos **arrastrando** las tarjetas de estudiantes entre "Sin grupo" y cada grupo. Pueden convivir estudiantes con grupo (entrega compartida) y sin grupo (entrega individual) en el mismo taller. Si prefieres que **los grupos los armen los estudiantes**, en **¿Quién arma los grupos?** elige *Los estudiantes* y fija el mínimo y el máximo de integrantes: cada estudiante elige compañeros de su mismo curso, nadie puede estar en dos grupos y el grupo deja de cambiar cuando entrega o cuando vence el plazo. Tú puedes ajustarlos igual desde **Grupos**. Vale igual para los proyectos.
 - Las entregas se **califican con IA** y puedes registrar talleres **"externos"** (presenciales o en otra herramienta), con sus fechas de inicio y fin, solo para anotar notas y observaciones.
 - **Duplicar (parametrizable)**: eliges el curso destino, el título y qué copiar (preguntas y/o grupos).
 

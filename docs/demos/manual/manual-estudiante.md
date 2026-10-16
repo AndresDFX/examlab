@@ -92,6 +92,7 @@ Entregas más grandes que combinan archivos, código y, a veces, sustentación.
 
 - Sube tus entregables (documentos, diagramas y, si aplica, tu código completo en un `.zip`) y agrega el **enlace al repositorio** cuando se solicite (es obligatorio y debe empezar por `https://...`).
 - Si el docente activó el **trabajo en grupo**, tu grupo comparte una sola entrega y la misma nota.
+- Si los grupos los arman los estudiantes, la tarjeta del taller o del proyecto muestra **Armar grupo**: eliges a tus compañeros del curso (cada persona solo puede estar en un grupo) y ya aparece tu grupo. Desde **Gestionar** puedes sumar más compañeros o salirte, mientras el grupo no haya entregado y el plazo siga abierto.
 - Al entregar, la **IA** califica tu trabajo y deja una nota preliminar.
 - La **nota final** se confirma tras la **sustentación**; mientras tanto verás "Falta sustentación". La nota final combina la nota de la entrega con el resultado de tu sustentación.
 

@@ -42,6 +42,7 @@ import {
   CalendarCheck,
   PenLine,
   AlarmClock,
+  UsersRound,
 } from "lucide-react";
 import { formatDateTime } from "@/shared/lib/format";
 
@@ -84,6 +85,10 @@ interface EnabledKinds {
   /** «Tu examen inicia pronto»: una hora antes, solo exámenes publicados
    *  (mig 20262630000000). Categoría aparte de `exam` a propósito. */
   exam_reminder?: boolean;
+  /** «Te agregaron a un grupo»: cuando un compañero suma al estudiante a su
+   *  grupo de un taller o proyecto (mig 20262830000000). Solo campanita: no
+   *  tiene correo. Sin la clave, avisa (como todo tipo nuevo). */
+  group_membership?: boolean;
 }
 
 interface EmailSettings {
@@ -198,6 +203,13 @@ const CATEGORIES: Array<{
     desc: "Aviso a los estudiantes asignados una hora antes de que empiece un examen publicado. Independiente de «Exámenes»: se puede tener encendido con el resto apagado.",
     icon: AlarmClock,
     color: "text-rose-500",
+  },
+  {
+    key: "group_membership",
+    label: "Grupos armados por estudiantes",
+    desc: "Aviso en la plataforma a un estudiante cuando un compañero lo agrega a su grupo en un taller o proyecto. Al apagarlo, el agregado se entera solo cuando abre la actividad.",
+    icon: UsersRound,
+    color: "text-lime-600",
   },
   {
     key: "session_start",

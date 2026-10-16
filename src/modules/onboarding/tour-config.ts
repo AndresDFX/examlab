@@ -648,7 +648,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="workshop-section-delivery"]',
     title: "Cómo se entrega",
     description:
-      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Ábrela solo si quieres cambiar algo — los grupos se arman desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, al editar el taller.",
+      "Viene <strong>colapsada</strong> porque ya está configurada: <em>modo de trabajo</em> (individual, grupal o mixto), intentos máximos, videos introductorios obligatorios y link externo. Ábrela solo si quieres cambiar algo. En grupal o mixto eliges quién arma los grupos: tú, desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, o los estudiantes, eligiendo compañeros de su curso.",
     side: "left",
     align: "start",
   },
@@ -685,7 +685,7 @@ export const TEACHER_TOUR: TourStep[] = [
     element: '[data-tour-id="project-field-group-mode"]',
     title: "Modo de trabajo",
     description:
-      "Individual, grupal o mixto. Los proyectos típicamente son grupales — define grupos desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, al editar el proyecto, antes de la fecha de entrega.",
+      "Individual, grupal o mixto. Los proyectos típicamente son grupales: los grupos los armas tú desde el botón <em>Grupos</em> de <em>Contenido y participantes</em>, o los arman los estudiantes eligiendo compañeros de su curso.",
     side: "left",
     align: "start",
   },

@@ -83,6 +83,9 @@ import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
 import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
+import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
+import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
+import { grupoEnLaTarjeta, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
 
 export const Route = createFileRoute("/app/student/workshops")({
   // Enlace directo a UN taller: `/app/student/workshops?workshop=<id>`. Solo
@@ -250,6 +253,8 @@ function StudentWorkshops() {
   >("due_asc");
   const [questionsOpen, setQuestionsOpen] = useState(false);
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
+  // Grupo del estudiante en cada taller grupal (y si puede armarlo él).
+  const [resumenGrupos, setResumenGrupos] = useState<Record<string, ResumenDeGrupo>>({});
   // Preferencia "tamaño completo" del modal de resolución (compartida con el
   // examen via la misma clave de localStorage).
   const [maximized, toggleMaximized] = useMaximized("examlab_assessment_maximized");
@@ -360,6 +365,10 @@ function StudentWorkshops() {
       .filter((w: any) => w.group_mode && w.group_mode !== "individual")
       .map((w: any) => w.id as string);
     const groupIdByWorkshop = new Map<string, string>();
+    // En paralelo con lo que sigue: se espera recién antes de pintar, junto con
+    // las entregas. Si falla (p. ej. antes de la migración) devuelve vacío y la
+    // tarjeta queda como antes, sin la sección del grupo.
+    const resumenPromesa = cargarResumenDeGrupos("taller", groupWorkshopIds);
     if (groupWorkshopIds.length > 0) {
       const { data: myGroups } = await client
         .from("workshop_group_members")
@@ -430,6 +439,7 @@ function StudentWorkshops() {
     setNombreDeCorte(cortes);
     setCortePesoPorTaller(pesoPorTaller);
 
+    setResumenGrupos(await resumenPromesa);
     setRows(
       workshops.map((w: any) => ({
         workshop: w,
@@ -962,9 +972,20 @@ function StudentWorkshops() {
 
               </CuerpoDeTarjeta>
               <AccionesDeTarjeta>
+                <GrupoEnTarjeta
+                  tipo="taller"
+                  actividadId={workshop.id}
+                  actividadTitulo={workshop.title}
+                  resumen={resumenGrupos[workshop.id]}
+                  onCambio={() => {
+                    if (user) void reload(user.id);
+                  }}
+                />
                 {/* Modo grupal estricto SIN grupo: no se puede entregar.
-                    Mostramos un aviso en lugar del CTA. */}
-                {isOpen && blockedNoGroup && (
+                    Mostramos un aviso en lugar del CTA. Si los grupos los
+                    arman los estudiantes, el aviso con el botón para armarlo
+                    lo da `GrupoEnTarjeta`. */}
+                {isOpen && blockedNoGroup && grupoEnLaTarjeta(resumenGrupos[workshop.id]).tipo !== "armar" && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
                     <div className="font-medium mb-1">
                       {t("hc_routesAppStudentWorkshops.groupModeNoGroupTitle")}

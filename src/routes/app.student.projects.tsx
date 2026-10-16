@@ -77,6 +77,9 @@ import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
 import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
+import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
+import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
+import { grupoEnLaTarjeta, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -217,6 +220,8 @@ function StudentProjects() {
   >("due_asc");
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState<ProjectRow | null>(null);
+  // Grupo del estudiante en cada proyecto grupal (y si puede armarlo él).
+  const [resumenGrupos, setResumenGrupos] = useState<Record<string, ResumenDeGrupo>>({});
   // Estado de error explícito para que un fallo en la query base
   // (course_enrollments) no se renderice como "sin proyectos".
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -367,6 +372,10 @@ function StudentProjects() {
       .filter((p) => p.group_mode && p.group_mode !== "individual")
       .map((p) => p.id);
     const groupIdByProject = new Map<string, string>();
+    // En paralelo con lo que sigue: se espera recién antes de pintar, junto con
+    // las entregas. Si falla (p. ej. antes de la migración) devuelve vacío y la
+    // tarjeta queda como antes, sin la sección del grupo.
+    const resumenPromesa = cargarResumenDeGrupos("proyecto", groupProjectIds);
     if (groupProjectIds.length > 0) {
       const { data: myGroups } = await db
         .from("project_group_members")
@@ -422,6 +431,7 @@ function StudentProjects() {
       }
     }
 
+    setResumenGrupos(await resumenPromesa);
     setRows(
       projects.map((p) => ({
         project: p,
@@ -890,8 +900,19 @@ function StudentProjects() {
 
               </CuerpoDeTarjeta>
               <AccionesDeTarjeta>
-                {/* Modo grupal estricto SIN grupo: bloqueo de entrega. */}
-                {isOpen && !esExterno && blockedNoGroup && (
+                <GrupoEnTarjeta
+                  tipo="proyecto"
+                  actividadId={project.id}
+                  actividadTitulo={project.title}
+                  resumen={resumenGrupos[project.id]}
+                  onCambio={() => {
+                    if (user) void reload(user.id);
+                  }}
+                />
+                {/* Modo grupal estricto SIN grupo: bloqueo de entrega. Si los
+                    grupos los arman los estudiantes, el aviso con el botón
+                    para armarlo lo da `GrupoEnTarjeta`. */}
+                {isOpen && !esExterno && blockedNoGroup && grupoEnLaTarjeta(resumenGrupos[project.id]).tipo !== "armar" && (
                   <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
                     <div className="font-medium mb-1">
                       {t("hc_routesAppStudentProjects.groupModeNoGroupTitle")}

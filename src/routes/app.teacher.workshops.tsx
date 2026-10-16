@@ -178,6 +178,8 @@ import { DateTimePicker } from "@/components/ui/date-picker";
 import { ActivitySessionSelect } from "@/modules/sessions/ActivitySessionSelect";
 import { useDirtyDialog } from "@/hooks/use-dirty-dialog";
 import { ConfigurarDesdeEditar } from "@/shared/components/ConfigurarDesdeEditar";
+import { QuienArmaLosGrupos, type CamposDeGrupo } from "@/modules/grupos/QuienArmaLosGrupos";
+import { esModoGrupal, gruposAlGuardar, topesInvalidos } from "@/modules/grupos/grupos-estudiante";
 import {
   Accordion,
   AccordionContent,
@@ -1463,6 +1465,15 @@ function TeacherWorkshops() {
       return;
     }
     const groupMode: string = (form as any).group_mode ?? "individual";
+    if (
+      !isExternal &&
+      esModoGrupal(groupMode) &&
+      (form as any).students_form_groups &&
+      topesInvalidos((form as any).group_size_min, (form as any).group_size_max)
+    ) {
+      toast.error(t("gruposEstudiante.docente.topesInvalidos"));
+      return;
+    }
     // Per-curso (corte+peso por curso) cuando hay >1 curso — tanto en
     // creación como en edición.
     const isMultiCourse = courseIds.length > 1;
@@ -1497,6 +1508,16 @@ function TeacherWorkshops() {
     // selector. Mandar el modo acá lo devolvía a «individual» cada vez que se
     // editaba, p. ej. para cambiarle las fechas.
     if (!isExternal) basePayload.group_mode = groupMode;
+    // Quién arma los grupos + topes (la columna nueva solo si se usa).
+    if (!isExternal) {
+      Object.assign(
+        basePayload,
+        gruposAlGuardar(
+          form as CamposDeGrupo & { group_mode?: string | null },
+          workshops.find((w) => w.id === (form as any).id) as CamposDeGrupo | undefined,
+        ),
+      );
+    }
     // Una recuperación no ocupa bucket: su nota va sobre la del original, así
     // que no se valida su peso contra el bucket (heredó el del original, que ya
     // lo ocupa). Su corte/peso viene del original y no se toca desde acá.
@@ -5008,9 +5029,16 @@ function TeacherWorkshops() {
                         </SelectItem>
                       </SelectContent>
                     </Select>
-                    <p className="text-2xs text-muted-foreground leading-tight">
-                      {t("teacherWorkshops.groupModeHint")}
-                    </p>
+                    {!esModoGrupal((form as any).group_mode) && (
+                      <p className="text-2xs text-muted-foreground leading-tight">
+                        {t("teacherWorkshops.groupModeHint")}
+                      </p>
+                    )}
+                    <QuienArmaLosGrupos
+                      modo={(form as any).group_mode}
+                      valor={form as CamposDeGrupo}
+                      onChange={(cambios) => setForm({ ...form, ...cambios } as any)}
+                    />
                   </div>
                   {/* Sustentación. Apagado por defecto a propósito: encenderlo
                       hace que la nota final sea `entrega × factor`, o sea que

@@ -3,7 +3,7 @@ import { useNotifications, type Notification } from "@/hooks/use-notifications";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
-import { Bell, CheckCheck, ClipboardList, FileText, Hammer, Info, AlertTriangle } from "lucide-react";
+import { Bell, CheckCheck, ClipboardList, FileText, Hammer, Info, AlertTriangle, UsersRound } from "lucide-react";
 import { cn } from "@/shared/lib/utils";
 import { useTranslation } from "react-i18next";
 import i18n from "@/i18n";
@@ -14,6 +14,7 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   grade: ClipboardList,
   system: AlertTriangle,
   info: Info,
+  group_membership: UsersRound,
 };
 
 function timeAgo(date: string): string {

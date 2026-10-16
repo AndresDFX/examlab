@@ -4,8 +4,9 @@
  * `CrearRecuperacionDialog` (exámenes); comparte los textos `recuperaciones.*`
  * y los helpers de elegibilidad, cambiando lo específico del taller:
  *
- *  - Duplica con `clone_workshop` (con `_copy_groups=true` y fechas explícitas
- *    — con `false` falla 23502 por `group_size_min NOT NULL`).
+ *  - Duplica con `clone_workshop` (con `_copy_groups=true` y fechas explícitas:
+ *    la recuperación conserva el modo de grupo y quién arma los grupos; con
+ *    `false` saldría individual).
  *  - La copia nace en BORRADOR, se enlaza con `parent_workshop_id` +
  *    `makeup_kind`/`recovery_rule`, y se le crea su fila `workshop_courses` con
  *    el MISMO peso y corte que el ORIGINAL tiene en ESTE curso (talleres son
@@ -361,7 +362,7 @@ export function CrearRecuperacionTallerDialog({
     }
     setEnviando(true);
     try {
-      // _copy_groups=true SIEMPRE: con false falla 23502 (group_size_min NOT NULL).
+      // _copy_groups=true SIEMPRE: la recuperación conserva el modo de grupo del original.
       const { data: nuevoId, error: errClon } = await db.rpc("clone_workshop", {
         _source_id: origen.id,
         _target_course_id: origen.course_id,

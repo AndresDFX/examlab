@@ -30,6 +30,7 @@ import {
   Info,
   AlertTriangle,
   ArrowRight,
+  UsersRound,
 } from "lucide-react";
 import { Link, useLocation } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
@@ -41,6 +42,7 @@ const KIND_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   grade: ClipboardList,
   system: AlertTriangle,
   info: Info,
+  group_membership: UsersRound,
 };
 
 function timeAgo(date: string): string {
