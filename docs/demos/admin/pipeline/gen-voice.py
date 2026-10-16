@@ -8,6 +8,14 @@
 # Uso:  python gen-voice.py [ruta_modulo.json]
 import asyncio, json, os, sys, edge_tts
 
+# Desde octubre de 2026 speech.platform.bing.com responde 403 al websocket de
+# síntesis (edge-tts #490): se sintetiza por api.msedgeservices.com con el mismo
+# token (arreglo del PR #491, sin publicar). Verificado el 2026-10-16: sin esto
+# no sale ni una escena; con esto salen el audio y los WordBoundary de siempre.
+import edge_tts.communicate as _edge_cm
+from edge_tts.constants import TRUSTED_CLIENT_TOKEN as _EDGE_TOKEN
+_edge_cm.WSS_URL = "wss://api.msedgeservices.com/tts/cognitiveservices/websocket/v1?Ocp-Apim-Subscription-Key=" + _EDGE_TOKEN
+
 MODULE = sys.argv[1] if len(sys.argv) > 1 else "C:/Temp/examlab-rec/modules/module-01.json"
 OUT = "C:/Temp/examlab-rec/audio2"
 

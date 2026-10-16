@@ -1,0 +1,228 @@
+{
+  "id": "modulo-s15",
+  "title": "Armar tu grupo",
+  "series": "student",
+  "role": "Estudiante",
+  "appPath": "/app/student/projects",
+  "readySelectors": [
+    "[data-tour-nav=\"/app/student/projects\"]",
+    "text=Armar grupo"
+  ],
+  "voice": {
+    "name": "es-CO-GonzaloNeural",
+    "rate": "-4%"
+  },
+  "scenes": [
+    {
+      "id": "intro",
+      "kind": "card",
+      "narration": "Cómo armar tu grupo en un proyecto o un taller que se entrega en grupo.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Armar tu grupo",
+        "subtitle": "Proyectos y talleres en grupo"
+      },
+      "bufferMs": 1600
+    },
+    {
+      "id": "tarjeta",
+      "kind": "platform",
+      "narration": "En Proyectos, la tarjeta te avisa cuando la actividad se entrega en grupo y todavía no tienes uno: sin grupo no se puede entregar. Para armarlo, toca Armar grupo.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "text:Esta actividad se entrega en grupo",
+          "scale": 1.35,
+          "hold": 5200,
+          "side": "right",
+          "syncWord": "avisa",
+          "focus": {
+            "title": "Sin grupo no se entrega",
+            "body": "La actividad es grupal y todavía no tienes grupo."
+          }
+        },
+        {
+          "target": "button:Armar grupo",
+          "click": true,
+          "waitText": "Crear grupo",
+          "waitTimeoutMs": 20000,
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 1500,
+          "side": "right",
+          "syncWord": "toca",
+          "focus": {
+            "title": "Mi grupo",
+            "body": "Aquí armas tu grupo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "elegir",
+      "kind": "platform",
+      "narration": "El grupo es de dos a cinco integrantes, contándote. Ponle un nombre, si quieres, y marca a tus compañeros del curso. Quien ya está en otro grupo aparece con el nombre de su grupo y no se puede elegir: cada persona solo puede estar en uno.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "text:El grupo es de 2 a 5",
+          "scale": 1,
+          "hold": 2600,
+          "side": "right",
+          "syncWord": "integrantes",
+          "focus": {
+            "title": "De 2 a 5 integrantes",
+            "body": "Contándote a ti."
+          }
+        },
+        {
+          "target": "field:Nombre del grupo",
+          "typeInto": true,
+          "text": "Los Visionarios",
+          "typeDelayMs": 70,
+          "scale": 1,
+          "hold": 900,
+          "side": "right",
+          "syncWord": "nombre",
+          "focus": {
+            "title": "Nombre del grupo",
+            "body": "Opcional."
+          }
+        },
+        {
+          "target": "text:Ana Torres",
+          "click": true,
+          "afterClickMs": 350,
+          "scale": 1,
+          "hold": 700,
+          "side": "right",
+          "syncWord": "marca",
+          "focus": {
+            "title": "Elige a tus compañeros",
+            "body": "Marca a quienes van contigo."
+          }
+        },
+        {
+          "target": "text:Carlos Ruiz",
+          "click": true,
+          "afterClickMs": 350,
+          "scale": 1,
+          "hold": 900,
+          "side": "right",
+          "focus": {
+            "title": "Elige a tus compañeros",
+            "body": "Marca a quienes van contigo."
+          }
+        },
+        {
+          "target": "[role=\"dialog\"] .divide-y",
+          "scale": 1,
+          "hold": 4200,
+          "side": "right",
+          "syncWord": "Quien",
+          "focus": {
+            "title": "Una persona, un grupo",
+            "body": "Quien ya tiene grupo no se puede elegir."
+          }
+        }
+      ]
+    },
+    {
+      "id": "crear",
+      "kind": "platform",
+      "narration": "Toca Crear grupo. Tus compañeros reciben un aviso en la campanita, y la entrega y la nota quedan para todo el grupo: cualquiera de ustedes puede editarla.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "button:Crear grupo",
+          "click": true,
+          "waitText": "Agregar compañeros",
+          "waitTimeoutMs": 20000,
+          "focusTarget": "[role=\"dialog\"]",
+          "scale": 1,
+          "hold": 6500,
+          "side": "right",
+          "syncWord": "Crear",
+          "focus": {
+            "title": "Grupo creado",
+            "body": "Tus compañeros reciben un aviso."
+          }
+        }
+      ]
+    },
+    {
+      "id": "gestionar",
+      "kind": "platform",
+      "narration": "Desde aquí puedes sumar más compañeros o salirte del grupo, mientras el grupo no haya entregado y el plazo siga abierto.",
+      "bufferMs": 700,
+      "beats": [
+        {
+          "target": "button:Agregar compañeros",
+          "scale": 1,
+          "hold": 2600,
+          "side": "right",
+          "syncWord": "sumar",
+          "focus": {
+            "title": "Agregar compañeros",
+            "body": "Hasta completar el máximo."
+          }
+        },
+        {
+          "target": "button:Salir del grupo",
+          "scale": 1,
+          "hold": 3200,
+          "side": "right",
+          "syncWord": "salirte",
+          "focus": {
+            "title": "Salir del grupo",
+            "body": "Mientras el grupo no haya entregado."
+          }
+        }
+      ]
+    },
+    {
+      "id": "tarjeta-grupo",
+      "kind": "platform",
+      "openVia": {
+        "target": "main h1"
+      },
+      "narration": "Al cerrar, la tarjeta muestra tu grupo y ya puedes iniciar la entrega.",
+      "bufferMs": 900,
+      "beats": [
+        {
+          "target": "text:Grupo «Los Visionarios»",
+          "scale": 1.35,
+          "hold": 2800,
+          "side": "right",
+          "syncWord": "tarjeta",
+          "focus": {
+            "title": "Tu grupo",
+            "body": "Con sus integrantes."
+          }
+        },
+        {
+          "target": "button:Iniciar entrega",
+          "scale": 1.35,
+          "hold": 2400,
+          "side": "right",
+          "syncWord": "iniciar",
+          "focus": {
+            "title": "Iniciar entrega",
+            "body": "La entrega es del grupo."
+          }
+        }
+      ]
+    },
+    {
+      "id": "outro",
+      "kind": "card",
+      "narration": "Arma tu grupo con tiempo. Si te quedas sin grupo, pídele a un grupo con cupo que te agregue, o escríbele a tu docente.",
+      "card": {
+        "kicker": "ExamLab · Rol Estudiante",
+        "title": "Arma tu grupo con tiempo",
+        "subtitle": "Sin grupo no se puede entregar"
+      },
+      "bufferMs": 2200
+    }
+  ]
+}
