@@ -28,6 +28,14 @@ import {
   type PoliticaZip,
 } from "../_shared/contenido-zip.ts";
 import { leerDocumentosDelZip } from "../_shared/leer-entrega-zip.ts";
+import {
+  avisoDeAdjuntos,
+  bytesABase64,
+  capacidadDeAdjuntos,
+  partesDeAdjuntos,
+  reunirAdjuntos,
+  type ResultadoAdjuntos,
+} from "../_shared/adjuntos-zip.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -2845,13 +2853,32 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           `[zip-grading] minified saved ${totalSavedChars} chars (${codeFiles.length} files, ${totalChars} chars total)`,
         );
       }
+      // ── ZIP abierto: imágenes y PDF van como ADJUNTOS si el modelo los puede ver ──
+      // (`_shared/adjuntos-zip.ts`). Lo que va como adjunto no se lee como texto ni se nombra
+      // como «no legible»; lo que no entra (formato, peso, tope) sigue el camino de siempre.
+      let visuales: ResultadoAdjuntos | null = null;
+      if (zipAbierto) {
+        const activo = await getActiveAiModel();
+        const capacidad = capacidadDeAdjuntos(activo.provider, activo.model);
+        if (capacidad.imagenes.length > 0 || capacidad.pdf) {
+          const fflate = await import("npm:fflate@0.8.2");
+          visuales = reunirAdjuntos({
+            archivos: unzipped,
+            rutas: revisarArchivosDelZip(allPaths, null).aceptados,
+            capacidad,
+            descomprimir: (zip, quiere) => fflate.unzipSync(zip, { filter: (f) => quiere(f.name) }),
+          });
+          if (visuales.porTope) totalLimitReached = true;
+        }
+      }
+      const adjuntos = visuales?.adjuntos ?? [];
       // ── ZIP abierto: Word, PowerPoint y PDF también se leen (`_shared/leer-entrega-zip.ts`) ──
       // Lo que no se puede leer se le NOMBRA a la IA, para que no lo cuente como faltante.
       if (zipAbierto) {
         const lectura = await leerDocumentosDelZip(
           unzipped,
           allPaths,
-          new Set(codeFiles.map((f) => f.path)),
+          new Set([...codeFiles.map((f) => f.path), ...(visuales?.rutasAdjuntas ?? [])]),
           MAX_CHARS - totalChars,
         );
         codeFiles.push(...lectura.archivos);
@@ -2860,9 +2887,9 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         noLeidos.push(...lectura.noLeidos);
         pdfParcial = lectura.pdfParcial;
       }
-      const wasTruncated = totalLimitReached || perFileTruncated > 0;
+      let wasTruncated = totalLimitReached || perFileTruncated > 0;
 
-      if (codeFiles.length === 0 && zipAbierto) {
+      if (codeFiles.length === 0 && adjuntos.length === 0 && zipAbierto) {
         // Nada legible (solo imágenes o PDF escaneados): sin nota. Un 0 se leería como «no entregó»;
         // la entrega queda por calificar y el docente pone la nota en su ventana de calificación.
         return new Response(
@@ -2875,7 +2902,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       }
-      if (codeFiles.length === 0) {
+      if (codeFiles.length === 0 && adjuntos.length === 0) {
         return new Response(
           JSON.stringify({
             ok: true,
@@ -2903,7 +2930,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
         : `Código fuente entregado (${codeFiles.length} archivo(s)):`;
       const avisoNoLeidos =
         noLeidos.length > 0
-          ? `\n\nArchivos de la entrega que NO puedes leer (imágenes, hojas de cálculo, PDF escaneados o que superaron el tope): ${noLeidos.slice(0, 30).join(", ")}${noLeidos.length > 30 ? ` (+${noLeidos.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no poder leerlos; califica lo que sí puedes leer y dilo en la retroalimentación.`
+          ? `\n\nArchivos de la entrega que NO puedes leer ni ver (por su formato, su tamaño o porque superaron el tope): ${noLeidos.slice(0, 30).join(", ")}${noLeidos.length > 30 ? ` (+${noLeidos.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no poder leerlos; califica lo que sí puedes leer y dilo en la retroalimentación.`
           : "";
       const avisoPdfParcial = pdfParcial
         ? "\n\nDe algún PDF solo se leyeron las primeras páginas (lo dice su encabezado): no bajes la nota por lo que no viste."
@@ -2913,47 +2940,93 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
           : "";
 
-      const aiRes = await aiChatCompletion({
-        messages: [
-          {
-            role: "system",
-            content: systemPrompt,
-          },
-          {
-            role: "user",
-            content: `${projectCtx}Pregunta del proyecto: ${fileTitle}
+      const textoDelUsuario = (secciones: string, avisos: string) => `${projectCtx}Pregunta del proyecto: ${fileTitle}
 Descripción: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
 Puntaje máximo: ${maxPoints}
 
 ${tituloContenido}
 
-${fileSection}${avisoNoLeidos}${avisoPdfParcial}
+${secciones}${avisoNoLeidos}${avisoPdfParcial}${avisos}
 
-Idioma de salida obligatorio: ${pfLangName}.`,
-          },
-        ],
-        tools: [
-          {
-            type: "function",
-            function: {
-              name: "score_code_zip",
-              description: "Calificar el código fuente entregado en un ZIP",
-              parameters: {
-                type: "object",
-                properties: {
-                  score: { type: "number" },
-                  feedback: { type: "string" },
-                  ai_likelihood: { type: "number" },
-                  ai_reasons: { type: "string" },
+Idioma de salida obligatorio: ${pfLangName}.`;
+      const llamarIa = (content: unknown) =>
+        aiChatCompletion({
+          messages: [
+            {
+              role: "system",
+              content: systemPrompt,
+            },
+            { role: "user", content },
+          ],
+          tools: [
+            {
+              type: "function",
+              function: {
+                name: "score_code_zip",
+                description: "Calificar el código fuente entregado en un ZIP",
+                parameters: {
+                  type: "object",
+                  properties: {
+                    score: { type: "number" },
+                    feedback: { type: "string" },
+                    ai_likelihood: { type: "number" },
+                    ai_reasons: { type: "string" },
+                  },
+                  required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
                 },
-                required: ["score", "feedback", "ai_likelihood", "ai_reasons"],
               },
             },
-          },
-        ],
-        tool_choice: { type: "function", function: { name: "score_code_zip" } },
-      });
+          ],
+          tool_choice: { type: "function", function: { name: "score_code_zip" } },
+        });
+
+      let aiRes: Response;
+      let adjuntosVistos = 0;
+      if (adjuntos.length > 0 && visuales) {
+        try {
+          aiRes = await llamarIa([
+            { type: "text", text: textoDelUsuario(fileSection, avisoDeAdjuntos(visuales)) },
+            ...partesDeAdjuntos(adjuntos, bytesABase64),
+          ]);
+        } catch (e) {
+          aiRes = new Response(e instanceof Error ? e.message : String(e), { status: 599 });
+        }
+        if (aiRes.ok) {
+          adjuntosVistos = adjuntos.length;
+        } else if (aiRes.status !== 429 && aiRes.status !== 402) {
+          // Un adjunto que el proveedor rechaza (un PDF de más páginas de las que admite, una imagen
+          // que no decodifica) tumbaría la entrega entera. Se califica como antes: sin verlos, con el
+          // texto de los PDF y nombrándole a la IA lo que no se le pudo mostrar.
+          const detalle = await aiRes.text().catch(() => "");
+          console.warn(
+            `[zip-grading] la llamada con ${adjuntos.length} adjunto(s) falló (${aiRes.status}): ${detalle.slice(0, 300)} — se califica sin ellos.`,
+          );
+          const pdfs = adjuntos.filter((a) => a.tipo === "pdf").map((a) => a.ruta);
+          const rescate =
+            pdfs.length > 0
+              ? await leerDocumentosDelZip(unzipped, pdfs, new Set(), Math.max(0, MAX_CHARS - totalChars))
+              : null;
+          const leidos = new Set((rescate?.archivos ?? []).map((f) => f.path.replace(/ \(páginas .*\)$/, "")));
+          const sinMostrar = adjuntos.filter((a) => !leidos.has(a.ruta)).map((a) => a.etiqueta);
+          const secciones =
+            fileSection + (rescate?.archivos ?? []).map((f) => `\n─── ${f.path} ───\n${f.content}\n`).join("");
+          const aviso =
+            sinMostrar.length > 0
+              ? `\n\nImágenes y PDF de la entrega que esta vez no se te pudieron mostrar: ${sinMostrar.slice(0, 30).join(", ")}${sinMostrar.length > 30 ? ` (+${sinMostrar.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no verlos.`
+              : "";
+          wasTruncated = true;
+          totalLimitReached = true;
+          aiRes = await llamarIa(textoDelUsuario(secciones, aviso));
+        }
+      } else {
+        aiRes = await llamarIa(textoDelUsuario(fileSection, ""));
+      }
+      if (visuales) {
+        console.log(
+          `[zip-grading] adjuntos: ${adjuntosVistos} vistos de ${adjuntos.length}; ${visuales.imagenesDeDocumentosSinMostrar} imagen(es) de documentos sin mostrar`,
+        );
+      }
 
       if (aiRes.status === 429) {
         return new Response(
@@ -3083,6 +3156,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           ai_detected: aiLikelihood >= 0.6,
           ai_reasons: args.ai_reasons ?? "",
           files_evaluated: codeFiles.length,
+          adjuntos_vistos: adjuntosVistos,
           ...(zipPersistedInternally ? { persistedInternally: true as const } : {}),
           ...(zipPersistError ? { persist_error: zipPersistError } : {}),
           // Flags de truncado para que el cliente persista en

@@ -21,6 +21,7 @@ import { adminClient } from "./admin.ts";
 import { type AiProvider, normalizeProvider, normalizeModel } from "./ai-model-normalize.ts";
 import { dedupeNonEmpty, runKeyFailover } from "./ai-failover.ts";
 import { bedrockConverseFetch, esModeloAnthropicEnBedrock } from "./bedrock-converse.ts";
+import { bedrockAnthropicInvokeFetch, tieneContenidoMultimodal } from "./bedrock-anthropic.ts";
 
 // "lovable" se DEPRECÓ (mig 20260824000000) — el Lovable AI Gateway
 // usaba una key compartida que ya no se mantiene. Los providers
@@ -391,9 +392,12 @@ export async function aiChatCompletionFailover(
   // real que se está por llamar (puede diferir de `model.model` en un
   // healthcheck que prueba un modelo distinto al guardado), así que la
   // detección mira ESE campo, no el de la fila activa.
+  // Con imágenes o PDF, Claude va por InvokeModel con el formato de Anthropic
+  // (`bedrock-anthropic.ts`): por Converse un PDF llega como texto extraído.
   const modeloAConsultar = String(payload.model ?? model.model);
   const esAnthropicEnBedrock =
     model.provider === "bedrock" && esModeloAnthropicEnBedrock(modeloAConsultar);
+  const anthropicMultimodal = esAnthropicEnBedrock && tieneContenidoMultimodal(payload);
   const url =
     model.provider === "openai"
       ? OPENAI_CHAT_URL
@@ -410,10 +414,13 @@ export async function aiChatCompletionFailover(
           : "Gemini";
     throw new Error(`Falta la API key de ${name}. Configúrala en Configuración → Modelo IA.`);
   }
-  const body = JSON.stringify(payload);
+  // Con adjuntos el payload pesa megas: se serializa una sola vez y solo si va tal cual.
+  const body = esAnthropicEnBedrock ? "" : JSON.stringify(payload);
   return runKeyFailover<Response>(keys, {
     fetchWithKey: (key) =>
-      esAnthropicEnBedrock
+      anthropicMultimodal
+        ? bedrockAnthropicInvokeFetch(key, model.bedrock_region, payload)
+        : esAnthropicEnBedrock
         ? bedrockConverseFetch(key, model.bedrock_region, payload)
         : fetch(url, {
             method: "POST",

@@ -15,9 +15,10 @@
  * Los 11 puntos de llamada de `aiChatCompletionFailover` en producción arman
  * el payload SIEMPRE con la misma forma acotada (verificado grepeando el
  * repo, no supuesto): `messages` con `role` system/user/assistant y `content`
- * de texto plano (ningún bloque multimodal llega hasta acá — la única llamada
- * con imagen, `ai-read-groups-image`, se sustituye a Gemini ANTES si el
- * proveedor activo es Bedrock; ver `ai-vision.ts`, sin cambios), UN tool
+ * de texto plano (ningún bloque multimodal llega hasta acá: una llamada con
+ * imágenes o PDF —los adjuntos de un ZIP, `adjuntos-zip.ts`— va por
+ * InvokeModel con `bedrock-anthropic.ts`, y `ai-read-groups-image` se
+ * sustituye a Gemini antes; ver `ai-vision.ts`), UN tool
  * fijo, y `tool_choice` SIEMPRE forzado a ESE tool (`{type:"function",
  * function:{name}}`) — nunca "auto"/"required"/"none". Traducir ESE
  * subconjunto exacto —no un traductor genérico de todo lo que la API
