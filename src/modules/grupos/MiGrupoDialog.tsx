@@ -29,6 +29,7 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { normalizeForSearch } from "@/modules/search/search-text";
 import {
+  avisarBajoElMinimo,
   cuposLibres,
   problemaDeSeleccion,
   type Companero,
@@ -268,7 +269,12 @@ export function MiGrupoDialog({
                     {t("gruposEstudiante.entregaDelGrupo")}
                   </p>
                 )}
-                {abierto && grupo.integrantes.length < estado.minimo && (
+                {avisarBajoElMinimo({
+                  abierto,
+                  integrantes: grupo.integrantes.length,
+                  minimo: estado.minimo,
+                  armadoPorElDocente: grupo.armado_por_docente === true,
+                }) && (
                   <p className="rounded-md border border-warning/40 bg-warning/10 p-2 text-xs text-warning-on-subtle">
                     {t("gruposEstudiante.bajoElMinimo", { minimo: estado.minimo })}
                   </p>

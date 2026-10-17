@@ -11462,10 +11462,14 @@
       "armaElDocente": "The teacher, from «Groups»",
       "armanLosEstudiantes": "The students, picking classmates from their course",
       "hintDocente": "You set up the groups with the «Groups» button in «Content and participants» (available once saved).",
-      "hintEstudiantes": "Each student sets up their group by picking classmates from the same course. A person can be in only one group, and the group stops changing once it submits or the deadline passes. You can still adjust them from «Groups».",
+      "hintEstudiantes": "Each student sets up their group by picking classmates from the same course. A person can be in only one group, and the group stops changing once it submits or the deadline passes. You can still adjust them from «Groups», even make a one-person group for someone who can't find a group.",
       "minimo": "Minimum members",
       "maximo": "Maximum members",
-      "topesInvalidos": "The maximum number of members can't be lower than the minimum."
+      "topesInvalidos": "The maximum number of members can't be lower than the minimum.",
+      "tableroGrupal": "Create groups and drag students. Since the work is group-based, anyone without a group can't submit. You can make groups of any size, including a one-person group for someone who can't find a group.",
+      "topesSoloEstudiantes": "Students without a group can also set one up with their classmates; the minimum and maximum ({{minimo}} to {{maximo}} members) only limit those groups, not the ones you set up.",
+      "sinGrupoTitulo": "No group (can't submit)",
+      "sinGrupoHint": "Without a group they can't submit. Drag them into a group; it can be a one-person group."
     }
   }
 }

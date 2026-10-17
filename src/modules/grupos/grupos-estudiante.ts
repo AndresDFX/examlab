@@ -35,7 +35,14 @@ export interface ResumenDeGrupo {
   externa: boolean;
   minimo: number;
   maximo: number;
-  grupo: { id: string; nombre: string; integrantes: number; entregado: boolean } | null;
+  grupo: {
+    id: string;
+    nombre: string;
+    integrantes: number;
+    entregado: boolean;
+    /** Lo agrega `cargarResumenDeGrupos`, no la RPC: ver `armadoPorElDocente`. */
+    armado_por_docente?: boolean;
+  } | null;
   individual: { entregada: boolean } | null;
 }
 
@@ -62,6 +69,8 @@ export interface EstadoDeGrupo {
     nombre: string;
     entregado: boolean;
     integrantes: { id: string; nombre: string }[];
+    /** Lo agrega `cargarEstadoDeGrupo`, no la RPC: ver `armadoPorElDocente`. */
+    armado_por_docente?: boolean;
   } | null;
   individual: { id: string; entregada: boolean } | null;
   companeros: Companero[];
@@ -104,7 +113,12 @@ export function grupoEnLaTarjeta(resumen: ResumenDeGrupo | null | undefined): Gr
       integrantes: resumen.grupo.integrantes,
       entregado: resumen.grupo.entregado,
       puedeCambiar: abierto,
-      bajoElMinimo: abierto && resumen.grupo.integrantes < resumen.minimo,
+      bajoElMinimo: avisarBajoElMinimo({
+        abierto,
+        integrantes: resumen.grupo.integrantes,
+        minimo: resumen.minimo,
+        armadoPorElDocente: resumen.grupo.armado_por_docente === true,
+      }),
       minimo: resumen.minimo,
     };
   }
@@ -117,6 +131,35 @@ export function grupoEnLaTarjeta(resumen: ResumenDeGrupo | null | undefined): Gr
     estricto: resumen.modo === "group_required",
     conBorrador: !!resumen.individual,
   };
+}
+
+/**
+ * Un grupo que lo armó el DOCENTE, no un estudiante. La RPC de crear guarda en
+ * `created_by` al estudiante que lo armó; la ventana «Grupos» del docente (y
+ * «Repartir al azar», y «Desde una imagen») no lo llena. Con eso alcanza para
+ * distinguirlos sin otra columna: un `created_by` vacío es del docente.
+ * También queda vacío si se borra la cuenta de quien lo creó (la FK es ON
+ * DELETE SET NULL): ese grupo pierde el aviso de mínimo, que es lo único que
+ * depende de esto, y no se impide nada.
+ */
+export function armadoPorElDocente(grupo: { created_by?: string | null }): boolean {
+  return grupo.created_by == null;
+}
+
+/**
+ * ¿Se le avisa al estudiante que su grupo quedó por debajo del mínimo? Solo si
+ * el grupo lo armaron los estudiantes y todavía puede arreglarse. El mínimo es
+ * una regla para ELLOS: el docente puede armar un grupo del tamaño que quiera
+ * —de una sola persona, para quien no encontró grupo— y a ese estudiante no se
+ * le dice que le falta gente. En ningún caso se impide entregar.
+ */
+export function avisarBajoElMinimo(opts: {
+  abierto: boolean;
+  integrantes: number;
+  minimo: number;
+  armadoPorElDocente: boolean;
+}): boolean {
+  return opts.abierto && !opts.armadoPorElDocente && opts.integrantes < opts.minimo;
 }
 
 export type ProblemaDeSeleccion =

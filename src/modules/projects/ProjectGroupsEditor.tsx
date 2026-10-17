@@ -17,6 +17,7 @@ import { Plus, Trash2, GripVertical, Users, ArrowRightLeft, Check } from "lucide
 import { Spinner } from "@/components/ui/spinner";
 import { SearchInput } from "@/components/ui/search-input";
 import { filtrarTablero } from "@/modules/workshops/buscar-en-grupos";
+import { topesDeGrupo } from "@/modules/grupos/grupos-estudiante";
 import {
   GuardarNotasDeGrupos,
   NotaDeGrupoInline,
@@ -78,6 +79,12 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
   /** Proyecto EXTERNO: cada grupo se puede calificar desde su tarjeta (ver
    *  WorkshopGroupsEditor). Las notas van en la escala del curso ancla. */
   const [esExterno, setEsExterno] = useState(false);
+  /** Modo grupal estricto (sin grupo no se entrega) y, si los arman los
+   *  estudiantes, sus topes: cambian lo que la ventana le explica al docente. */
+  const [grupal, setGrupal] = useState(false);
+  const [topesEstudiantes, setTopesEstudiantes] = useState<{ minimo: number; maximo: number } | null>(
+    null,
+  );
   const [escala, setEscala] = useState(5);
   const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
   const { calificar, guardando: guardandoNota } = useCalificarGrupo("project", projectId);
@@ -135,13 +142,23 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
       }
       setStudents(profs);
 
-      const { data: pRow } = await db
-        .from("projects")
-        .select("is_external, course_id")
-        .eq("id", projectId)
-        .maybeSingle();
-      const externo = (pRow as { is_external?: boolean | null } | null)?.is_external === true;
+      // `*` y no una lista: `students_form_groups` es reciente (mig 20262830000000).
+      const { data: pRow } = await db.from("projects").select("*").eq("id", projectId).maybeSingle();
+      const proyecto = (pRow ?? {}) as {
+        is_external?: boolean | null;
+        group_mode?: string | null;
+        students_form_groups?: boolean | null;
+        group_size_min?: number | null;
+        group_size_max?: number | null;
+      };
+      const externo = proyecto.is_external === true;
       setEsExterno(externo);
+      setGrupal(!externo && proyecto.group_mode === "group_required");
+      setTopesEstudiantes(
+        proyecto.students_form_groups
+          ? topesDeGrupo(proyecto.group_size_min, proyecto.group_size_max)
+          : null,
+      );
       if (externo) {
         const ancla = (pRow as { course_id?: string | null } | null)?.course_id ?? courseIds[0];
         const [{ data: curso }, { data: indiv }] = await Promise.all([
@@ -400,8 +417,15 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
             {/* En un proyecto externo nadie «entrega»: el grupo se califica junto. */}
             {esExterno
               ? t("gruposNota.tableroHint")
-              : t("hc_modulesProjectsProjectGroupsEditor.projectGroupsHelp")}
+              : grupal
+                ? t("gruposEstudiante.docente.tableroGrupal")
+                : t("hc_modulesProjectsProjectGroupsEditor.projectGroupsHelp")}
           </p>
+          {grupal && topesEstudiantes && (
+            <p className="text-xs text-muted-foreground">
+              {t("gruposEstudiante.docente.topesSoloEstudiantes", topesEstudiantes)}
+            </p>
+          )}
           {esExterno && (
             <p className="text-xs text-muted-foreground">{t("gruposNota.hintProyecto")}</p>
           )}
@@ -475,7 +499,9 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
               <CardTitle className="text-sm flex items-center gap-2">
                 {esExterno
                   ? t("gruposNota.sinGrupoTitulo")
-                  : t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
+                  : grupal
+                    ? t("gruposEstudiante.docente.sinGrupoTitulo")
+                    : t("hc_modulesProjectsProjectGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-3xs">
                   {unassigned.length}
                 </Badge>
@@ -483,7 +509,9 @@ export function ProjectGroupsEditor({ projectId, courseIds }: Props) {
               <p className="text-3xs text-muted-foreground">
                 {esExterno
                   ? t("gruposNota.sinGrupoHint")
-                  : t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
+                  : grupal
+                    ? t("gruposEstudiante.docente.sinGrupoHint")
+                    : t("hc_modulesProjectsProjectGroupsEditor.unassignedHelp")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">

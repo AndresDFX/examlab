@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import { GruposDesdeImagenDialog } from "./GruposDesdeImagenDialog";
 import { filtrarTablero } from "./buscar-en-grupos";
+import { topesDeGrupo } from "@/modules/grupos/grupos-estudiante";
 import { SearchInput } from "@/components/ui/search-input";
 import {
   GuardarNotasDeGrupos,
@@ -128,6 +129,10 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
    * grupo es la de su entrega y se pone en «Calificar».
    */
   const [esExterno, setEsExterno] = useState(false);
+  /** Modo grupal estricto (sin grupo no se entrega) y si los arman los
+   *  estudiantes: cambian lo que la ventana le explica al docente. */
+  const [grupal, setGrupal] = useState(false);
+  const [armanEstudiantes, setArmanEstudiantes] = useState(false);
   /** Las notas externas van en la escala del curso. */
   const [escala, setEscala] = useState(5);
   const [notas, setNotas] = useState<Map<string, NotaExterna>>(new Map());
@@ -201,13 +206,17 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
       }
       const { data: wsRow } = await db
         .from("workshops")
-        .select("group_size_min, group_size_max, is_external")
+        // `*` y no una lista: `students_form_groups` es reciente (mig 20262830000000).
+        .select("*")
         .eq("id", workshopId)
         .maybeSingle();
       setGroupSizeMin((wsRow as { group_size_min?: number | null } | null)?.group_size_min ?? null);
       setGroupSizeMax((wsRow as { group_size_max?: number | null } | null)?.group_size_max ?? null);
       const externo = (wsRow as { is_external?: boolean | null } | null)?.is_external === true;
       setEsExterno(externo);
+      const taller = (wsRow ?? {}) as { group_mode?: string | null; students_form_groups?: boolean | null };
+      setGrupal(!externo && taller.group_mode === "group_required");
+      setArmanEstudiantes(taller.students_form_groups === true);
       if (externo) {
         const { data: curso } = await supabase
           .from("courses")
@@ -675,8 +684,18 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
             {/* En un taller externo nadie «entrega»: el grupo se califica junto. */}
             {esExterno
               ? t("gruposNota.tableroHint")
-              : t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsHint")}
+              : grupal
+                ? t("gruposEstudiante.docente.tableroGrupal")
+                : t("hc_modulesWorkshopsWorkshopGroupsEditor.workshopGroupsHint")}
           </p>
+          {grupal && armanEstudiantes && (
+            <p className="text-xs text-muted-foreground">
+              {t(
+                "gruposEstudiante.docente.topesSoloEstudiantes",
+                topesDeGrupo(groupSizeMin, groupSizeMax),
+              )}
+            </p>
+          )}
           {esExterno && (
             <p className="text-xs text-muted-foreground">{t("gruposNota.hint")}</p>
           )}
@@ -913,7 +932,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
               <CardTitle className="text-sm flex items-center gap-2">
                 {esExterno
                   ? t("gruposNota.sinGrupoTitulo")
-                  : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedTitle")}
+                  : grupal
+                    ? t("gruposEstudiante.docente.sinGrupoTitulo")
+                    : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedTitle")}
                 <Badge variant="outline" className="text-3xs">
                   {unassigned.length}
                 </Badge>
@@ -921,7 +942,9 @@ export function WorkshopGroupsEditor({ workshopId, courseId }: Props) {
               <p className="text-3xs text-muted-foreground">
                 {esExterno
                   ? t("gruposNota.sinGrupoHint")
-                  : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedHint")}
+                  : grupal
+                    ? t("gruposEstudiante.docente.sinGrupoHint")
+                    : t("hc_modulesWorkshopsWorkshopGroupsEditor.unassignedHint")}
               </p>
             </CardHeader>
             <CardContent className="space-y-1.5 min-h-[80px]">

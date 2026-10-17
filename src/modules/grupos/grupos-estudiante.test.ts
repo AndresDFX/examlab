@@ -2,6 +2,8 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  armadoPorElDocente,
+  avisarBajoElMinimo,
   cuposLibres,
   esModoGrupal,
   grupoEnLaTarjeta,
@@ -75,6 +77,49 @@ describe("qué muestra la tarjeta sobre el grupo", () => {
       bajoElMinimo: false,
     });
   });
+
+  it("no le dice que le falta gente a quien el DOCENTE dejó en un grupo de una persona", () => {
+    const g = { id: "g", nombre: "Pedro", integrantes: 1, entregado: false, armado_por_docente: true };
+    expect(grupoEnLaTarjeta(resumen({ modo: "group_required", grupo: g }))).toMatchObject({
+      tipo: "con_grupo",
+      bajoElMinimo: false,
+      // Igual puede sumar compañeros desde «Gestionar», si los encuentra.
+      puedeCambiar: true,
+    });
+  });
+});
+
+describe("quién armó el grupo", () => {
+  it("la RPC del estudiante guarda quién lo creó; la ventana del docente no", () => {
+    expect(armadoPorElDocente({ created_by: null })).toBe(true);
+    expect(armadoPorElDocente({})).toBe(true);
+    expect(armadoPorElDocente({ created_by: "estudiante" })).toBe(false);
+  });
+
+  it("el aviso de mínimo es solo para los grupos de los estudiantes, abiertos y cortos", () => {
+    const base = { abierto: true, integrantes: 1, minimo: 2, armadoPorElDocente: false };
+    expect(avisarBajoElMinimo(base)).toBe(true);
+    expect(avisarBajoElMinimo({ ...base, armadoPorElDocente: true })).toBe(false);
+    expect(avisarBajoElMinimo({ ...base, abierto: false })).toBe(false);
+    expect(avisarBajoElMinimo({ ...base, integrantes: 2 })).toBe(false);
+  });
+});
+
+describe("las ventanas «Grupos» del docente no llenan created_by", () => {
+  // `armadoPorElDocente` se apoya en que SOLO la RPC del estudiante guarda quién
+  // creó el grupo. Si una pantalla del docente empezara a mandarlo, sus grupos
+  // de una persona volverían a mostrarle al estudiante que le falta gente.
+  const archivos = [
+    "src/modules/projects/ProjectGroupsEditor.tsx",
+    "src/modules/workshops/WorkshopGroupsEditor.tsx",
+    "src/modules/workshops/GruposDesdeImagenDialog.tsx",
+  ];
+  for (const archivo of archivos) {
+    it(archivo, () => {
+      const fuente = readFileSync(resolve(process.cwd(), archivo), "utf8");
+      expect(fuente).not.toMatch(/created_by\s*:/);
+    });
+  }
 });
 
 describe("selección de compañeros", () => {

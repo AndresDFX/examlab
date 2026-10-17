@@ -11462,10 +11462,14 @@
       "armaElDocente": "El docente, desde «Grupos»",
       "armanLosEstudiantes": "Los estudiantes, eligiendo compañeros de su curso",
       "hintDocente": "Tú armas los grupos con el botón «Grupos» de «Contenido y participantes» (disponible una vez guardado).",
-      "hintEstudiantes": "Cada estudiante arma su grupo eligiendo compañeros de su mismo curso. Una persona solo puede estar en un grupo, y el grupo ya no cambia cuando entrega o cuando vence el plazo. Tú puedes ajustarlos igual desde «Grupos».",
+      "hintEstudiantes": "Cada estudiante arma su grupo eligiendo compañeros de su mismo curso. Una persona solo puede estar en un grupo, y el grupo ya no cambia cuando entrega o cuando vence el plazo. Tú puedes ajustarlos igual desde «Grupos», incluso armar un grupo de una sola persona para quien no encuentre grupo.",
       "minimo": "Mínimo de integrantes",
       "maximo": "Máximo de integrantes",
-      "topesInvalidos": "El máximo de integrantes no puede ser menor que el mínimo."
+      "topesInvalidos": "El máximo de integrantes no puede ser menor que el mínimo.",
+      "tableroGrupal": "Crea grupos y arrastra estudiantes. Como el trabajo es grupal, quien no tenga grupo no puede entregar. Puedes armar grupos del tamaño que necesites, también de una sola persona para quien no encuentre grupo.",
+      "topesSoloEstudiantes": "Quien no tenga grupo también puede armarlo con sus compañeros; el mínimo y el máximo ({{minimo}} a {{maximo}} integrantes) solo limitan esos grupos, no los que armas tú.",
+      "sinGrupoTitulo": "Sin grupo (no pueden entregar)",
+      "sinGrupoHint": "Sin grupo no pueden entregar. Arrástralos a un grupo; puede ser uno de una sola persona."
     }
   }
 }
