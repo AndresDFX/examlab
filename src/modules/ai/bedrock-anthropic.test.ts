@@ -1,3 +1,5 @@
+// @vitest-environment node
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 // Del EDGE por ruta relativa: valida el traductor que corre en producción.
@@ -126,5 +128,20 @@ describe("traducirRespuestaAnthropic", () => {
       choices: Array<{ message: Record<string, unknown> }>;
     };
     expect(r.choices[0].message).toEqual({ role: "assistant", content: "ok" });
+  });
+});
+
+describe("enrutado en aiChatCompletionFailover (ai-model.ts no se puede importar bajo vitest: usa Deno)", () => {
+  const fuente = readFileSync("supabase/functions/_shared/ai-model.ts", "utf8");
+
+  it("una llamada de Claude con adjuntos va por InvokeModel y la de solo texto sigue por Converse", () => {
+    // Si volviera a Converse, su traductor convierte el contenido en texto con JSON.stringify: el
+    // modelo recibiría megas de base64 como si fueran la entrega.
+    expect(fuente).toMatch(/anthropicMultimodal\s*=\s*esAnthropicEnBedrock\s*&&\s*tieneContenidoMultimodal\(payload\)/);
+    const invoke = fuente.indexOf("bedrockAnthropicInvokeFetch(key");
+    const converse = fuente.indexOf("bedrockConverseFetch(key");
+    expect(invoke).toBeGreaterThan(-1);
+    expect(converse).toBeGreaterThan(invoke);
+    expect(fuente.slice(fuente.lastIndexOf("anthropicMultimodal", invoke), invoke)).toMatch(/anthropicMultimodal\s*\?\s*$/);
   });
 });

@@ -33,6 +33,7 @@ import {
   bytesABase64,
   capacidadDeAdjuntos,
   partesDeAdjuntos,
+  planDeRescate,
   reunirAdjuntos,
   type ResultadoAdjuntos,
 } from "../_shared/adjuntos-zip.ts";
@@ -2866,7 +2867,8 @@ Idioma de salida obligatorio: ${pfLangName}.`,
             archivos: unzipped,
             rutas: revisarArchivosDelZip(allPaths, null).aceptados,
             capacidad,
-            descomprimir: (zip, quiere) => fflate.unzipSync(zip, { filter: (f) => quiere(f.name) }),
+            descomprimir: (zip, quiere) =>
+              fflate.unzipSync(zip, { filter: (f) => quiere(f.name, f.originalSize) }),
           });
           if (visuales.porTope) totalLimitReached = true;
         }
@@ -2889,10 +2891,10 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       }
       let wasTruncated = totalLimitReached || perFileTruncated > 0;
 
-      if (codeFiles.length === 0 && adjuntos.length === 0 && zipAbierto) {
-        // Nada legible (solo imágenes o PDF escaneados): sin nota. Un 0 se leería como «no entregó»;
-        // la entrega queda por calificar y el docente pone la nota en su ventana de calificación.
-        return new Response(
+      // Nada que leer ni ver (solo imágenes que el modelo no ve, o PDF escaneados): sin nota. Un 0 se
+      // leería como «no entregó»; la entrega queda por calificar y el docente pone la nota en su ventana.
+      const sinContenidoLegible = () =>
+        new Response(
           JSON.stringify({
             ok: false,
             error:
@@ -2901,7 +2903,7 @@ Idioma de salida obligatorio: ${pfLangName}.`,
           }),
           { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
-      }
+      if (codeFiles.length === 0 && adjuntos.length === 0 && zipAbierto) return sinContenidoLegible();
       if (codeFiles.length === 0 && adjuntos.length === 0) {
         return new Response(
           JSON.stringify({
@@ -2925,27 +2927,26 @@ Idioma de salida obligatorio: ${pfLangName}.`,
       const systemPrompt = `${customSystem}\n\nPuntaje máximo permitido: ${maxPoints}.\nREGLA DE IDIOMA: responde siempre en ${pfLangName}.`;
 
       const fileSection = codeFiles.map((f) => `─── ${f.path} ───\n${f.content}\n`).join("\n");
-      const tituloContenido = zipAbierto
-        ? `Contenido de la entrega (${codeFiles.length} archivo(s) legibles):`
-        : `Código fuente entregado (${codeFiles.length} archivo(s)):`;
+      const tituloContenido = (n: number) =>
+        zipAbierto ? `Contenido de la entrega (${n} archivo(s) legibles):` : `Código fuente entregado (${n} archivo(s)):`;
       const avisoNoLeidos =
         noLeidos.length > 0
           ? `\n\nArchivos de la entrega que NO puedes leer ni ver (por su formato, su tamaño o porque superaron el tope): ${noLeidos.slice(0, 30).join(", ")}${noLeidos.length > 30 ? ` (+${noLeidos.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no poder leerlos; califica lo que sí puedes leer y dilo en la retroalimentación.`
           : "";
-      const avisoPdfParcial = pdfParcial
-        ? "\n\nDe algún PDF solo se leyeron las primeras páginas (lo dice su encabezado): no bajes la nota por lo que no viste."
-        : "";
+      const AVISO_PDF_PARCIAL =
+        "\n\nDe algún PDF solo se leyeron las primeras páginas (lo dice su encabezado): no bajes la nota por lo que no viste.";
+      const avisoPdfParcial = pdfParcial ? AVISO_PDF_PARCIAL : "";
       const projectCtx =
         projectDescription && String(projectDescription).trim()
           ? `Contexto global del proyecto (úsalo para entender el alcance y propósito):\n${String(projectDescription).trim()}\n\n`
           : "";
 
-      const textoDelUsuario = (secciones: string, avisos: string) => `${projectCtx}Pregunta del proyecto: ${fileTitle}
+      const textoDelUsuario = (secciones: string, avisos: string, legibles = codeFiles.length) => `${projectCtx}Pregunta del proyecto: ${fileTitle}
 Descripción: ${fileDescription ?? "(sin descripción)"}
 Rúbrica esperada: ${expectedRubric ?? "Evalúa diseño, corrección y completitud del código."}
 Puntaje máximo: ${maxPoints}
 
-${tituloContenido}
+${tituloContenido(legibles)}
 
 ${secciones}${avisoNoLeidos}${avisoPdfParcial}${avisos}
 
@@ -2990,6 +2991,8 @@ Idioma de salida obligatorio: ${pfLangName}.`;
             ...partesDeAdjuntos(adjuntos, bytesABase64),
           ]);
         } catch (e) {
+          // Sin clave configurada no hay nada que rescatar: la llamada sin adjuntos fallaría igual.
+          if (e instanceof Error && e.message.startsWith("Falta la API key")) throw e;
           aiRes = new Response(e instanceof Error ? e.message : String(e), { status: 599 });
         }
         if (aiRes.ok) {
@@ -3007,20 +3010,24 @@ Idioma de salida obligatorio: ${pfLangName}.`;
             pdfs.length > 0
               ? await leerDocumentosDelZip(unzipped, pdfs, new Set(), Math.max(0, MAX_CHARS - totalChars))
               : null;
-          const leidos = new Set((rescate?.archivos ?? []).map((f) => f.path.replace(/ \(páginas .*\)$/, "")));
-          const sinMostrar = adjuntos.filter((a) => !leidos.has(a.ruta)).map((a) => a.etiqueta);
-          const secciones =
-            fileSection + (rescate?.archivos ?? []).map((f) => `\n─── ${f.path} ───\n${f.content}\n`).join("");
-          const aviso =
-            sinMostrar.length > 0
-              ? `\n\nImágenes y PDF de la entrega que esta vez no se te pudieron mostrar: ${sinMostrar.slice(0, 30).join(", ")}${sinMostrar.length > 30 ? ` (+${sinMostrar.length - 30} más)` : ""}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no verlos.`
-              : "";
+          const rescatados = rescate?.archivos ?? [];
+          const plan = planDeRescate({
+            adjuntos,
+            imagenesDeDocumentosSinMostrar: visuales.imagenesDeDocumentosSinMostrar,
+            pdfsLeidos: new Set(rescatados.map((f) => f.path.replace(/ \(páginas .*\)$/, ""))),
+            hayTexto: codeFiles.length > 0 || rescatados.length > 0,
+          });
+          if (plan.sinContenido) return sinContenidoLegible();
+          totalChars += rescate?.caracteres ?? 0;
           wasTruncated = true;
           totalLimitReached = true;
-          aiRes = await llamarIa(textoDelUsuario(secciones, aviso));
+          const secciones = fileSection + rescatados.map((f) => `\n─── ${f.path} ───\n${f.content}\n`).join("");
+          const avisos = plan.aviso + (rescate?.pdfParcial && !pdfParcial ? AVISO_PDF_PARCIAL : "");
+          aiRes = await llamarIa(textoDelUsuario(secciones, avisos, codeFiles.length + rescatados.length));
         }
       } else {
-        aiRes = await llamarIa(textoDelUsuario(fileSection, ""));
+        // Sin adjuntos igual se avisa de las imágenes de un documento que no se pudieron mostrar.
+        aiRes = await llamarIa(textoDelUsuario(fileSection, visuales ? avisoDeAdjuntos(visuales) : ""));
       }
       if (visuales) {
         console.log(

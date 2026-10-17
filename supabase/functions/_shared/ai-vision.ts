@@ -2,8 +2,9 @@
  * ¿El modelo de IA que la institución tiene configurado puede LEER una imagen?
  *
  * ── Por qué esto existe ───────────────────────────────────────────────────
- * Medido contra la cuenta real de producción: las seis instituciones resuelven a
- * Bedrock `openai.gpt-oss-120b-1:0`, que es **solo texto**. AWS lo declara
+ * Medido contra la cuenta real de producción al escribirse: las seis instituciones
+ * resolvían a Bedrock `openai.gpt-oss-120b-1:0`, que es **solo texto** (el 2026-10-16 tres
+ * califican con Claude Haiku en Bedrock y el resto con Gemini). AWS lo declara
  * (`inputModalities:["TEXT"]`) y un POST con una imagen responde
  * `400 Model does not support image modality`. Ese 400 además **no rota claves**
  * (`ai-failover.ts`: 400 no es un status rotable, y con razón — el body es idéntico,
@@ -61,7 +62,9 @@ export function modeloAceptaImagen(provider: string, model: string): boolean {
     case "openai":
       return OPENAI_CON_VISION.some((p) => m.startsWith(p));
     case "bedrock":
-      // Siempre false, y NO por el modelo: por la URL. Ver el encabezado.
+      // Siempre false PARA ESTA LECTURA: la de grupos sigue sustituyendo a Gemini, el camino
+      // que se probó. Claude en Bedrock sí ve imágenes y PDF por InvokeModel; lo que puede ver el
+      // modelo que CALIFICA un ZIP lo decide `capacidadDeAdjuntos` (adjuntos-zip.ts).
       return false;
     default:
       return false;

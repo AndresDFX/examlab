@@ -4718,7 +4718,7 @@
   },
   "projectFiles": {
     "zipContenidoLabel": "What the ZIP may contain",
-    "zipContenidoHint": "By default, source code only. For a project with a report, diagrams or screenshots, allow documents or any file. The AI reads code, text, Word, PowerPoint and PDF; the teacher reviews the rest.",
+    "zipContenidoHint": "By default, source code only. For a project with a report, diagrams or screenshots, allow documents or any file. The AI reads code, text, Word, PowerPoint and PDF, and if your institution's model allows it, it also sees images, standalone or pasted into a document; whatever it can't read or see, the teacher reviews.",
     "zipContenido": {
       "codigo": "Source code only",
       "documentos": "Code and documents (PDF, Word, PowerPoint, Excel, images)",
@@ -9481,7 +9481,7 @@
     "workModeMixed": "Mixed — those with a group submit as a group, the rest individually",
     "zipLegacy": "(legacy ZIP)",
     "zipTruncatedBadge": "ZIP truncated · review manually",
-    "zipTruncatedTooltip": "The AI analyzed {{chars}} of the ZIP's characters. Individual files > 50KB were truncated and/or the total exceeded 200KB.",
+    "zipTruncatedTooltip": "The AI analyzed {{chars}} characters of the ZIP: a file exceeded 50 KB, the total exceeded 200 KB, or not all images and PDFs could be shown to it.",
     "dateFilterLabel": "Filter by start or due date"
   },
   "hc_routesAppTeacherReports": {

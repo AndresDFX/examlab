@@ -14,9 +14,11 @@ import {
   esPdf,
   infoDeImagen,
   partesDeAdjuntos,
+  planDeRescate,
   reunirAdjuntos,
   type Descomprimir,
 } from "../../../supabase/functions/_shared/adjuntos-zip.ts";
+import { traducirAMensajesAnthropic } from "../../../supabase/functions/_shared/bedrock-anthropic.ts";
 
 const enc = (s: string) => new TextEncoder().encode(s);
 
@@ -89,7 +91,8 @@ function docx(media: Record<string, Uint8Array>): Uint8Array {
   return zipSync(archivos);
 }
 
-const descomprimir: Descomprimir = (zip, quiere) => unzipSync(zip, { filter: (f) => quiere(f.name) });
+const descomprimir: Descomprimir = (zip, quiere) =>
+  unzipSync(zip, { filter: (f) => quiere(f.name, f.originalSize) });
 const CLAUDE = capacidadDeAdjuntos("bedrock", "us.anthropic.claude-haiku-4-5-20251001-v1:0");
 const GEMINI = capacidadDeAdjuntos("gemini", "gemini-2.5-flash");
 
@@ -272,7 +275,7 @@ describe("partesDeAdjuntos y avisoDeAdjuntos", () => {
     expect(aviso).toContain("VES 1 imagen y 1 PDF");
     expect(aviso).not.toContain("no se te muestra");
     const conFaltante = avisoDeAdjuntos({ adjuntos: [], imagenesDeDocumentosSinMostrar: 1 });
-    expect(conFaltante).toContain("Hay 1 imagen más dentro de los documentos que no se te muestra");
+    expect(conFaltante).toContain("Hay 1 imagen dentro de los documentos que no se te muestra");
     expect(avisoDeAdjuntos({ adjuntos: [], imagenesDeDocumentosSinMostrar: 0 })).toBe("");
   });
 });
@@ -283,5 +286,96 @@ describe("bytesABase64", () => {
     for (let i = 0; i < b.length; i++) b[i] = (i * 7919) & 0xff;
     expect(bytesABase64(b)).toBe(Buffer.from(b).toString("base64"));
     expect(bytesABase64(new Uint8Array())).toBe("");
+  });
+});
+
+describe("lo que se infla de un documento", () => {
+  function pptx(media: Record<string, Uint8Array>): Uint8Array {
+    const archivos: Record<string, Uint8Array> = { "ppt/slides/slide1.xml": enc("<p:sld/>") };
+    for (const [nombre, bytes] of Object.entries(media)) archivos[`ppt/media/${nombre}`] = bytes;
+    return zipSync(archivos);
+  }
+
+  it("un video de una presentación no se descomprime ni se cuenta como imagen", () => {
+    const pedidas: string[] = [];
+    const r = reunirAdjuntos({
+      archivos: { "Expo.pptx": pptx({ "media1.mp4": new Uint8Array(5000).fill(9), "image1.png": png(800, 600) }) },
+      rutas: ["Expo.pptx"],
+      capacidad: CLAUDE,
+      descomprimir: (z, quiere) => {
+        const r = descomprimir(z, quiere);
+        pedidas.push(...Object.keys(r));
+        return r;
+      },
+    });
+    expect(pedidas).toEqual(["ppt/media/image1.png"]);
+    expect(r.adjuntos.map((a) => a.etiqueta)).toEqual(["Expo.pptx · imagen 1"]);
+    expect(r.imagenesDeDocumentosSinMostrar).toBe(0);
+  });
+
+  it("una imagen pegada que pesa más del tope no se infla y se avisa", () => {
+    const r = reunir({ "Informe.docx": docx({ "image1.png": png(1000, 800, MAX_BYTES_IMAGEN + 10) }) });
+    expect(r.adjuntos).toEqual([]);
+    expect(r.imagenesDeDocumentosSinMostrar).toBe(1);
+  });
+
+  it("Claude anterior a la versión 3 es solo texto", () => {
+    expect(capacidadDeAdjuntos("bedrock", "anthropic.claude-v2:1")).toEqual({ imagenes: [], pdf: false });
+    expect(capacidadDeAdjuntos("bedrock", "anthropic.claude-instant-v1")).toEqual({ imagenes: [], pdf: false });
+  });
+});
+
+describe("contarPaginasPdf ante un PDF fabricado para trabarlo", () => {
+  it("es lineal: un mega de /Count y /Type /Pages se cuenta en milisegundos", () => {
+    const relleno = "/Count 1 ".repeat(60_000) + "<< /Type /Pages /Count 7 >> ".repeat(2_000);
+    const t0 = performance.now();
+    expect(contarPaginasPdf(enc(`%PDF-1.7 ${relleno}`))).toBe(7);
+    expect(performance.now() - t0).toBeLessThan(2000);
+  });
+});
+
+describe("planDeRescate — la llamada con adjuntos falló y se califica sin ellos", () => {
+  const r = reunir({
+    "diagramas/er.png": png(800, 600, 6),
+    "mockup/Mockup.pdf": pdf(2),
+    "Informe.docx": docx({ "image1.png": png(640, 480, 8, 9), "image2.emf": new Uint8Array(80).fill(1) }),
+  });
+
+  it("una entrega de solo imágenes no se califica: no hay nada que leer", () => {
+    const plan = planDeRescate({ adjuntos: r.adjuntos, imagenesDeDocumentosSinMostrar: 0, pdfsLeidos: new Set(), hayTexto: false });
+    expect(plan).toEqual({ sinContenido: true, aviso: "" });
+  });
+
+  it("con texto, nombra lo que no se pudo mostrar; el PDF que sí se leyó como texto no se nombra", () => {
+    const plan = planDeRescate({
+      adjuntos: r.adjuntos,
+      imagenesDeDocumentosSinMostrar: r.imagenesDeDocumentosSinMostrar,
+      pdfsLeidos: new Set(["mockup/Mockup.pdf"]),
+      hayTexto: true,
+    });
+    expect(plan.sinContenido).toBe(false);
+    expect(plan.aviso).toContain("no se te pudieron mostrar: diagramas/er.png, Informe.docx · imagen 1.");
+    expect(plan.aviso).not.toContain("Mockup.pdf");
+    // El EMF del documento también se le avisa.
+    expect(plan.aviso).toContain("Hay 1 imagen dentro de los documentos");
+  });
+});
+
+describe("las partes que arma partesDeAdjuntos sobreviven al traductor de Claude", () => {
+  it("ningún adjunto se pierde en el camino: el aviso promete los que el modelo efectivamente recibe", () => {
+    const r = reunir({
+      "a.png": png(400, 300, 1, 1),
+      "b.jpg": jpeg(400, 300),
+      "c.gif": gif(400, 300),
+      "d.webp": webpVp8x(400, 300),
+      "e.pdf": pdf(1),
+    });
+    expect(r.adjuntos).toHaveLength(5);
+    const cuerpo = traducirAMensajesAnthropic({
+      messages: [{ role: "user", content: [{ type: "text", text: "x" }, ...partesDeAdjuntos(r.adjuntos, bytesABase64)] }],
+    }) as { messages: Array<{ content: Array<{ type: string }> }> };
+    const tipos = cuerpo.messages[0].content.map((b) => b.type);
+    expect(tipos.filter((t) => t === "image")).toHaveLength(4);
+    expect(tipos.filter((t) => t === "document")).toHaveLength(1);
   });
 });

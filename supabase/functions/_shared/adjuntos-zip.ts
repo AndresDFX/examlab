@@ -53,9 +53,14 @@ export const PAGINAS_SUPUESTAS = 10;
 /** Bytes crudos entre todos los adjuntos: en base64 son un tercio más, y el cuerpo entero viaja en un POST. */
 export const MAX_BYTES_ADJUNTOS = 12_000_000;
 
+/** `claude-v2` y `claude-instant` (anteriores a Claude 3) son solo texto. */
+const CLAUDE_SOLO_TEXTO = /anthropic\.claude-(v\d|instant)/i;
+
 export function capacidadDeAdjuntos(provider: string, model: string): CapacidadDeAdjuntos {
   if (provider === "bedrock") {
-    return esModeloAnthropicEnBedrock(model) ? { imagenes: TODAS_LAS_IMAGENES, pdf: true } : NINGUNA;
+    return esModeloAnthropicEnBedrock(model) && !CLAUDE_SOLO_TEXTO.test(model)
+      ? { imagenes: TODAS_LAS_IMAGENES, pdf: true }
+      : NINGUNA;
   }
   if (!modeloAceptaImagen(provider, model)) return NINGUNA;
   // Gemini documenta PNG, JPEG y WEBP (además de HEIC/HEIF); GIF no.
@@ -135,18 +140,25 @@ export function esPdf(b: Uint8Array): boolean {
 }
 
 /**
- * Páginas de un PDF sin parsearlo: el `/Count` más alto de un nodo `/Type /Pages` (la raíz del árbol
- * de páginas lleva el total). `null` cuando no se ve —un PDF con el árbol dentro de un flujo de objetos
- * comprimido—: quien llama lo presupuesta con `PAGINAS_SUPUESTAS`. Parsearlo de verdad cuesta ~100 ms
- * de CPU por página, y el servidor corta la función que pasa de ~2 s.
+ * Páginas de un PDF sin parsearlo: el `/Count` más alto cerca de un nodo `/Type /Pages` (la raíz del
+ * árbol de páginas lleva el total). `null` cuando no se ve —un PDF con el árbol dentro de un flujo de
+ * objetos comprimido—: quien llama lo presupuesta con `PAGINAS_SUPUESTAS`. Parsearlo de verdad cuesta
+ * ~100 ms de CPU por página, y el servidor corta la función que pasa de ~2 s.
+ *
+ * Búsqueda lineal a propósito: el PDF lo sube el estudiante, y una expresión con comodines entre
+ * `/Pages` y `/Count` tardaba más de un segundo con 200 KB fabricados para eso.
  */
 export function contarPaginasPdf(b: Uint8Array): number | null {
   const s = new TextDecoder("latin1").decode(b);
+  const VENTANA = 400;
   let max = 0;
-  const re = /\/Type\s*\/Pages\b([^>]*?)\/Count\s+(\d+)|\/Count\s+(\d+)([^>]*?)\/Type\s*\/Pages\b/g;
-  for (const m of s.matchAll(re)) {
-    const n = Number(m[2] ?? m[3]);
-    if (Number.isFinite(n) && n > max) max = n;
+  const nodo = /\/Type\s*\/Pages\b/g;
+  for (let m = nodo.exec(s), vistos = 0; m && vistos < 50; m = nodo.exec(s), vistos++) {
+    const alrededor = s.slice(Math.max(0, m.index - VENTANA), m.index + VENTANA);
+    for (const c of alrededor.matchAll(/\/Count\s+(\d{1,7})/g)) {
+      const n = Number(c[1]);
+      if (n > max) max = n;
+    }
   }
   return max > 0 ? max : null;
 }
@@ -174,10 +186,16 @@ export interface ResultadoAdjuntos {
   porTope: boolean;
 }
 
-/** fflate.unzipSync con filtro, inyectado. */
-export type Descomprimir = (zip: Uint8Array, quiere: (nombre: string) => boolean) => Record<string, Uint8Array>;
+/** fflate.unzipSync con filtro, inyectado. `tamano` es el tamaño descomprimido de cada entrada. */
+export type Descomprimir = (
+  zip: Uint8Array,
+  quiere: (nombre: string, tamano: number) => boolean,
+) => Record<string, Uint8Array>;
 
 const EXT_IMAGEN = new Set(["png", "jpg", "jpeg", "gif", "webp"]);
+/** Imágenes que Office guarda y ningún proveedor recibe: se avisan como no mostradas. */
+const EXT_IMAGEN_SIN_SOPORTE = new Set(["emf", "wmf", "tif", "tiff", "bmp"]);
+const EXT_CANDIDATAS = new Set([...EXT_IMAGEN, "pdf", "docx", "pptx"]);
 const MEDIA_DE_OFFICE = /^(word|ppt)\/media\/[^/]+$/;
 
 /**
@@ -202,7 +220,7 @@ export function reunirAdjuntos(entrada: {
   };
   if (capacidad.imagenes.length === 0 && !capacidad.pdf) return out;
 
-  const rutas = [...entrada.rutas].sort(ordenNatural);
+  const rutas = entrada.rutas.filter((r) => EXT_CANDIDATAS.has(extension(r))).sort(ordenNatural);
   const vistas = new Set<string>();
   let imagenes = 0;
   let pdfs = 0;
@@ -265,11 +283,20 @@ export function reunirAdjuntos(entrada: {
       const b = archivos[ruta];
       if (!b) continue;
       let media: Record<string, Uint8Array>;
+      let sinSoporte = 0;
       try {
-        media = descomprimir(b, (nombre) => MEDIA_DE_OFFICE.test(nombre));
+        // Solo se infla lo que se puede mandar: un video de una presentación no se descomprime.
+        media = descomprimir(b, (nombre, tamano) => {
+          if (!MEDIA_DE_OFFICE.test(nombre)) return false;
+          const ext = extension(nombre);
+          if (EXT_IMAGEN.has(ext) && tamano <= MAX_BYTES_IMAGEN) return true;
+          if (EXT_IMAGEN.has(ext) || EXT_IMAGEN_SIN_SOPORTE.has(ext)) sinSoporte++;
+          return false;
+        });
       } catch {
         continue; // un documento dañado ya lo reporta la lectura de texto
       }
+      out.imagenesDeDocumentosSinMostrar += sinSoporte;
       const nombres = Object.keys(media).sort(ordenNatural);
       nombres.forEach((nombre, i) => {
         const v = intentarImagen(media[nombre], ruta, `${ruta} · imagen ${i + 1}`);
@@ -324,21 +351,55 @@ export function avisoDeAdjuntos(r: Pick<ResultadoAdjuntos, "adjuntos" | "imagene
       `Además del texto, VES ${cuales} de la entrega como adjuntos, después de este mensaje y cada uno precedido por su ruta. Las imágenes que venían pegadas dentro de un documento se nombran «documento · imagen N». Son parte de la entrega: los diagramas, las capturas de una ejecución, las pantallas de un mockup y los prototipos cuentan como evidencia de la rúbrica. Revisa que correspondan a lo pedido y que sean coherentes con el resto; si algo de una imagen no se distingue, dilo en vez de suponerlo.`,
     );
   }
-  if (r.imagenesDeDocumentosSinMostrar > 0) {
-    const n = r.imagenesDeDocumentosSinMostrar;
-    partes.push(
-      `Hay ${n} imagen${n === 1 ? "" : "es"} más dentro de los documentos que no se te ${n === 1 ? "muestra" : "muestran"} (por el tope de adjuntos o por su formato): existe${n === 1 ? "" : "n"} y el docente la${n === 1 ? "" : "s"} revisa; no bajes la nota por no verla${n === 1 ? "" : "s"}.`,
-    );
-  }
+  const enDocumentos = avisoImagenesDeDocumentos(r.imagenesDeDocumentosSinMostrar);
+  if (enDocumentos) partes.push(enDocumentos);
   return partes.length > 0 ? `\n\n${partes.join("\n\n")}` : "";
 }
 
-/** base64 sin dependencias: el `btoa` nativo sobre trozos, para no armar un argumento gigante. */
+function avisoImagenesDeDocumentos(n: number): string {
+  if (n <= 0) return "";
+  return `Hay ${n} imagen${n === 1 ? "" : "es"} dentro de los documentos que no se te ${n === 1 ? "muestra" : "muestran"} (por el tope de adjuntos o por su formato): existe${n === 1 ? "" : "n"} y el docente la${n === 1 ? "" : "s"} revisa; no bajes la nota por no verla${n === 1 ? "" : "s"}.`;
+}
+
+/**
+ * Cuando la llamada con adjuntos falló y se califica sin ellos: qué se le nombra a la IA y si queda
+ * algo que calificar. Sin ningún texto —una entrega de solo imágenes— NO se califica: con nada que
+ * leer el modelo inventaría una nota, que es justo lo que evita el 422 de «sin contenido legible».
+ */
+export function planDeRescate(entrada: {
+  adjuntos: readonly Adjunto[];
+  imagenesDeDocumentosSinMostrar: number;
+  /** PDF adjuntos que en el rescate sí se pudieron leer como texto. */
+  pdfsLeidos: ReadonlySet<string>;
+  /** Hay texto de la entrega: código, documentos o lo rescatado de los PDF. */
+  hayTexto: boolean;
+}): { sinContenido: boolean; aviso: string } {
+  if (!entrada.hayTexto) return { sinContenido: true, aviso: "" };
+  const sinMostrar = entrada.adjuntos
+    .filter((a) => !(a.tipo === "pdf" && entrada.pdfsLeidos.has(a.ruta)))
+    .map((a) => a.etiqueta);
+  const partes: string[] = [];
+  if (sinMostrar.length > 0) {
+    const lista = sinMostrar.slice(0, 30).join(", ") + (sinMostrar.length > 30 ? ` (+${sinMostrar.length - 30} más)` : "");
+    partes.push(
+      `Imágenes y PDF de la entrega que esta vez no se te pudieron mostrar: ${lista}. Existen y el docente los revisa: no los cuentes como faltantes ni bajes la nota por no verlos.`,
+    );
+  }
+  const enDocumentos = avisoImagenesDeDocumentos(entrada.imagenesDeDocumentosSinMostrar);
+  if (enDocumentos) partes.push(enDocumentos);
+  return { sinContenido: false, aviso: partes.length > 0 ? `\n\n${partes.join("\n\n")}` : "" };
+}
+
+/**
+ * base64 sin dependencias: el `btoa` nativo sobre trozos de 8 KB. Con `apply`, no con el operador
+ * de propagación: armar 32.768 argumentos por trozo costaba ~0,6 s de CPU por cada 12 MB, y el
+ * servidor corta la función que pasa de ~2 s.
+ */
 export function bytesABase64(b: Uint8Array): string {
   let binario = "";
-  const PASO = 0x8000;
+  const PASO = 0x2000;
   for (let i = 0; i < b.length; i += PASO) {
-    binario += String.fromCharCode(...b.subarray(i, i + PASO));
+    binario += String.fromCharCode.apply(null, b.subarray(i, i + PASO) as unknown as number[]);
   }
   return btoa(binario);
 }

@@ -4718,7 +4718,7 @@
   },
   "projectFiles": {
     "zipContenidoLabel": "Qué puede traer el ZIP",
-    "zipContenidoHint": "Por defecto, solo código fuente. Para un proyecto con informe, diagramas o capturas, permite documentos o cualquier archivo. La IA lee código, texto, Word, PowerPoint y PDF; lo demás lo revisa el docente.",
+    "zipContenidoHint": "Por defecto, solo código fuente. Para un proyecto con informe, diagramas o capturas, permite documentos o cualquier archivo. La IA lee código, texto, Word, PowerPoint y PDF, y si el modelo de tu institución lo permite también ve las imágenes, sueltas o pegadas en un documento; lo que no pueda leer ni ver lo revisa el docente.",
     "zipContenido": {
       "codigo": "Solo código fuente",
       "documentos": "Código y documentos (PDF, Word, PowerPoint, Excel, imágenes)",
@@ -9481,7 +9481,7 @@
     "workModeMixed": "Mixto — quien tenga grupo entrega en grupo, los demás individual",
     "zipLegacy": "(ZIP legacy)",
     "zipTruncatedBadge": "ZIP truncado · revisa manualmente",
-    "zipTruncatedTooltip": "La IA analizó {{chars}} de los caracteres del ZIP. Archivos individuales > 50KB se truncaron y/o el total excedió 200KB.",
+    "zipTruncatedTooltip": "La IA analizó {{chars}} caracteres del ZIP: algún archivo superó 50 KB, el total superó 200 KB o no se le pudieron mostrar todas las imágenes y PDF.",
     "dateFilterLabel": "Filtrar por inicio o entrega"
   },
   "hc_routesAppTeacherReports": {
