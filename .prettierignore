@@ -5,3 +5,5 @@ dist
 pnpm-lock.yaml
 package-lock.json
 routeTree.gen.ts
+# La escribe e2e/registrar-linea-base.mjs: reformatearla a mano la desalinea del generador.
+e2e/linea-base.json

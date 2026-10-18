@@ -84,6 +84,7 @@
       "devDependencies": {
         "@eslint/js": "^9.32.0",
         "@lovable.dev/vite-tanstack-config": "^1.4.0",
+        "@playwright/test": "1.60.0",
         "@testing-library/dom": "^10.4.1",
         "@testing-library/jest-dom": "^6.9.1",
         "@testing-library/react": "^16.3.2",
@@ -100,7 +101,7 @@
         "eslint-plugin-react-refresh": "^0.4.20",
         "globals": "^15.15.0",
         "jsdom": "^29.0.2",
-        "playwright": "^1.60.0",
+        "playwright": "1.60.0",
         "prettier": "^3.7.3",
         "sharp": "^0.35.4",
         "tsx": "^4.22.4",
@@ -563,6 +564,8 @@
     "@oozcitak/util": ["@oozcitak/util@10.0.0", "", {}, "sha512-hAX0pT/73190NLqBPPWSdBVGtbY6VOhWYK3qqHqtXQ1gK7kS2yz4+ivsN07hpJ6I3aeMtKP6J6npsEKOAzuTLA=="],
 
     "@pkgr/core": ["@pkgr/core@0.2.9", "", {}, "sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA=="],
+
+    "@playwright/test": ["@playwright/test@1.60.0", "", { "dependencies": { "playwright": "1.60.0" }, "bin": { "playwright": "cli.js" } }, "sha512-O71yZIbAh/PxDMNGns37GHBIfrVkEVyn+AXyIa5dOTfb4/xNvRWV+Vv/NMbNCtODB/pO7vLlF2OTmMVLhmr7Ag=="],
 
     "@poppinss/colors": ["@poppinss/colors@4.1.6", "", { "dependencies": { "kleur": "^4.1.5" } }, "sha512-H9xkIdFswbS8n1d6vmRd8+c10t2Qe+rZITbbDHHkQixH5+2x1FDGmi/0K+WgWiqQFKPSlIYB7jlH6Kpfn6Fleg=="],
 

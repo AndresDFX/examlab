@@ -94,6 +94,12 @@ jobs:
             echo "::error title=Errores de tipos::'bun tsc --noEmit' falló. Corrélo local y arreglá los errores antes de mergear."
             exit 1
           fi
+          # Las pruebas de UI (e2e/) tienen su propio proyecto: el de la raíz solo
+          # incluye src/, y Playwright transpila sin revisar tipos.
+          if ! bun tsc -p e2e/tsconfig.json --noEmit; then
+            echo "::error title=Errores de tipos en e2e::'bun tsc -p e2e/tsconfig.json --noEmit' falló."
+            exit 1
+          fi
           echo "✓ sin errores de tipos"
 
       # Coverage SIEMPRE corre (no es un step "opcional"). El gate

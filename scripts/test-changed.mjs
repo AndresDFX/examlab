@@ -30,6 +30,9 @@ function listChangedTestFiles() {
       for (const line of out.split(/\r?\n/)) {
         const f = line.trim();
         if (!f) continue;
+        // Las pruebas de UI de `e2e/` son de Playwright, no de vitest: pasárselas da
+        // «No test files found» y el comando sale en rojo (`bun run e2e` las corre).
+        if (f.startsWith("e2e/")) continue;
         if (/\.(test|spec)\.(ts|tsx|js|jsx|mts|cts)$/.test(f)) {
           files.add(f);
         }

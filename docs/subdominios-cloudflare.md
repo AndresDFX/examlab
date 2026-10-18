@@ -165,7 +165,8 @@ En la misma pantalla, poné **SSL/TLS encryption mode** en **Full**.
 ## 4 · Publicar la app
 
 > **Esto ya está hecho y funcionando**: está en `main` y lo publica GitHub Actions
-> (`deploy-cloudflare.yml`) en cada push. El despliegue general vive en
+> (`deploy-cloudflare.yml`) en cada push, si pasan las pruebas de UI (job `ui-rapida`, ver
+> `e2e/README.md`). El despliegue general vive en
 > <https://app.examlab.workers.dev> y cada institución en `<slug>.examlab.workers.dev`
 > (verificado el 2026-08-22: los dos responden 200). Esta sección explica CÓMO quedó y
 > por qué; para publicar a mano es `bun run deploy:cf`.

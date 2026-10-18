@@ -38,6 +38,15 @@ Cloudflare Workers (`deploy-cloudflare.yml`). Vos no desplegás a mano, pero **s
 verificar que el pipeline pasó**: un push en verde no es un deploy aplicado — ya pasó que un
 `git diff` fallido se degradara a "no hay cambios" y el deploy quedara verde sin desplegar nada.
 
+**El front no se publica si las pruebas de UI encuentran algo NUEVO** (job `ui-rapida` de
+`deploy-cloudflare.yml`, manual en `e2e/README.md`): desplazamiento horizontal, algo tapado, un
+área de toque chica, un foco de teclado que no se ve. Lo que ya existía está en
+`e2e/linea-base.json` y no frena. Ojo: **cambiar las clases de un componente con un problema
+conocido lo vuelve «nuevo»** (la clave es la firma del componente). Si el cambio es aceptable,
+se re-registra con `node e2e/registrar-linea-base.mjs` en el contenedor Linux de Playwright (la
+imagen no trae Bun; comando en el README); si el fallo es ajeno al cambio (Supabase caído), se
+relanza el workflow a mano con «Saltar las pruebas de UI».
+
 **Lovable ya NO publica.** `examlab.lovable.app` sigue arriba con código VIEJO contra la MISMA
 base que sí recibe migraciones nuevas: no lo tomes como referencia de producción y **no le
 sugieras al usuario apretar Publish** — el build actual no emite el Worker con SSR que ese sitio

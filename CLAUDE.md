@@ -20,12 +20,14 @@ bun run dev              # localhost:8080 (verificado 2026-09-30; el puerto real
   ```
 - `.env.recording` — credenciales para grabar los tours HeyGen (ver "Cuentas de testing" abajo). Solo necesario si vas a re-grabar.
 - `.env.uniajc` — usuario y clave del portal académico de la UNIAJC (Campus TI) y del SuperAdmin de ExamLab, para pasar notas a la universidad con la skill `notas-a-uniajc`. Solo necesario si vas a pasar o sincronizar notas.
+- `.env.e2e` — la cuenta de las pruebas de UI (`E2E_EMAIL` / `E2E_PASSWORD`, la multi-rol de Demo Global Corp; en el CI van como secretos del repo). Solo necesario para correr `bun run e2e` en local (ver [e2e/README.md](e2e/README.md)).
 - `privado/` — datos personales que se trabajan en local (listas de correos, CSV de notas, informes). Está en `.gitignore` y **nunca** se commitea: el repo es público.
 
 **Validaciones rápidas**:
 - `bun tsc --noEmit` (o `node ./node_modules/typescript/bin/tsc --noEmit`) debe dar `EXIT=0`. **`npx tsc` NO sirve**: no resuelve el TypeScript local y sale con un aviso que parece un error de tipos.
 - `bun test` corre vitest (jsdom). Algunos tests requieren jsdom — usar `bun test` (NO el harness embebido).
 - `bun run build:cf` localmente — es el build que se publica (estático, con el cascarón de SPA). `bun run build` a secas sigue existiendo pero ya no es el de producción.
+- `bun run e2e` corre las pruebas de UI en el navegador sobre ese build (necesita los navegadores de Playwright y `.env.e2e`; ver [e2e/README.md](e2e/README.md)). En el CI **frenan el despliegue del front** si aparece un problema nuevo.
 
 **Cuentas de testing (tenant FESNA)** — verificadas el 2026-06-08:
 - **SuperAdmin (cross-tenant)**: `castano.julian@correounivalle.edu.co` / `Tester#12345`. Tenant_id=NULL. Acceso a `/app/superadmin/*` + bypass de RLS via `is_super_admin()`.
@@ -307,6 +309,46 @@ Un modal de 512px con 17 controles en un solo `space-y-3`, ordenados como el `IN
 Las operaciones caras del producto (calificar con IA 5-15s, import de 93 alumnos, generación encolada) no se sirven con spinner + toast final. El instinto correcto ya existe en un lugar: `performSubmit` del examen awaitea SOLO la entrega y dispara notificación e IA con `void` — 300ms percibidos en vez de 10s.
 **Regla:** toda operación > 3s muestra progreso (`n de N`) o, si es asíncrona, la promesa explícita ("Te avisamos cuando esté; podés seguir trabajando"). Un bulk que falla parcialmente además muestra el PRIMER error real (ver convención de bulk operations).
 **Check:** para cada `await` de la operación, o hay un state de progreso que se actualiza por item, o hay un `void` + mensaje de "te avisamos". Un `setLoading(true)` + `toast` final no cumple.
+
+### Pruebas de UI en el navegador (`e2e/`, Playwright)
+
+El complemento de `audit-ui.mjs`: ese lee el CÓDIGO; esto mide la pantalla ya DIBUJADA en 14 anchos
+(320–1920, con los dos lados de cada corte de Tailwind), en escritorio (Chrome y Safari, con mouse y
+teclado) y en teléfonos y tableta emulados (táctil). Manual en [e2e/README.md](e2e/README.md).
+
+- **Corre contra el backend REAL de Demo Global Corp** (decisión del dueño, 2026-10-18), con su cuenta
+  multi-rol (`E2E_EMAIL`/`E2E_PASSWORD` en los secretos del repo; en local, `.env.e2e`). **Nada
+  escribe**: [`e2e/soporte/red.ts`](e2e/soporte/red.ts) intercepta las escrituras a tablas, Storage y
+  funciones, y de las RPC (que van todas por POST) deja salir **solo una lista BLANCA de lecturas**,
+  cada una verificada contra su SQL. La lista negra por verbo que había antes dejaba pasar 20 RPC que
+  escriben con nombres que no la tocaban (`resign_report`, `vote_poll_option`…) y bloqueaba lecturas
+  como `poll_public_info`. Una pantalla que empiece a llamar una RPC nueva la ve bloqueada y la prueba
+  lo anota («rpc sin clasificar»): si solo lee, se suma a `RPC_QUE_LEEN`.
+- **Trinquete**: lo que ya existía está en `e2e/linea-base.json` y no frena; lo NUEVO frena el
+  despliegue (job `ui-rapida` de `deploy-cloudflare.yml`, del que depende `deploy`). La clave es capa +
+  pantalla + regla + firma del componente (etiqueta, rol, clases sin las de estado y la zona de la
+  página), nunca el texto, que sale de los datos. Consecuencia que sorprende: **cambiar las clases de
+  un componente con un problema conocido lo vuelve «nuevo»**. Es a propósito —si se toca, se revisa—:
+  se arregla o se re-registra con `e2e/registrar-linea-base.mjs` corriendo en Linux (comando en el README).
+- **La línea base se genera en Linux** (Docker, como dice el README), igual que el CI: Windows dibuja
+  las fuentes distinto y cambia qué texto desborda.
+- **En el CI no se graban trazas**: guardan el `Authorization` de cada petición, y los artefactos de un
+  repo público son públicos. La sesión es UNA por corrida (en el temporal, nunca en `test-results/`) y
+  se cierra al terminar; con una por proceso, dos procesos refrescando el mismo token hacen que
+  Supabase revoque la sesión entera.
+- **Superposición**: lo que pasa por debajo de una barra fija no es un problema mientras se pueda
+  desplazar. Con la página arriba solo cuentan las barras de la mitad superior; al final, las de la
+  inferior. Sin eso, el buscador que a 320 px queda detrás de la barra de pestañas salía «tapado».
+- **Umbrales** (decisión del dueño): toque de 44×44 en modo táctil —la regla `pointer: coarse` ya
+  agranda los botones; la prueba encuentra lo que queda afuera—; en escritorio bloquea bajo 24 y avisa
+  bajo 32, con la **excepción por espaciado de WCAG 2.5.8**: un objetivo chico pero aislado (un enlace
+  suelto al pie) solo avisa, porque no se puede errar; dos íconos pegados siguen frenando. Letra:
+  bloquea bajo 10 px y avisa si en un teléfono más de la mitad del texto queda bajo 12. Hover, foco
+  tapado y teclado virtual solo avisan.
+- **Saltar las pruebas** (Supabase caído, algo ajeno al cambio): lanzar «Deploy a Cloudflare» a mano con
+  «Saltar las pruebas de UI». Un push no puede saltarlas.
+- Al sumar una pantalla al recorrido: [`e2e/soporte/pantallas.ts`](e2e/soporte/pantallas.ts) y
+  regenerar su línea base.
 
 ---
 
@@ -2456,7 +2498,7 @@ Generador paramétrico de sesiones (`GenerateSessionsDialog`) ya existía en `sr
 - **GlobalErrorLogger `isBrowserNoise`** ([src/shared/components/GlobalErrorLogger.tsx](src/shared/components/GlobalErrorLogger.tsx)): filtra 4 patrones de ruido del browser/PWA lifecycle que NO son bugs accionables y inundan `audit_logs`: "Failed to update a ServiceWorker", "newestWorker is null", "Lock ... was released because another request stole", "Script error." (cross-origin sin info). Aplicado en `onError` + `onRejection` ANTES del logEvent. Si reportes futuros muestran errores reales que el filter está silenciando, ajustar el regex — pero no quitar el filter entero (los SW errors son ~50% del volumen sin valor).
 - **Año dinámico en JSX (`new Date().getFullYear()`) requiere wrapping en componente con estado** ([src/routes/index.tsx](src/routes/index.tsx)): inline `{new Date().getFullYear()}` en el footer SSR-rendereaba el año del worker (UTC) y el cliente lo re-evaluaba con su TZ — si la hidratación cruzaba medianoche local cerca del 31-dic, mismatch y React #418 intermitente. Patrón: componente `<CurrentYear />` con `useState<number | null>(null)` + `useEffect(() => setYear(new Date().getFullYear()), [])`. SSR y primer render del cliente devuelven el mismo placeholder vacío `"    "` (4 chars para no saltar layout); el año real se rellena post-mount. Mismo patrón para CUALQUIER cosa derivada de `new Date()` o `Date.now()` que se renderee en JSX y se ejecute en SSR.
 - **`vh → dvh` en `max-h` de DialogContent** (regla obligatoria para mobile iOS): en iOS Safari `vh` usa el viewport MÁXIMO (URL bar colapsada). Cuando la URL bar está visible, un modal con `max-h-[90vh]` se desborda ~80-100px abajo (footer cortado, scroll roto). El base `DialogContent` ([src/components/ui/dialog.tsx:60](src/components/ui/dialog.tsx#L60)) usa `dvh` (dynamic viewport height — respeta el viewport ACTUAL). NO sobreescribir con `vh` en subdialogs. Para limitar altura usar `max-h-[Ndvh]`. Audit de 2026-06-08 encontró 26 archivos con `vh` que se cambiaron en batch a `dvh`.
-- **Touch targets en mobile ≥32px**: cualquier botón clickeable en mobile debe tener un hit zone ≥32x32px (iOS recomienda 44px). Patrones a evitar: `<button>` bare con solo ícono `<Eye h-4 w-4>` y posición absoluta (touch zone ~16px), `h-6 w-6` o `h-7 w-7 p-0`. Fix: `h-8 w-8 p-0` o `p-1.5 rounded` para expandir hit zone sin alterar visual. Convención aplicada en password reveal buttons (5 ubicaciones), pickers de mes/whiteboard/diagram (5 ubicaciones). **Check:** `node scripts/audit-ui.mjs` (regla `R6-tactil`), que caza el caso que se repite: un `<button>` estilizado con `badgeVariants` — el Badge es `py-0.5` + `text-xs`, o sea **22 px medidos**, porque está pensado para ETIQUETAR y no para tocar. El reemplazo es **`<Toggle size="sm">`** del design system (`h-8` = 32 px, con estado on/off real) **más un ícono**: el color solo no alcanza para decir «encendido». Pasó en los chips de «Contar como pendiente» de Estadísticas, donde además los dos estados del Badge eran `oklch(0.96)` relleno contra `oklch(0.92)` de borde sobre un fondo `oklch(0.985)` — tres grises que no se distinguen en un teléfono, y el usuario lo reportó como «no sé bien el tema de incluir o excluir».
+- **Touch targets en mobile ≥32px**: cualquier botón clickeable en mobile debe tener un hit zone ≥32x32px (iOS recomienda 44px). **Ojo: las pruebas de UI (`e2e/`) miden con 44×44 en modo táctil** (decisión del dueño, ver «Pruebas de UI en el navegador»): 32 es el piso del código, 44 lo que frena un despliegue si aparece nuevo. Patrones a evitar: `<button>` bare con solo ícono `<Eye h-4 w-4>` y posición absoluta (touch zone ~16px), `h-6 w-6` o `h-7 w-7 p-0`. Fix: `h-8 w-8 p-0` o `p-1.5 rounded` para expandir hit zone sin alterar visual. Convención aplicada en password reveal buttons (5 ubicaciones), pickers de mes/whiteboard/diagram (5 ubicaciones). **Check:** `node scripts/audit-ui.mjs` (regla `R6-tactil`), que caza el caso que se repite: un `<button>` estilizado con `badgeVariants` — el Badge es `py-0.5` + `text-xs`, o sea **22 px medidos**, porque está pensado para ETIQUETAR y no para tocar. El reemplazo es **`<Toggle size="sm">`** del design system (`h-8` = 32 px, con estado on/off real) **más un ícono**: el color solo no alcanza para decir «encendido». Pasó en los chips de «Contar como pendiente» de Estadísticas, donde además los dos estados del Badge eran `oklch(0.96)` relleno contra `oklch(0.92)` de borde sobre un fondo `oklch(0.985)` — tres grises que no se distinguen en un teléfono, y el usuario lo reportó como «no sé bien el tema de incluir o excluir».
 - **`bg-checkerboard` utility en src/styles.css**: damero gris/blanco (light) o zinc-800/700 (dark) usado para distinguir contenido pintado de fondo transparente — antes inline `style={{ backgroundImage: 'linear-gradient(...)' }}` copiado en JavaGuiRunner + PythonGuiRunner + hex-color-input. Centralizado en utility CSS para que cualquier nuevo lugar use `className="bg-checkerboard"`.
 - **Inline styles `style={{}}`**: prohibidos para layout/colores estáticos. Reemplazar siempre por Tailwind classes (incluso valores arbitrarios: `h-[60vh]`, `border-l-violet-500`). Permitidos SOLO para: (a) CSS vars del theme dinámico (`var(--sidebar-icon-color)`, `tenant.primary_color` por fila), (b) dimensiones/transformaciones runtime (`width: progress + "%"`, `transform: scale(zoom)`), (c) `env(safe-area-inset-*)` iOS, (d) valores de DB/usuario (color hex pickers). Backgrounds repetidos (ej. damero): extraer utility en `src/styles.css` (ver `bg-checkerboard`). El audit de inline styles dio 35 hits totales, 34 justificados, 1 trivial — el repo está sano; mantenerlo así.
 - **Safe-area iOS en elementos `fixed` bottom**: cualquier `fixed bottom-X` que pueda mostrarse en mobile debe usar `bottom-[max(env(safe-area-inset-bottom),Xrem)]` para no quedar tapado por el home indicator de iOS o gesture bar de Android. En desktop `env(safe-area-inset-bottom)=0` → el max() resuelve al fallback, comportamiento idéntico. Aplicado en `MessagesFab.tsx`. Pattern preemptivo: agregalo desde el inicio aunque el elemento esté `hidden md:flex` hoy.

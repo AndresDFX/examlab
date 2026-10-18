@@ -59,6 +59,11 @@ supabase/.temp/
 .env.recording
 .tmp.driveupload
 
+# Salidas de las pruebas de UI (e2e/): capturas, videos y reportes de cada corrida.
+# La cuenta de prueba va en .env.e2e, ignorado por el patrón `.env.*` de arriba.
+/test-results/
+/playwright-report/
+
 # Placeholders de Google Drive Desktop (.gdoc/.gsheet/.gslides) — atajos
 # locales con doc_id + email personal, NO contenido versionable.
 *.gdoc
