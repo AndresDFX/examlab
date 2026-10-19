@@ -144,7 +144,7 @@ export function DataPagination<T>({
       </div>
 
       {totalPages > 1 && (
-        <nav role="navigation" aria-label={t("hc_componentsUiDataPagination.navAriaLabel")} className="flex items-center gap-1">
+        <nav role="navigation" aria-label={t("hc_componentsUiDataPagination.navAriaLabel")} className="flex flex-wrap items-center justify-center gap-1">
           <Button
             variant="ghost"
             size="icon"

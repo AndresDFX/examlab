@@ -489,7 +489,7 @@ function AuthPage() {
   }
 
   return (
-    <div className="min-h-screen grid lg:grid-cols-2 bg-background">
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-background">
       {/* Brand panel */}
       <div className="hidden lg:flex flex-col justify-between bg-sidebar text-sidebar-foreground p-10">
         <div className="flex items-center gap-3">
@@ -517,7 +517,7 @@ function AuthPage() {
 
       {/* Login panel */}
       <div className="flex items-center justify-center p-6">
-        <Card className="w-full max-w-md shadow-sm">
+        <Card className="w-full max-w-md min-w-0 shadow-sm">
           <CardHeader>
             <div className="flex items-center gap-2 mb-2 lg:hidden">
               <div className="h-9 w-9 rounded-lg bg-primary flex items-center justify-center">

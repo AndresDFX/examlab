@@ -10,6 +10,10 @@ const Switch = React.forwardRef<
   <SwitchPrimitives.Root
     className={cn(
       "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input",
+      // Se ve de 36×20, pero el área que responde al dedo es de 44×44: la regla táctil de
+      // styles.css lo excluye porque estirarlo lo deformaba (quedaba como un círculo). El
+      // `::after` se mide desde el borde de RELLENO (32×16, sin los 2 px de borde): 6 y 14.
+      "relative after:absolute after:-inset-x-1.5 after:-inset-y-3.5 after:content-['']",
       className,
     )}
     {...props}

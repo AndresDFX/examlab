@@ -263,24 +263,42 @@
     }
   }
 
-  /* Touch devices: guarantee 44×44 minimum hit area on interactive elements.
-     Desktop (fine pointer) keeps the compact sizing. */
+  /* Pantallas táctiles: todo lo que se toca mide al menos 44×44. Con mouse (puntero fino)
+     se conserva el tamaño compacto. Lo verifican las pruebas de UI (`e2e/`, ver su README).
+     - `!important` a propósito: las utilidades de Tailwind van en una capa posterior, así que
+       cualquier `min-h-*` de una pantalla le ganaba a esta regla. Así quedaban en 34-36 px el
+       selector de curso de Asistencia y de Mis notas y los días del calendario del inicio.
+     - Cubre también los enlaces que son bloques (el menú lateral) y los campos de texto: en el
+       iPad, desde 768 px, los componentes pasan a su tamaño de escritorio (`md:h-9` = 36 px)
+       aunque la pantalla sea táctil. A un enlace `display: inline` dentro de un párrafo no le
+       hace nada (`min-height` no aplica a una caja en línea); a uno `inline-flex` sí.
+     - Quedan FUERA la casilla, el interruptor y el botón de opción, que Radix dibuja como
+       `<button role=…>`: estirados a 44×44 se deforman (el interruptor quedaba como un
+       círculo). Su área táctil la amplía un `::after` en el propio componente, medido desde
+       el borde de RELLENO (el borde queda afuera).
+     - `data-touch-compact` es la salida para lo que tiene que quedar compacto: un control
+       metido en una línea de texto o en otro control (el ? de ayuda en una etiqueta, la X de
+       un chip, la entrada de la consola de red). Si se toca, se le da su área con un
+       `::after` como la casilla; si no, va sin nada (un chip-enlace dentro de un mensaje es
+       un enlace en el texto). */
   @media (pointer: coarse) {
-    button,
-    [role="button"],
-    a[role="button"],
-    a.btn,
-    [role="menuitem"],
-    [role="menuitemcheckbox"],
-    [role="option"],
-    input[type="checkbox"],
-    input[type="radio"] {
-      min-height: 44px;
-      min-width: 44px;
+    :is(
+        button,
+        [role="button"],
+        a[href],
+        [role="menuitem"],
+        [role="menuitemcheckbox"],
+        [role="menuitemradio"],
+        [role="option"],
+        [role="tab"],
+        select,
+        input:not([type="checkbox"], [type="radio"], [type="hidden"], [type="range"], [type="file"], [type="color"])
+      ):not([role="switch"], [role="radio"], [role="checkbox"], [data-touch-compact]) {
+      min-height: 44px !important;
+      min-width: 44px !important;
     }
-    /* Checkboxes/radios are small by design — we expand the wrapper instead.
-       Revert to intrinsic size for the actual input but keep a generous
-       clickable wrapper via Label padding in our primitives. */
+    /* La casilla y el botón de opción nativos se ven chicos a propósito: su área táctil la da
+       la etiqueta que los envuelve. */
     input[type="checkbox"],
     input[type="radio"] {
       min-height: 20px;

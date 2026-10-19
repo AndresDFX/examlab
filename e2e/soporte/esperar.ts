@@ -67,3 +67,13 @@ export async function esperarReflujo(page: Page): Promise<void> {
   );
   await page.waitForTimeout(150);
 }
+
+/**
+ * Tras mover el foco: solo los dos cuadros en que Safari termina de desplazar hasta lo
+ * enfocado. Sin el respiro de `esperarReflujo`, que en 25 paradas sumaba casi 4 s.
+ */
+export async function esperarCuadros(page: Page): Promise<void> {
+  await page.evaluate(
+    () => new Promise<void>((ok) => requestAnimationFrame(() => requestAnimationFrame(() => ok()))),
+  );
+}

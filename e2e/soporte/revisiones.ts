@@ -5,7 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import type { Page } from "@playwright/test";
-import { esperarReflujo } from "./esperar";
+import { esperarCuadros, esperarReflujo } from "./esperar";
 
 export type Regla =
   | "scroll-horizontal"
@@ -82,8 +82,8 @@ type QA = {
     enPantalla: boolean;
     indicador: boolean;
     tapadoPor: { firma: string; describe: string } | null;
-    tabulables: number;
   } | null;
+  contarTabulables: () => number;
   marcarMuestras: (max: number) => Array<{ i: number; firma: string; describe: string }>;
   estiloVisual: (el: Element) => { estilo: string; cursor: string };
   campoConTeclado: (el: Element) => {
@@ -141,12 +141,15 @@ export async function probarTeclado(page: Page, paradas = 25): Promise<HallazgoC
     await page.keyboard.press("Tab");
     // Safari desplaza hasta lo enfocado en el cuadro SIGUIENTE, no en el acto: medido al
     // instante, una celda bajo el borde de la pantalla salía «enfocada fuera de la vista».
-    await esperarReflujo(page);
+    await esperarCuadros(page);
     const f = await page.evaluate(() => (window as unknown as ConQA).__qaUI.analizarFoco());
     if (!f) continue;
     mismoSeguido = ids.at(-1) === f.id ? mismoSeguido + 1 : 0;
     ids.push(f.id);
-    if (mismoSeguido >= 2 && f.tabulables > 1) {
+    if (
+      mismoSeguido >= 2 &&
+      (await page.evaluate(() => (window as unknown as ConQA).__qaUI.contarTabulables())) > 1
+    ) {
       out.push({
         regla: "trampa-de-foco",
         severidad: "bloquea",

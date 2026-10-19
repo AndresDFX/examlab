@@ -21,8 +21,9 @@ const Checkbox = React.forwardRef<
       "rounded-sm border border-primary shadow",
       // El cuadro se ve de 16 px, pero el área que responde al dedo se amplía a
       // 44 px con un pseudo-elemento (auditoría móvil 2026-10-10: 16 px en todas
-      // las listas con selección múltiple). No mueve nada del diseño.
-      "relative after:absolute after:-inset-3.5 after:content-['']",
+      // las listas con selección múltiple). No mueve nada del diseño. Se mide desde
+      // el borde de RELLENO (14 px, sin el borde de 1 px): con 14 por lado quedaba en 42.
+      "relative after:absolute after:-inset-[15px] after:content-['']",
       "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
       "disabled:cursor-not-allowed disabled:opacity-50",
       "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground",

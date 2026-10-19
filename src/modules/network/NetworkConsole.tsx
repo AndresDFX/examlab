@@ -194,6 +194,8 @@ export function NetworkConsole({ scenario, value, onChange, readOnly }: Props) {
               spellCheck={false}
               autoCapitalize="off"
               autoComplete="off"
+              // Una línea de terminal: tocar el recuadro entero ya la enfoca.
+              data-touch-compact
               className="flex-1 bg-transparent outline-none border-0 text-zinc-100 caret-emerald-300 p-0"
             />
           </div>

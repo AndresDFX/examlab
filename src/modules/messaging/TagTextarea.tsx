@@ -266,7 +266,9 @@ export function TagTextarea({
                   <button
                     type="button"
                     onClick={() => removeTag(i)}
-                    className="ml-0.5 rounded-full hover:bg-primary/20"
+                    // Dentro del chip: compacta, con 44 px al dedo por el `::after`.
+                    data-touch-compact
+                    className="relative ml-0.5 rounded-full hover:bg-primary/20 after:absolute after:-inset-4 after:content-['']"
                     aria-label={t("hc_modulesMessagingTagTextarea.removeTag", {
                       label: tag.label,
                       defaultValue: "Quitar etiqueta {{label}}",

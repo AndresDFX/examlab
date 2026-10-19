@@ -38,6 +38,7 @@ export function HelpHint({
           type="button"
           tabIndex={0}
           aria-label={t("hc_componentsUiHelpHint.moreInfo")}
+          data-touch-compact
           // stopPropagation: si el HelpHint vive dentro de un <Label
           // htmlFor=…>, el click "burbujea" hasta el input asociado y
           // hace toggle (caso típico: HelpHint en Label de Switch — al
@@ -51,6 +52,9 @@ export function HelpHint({
             // (con line-height grande de Labels el bottom queda lejos
             // del centro visual del texto).
             "inline-flex h-4 w-4 shrink-0 items-center justify-center align-middle relative -top-px",
+            // Va en la línea de una etiqueta: compacto (`data-touch-compact`), pero responde al
+            // dedo en 44 con el `::after`, como la casilla.
+            "after:absolute after:-inset-3.5 after:content-['']",
             "text-muted-foreground hover:text-foreground focus:text-foreground",
             "focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full",
             "transition-colors cursor-help",

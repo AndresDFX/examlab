@@ -2074,9 +2074,9 @@ export function AdminCourses() {
       />
 
       {/* Stats — ahora 5 cards (se agregó Borrador con el ciclo de vida
-          explícito del curso). En mobile 2 columnas, desde md 5. El gate
+          explícito del curso). 2 columnas en el teléfono, 3 desde sm y 5 recién desde lg: a 768 px el menú lateral deja 80 px por tarjeta y «Borrador» no cabía. El gate
           `courses.length > 0` se mantiene quitado: un 0 es informativo. */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         <StatCard
           icon={BookOpen}
           label={t("hc_routesAppAdminCourses.statTotal")}

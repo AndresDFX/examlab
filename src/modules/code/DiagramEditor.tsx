@@ -278,7 +278,7 @@ export function DiagramEditor({ value, onChange, readOnly = false }: DiagramEdit
 
       {/* Editor / Preview tabs */}
       <Tabs value={tab} onValueChange={(v) => setTab(v as "edit" | "preview")}>
-        <TabsList className="h-8">
+        <TabsList className="min-h-8">
           <TabsTrigger value="edit" className="text-xs gap-1 h-7" disabled={readOnly}>
             <Code2 className="h-3 w-3" /> {t("diagramEditor.tabCode")}
           </TabsTrigger>

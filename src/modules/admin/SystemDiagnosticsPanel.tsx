@@ -899,7 +899,7 @@ export function SystemDiagnosticsPanel() {
                         }
                       }}
                     >
-                      <TabsList className="h-8 grid w-full grid-cols-2">
+                      <TabsList className="min-h-8 grid w-full grid-cols-2">
                         <TabsTrigger value="mine" className="text-xs h-6">
                           {t("systemDiagnosticsPanel.pushTabMine", { count: pushSubs.length })}
                         </TabsTrigger>

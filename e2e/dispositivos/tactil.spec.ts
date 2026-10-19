@@ -1,7 +1,8 @@
 /**
  * Capa B, teléfonos y tableta (iPhone SE, iPhone, Android, iPad), con táctil. Áreas de
- * toque de 44×44 —la regla `pointer: coarse` de styles.css ya agranda los botones; acá se
- * comprueba que nada quede afuera—, letra, superposiciones arriba y al final de la página,
+ * toque de 44×44 —la regla `pointer: coarse` de styles.css agranda botones, enlaces que son
+ * bloques, campos y opciones; acá se comprueba que nada quede afuera—, letra, superposiciones
+ * arriba y al final de la página,
  * el botón de menú del teléfono, el primer menú desplegable y el teclado virtual.
  */
 import { test } from "../soporte/fixtures";

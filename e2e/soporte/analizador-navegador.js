@@ -381,6 +381,17 @@
     let top = r.top;
     let right = r.right;
     let bottom = r.bottom;
+    // Un pseudo-elemento absoluto se ubica respecto del borde de RELLENO de su elemento,
+    // no del borde de la caja: con el borde de la caja, una casilla de 16 px con 1 px de
+    // borde y `-inset-3.5` medía 44 cuando el navegador le da 42.
+    const propio = getComputedStyle(el);
+    const borde = (v) => parseFloat(v) || 0;
+    const relleno = {
+      left: r.left + borde(propio.borderLeftWidth),
+      top: r.top + borde(propio.borderTopWidth),
+      right: r.right - borde(propio.borderRightWidth),
+      bottom: r.bottom - borde(propio.borderBottomWidth),
+    };
     for (const pseudo of ["::before", "::after"]) {
       const cs = getComputedStyle(el, pseudo);
       if (!cs.content || cs.content === "none" || cs.position !== "absolute") continue;
@@ -388,10 +399,10 @@
       const lado = (v) => (v.endsWith("px") ? parseFloat(v) : NaN);
       const [t, d, b, i] = [lado(cs.top), lado(cs.right), lado(cs.bottom), lado(cs.left)];
       if ([t, d, b, i].some(Number.isNaN)) continue;
-      left = Math.min(left, r.left + i);
-      top = Math.min(top, r.top + t);
-      right = Math.max(right, r.right - d);
-      bottom = Math.max(bottom, r.bottom - b);
+      left = Math.min(left, relleno.left + i);
+      top = Math.min(top, relleno.top + t);
+      right = Math.max(right, relleno.right - d);
+      bottom = Math.max(bottom, relleno.bottom - b);
     }
     return { left, top, right, bottom, width: right - left, height: bottom - top };
   }
@@ -665,9 +676,17 @@
       enPantalla,
       indicador: contorno || conFoco !== sinFoco,
       tapadoPor: tapadoPor ? { firma: firma(tapadoPor), describe: describir(tapadoPor) } : null,
-      // Con UNA sola parada, Tab vuelve siempre a la misma: no es una trampa.
-      tabulables: interactivos(document).filter((x) => x.tabIndex >= 0).length,
     };
+  }
+
+  /**
+   * Cuántas paradas de Tab hay. Se pide solo para confirmar una trampa (con UNA sola
+   * parada, Tab vuelve siempre a la misma y no es una trampa): contarlas en cada paso
+   * recorría la página entera 25 veces, y en el libro de notas de Safari eso agotaba los
+   * 120 s de la prueba.
+   */
+  function contarTabulables() {
+    return interactivos(document).filter((x) => x.tabIndex >= 0).length;
   }
 
   // ── Mouse ─────────────────────────────────────────────────────────────────
@@ -740,6 +759,7 @@
     irAlInicio,
     enfocarInicio,
     analizarFoco,
+    contarTabulables,
     marcarMuestras,
     estiloVisual,
     campoConTeclado,
