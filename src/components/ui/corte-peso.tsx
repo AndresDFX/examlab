@@ -37,10 +37,12 @@ export function CortePesoBadges({
       {/* El que TRUNCA es el nombre del corte, y el que no se achica es el
           porcentaje: es el patrón de `BadgeOverflow` —texto que trunca,
           adornos en `shrink-0`—. Al revés, un corte con nombre largo se queda
-          con todo el ancho y empuja el porcentaje fuera de la tarjeta. */}
+          con todo el ancho y empuja el porcentaje fuera de la tarjeta. Sin
+          `flex-1`: estirado, el corte ocupaba la fila y dejaba el porcentaje
+          suelto al otro extremo. */}
       <Badge
         variant="outline"
-        className="text-3xs font-normal min-w-0 flex-1 truncate"
+        className="text-3xs font-normal min-w-0 truncate"
         title={t("cortePeso.cutHint")}
       >
         {valor.corte}

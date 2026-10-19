@@ -18,7 +18,6 @@ import {
   type RangoFechas,
 } from "@/shared/lib/rango-de-fechas";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
-import { CortePesoBadges } from "@/components/ui/corte-peso";
 import {
   filaQueManda,
   indiceDeCortes,
@@ -35,7 +34,13 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import {
   TarjetaDeActividad,
   CuerpoDeTarjeta,
+  EncabezadoDeTarjeta,
+  ResumenDeTarjeta,
+  FechasDeTarjeta,
+  FechaDeTarjeta,
   AccionesDeTarjeta,
+  AccionNoDisponible,
+  DetallesDeTarjeta,
 } from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { AvisoOcultosPorEstado } from "@/shared/components/AvisoOcultosPorEstado";
@@ -54,15 +59,17 @@ import {
 } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  CalendarClock,
   Clock,
-  Download,
   CheckCircle2,
+  Download,
   AlertTriangle,
   MessageSquare,
   MessageSquareText,
   ListChecks,
   Trash2,
   Hammer,
+  UsersRound,
 } from "lucide-react";
 import { useMaximized } from "@/hooks/use-maximized";
 import { DialogMaximizeButton } from "@/components/ui/dialog-maximize-button";
@@ -73,7 +80,6 @@ import { Send } from "lucide-react";
 import { toast } from "sonner";
 import { StudentWorkshopTaker } from "@/modules/workshops/WorkshopQuestions";
 import { formatDateTime, formatNumber } from "@/shared/lib/format";
-import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { isAiGradePending } from "@/modules/ai/ai-grading";
@@ -83,10 +89,11 @@ import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-vi
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
-import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
+import { MiGrupoDialog } from "@/modules/grupos/MiGrupoDialog";
+import { accionDeEntrega } from "@/modules/submissions/accion-de-tarjeta";
 import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
-import { grupoEnLaTarjeta, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
+import { grupoEnTarjetaMuestraAlgo, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
 
 export const Route = createFileRoute("/app/student/workshops")({
   // Enlace directo a UN taller: `/app/student/workshops?workshop=<id>`. Solo
@@ -256,6 +263,12 @@ function StudentWorkshops() {
   const [questionsWs, setQuestionsWs] = useState<WorkshopRow | null>(null);
   // Grupo del estudiante en cada taller grupal (y si puede armarlo él).
   const [resumenGrupos, setResumenGrupos] = useState<Record<string, ResumenDeGrupo>>({});
+  // «Mi grupo»: UNA ventana para toda la lista. Si la montara la tarjeta, al crear
+  // el grupo se desmontaría abierta (la acción pasa de «Armar grupo» a «Iniciar
+  // entrega»). El taller se conserva al cerrar para que el título no se vacíe
+  // mientras la ventana se desvanece.
+  const [grupoAbierto, setGrupoAbierto] = useState<{ id: string; titulo: string } | null>(null);
+  const [grupoVisible, setGrupoVisible] = useState(false);
   // Preferencia "tamaño completo" del modal de resolución (compartida con el
   // examen via la misma clave de localStorage).
   const [maximized, toggleMaximized] = useMaximized("examlab_assessment_maximized");
@@ -731,7 +744,7 @@ function StudentWorkshops() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         {loading && (
           <div className="col-span-full flex justify-center py-10">
             <Spinner size="md" />
@@ -815,6 +828,32 @@ function StudentWorkshops() {
             Number(submission.attempt_count ?? 0) >=
               Number(workshop.max_attempts ?? globalWorkshopMax ?? 1) &&
             (submission.status === "calificado" || submission.final_grade != null);
+          const resumenGrupo = resumenGrupos[workshop.id];
+          const abrirGrupo = () => {
+            setGrupoAbierto({ id: workshop.id, titulo: workshop.title });
+            setGrupoVisible(true);
+          };
+          const retroVisible = retroDeTallerVisible(submission);
+          const notaPendiente =
+            submission?.status === "entregado" &&
+            submission?.final_grade == null &&
+            isAiGradePending({
+              ai_grade: submission?.ai_grade,
+              ai_feedback: submission?.ai_feedback,
+            });
+          // En modo mixto, quien tiene grupo entrega por el grupo y quien no,
+          // individual: «entregar» no distingue, lo resuelve el Taker con groupId.
+          const accion = accionDeEntrega({
+            armarGrupo: grupoEnTarjetaMuestraAlgo("accion", resumenGrupo),
+            externa: false,
+            abierta: isOpen,
+            sinGrupoObligatorio: blockedNoGroup,
+            intentosAgotados: attemptsExhausted,
+            conNota: retroVisible,
+            entregada: entregaHecha(submission),
+            proxima: !!isUpcoming,
+            vencida: workshop.status === "published" && !!isOverdue,
+          });
           return (
             <TarjetaDeActividad
               key={workshop.id}
@@ -826,124 +865,153 @@ function StudentWorkshops() {
               }
             >
               <CuerpoDeTarjeta>
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <CursoDeLaActividad curso={workshop.course?.name} />
-                    <h3 className="font-semibold truncate">{workshop.title}</h3>
-                    <AvisoActividadHomonima cursos={homonimas.get(workshop.id)} />
-                    {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
-                    {!(workshop as { parent_workshop_id?: string | null }).parent_workshop_id && (
-                      <CortePesoBadges
-                        valor={(() => {
+                <EncabezadoDeTarjeta
+                  curso={workshop.course?.name}
+                  titulo={workshop.title}
+                  homonimas={homonimas.get(workshop.id)}
+                  // Una recuperación no vale aparte: ocupa el lugar del original.
+                  cortePeso={
+                    (workshop as { parent_workshop_id?: string | null }).parent_workshop_id
+                      ? null
+                      : (() => {
                           const f = filaQueManda(cortePesoPorTaller.get(workshop.id), workshop);
                           return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
-                        })()}
-                      />
-                    )}
-                  </div>
-                  {/* Sustentación pendiente: se dice QUÉ falta, no se deja un
-                      «Entregado» genérico. El alumno ya hizo su parte; lo que
-                      falta es del docente, y sin decirlo va a preguntar por qué
-                      su taller no tiene nota. */}
-                  {faltaSustentacion ? (
-                    <Badge variant="secondary" className="shrink-0" title={t("defense.pendingHint")}>
-                      {t("defense.pending")}
-                    </Badge>
-                  ) : isGraded ? (
-                    <Badge className="shrink-0">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {grade != null
-                        ? workshop.course
-                          ? `${formatNumber(workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${workshop.course.grade_scale_max}`
-                          : `${grade}`
-                        : t("exam.submitted")}
-                    </Badge>
-                  ) : entregaHecha(submission) ? (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t("exam.submitted")}
-                    </Badge>
-                  ) : vencido ? (
-                    <Badge variant="destructive" className="shrink-0">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      {t("dashboard.overdue")}
-                    </Badge>
-                  ) : isOpen ? (
-                    <Badge className="bg-success text-success-foreground shrink-0">
-                      {t("exam.available")}
-                    </Badge>
-                  ) : isUpcoming ? (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("exam.upcoming")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("exam.closed")}
-                    </Badge>
-                  )}
-                </div>
-
-                {workshop.description && (
-                  // Recortada a 2 líneas: texto plano, no la sintaxis cruda (`**así**`).
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {markdownToPlain(workshop.description)}
-                  </p>
-                )}
-
-                <div className="text-xs text-muted-foreground space-y-0.5">
-                  {workshop.start_date && isUpcoming && (
-                    <div className="flex items-center gap-1.5 tabular-nums">
-                      <Clock className="h-3 w-3" />
+                        })()
+                  }
+                  estado={
+                    /* Sustentación pendiente: se dice QUÉ falta, no se deja un
+                       «Entregado» genérico. El alumno ya hizo su parte; lo que
+                       falta es del docente, y sin decirlo va a preguntar por qué
+                       su taller no tiene nota. */
+                    faltaSustentacion ? (
+                      <Badge variant="secondary" className="shrink-0" title={t("defense.pendingHint")}>
+                        {t("defense.pending")}
+                      </Badge>
+                    ) : isGraded ? (
+                      <Badge className="shrink-0">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {grade != null
+                          ? workshop.course
+                            ? `${formatNumber(workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${workshop.course.grade_scale_max}`
+                            : `${grade}`
+                          : t("exam.submitted")}
+                      </Badge>
+                    ) : entregaHecha(submission) ? (
+                      <Badge variant="secondary" className="shrink-0">
+                        {t("exam.submitted")}
+                      </Badge>
+                    ) : vencido ? (
+                      <Badge variant="destructive" className="shrink-0">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {t("dashboard.overdue")}
+                      </Badge>
+                    ) : isOpen ? (
+                      <Badge className="bg-success text-success-foreground shrink-0">
+                        {t("exam.available")}
+                      </Badge>
+                    ) : isUpcoming ? (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("exam.upcoming")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("exam.closed")}
+                      </Badge>
+                    )
+                  }
+                />
+                <ResumenDeTarjeta texto={workshop.description} />
+                <FechasDeTarjeta>
+                  {workshop.start_date && (
+                    <FechaDeTarjeta>
                       {t("hc_routesAppStudentWorkshops.availableFromLabel")}:{" "}
                       {formatDateTime(workshop.start_date)}
-                    </div>
+                    </FechaDeTarjeta>
                   )}
                   {workshop.due_date && (
-                    <div className="flex items-center gap-1.5 tabular-nums">
-                      <Clock className="h-3 w-3" />
+                    <FechaDeTarjeta>
                       {t("dashboard.dueLabel")}: {formatDateTime(workshop.due_date)}
-                    </div>
+                    </FechaDeTarjeta>
                   )}
-                </div>
-
-                {workshop.external_link && (
-                  /* El documento de la actividad. Va como BOTÓN y no como un
-                     enlace de texto: es lo primero que el estudiante tiene que
-                     abrir, y antes decía «Talleres» —una clave del dashboard
-                     reusada por error— que no anunciaba nada.
-
-                     `variant="outline"` con el color de la marca y no un primario:
-                     el primario de esta pantalla es entregar, y dos botones
-                     llenos compiten por la misma mirada. El color sale de
-                     `--primary`, que es la CSS var que pinta el tema de la
-                     institución, así que se marca solo. */
+                </FechasDeTarjeta>
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta
+                enlace={{
+                  href: workshop.external_link,
+                  etiqueta: t("tarjetaActividad.documento"),
+                  descripcion: t("teacherWorkshops.openActivityDoc"),
+                  icono: Download,
+                }}
+              >
+                {accion === "armar" ? (
+                  <GrupoEnTarjeta variante="accion" resumen={resumenGrupo} onAbrir={abrirGrupo} />
+                ) : accion === "sinGrupo" ? (
+                  <AccionNoDisponible icono={<UsersRound />}>
+                    {t("tarjetaActividad.sinGrupo")}
+                  </AccionNoDisponible>
+                ) : accion === "entregar" ? (
                   <Button
-                    asChild
-                    variant="outline"
                     size="sm"
-                    className="border-primary/40 text-primary hover:text-primary"
+                    className="w-full min-w-0"
+                    onClick={() => {
+                      setQuestionsWs({ workshop, submission, groupId });
+                      setQuestionsOpen(true);
+                    }}
                   >
-                    <a href={workshop.external_link} target="_blank" rel="noopener noreferrer">
-                      <Download className="h-3.5 w-3.5 mr-1.5" />
-                      {t("teacherWorkshops.openActivityDoc")}
-                    </a>
+                    <ListChecks />
+                    <span className="min-w-0 truncate">
+                      {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
+                          el docente) no es una entrega: no se «actualiza», se sigue. */}
+                      {entregaHecha(submission)
+                        ? t("common.update")
+                        : submission
+                          ? t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering")
+                          : t("workshop.startSubmission")}
+                    </span>
                   </Button>
+                ) : accion === "detalle" ? (
+                  <Link to="/app/student/workshop/$workshopId" params={{ workshopId: workshop.id }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full min-w-0"
+                      title={t("exam.viewDetail")}
+                    >
+                      <MessageSquareText />
+                      <span className="min-w-0 truncate">{t("common.seeDetail")}</span>
+                    </Button>
+                  </Link>
+                ) : accion === "porCalificar" ? (
+                  <AccionNoDisponible icono={<Clock />}>
+                    {t("tarjetaActividad.porCalificar")}
+                  </AccionNoDisponible>
+                ) : accion === "proximo" ? (
+                  <AccionNoDisponible icono={<CalendarClock />}>
+                    {t("tarjetaActividad.aunNoDisponible")}
+                  </AccionNoDisponible>
+                ) : accion === "vencido" ? (
+                  <AccionNoDisponible>{t("tarjetaActividad.plazoVencido")}</AccionNoDisponible>
+                ) : (
+                  <AccionNoDisponible>{t("hc_routesAppStudentWorkshops.statusClosed")}</AccionNoDisponible>
                 )}
-
-                {/* Banner pendiente: cuando la submission ya está
-                    entregada pero la IA aún no calificó (modo async sin
-                    override). Variante compact para no inflar la card.
-                    Se omite si el docente ya puso final_grade override. */}
-                {submission?.status === "entregado" &&
-                  submission?.final_grade == null &&
-                  isAiGradePending({
-                    ai_grade: submission?.ai_grade,
-                    ai_feedback: submission?.ai_feedback,
-                  }) && <PendingAiGradeBanner variant="compact" />}
-
+              </AccionesDeTarjeta>
+              <DetallesDeTarjeta>
+                {grupoEnTarjetaMuestraAlgo("detalle", resumenGrupo) && (
+                  <GrupoEnTarjeta variante="detalle" resumen={resumenGrupo} onAbrir={abrirGrupo} />
+                )}
+                {accion === "sinGrupo" && (
+                  <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning-on-subtle">
+                    {t("hc_routesAppStudentWorkshops.groupModeNoGroupBody")}
+                  </p>
+                )}
+                {/* Entregada y la IA todavía no calificó (modo asíncrono). Si ya es
+                    la acción de la tarjeta («Por calificar»), no se repite. */}
+                {notaPendiente && accion !== "porCalificar" && (
+                  <PendingAiGradeBanner variant="compact" />
+                )}
                 {/* La retroalimentación se ve recién CALIFICADO: «Por calificar»
                     es un resultado a medias (retroalimentacion-visible.ts). */}
-                {retroDeTallerVisible(submission) &&
-                  (submission?.teacher_feedback || submission?.ai_feedback) && (
+                {retroVisible && Boolean(submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
                       <MessageSquare className="h-3 w-3" />
@@ -960,104 +1028,45 @@ function StudentWorkshops() {
                     </div>
                   </div>
                 )}
-
-              </CuerpoDeTarjeta>
-              <AccionesDeTarjeta>
-                <GrupoEnTarjeta
-                  tipo="taller"
-                  actividadId={workshop.id}
-                  actividadTitulo={workshop.title}
-                  resumen={resumenGrupos[workshop.id]}
-                  onCambio={() => {
-                    if (user) void reload(user.id);
-                  }}
-                />
-                {/* Modo grupal estricto SIN grupo: no se puede entregar.
-                    Mostramos un aviso en lugar del CTA. Si los grupos los
-                    arman los estudiantes, el aviso con el botón para armarlo
-                    lo da `GrupoEnTarjeta`. */}
-                {isOpen && blockedNoGroup && grupoEnLaTarjeta(resumenGrupos[workshop.id]).tipo !== "armar" && (
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-                    <div className="font-medium mb-1">
-                      {t("hc_routesAppStudentWorkshops.groupModeNoGroupTitle")}
-                    </div>
-                    {t("hc_routesAppStudentWorkshops.groupModeNoGroupBody")}
-                  </div>
-                )}
-
-                {/* CTA principal: responder/editar entrega. Mientras esté
-                    abierto el plazo, el estudiante puede actualizar su
-                    entrega aunque ya haya sido calificada por la IA — al
-                    re-entregar se vuelve a calificar. En modo mixto: si
-                    el estudiante tiene grupo, la entrega es del grupo;
-                    si no, entrega individualmente. */}
-                {isOpen && !blockedNoGroup && !attemptsExhausted && (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setQuestionsWs({ workshop, submission, groupId });
-                      setQuestionsOpen(true);
-                    }}
-                  >
-                    <ListChecks className="h-4 w-4 mr-1" />
-                    {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
-                        el docente) no es una entrega: no se «actualiza», se sigue. */}
-                    {entregaHecha(submission)
-                      ? t("common.update")
-                      : submission
-                        ? t("hc_modulesWorkshopsWorkshopQuestions.keepAnswering")
-                        : t("workshop.startSubmission")}
-                  </Button>
-                )}
-
-                {submission && retroDeTallerVisible(submission) && (
+                {retroVisible && accion !== "detalle" && (
                   <Link to="/app/student/workshop/$workshopId" params={{ workshopId: workshop.id }}>
                     <Button variant="secondary" size="sm" className="w-full">
-                      <MessageSquareText className="h-4 w-4 mr-1" />
+                      <MessageSquareText />
                       {t("exam.viewDetail")}
                     </Button>
                   </Link>
                 )}
-
-                {/* Eliminar mi entrega — solo dentro del plazo Y solo si
-                    todavía hay intentos disponibles. Borrar después de
-                    consumir todos los intentos sería un bypass del cap
-                    (la fila guarda attempt_count; al borrarla se perdería
-                    el contador). RLS valida también en BD (migración
-                    20260508140000). */}
-                {/* "Intento gastado" = attempt_count alcanzó el cap Y la
-                    entrega previa ya fue calificada. Si está `entregado`
-                    sin nota (final_grade=null y status!='calificado'),
-                    el alumno sigue en el MISMO intento — puede
-                    re-editar y borrar. Misma regla que en el submit
-                    de WorkshopQuestions. */}
-                {(() => {
-                  if (!isOpen || !submission || !entregaHecha(submission)) return null;
-                  const canDelete = !attemptsExhausted;
-                  return canDelete ? (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="w-full mt-3 text-destructive hover:text-destructive"
-                      onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
-                      {t("hc_routesAppStudentWorkshops.deleteMySubmission")}
-                    </Button>
-                  ) : (
+                {/* Eliminar mi entrega — solo dentro del plazo Y solo si todavía
+                    hay intentos. Borrar después de consumirlos sería un bypass del
+                    cap (la fila guarda attempt_count; al borrarla se perdería el
+                    contador). La RLS lo valida también (migración 20260508140000).
+                    «Intento gastado» = attempt_count alcanzó el cap Y la entrega ya
+                    fue calificada; `entregado` sin nota sigue en el MISMO intento.
+                    Misma regla que el submit de WorkshopQuestions. */}
+                {isOpen &&
+                  submission &&
+                  entregaHecha(submission) &&
+                  (attemptsExhausted ? (
                     <p className="text-2xs text-muted-foreground text-center italic">
                       {t("hc_routesAppStudentWorkshops.attemptsExhaustedNoDelete")}
                     </p>
-                  );
-                })()}
-
-                {workshop.status === "published" && isOverdue && !entregaHecha(submission) && (
+                  ) : (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="w-full text-destructive hover:text-destructive"
+                      onClick={() => deleteSubmission(workshop.title, submission.id, !!groupId)}
+                    >
+                      <Trash2 />
+                      {t("hc_routesAppStudentWorkshops.deleteMySubmission")}
+                    </Button>
+                  ))}
+                {accion === "vencido" && (
                   <p className="text-xs text-destructive text-center">
-                    {t("exam.windowClosedHelp")}
+                    {t("tarjetaActividad.plazoVencidoAyuda")}
                   </p>
                 )}
-              </AccionesDeTarjeta>
+              </DetallesDeTarjeta>
             </TarjetaDeActividad>
           );
         })}
@@ -1071,6 +1080,19 @@ function StudentWorkshops() {
           entityNamePlural={t("hc_routesAppStudentWorkshops.entityNamePlural")}
         />
       </div>
+
+      {grupoAbierto && (
+        <MiGrupoDialog
+          tipo="taller"
+          actividadId={grupoAbierto.id}
+          actividadTitulo={grupoAbierto.titulo}
+          open={grupoVisible}
+          onOpenChange={setGrupoVisible}
+          onCambio={() => {
+            if (user) void reload(user.id);
+          }}
+        />
+      )}
 
       {/* Workshop Questions Dialog — single entry-point for student delivery.
           On submit the Taker runs AI grading per question and writes the final

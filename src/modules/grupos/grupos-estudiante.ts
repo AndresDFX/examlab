@@ -134,6 +134,23 @@ export function grupoEnLaTarjeta(resumen: ResumenDeGrupo | null | undefined): Gr
 }
 
 /**
+ * Dónde de la tarjeta va el grupo. `accion`: «Armar grupo» es LA acción de la
+ * tarjeta solo en grupal estricto, porque sin grupo no hay entrega; en mixto
+ * se puede entregar solo, así que armarlo es optativo. `detalle`: lo que va
+ * detrás de «Ver más» (con quién está, o por qué armar uno). La lista lo usa
+ * para no montar una pieza que no pinta nada, y es también el predicado del
+ * aviso «Sin grupo asignado»: sale cuando la acción NO es armar el grupo.
+ */
+export function grupoEnTarjetaMuestraAlgo(
+  variante: "accion" | "detalle",
+  resumen: ResumenDeGrupo | null | undefined,
+): boolean {
+  const vista = grupoEnLaTarjeta(resumen);
+  if (variante === "accion") return vista.tipo === "armar" && vista.estricto;
+  return vista.tipo !== "nada";
+}
+
+/**
  * Un grupo que lo armó el DOCENTE, no un estudiante. La RPC de crear guarda en
  * `created_by` al estudiante que lo armó; la ventana «Grupos» del docente (y
  * «Repartir al azar», y «Desde una imagen») no lo llena. Con eso alcanza para

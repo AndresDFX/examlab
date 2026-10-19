@@ -1211,7 +1211,6 @@
     "closed": "Closed",
     "viewDetail": "View detail and feedback",
     "windowClosed": "Project window closed",
-    "windowClosedHelp": "The project window has ended. Contact your teacher if you need help.",
     "needsTeacherRole": "Teacher role required.",
     "deleteTitle": "Delete {{title}}",
     "deleteBody": "The project and its submissions will go to the Trash. It can be restored from there for 30 days; after that it is permanently deleted.",
@@ -2779,7 +2778,8 @@
     "gateActivate": "Activate immediate AI",
     "workerReportedFailure": "The task failed while processing",
     "unknownError": "Unknown error",
-    "fallbackQueued": "The AI didn't respond right now. We queued your request and it will be processed automatically; you'll see it under AI jobs."
+    "fallbackQueued": "The AI didn't respond right now. We queued your request and it will be processed automatically; you'll see it under AI jobs.",
+    "studentPending": "Awaiting grade"
   },
   "tenantQuota": {
     "defaultTitle": "User licenses",
@@ -8097,7 +8097,6 @@
     "noAttemptsLeftHelp": "You have used up the {{max}} attempt(s) allowed for this exam.",
     "examSuspended": "Exam suspended",
     "examSuspendedHelp": "You reached the maximum number of warnings. Your instructor can review your case.",
-    "notYetAvailable": "Not yet available",
     "notYetAvailableHelp": "This exam is about to start. You'll be able to access it once the window opens.",
     "examClosed": "Exam closed",
     "examClosedHelp": "The period for this exam has ended.",
@@ -8516,7 +8515,6 @@
     "emptyTitle": "No projects yet",
     "emptyHint": "When your teacher assigns a project, it'll appear here.",
     "availableFrom": "Available from",
-    "groupModeNoGroupTitle": "Group mode — no group assigned",
     "groupModeNoGroupBody": "Your teacher set up this project as group work. You don't belong to any group yet, so you can't submit. Ask your teacher to assign you to one.",
     "deleteMySubmission": "Delete my submission",
     "attemptsExhausted": "You've used all your attempts — the submission can't be deleted.",
@@ -8679,7 +8677,6 @@
     "emptyTitle": "No workshops yet",
     "emptyHint": "When your teacher assigns a workshop, it'll appear here.",
     "availableFromLabel": "Available from",
-    "groupModeNoGroupTitle": "Group mode — no group assigned",
     "groupModeNoGroupBody": "Your teacher set up this workshop as a group activity. You don't belong to any group yet, so you can't submit. Ask your teacher to assign you to one.",
     "deleteMySubmission": "Delete my submission",
     "attemptsExhaustedNoDelete": "You've used all your attempts — the submission can't be deleted.",
@@ -11396,6 +11393,19 @@
   "actividadHomonima": {
     "aviso_one": "Heads up: {{cursos}} has another activity with this same name. They are different, and each one counts in its own course.",
     "aviso_other": "Heads up: {{cursos}} have other activities with this same name. They are different, and each one counts in its own course."
+  },
+  "tarjetaActividad": {
+    "verMas": "Show more",
+    "verMenos": "Show less",
+    "documento": "Document",
+    "aunNoDisponible": "Not available yet",
+    "plazoVencido": "Past due",
+    "plazoVencidoAyuda": "The submission deadline has passed. If you need help, talk to your teacher.",
+    "porCalificar": "Awaiting grade",
+    "sinGrupo": "No group assigned",
+    "externa": "External activity",
+    "externaAyuda": "It happens outside the platform: there is nothing to submit here, and your teacher records the grade.",
+    "recurso": "Resource"
   },
   "gruposEstudiante": {
     "titulo": "My group",

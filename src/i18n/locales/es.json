@@ -1211,7 +1211,6 @@
     "closed": "Cerrado",
     "viewDetail": "Ver detalle y retroalimentación",
     "windowClosed": "Ventana del proyecto cerrada",
-    "windowClosedHelp": "El periodo del proyecto ya finalizó. Si necesitas ayuda, contacta a tu docente.",
     "needsTeacherRole": "Necesitas rol Docente.",
     "deleteTitle": "Eliminar {{title}}",
     "deleteBody": "El proyecto y sus entregas irán a la Papelera. Desde ahí se puede restaurar durante 30 días; después se borra definitivamente.",
@@ -2779,7 +2778,8 @@
     "gateActivate": "Activar IA inmediata",
     "workerReportedFailure": "La tarea falló al procesarse",
     "unknownError": "Error desconocido",
-    "fallbackQueued": "La IA no respondió en este momento. Dejamos tu solicitud en cola y se procesará automáticamente; la verás en Tareas de IA."
+    "fallbackQueued": "La IA no respondió en este momento. Dejamos tu solicitud en cola y se procesará automáticamente; la verás en Tareas de IA.",
+    "studentPending": "Por calificar"
   },
   "tenantQuota": {
     "defaultTitle": "Licencias de usuarios",
@@ -8097,7 +8097,6 @@
     "noAttemptsLeftHelp": "Has agotado los {{max}} intento(s) permitidos para este examen.",
     "examSuspended": "Examen suspendido",
     "examSuspendedHelp": "Alcanzaste el máximo de advertencias. El docente puede revisar tu caso.",
-    "notYetAvailable": "Aún no disponible",
     "notYetAvailableHelp": "Este examen está próximo a empezar. Podrás acceder cuando abra la ventana.",
     "examClosed": "Examen cerrado",
     "examClosedHelp": "El periodo de este examen ya finalizó.",
@@ -8516,7 +8515,6 @@
     "emptyTitle": "Aún no tienes proyectos",
     "emptyHint": "Cuando tu docente asigne un proyecto, aparecerá aquí.",
     "availableFrom": "Disponible desde",
-    "groupModeNoGroupTitle": "Modo grupal — sin grupo asignado",
     "groupModeNoGroupBody": "Tu docente configuró este proyecto como grupal. Aún no perteneces a ningún grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.",
     "deleteMySubmission": "Eliminar mi entrega",
     "attemptsExhausted": "Ya consumiste todos tus intentos — la entrega no se puede borrar.",
@@ -8679,7 +8677,6 @@
     "emptyTitle": "Aún no tienes talleres",
     "emptyHint": "Cuando tu docente asigne un taller, aparecerá aquí.",
     "availableFromLabel": "Disponible desde",
-    "groupModeNoGroupTitle": "Modo grupal — sin grupo asignado",
     "groupModeNoGroupBody": "Tu docente configuró este taller como grupal. Aún no perteneces a ningún grupo, así que no puedes entregar. Pídele al docente que te asigne a uno.",
     "deleteMySubmission": "Eliminar mi entrega",
     "attemptsExhaustedNoDelete": "Ya consumiste todos tus intentos — la entrega no se puede borrar.",
@@ -11396,6 +11393,19 @@
   "actividadHomonima": {
     "aviso_one": "Ojo: en {{cursos}} hay otra actividad con este mismo nombre. Son distintas y cada una cuenta en su curso.",
     "aviso_other": "Ojo: en {{cursos}} hay otras actividades con este mismo nombre. Son distintas y cada una cuenta en su curso."
+  },
+  "tarjetaActividad": {
+    "verMas": "Ver más",
+    "verMenos": "Ver menos",
+    "documento": "Documento",
+    "aunNoDisponible": "Aún no disponible",
+    "plazoVencido": "Plazo vencido",
+    "plazoVencidoAyuda": "El plazo para entregar terminó. Si necesitas ayuda, habla con tu docente.",
+    "porCalificar": "Por calificar",
+    "sinGrupo": "Sin grupo asignado",
+    "externa": "Actividad externa",
+    "externaAyuda": "Se hace fuera de la plataforma: no se entrega por acá, y la nota la registra tu docente.",
+    "recurso": "Recurso"
   },
   "gruposEstudiante": {
     "titulo": "Mi grupo",

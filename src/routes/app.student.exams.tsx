@@ -18,7 +18,13 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import {
   TarjetaDeActividad,
   CuerpoDeTarjeta,
+  EncabezadoDeTarjeta,
+  ResumenDeTarjeta,
+  FechasDeTarjeta,
+  FechaDeTarjeta,
   AccionesDeTarjeta,
+  AccionNoDisponible,
+  DetallesDeTarjeta,
 } from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { AvisoOcultosPorEstado } from "@/shared/components/AvisoOcultosPorEstado";
@@ -37,6 +43,7 @@ import {
 import { friendlyError } from "@/shared/lib/db-errors";
 import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 import {
+  CalendarClock,
   Clock,
   Play,
   CheckCircle2,
@@ -48,19 +55,17 @@ import {
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
 import { MAX_WARNINGS } from "@/modules/exams/proctoring";
-import { CortePesoBadges } from "@/components/ui/corte-peso";
 import { indiceDeCortes, resolverCorteYPeso } from "@/modules/grading/corte-y-peso";
 import { formatDateTime, formatNumber } from "@/shared/lib/format";
-import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { DatePicker } from "@/components/ui/date-picker";
 import { StatCard } from "@/components/ui/stat-card";
 import { retroDeExamenVisible } from "@/modules/submissions/retroalimentacion-visible";
+import { accionDeExamen } from "@/modules/submissions/accion-de-tarjeta";
 import { tarjetaDeExamen } from "@/modules/exams/tarjeta-de-examen";
 import type { FilaDeExamen } from "@/modules/grading/nota-con-recuperacion";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
-import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 
 export const Route = createFileRoute("/app/student/exams")({
   component: StudentExams,
@@ -628,7 +633,7 @@ function StudentExams() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         {loading && (
           <div className="col-span-full flex justify-center py-10">
             <Spinner size="md" />
@@ -686,84 +691,98 @@ function StudentExams() {
           const grade = nota;
           const reviewExamId = completed && submission ? examIdRevision : exam.id;
           const noAttemptsLeft = attemptsUsed >= maxAttempts;
+          const maxWarnings = (exam as any).max_warnings ?? MAX_WARNINGS;
+          const retroVisible = retroDeExamenVisible(submission);
+          // Cuando no hay nada que hacer, la acción es un botón deshabilitado que
+          // dice por qué, y la explicación larga va en «Ver más».
+          const accion = accionDeExamen({
+            completado: completed,
+            abierto: isOpen,
+            sinIntentos: noAttemptsLeft,
+            conNota: retroVisible,
+            enCurso: submission?.status === "en_progreso",
+            ventanaTerminada: now > end,
+            antesDeAbrir: now < start,
+            advertenciasAlTope: (submission?.focus_warnings ?? 0) >= maxWarnings,
+          });
+          const ayuda =
+            accion === "ventanaCerrada"
+              ? t("exam.windowClosedHelp")
+              : accion === "sinIntentos"
+                ? t("hc_routesAppStudentExams.noAttemptsLeftHelp", { max: maxAttempts })
+                : accion === "suspendido"
+                  ? t("hc_routesAppStudentExams.examSuspendedHelp")
+                  : accion === "proximo"
+                    ? t("hc_routesAppStudentExams.notYetAvailableHelp")
+                    : accion === "cerrado"
+                      ? t("hc_routesAppStudentExams.examClosedHelp")
+                      : null;
           return (
             <TarjetaDeActividad key={exam.id}>
               <CuerpoDeTarjeta>
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <CursoDeLaActividad curso={exam.course?.name} />
-                    <h3 className="font-semibold truncate">{exam.title}</h3>
-                    <AvisoActividadHomonima cursos={homonimas.get(exam.id)} />
-                    {/* Una recuperación no vale aparte: ocupa el lugar del original. */}
-                    {!exam.parent_exam_id && (
-                      <CortePesoBadges
-                        valor={resolverCorteYPeso(exam.cut_id, exam.weight, nombreDeCorte)}
-                      />
-                    )}
-                  </div>
-                  {completed ? (
-                    // El color lo decide la NOTA, no el estado de la entrega.
-                    // Antes bastaba con que la entrega estuviera marcada como
-                    // sospechosa para pintar un 4,37 sobre 5 en rojo y con
-                    // triángulo de alerta: el badge dice «tu calificación está
-                    // mal» y no era verdad. Si hubo algo que revisar, eso se
-                    // avisa aparte y con su propio ícono.
-                    <Badge
-                      variant={varianteDeNota(grade, exam.course?.passing_grade)}
-                      className="shrink-0"
-                    >
-                      {estaAprobada(grade, exam.course?.passing_grade) === false ? (
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                      ) : (
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                      )}
-                      {grade != null
-                        ? t("exam.gradeLabel", {
-                            grade: formatNumber(Number(grade), { maximumFractionDigits: 2 }),
-                            max: exam.course?.grade_scale_max ?? 5,
-                          })
-                        : t("exam.submitted")}
-                    </Badge>
-                  ) : isOpen && submission?.status === "en_progreso" ? (
-                    // Mismo estado que cuentan los contadores de arriba: decía
-                    // «Disponible» mientras el contador decía «En progreso 1».
-                    <Badge className="bg-warning text-warning-foreground shrink-0">
-                      {t("hc_routesAppStudentExams.filterInProgress")}
-                    </Badge>
-                  ) : isOpen ? (
-                    <Badge className="bg-success text-success-foreground shrink-0">
-                      {t("exam.available")}
-                    </Badge>
-                  ) : now < start ? (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("exam.upcoming")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t("exam.closed")}
-                    </Badge>
-                  )}
-                </div>
-                {/* Banner pendiente IA: el ÚLTIMO intento está entregado y sin nota
-                    (`ai_grade` y `final_override_grade` en null: la IA no escribió aún
-                    y el docente no la puso). Se mira el intento y no la nota del
-                    examen: con un intento anterior calificado, la nota de la tarjeta
-                    existe y el aviso igual tiene que decir que el último está en cola. */}
-                {completed && !retroDeExamenVisible(submission) && <PendingAiGradeBanner variant="compact" />}
-
-                {exam.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {markdownToPlain(exam.description)}
-                  </p>
-                )}
-                <div className="text-xs text-muted-foreground space-y-0.5">
-                  <div className="flex items-center gap-1.5">
-                    <Clock className="h-3 w-3" />
+                <EncabezadoDeTarjeta
+                  curso={exam.course?.name}
+                  titulo={exam.title}
+                  homonimas={homonimas.get(exam.id)}
+                  // Una recuperación no vale aparte: ocupa el lugar del original.
+                  cortePeso={
+                    exam.parent_exam_id
+                      ? null
+                      : resolverCorteYPeso(exam.cut_id, exam.weight, nombreDeCorte)
+                  }
+                  estado={
+                    completed ? (
+                      // El color lo decide la NOTA, no el estado de la entrega.
+                      // Antes bastaba con que la entrega estuviera marcada como
+                      // sospechosa para pintar un 4,37 sobre 5 en rojo y con
+                      // triángulo de alerta: el badge dice «tu calificación está
+                      // mal» y no era verdad. Si hubo algo que revisar, eso se
+                      // avisa aparte y con su propio ícono.
+                      <Badge
+                        variant={varianteDeNota(grade, exam.course?.passing_grade)}
+                        className="shrink-0"
+                      >
+                        {estaAprobada(grade, exam.course?.passing_grade) === false ? (
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                        ) : (
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                        )}
+                        {grade != null
+                          ? t("exam.gradeLabel", {
+                              grade: formatNumber(Number(grade), { maximumFractionDigits: 2 }),
+                              max: exam.course?.grade_scale_max ?? 5,
+                            })
+                          : t("exam.submitted")}
+                      </Badge>
+                    ) : isOpen && submission?.status === "en_progreso" ? (
+                      // Mismo estado que cuentan los contadores de arriba: decía
+                      // «Disponible» mientras el contador decía «En progreso 1».
+                      <Badge className="bg-warning text-warning-foreground shrink-0">
+                        {t("hc_routesAppStudentExams.filterInProgress")}
+                      </Badge>
+                    ) : isOpen ? (
+                      <Badge className="bg-success text-success-foreground shrink-0">
+                        {t("exam.available")}
+                      </Badge>
+                    ) : now < start ? (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("exam.upcoming")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("exam.closed")}
+                      </Badge>
+                    )
+                  }
+                />
+                <ResumenDeTarjeta texto={exam.description} />
+                <FechasDeTarjeta>
+                  <FechaDeTarjeta>
                     {t("exam.availability", {
                       start: formatDateTime(exam.start_time),
                       end: formatDateTime(exam.end_time),
                     })}
-                  </div>
+                  </FechaDeTarjeta>
                   <div className="flex items-center justify-between gap-2">
                     <span>{t("exam.duration", { min: exam.time_limit_minutes })}</span>
                     {maxAttempts > 1 && (
@@ -781,116 +800,91 @@ function StudentExams() {
                       <span className="text-destructive font-medium">
                         {t("hc_routesAppStudentExams.strikesRegistered", {
                           warnings: submission.focus_warnings,
-                          max: (exam as any).max_warnings ?? MAX_WARNINGS,
+                          max: maxWarnings,
                         })}
                       </span>
                     </div>
                   )}
-                </div>
-                {/* Solo mostramos el componente de notas de apoyo si
-                    el docente las habilitó para este examen. Default
-                    true para mantener compat con exámenes pre-toggle. */}
+                </FechasDeTarjeta>
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta>
+                {accion === "reintentar" ? (
+                  <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
+                    <Button size="sm" className="w-full min-w-0">
+                      <Play />
+                      <span className="min-w-0 truncate">
+                        {t("hc_routesAppStudentExams.retryExam")}
+                      </span>
+                    </Button>
+                  </Link>
+                ) : accion === "detalle" ? (
+                  <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full min-w-0"
+                      title={t("exam.viewDetail")}
+                    >
+                      <MessageSquareText />
+                      <span className="min-w-0 truncate">{t("common.seeDetail")}</span>
+                    </Button>
+                  </Link>
+                ) : accion === "porCalificar" ? (
+                  <AccionNoDisponible icono={<Clock />}>
+                    {t("tarjetaActividad.porCalificar")}
+                  </AccionNoDisponible>
+                ) : accion === "ventanaCerrada" ? (
+                  <AccionNoDisponible>{t("exam.windowClosed")}</AccionNoDisponible>
+                ) : accion === "sinIntentos" ? (
+                  <AccionNoDisponible>{t("hc_routesAppStudentExams.noAttemptsLeft")}</AccionNoDisponible>
+                ) : accion === "suspendido" ? (
+                  <AccionNoDisponible icono={<ShieldAlert />}>
+                    {t("hc_routesAppStudentExams.examSuspended")}
+                  </AccionNoDisponible>
+                ) : accion === "presentar" ? (
+                  <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
+                    <Button size="sm" className="w-full min-w-0">
+                      <Play />
+                      <span className="min-w-0 truncate">
+                        {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}
+                      </span>
+                    </Button>
+                  </Link>
+                ) : accion === "proximo" ? (
+                  <AccionNoDisponible icono={<CalendarClock />}>
+                    {t("tarjetaActividad.aunNoDisponible")}
+                  </AccionNoDisponible>
+                ) : (
+                  <AccionNoDisponible>{t("hc_routesAppStudentExams.examClosed")}</AccionNoDisponible>
+                )}
+              </AccionesDeTarjeta>
+              <DetallesDeTarjeta>
+                {ayuda ? (
+                  <p className="text-xs text-center text-muted-foreground leading-snug">{ayuda}</p>
+                ) : null}
+                {/* Con reintento disponible la acción es reintentar: el último intento,
+                    su retroalimentación o el aviso de que todavía no tiene nota van acá.
+                    Se mira el intento y no la nota del examen: con un intento anterior
+                    calificado, la nota de la tarjeta existe y el aviso igual tiene que
+                    decir que el último está en cola. */}
+                {accion === "reintentar" && !retroVisible && <PendingAiGradeBanner variant="compact" />}
+                {accion === "reintentar" && retroVisible && (
+                  <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
+                    <Button variant="secondary" size="sm" className="w-full">
+                      <MessageSquareText />
+                      {t("exam.viewDetail")}
+                    </Button>
+                  </Link>
+                )}
+                {/* Solo si el docente habilitó las notas de apoyo para este examen.
+                    Default true para mantener compat con exámenes pre-toggle. */}
                 {!completed &&
                   user &&
                   now < end &&
                   ((exam as { allow_exam_notes?: boolean }).allow_exam_notes ?? true) && (
                     <StudentExamNotes examId={exam.id} userId={user.id} />
                   )}
-              </CuerpoDeTarjeta>
-              <AccionesDeTarjeta>
-                {completed && !noAttemptsLeft && isOpen ? (
-                  <div className="space-y-2">
-                    <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
-                      <Button size="sm" className="w-full">
-                        <Play className="h-4 w-4 mr-1" />
-                        {t("hc_routesAppStudentExams.retryExam")}
-                      </Button>
-                    </Link>
-                    {retroDeExamenVisible(submission) && (
-                      <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
-                        <Button variant="ghost" size="sm" className="w-full">
-                          <MessageSquareText className="h-4 w-4 mr-1" />
-                          {t("exam.viewDetail")}
-                        </Button>
-                      </Link>
-                    )}
-                  </div>
-                ) : completed ? (
-                  // La retroalimentación se ve recién con nota (retroalimentacion-visible.ts).
-                  !retroDeExamenVisible(submission) ? null : (
-                  <Link to="/app/student/review/$examId" params={{ examId: reviewExamId }}>
-                    <Button variant="secondary" size="sm" className="w-full">
-                      <MessageSquareText className="h-4 w-4 mr-1" />
-                      {t("exam.viewDetail")}
-                    </Button>
-                  </Link>
-                  )
-                ) : submission?.status === "en_progreso" && !isOpen && now > end ? (
-                  <div className="space-y-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled
-                      className="w-full cursor-not-allowed"
-                    >
-                      {t("exam.windowClosed")}
-                    </Button>
-                    <p className="text-2xs text-center text-muted-foreground leading-snug">
-                      {t("exam.windowClosedHelp")}
-                    </p>
-                  </div>
-                ) : noAttemptsLeft ? (
-                  <div className="space-y-2">
-                    <Button size="sm" disabled variant="outline" className="w-full">
-                      <Play className="h-4 w-4 mr-1" />
-                      {t("hc_routesAppStudentExams.noAttemptsLeft")}
-                    </Button>
-                    <p className="text-2xs text-center text-muted-foreground leading-snug">
-                      {t("hc_routesAppStudentExams.noAttemptsLeftHelp", { max: maxAttempts })}
-                    </p>
-                  </div>
-                ) : isOpen &&
-                  submission?.status === "en_progreso" &&
-                  (submission.focus_warnings ?? 0) >=
-                    ((exam as any).max_warnings ?? MAX_WARNINGS) ? (
-                  <div className="space-y-2">
-                    <Button size="sm" disabled variant="outline" className="w-full">
-                      <ShieldAlert className="h-4 w-4 mr-1" />
-                      {t("hc_routesAppStudentExams.examSuspended")}
-                    </Button>
-                    <p className="text-2xs text-center text-muted-foreground leading-snug">
-                      {t("hc_routesAppStudentExams.examSuspendedHelp")}
-                    </p>
-                  </div>
-                ) : isOpen ? (
-                  <Link to="/app/student/take/$examId" params={{ examId: exam.id }} className="block">
-                    <Button size="sm" className="w-full">
-                      <Play className="h-4 w-4 mr-1" />
-                      {submission?.status === "en_progreso" ? t("exam.resume") : t("exam.start")}
-                    </Button>
-                  </Link>
-                ) : now < start ? (
-                  <div className="space-y-2">
-                    <Button size="sm" disabled variant="outline" className="w-full">
-                      <Play className="h-4 w-4 mr-1" />
-                      {t("hc_routesAppStudentExams.notYetAvailable")}
-                    </Button>
-                    <p className="text-2xs text-center text-muted-foreground leading-snug">
-                      {t("hc_routesAppStudentExams.notYetAvailableHelp")}
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    <Button size="sm" disabled variant="outline" className="w-full">
-                      <Play className="h-4 w-4 mr-1" />
-                      {t("hc_routesAppStudentExams.examClosed")}
-                    </Button>
-                    <p className="text-2xs text-center text-muted-foreground leading-snug">
-                      {t("hc_routesAppStudentExams.examClosedHelp")}
-                    </p>
-                  </div>
-                )}
-              </AccionesDeTarjeta>
+              </DetallesDeTarjeta>
             </TarjetaDeActividad>
           );
         })}

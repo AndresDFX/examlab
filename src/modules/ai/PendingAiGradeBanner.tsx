@@ -16,7 +16,7 @@
  *     decide con `isAiGradePending(...)` del helper de ai-grading.
  */
 import { Clock } from "lucide-react";
-import { QUEUED_STUDENT_TITLE } from "@/modules/ai/ai-grading";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 
 interface Props {
@@ -26,6 +26,7 @@ interface Props {
 }
 
 export function PendingAiGradeBanner({ variant = "default", className }: Props) {
+  const { t } = useTranslation();
   if (variant === "compact") {
     return (
       <span
@@ -36,7 +37,7 @@ export function PendingAiGradeBanner({ variant = "default", className }: Props) 
         )}
       >
         <Clock className="h-3 w-3 shrink-0" />
-        {QUEUED_STUDENT_TITLE}
+        {t("aiQueue.studentPending")}
       </span>
     );
   }
@@ -49,7 +50,7 @@ export function PendingAiGradeBanner({ variant = "default", className }: Props) 
       )}
     >
       <Clock className="h-4 w-4 shrink-0" />
-      {QUEUED_STUDENT_TITLE}
+      {t("aiQueue.studentPending")}
     </div>
   );
 }

@@ -7,6 +7,7 @@ import {
   cuposLibres,
   esModoGrupal,
   grupoEnLaTarjeta,
+  grupoEnTarjetaMuestraAlgo,
   gruposAlGuardar,
   MOTIVOS_GRUPO_CERRADO,
   problemaDeSeleccion,
@@ -86,6 +87,34 @@ describe("qué muestra la tarjeta sobre el grupo", () => {
       // Igual puede sumar compañeros desde «Gestionar», si los encuentra.
       puedeCambiar: true,
     });
+  });
+});
+
+describe("dónde de la tarjeta va el grupo", () => {
+  const g = { id: "g", nombre: "Los A", integrantes: 3, entregado: false };
+
+  it("armar el grupo es LA acción solo en grupal estricto", () => {
+    expect(grupoEnTarjetaMuestraAlgo("accion", resumen({ modo: "group_required" }))).toBe(true);
+    // En mixto se puede entregar solo: armarlo es optativo y va en «Ver más».
+    expect(grupoEnTarjetaMuestraAlgo("accion", resumen())).toBe(false);
+    expect(grupoEnTarjetaMuestraAlgo("detalle", resumen())).toBe(true);
+  });
+
+  it("con grupo, o sin nada que ofrecer, no hay acción de grupo", () => {
+    expect(
+      grupoEnTarjetaMuestraAlgo("accion", resumen({ modo: "group_required", grupo: g })),
+    ).toBe(false);
+    expect(grupoEnTarjetaMuestraAlgo("detalle", resumen({ grupo: g }))).toBe(true);
+    // Sin resumen o con la puerta cerrada no se monta nada: un hijo que pinta
+    // `null` dejaría un «Ver más» que no despliega nada.
+    expect(grupoEnTarjetaMuestraAlgo("accion", undefined)).toBe(false);
+    expect(grupoEnTarjetaMuestraAlgo("detalle", undefined)).toBe(false);
+    expect(
+      grupoEnTarjetaMuestraAlgo(
+        "accion",
+        resumen({ modo: "group_required", motivo: "los_arma_el_docente" }),
+      ),
+    ).toBe(false);
   });
 });
 

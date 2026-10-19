@@ -14,7 +14,6 @@ import {
   type RangoFechas,
 } from "@/shared/lib/rango-de-fechas";
 import { DateRangeFilter } from "@/components/ui/date-range-filter";
-import { CortePesoBadges } from "@/components/ui/corte-peso";
 import {
   filaQueManda,
   indiceDeCortes,
@@ -32,7 +31,13 @@ import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import {
   TarjetaDeActividad,
   CuerpoDeTarjeta,
+  EncabezadoDeTarjeta,
+  ResumenDeTarjeta,
+  FechasDeTarjeta,
+  FechaDeTarjeta,
   AccionesDeTarjeta,
+  AccionNoDisponible,
+  DetallesDeTarjeta,
 } from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
 import { AvisoOcultosPorEstado } from "@/shared/components/AvisoOcultosPorEstado";
@@ -54,14 +59,17 @@ import { isAiGradePending } from "@/modules/ai/ai-grading";
 import { PendingAiGradeBanner } from "@/modules/ai/PendingAiGradeBanner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
+  CalendarClock,
   Clock,
   CheckCircle2,
+  ExternalLink,
   AlertTriangle,
   MessageSquare,
   MessageSquareText,
   ListChecks,
   Trash2,
   FolderKanban,
+  UsersRound,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StatCard } from "@/components/ui/stat-card";
@@ -70,17 +78,17 @@ import { toast } from "sonner";
 import { StudentProjectTaker } from "@/modules/projects/ProjectFiles";
 import { formatDateTime, formatNumber } from "@/shared/lib/format";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
-import { markdownToPlain } from "@/shared/lib/markdown-plain";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { DatePicker } from "@/components/ui/date-picker";
 import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { usePagination } from "@/hooks/use-pagination";
 import { DataPagination } from "@/components/ui/data-pagination";
 import { homonimasEnOtrosCursos } from "@/shared/lib/actividades-homonimas";
-import { CursoDeLaActividad, AvisoActividadHomonima } from "@/shared/components/CursoDeLaActividad";
 import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
+import { MiGrupoDialog } from "@/modules/grupos/MiGrupoDialog";
+import { accionDeEntrega } from "@/modules/submissions/accion-de-tarjeta";
 import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
-import { grupoEnLaTarjeta, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
+import { grupoEnTarjetaMuestraAlgo, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -93,6 +101,8 @@ type ProjectRow = {
     title: string;
     description: string | null;
     instructions: string | null;
+    /** El documento de la actividad: la tarjeta lo ofrece al lado de la acción. */
+    external_link?: string | null;
     start_date: string | null;
     due_date: string | null;
     max_files: number;
@@ -223,6 +233,12 @@ function StudentProjects() {
   const [active, setActive] = useState<ProjectRow | null>(null);
   // Grupo del estudiante en cada proyecto grupal (y si puede armarlo él).
   const [resumenGrupos, setResumenGrupos] = useState<Record<string, ResumenDeGrupo>>({});
+  // «Mi grupo»: UNA ventana para toda la lista. Si la montara la tarjeta, al crear
+  // el grupo se desmontaría abierta (la acción pasa de «Armar grupo» a «Iniciar
+  // entrega»). El proyecto se conserva al cerrar para que el título no se vacíe
+  // mientras la ventana se desvanece.
+  const [grupoAbierto, setGrupoAbierto] = useState<{ id: string; titulo: string } | null>(null);
+  const [grupoVisible, setGrupoVisible] = useState(false);
   // Estado de error explícito para que un fallo en la query base
   // (course_enrollments) no se renderice como "sin proyectos".
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -341,7 +357,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .is("deleted_at", null)
@@ -351,7 +367,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight",
+            "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight",
           )
           .in("id", allIds)
           .is("deleted_at", null)
@@ -726,7 +742,7 @@ function StudentProjects() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         {loading && (
           <div className="col-span-full flex justify-center py-10">
             <Spinner size="md" />
@@ -802,114 +818,181 @@ function StudentProjects() {
             Number(submission.attempt_count ?? 0) >= Number(project.max_attempts ?? 1) &&
             (submission.status === "calificado" || submission.final_grade != null);
 
+          const resumenGrupo = resumenGrupos[project.id];
+          const abrirGrupo = () => {
+            setGrupoAbierto({ id: project.id, titulo: project.title });
+            setGrupoVisible(true);
+          };
+          const retroVisible = retroDeTallerVisible(submission);
+          const notaPendiente =
+            submission?.status === "entregado" &&
+            submission?.final_grade == null &&
+            isAiGradePending({
+              ai_grade: submission?.ai_grade,
+              ai_feedback: submission?.ai_feedback,
+            });
+          const accion = accionDeEntrega({
+            armarGrupo: grupoEnTarjetaMuestraAlgo("accion", resumenGrupo),
+            externa: esExterno,
+            abierta: isOpen,
+            sinGrupoObligatorio: blockedNoGroup,
+            intentosAgotados: attemptsExhausted,
+            conNota: retroVisible,
+            entregada: entregaHecha(submission),
+            proxima: !!isUpcoming,
+            vencida: project.status === "published" && !!isOverdue,
+          });
+
           return (
             <TarjetaDeActividad key={project.id}>
               <CuerpoDeTarjeta>
-                <div className="flex justify-between items-start gap-2">
-                  <div className="min-w-0 space-y-1">
-                    <CursoDeLaActividad curso={project.course?.name} />
-                    <h3 className="font-semibold truncate">{project.title}</h3>
-                    <AvisoActividadHomonima cursos={homonimas.get(project.id)} />
-                    <CortePesoBadges
-                      valor={(() => {
-                        const f = filaQueManda(cortePesoPorProyecto.get(project.id), project);
-                        return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
-                      })()}
-                    />
-                  </div>
-                  {isGraded ? (
-                    <Badge className="shrink-0">
-                      <CheckCircle2 className="h-3 w-3 mr-1" />
-                      {grade != null
-                        ? project.course
-                          ? `${formatNumber(project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${project.course.grade_scale_max}`
-                          : `${grade}`
-                        : t("project.submitted")}
-                    </Badge>
-                  ) : esExterno ? (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("actividadExterna.sinNota")}
-                    </Badge>
-                  ) : entregaHecha(submission) ? (
-                    <Badge variant="secondary" className="shrink-0">
-                      {t("project.submitted")}
-                    </Badge>
-                  ) : vencido ? (
-                    <Badge variant="destructive" className="shrink-0">
-                      <AlertTriangle className="h-3 w-3 mr-1" />
-                      {t("dashboard.overdue")}
-                    </Badge>
-                  ) : isOpen ? (
-                    <Badge className="bg-success text-success-foreground shrink-0">
-                      {t("project.available")}
-                    </Badge>
-                  ) : isUpcoming ? (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("project.upcoming")}
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="shrink-0">
-                      {t("project.closed")}
-                    </Badge>
-                  )}
-                </div>
-
-                {project.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {markdownToPlain(project.description)}
-                  </p>
-                )}
-
+                <EncabezadoDeTarjeta
+                  curso={project.course?.name}
+                  titulo={project.title}
+                  homonimas={homonimas.get(project.id)}
+                  cortePeso={(() => {
+                    const f = filaQueManda(cortePesoPorProyecto.get(project.id), project);
+                    return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
+                  })()}
+                  estado={
+                    isGraded ? (
+                      <Badge className="shrink-0">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {grade != null
+                          ? project.course
+                            ? `${formatNumber(project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${project.course.grade_scale_max}`
+                            : `${grade}`
+                          : t("project.submitted")}
+                      </Badge>
+                    ) : esExterno ? (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("actividadExterna.sinNota")}
+                      </Badge>
+                    ) : entregaHecha(submission) ? (
+                      <Badge variant="secondary" className="shrink-0">
+                        {t("project.submitted")}
+                      </Badge>
+                    ) : vencido ? (
+                      <Badge variant="destructive" className="shrink-0">
+                        <AlertTriangle className="h-3 w-3 mr-1" />
+                        {t("dashboard.overdue")}
+                      </Badge>
+                    ) : isOpen ? (
+                      <Badge className="bg-success text-success-foreground shrink-0">
+                        {t("project.available")}
+                      </Badge>
+                    ) : isUpcoming ? (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("project.upcoming")}
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="shrink-0">
+                        {t("project.closed")}
+                      </Badge>
+                    )
+                  }
+                />
+                <ResumenDeTarjeta texto={project.description} />
                 {/* Un externo no se entrega por acá: «disponible desde» y
                     «entrega» hablarían de algo que no existe. Se dicen sus
                     fechas, nada más. */}
-                {esExterno ? (
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    {project.start_date && (
-                      <div className="flex items-center gap-1.5 tabular-nums">
-                        <Clock className="h-3 w-3" />
-                        {t("common.start")}: {formatDateTime(project.start_date)}
-                      </div>
-                    )}
-                    {project.due_date && (
-                      <div className="flex items-center gap-1.5 tabular-nums">
-                        <Clock className="h-3 w-3" />
-                        {t("common.end")}: {formatDateTime(project.due_date)}
-                      </div>
-                    )}
-                  </div>
+                <FechasDeTarjeta>
+                  {project.start_date && (
+                    <FechaDeTarjeta>
+                      {esExterno ? t("common.start") : t("hc_routesAppStudentProjects.availableFrom")}:{" "}
+                      {formatDateTime(project.start_date)}
+                    </FechaDeTarjeta>
+                  )}
+                  {project.due_date && (
+                    <FechaDeTarjeta>
+                      {esExterno ? t("common.end") : t("dashboard.dueLabel")}:{" "}
+                      {formatDateTime(project.due_date)}
+                    </FechaDeTarjeta>
+                  )}
+                </FechasDeTarjeta>
+              </CuerpoDeTarjeta>
+              <AccionesDeTarjeta
+                enlace={{
+                  href: project.external_link,
+                  etiqueta: t("tarjetaActividad.recurso"),
+                  descripcion: t("hc_routesAppStudentProjectProjectId.openProjectResource"),
+                  icono: ExternalLink,
+                }}
+              >
+                {accion === "armar" ? (
+                  <GrupoEnTarjeta variante="accion" resumen={resumenGrupo} onAbrir={abrirGrupo} />
+                ) : accion === "externo" ? (
+                  <AccionNoDisponible>{t("tarjetaActividad.externa")}</AccionNoDisponible>
+                ) : accion === "sinGrupo" ? (
+                  <AccionNoDisponible icono={<UsersRound />}>
+                    {t("tarjetaActividad.sinGrupo")}
+                  </AccionNoDisponible>
+                ) : accion === "entregar" ? (
+                  <Button
+                    size="sm"
+                    className="w-full min-w-0"
+                    onClick={() => {
+                      setActive({ project, submission, groupId });
+                      setOpen(true);
+                    }}
+                  >
+                    <ListChecks />
+                    <span className="min-w-0 truncate">
+                      {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
+                          el docente) no es una entrega: no se «actualiza», se sigue. */}
+                      {entregaHecha(submission)
+                        ? t("project.update")
+                        : submission
+                          ? t("hc_modulesProjectsProjectFiles.keepAnswering")
+                          : t("project.start")}
+                    </span>
+                  </Button>
+                ) : accion === "detalle" ? (
+                  <Link to="/app/student/project/$projectId" params={{ projectId: project.id }}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      className="w-full min-w-0"
+                      title={t("project.viewDetail")}
+                    >
+                      <MessageSquareText />
+                      <span className="min-w-0 truncate">{t("common.seeDetail")}</span>
+                    </Button>
+                  </Link>
+                ) : accion === "porCalificar" ? (
+                  <AccionNoDisponible icono={<Clock />}>
+                    {t("tarjetaActividad.porCalificar")}
+                  </AccionNoDisponible>
+                ) : accion === "proximo" ? (
+                  <AccionNoDisponible icono={<CalendarClock />}>
+                    {t("tarjetaActividad.aunNoDisponible")}
+                  </AccionNoDisponible>
+                ) : accion === "vencido" ? (
+                  <AccionNoDisponible>{t("tarjetaActividad.plazoVencido")}</AccionNoDisponible>
                 ) : (
-                  <div className="text-xs text-muted-foreground space-y-0.5">
-                    {project.start_date && isUpcoming && (
-                      <div className="flex items-center gap-1.5 tabular-nums">
-                        <Clock className="h-3 w-3" />
-                        {t("hc_routesAppStudentProjects.availableFrom")}:{" "}
-                        {formatDateTime(project.start_date)}
-                      </div>
-                    )}
-                    {project.due_date && (
-                      <div className="flex items-center gap-1.5 tabular-nums">
-                        <Clock className="h-3 w-3" />
-                        {t("dashboard.dueLabel")}: {formatDateTime(project.due_date)}
-                      </div>
-                    )}
-                  </div>
+                  <AccionNoDisponible>{t("hc_routesAppStudentProjects.statusClosed")}</AccionNoDisponible>
                 )}
-
-                {/* Banner pendiente: igual que en talleres. Cuando la
-                    entrega quedó encolada (modo async sin override),
-                    avisa al estudiante que la nota llegará después. */}
-                {submission?.status === "entregado" &&
-                  submission?.final_grade == null &&
-                  isAiGradePending({
-                    ai_grade: submission?.ai_grade,
-                    ai_feedback: submission?.ai_feedback,
-                  }) && <PendingAiGradeBanner variant="compact" />}
-
+              </AccionesDeTarjeta>
+              <DetallesDeTarjeta>
+                {grupoEnTarjetaMuestraAlgo("detalle", resumenGrupo) && (
+                  <GrupoEnTarjeta variante="detalle" resumen={resumenGrupo} onAbrir={abrirGrupo} />
+                )}
+                {accion === "externo" && (
+                  <p className="text-xs text-muted-foreground">{t("tarjetaActividad.externaAyuda")}</p>
+                )}
+                {accion === "sinGrupo" && (
+                  <p className="rounded-md border border-warning/40 bg-warning/10 p-3 text-xs text-warning-on-subtle">
+                    {t("hc_routesAppStudentProjects.groupModeNoGroupBody")}
+                  </p>
+                )}
+                {/* Entregada y la IA todavía no calificó (modo asíncrono). Si ya es
+                    la acción de la tarjeta («Por calificar»), no se repite. */}
+                {notaPendiente && accion !== "porCalificar" && (
+                  <PendingAiGradeBanner variant="compact" />
+                )}
                 {/* La retroalimentación se ve recién CALIFICADO: «Por calificar»
                     es un resultado a medias (retroalimentacion-visible.ts). */}
-                {retroDeTallerVisible(submission) &&
-                  (submission?.teacher_feedback || submission?.ai_feedback) && (
+                {retroVisible && Boolean(submission?.teacher_feedback || submission?.ai_feedback) && (
                   <div className="bg-muted/50 p-2 rounded text-sm">
                     <div className="text-xs font-medium flex items-center gap-1 mb-1">
                       <MessageSquare className="h-3 w-3" />
@@ -926,100 +1009,46 @@ function StudentProjects() {
                     </div>
                   </div>
                 )}
-
-              </CuerpoDeTarjeta>
-              <AccionesDeTarjeta>
-                <GrupoEnTarjeta
-                  tipo="proyecto"
-                  actividadId={project.id}
-                  actividadTitulo={project.title}
-                  resumen={resumenGrupos[project.id]}
-                  onCambio={() => {
-                    if (user) void reload(user.id);
-                  }}
-                />
-                {/* Modo grupal estricto SIN grupo: bloqueo de entrega. Si los
-                    grupos los arman los estudiantes, el aviso con el botón
-                    para armarlo lo da `GrupoEnTarjeta`. */}
-                {isOpen && !esExterno && blockedNoGroup && grupoEnLaTarjeta(resumenGrupos[project.id]).tipo !== "armar" && (
-                  <div className="rounded-md border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-amber-700 dark:text-amber-300">
-                    <div className="font-medium mb-1">
-                      {t("hc_routesAppStudentProjects.groupModeNoGroupTitle")}
-                    </div>
-                    {t("hc_routesAppStudentProjects.groupModeNoGroupBody")}
-                  </div>
-                )}
-
-                {/* Mientras esté abierto el plazo, el estudiante puede
-                    actualizar su entrega aunque ya tenga calificación de
-                    IA — al re-entregar se vuelve a calificar. */}
-                {isOpen && !esExterno && !blockedNoGroup && !attemptsExhausted && (
-                  <Button
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setActive({ project, submission, groupId });
-                      setOpen(true);
-                    }}
-                  >
-                    <ListChecks className="h-4 w-4 mr-1" />
-                    {/* Una fila `en_progreso` (envío que no se completó, o reabierta por
-                        el docente) no es una entrega: no se «actualiza», se sigue. */}
-                    {entregaHecha(submission)
-                      ? t("project.update")
-                      : submission
-                        ? t("hc_modulesProjectsProjectFiles.keepAnswering")
-                        : t("project.start")}
-                  </Button>
-                )}
-
-                {submission && retroDeTallerVisible(submission) && (
+                {retroVisible && accion !== "detalle" && (
                   <Link to="/app/student/project/$projectId" params={{ projectId: project.id }}>
                     <Button variant="secondary" size="sm" className="w-full">
-                      <MessageSquareText className="h-4 w-4 mr-1" />
+                      <MessageSquareText />
                       {t("project.viewDetail")}
                     </Button>
                   </Link>
                 )}
-
-                {/* Eliminar mi entrega — solo dentro del plazo Y solo si
-                    todavía hay intentos disponibles. Si el alumno ya
-                    consumió todos sus intentos, no permitimos delete:
-                    sino podría borrar y re-entregar bypasseando el cap
-                    (la submission cuenta el intento, pero al borrar la
-                    fila se perdería el contador). RLS valida también en
-                    BD (migración 20260508140000). */}
-                {/* "Intento gastado" = attempt_count alcanzó el cap Y la
-                    entrega previa ya fue calificada. Si está `entregado`
-                    sin nota, el alumno sigue en el MISMO intento y puede
-                    re-editar/borrar — el contador no aumenta hasta
-                    que se califique. Misma regla que en el submit. */}
-                {(() => {
-                  if (!isOpen || !submission || !entregaHecha(submission) || esExterno) return null;
-                  const canDelete = !attemptsExhausted;
-                  return canDelete ? (
+                {/* Eliminar mi entrega — solo dentro del plazo Y solo si todavía
+                    hay intentos: borrar después de consumirlos dejaría re-entregar
+                    salteando el cap (al borrar la fila se perdería el contador). La
+                    RLS lo valida también (migración 20260508140000). «Intento
+                    gastado» = attempt_count alcanzó el cap Y la entrega ya fue
+                    calificada; `entregado` sin nota sigue en el MISMO intento. En un
+                    externo esa fila es la nota del docente: no se borra. */}
+                {isOpen &&
+                  !esExterno &&
+                  submission &&
+                  entregaHecha(submission) &&
+                  (attemptsExhausted ? (
+                    <p className="text-2xs text-muted-foreground text-center italic">
+                      {t("hc_routesAppStudentProjects.attemptsExhausted")}
+                    </p>
+                  ) : (
                     <Button
                       size="sm"
                       variant="ghost"
                       className="w-full text-destructive hover:text-destructive"
                       onClick={() => deleteSubmission(project.title, submission.id, !!groupId)}
                     >
-                      <Trash2 className="h-3.5 w-3.5 mr-1" />
+                      <Trash2 />
                       {t("hc_routesAppStudentProjects.deleteMySubmission")}
                     </Button>
-                  ) : (
-                    <p className="text-2xs text-muted-foreground text-center italic">
-                      {t("hc_routesAppStudentProjects.attemptsExhausted")}
-                    </p>
-                  );
-                })()}
-
-                {project.status === "published" && isOverdue && !entregaHecha(submission) && !esExterno && (
+                  ))}
+                {accion === "vencido" && (
                   <p className="text-xs text-destructive text-center">
-                    {t("project.windowClosedHelp")}
+                    {t("tarjetaActividad.plazoVencidoAyuda")}
                   </p>
                 )}
-              </AccionesDeTarjeta>
+              </DetallesDeTarjeta>
             </TarjetaDeActividad>
           );
         })}
@@ -1033,6 +1062,19 @@ function StudentProjects() {
           entityNamePlural={t("hc_routesAppStudentProjects.entityNamePlural")}
         />
       </div>
+
+      {grupoAbierto && (
+        <MiGrupoDialog
+          tipo="proyecto"
+          actividadId={grupoAbierto.id}
+          actividadTitulo={grupoAbierto.titulo}
+          open={grupoVisible}
+          onOpenChange={setGrupoVisible}
+          onCambio={() => {
+            if (user) void reload(user.id);
+          }}
+        />
+      )}
 
       <Dialog
         open={open}
