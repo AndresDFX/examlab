@@ -21,6 +21,7 @@ import {
   AccionesDeTarjeta,
 } from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
+import { AvisoOcultosPorEstado } from "@/shared/components/AvisoOcultosPorEstado";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
@@ -43,7 +44,6 @@ import {
   MessageSquareText,
   ShieldAlert,
   FileText,
-  Filter,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
@@ -635,25 +635,15 @@ function StudentExams() {
           </div>
         )}
         {!loading && ocultosPorEstado.length > 0 && (
-          // Un aviso corto y con el color de la institución: nombrar cada actividad oculta
-          // llegaba a cuatro renglones de títulos, y el aviso se leía como parte de la lista.
-          <div className="col-span-full flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
-            <Filter className="h-4 w-4 shrink-0 text-primary" />
-            <span className="flex-1 min-w-0 font-medium">
-              {t("hc_routesAppStudentExams.hiddenByStatus", { count: ocultosPorEstado.length })}
-            </span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setStatusFilter((prev) => [
-                  ...new Set([...prev, ...ocultosPorEstado.map((r) => getExamDisplayStatus(r, now))]),
-                ])
-              }
-            >
-              {t("hc_routesAppStudentExams.showHidden")}
-            </Button>
-          </div>
+          <AvisoOcultosPorEstado
+            mensaje={t("hc_routesAppStudentExams.hiddenByStatus", { count: ocultosPorEstado.length })}
+            etiquetaMostrar={t("hc_routesAppStudentExams.showHidden")}
+            onMostrar={() =>
+              setStatusFilter((prev) => [
+                ...new Set([...prev, ...ocultosPorEstado.map((r) => getExamDisplayStatus(r, now))]),
+              ])
+            }
+          />
         )}
         {!loading && visibleRows.length === 0 && (
           <div className="col-span-full">

@@ -35,6 +35,7 @@ import {
   AccionesDeTarjeta,
 } from "@/shared/components/TarjetaDeActividad";
 import { Button } from "@/components/ui/button";
+import { AvisoOcultosPorEstado } from "@/shared/components/AvisoOcultosPorEstado";
 import { Spinner } from "@/components/ui/spinner";
 import { Badge } from "@/components/ui/badge";
 import { ListFilters } from "@/components/ui/list-filters";
@@ -578,6 +579,23 @@ function StudentProjects() {
     return sorted;
   }, [rows, search, courseFilter, statusFilter, now, rangoFechas, sortBy]);
 
+  // Proyectos que solo el filtro de ESTADO deja afuera (vencidos, cerrados): se dicen en
+  // pantalla, como en talleres y exámenes. Sin esto, con solo proyectos cerrados la lista
+  // decía «Sin coincidencias» y «Limpiar filtros» volvía al mismo filtro.
+  const ocultosPorEstado = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return rows.filter((r) => {
+      if (coincideFiltro(statusFilter, getProjectDisplayStatus(r, now))) return false;
+      if (!coincideFiltro(courseFilter, r.project.course_id)) return false;
+      if (!enRangoDeFechas(r.project.due_date, rangoFechas)) return false;
+      if (!q) return true;
+      return (
+        r.project.title.toLowerCase().includes(q) ||
+        (r.project.course?.name?.toLowerCase().includes(q) ?? false)
+      );
+    });
+  }, [rows, search, courseFilter, statusFilter, now, rangoFechas]);
+
   // Paginación client-side: las cards son grandes; 12 cabe en ~3 filas
   // del grid de 2 columnas. resetKey concatena TODOS los filtros activos
   // para que aplicar cualquiera vuelva a página 1.
@@ -713,6 +731,17 @@ function StudentProjects() {
           <div className="col-span-full flex justify-center py-10">
             <Spinner size="md" />
           </div>
+        )}
+        {!loading && ocultosPorEstado.length > 0 && (
+          <AvisoOcultosPorEstado
+            mensaje={t("hc_routesAppStudentProjects.hiddenByStatus", { count: ocultosPorEstado.length })}
+            etiquetaMostrar={t("hc_routesAppStudentProjects.showHidden")}
+            onMostrar={() =>
+              setStatusFilter((prev) => [
+                ...new Set([...prev, ...ocultosPorEstado.map((r) => getProjectDisplayStatus(r, now))]),
+              ])
+            }
+          />
         )}
         {!loading && visibleRows.length === 0 && (
           <div className="col-span-full">
