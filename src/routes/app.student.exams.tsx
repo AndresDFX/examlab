@@ -43,6 +43,7 @@ import {
   MessageSquareText,
   ShieldAlert,
   FileText,
+  Filter,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page-header";
 import { StudentExamNotes } from "@/modules/exams/ExamNotesManager";
@@ -634,12 +635,12 @@ function StudentExams() {
           </div>
         )}
         {!loading && ocultosPorEstado.length > 0 && (
-          <div className="col-span-full flex flex-wrap items-center gap-2 rounded-md border bg-muted/50 p-3 text-sm">
-            <span className="flex-1 min-w-0">
-              {t("hc_routesAppStudentExams.hiddenByStatus", {
-                count: ocultosPorEstado.length,
-                titles: ocultosPorEstado.map((r) => r.exam.title).join(", "),
-              })}
+          // Un aviso corto y con el color de la institución: nombrar cada actividad oculta
+          // llegaba a cuatro renglones de títulos, y el aviso se leía como parte de la lista.
+          <div className="col-span-full flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
+            <Filter className="h-4 w-4 shrink-0 text-primary" />
+            <span className="flex-1 min-w-0 font-medium">
+              {t("hc_routesAppStudentExams.hiddenByStatus", { count: ocultosPorEstado.length })}
             </span>
             <Button
               variant="outline"

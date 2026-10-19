@@ -62,6 +62,7 @@ import {
   ListChecks,
   Trash2,
   Hammer,
+  Filter,
 } from "lucide-react";
 import { useMaximized } from "@/hooks/use-maximized";
 import { DialogMaximizeButton } from "@/components/ui/dialog-maximize-button";
@@ -737,12 +738,12 @@ function StudentWorkshops() {
           </div>
         )}
         {!loading && ocultosPorEstado.length > 0 && (
-          <div className="col-span-full flex flex-wrap items-center gap-2 rounded-md border bg-muted/50 p-3 text-sm">
-            <span className="flex-1 min-w-0">
-              {t("hc_routesAppStudentWorkshops.hiddenByStatus", {
-                count: ocultosPorEstado.length,
-                titles: ocultosPorEstado.map((r) => r.workshop.title).join(", "),
-              })}
+          // Un aviso corto y con el color de la institución: nombrar cada actividad oculta
+          // llegaba a cuatro renglones de títulos, y el aviso se leía como parte de la lista.
+          <div className="col-span-full flex flex-wrap items-center gap-2 rounded-md border border-primary/40 bg-primary/10 p-3 text-sm">
+            <Filter className="h-4 w-4 shrink-0 text-primary" />
+            <span className="flex-1 min-w-0 font-medium">
+              {t("hc_routesAppStudentWorkshops.hiddenByStatus", { count: ocultosPorEstado.length })}
             </span>
             <Button
               variant="outline"

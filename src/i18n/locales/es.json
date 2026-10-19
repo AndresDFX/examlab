@@ -8084,8 +8084,8 @@
     "sortStartDesc": "Inicio: descendente",
     "sortTitleAsc": "Título A→Z",
     "noFilterMatches": "Sin coincidencias con los filtros actuales.",
-    "hiddenByStatus_one": "1 examen no se muestra por su estado (por ejemplo, cerrado): {{titles}}.",
-    "hiddenByStatus_other": "{{count}} exámenes no se muestran por su estado (por ejemplo, cerrados): {{titles}}.",
+    "hiddenByStatus_one": "Hay 1 examen más que no se muestra por el filtro de estado.",
+    "hiddenByStatus_other": "Hay {{count}} exámenes más que no se muestran por el filtro de estado.",
     "showHidden": "Mostrarlos",
     "clearFilters": "Limpiar filtros",
     "emptyTitle": "Aún no tienes exámenes",
@@ -8646,8 +8646,8 @@
     "roleTutor": "Tutor"
   },
   "hc_routesAppStudentWorkshops": {
-    "hiddenByStatus_one": "1 taller no se muestra por su estado (por ejemplo, vencido o cerrado): {{titles}}.",
-    "hiddenByStatus_other": "{{count}} talleres no se muestran por su estado (por ejemplo, vencidos o cerrados): {{titles}}.",
+    "hiddenByStatus_one": "Hay 1 taller más que no se muestra por el filtro de estado.",
+    "hiddenByStatus_other": "Hay {{count}} talleres más que no se muestran por el filtro de estado.",
     "showHidden": "Mostrarlos",
     "loadWorkshopsError": "No pudimos cargar tus talleres.",
     "loadWorkshopsErrorTitle": "No pudimos cargar tus talleres",
