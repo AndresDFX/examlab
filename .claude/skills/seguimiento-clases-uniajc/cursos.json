@@ -1,0 +1,88 @@
+{
+  "_leeme": "Configuración del periodo para la skill seguimiento-clases-uniajc. Se actualiza CADA SEMESTRE. 'asignaturaFormulario' es el texto EXACTO de la opción del desplegable del formulario (no el nombre de ExamLab). 'listado' es el CSV de la lista oficial del grupo (el del último corte pasado a la universidad, en privado/): quien está en ExamLab y no en ese listado no se cuenta. 'sede' (por curso) y 'lms' los decide el docente: sin ellos el script de envío se detiene. La sede de los grupos de Ingeniería de Sistemas sale de la hoja de horarios del programa (Norte/Sur según la hoja; en Sur el grupo empieza por «S»); la de los grupos que no están ahí (Introducción) la confirma el docente. 'franja' es la opción del formulario más cercana al horario oficial (6:30pm-9:30pm → «6:30Pm A 9:00Pm»). El documento del docente NO va acá (el repo es público): se lee de UNIAJC_DOCUMENTO en .env.uniajc.",
+  "periodo": "2026-2",
+  "formulario": "https://forms.cloud.microsoft/r/97FdhF4xmC",
+  "docente": "JULIAN ANDRES CASTAÑO ESPINOSA",
+  "programa": "INGENIERÍA DE SISTEMAS",
+  "lms": "Teams",
+  "carpetaPrivada": "privado/seguimiento-clases-2026-2",
+  "cursos": [
+    {
+      "nombre": "Arquitectura 6303C",
+      "examlab": "b5499e08-0d90-4d4e-a8cb-944d2ba05013",
+      "asignaturaFormulario": "ARQUITECTURA DE SISTEMAS COMPUTACIONALES",
+      "grupo": "6303C",
+      "franja": "10:00Am A 1:00Pm",
+      "plataforma": "Meet",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Arquitectura 6303C.csv",
+      "metodologia": "Exposición del tema por el docente con diagramas y ejemplos, laboratorio guiado en el navegador y taller en ExamLab.",
+      "sede": "Norte"
+    },
+    {
+      "nombre": "Bases de Datos II 641A-2",
+      "examlab": "f23b6519-c8a9-4766-80f6-f56605310512",
+      "asignaturaFormulario": "BASES DE DATOS II",
+      "grupo": "641A-2",
+      "franja": "6:30Pm A 9:00Pm",
+      "plataforma": "Meet",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Bases de Datos II 641A-2.csv",
+      "metodologia": "Exposición del tema por el docente con ejemplos de SQL, ejercicios ejecutados en la base de datos del navegador en ExamLab y taller guiado.",
+      "sede": "Norte"
+    },
+    {
+      "nombre": "Introduccion LB141F",
+      "examlab": "98d592d6-6209-5033-aacb-c9de0d01373b",
+      "asignaturaFormulario": "INTRODUCCIÓN A LA INGENIERÍA DE SISTEMAS",
+      "grupo": "LB141F",
+      "franja": "6:30Pm A 9:00Pm",
+      "plataforma": "Teams",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Introduccion LB141F.csv",
+      "metodologia": "Teoría y guía del docente; actividad en cinco equipos en las salas de grupo de Teams sobre el proyecto del curso; exposición de tres minutos por equipo y cierre con el trabajo independiente de la semana.",
+      "sede": "Multicampus Ladera"
+    },
+    {
+      "nombre": "Introduccion SB141B",
+      "examlab": "f75be96a-65d5-56f9-aa41-63a3e2189a3c",
+      "asignaturaFormulario": "INTRODUCCIÓN A LA INGENIERÍA DE SISTEMAS",
+      "grupo": "SB141B",
+      "franja": "2:00Pm A 5:00Pm",
+      "plataforma": "Teams",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Introduccion SB141B.csv",
+      "metodologia": "Teoría y guía del docente; actividad en cinco equipos en las salas de grupo de Teams sobre el proyecto del curso; exposición de tres minutos por equipo y cierre con el trabajo independiente de la semana.",
+      "sede": "Sur"
+    },
+    {
+      "nombre": "Introduccion SB141C",
+      "examlab": "c3952827-9737-500b-8326-374a37f1981b",
+      "asignaturaFormulario": "INTRODUCCIÓN A LA INGENIERÍA DE SISTEMAS",
+      "grupo": "SB141C",
+      "franja": "2:00Pm A 5:00Pm",
+      "plataforma": "Teams",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Introduccion SB141C.csv",
+      "metodologia": "Teoría y guía del docente; actividad en cinco equipos en las salas de grupo de Teams sobre el proyecto del curso; exposición de tres minutos por equipo y cierre con el trabajo independiente de la semana.",
+      "sede": "Sur"
+    },
+    {
+      "nombre": "Programacion II 341C",
+      "examlab": "44fc55a6-b610-4c5f-befa-f58bc307068f",
+      "asignaturaFormulario": "PROGRAMACIÓN II",
+      "grupo": "341C",
+      "franja": "6:30Pm A 9:00Pm",
+      "plataforma": "Meet",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Programacion II 341C.csv",
+      "metodologia": "Explicación del tema con ejemplos en Java, taller guiado en ExamLab con entrega hasta el domingo y quiz corto de comprobación.",
+      "sede": "Norte"
+    },
+    {
+      "nombre": "Seminario de Sistemas 341C",
+      "examlab": "f23b2c3f-4559-435f-a9ae-155a46d899f1",
+      "asignaturaFormulario": "SEMINARIO DE SISTEMAS",
+      "grupo": "341C",
+      "franja": "6:30Pm A 9:00Pm",
+      "plataforma": "Meet",
+      "listado": "privado/notas-2026-2/corte1/Corte1 - Seminario de Sistemas 341C.csv",
+      "metodologia": "Discusión de la técnica de la sesión y revisión del avance del proyecto de software de cada equipo, con taller en ExamLab.",
+      "sede": "Norte"
+    }
+  ]
+}
