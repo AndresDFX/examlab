@@ -44,6 +44,24 @@ una por etapa del semestre, y cada una se sube en un Microsoft Forms con la cuen
 
 Rutas con `os.path.normpath`: `ExportAsFixedFormat` rechaza las barras `/`.
 
+## El acuerdo pedagógico sale de ExamLab, no de Word
+
+Los acuerdos de cada curso se generan y se FIRMAN en ExamLab (`generated_reports`,
+`template_name` «Acuerdo Pedagógico», `periodo`). El PDF con las firmas se saca del enlace público
+`/documento/<public_token>`: tomar el HTML del iframe, inyectar
+`@media print{header,footer{position:static!important} main{padding:0!important}}` (si no, el
+encabezado fijo tapa la primera fila de cada página) y exportarlo con `page.pdf`. Se guarda como
+`ACUERDO PEDAGOGICO - <ASIGNATURA> - <GRUPO>.pdf`.
+
+## El formulario (Microsoft Forms)
+
+- Pide nombre, cédula y hasta **10 archivos**: con 7 grupos se envía dos veces (acuerdos y planes).
+- **Recorta el nombre del archivo a ~45 caracteres** y se pierde el grupo: subir copias con la
+  asignatura abreviada (`PLAN DE CURSO - INTRO ING - LB141F.pdf`).
+- **Guarda un borrador** con los archivos ya cargados: antes de subir, eliminar los que haya
+  (botones `Eliminar "<archivo>"`), o se duplican.
+- Enviar solo si todos los nombres aparecen en la página.
+
 ## Reglas
 
 - **Datos de estudiantes**: el listado, el vocero y las firmas se recogen en la socialización y
@@ -51,7 +69,7 @@ Rutas con `os.path.normpath`: `ExportAsFixedFormat` rechaza las barras `/`.
   códigos. Nada de esto va al repo, que es público: los documentos viven en Drive.
 - **Primero validar el semestre anterior**: qué se subió (en `Entregas docente/<periodo anterior>`)
   y con qué formato, para no subir este semestre un formato viejo.
-- **El formulario lo llena el docente con SU sesión.** Si hace falta automatizar, abrir un
+- **El formulario se llena con la sesión del docente** en un navegador VISIBLE; si da la contraseña, pasarla solo por variable de entorno, nunca a un archivo, y borrar el perfil del navegador al terminar.
   navegador VISIBLE (Playwright con ventana) y que el docente inicie sesión él mismo. **Nunca usar
   una contraseña de cuenta personal** aunque la ofrezcan (ver CLAUDE.md: «Qué credencial pedir»);
   si la ofrecieron, recomendar rotarla.
