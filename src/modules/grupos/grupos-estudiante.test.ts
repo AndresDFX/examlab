@@ -11,6 +11,7 @@ import {
   gruposAlGuardar,
   MOTIVOS_GRUPO_CERRADO,
   problemaDeSeleccion,
+  resumenDeRespaldo,
   topesDeGrupo,
   topesInvalidos,
   type ResumenDeGrupo,
@@ -262,5 +263,29 @@ describe("invariante con la base", () => {
     expect(devueltos).toEqual(new Set(MOTIVOS_GRUPO_CERRADO));
     const thens = [...bloque.slice(0, fin).matchAll(/THEN '([a-z_]+)'/g)].map((m) => m[1]);
     for (const c of thens) expect(MOTIVOS_GRUPO_CERRADO).toContain(c);
+  });
+});
+
+describe("respaldo cuando la consulta de grupos falla", () => {
+  const base = {
+    modo: "group_required",
+    armanEstudiantes: true,
+    externa: false,
+    abierta: true,
+    tieneGrupo: false,
+  };
+
+  it("ofrece armar el grupo en vez de «pídele al docente»", () => {
+    const r = resumenDeRespaldo(base);
+    expect(grupoEnLaTarjeta(r)).toMatchObject({ tipo: "armar", estricto: true });
+    expect(r).toMatchObject({ minimo: 2, maximo: 5 });
+  });
+
+  it("no inventa nada donde la base no lo ofrecería", () => {
+    expect(resumenDeRespaldo({ ...base, armanEstudiantes: false })).toBeUndefined();
+    expect(resumenDeRespaldo({ ...base, externa: true })).toBeUndefined();
+    expect(resumenDeRespaldo({ ...base, abierta: false })).toBeUndefined();
+    expect(resumenDeRespaldo({ ...base, tieneGrupo: true })).toBeUndefined();
+    expect(resumenDeRespaldo({ ...base, modo: "individual" })).toBeUndefined();
   });
 });

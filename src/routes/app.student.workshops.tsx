@@ -93,7 +93,11 @@ import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
 import { MiGrupoDialog } from "@/modules/grupos/MiGrupoDialog";
 import { accionDeEntrega } from "@/modules/submissions/accion-de-tarjeta";
 import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
-import { grupoEnTarjetaMuestraAlgo, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
+import {
+  grupoEnTarjetaMuestraAlgo,
+  resumenDeRespaldo,
+  type ResumenDeGrupo,
+} from "@/modules/grupos/grupos-estudiante";
 
 export const Route = createFileRoute("/app/student/workshops")({
   // Enlace directo a UN taller: `/app/student/workshops?workshop=<id>`. Solo
@@ -119,6 +123,9 @@ type WorkshopRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    students_form_groups?: boolean | null;
+    group_size_min?: number | null;
+    group_size_max?: number | null;
     /** Si el taller se sustenta: mientras no haya sustentación no hay nota
      *  final, aunque el trabajo ya esté calificado. */
     requires_defense?: boolean | null;
@@ -453,7 +460,25 @@ function StudentWorkshops() {
     setNombreDeCorte(cortes);
     setCortePesoPorTaller(pesoPorTaller);
 
-    setResumenGrupos(await resumenPromesa);
+    const resumen = await resumenPromesa;
+    const ahora = Date.now();
+    for (const w of workshops as WorkshopRow["workshop"][]) {
+      if (resumen[w.id]) continue;
+      const respaldo = resumenDeRespaldo({
+        modo: w.group_mode,
+        armanEstudiantes: w.students_form_groups,
+        externa: w.is_external,
+        abierta:
+          w.status === "published" &&
+          (!w.start_date || new Date(w.start_date).getTime() <= ahora) &&
+          (!w.due_date || new Date(w.due_date).getTime() > ahora),
+        tieneGrupo: groupIdByWorkshop.has(w.id),
+        minimo: w.group_size_min,
+        maximo: w.group_size_max,
+      });
+      if (respaldo) resumen[w.id] = respaldo;
+    }
+    setResumenGrupos(resumen);
     setRows(
       workshops.map((w: any) => ({
         workshop: w,

@@ -3,6 +3,7 @@
  * Aparte de `grupos-estudiante.ts` para que las reglas puras se prueben sin red.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { logEvent } from "@/shared/lib/audit";
 import {
   armadoPorElDocente,
   type EstadoDeGrupo,
@@ -49,11 +50,24 @@ export async function cargarResumenDeGrupos(
 ): Promise<Record<string, ResumenDeGrupo>> {
   if (actividadIds.length === 0) return {};
   try {
-    const { data, error } = await rpc("grupos_estudiante_resumen", {
-      _tipo: tipo,
-      _actividades: actividadIds,
-    });
-    if (error) throw error;
+    const pedir = () =>
+      rpc("grupos_estudiante_resumen", { _tipo: tipo, _actividades: actividadIds });
+    let { data, error } = await pedir();
+    // Un reintento: un corte de red o un timeout de la base no deben dejar la
+    // tarjeta sin «Armar grupo» (la lista usa además `resumenDeRespaldo`).
+    if (error) {
+      await new Promise((r) => setTimeout(r, 800));
+      ({ data, error } = await pedir());
+    }
+    if (error) {
+      void logEvent({
+        action: "grupos.resumen_failed",
+        category: "system",
+        severity: "warning",
+        metadata: { tipo, actividades: actividadIds.length, error: String((error as { message?: string }).message ?? error) },
+      });
+      throw error;
+    }
     const resumen = (data ?? {}) as Record<string, ResumenDeGrupo>;
     // Solo importa para el aviso de «por debajo del mínimo»: se consulta nada más
     // por los grupos que lo están (casi siempre ninguno).

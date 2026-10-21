@@ -134,6 +134,38 @@ export function grupoEnLaTarjeta(resumen: ResumenDeGrupo | null | undefined): Gr
 }
 
 /**
+ * El resumen que la tarjeta usa cuando la consulta de grupos FALLÓ para una actividad
+ * abierta en la que los grupos los arman los estudiantes y el estudiante no tiene grupo.
+ * Sin esto la tarjeta caía en «pídele al docente que te asigne a uno», que en ese modo es
+ * falso y deja al estudiante sin salida (pasó en LB141F con el proyecto integrador). Con
+ * el respaldo la tarjeta ofrece «Armar grupo»; la ventana vuelve a consultar y, si de
+ * verdad no puede, dice por qué. No inventa nada que la base no vaya a validar.
+ */
+export function resumenDeRespaldo(a: {
+  modo: string | null | undefined;
+  armanEstudiantes: boolean | null | undefined;
+  externa: boolean | null | undefined;
+  abierta: boolean;
+  tieneGrupo: boolean;
+  minimo?: number | null;
+  maximo?: number | null;
+}): ResumenDeGrupo | undefined {
+  if (!a.armanEstudiantes || a.externa || !a.abierta || a.tieneGrupo) return undefined;
+  if (!esModoGrupal(a.modo)) return undefined;
+  const { minimo, maximo } = topesDeGrupo(a.minimo, a.maximo);
+  return {
+    motivo: null,
+    modo: a.modo as ModoDeGrupo,
+    arman_estudiantes: true,
+    externa: false,
+    minimo,
+    maximo,
+    grupo: null,
+    individual: null,
+  };
+}
+
+/**
  * Dónde de la tarjeta va el grupo. `accion`: «Armar grupo» es LA acción de la
  * tarjeta solo en grupal estricto, porque sin grupo no hay entrega; en mixto
  * se puede entregar solo, así que armarlo es optativo. `detalle`: lo que va

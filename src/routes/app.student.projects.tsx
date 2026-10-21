@@ -88,7 +88,11 @@ import { GrupoEnTarjeta } from "@/modules/grupos/GrupoEnTarjeta";
 import { MiGrupoDialog } from "@/modules/grupos/MiGrupoDialog";
 import { accionDeEntrega } from "@/modules/submissions/accion-de-tarjeta";
 import { cargarResumenDeGrupos } from "@/modules/grupos/grupos-estudiante-api";
-import { grupoEnTarjetaMuestraAlgo, type ResumenDeGrupo } from "@/modules/grupos/grupos-estudiante";
+import {
+  grupoEnTarjetaMuestraAlgo,
+  resumenDeRespaldo,
+  type ResumenDeGrupo,
+} from "@/modules/grupos/grupos-estudiante";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -110,6 +114,9 @@ type ProjectRow = {
     is_external?: boolean | null;
     status: string;
     group_mode?: "individual" | "teacher_assigned" | "self_signup" | "group_required";
+    students_form_groups?: boolean | null;
+    group_size_min?: number | null;
+    group_size_max?: number | null;
     /** Override de intentos del proyecto. NULL → usa default global. */
     max_attempts?: number | null;
     /** Corte y peso de la fila de la actividad. NO es necesariamente el que
@@ -357,7 +364,7 @@ function StudentProjects() {
       let res = await db
         .from("projects")
         .select(
-          "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
+          "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, students_form_groups, group_size_min, group_size_max, max_attempts, course_id, cut_id, weight, course:courses(id, name, status, grade_scale_min, grade_scale_max, language)",
         )
         .in("id", allIds)
         .is("deleted_at", null)
@@ -367,7 +374,7 @@ function StudentProjects() {
         res = await db
           .from("projects")
           .select(
-            "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, max_attempts, course_id, cut_id, weight",
+            "id, title, description, instructions, external_link, start_date, due_date, max_files, max_score, is_external, status, group_mode, students_form_groups, group_size_min, group_size_max, max_attempts, course_id, cut_id, weight",
           )
           .in("id", allIds)
           .is("deleted_at", null)
@@ -448,7 +455,25 @@ function StudentProjects() {
       }
     }
 
-    setResumenGrupos(await resumenPromesa);
+    const resumen = await resumenPromesa;
+    const ahora = Date.now();
+    for (const p of projects) {
+      if (resumen[p.id]) continue;
+      const respaldo = resumenDeRespaldo({
+        modo: p.group_mode,
+        armanEstudiantes: p.students_form_groups,
+        externa: p.is_external,
+        abierta:
+          p.status === "published" &&
+          (!p.start_date || new Date(p.start_date).getTime() <= ahora) &&
+          (!p.due_date || new Date(p.due_date).getTime() > ahora),
+        tieneGrupo: groupIdByProject.has(p.id),
+        minimo: p.group_size_min,
+        maximo: p.group_size_max,
+      });
+      if (respaldo) resumen[p.id] = respaldo;
+    }
+    setResumenGrupos(resumen);
     setRows(
       projects.map((p) => ({
         project: p,
