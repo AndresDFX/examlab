@@ -19,13 +19,14 @@ fechas y el enlace de cada entrega, calendario A o B) y un zip con los formatos 
 |---|---|---|
 | 1 | Acuerdo pedagógico y plan de curso de cada grupo (archivos) | 11 sep |
 | 2 · Diagnóstico y seguimiento 1 | Nivel de los conocimientos previos (Alto/Medio/Bajo/Nulo), UNA acción frente al diagnóstico, «¿qué otra acción?» y la **primera parte** del formato de diagnóstico de cada grupo (archivos) | 25 sep |
-| 3 · Seguimiento 2 | Asignaturas y grupos con más inconvenientes (texto), efectividad de las estrategias (Alto/Medio/Bajo) y si hubo dificultades recurrentes con los recursos (Sí/No) | 16 oct |
+| 3 · Seguimiento 2 | Asignaturas y grupos con más inconvenientes (texto), efectividad de las estrategias (Alto/Medio/Bajo), si hubo dificultades recurrentes con los recursos (Sí/No) y la **segunda fase** del formato de diagnóstico de cada grupo (archivos). Con «Sí» pide además cuáles dificultades y en qué grupos | 16 oct |
 | 4 · Seguimiento 3 | (leerlo al llegar) | 13 nov |
 
-**Leer el formulario completo antes de responder**: Forms pinta algunas preguntas tarde. La
-primera lectura de la entrega 2 mostró 4 preguntas y tenía 6; el primer intento de envío no pasó
-porque faltaba el archivo de la pregunta 6. Esperar a que cargue, desplazarse hasta el final y
-listar los `input` antes de decidir qué se responde.
+**Leer el formulario completo antes de responder**: Forms pinta algunas preguntas tarde y otras
+solo aparecen según una respuesta. La primera lectura de la entrega 2 mostró 4 preguntas y tenía
+6 (el primer intento de envío no pasó porque faltaba el archivo de la 6), y en la entrega 3 la
+carga de archivos solo aparece después de responder la pregunta de los recursos. Esperar a que
+cargue, contestar las opciones, desplazarse hasta el final y listar los `input` antes de enviar.
 
 ## Dónde está cada cosa
 
