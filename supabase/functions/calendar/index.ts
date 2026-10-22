@@ -1660,7 +1660,12 @@ async function handleFetchTranscript(userId: string, body: FetchTranscriptBody) 
         { method: "GET", headers: { Accept: "text/vtt" } },
       );
       const text = vttToReadableText(vtt);
-      await adminClient.from("session_transcripts").upsert(
+      // supabase-js NO lanza ante error de escritura: hay que leer `error`
+      // explícitamente, o `saved++` correría igual y reportaríamos éxito con
+      // texto vacío. onConflict en (session_id, external_transcript_id) —
+      // igual que el índice único, para que una transcripción compartida por
+      // dos sesiones no se MUEVA entre ellas (cada sesión guarda la suya).
+      const { error: upErr } = await adminClient.from("session_transcripts").upsert(
         {
           session_id: session.id,
           provider: "teams",
@@ -1672,12 +1677,26 @@ async function handleFetchTranscript(userId: string, body: FetchTranscriptBody) 
           fetched_by: userId,
           fetched_at: new Date().toISOString(),
         },
-        { onConflict: "external_transcript_id" },
+        { onConflict: "session_id,external_transcript_id" },
       );
+      if (upErr) throw new Error(upErr.message);
       saved++;
     } catch (e) {
       errors.push(`${tr.id}: ${(e as Error).message}`);
     }
+  }
+
+  // Si NINGUNA se pudo guardar y hubo errores (bajar el VTT o escribir),
+  // es un fallo de dominio accionable, no un éxito con texto vacío.
+  if (saved === 0 && errors.length > 0) {
+    await audit(userId, "calendar.transcript_fetched", "error", {
+      session_id: session.id,
+      course_id: session.course_id,
+      saved,
+      found: transcripts.length,
+      first_errors: errors.slice(0, 3),
+    }, session.title ?? null);
+    return jsonDomain("save_failed", { errors });
   }
 
   await audit(

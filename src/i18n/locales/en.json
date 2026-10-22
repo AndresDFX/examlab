@@ -6151,6 +6151,7 @@
     "noTeams": "This session has no Teams meeting. First sync the session with Outlook/Teams from Calendar.",
     "errors": {
       "unknown": "We couldn't fetch the transcript. Try again in a moment.",
+      "save_failed": "We fetched the transcript but couldn't save it. Try again in a moment.",
       "session_no_teams_link": "This session has no Teams meeting. First sync the session with Outlook/Teams from Calendar.",
       "not_connected": "You don't have a connected account. Connect your Microsoft account in Calendar.",
       "not_microsoft_account": "Transcripts only work with Teams. Connect your Microsoft account in Calendar.",

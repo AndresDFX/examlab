@@ -19,6 +19,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { formatDateOnly } from "@/shared/lib/format";
 import { Captions, Copy, Check, CalendarClock, AlertTriangle } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,7 +131,7 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
   };
 
   const label = session
-    ? `${session.title?.trim() || t("sessionTranscript.defaultSessionTitle")} · ${session.session_date}`
+    ? `${session.title?.trim() || t("sessionTranscript.defaultSessionTitle")} · ${formatDateOnly(session.session_date)}`
     : "";
 
   return (
