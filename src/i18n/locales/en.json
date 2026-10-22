@@ -6129,6 +6129,37 @@
     "reviewToastOk": "Done! We marked your attendance for reviewing the material.",
     "reviewToastError": "Couldn't mark as reviewed. Please try again."
   },
+  "sessionTranscript": {
+    "menuItem": "Teams transcript",
+    "title": "Teams transcript",
+    "defaultSessionTitle": "Session",
+    "intro": "Fetch the Teams meeting transcript for this class. The meeting must have been held in Teams with transcription turned on.",
+    "fetch": "Fetch transcript",
+    "refetch": "Fetch again",
+    "fetching": "Fetching the transcript…",
+    "fetchingHint": "This may take a few seconds. You can dismiss this once it finishes.",
+    "fetchedOk": "Transcript fetched.",
+    "transcriptLabel": "Transcript",
+    "loading": "Loading the saved transcript…",
+    "empty": "You haven't fetched this session's transcript yet.",
+    "copied": "Copied",
+    "copyError": "We couldn't copy the text.",
+    "loadError": "We couldn't load the saved transcript.",
+    "fetchError": "We couldn't fetch the transcript.",
+    "reconnect": "Reconnect Microsoft in Calendar",
+    "goToCalendar": "Go to Calendar",
+    "noTeams": "This session has no Teams meeting. First sync the session with Outlook/Teams from Calendar.",
+    "errors": {
+      "unknown": "We couldn't fetch the transcript. Try again in a moment.",
+      "session_no_teams_link": "This session has no Teams meeting. First sync the session with Outlook/Teams from Calendar.",
+      "not_connected": "You don't have a connected account. Connect your Microsoft account in Calendar.",
+      "not_microsoft_account": "Transcripts only work with Teams. Connect your Microsoft account in Calendar.",
+      "needs_reconnect": "A new permission is needed to read transcripts. Reconnect Microsoft in Calendar to grant it.",
+      "meeting_not_found": "We couldn't find the Teams meeting. Only its organizer can fetch it (the account that created the meeting from ExamLab).",
+      "no_transcripts": "The meeting has no transcripts. Transcription must be turned on during the Teams meeting.",
+      "admin_consent_required": "Your institution's Microsoft administrator must authorize the transcripts permission. Ask them and try again."
+    }
+  },
   "pendientesSesion": {
     "menuItem": "To-dos for the next session",
     "title": "To-dos · session on {{date}}",

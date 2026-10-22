@@ -6129,6 +6129,37 @@
     "reviewToastOk": "¡Listo! Marcamos tu asistencia por revisar el material.",
     "reviewToastError": "No se pudo marcar como revisado. Intenta de nuevo."
   },
+  "sessionTranscript": {
+    "menuItem": "Transcripción de Teams",
+    "title": "Transcripción de Teams",
+    "defaultSessionTitle": "Sesión",
+    "intro": "Trae la transcripción de la reunión de Teams de esta clase. La reunión tuvo que haberse hecho con Teams y tener la transcripción activada.",
+    "fetch": "Traer transcripción",
+    "refetch": "Volver a traer",
+    "fetching": "Trayendo la transcripción…",
+    "fetchingHint": "Puede tardar unos segundos. Podés cerrar este aviso cuando termine.",
+    "fetchedOk": "Transcripción traída.",
+    "transcriptLabel": "Transcripción",
+    "loading": "Cargando la transcripción guardada…",
+    "empty": "Todavía no trajiste la transcripción de esta sesión.",
+    "copied": "Copiado",
+    "copyError": "No pudimos copiar el texto.",
+    "loadError": "No pudimos cargar la transcripción guardada.",
+    "fetchError": "No pudimos traer la transcripción.",
+    "reconnect": "Vuelve a conectar Microsoft en Calendario",
+    "goToCalendar": "Ir a Calendario",
+    "noTeams": "Esta sesión no tiene una reunión de Teams. Primero sincronizá la sesión con Outlook/Teams desde Calendario.",
+    "errors": {
+      "unknown": "No pudimos traer la transcripción. Intentá de nuevo en un momento.",
+      "session_no_teams_link": "Esta sesión no tiene una reunión de Teams. Primero sincronizá la sesión con Outlook/Teams desde Calendario.",
+      "not_connected": "No tenés una cuenta conectada. Conectá tu cuenta de Microsoft en Calendario.",
+      "not_microsoft_account": "La transcripción solo funciona con Teams. Conectá tu cuenta de Microsoft en Calendario.",
+      "needs_reconnect": "Falta un permiso nuevo para leer las transcripciones. Volvé a conectar Microsoft en Calendario para concederlo.",
+      "meeting_not_found": "No encontramos la reunión de Teams. Solo la puede traer quien la organizó (la cuenta que creó la reunión desde ExamLab).",
+      "no_transcripts": "La reunión no tiene transcripciones. Hay que activar la transcripción durante la reunión de Teams.",
+      "admin_consent_required": "El administrador de tu institución en Microsoft tiene que autorizar el permiso de transcripciones. Pedíselo y volvé a intentar."
+    }
+  },
   "pendientesSesion": {
     "menuItem": "Pendientes para la próxima sesión",
     "title": "Pendientes · sesión del {{date}}",

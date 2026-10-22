@@ -95,6 +95,7 @@ import {
   Zap,
   Palette,
   Copy,
+  Captions,
   LoaderPinwheel,
   ListTodo,
 } from "lucide-react";
@@ -152,6 +153,7 @@ import { CourseSelect } from "@/modules/courses/CourseSelect";
 import { SessionTypeBadge } from "@/modules/sessions/SessionTypeBadge";
 import { LaunchPollDialog } from "@/modules/polls/LaunchPollDialog";
 import { SessionWhiteboardDialog } from "@/modules/whiteboard/SessionWhiteboardDialog";
+import { SessionTranscriptDialog } from "@/modules/calendar/SessionTranscriptDialog";
 import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import { DuplicateOptionsDialog } from "@/shared/components/DuplicateOptionsDialog";
 import { asistenciaDelEstudiante } from "@/modules/attendance/asistencia-del-estudiante";
@@ -428,6 +430,7 @@ function TeacherAttendance() {
   // columna `whiteboard_scene JSONB` (mig 20260603060000). Reabrir
   // recupera el contenido. Solo el docente de la sesión la edita.
   const [whiteboardSession, setWhiteboardSession] = useState<Session | null>(null);
+  const [transcriptSession, setTranscriptSession] = useState<Session | null>(null);
   /**
    * Ruleta abierta desde Asistencia: `sesionId` es la sesión de cuyo menú se
    * abrió, o `null` desde la cabecera (la clase de hoy o la última que se dio).
@@ -3203,6 +3206,13 @@ function TeacherAttendance() {
                                     <Palette className="h-4 w-4 mr-2 text-violet-500" />
                                     {t("teacherAttendance.whiteboard")}
                                   </DropdownMenuItem>
+                                  {/* Transcripción de Teams — trae la transcripción de la
+                                    reunión de la sesión (si se sincronizó con Teams y la
+                                    reunión tuvo la transcripción activada). Solo staff. */}
+                                  <DropdownMenuItem onSelect={() => setTranscriptSession(sess)}>
+                                    <Captions className="h-4 w-4 mr-2 text-primary" />
+                                    {t("sessionTranscript.menuItem")}
+                                  </DropdownMenuItem>
                                   {/* Ruleta sobre ESTA clase: quién pasa al
                                     tablero, quién responde. */}
                                   <DropdownMenuItem onSelect={() => setRuletaDesde({ sesionId: sess.id })}>
@@ -4279,6 +4289,10 @@ function TeacherAttendance() {
               : undefined
           }
           onOpenChange={(open) => !open && setWhiteboardSession(null)}
+        />
+        <SessionTranscriptDialog
+          session={transcriptSession}
+          onClose={() => setTranscriptSession(null)}
         />
         <PendientesSesionDialog
           session={pendientesHabilitados ? pendientesSession : null}

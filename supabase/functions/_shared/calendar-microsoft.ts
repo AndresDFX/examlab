@@ -43,7 +43,17 @@ export const MS_SCOPES = [
   "User.Read",
   "Calendars.ReadWrite",
   "OnlineMeetings.ReadWrite",
+  // Leer las transcripciones de las reuniones de Teams que el docente
+  // ORGANIZA. Delegado, pero requiere consentimiento del administrador del
+  // tenant Microsoft (admin-consent-required). Un docente conectado ANTES de
+  // agregar este scope tiene un token sin él — se detecta con
+  // `microsoftTokenHasScope` y la UI le pide reconectar.
+  "OnlineMeetingTranscript.Read.All",
 ].join(" ");
+
+/** Scope exacto que habilita leer transcripciones. Lo usan el edge (para
+ *  detectar `needs_reconnect`) y queda como fuente única del nombre. */
+export const MS_TRANSCRIPT_SCOPE = "OnlineMeetingTranscript.Read.All";
 
 export function getMicrosoftRedirectUri(): string {
   // Mismo callback que Google — la edge `calendar-oauth-callback`
@@ -222,6 +232,48 @@ export async function callMicrosoft<T>(
   const ct = res.headers.get("content-type") ?? "";
   if (!ct.includes("application/json")) return null as T;
   return (await res.json()) as T;
+}
+
+/** Igual que `callMicrosoft` pero devuelve el cuerpo como TEXTO crudo.
+ *  Necesario para `transcripts/{id}/content?$format=text/vtt`, que responde
+ *  `text/vtt` y rompería el `.json()` de `callMicrosoft`. */
+export async function callMicrosoftText(
+  teacherId: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<string> {
+  const token = await getValidMicrosoftAccessToken(teacherId);
+  const res = await fetch(`${MS_GRAPH_BASE}${path}`, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      ...(init.headers ?? {}),
+    },
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new MicrosoftApiError(path, res.status, text);
+  }
+  return await res.text();
+}
+
+/** Decodifica el claim `scp` (scopes delegados) de un access token de Graph
+ *  —que es un JWT— y responde si contiene `scope`. No verifica firma: solo
+ *  sirve para decidir si el docente consintió el permiso de transcripciones
+ *  o hay que pedirle reconectar. Ante cualquier duda (token opaco, sin `scp`)
+ *  devuelve `false` → la UI pide reconectar, que es el lado seguro. */
+export function microsoftTokenHasScope(accessToken: string, scope: string): boolean {
+  const parts = accessToken.split(".");
+  if (parts.length < 2) return false;
+  try {
+    const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const payload = JSON.parse(atob(padded));
+    const scp = typeof payload.scp === "string" ? payload.scp : "";
+    return scp.split(" ").includes(scope);
+  } catch {
+    return false;
+  }
 }
 
 /** Decodifica el id_token de Microsoft (no verifica firma — solo extrae

@@ -26,8 +26,14 @@ import {
 import {
   buildMicrosoftAuthUrl,
   callMicrosoft,
+  callMicrosoftText,
+  getValidMicrosoftAccessToken,
   isMicrosoftEventGoneError,
+  MicrosoftApiError,
+  microsoftTokenHasScope,
+  MS_TRANSCRIPT_SCOPE,
 } from "../_shared/calendar-microsoft.ts";
+import { vttToReadableText } from "../_shared/vtt-transcript.ts";
 
 type Provider = "google" | "microsoft";
 
@@ -42,8 +48,17 @@ interface BaseBody {
     | "sync_poll_to_calendar"
     | "list_events"
     | "link_events_to_sessions"
+    | "fetch_transcript"
     | "cron_sync_recordings";
   provider?: "google" | "microsoft";
+}
+/** Trae (y guarda) las transcripciones de Teams de la reunión asociada a una
+ *  sesión de clase. Solo Microsoft: la reunión tiene que haberse creado/
+ *  sincronizado con Teams (meeting_url = joinUrl) y el docente que llama debe
+ *  ser el ORGANIZADOR (Graph `/me/onlineMeetings` es scoped al usuario). */
+interface FetchTranscriptBody extends BaseBody {
+  action: "fetch_transcript";
+  sessionId: string;
 }
 interface InitBody extends BaseBody {
   action: "init";
@@ -150,6 +165,8 @@ Deno.serve(async (req) => {
         return await handleListEvents(userId, body as ListEventsBody, provider);
       case "link_events_to_sessions":
         return await handleLinkEventsToSessions(userId, body as LinkEventsBody, provider);
+      case "fetch_transcript":
+        return await handleFetchTranscript(userId, body as FetchTranscriptBody);
       default:
         return jsonError("unknown_action", 400);
     }
@@ -166,6 +183,16 @@ function jsonError(error: string, status: number) {
 }
 function jsonOk(payload: Record<string, unknown>) {
   return new Response(JSON.stringify({ ok: true, ...payload }), {
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+/** Error de DOMINIO esperado (sesión sin Teams, reconectar, sin
+ *  transcripciones…). Va con status 200 y `ok:false` A PROPÓSITO: con un
+ *  status ≥400 `supabase.functions.invoke` descarta el cuerpo y el cliente
+ *  pierde el código para traducir el mensaje y ofrecer la acción a seguir.
+ *  Se reserva `jsonError` (no-2xx) para fallos realmente inesperados. */
+function jsonDomain(error: string, extra: Record<string, unknown> = {}) {
+  return new Response(JSON.stringify({ ok: false, error, ...extra }), {
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 }
@@ -1490,4 +1517,187 @@ async function handleLinkEventsToSessions(
     total: body.links.length,
     errors: errors.slice(0, 20), // cap por si hay muchos
   });
+}
+
+// ────────── Transcripciones de Teams por sesión ──────────
+// Trae las transcripciones de la reunión de Teams asociada a una sesión de
+// clase y las guarda en `session_transcripts` (idempotente por id de
+// transcripción). Solo Microsoft, y solo lo puede traer el ORGANIZADOR de la
+// reunión (Graph `/me/onlineMeetings` es scoped al usuario) — por eso usa el
+// token del DOCENTE que llama. Un Admin/SA que no sea el organizador autoriza
+// la acción pero su token no resuelve la reunión (verá `meeting_not_found`);
+// para LEER lo ya guardado está la RLS de la tabla (todo el staff del curso).
+
+interface MsOnlineMeeting {
+  id: string;
+}
+interface MsTranscript {
+  id: string;
+  createdDateTime?: string;
+}
+
+/** True si el caller es staff del curso de la sesión: docente (course_teachers),
+ *  Admin del tenant del curso o SuperAdmin. Replica la RLS de session_transcripts. */
+async function isStaffOfCourse(userId: string, courseId: string): Promise<boolean> {
+  const { data: ct } = await adminClient
+    .from("course_teachers")
+    .select("course_id")
+    .eq("course_id", courseId)
+    .eq("user_id", userId)
+    .maybeSingle();
+  if (ct) return true;
+  // Admin del tenant del curso / SuperAdmin.
+  const [{ data: roles }, { data: prof }, { data: course }] = await Promise.all([
+    adminClient.from("user_roles").select("role").eq("user_id", userId),
+    adminClient.from("profiles").select("tenant_id").eq("id", userId).maybeSingle(),
+    adminClient.from("courses").select("tenant_id").eq("id", courseId).maybeSingle(),
+  ]);
+  const roleSet = new Set((roles ?? []).map((r: { role: string }) => r.role));
+  if (roleSet.has("SuperAdmin")) return true;
+  if (roleSet.has("Admin") && prof?.tenant_id && prof.tenant_id === course?.tenant_id) {
+    return true;
+  }
+  return false;
+}
+
+async function handleFetchTranscript(userId: string, body: FetchTranscriptBody) {
+  if (!body.sessionId) return jsonDomain("session_required");
+
+  // 1) Sesión (saltando papelera) + su curso + enlace de la reunión.
+  const { data: session } = await adminClient
+    .from("attendance_sessions")
+    .select("id, course_id, title, session_date, meeting_url, deleted_at")
+    .eq("id", body.sessionId)
+    .maybeSingle();
+  if (!session || session.deleted_at) return jsonDomain("session_not_found");
+
+  // 2) Autorización: staff del curso.
+  if (!(await isStaffOfCourse(userId, session.course_id))) {
+    return jsonError("not_staff_of_course", 403);
+  }
+
+  // 3) ¿La sesión tiene una reunión de Teams? El joinUrl de Teams siempre
+  //    vive en teams.microsoft.com/l/meetup-join. Un Meet/Zoom/manual no sirve.
+  const meetingUrl = (session.meeting_url ?? "").trim();
+  const isTeams = /teams\.microsoft\.com\/l\/meetup-join/i.test(meetingUrl);
+  if (!meetingUrl || !isTeams) return jsonDomain("session_no_teams_link");
+
+  // 4) Conexión Microsoft del docente que llama (el organizador).
+  const { data: tok } = await adminClient
+    .from("teacher_google_tokens")
+    .select("provider")
+    .eq("teacher_id", userId)
+    .maybeSingle();
+  if (!tok) return jsonDomain("not_connected");
+  if ((tok.provider ?? "google") !== "microsoft") return jsonDomain("not_microsoft_account");
+
+  // 5) Token válido + ¿tiene el scope de transcripciones? Un docente conectado
+  //    antes de agregar el permiso tiene un token sin él → reconectar.
+  let accessToken: string;
+  try {
+    accessToken = await getValidMicrosoftAccessToken(userId);
+  } catch (e) {
+    const msg = (e as Error).message;
+    if (msg === "not_connected") return jsonDomain("not_connected");
+    // Un refresh que falla casi siempre es un consentimiento revocado /
+    // token rotado fuera de alcance → reconectar.
+    return jsonDomain("needs_reconnect");
+  }
+  if (!microsoftTokenHasScope(accessToken, MS_TRANSCRIPT_SCOPE)) {
+    return jsonDomain("needs_reconnect");
+  }
+
+  // 6) Resolver la reunión por su joinUrl. OData `$filter` sobre JoinWebUrl:
+  //    el valor va entre comillas simples y todo el filtro URL-encodeado. El
+  //    joinUrl ya trae `%3a`/`%40` — encodeURIComponent los re-escapa a `%253a`,
+  //    que es EXACTAMENTE lo que Graph espera (compara contra el valor guardado).
+  const filter = `JoinWebUrl eq '${meetingUrl.replace(/'/g, "''")}'`;
+  let meetingId: string;
+  try {
+    const res = await callMicrosoft<{ value?: MsOnlineMeeting[] }>(
+      userId,
+      `/me/onlineMeetings?$filter=${encodeURIComponent(filter)}`,
+      { method: "GET" },
+    );
+    const meeting = (res.value ?? [])[0];
+    if (!meeting) return jsonDomain("meeting_not_found");
+    meetingId = meeting.id;
+  } catch (e) {
+    if (e instanceof MicrosoftApiError && e.status === 403) {
+      return jsonDomain("admin_consent_required");
+    }
+    if (e instanceof MicrosoftApiError && (e.status === 404 || e.status === 400)) {
+      return jsonDomain("meeting_not_found");
+    }
+    return jsonError(`microsoft_api_error: ${(e as Error).message}`, 502);
+  }
+
+  // 7) Transcripciones de la reunión.
+  let transcripts: MsTranscript[];
+  try {
+    const res = await callMicrosoft<{ value?: MsTranscript[] }>(
+      userId,
+      `/me/onlineMeetings/${meetingId}/transcripts`,
+      { method: "GET" },
+    );
+    transcripts = res.value ?? [];
+  } catch (e) {
+    if (e instanceof MicrosoftApiError && e.status === 403) {
+      return jsonDomain("admin_consent_required");
+    }
+    return jsonError(`microsoft_api_error: ${(e as Error).message}`, 502);
+  }
+  if (transcripts.length === 0) return jsonDomain("no_transcripts");
+
+  // 8) Bajar el contenido VTT de cada una y guardar (idempotente).
+  let saved = 0;
+  const errors: string[] = [];
+  for (const tr of transcripts) {
+    try {
+      const vtt = await callMicrosoftText(
+        userId,
+        `/me/onlineMeetings/${meetingId}/transcripts/${tr.id}/content?$format=text/vtt`,
+        { method: "GET", headers: { Accept: "text/vtt" } },
+      );
+      const text = vttToReadableText(vtt);
+      await adminClient.from("session_transcripts").upsert(
+        {
+          session_id: session.id,
+          provider: "teams",
+          external_meeting_id: meetingId,
+          external_transcript_id: tr.id,
+          transcript_created_at: tr.createdDateTime ?? null,
+          content_vtt: vtt,
+          content_text: text,
+          fetched_by: userId,
+          fetched_at: new Date().toISOString(),
+        },
+        { onConflict: "external_transcript_id" },
+      );
+      saved++;
+    } catch (e) {
+      errors.push(`${tr.id}: ${(e as Error).message}`);
+    }
+  }
+
+  await audit(
+    userId,
+    "calendar.transcript_fetched",
+    errors.length > 0 && saved === 0 ? "error" : "info",
+    { session_id: session.id, course_id: session.course_id, saved, found: transcripts.length },
+    session.title ?? null,
+  );
+
+  // 9) Devolver el texto combinado de TODAS las transcripciones de la sesión.
+  const { data: stored } = await adminClient
+    .from("session_transcripts")
+    .select("content_text, transcript_created_at")
+    .eq("session_id", session.id)
+    .order("transcript_created_at", { ascending: true, nullsFirst: true });
+  const combined = (stored ?? [])
+    .map((r: { content_text: string | null }) => r.content_text ?? "")
+    .filter(Boolean)
+    .join("\n\n");
+
+  return jsonOk({ saved, found: transcripts.length, text: combined, errors });
 }
