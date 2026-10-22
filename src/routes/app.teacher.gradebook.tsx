@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { formatNumber, todayLocalISO } from "@/shared/lib/format";
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { useEffect, useState, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import i18next from "i18next";
 import i18n from "@/i18n";
@@ -66,6 +66,14 @@ import { downloadCSV, toCSV } from "@/shared/lib/csv";
 import { toXLSX, downloadXLSX } from "@/shared/lib/xlsx";
 import { computeWeightedGrade } from "@/modules/grading/grade";
 import { corteYPesoEnCurso, sesionesDadas } from "@/modules/grading/nota-relativa";
+import {
+  claveCondicion,
+  indiceCondicionesPorEstudianteActividad,
+  tieneCondicion,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
+import { CondicionPopover } from "@/modules/grading/CondicionDeEstudiante";
 import { todasLasFilas } from "@/shared/lib/todas-las-filas";
 import { integrantesPorEntrega, unaVezPorEntrega } from "@/modules/grading/nota-de-grupo";
 import {
@@ -372,6 +380,9 @@ function Gradebook() {
   // Lo asignado a cada estudiante: sin asignación no ve la actividad, así que
   // sin entrega no le cuenta como 0 (nota-relativa.ts).
   const [asignaciones, setAsignaciones] = useState<Map<string, Asignaciones>>(new Map());
+  // Condiciones por estudiante (tope de nota + plazo propio), llaveadas por
+  // `userId::actividadId`. El tope se aplica a la nota ya en escala.
+  const [condiciones, setCondiciones] = useState<Map<string, CondicionEstudiante>>(new Map());
   const [edits, setEdits] = useState<EditMap>({});
   const [saving, setSaving] = useState(false);
   // Progreso de "Guardar cambios": el guardado es un loop SECUENCIAL de
@@ -940,6 +951,21 @@ function Gradebook() {
     for (const r of asigPrj) de(r.user_id).proyectos.add(r.project_id);
     if (stale()) return;
     setAsignaciones(asig);
+
+    // Condiciones por estudiante (tope de nota + plazo propio) de las actividades
+    // del curso. Suelen ser pocas por curso; el guard de longitud evita el `.in(…, [])`
+    // que en PostgREST devuelve TODO. La tabla no está en los tipos generados aún → `db` es any.
+    const idsCondiciones = [...wsIds, ...prjIds];
+    let filasCondiciones: FilaCondicion[] = [];
+    if (idsCondiciones.length) {
+      const { data: cr } = await db
+        .from("condiciones_estudiante")
+        .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+        .in("actividad_id", idsCondiciones);
+      filasCondiciones = (cr ?? []) as FilaCondicion[];
+    }
+    if (stale()) return;
+    setCondiciones(indiceCondicionesPorEstudianteActividad(filasCondiciones));
 
     if (stale()) return;
     setCourseDataError(null);
@@ -1675,6 +1701,11 @@ function Gradebook() {
             estadoAsistencia: (sid) => estadoAsistencia.get(`${sid}::${stu.id}`),
             // Sin ninguna fila, nada asignado (no `undefined`, que es «todo»).
             asignaciones: asignaciones.get(stu.id) ?? SIN_ASIGNACIONES,
+            // Tope de nota + plazo propio de este estudiante en cada taller/proyecto.
+            condicion: (_tipo, actividadId) => {
+              const c = condiciones.get(claveCondicion(stu.id, actividadId));
+              return c ? { notaMaxima: c.notaMaxima, plazoPropio: c.plazoPropio } : undefined;
+            },
           },
           ahora,
         ),
@@ -1691,7 +1722,35 @@ function Gradebook() {
     projectSubs,
     prjGroupsByUser,
     asignaciones,
+    condiciones,
   ]);
+
+  // Indicador de condición por estudiante en la celda (taller/proyecto): el
+  // tooltip muestra el motivo, la nota del trabajo y la nota con la condición.
+  const indicadorCondicion = (studentId: string, col: GradeColumn, gradeRaw: number | null) => {
+    if (col.kind !== "workshop" && col.kind !== "project") return null;
+    const c = condiciones.get(claveCondicion(studentId, col.id));
+    if (!c || !tieneCondicion(c)) return null;
+    const min = Number(selectedCourse?.grade_scale_min ?? 0);
+    const max = Number(selectedCourse?.grade_scale_max ?? 5);
+    const notaTrabajo =
+      gradeRaw == null
+        ? null
+        : col.isExternal
+          ? gradeRaw
+          : min + (gradeRaw / (col.maxScore || 100)) * (max - min);
+    const notaConCondicion =
+      notaPorEstudiante.get(studentId)?.items.find((i) => i.id === col.id)?.score ?? null;
+    return (
+      <CondicionPopover
+        condicion={c}
+        persona="docente"
+        notaTrabajo={notaTrabajo}
+        notaConCondicion={notaConCondicion}
+        mostrarEtiqueta={false}
+      />
+    );
+  };
 
   // Consolidado por cortes: lo que muestran la tabla, el export y los
   // certificados. `parcial` = todavía hay algo por darse o por calificar.
@@ -2844,6 +2903,7 @@ function Gradebook() {
             handleEdit,
             cellKey,
             selectedCourse,
+            indicadorCondicion,
           })}
         </Card>
       )}
@@ -2925,6 +2985,7 @@ function Gradebook() {
               selectedCourse,
               attSessions,
               nota: notaPorEstudiante.get(detailStudentId),
+              indicadorCondicion,
             })}
         </DialogContent>
       </Dialog>
@@ -3192,6 +3253,7 @@ function renderStudentCutDetail({
   selectedCourse,
   attSessions,
   nota,
+  indicadorCondicion,
 }: {
   cut: Cut;
   columns: GradeColumn[];
@@ -3214,6 +3276,8 @@ function renderStudentCutDetail({
   attSessions: AttSession[];
   /** La nota del estudiante (nota-del-curso.ts): de ahí sale qué cuenta y por qué. */
   nota: NotaCompleta | undefined;
+  /** Indicador de la condición por estudiante en la celda (taller/proyecto). */
+  indicadorCondicion: (studentId: string, col: GradeColumn, gradeRaw: number | null) => ReactNode;
 }) {
   // Sesiones PROGRAMADAS en el corte (FK cut_id, mig 20260509020000); la nota
   // de asistencia es sobre las que se DIERON (con al menos una marca y la fecha cumplida).
@@ -3384,6 +3448,7 @@ function renderStudentCutDetail({
                             </span>
                           )}
                           {g.grupo && <IndicadorDeGrupo grupo={g.grupo} />}
+                          {indicadorCondicion(studentId, col, g.grade)}
                           {/* Con el ícono del grupo, el «—» de relleno sobra;
                               el motivo de una nota que falta, no. */}
                           {!g.isMakeup &&
@@ -3520,6 +3585,7 @@ function renderEditableGrid({
   handleEdit,
   cellKey,
   selectedCourse,
+  indicadorCondicion,
 }: {
   columns: GradeColumn[];
   students: Student[];
@@ -3538,6 +3604,8 @@ function renderEditableGrid({
   handleEdit: (studentId: string, colId: string, value: string) => void;
   cellKey: (studentId: string, colId: string) => string;
   selectedCourse: Course | undefined;
+  /** Indicador de la condición por estudiante en la celda (taller/proyecto). */
+  indicadorCondicion: (studentId: string, col: GradeColumn, gradeRaw: number | null) => ReactNode;
 }) {
   return (
     <CardContent className="p-0 max-h-[70dvh] overflow-auto">
@@ -3672,6 +3740,7 @@ function renderEditableGrid({
                             </span>
                           )}
                           {g.grupo && <IndicadorDeGrupo grupo={g.grupo} />}
+                          {indicadorCondicion(s.id, col, g.grade)}
                         </div>
                       </div>
                     ) : g.grade != null ? (

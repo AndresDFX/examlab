@@ -27,6 +27,14 @@ import i18n from "@/i18n";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha, estaVencido } from "@/modules/submissions/entrega-hecha";
+import {
+  aplicarTopeDeNota,
+  indiceCondicionesPorActividad,
+  plazoPropioVigente,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
+import { CondicionDetalle, CondicionPopover } from "@/modules/grading/CondicionDeEstudiante";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import {
   TarjetaDeActividad,
@@ -209,6 +217,11 @@ function StudentProjects() {
   const [cortePesoPorProyecto, setCortePesoPorProyecto] = useState<
     Map<string, { cut_id: string | null; weight: number | null }>
   >(new Map());
+  // Condiciones del estudiante por proyecto (tope de nota, plazo propio, entrega
+  // individual). Suyas por RLS.
+  const [condicionPorProyecto, setCondicionPorProyecto] = useState<Map<string, CondicionEstudiante>>(
+    new Map(),
+  );
   // Arranca en true para no mostrar el empty ("no hay proyectos") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -356,6 +369,20 @@ function StudentProjects() {
     if (!allIds.length) {
       setRows([]);
       return;
+    }
+
+    // Condiciones del estudiante en estos proyectos (tope, plazo propio, entrega
+    // individual). `allIds` ya es no vacío → sin el riesgo del `.in(…, [])`.
+    try {
+      const { data: condRows } = await db
+        .from("condiciones_estudiante")
+        .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+        .eq("tipo", "proyecto")
+        .eq("user_id", uid)
+        .in("actividad_id", allIds);
+      setCondicionPorProyecto(indiceCondicionesPorActividad((condRows ?? []) as FilaCondicion[]));
+    } catch (e) {
+      console.error("[student-projects] condiciones_estudiante load failed", e);
     }
 
     let projects: ProjectRow["project"][] = [];
@@ -824,15 +851,26 @@ function StudentProjects() {
           // solo trae la nota que puso el docente. Nada de «Vencido», «Empezar»
           // ni «Eliminar mi entrega» —borrar esa fila sería borrar la nota—.
           const esExterno = !!project.is_external;
+          // Condición del estudiante (tope, plazo propio, entrega individual).
+          const condicion = condicionPorProyecto.get(project.id);
+          const plazoPropioAbierto =
+            !esExterno &&
+            plazoPropioVigente(condicion?.plazoPropio, now) &&
+            !(project.start_date && new Date(project.start_date).getTime() > now);
           const vencido =
-            !esExterno && estaVencido({ plazo: project.due_date, entrega: submission, ahora: now });
+            !esExterno &&
+            !plazoPropioAbierto &&
+            estaVencido({ plazo: project.due_date, entrega: submission, ahora: now });
           const isUpcoming = project.start_date && new Date(project.start_date).getTime() > now;
           const grade = submission?.final_grade ?? submission?.ai_grade;
           const isGraded = submission?.status === "calificado";
-          const isOpen = project.status === "published" && !isOverdue && !isUpcoming;
-          // Modo grupal estricto: si el estudiante no esta en un grupo,
-          // no puede entregar. En modo mixto (teacher_assigned) si.
-          const blockedNoGroup = project.group_mode === "group_required" && !groupId;
+          const isOpen =
+            (project.status === "published" && !isOverdue && !isUpcoming) || plazoPropioAbierto;
+          // Modo grupal estricto: si el estudiante no esta en un grupo, no puede
+          // entregar. En modo mixto (teacher_assigned) sí. La condición de entrega
+          // individual levanta ese bloqueo.
+          const blockedNoGroup =
+            project.group_mode === "group_required" && !groupId && !condicion?.entregaIndividual;
           // Intentos agotados = consumió el cap Y la entrega previa YA fue
           // calificada. En ese estado no puede re-entregar ni borrar — así que
           // tampoco mostramos el CTA "Actualizar" (ofrecer actualizar algo que
@@ -866,7 +904,23 @@ function StudentProjects() {
             entregada: entregaHecha(submission),
             proxima: !!isUpcoming,
             vencida: project.status === "published" && !!isOverdue,
+            plazoPropio: plazoPropioAbierto,
+            entregaIndividual: !!condicion?.entregaIndividual,
           });
+          // Nota en la escala del curso (para el badge) y con el tope.
+          const notaEnEscala =
+            grade == null
+              ? null
+              : project.is_external
+                ? grade
+                : project.course
+                  ? +(
+                      project.course.grade_scale_min +
+                      (grade / (project.max_score || 100)) *
+                        (project.course.grade_scale_max - project.course.grade_scale_min)
+                    ).toFixed(2)
+                  : grade;
+          const notaConTope = aplicarTopeDeNota(notaEnEscala, condicion?.notaMaxima);
 
           return (
             <TarjetaDeActividad key={project.id}>
@@ -880,41 +934,54 @@ function StudentProjects() {
                     return resolverCorteYPeso(f.cut_id, f.weight, nombreDeCorte);
                   })()}
                   estado={
-                    isGraded ? (
-                      <Badge className="shrink-0">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        {grade != null
-                          ? project.course
-                            ? `${formatNumber(project.is_external ? grade : +(project.course.grade_scale_min + (grade / (project.max_score || 100)) * (project.course.grade_scale_max - project.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${project.course.grade_scale_max}`
-                            : `${grade}`
-                          : t("project.submitted")}
-                      </Badge>
-                    ) : esExterno ? (
-                      <Badge variant="outline" className="shrink-0">
-                        {t("actividadExterna.sinNota")}
-                      </Badge>
-                    ) : entregaHecha(submission) ? (
-                      <Badge variant="secondary" className="shrink-0">
-                        {t("project.submitted")}
-                      </Badge>
-                    ) : vencido ? (
-                      <Badge variant="destructive" className="shrink-0">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        {t("dashboard.overdue")}
-                      </Badge>
-                    ) : isOpen ? (
-                      <Badge className="bg-success text-success-foreground shrink-0">
-                        {t("project.available")}
-                      </Badge>
-                    ) : isUpcoming ? (
-                      <Badge variant="outline" className="shrink-0">
-                        {t("project.upcoming")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="shrink-0">
-                        {t("project.closed")}
-                      </Badge>
-                    )
+                    <>
+                      {isGraded ? (
+                        <Badge className="shrink-0">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          {/* Nota ya en la escala del curso y con el tope de la condición. */}
+                          {notaConTope != null && project.course
+                            ? `${formatNumber(notaConTope, { maximumFractionDigits: 2 })}/${project.course.grade_scale_max}`
+                            : notaConTope != null
+                              ? formatNumber(notaConTope, { maximumFractionDigits: 2 })
+                              : t("project.submitted")}
+                        </Badge>
+                      ) : esExterno ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {t("actividadExterna.sinNota")}
+                        </Badge>
+                      ) : entregaHecha(submission) ? (
+                        <Badge variant="secondary" className="shrink-0">
+                          {t("project.submitted")}
+                        </Badge>
+                      ) : vencido ? (
+                        <Badge variant="destructive" className="shrink-0">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {t("dashboard.overdue")}
+                        </Badge>
+                      ) : isOpen ? (
+                        <Badge className="bg-success text-success-foreground shrink-0">
+                          {t("project.available")}
+                        </Badge>
+                      ) : isUpcoming ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {t("project.upcoming")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0">
+                          {t("project.closed")}
+                        </Badge>
+                      )}
+                      {condicion && (
+                        <CondicionPopover
+                          condicion={condicion}
+                          persona="estudiante"
+                          ahora={now}
+                          notaTrabajo={notaEnEscala}
+                          notaConCondicion={notaConTope}
+                          mostrarEtiqueta={false}
+                        />
+                      )}
+                    </>
                   }
                 />
                 <ResumenDeTarjeta texto={project.description} />
@@ -999,6 +1066,15 @@ function StudentProjects() {
                 )}
               </AccionesDeTarjeta>
               <DetallesDeTarjeta>
+                {condicion && (
+                  <CondicionDetalle
+                    condicion={condicion}
+                    persona="estudiante"
+                    ahora={now}
+                    notaTrabajo={notaEnEscala}
+                    notaConCondicion={notaConTope}
+                  />
+                )}
                 {grupoEnTarjetaMuestraAlgo("detalle", resumenGrupo) && (
                   <GrupoEnTarjeta variante="detalle" resumen={resumenGrupo} onAbrir={abrirGrupo} />
                 )}

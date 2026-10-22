@@ -47,19 +47,37 @@ export function accionDeEntrega(e: {
   proxima: boolean;
   /** Publicada y pasó el plazo. */
   vencida: boolean;
+  /**
+   * El estudiante tiene un PLAZO PROPIO vigente (condición por estudiante): para
+   * él la actividad sigue abierta hasta su fecha, aunque ya venció para los demás
+   * (`plazoPropioVigente`). No debe mostrarse «Vencido». No abre una actividad
+   * que todavía no empezó: el caller lo pasa solo cuando ya empezó.
+   */
+  plazoPropio?: boolean;
+  /**
+   * El estudiante está AUTORIZADO a entregar individual en una actividad grupal
+   * estricta (condición por estudiante): no se le exige grupo, entrega solo.
+   */
+  entregaIndividual?: boolean;
 }): AccionDeEntrega {
-  if (e.armarGrupo) return "armar";
+  // Con entrega individual autorizada no se le pide armar grupo: entrega solo.
+  if (e.armarGrupo && !e.entregaIndividual) return "armar";
   // Un externo no se entrega por acá: con nota se ve el detalle, sin nota no
   // hay nada que hacer. Ni «Vencido» ni «Iniciar entrega».
   if (e.externa) return e.conNota ? "detalle" : "externo";
-  if (e.abierta && e.sinGrupoObligatorio) return "sinGrupo";
+  // El plazo propio vigente abre la actividad para este estudiante.
+  const abierta = e.abierta || !!e.plazoPropio;
+  // La autorización individual levanta el bloqueo de «sin grupo».
+  const sinGrupo = e.sinGrupoObligatorio && !e.entregaIndividual;
+  if (abierta && sinGrupo) return "sinGrupo";
   // Mientras esté abierta se puede actualizar aunque ya tenga nota de la IA:
   // al re-entregar se vuelve a calificar.
-  if (e.abierta && !e.intentosAgotados) return "entregar";
+  if (abierta && !e.intentosAgotados) return "entregar";
   if (e.conNota) return "detalle";
   if (e.entregada) return "porCalificar";
   if (e.proxima) return "proximo";
-  if (e.vencida) return "vencido";
+  // Un plazo propio vigente nunca se lee como «Vencido».
+  if (e.vencida && !e.plazoPropio) return "vencido";
   return "cerrado";
 }
 

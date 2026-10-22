@@ -37,6 +37,13 @@ import { formatDateTime } from "@/shared/lib/format";
 import { MarkdownInline } from "@/shared/components/MarkdownInline";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
+import {
+  aplicarTopeDeNota,
+  normalizarCondicion,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
+import { CondicionDetalle } from "@/modules/grading/CondicionDeEstudiante";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -115,6 +122,7 @@ function StudentProjectDetail() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [project, setProject] = useState<ProjectLoaded | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [condicion, setCondicion] = useState<CondicionEstudiante | null>(null);
   const [files, setFiles] = useState<ProjectFile[]>([]);
   const [answersByFid, setAnswersByFid] = useState<Record<string, AnswerRow>>({});
 
@@ -233,6 +241,18 @@ function StudentProjectDetail() {
         setProject({ ...(pr as ProjectLoaded), course: courseRow });
         setSubmission(sub as SubmissionRow | null);
         setFiles((fs ?? []) as ProjectFile[]);
+
+        // Condición del estudiante en este proyecto (tope, plazo propio, individual).
+        if (user?.id) {
+          const { data: condRow } = await db
+            .from("condiciones_estudiante")
+            .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+            .eq("tipo", "proyecto")
+            .eq("actividad_id", projectId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (!cancelled) setCondicion(normalizarCondicion(condRow as FilaCondicion | null));
+        }
 
         if (sub?.id) {
           const { data: ans } = await db
@@ -353,6 +373,16 @@ function StudentProjectDetail() {
   }
 
   const gradeShow = submission?.final_grade ?? submission?.ai_grade;
+  // Nota del trabajo en la escala del curso y con el tope de la condición.
+  const scaleMin = Number(project.course?.grade_scale_min ?? 0);
+  const scaleMax = Number(project.course?.grade_scale_max ?? project.max_score ?? 5);
+  const notaEnEscalaDetalle =
+    gradeShow == null
+      ? null
+      : project.is_external
+        ? gradeShow
+        : scaleMin + (gradeShow / (project.max_score || 100)) * (scaleMax - scaleMin);
+  const notaConTopeDetalle = aplicarTopeDeNota(notaEnEscalaDetalle, condicion?.notaMaxima);
 
   return (
     <div className="space-y-5">
@@ -362,6 +392,15 @@ function StudentProjectDetail() {
         title={project.title}
         subtitle={project.course?.name}
       />
+
+      {condicion && (
+        <CondicionDetalle
+          condicion={condicion}
+          persona="estudiante"
+          notaTrabajo={notaEnEscalaDetalle}
+          notaConCondicion={notaConTopeDetalle}
+        />
+      )}
 
       {!submission && (
         <Card className="border-dashed">

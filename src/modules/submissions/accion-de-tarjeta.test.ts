@@ -48,6 +48,24 @@ describe("acción de la tarjeta de un taller o proyecto", () => {
     expect(entrega({ ...cerrada, vencida: true })).toBe("vencido");
     expect(entrega(cerrada)).toBe("cerrado");
   });
+
+  it("plazo propio vigente: abre para este estudiante y nunca dice «Vencido»", () => {
+    // Venció para el curso pero este estudiante tiene su propio plazo.
+    expect(entrega({ abierta: false, vencida: true, plazoPropio: true })).toBe("entregar");
+    // Entregada y con nota, con su plazo aún abierto: puede actualizar.
+    expect(
+      entrega({ abierta: false, vencida: true, plazoPropio: true, entregada: true, conNota: true }),
+    ).toBe("entregar");
+  });
+
+  it("entrega individual autorizada: no exige grupo, entrega solo", () => {
+    // Grupal estricto sin grupo, pero autorizado a entregar individual.
+    expect(entrega({ sinGrupoObligatorio: true, entregaIndividual: true })).toBe("entregar");
+    // Aunque la tarjeta mostraría «Armar grupo», la autorización lo salta.
+    expect(entrega({ armarGrupo: true, sinGrupoObligatorio: true, entregaIndividual: true })).toBe(
+      "entregar",
+    );
+  });
 });
 
 const examen = (extra: Partial<Parameters<typeof accionDeExamen>[0]> = {}) =>

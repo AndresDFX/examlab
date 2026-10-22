@@ -11,6 +11,13 @@
  *    estado pendiente.
  */
 import { entregaEsDelGrupo } from "@/modules/grading/nota-de-grupo";
+import {
+  aplicarTopeDeNota,
+  normalizarCondicion,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
+import { CondicionDetalle } from "@/modules/grading/CondicionDeEstudiante";
 import { retroDeTallerVisible } from "@/modules/submissions/retroalimentacion-visible";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
@@ -122,6 +129,7 @@ function StudentWorkshopDetail() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [workshop, setWorkshop] = useState<WorkshopLoaded | null>(null);
   const [submission, setSubmission] = useState<SubmissionRow | null>(null);
+  const [condicion, setCondicion] = useState<CondicionEstudiante | null>(null);
   const [questions, setQuestions] = useState<WorkshopQuestion[]>([]);
   const [answersByQid, setAnswersByQid] = useState<Record<string, AnswerRow>>({});
   const [myGroup, setMyGroup] = useState<GroupInfo | null>(null);
@@ -244,6 +252,18 @@ function StudentWorkshopDetail() {
         setSubmission(sub as SubmissionRow | null);
         setQuestions((qs ?? []) as WorkshopQuestion[]);
 
+        // Condición del estudiante en este taller (tope, plazo propio, individual).
+        if (user?.id) {
+          const { data: condRow } = await dbAny
+            .from("condiciones_estudiante")
+            .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+            .eq("tipo", "taller")
+            .eq("actividad_id", workshopId)
+            .eq("user_id", user.id)
+            .maybeSingle();
+          if (!cancelled) setCondicion(normalizarCondicion(condRow as FilaCondicion | null));
+        }
+
         if (sub?.id) {
           const { data: ans } = await supabase
             .from("workshop_submission_answers")
@@ -329,6 +349,17 @@ function StudentWorkshopDetail() {
   const faltaSustentacion =
     !!workshop.requires_defense && submission != null && submission.final_grade == null;
   const gradeShow = faltaSustentacion ? null : (submission?.final_grade ?? submission?.ai_grade);
+  // Nota del trabajo en la escala del curso y con el tope de la condición, para
+  // el bloque «Nota del trabajo X → con la condición Y».
+  const notaEnEscalaDetalle =
+    gradeShow == null
+      ? null
+      : workshop.is_external
+        ? gradeShow
+        : workshop.course.grade_scale_min +
+          (gradeShow / (workshop.max_score || 100)) *
+            (workshop.course.grade_scale_max - workshop.course.grade_scale_min);
+  const notaConTopeDetalle = aplicarTopeDeNota(notaEnEscalaDetalle, condicion?.notaMaxima);
 
   // Helper: extract the actual answer string for a question.
   const renderAnswer = (q: WorkshopQuestion, ans: AnswerRow | undefined) => {
@@ -536,6 +567,15 @@ function StudentWorkshopDetail() {
             {t("teacherWorkshops.openActivityDoc")}
           </a>
         </Button>
+      )}
+
+      {condicion && (
+        <CondicionDetalle
+          condicion={condicion}
+          persona="estudiante"
+          notaTrabajo={notaEnEscalaDetalle}
+          notaConCondicion={notaConTopeDetalle}
+        />
       )}
 
       {submission && (

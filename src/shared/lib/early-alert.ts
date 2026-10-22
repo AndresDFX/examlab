@@ -19,6 +19,7 @@
  */
 
 import { countsAsPresent } from "@/modules/grading/grade";
+import { aplicarTopeDeNota } from "@/modules/grading/condiciones-estudiante";
 import { sesionesDadas } from "@/modules/grading/nota-relativa";
 import { todayLocalISO } from "@/shared/lib/format";
 import {
@@ -149,13 +150,14 @@ export function computeStudentAttendance(
   };
 }
 
-/** Nota reescalada a la escala del curso, o null si no tiene nota. */
+/** Nota reescalada a la escala del curso, con el tope de la condición si tiene,
+ *  o null si no tiene nota. */
 function scaledGrade(s: SubmissionLike, course: CourseInfo): number | null {
   const g = effectiveGrade(s);
   if (g == null) return null;
   const max = s.max_score || 1;
   const courseMax = course.grade_scale_max || max;
-  return (g / max) * courseMax;
+  return aplicarTopeDeNota((g / max) * courseMax, s.topeNota);
 }
 
 /**

@@ -6,6 +6,12 @@ import {
 } from "@/modules/grading/nota-con-recuperacion";
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
 import { countsAsPresent } from "@/modules/grading/grade";
+import {
+  aplicarTopeDeNota,
+  claveCondicion,
+  indiceCondicionesPorEstudianteActividad,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
 import { sesionesDadas } from "@/modules/grading/nota-relativa";
 import { todayLocalISO } from "@/shared/lib/format";
 import { todasLasFilas } from "@/shared/lib/todas-las-filas";
@@ -47,6 +53,10 @@ export type SubmissionLike = {
   /** Solo talleres: si el ítem se sustenta. Sin sustentación registrada no hay
    *  nota, y por eso NO se puede caer a `ai_grade` (ver `effectiveGrade`). */
   requires_defense?: boolean;
+  /** Tope de nota de la CONDICIÓN del estudiante en esta actividad, en la ESCALA
+   *  DEL CURSO (solo talleres/proyectos). Se aplica a la nota ya reescalada
+   *  (`isApproved`, `scaledGrade`): min(escalada, topeNota). */
+  topeNota?: number | null;
 };
 
 export type AttendanceSession = {
@@ -324,6 +334,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
     { data: projectSubsRaw },
     { data: similarityRaw },
     { data: attendanceRecordsRaw },
+    { data: condicionesRaw },
   ] = await Promise.all([
     examIds.length
       ? supabase
@@ -372,7 +383,23 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
             .range(desde, hasta),
         )
       : Promise.resolve({ data: [] }),
+    // Condiciones por estudiante (tope de nota) de talleres y proyectos.
+    workshopIds.length || projectIds.length
+      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (supabase as any)
+          .from("condiciones_estudiante")
+          .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+          .in("actividad_id", [...workshopIds, ...projectIds])
+      : Promise.resolve({ data: [] }),
   ]);
+
+  // Índice de condiciones por `userId::actividadId` (el tope se aplica a la nota
+  // ya reescalada en `isApproved`/`scaledGrade`).
+  const condIndex = indiceCondicionesPorEstudianteActividad(
+    (condicionesRaw ?? []) as FilaCondicion[],
+  );
+  const topeDe = (userId: string, refId: string): number | null =>
+    condIndex.get(claveCondicion(userId, refId))?.notaMaxima ?? null;
 
   // Normalizar las 3 fuentes a SubmissionLike: traer cut_id/max_score/is_external
   // de la actividad padre via join client-side.
@@ -442,6 +469,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         ? Number(course?.grade_scale_max ?? 1)
         : Number(parent?.max_score ?? 100),
       is_external: !!parent?.is_external,
+      topeNota: topeDe(String(s.user_id), refId),
     };
   };
   const workshopSubsRows = (workshopSubsRaw ?? []) as Array<
@@ -498,6 +526,7 @@ export async function loadCourseDataset(courseId: string): Promise<CourseDataset
         ? Number(course?.grade_scale_max ?? 1)
         : Number(parent?.max_score ?? 100),
       is_external: !!parent?.is_external,
+      topeNota: topeDe(String(s.user_id), String(s.project_id)),
     };
   });
 
@@ -572,7 +601,8 @@ export function isApproved(s: SubmissionLike, course: CourseInfo): boolean | nul
   // Reescalar al rango del curso para comparar con passing_grade
   const max = s.max_score || 1;
   const courseMax = course.grade_scale_max || max;
-  const scaled = (g / max) * courseMax;
+  // El tope de la condición se aplica a la nota ya en la escala del curso.
+  const scaled = aplicarTopeDeNota((g / max) * courseMax, s.topeNota) ?? 0;
   return scaled >= course.passing_grade;
 }
 

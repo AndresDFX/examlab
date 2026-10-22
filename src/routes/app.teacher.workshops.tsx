@@ -130,9 +130,19 @@ import {
   Eye,
   ClipboardList,
   GitBranch,
+  UserPen,
 } from "lucide-react";
 import { Spinner } from "@/components/ui/spinner";
 import { CrearRecuperacionTallerDialog } from "@/modules/workshops/CrearRecuperacionTallerDialog";
+import { CondicionesEstudianteDialog } from "@/modules/grading/CondicionesEstudianteDialog";
+import { CondicionPopover } from "@/modules/grading/CondicionDeEstudiante";
+import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
+import {
+  aplicarTopeDeNota,
+  normalizarCondicion,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
 import { type FilaDeTaller } from "@/modules/grading/nota-con-recuperacion";
 import { arbolDeRecuperaciones, idsConRecuperaciones } from "@/modules/grading/arbol-recuperaciones";
 import {
@@ -918,6 +928,12 @@ function TeacherWorkshops() {
   // Questions editor
   const [questionsWs, setQuestionsWs] = useState<Workshop | null>(null);
   const [questionsOpen, setQuestionsOpen] = useState(false);
+  // Condiciones por estudiante (tope de nota, plazo propio, entrega individual).
+  const [condicionesWs, setCondicionesWs] = useState<Workshop | null>(null);
+  // Las condiciones del taller abierto a calificar, por usuario (para el indicador).
+  const [condicionesGrading, setCondicionesGrading] = useState<Map<string, CondicionEstudiante>>(
+    new Map(),
+  );
   // Talleres en línea sin ninguna pregunta: muestran «Agregar preguntas» en su
   // propia fila. Llegar por ⋯ → Editar → Preguntas eran 3 toques y dos diálogos
   // apilados justo cuando el taller está vacío (auditoría móvil 2026-10-10).
@@ -2204,6 +2220,24 @@ function TeacherWorkshops() {
         // Migración pendiente — no es bloqueante.
       }
       setWsSubs(subs.map((s: any) => ({ ...s, profile: profileMap.get(s.user_id) })));
+
+      // Condiciones por estudiante de este taller (tope de nota), para el
+      // indicador en la ficha de calificación.
+      try {
+        const { data: condRows } = await supabase
+          .from("condiciones_estudiante" as never)
+          .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+          .eq("tipo", "taller")
+          .eq("actividad_id", ws.id);
+        const m = new Map<string, CondicionEstudiante>();
+        for (const f of (condRows ?? []) as FilaCondicion[]) {
+          const c = normalizarCondicion(f);
+          if (c) m.set(c.userId, c);
+        }
+        setCondicionesGrading(m);
+      } catch {
+        setCondicionesGrading(new Map());
+      }
 
       // Agrupar threads por (submissionId, questionId) y calcular pending
       // mirando el último comment de cada thread.
@@ -4556,6 +4590,14 @@ function TeacherWorkshops() {
                       disabled: openingGroupsId != null,
                       onClick: () => void abrirGruposDesdeEditar(wsActual),
                     },
+                    // Condiciones por estudiante: un tope de nota, un plazo propio
+                    // o una entrega individual para casos puntuales, con su motivo.
+                    {
+                      key: "condiciones",
+                      label: t("editarConfig.condiciones"),
+                      icon: UserPen,
+                      onClick: () => setCondicionesWs(wsActual),
+                    },
                   ]}
                 />
               );
@@ -6703,6 +6745,32 @@ function TeacherWorkshops() {
                         El botón "Guardar calificación" persiste la
                         `final_grade` recalculada; "Calificar con IA"
                         dispara la evaluación por preguntas. */}
+                        {/* Condición por estudiante (tope de nota, plazo propio,
+                            entrega individual): el tooltip dice el motivo y la
+                            nota del trabajo frente a la nota con la condición. */}
+                        {(() => {
+                          const c = condicionesGrading.get(sub.user_id);
+                          if (!c) return null;
+                          const curso = courses.find((cc) => cc.id === gradingWs?.course_id);
+                          const min = Number(curso?.grade_scale_min ?? 0);
+                          const max = Number(curso?.grade_scale_max ?? 5);
+                          const raw = notaEfectivaDeTaller(sub, gradingWs?.requires_defense);
+                          const notaTrabajo =
+                            raw == null
+                              ? null
+                              : gradingWs?.is_external
+                                ? raw
+                                : min + (raw / (gradingWs?.max_score || 100)) * (max - min);
+                          return (
+                            <CondicionPopover
+                              condicion={c}
+                              persona="docente"
+                              notaTrabajo={notaTrabajo}
+                              notaConCondicion={aplicarTopeDeNota(notaTrabajo, c.notaMaxima)}
+                            />
+                          );
+                        })()}
+
                         {/* Sustentación. Solo cuando el taller la pide: en
                             los demás, la nota de las respuestas ES la final y
                             un panel de factor no significaría nada. En talleres
@@ -6859,6 +6927,28 @@ function TeacherWorkshops() {
             setRecuperacionDe(null);
             void load();
           }}
+        />
+      )}
+      {condicionesWs && (
+        <CondicionesEstudianteDialog
+          tipo="taller"
+          open={!!condicionesWs}
+          onOpenChange={(o) => !o && setCondicionesWs(null)}
+          actividad={{
+            id: condicionesWs.id,
+            title: condicionesWs.title,
+            courseId: condicionesWs.course_id,
+            groupMode: condicionesWs.group_mode ?? null,
+            isExternal: condicionesWs.is_external ?? null,
+            dueDate: condicionesWs.due_date,
+            scaleMin: Number(
+              courses.find((c) => c.id === condicionesWs.course_id)?.grade_scale_min ?? 0,
+            ),
+            scaleMax: Number(
+              courses.find((c) => c.id === condicionesWs.course_id)?.grade_scale_max ?? 5,
+            ),
+          }}
+          onCambio={() => void load()}
         />
       )}
       {/* Progreso + resultado de la recalificación masiva. Muestra

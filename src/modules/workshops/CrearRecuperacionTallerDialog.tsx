@@ -56,6 +56,7 @@ import {
   type TipoRecuperacion,
 } from "@/modules/grading/nota-con-recuperacion";
 import { notaEfectivaDeTaller } from "@/modules/grading/nota-efectiva";
+import { aplicarTopeDeNota } from "@/modules/grading/condiciones-estudiante";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -124,6 +125,9 @@ export function CrearRecuperacionTallerDialog({
   const [gruposPorUsuario, setGruposPorUsuario] = useState<Map<string, Set<string>>>(new Map());
   const [defensaPorTaller, setDefensaPorTaller] = useState<Map<string, boolean>>(new Map());
   const [maxScorePorTaller, setMaxScorePorTaller] = useState<Map<string, number>>(new Map());
+  // Tope de nota de la condición por estudiante en el taller ORIGEN (escala del
+  // curso): userId → nota máxima. El tope hace candidato a quien quede por debajo.
+  const [topePorUsuario, setTopePorUsuario] = useState<Map<string, number | null>>(new Map());
   const [escala, setEscala] = useState({ min: 0, max: 5, aprobacion: 3 });
   const [finCurso, setFinCurso] = useState<string | null>(null);
   const [origenWc, setOrigenWc] = useState<{ cut_id: string | null; weight: number | null } | null>(null);
@@ -216,6 +220,17 @@ export function CrearRecuperacionTallerDialog({
           gruposMap.get(m.user_id)!.add(m.group.id);
         }
 
+        // Condiciones por estudiante del taller ORIGEN (tope de nota).
+        const cond = await db
+          .from("condiciones_estudiante")
+          .select("user_id, nota_maxima")
+          .eq("tipo", "taller")
+          .eq("actividad_id", origen.id);
+        const topes = new Map<string, number | null>();
+        for (const c of (cond.data ?? []) as Array<{ user_id: string; nota_maxima: number | null }>) {
+          topes.set(c.user_id, c.nota_maxima == null ? null : Number(c.nota_maxima));
+        }
+
         if (cancelled) return;
         setEstudiantes(
           ids
@@ -224,6 +239,7 @@ export function CrearRecuperacionTallerDialog({
         );
         setEntregas((subs.data ?? []) as EntregaTaller[]);
         setGruposPorUsuario(gruposMap);
+        setTopePorUsuario(topes);
         setDefensaPorTaller(
           new Map(
             ((wsMeta.data ?? []) as Array<{ id: string; requires_defense: boolean | null }>).map(
@@ -272,10 +288,13 @@ export function CrearRecuperacionTallerDialog({
       ) ?? entregas.find((s) => s.workshop_id === tallerId && s.user_id === userId);
     const raw = notaEfectivaDeTaller(sub, defensaPorTaller.get(tallerId));
     const max = maxScorePorTaller.get(tallerId) ?? escala.max;
-    const nota =
+    const notaBase =
       raw == null
         ? null
         : escala.min + (max > 0 ? raw / max : 0) * (escala.max - escala.min);
+    // El tope de la condición es del taller ORIGEN (no de las recuperaciones).
+    const nota =
+      tallerId === origen.id ? aplicarTopeDeNota(notaBase, topePorUsuario.get(userId)) : notaBase;
     return { id: tallerId, presento: entregaHecha(sub), nota };
   };
 
@@ -290,7 +309,7 @@ export function CrearRecuperacionTallerDialog({
         escala,
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tipo, estudiantes, origen, talleresDelCurso, entregas, gruposPorUsuario, defensaPorTaller, maxScorePorTaller, escala],
+    [tipo, estudiantes, origen, talleresDelCurso, entregas, gruposPorUsuario, defensaPorTaller, maxScorePorTaller, topePorUsuario, escala],
   );
   const nombre = useMemo(() => new Map(estudiantes.map((e) => [e.id, e.nombre])), [estudiantes]);
 

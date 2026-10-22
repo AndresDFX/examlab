@@ -30,6 +30,14 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { entregaHecha, estaVencido } from "@/modules/submissions/entrega-hecha";
+import {
+  aplicarTopeDeNota,
+  indiceCondicionesPorActividad,
+  plazoPropioVigente,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
+import { CondicionDetalle, CondicionPopover } from "@/modules/grading/CondicionDeEstudiante";
 import { useReloadOnVisible } from "@/shared/hooks/use-reload-on-visible";
 import {
   TarjetaDeActividad,
@@ -226,6 +234,11 @@ function StudentWorkshops() {
   const [cortePesoPorTaller, setCortePesoPorTaller] = useState<
     Map<string, { cut_id: string | null; weight: number | null }>
   >(new Map());
+  // Condiciones del estudiante por taller (tope de nota, plazo propio, entrega
+  // individual). Suyas por RLS.
+  const [condicionPorTaller, setCondicionPorTaller] = useState<Map<string, CondicionEstudiante>>(
+    new Map(),
+  );
   // Arranca en true para no mostrar el empty ("no hay talleres") antes del fetch.
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -459,6 +472,20 @@ function StudentWorkshops() {
     }
     setNombreDeCorte(cortes);
     setCortePesoPorTaller(pesoPorTaller);
+
+    // Condiciones del estudiante en estos talleres (tope, plazo propio, entrega
+    // individual). El guard de longitud evita el `.in(…, [])` que devuelve TODO.
+    let condiciones = new Map<string, CondicionEstudiante>();
+    if (ids.length) {
+      const { data: condRows } = await client
+        .from("condiciones_estudiante")
+        .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+        .eq("tipo", "taller")
+        .eq("user_id", uid)
+        .in("actividad_id", ids);
+      condiciones = indiceCondicionesPorActividad((condRows ?? []) as FilaCondicion[]);
+    }
+    setCondicionPorTaller(condiciones);
 
     const resumen = await resumenPromesa;
     const ahora = Date.now();
@@ -819,10 +846,19 @@ function StudentWorkshops() {
         )}
         {pagination.paginatedItems.map(({ workshop, submission, groupId }) => {
           const isOverdue = workshop.due_date && new Date(workshop.due_date).getTime() < now;
+          // Condición del estudiante en este taller (tope de nota, plazo propio,
+          // entrega individual). El plazo propio vigente lo mantiene abierto para él.
+          const condicion = condicionPorTaller.get(workshop.id);
+          const plazoPropioAbierto =
+            plazoPropioVigente(condicion?.plazoPropio, now) &&
+            !(workshop.start_date && new Date(workshop.start_date).getTime() > now);
           // OJO: `isOverdue` de arriba es «pasó el plazo» a secas porque
           // gobierna `isOpen`, o sea si la entrega sigue abierta. Lo que se
-          // MUESTRA como vencido es otra cosa: pasó el plazo Y no entregó.
-          const vencido = estaVencido({ plazo: workshop.due_date, entrega: submission, ahora: now });
+          // MUESTRA como vencido es otra cosa: pasó el plazo Y no entregó. Con
+          // plazo propio vigente no está vencido para este estudiante.
+          const vencido =
+            !plazoPropioAbierto &&
+            estaVencido({ plazo: workshop.due_date, entrega: submission, ahora: now });
           const isUpcoming = workshop.start_date && new Date(workshop.start_date).getTime() > now;
           // Con sustentación pendiente NO se cae a `ai_grade`: esa es la nota
           // del TRABAJO y mostrarla como nota del taller sería decirle al
@@ -834,13 +870,16 @@ function StudentWorkshops() {
             ? null
             : (submission?.final_grade ?? submission?.ai_grade);
           const isGraded = submission?.status === "calificado";
-          const isOpen = workshop.status === "published" && !isOverdue && !isUpcoming;
+          // Abierto para este estudiante: la ventana del curso, o su plazo propio.
+          const isOpen =
+            (workshop.status === "published" && !isOverdue && !isUpcoming) || plazoPropioAbierto;
           // Modo mixto (teacher_assigned): coexisten estudiantes con grupo y sin
           // grupo — los segundos entregan individual. Modo grupal estricto
-          // (group_required): los estudiantes sin grupo NO pueden entregar.
+          // (group_required): los estudiantes sin grupo NO pueden entregar, salvo
+          // que tengan autorizada la entrega individual (condición por estudiante).
           const isGroupWorkshop = workshop.group_mode && workshop.group_mode !== "individual";
           const requiresGroup = workshop.group_mode === "group_required";
-          const blockedNoGroup = requiresGroup && !groupId;
+          const blockedNoGroup = requiresGroup && !groupId && !condicion?.entregaIndividual;
           void isGroupWorkshop;
           // Intentos agotados = consumió el cap de intentos Y la entrega previa
           // YA fue calificada. En ese estado no puede re-entregar (el submit de
@@ -878,7 +917,23 @@ function StudentWorkshops() {
             entregada: entregaHecha(submission),
             proxima: !!isUpcoming,
             vencida: workshop.status === "published" && !!isOverdue,
+            plazoPropio: plazoPropioAbierto,
+            entregaIndividual: !!condicion?.entregaIndividual,
           });
+          // Nota del taller en la escala del curso (para el badge) y con el tope.
+          const notaEnEscala =
+            grade == null
+              ? null
+              : workshop.is_external
+                ? grade
+                : workshop.course
+                  ? +(
+                      workshop.course.grade_scale_min +
+                      (grade / (workshop.max_score || 100)) *
+                        (workshop.course.grade_scale_max - workshop.course.grade_scale_min)
+                    ).toFixed(2)
+                  : grade;
+          const notaConTope = aplicarTopeDeNota(notaEnEscala, condicion?.notaMaxima);
           return (
             <TarjetaDeActividad
               key={workshop.id}
@@ -904,45 +959,58 @@ function StudentWorkshops() {
                         })()
                   }
                   estado={
-                    /* Sustentación pendiente: se dice QUÉ falta, no se deja un
-                       «Entregado» genérico. El alumno ya hizo su parte; lo que
-                       falta es del docente, y sin decirlo va a preguntar por qué
-                       su taller no tiene nota. */
-                    faltaSustentacion ? (
-                      <Badge variant="secondary" className="shrink-0" title={t("defense.pendingHint")}>
-                        {t("defense.pending")}
-                      </Badge>
-                    ) : isGraded ? (
-                      <Badge className="shrink-0">
-                        <CheckCircle2 className="h-3 w-3 mr-1" />
-                        {grade != null
-                          ? workshop.course
-                            ? `${formatNumber(workshop.is_external ? grade : +(workshop.course.grade_scale_min + (grade / (workshop.max_score || 100)) * (workshop.course.grade_scale_max - workshop.course.grade_scale_min)).toFixed(2), { maximumFractionDigits: 2 })}/${workshop.course.grade_scale_max}`
-                            : `${grade}`
-                          : t("exam.submitted")}
-                      </Badge>
-                    ) : entregaHecha(submission) ? (
-                      <Badge variant="secondary" className="shrink-0">
-                        {t("exam.submitted")}
-                      </Badge>
-                    ) : vencido ? (
-                      <Badge variant="destructive" className="shrink-0">
-                        <AlertTriangle className="h-3 w-3 mr-1" />
-                        {t("dashboard.overdue")}
-                      </Badge>
-                    ) : isOpen ? (
-                      <Badge className="bg-success text-success-foreground shrink-0">
-                        {t("exam.available")}
-                      </Badge>
-                    ) : isUpcoming ? (
-                      <Badge variant="outline" className="shrink-0">
-                        {t("exam.upcoming")}
-                      </Badge>
-                    ) : (
-                      <Badge variant="outline" className="shrink-0">
-                        {t("exam.closed")}
-                      </Badge>
-                    )
+                    <>
+                      {/* Sustentación pendiente: se dice QUÉ falta, no se deja un
+                         «Entregado» genérico. El alumno ya hizo su parte; lo que
+                         falta es del docente, y sin decirlo va a preguntar por qué
+                         su taller no tiene nota. */}
+                      {faltaSustentacion ? (
+                        <Badge variant="secondary" className="shrink-0" title={t("defense.pendingHint")}>
+                          {t("defense.pending")}
+                        </Badge>
+                      ) : isGraded ? (
+                        <Badge className="shrink-0">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          {/* Nota ya en la escala del curso y con el tope de la condición. */}
+                          {notaConTope != null && workshop.course
+                            ? `${formatNumber(notaConTope, { maximumFractionDigits: 2 })}/${workshop.course.grade_scale_max}`
+                            : notaConTope != null
+                              ? formatNumber(notaConTope, { maximumFractionDigits: 2 })
+                              : t("exam.submitted")}
+                        </Badge>
+                      ) : entregaHecha(submission) ? (
+                        <Badge variant="secondary" className="shrink-0">
+                          {t("exam.submitted")}
+                        </Badge>
+                      ) : vencido ? (
+                        <Badge variant="destructive" className="shrink-0">
+                          <AlertTriangle className="h-3 w-3 mr-1" />
+                          {t("dashboard.overdue")}
+                        </Badge>
+                      ) : isOpen ? (
+                        <Badge className="bg-success text-success-foreground shrink-0">
+                          {t("exam.available")}
+                        </Badge>
+                      ) : isUpcoming ? (
+                        <Badge variant="outline" className="shrink-0">
+                          {t("exam.upcoming")}
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="shrink-0">
+                          {t("exam.closed")}
+                        </Badge>
+                      )}
+                      {condicion && (
+                        <CondicionPopover
+                          condicion={condicion}
+                          persona="estudiante"
+                          ahora={now}
+                          notaTrabajo={notaEnEscala}
+                          notaConCondicion={notaConTope}
+                          mostrarEtiqueta={false}
+                        />
+                      )}
+                    </>
                   }
                 />
                 <ResumenDeTarjeta texto={workshop.description} />
@@ -1021,6 +1089,15 @@ function StudentWorkshops() {
                 )}
               </AccionesDeTarjeta>
               <DetallesDeTarjeta>
+                {condicion && (
+                  <CondicionDetalle
+                    condicion={condicion}
+                    persona="estudiante"
+                    ahora={now}
+                    notaTrabajo={notaEnEscala}
+                    notaConCondicion={notaConTope}
+                  />
+                )}
                 {grupoEnTarjetaMuestraAlgo("detalle", resumenGrupo) && (
                   <GrupoEnTarjeta variante="detalle" resumen={resumenGrupo} onAbrir={abrirGrupo} />
                 )}

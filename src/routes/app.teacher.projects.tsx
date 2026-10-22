@@ -109,7 +109,16 @@ import {
   ChevronUp,
   ChevronDown,
   ListChecks,
+  UserPen,
 } from "lucide-react";
+import { CondicionesEstudianteDialog } from "@/modules/grading/CondicionesEstudianteDialog";
+import { CondicionPopover } from "@/modules/grading/CondicionDeEstudiante";
+import {
+  aplicarTopeDeNota,
+  normalizarCondicion,
+  type CondicionEstudiante,
+  type FilaCondicion,
+} from "@/modules/grading/condiciones-estudiante";
 import { DuplicateAssessmentDialog } from "@/shared/components/DuplicateAssessmentDialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import {
@@ -285,6 +294,8 @@ function TeacherProjects() {
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [openingGroupsId, setOpeningGroupsId] = useState<string | null>(null);
+  // Condiciones por estudiante (tope de nota, plazo propio, entrega individual).
+  const [condicionesPrj, setCondicionesPrj] = useState<Project | null>(null);
   const [openingEditId, setOpeningEditId] = useState<string | null>(null);
   const [assignBusy, setAssignBusy] = useState(false);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
@@ -666,6 +677,10 @@ function TeacherProjects() {
   };
   const [gradingOpen, setGradingOpen] = useState(false);
   const [gradingProject, setGradingProject] = useState<Project | null>(null);
+  // Condiciones del proyecto abierto a calificar, por usuario (para el indicador).
+  const [condicionesGradingPrj, setCondicionesGradingPrj] = useState<Map<string, CondicionEstudiante>>(
+    new Map(),
+  );
   const [gradingFiles, setGradingFiles] = useState<
     Array<{ id: string; title: string; points: number; type: string | null }>
   >([]);
@@ -1904,6 +1919,23 @@ function TeacherProjects() {
       setGradingFiles(
         (files ?? []) as Array<{ id: string; title: string; points: number; type: string | null }>,
       );
+
+      // Condiciones por estudiante del proyecto (tope de nota), para el indicador.
+      try {
+        const { data: condRows } = await db
+          .from("condiciones_estudiante")
+          .select("tipo, actividad_id, user_id, nota_maxima, plazo_propio, entrega_individual, motivo")
+          .eq("tipo", "proyecto")
+          .eq("actividad_id", p.id);
+        const m = new Map<string, CondicionEstudiante>();
+        for (const f of (condRows ?? []) as FilaCondicion[]) {
+          const c = normalizarCondicion(f);
+          if (c) m.set(c.userId, c);
+        }
+        setCondicionesGradingPrj(m);
+      } catch {
+        setCondicionesGradingPrj(new Map());
+      }
 
       const subsList = (subs ?? []) as Submission[];
       if (subsList.length) {
@@ -3190,6 +3222,14 @@ function TeacherProjects() {
                       disabled: openingGroupsId != null,
                       onClick: () => void abrirGruposDesdeEditar(pActual),
                     },
+                    // Condiciones por estudiante: tope de nota, plazo propio o
+                    // entrega individual para casos puntuales, con su motivo.
+                    {
+                      key: "condiciones",
+                      label: t("editarConfig.condiciones"),
+                      icon: UserPen,
+                      onClick: () => setCondicionesPrj(pActual),
+                    },
                   ]}
                 />
               );
@@ -3777,6 +3817,27 @@ function TeacherProjects() {
         </DialogContent>
       </Dialog>
 
+      {condicionesPrj && (
+        <CondicionesEstudianteDialog
+          tipo="proyecto"
+          open={!!condicionesPrj}
+          onOpenChange={(o) => !o && setCondicionesPrj(null)}
+          actividad={{
+            id: condicionesPrj.id,
+            title: condicionesPrj.title,
+            courseId: condicionesPrj.course_id,
+            groupMode: condicionesPrj.group_mode ?? null,
+            isExternal: condicionesPrj.is_external ?? null,
+            dueDate: condicionesPrj.due_date,
+            scaleMin: 0,
+            scaleMax: Number(
+              courses.find((c) => c.id === condicionesPrj.course_id)?.grade_scale_max ?? 5,
+            ),
+          }}
+          onCambio={() => void load()}
+        />
+      )}
+
       {/* Files (slots) editor */}
       <Dialog open={filesOpen} onOpenChange={setFilesOpen}>
         <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
@@ -4177,6 +4238,32 @@ function TeacherProjects() {
                       </AccordionTrigger>
                       <AccordionContent>
                         <div className="space-y-3">
+                          {/* Condición por estudiante (tope de nota, plazo propio,
+                              entrega individual): el tooltip dice el motivo y la
+                              nota del trabajo frente a la nota con la condición. */}
+                          {(() => {
+                            const c = condicionesGradingPrj.get(sub.user_id);
+                            if (!c) return null;
+                            const curso = courses.find((cc) => cc.id === gradingProject?.course_id);
+                            const min = 0;
+                            const max = Number(curso?.grade_scale_max ?? 5);
+                            const notaTrabajo =
+                              headerGrade == null
+                                ? null
+                                : gradingProject?.is_external
+                                  ? Number(headerGrade)
+                                  : min +
+                                    (Number(headerGrade) / (gradingProject?.max_score || 100)) *
+                                      (max - min);
+                            return (
+                              <CondicionPopover
+                                condicion={c}
+                                persona="docente"
+                                notaTrabajo={notaTrabajo}
+                                notaConCondicion={aplicarTopeDeNota(notaTrabajo, c.notaMaxima)}
+                              />
+                            );
+                          })()}
                           {grupoDeLaEntrega && (
                             <p className="flex items-start gap-1.5 text-xs">
                               <UsersRound

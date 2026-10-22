@@ -14,6 +14,7 @@
 import { esIntentoFinalizado, type AttemptForGrade } from "@/modules/exams/exam-attempts";
 import { entregaHecha } from "@/modules/submissions/entrega-hecha";
 import { diaDe } from "@/shared/lib/rango-de-fechas";
+import { aplicarTopeDeNota, plazoPropioVigente } from "./condiciones-estudiante";
 import { corteNoTermino, itemDejaNotaParcial } from "./corte-parcial";
 import { notaEfectivaDeTaller } from "./nota-efectiva";
 import {
@@ -126,6 +127,18 @@ export interface DatosDelEstudiante {
     talleres: ReadonlySet<string>;
     proyectos: ReadonlySet<string>;
   };
+  /**
+   * La condición de este estudiante en un taller o proyecto, si tiene (ver
+   * condiciones-estudiante.ts). El TOPE se aplica a la nota ya en la escala del
+   * curso (`min(nota, N)`); el PLAZO PROPIO vigente de quien no entregó hace que
+   * la actividad no se dé todavía para él (no cuenta 0 hasta que su plazo pase).
+   * Sin el dato (undefined) no hay condición. Los exámenes no la tienen. Espejo
+   * en SQL: `nota_relativa_items`.
+   */
+  condicion?: (
+    tipo: "taller" | "proyecto",
+    actividadId: string,
+  ) => { notaMaxima: number | null; plazoPropio: string | null } | undefined;
 }
 
 export type TipoDeItem = "examen" | "taller" | "proyecto";
@@ -291,7 +304,16 @@ export function notaDelEstudianteEnCurso(
     );
     const entrego = [w, ...recs].some((x) => entregaHecha(e.entregaTaller(x.id) ?? null));
     const recsSuyas = recuperacionesDelEstudiante(recs, e.asignaciones?.talleres);
-    const seDio = actividadConRecuperacionesSeDio(estadoTaller(w), recsSuyas.map(estadoTaller), ahora);
+    const cond = e.condicion?.("taller", w.id);
+    // Tope: min(nota, N) sobre la nota ya en escala. Plazo propio vigente de
+    // quien NO entregó: la actividad no se dio todavía para él (no cuenta 0).
+    const score = aplicarTopeDeNota(r.nota, cond?.notaMaxima);
+    const seDioBase = actividadConRecuperacionesSeDio(
+      estadoTaller(w),
+      recsSuyas.map(estadoTaller),
+      ahora,
+    );
+    const seDio = !entrego && plazoPropioVigente(cond?.plazoPropio, ahora) ? false : seDioBase;
     const externa = !!w.is_external;
     const { cutId, weight } = corteYPesoEnCurso(d.unionTalleres.get(w.id), w, d.courseId);
     const asignada = asignadaEn(e.asignaciones?.talleres, [w.id, ...recs.map((x) => x.id)]);
@@ -300,8 +322,8 @@ export function notaDelEstudianteEnCurso(
       id: w.id,
       cutId,
       weight,
-      score: r.nota,
-      cuenta: actividadCuenta({ nota: r.nota, seDio, externa, entrego, asignada }),
+      score,
+      cuenta: actividadCuenta({ nota: score, seDio, externa, entrego, asignada }),
       seDio,
       entrego,
       asignada,
@@ -315,10 +337,13 @@ export function notaDelEstudianteEnCurso(
     const sub = e.entregaProyecto(p.id);
     const raw = sub ? (sub.final_grade ?? sub.ai_grade ?? null) : null;
     const tope = p.is_external ? d.escala.max : (p.max_score ?? 100);
-    const nota = raw != null ? aEscalaDelCurso(Number(raw), tope, d.escala) : null;
+    const notaBase = raw != null ? aEscalaDelCurso(Number(raw), tope, d.escala) : null;
     const externa = !!p.is_external;
     const entrego = entregaHecha(sub ?? null);
-    const seDio = actividadConRecuperacionesSeDio(
+    const cond = e.condicion?.("proyecto", p.id);
+    // Mismo tope + plazo propio que en talleres.
+    const score = aplicarTopeDeNota(notaBase, cond?.notaMaxima);
+    const seDioBase = actividadConRecuperacionesSeDio(
       cerrarSiFinalizado({
         externa,
         estado: p.status,
@@ -328,6 +353,7 @@ export function notaDelEstudianteEnCurso(
       [],
       ahora,
     );
+    const seDio = !entrego && plazoPropioVigente(cond?.plazoPropio, ahora) ? false : seDioBase;
     const { cutId, weight } = corteYPesoEnCurso(d.unionProyectos.get(p.id), p, d.courseId);
     const asignada = asignadaEn(e.asignaciones?.proyectos, [p.id]);
     items.push({
@@ -335,13 +361,13 @@ export function notaDelEstudianteEnCurso(
       id: p.id,
       cutId,
       weight,
-      score: nota,
-      cuenta: actividadCuenta({ nota, seDio, externa, entrego, asignada }),
+      score,
+      cuenta: actividadCuenta({ nota: score, seDio, externa, entrego, asignada }),
       seDio,
       entrego,
       asignada,
-      fuente: nota != null ? "original" : null,
-      idFuente: nota != null ? p.id : null,
+      fuente: score != null ? "original" : null,
+      idFuente: score != null ? p.id : null,
     });
   }
 
