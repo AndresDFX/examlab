@@ -678,7 +678,7 @@
     "reduceCutsBodyItems": "Se eliminarán {{cuts}} corte(s) y {{items}} item(s) asociado(s). Esta acción se aplica al guardar y no se puede deshacer.",
     "reduceCutsBody": "Se eliminarán {{cuts}} corte(s). Esta acción se aplica al guardar.",
     "reduceCutsConfirm": "Reducir",
-    "boardCalendarTooltip": "Vincular sesiones con Google Calendar y resincronizar grabaciones",
+    "boardCalendarTooltip": "Vincular sesiones con tu calendario de Google u Outlook y resincronizar grabaciones",
     "boardCalendar": "Calendario",
     "boardRecordingUrl": "Enlace de grabación (opcional)",
     "boardNotesUrl": "Enlace de notas / minuta (opcional)",
@@ -732,14 +732,16 @@
   },
   "calendar": {
     "title": "Calendario",
-    "subtitle": "Conecta tu cuenta de calendario (Google hoy, Outlook próximamente) y sincroniza las sesiones de tus cursos con un evento + Google Meet, invitando automáticamente a los estudiantes matriculados.",
+    "subtitle": "Conecta tu calendario de Google o de Outlook / Microsoft 365 y sincroniza las sesiones de tus cursos como eventos con su reunión, invitando automáticamente a los estudiantes matriculados.",
     "providerLabel": "Proveedor",
-    "providerHint": "Hoy soportamos Google Calendar. Outlook / Microsoft 365 está en hoja de ruta — la integración es la misma.",
+    "providerHint": "Con Google Calendar cada sesión se crea con Google Meet; con Outlook / Microsoft 365, con una reunión de Teams.",
     "comingSoon": "próximamente",
     "connectTitle": "Conecta tu cuenta",
     "connectBody": "Te redirigimos al proveedor para que autorices el acceso. Solo tú tienes acceso a tus tokens — cada docente conecta el suyo y la app jamás los expone al cliente.",
     "connectAction": "Conectar cuenta",
     "connectError": "No se pudo conectar",
+    "errorOriginNotAllowed": "Esta dirección de ExamLab no está habilitada para conectar calendarios. Avísale al administrador de la plataforma.",
+    "errorProviderNotConfigured": "La conexión con {{provider}} todavía no está configurada en la plataforma. Avísale al administrador.",
     "errorNoRefresh": "El proveedor no devolvió refresh token. Revoca el acceso a ExamLab desde la configuración de tu cuenta y vuelve a conectar.",
     "connectedTitle": "Conectado",
     "connectedFallback": "Cuenta conectada",
@@ -763,7 +765,7 @@
     "saveCalendarFirst": "Primero guarda un calendario destino arriba.",
     "currentCalendar": "Actual",
     "step2Title": "2. Sincronizar sesiones de un curso",
-    "step2Body": "Crea/actualiza un evento por cada sesión de asistencia del curso, con un link de Google Meet, e invita a todos los estudiantes matriculados (correo institucional). Las sesiones con evento existente se actualizan; las nuevas se crean.",
+    "step2Body": "Crea/actualiza un evento por cada sesión de asistencia del curso, con su reunión (Google Meet o Teams, según tu calendario), e invita a todos los estudiantes matriculados (correo institucional). Las sesiones con evento existente se actualizan; las nuevas se crean.",
     "courseLabel": "Curso",
     "coursePlaceholder": "Elegir curso…",
     "noCoursesWithTime": "No hay cursos listos para sincronizar. Cada sesión debe tener hora de inicio y duración antes de poder sincronizar el curso con tu calendario. Configúralas desde el tablero del curso (Cursos → tablero → editar sesión).",
@@ -3235,8 +3237,8 @@
     "modules_calendar_LinkCalendarEventsDialog": {
       "pickBothDates": "Elige ambas fechas",
       "fromBeforeTo": "La fecha 'Desde' debe ser anterior a 'Hasta'",
-      "noCalendarSelected": "Primero selecciona un calendario en la pantalla de Calendar.",
-      "calendarNotAccessible": "El calendario ya no es accesible. Reconecta Google Calendar.",
+      "noCalendarSelected": "Primero selecciona un calendario en la pantalla de Calendario.",
+      "calendarNotAccessible": "El calendario ya no es accesible. Vuelve a conectarlo en Calendario.",
       "loadEventsFailed": "No se pudieron cargar eventos: {{error}}",
       "noEventsInRange": "No hay eventos en ese rango de fechas.",
       "eventsLoaded": "{{eventCount}} evento(s) cargados",
@@ -3785,7 +3787,7 @@
       "checkinAdjustedCodeChanged": "Listo. El código de la pantalla cambió: pedile a la clase que lo vuelva a leer."
     },
     "routes_app_teacher_calendar": {
-      "calendarNotAccessible": "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar."
+      "calendarNotAccessible": "El calendario seleccionado ya no es accesible. Elige otro y vuelve a sincronizar."
     },
     "routes_app_teacher_contents": {
       "contentFromUrlMissing": "El material que buscaste ya no existe o no tienes acceso a él.",
@@ -7062,13 +7064,13 @@
   },
   "hc_modulesCalendarLinkCalendarEventsDialog": {
     "loadSessionsFailed": "No pudimos cargar las sesiones del curso",
-    "queryCalendarError": "Error consultando Google Calendar",
+    "queryCalendarError": "Error consultando tu calendario",
     "resyncRecordingsError": "Error resincronizando grabaciones",
     "applyChangesError": "Error aplicando los cambios",
     "linkResult": "{{linked}} vinculado(s) · {{unlinked}} desvinculado(s)",
     "linkResultFailed": " · {{failed}} fallaron",
-    "title": "Vincular sesiones desde Google Calendar",
-    "descriptionPart1": "Asocia las sesiones de este curso con eventos que ya existen en tu calendario. ExamLab heredará el link de Meet/Zoom de cada evento y, si el evento ya tiene una",
+    "title": "Vincular sesiones desde tu calendario",
+    "descriptionPart1": "Asocia las sesiones de este curso con eventos que ya existen en tu calendario. ExamLab heredará el enlace de la reunión (Meet, Teams o Zoom) de cada evento y, si el evento ya tiene una",
     "descriptionRecording": "grabación",
     "descriptionOr": "o",
     "descriptionNotes": "notas de reunión",
@@ -7094,7 +7096,7 @@
     "unlinkedPlaceholder": "Sin vincular",
     "unlinkedOption": "— Sin vincular —",
     "noDate": "(sin fecha)",
-    "noMeetLink": "(sin link Meet)",
+    "noMeetLink": "(sin enlace de reunión)",
     "recordingAvailable": "Grabación disponible — se vinculará",
     "resyncButtonTitle": "Actualiza las grabaciones/notas de las sesiones ya vinculadas en el rango",
     "resyncButton": "Resincronizar grabaciones",
@@ -8805,7 +8807,7 @@
   "hc_routesAppTeacherCalendar": {
     "connectedToPrefix": "Estás conectado a",
     "replaceConnectionWarning": "Si conectas {{provider}} se reemplaza la conexión actual.",
-    "linkFromCalendarTitle": "Asociar sesiones a eventos que ya existen en tu Google Calendar",
+    "linkFromCalendarTitle": "Asociar sesiones a eventos que ya existen en tu calendario",
     "linkFromCalendarAction": "Vincular desde calendario"
   },
   "hc_routesAppTeacherContents": {

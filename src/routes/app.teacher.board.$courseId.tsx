@@ -1228,7 +1228,7 @@ function CourseBoardPage() {
               onClick={() => setCalendarOpen(true)}
               title={t("course.boardCalendarTooltip", {
                 defaultValue:
-                  "Vincular sesiones con Google Calendar y resincronizar grabaciones",
+                  "Vincular sesiones con tu calendario de Google u Outlook y resincronizar grabaciones",
               })}
               className="h-8 text-xs"
             >

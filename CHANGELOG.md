@@ -99,6 +99,23 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- **Conectar el calendario desde `*.examlab.workers.dev`, y Outlook de punta a punta.** «Conectar
+  cuenta» (Google y Outlook) respondía `origin_not_allowed` en todas las instituciones desde que la app
+  se mudó a Cloudflare (2026-08-21): la lista de orígenes a los que vuelve el OAuth solo tenía los
+  dominios de Lovable. Ahora vive en `supabase/functions/_shared/origen-permitido.ts`, con test, y acepta
+  `*.examlab.workers.dev`, `examlab.lovable.app` (exacto: `*.lovable.app` dejaba entrar proyectos de
+  cualquiera) y `localhost`. La usa también `calendar-oauth-callback`, que para avisar de un error
+  redirigía al origen leído del `state` de la URL antes de validarlo: con un `state` armado a mano era
+  una redirección abierta; ahora todo lo que no está en la lista vuelve al Worker general. Además:
+  «Vincular desde calendario» mandaba siempre `provider: "google"` y con Outlook respondía
+  `provider_mismatch` (ahora pregunta el proveedor de la conexión), y sus errores mostraban «Edge
+  Function returned a non-2xx status code» en vez del motivo; conectar sin las credenciales de la app
+  del proveedor ya no muestra el nombre del secret sino un mensaje para el docente
+  (`provider_not_configured`), y se corta antes de que apruebe los permisos; y los textos de Calendario
+  ya no dicen «Outlook próximamente» ni solo «Google». La guía `docs/OUTLOOK-CALENDAR-SETUP.md` suma el
+  permiso de transcripciones y la aprobación del administrador de la institución que ese permiso exige.
+  Para conectar Outlook siguen faltando la app de Azure y sus dos secrets (`MS_OAUTH_CLIENT_ID` /
+  `MS_OAUTH_CLIENT_SECRET`).
 - **Condiciones por estudiante en talleres y proyectos.** Dentro de UNA misma actividad el docente le
   puede poner a uno o varios estudiantes una condición propia, con un motivo que el estudiante ve, sin
   abrir un recuperatorio ni reabrir la actividad para todo el curso. Tres condiciones combinables:

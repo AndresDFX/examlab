@@ -44,6 +44,9 @@
   // Universal SSL (plan Free) cubre un solo nivel: `uniaj.tudominio.co` sí,
   // `sede.uniaj.tudominio.co` no.
   //
+  // El dominio nuevo también va en `supabase/functions/_shared/origen-permitido.ts`:
+  // sin eso, «Conectar cuenta» del calendario responde `origin_not_allowed`.
+  //
   // Descomentar y reemplazar el dominio:
   //
   // "routes": [

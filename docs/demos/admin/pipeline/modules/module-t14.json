@@ -27,7 +27,7 @@
     {
       "id": "sync",
       "kind": "platform",
-      "narration": "Desde el calendario, cada docente conecta su propia cuenta de Google y sincroniza las sesiones del curso. Elige el proveedor —hoy Google Calendar—, conecta su cuenta una sola vez, y a partir de ahí cada sesión se vuelve un evento real con su enlace de Google Meet, invitando automáticamente a los estudiantes matriculados.",
+      "narration": "Desde el calendario, cada docente conecta su propia cuenta de calendario y sincroniza las sesiones del curso. Elige el proveedor —Google Calendar u Outlook—, conecta su cuenta una sola vez, y a partir de ahí cada sesión se vuelve un evento real con su enlace de Google Meet, invitando automáticamente a los estudiantes matriculados.",
       "bufferMs": 1000,
       "beats": [
         {
@@ -38,7 +38,7 @@
           "syncWord": "proveedor",
           "focus": {
             "title": "Elige tu proveedor",
-            "body": "Google Calendar hoy; Outlook y Microsoft 365 en camino."
+            "body": "Google Calendar u Outlook / Microsoft 365, con Teams."
           }
         },
         {

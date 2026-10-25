@@ -2,8 +2,8 @@
  * LinkCalendarEventsDialog — flujo INVERSO al sync.
  *
  * Caso de uso: el docente ya tiene los eventos del semestre creados en
- * Google Calendar (con sus links de Meet/Zoom) ANTES de armar las
- * sesiones en ExamLab. En lugar de copiar/pegar las URLs uno por uno,
+ * su calendario de Google u Outlook (con sus links de Meet, Teams o Zoom)
+ * ANTES de armar las sesiones en ExamLab. En lugar de copiar/pegar las URLs uno por uno,
  * abre este dialog, lista los eventos del calendario en una ventana
  * de tiempo, y asocia uno-a-uno con las sesiones del curso.
  *
@@ -21,7 +21,7 @@
  *     "Desvincular".
  *   - "Aplicar X cambios" → manda el batch.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -56,6 +56,7 @@ import { TableEmpty } from "@/components/ui/empty-state";
 import { Search, Link2, Unlink, CheckCircle2, Video, FileText, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
+import { extractEdgeError } from "@/shared/lib/edge-error";
 import { formatDateTime, formatDateOnly } from "@/shared/lib/format";
 import i18n from "@/i18n";
 import { useTranslation } from "react-i18next";
@@ -102,6 +103,19 @@ interface Session {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
 
+type Proveedor = "google" | "microsoft";
+
+/** El proveedor sale de la CONEXIÓN del docente, no de la pantalla que abre
+ *  el diálogo: el tablero del curso no lo sabe. Fijo en "google", con Outlook
+ *  todo respondía `provider_mismatch`. */
+async function leerProveedor(): Promise<Proveedor> {
+  const { data, error } = await supabase.functions.invoke("calendar", {
+    body: { action: "status" },
+  });
+  if (error) throw error;
+  return (data as { provider?: string } | null)?.provider === "microsoft" ? "microsoft" : "google";
+}
+
 /** Suggested defaults: from = primer día del mes, to = último día. Da
  *  una ventana razonable sin que el docente tenga que pensar. */
 function defaultRange(): { from: string; to: string } {
@@ -129,6 +143,18 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
    *  sessionId → eventId | null (null = desvincular) | undefined = sin cambio. */
   const [drafts, setDrafts] = useState<Record<string, string | null | undefined>>({});
   const [applying, setApplying] = useState(false);
+  // Una consulta por apertura, compartida por las tres acciones. Si falla se
+  // olvida, para que el próximo intento vuelva a preguntar.
+  const proveedorRef = useRef<Promise<Proveedor> | null>(null);
+  const proveedor = () => {
+    if (!proveedorRef.current) {
+      proveedorRef.current = leerProveedor().catch((e) => {
+        proveedorRef.current = null;
+        throw e;
+      });
+    }
+    return proveedorRef.current;
+  };
 
   // Reset state al abrir/cerrar el dialog para no mostrar resultados
   // viejos si el user reabre con otro curso.
@@ -138,6 +164,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       setSessions([]);
       setDrafts({});
       setSearch("");
+      proveedorRef.current = null;
     }
   }, [open]);
 
@@ -191,22 +218,24 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
     setLoadingEvents(true);
     try {
       const { data, error } = await supabase.functions.invoke("calendar", {
-        body: { action: "list_events", provider: "google", fromDate, toDate },
+        body: { action: "list_events", provider: await proveedor(), fromDate, toDate },
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
       if (error || d?.ok === false) {
-        const msg = d?.error ?? error?.message ?? "error_desconocido";
+        // Con un status no-2xx `invoke` deja el cuerpo en el error y `data`
+        // llega vacío: sin leerlo, ninguno de estos códigos se reconocía.
+        const msg = (await extractEdgeError(error, data)) || "error_desconocido";
         if (msg === "no_calendar_selected") {
           toast.error(
             i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.noCalendarSelected", {
-              defaultValue: "Primero selecciona un calendario en la pantalla de Calendar.",
+              defaultValue: "Primero selecciona un calendario en la pantalla de Calendario.",
             }),
           );
         } else if (msg === "calendar_not_accessible") {
           toast.error(
             i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.calendarNotAccessible", {
-              defaultValue: "El calendario ya no es accesible. Reconecta Google Calendar.",
+              defaultValue: "El calendario ya no es accesible. Vuelve a conectarlo en Calendario.",
             }),
           );
         } else {
@@ -271,15 +300,21 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
         return;
       }
       const { data, error } = await supabase.functions.invoke("calendar", {
-        body: { action: "link_events_to_sessions", provider: "google", courseId, links },
+        body: {
+          action: "link_events_to_sessions",
+          provider: await proveedor(),
+          courseId,
+          links,
+        },
       });
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
       if (error || d?.ok === false) {
+        const detalle = await extractEdgeError(error, data);
         toast.error(
           i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.resyncFailed", {
             defaultValue: "No se pudo resincronizar: {{error}}",
-            error: d?.error ?? error?.message ?? "error",
+            error: detalle || "error",
           }),
         );
         return;
@@ -353,7 +388,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       const { data, error } = await supabase.functions.invoke("calendar", {
         body: {
           action: "link_events_to_sessions",
-          provider: "google",
+          provider: await proveedor(),
           courseId,
           links,
         },
@@ -361,7 +396,7 @@ export function LinkCalendarEventsDialog({ open, onOpenChange, courseId, onLinke
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const d = data as any;
       if (error || d?.ok === false) {
-        const linkErr = d?.error ?? error?.message ?? "error";
+        const linkErr = (await extractEdgeError(error, data)) || "error";
         toast.error(
           i18n.t("toast.modules_calendar_LinkCalendarEventsDialog.linkFailed", {
             defaultValue: "No se pudo vincular: {{error}}",

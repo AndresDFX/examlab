@@ -678,7 +678,7 @@
     "reduceCutsBodyItems": "{{cuts}} cut(s) and {{items}} associated item(s) will be deleted. This action applies on save and cannot be undone.",
     "reduceCutsBody": "{{cuts}} cut(s) will be deleted. This action applies on save.",
     "reduceCutsConfirm": "Reduce",
-    "boardCalendarTooltip": "Link sessions with Google Calendar and resync recordings",
+    "boardCalendarTooltip": "Link sessions with your Google or Outlook calendar and resync recordings",
     "boardCalendar": "Calendar",
     "boardRecordingUrl": "Recording link (optional)",
     "boardNotesUrl": "Notes / minutes link (optional)",
@@ -732,14 +732,16 @@
   },
   "calendar": {
     "title": "Calendar",
-    "subtitle": "Connect your calendar account (Google today, Outlook coming soon) and sync your course sessions as events with Google Meet, automatically inviting enrolled students.",
+    "subtitle": "Connect your Google or Outlook / Microsoft 365 calendar and sync your course sessions as events with their meeting, automatically inviting enrolled students.",
     "providerLabel": "Provider",
-    "providerHint": "Google Calendar is supported today. Outlook / Microsoft 365 is on the roadmap — same integration shape.",
+    "providerHint": "With Google Calendar each session gets a Google Meet; with Outlook / Microsoft 365, a Teams meeting.",
     "comingSoon": "coming soon",
     "connectTitle": "Connect your account",
     "connectBody": "You'll be redirected to the provider to authorize access. Only you have access to your tokens — each teacher connects their own and the app never exposes them to the client.",
     "connectAction": "Connect account",
     "connectError": "Could not connect",
+    "errorOriginNotAllowed": "This ExamLab address isn't enabled for connecting calendars. Let the platform administrator know.",
+    "errorProviderNotConfigured": "The {{provider}} connection isn't set up on the platform yet. Let the administrator know.",
     "errorNoRefresh": "The provider didn't return a refresh token. Revoke ExamLab access from your account settings and reconnect.",
     "connectedTitle": "Connected",
     "connectedFallback": "Account connected",
@@ -763,7 +765,7 @@
     "saveCalendarFirst": "Pick and save a target calendar first.",
     "currentCalendar": "Current",
     "step2Title": "2. Sync course sessions",
-    "step2Body": "Create/update an event for each course attendance session, with a Google Meet link, and invite every enrolled student (institutional email). Sessions with an existing event are updated; new ones are created.",
+    "step2Body": "Create/update an event for each course attendance session, with its meeting (Google Meet or Teams, depending on your calendar), and invite every enrolled student (institutional email). Sessions with an existing event are updated; new ones are created.",
     "courseLabel": "Course",
     "coursePlaceholder": "Pick a course…",
     "noCoursesWithTime": "No courses ready to sync. Every session must have a start time and duration before the course can sync with your calendar. Set them from the course board (Courses → board → edit session).",
@@ -3236,7 +3238,7 @@
       "pickBothDates": "Pick both dates",
       "fromBeforeTo": "The 'From' date must be earlier than the 'To' date",
       "noCalendarSelected": "First select a calendar on the Calendar screen.",
-      "calendarNotAccessible": "The calendar is no longer accessible. Reconnect Google Calendar.",
+      "calendarNotAccessible": "The calendar is no longer accessible. Reconnect it from Calendar.",
       "loadEventsFailed": "Couldn't load events: {{error}}",
       "noEventsInRange": "There are no events in that date range.",
       "eventsLoaded": "{{eventCount}} event(s) loaded",
@@ -3785,7 +3787,7 @@
       "checkinAdjustedCodeChanged": "Done. The code on screen changed: ask the class to read it again."
     },
     "routes_app_teacher_calendar": {
-      "calendarNotAccessible": "The selected calendar is no longer accessible in Google. Choose another and sync again."
+      "calendarNotAccessible": "The selected calendar is no longer accessible. Choose another and sync again."
     },
     "routes_app_teacher_contents": {
       "contentFromUrlMissing": "The content you were looking for no longer exists or you don't have access to it.",
@@ -7062,13 +7064,13 @@
   },
   "hc_modulesCalendarLinkCalendarEventsDialog": {
     "loadSessionsFailed": "We couldn't load the course sessions",
-    "queryCalendarError": "Error querying Google Calendar",
+    "queryCalendarError": "Error querying your calendar",
     "resyncRecordingsError": "Error resyncing recordings",
     "applyChangesError": "Error applying the changes",
     "linkResult": "{{linked}} linked · {{unlinked}} unlinked",
     "linkResultFailed": " · {{failed}} failed",
-    "title": "Link sessions from Google Calendar",
-    "descriptionPart1": "Associate this course's sessions with events that already exist in your calendar. ExamLab will inherit the Meet/Zoom link from each event and, if the event already has a",
+    "title": "Link sessions from your calendar",
+    "descriptionPart1": "Associate this course's sessions with events that already exist in your calendar. ExamLab will inherit the meeting link (Meet, Teams or Zoom) from each event and, if the event already has a",
     "descriptionRecording": "recording",
     "descriptionOr": "or",
     "descriptionNotes": "meeting notes",
@@ -7094,7 +7096,7 @@
     "unlinkedPlaceholder": "Not linked",
     "unlinkedOption": "— Not linked —",
     "noDate": "(no date)",
-    "noMeetLink": "(no Meet link)",
+    "noMeetLink": "(no meeting link)",
     "recordingAvailable": "Recording available — will be linked",
     "resyncButtonTitle": "Updates the recordings/notes of sessions already linked within the range",
     "resyncButton": "Resync recordings",
@@ -8805,7 +8807,7 @@
   "hc_routesAppTeacherCalendar": {
     "connectedToPrefix": "You are connected to",
     "replaceConnectionWarning": "Connecting {{provider}} will replace the current connection.",
-    "linkFromCalendarTitle": "Associate sessions with events that already exist in your Google Calendar",
+    "linkFromCalendarTitle": "Associate sessions with events that already exist in your calendar",
     "linkFromCalendarAction": "Link from calendar"
   },
   "hc_routesAppTeacherContents": {

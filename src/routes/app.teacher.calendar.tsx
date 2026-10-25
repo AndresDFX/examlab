@@ -1,15 +1,16 @@
 /**
  * Calendario — el docente conecta su cuenta de calendario externo
- * (Google hoy, Outlook próximamente) y sincroniza las sesiones del
- * curso como eventos con Meet link e invitación a los estudiantes
- * matriculados.
+ * (Google u Outlook / Microsoft 365) y sincroniza las sesiones del
+ * curso como eventos con su reunión (Meet o Teams) e invitación a los
+ * estudiantes matriculados.
  *
  * Arquitectura: el servidor vive 100% en Supabase Edge Functions —
  *   - `calendar` (RPC): status/init/list/select/disconnect/sync
- *   - `calendar-oauth-callback` (público): recibe el code de Google
+ *   - `calendar-oauth-callback` (público): recibe el code del proveedor
+ *     y vuelve al origen que `init` aceptó (`_shared/origen-permitido.ts`)
  *
- * Sin TanStack Query / Server Functions porque la app es un SPA en
- * Lovable Cloud (no hay runtime Node para SSR). State con useState +
+ * Sin TanStack Query / Server Functions porque la app es un SPA estático
+ * (Cloudflare Workers, sin runtime de servidor). State con useState +
  * useEffect; reads con supabase.functions.invoke().
  */
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -41,8 +42,6 @@ import { extractEdgeError } from "@/shared/lib/edge-error";
 
 export const Route = createFileRoute("/app/teacher/calendar")({ component: CalendarPage });
 
-// Proveedores soportados. Outlook llega cuando agreguemos el provider
-// de Microsoft Graph — por ahora el select lo deja deshabilitado.
 type CalendarProvider = "google" | "microsoft";
 
 interface CalendarStatus {
@@ -265,7 +264,16 @@ function CalendarPage() {
       });
       window.location.href = r.url;
     } catch (e) {
-      toast.error(`${t("calendar.connectError")}: ${friendlyError(e)}`);
+      const codigo = (e as Error).message;
+      toast.error(
+        codigo === "provider_not_configured"
+          ? t("calendar.errorProviderNotConfigured", {
+              provider: provider === "microsoft" ? "Outlook / Microsoft 365" : "Google Calendar",
+            })
+          : codigo === "origin_not_allowed"
+            ? t("calendar.errorOriginNotAllowed")
+            : `${t("calendar.connectError")}: ${friendlyError(e)}`,
+      );
       setConnecting(false);
     }
   };
@@ -343,14 +351,14 @@ function CalendarPage() {
     } catch (e) {
       const msg = (e as Error).message ?? "";
       if (msg === "calendar_not_accessible") {
-        // El calendario seleccionado ya no existe en Google (lo borraron,
-        // perdimos acceso, etc.) y el edge function limpió el binding.
-        // Refrescamos el estado para que la UI muestre el selector y el
-        // docente elija un calendario válido.
+        // El calendario seleccionado ya no existe en el proveedor (lo
+        // borraron, perdimos acceso, etc.) y el edge function limpió el
+        // binding. Refrescamos el estado para que la UI muestre el selector
+        // y el docente elija un calendario válido.
         toast.error(
           i18n.t("toast.routes_app_teacher_calendar.calendarNotAccessible", {
             defaultValue:
-              "El calendario seleccionado ya no es accesible en Google. Elige otro y vuelve a sincronizar.",
+              "El calendario seleccionado ya no es accesible. Elige otro y vuelve a sincronizar.",
           }),
           { duration: 10000 },
         );
@@ -559,8 +567,8 @@ function CalendarPage() {
                   {t("calendar.syncAction")}
                 </Button>
                 {/* Flujo INVERSO: cuando el docente ya tiene los eventos
-                    en Google Calendar (con links de Meet) y quiere
-                    asociarlos a sesiones existentes sin re-crearlos. */}
+                    en su calendario (con su reunión de Meet o Teams) y
+                    quiere asociarlos a sesiones existentes sin re-crearlos. */}
                 <Button
                   variant="outline"
                   onClick={() => setLinkEventsOpen(true)}

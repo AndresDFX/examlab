@@ -25,6 +25,7 @@ import {
   exchangeCodeForMicrosoftTokens,
   fetchMicrosoftUserEmail,
 } from "../_shared/calendar-microsoft.ts";
+import { origenDeVuelta } from "../_shared/origen-permitido.ts";
 
 type Provider = "google" | "microsoft";
 const PROVIDER_LABEL: Record<Provider, string> = {
@@ -80,11 +81,11 @@ Deno.serve(async (req) => {
   const state = url.searchParams.get("state");
   const error = url.searchParams.get("error");
 
-  // Helper para construir la redirección de vuelta al frontend.
-  // Si pudimos parsear el origin del state lo usamos; si no, caemos al
-  // origin del request (último recurso — debería ser el published URL).
+  // Redirección de vuelta al frontend. `origenDeVuelta` solo deja pasar
+  // orígenes de la lista; cualquier otro (el del request, o uno inventado en
+  // el `state` de la URL) cae al Worker general.
   const redirectBack = (origin: string, params: Record<string, string>) => {
-    const target = new URL(`${origin}/app/teacher/calendar`);
+    const target = new URL(`${origenDeVuelta(origin)}/app/teacher/calendar`);
     for (const [k, v] of Object.entries(params)) target.searchParams.set(k, v);
     return Response.redirect(target.toString(), 302);
   };
@@ -99,8 +100,8 @@ Deno.serve(async (req) => {
     const padded = originB64 + "=".repeat((4 - (originB64.length % 4)) % 4);
     origin = atob(padded.replace(/-/g, "+").replace(/_/g, "/"));
   } catch {
-    // Si el decode falla, redirigimos al origin del request (que será
-    // el dominio de Supabase). El user va a ver un 404 — toca contactarnos.
+    // Si el decode falla, `redirectBack` no acepta el dominio de Supabase y
+    // manda al Worker general.
   }
 
   if (error) {

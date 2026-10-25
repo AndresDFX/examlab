@@ -268,6 +268,10 @@ wildcards. Y no hay que recompilar la app: se vuelve a publicar y ya.
 3. Abrí `tudominio.co` (sin subdominio) → carga **con** el selector, como hoy.
 4. `examlab.lovable.app` sigue funcionando igual: la app detecta que es un host de
    plataforma y no lo interpreta como institución.
+5. Como docente, en `uniaj.tudominio.co` → **Calendario** → **Conectar cuenta** → debe
+   abrir la pantalla de Google o Microsoft. Si responde «Esta dirección de ExamLab no está
+   habilitada para conectar calendarios» (`origin_not_allowed`), falta el dominio en
+   `supabase/functions/_shared/origen-permitido.ts`.
 
 Si un subdominio muestra el selector en vez de la institución, casi siempre es una de
 tres: la nube del DNS está gris, el slug del subdominio no coincide con

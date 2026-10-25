@@ -11,9 +11,10 @@
 //   - sync                → crea/actualiza eventos del curso en Calendar
 //
 // Diseño multi-provider:
-//   Hoy solo Google. Cuando agreguemos Microsoft, este file delega al
-//   `_shared/calendar-microsoft.ts` según `provider`. La row de
-//   teacher_google_tokens tiene una columna `provider` (default 'google').
+//   Google (`_shared/calendar-google.ts`) y Microsoft
+//   (`_shared/calendar-microsoft.ts`), según `provider`. La row de
+//   teacher_google_tokens tiene una columna `provider` (default 'google'):
+//   un docente tiene UNA conexión, de uno u otro.
 
 import {
   adminClient,
@@ -34,6 +35,7 @@ import {
   MS_TRANSCRIPT_SCOPE,
 } from "../_shared/calendar-microsoft.ts";
 import { vttToReadableText } from "../_shared/vtt-transcript.ts";
+import { esOrigenPermitido } from "../_shared/origen-permitido.ts";
 
 type Provider = "google" | "microsoft";
 
@@ -215,35 +217,29 @@ async function handleStatus(userId: string) {
   });
 }
 
-// OAUTH-5: allowlist de origins permitidos para redirect post-callback.
-// Cualquier dominio fuera de esta lista se rechaza para evitar open-redirect.
-const ALLOWED_ORIGINS_RE = [
-  /^https:\/\/[a-z0-9-]+\.lovable\.app$/i,
-  /^https:\/\/[a-z0-9-]+\.lovableproject\.com$/i,
-  /^https:\/\/examlab\.lovable\.app$/i,
-  /^http:\/\/localhost(:\d+)?$/i,
-];
-function isAllowedOrigin(o: string): boolean {
-  try {
-    const u = new URL(o);
-    const origin = `${u.protocol}//${u.host}`;
-    return ALLOWED_ORIGINS_RE.some((re) => re.test(origin));
-  } catch {
-    return false;
-  }
-}
-
 async function handleInit(userId: string, body: InitBody, provider: Provider) {
   if (!body.origin || !/^https?:\/\//.test(body.origin)) {
     return jsonError("origin_required", 400);
   }
-  if (!isAllowedOrigin(body.origin)) {
+  // OAUTH-5: el callback redirige a este origen; fuera de la lista, se rechaza.
+  if (!esOrigenPermitido(body.origin)) {
     return jsonError("origin_not_allowed", 400);
   }
+  // Sin las credenciales de la app del proveedor, el docente aprobaría los
+  // permisos y recién al volver fallaría el canje del código. Se corta antes, y
+  // con un código que la pantalla traduce (no el nombre del secret).
+  const credenciales =
+    provider === "microsoft"
+      ? ["MS_OAUTH_CLIENT_ID", "MS_OAUTH_CLIENT_SECRET"]
+      : ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET"];
+  if (credenciales.some((n) => !Deno.env.get(n))) {
+    return jsonError("provider_not_configured", 503);
+  }
+  const origin = new URL(body.origin).origin;
   const nonce = crypto.randomUUID();
   // state opaco — el callback lo cruza contra calendar_oauth_states para
   // validar one-time + extraer origin sin confiar en lo que mande el provider.
-  const originB64 = btoa(body.origin).replace(/=+$/, "");
+  const originB64 = btoa(origin).replace(/=+$/, "");
   const state = `${userId}:${nonce}:${originB64}`;
 
   // OAUTH-1/2: persistir el state con provider para que el callback
@@ -252,7 +248,7 @@ async function handleInit(userId: string, body: InitBody, provider: Provider) {
     state,
     teacher_id: userId,
     provider,
-    origin: body.origin,
+    origin,
     nonce,
   });
   if (stErr) throw new Error(`oauth_state_insert_failed: ${stErr.message}`);
