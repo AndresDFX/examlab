@@ -111,6 +111,16 @@ describe("construirBloqueLogistica", () => {
     expect(out).toContain("Pendiente de entregar.");
   });
 
+  it("una que ya cerró sin entrega no dice «pendiente»", () => {
+    const out = construirBloqueLogistica({
+      ahora: AHORA,
+      actividades: [act({ tipo: "taller", titulo: "Viejo", cierreIso: new Date(AHORA - 3 * 864e5).toISOString() })],
+      sesiones: [],
+    });
+    expect(out).toContain("Ya cerró y no entregaste.");
+    expect(out).not.toContain("Pendiente de entregar.");
+  });
+
   it("marca entrega hecha y no pide entregar externas", () => {
     const out = construirBloqueLogistica({
       ahora: AHORA,

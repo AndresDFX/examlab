@@ -192,6 +192,7 @@ async function enlaceGrabacion(p, ctx) {
       fs.appendFileSync(registroRuta, JSON.stringify({ ...fila, sesion: s.id, grabacion_url: grab, en: new Date().toISOString() }) + "\n");
     }
     resumen.push(fila);
+    console.log(JSON.stringify(fila));
     await abrirResumenes(p);
   }
   for (const { curso, sesion, tieneTrans } of porClave.values())

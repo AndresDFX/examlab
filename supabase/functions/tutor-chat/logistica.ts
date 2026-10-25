@@ -167,7 +167,7 @@ function refActividad(a: ActividadLog): number | null {
   return Number.isFinite(i) ? i : null;
 }
 
-function lineaActividad(a: ActividadLog): string {
+function lineaActividad(a: ActividadLog, ahora: number): string {
   const base = a.esRecuperacion
     ? `${a.makeupLabel || "Recuperación"} de ${TIPO_LABEL[a.tipo].toLowerCase()}`
     : TIPO_LABEL[a.tipo];
@@ -188,7 +188,10 @@ function lineaActividad(a: ActividadLog): string {
   if (cierra) partes.push(` ${a.tipo === "examen" ? "Cierra" : "Entrega hasta"}: ${conPunto(cierra)}`);
   else if (!abre) partes.push(" Sin fecha definida todavía.");
   if (!a.externa) {
-    partes.push(a.entrego ? " Ya entregaste." : " Pendiente de entregar.");
+    // «Pendiente» solo si todavía se puede: una que ya cerró sin entrega le diría al
+    // estudiante que aún está a tiempo.
+    const cerro = a.cierreIso ? Date.parse(a.cierreIso) < ahora : false;
+    partes.push(a.entrego ? " Ya entregaste." : cerro ? " Ya cerró y no entregaste." : " Pendiente de entregar.");
   }
   return partes.join("");
 }
@@ -256,7 +259,7 @@ export function construirBloqueLogistica(args: {
 
   if (acts.length > 0) {
     bloques.push("### Exámenes, talleres y proyectos");
-    for (const a of acts) bloques.push(lineaActividad(a));
+    for (const a of acts) bloques.push(lineaActividad(a, ahora));
   }
   if (proximas.length > 0) {
     bloques.push("### Próximas clases");
