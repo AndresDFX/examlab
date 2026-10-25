@@ -99,6 +99,29 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- **Subir transcripciones de Teams a mano + usar lo que dijo el DOCENTE en el Tutor IA.** TI de la
+  UNIAJC no aprobó la app de Graph, así que el camino automático (`fetch_transcript`) sigue bloqueado.
+  Ahora el docente puede **subir el `.vtt`** que Teams web descarga, desde el mismo diálogo
+  «Transcripción de Teams» de cada sesión (botón «Elegir archivo .vtt»). La escritura va por una acción
+  nueva del edge `calendar`, `upload_transcript`, NO por RLS: el contenido no se puede reescribir por
+  REST (igual que lo traído por Graph). Idempotente — `external_transcript_id = upload:<sha256(vtt)>`.
+  Además, **texto del docente**: el diálogo muestra los hablantes detectados en el VTT (nombres para
+  mostrar de Teams, p. ej. «JULIAN ANDRES CASTAÑO ESPINOSA») con los del docente ya marcados por
+  coincidencia con su nombre, y el docente corrige cuáles son él; se guarda aparte `teacher_text` (solo
+  sus intervenciones). La corrección va por otra acción nueva, `set_transcript_speakers`, que recalcula
+  desde el VTT guardado. El **Tutor IA** suma al contexto del curso SOLO ese `teacher_text` de las
+  sesiones del curso (sin papelera), priorizando las más recientes, con presupuesto propio y etiqueta de
+  clase/fecha — nunca la transcripción completa (tiene voces de estudiantes). La RLS de
+  `session_transcripts` no cambia (staff SELECT+DELETE; escribe el edge con service_role); migración
+  `20262870000000` agrega `source`/`file_name`/`speakers`/`teacher_speakers`/`teacher_text`
+  (defensiva, sin `NOTIFY pgrst`). Lógica de hablantes/filtrado en un helper puro y testeado
+  (`supabase/functions/_shared/transcript-speakers.ts`, test
+  `src/modules/calendar/transcript-speakers.test.ts`). Pendiente de Publish (edge + migración + front).
+  Contrato de `upload_transcript` para un script con el JWT del docente: body
+  `{ action:"upload_transcript", sessionId, vtt, fileName?, teacherSpeakers? }` → `{ ok, transcriptId,
+  speakers, teacherSpeakers, text, teacherText }`; errores de dominio (`ok:false`, status 200)
+  `session_required|empty_vtt|vtt_too_large|session_not_found|invalid_vtt`, y `not_staff_of_course`
+  (403).
 - **Conectar el calendario desde `*.examlab.workers.dev`, y Outlook de punta a punta.** «Conectar
   cuenta» (Google y Outlook) respondía `origin_not_allowed` en todas las instituciones desde que la app
   se mudó a Cloudflare (2026-08-21): la lista de orígenes a los que vuelve el OAuth solo tenía los

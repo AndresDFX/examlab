@@ -89,6 +89,12 @@ const MATERIAL_PER_DOC_CHARS = 6000;
 const MATERIAL_TOTAL_CHARS = 22000;
 const MAX_STORAGE_EXTRACTIONS = 18; // cota de descargas por request (latencia)
 const CONTENTS_BUCKET = "generated-contents";
+// Transcripciones de clase: SOLO el texto del docente (teacher_text). La tabla
+// session_transcripts tiene voces de estudiantes — el Tutor NUNCA las lee. Se
+// prioriza lo más reciente y se acota aparte del material generado.
+const TRANSCRIPT_PER_SESSION_CHARS = 3000;
+const TRANSCRIPT_TOTAL_CHARS = 8000;
+const MAX_TRANSCRIPT_SESSIONS = 12;
 
 type MaterialFile = { name?: string; path?: string; kind?: string; body?: string };
 type MaterialRow = { id: string; topic: string; display_name: string; files: MaterialFile[] | null };
@@ -280,6 +286,77 @@ async function buildCourseMaterial(
       break;
     }
     acc += block;
+  }
+  return acc.trim();
+}
+
+/**
+ * Texto del DOCENTE de las transcripciones de las clases del curso. Lee SOLO
+ * `teacher_text` (lo que dijo el docente) de session_transcripts, de las
+ * sesiones del curso que NO están en papelera, priorizando las más recientes.
+ * Devuelve bloques etiquetados con la sesión y su fecha, acotados por budget.
+ *
+ * Privacidad: NUNCA `content_text` (tiene voces de estudiantes). La RLS de la
+ * tabla no cambia — acá leemos con el admin client, que bypassa RLS, pero solo
+ * tomamos `teacher_text`.
+ */
+async function buildTeacherTranscripts(courseId: string): Promise<string> {
+  // Sesiones del curso (sin papelera), más recientes primero.
+  const { data: sessions } = await admin
+    .from("attendance_sessions")
+    .select("id, title, session_date")
+    .eq("course_id", courseId)
+    .is("deleted_at", null)
+    .order("session_date", { ascending: false })
+    .limit(MAX_TRANSCRIPT_SESSIONS * 3);
+  const sessionRows = (sessions ?? []) as Array<{
+    id: string;
+    title: string | null;
+    session_date: string;
+  }>;
+  if (sessionRows.length === 0) return "";
+  const byId = new Map(sessionRows.map((s) => [s.id, s]));
+
+  const { data: trs } = await admin
+    .from("session_transcripts")
+    .select("session_id, teacher_text")
+    .in("session_id", sessionRows.map((s) => s.id))
+    .not("teacher_text", "is", null);
+  const transRows = (trs ?? []) as Array<{ session_id: string; teacher_text: string | null }>;
+  if (transRows.length === 0) return "";
+
+  // Juntar por sesión (una sesión puede tener varias transcripciones).
+  const porSesion = new Map<string, string[]>();
+  for (const r of transRows) {
+    const txt = (r.teacher_text ?? "").trim();
+    if (!txt) continue;
+    const arr = porSesion.get(r.session_id) ?? [];
+    arr.push(txt);
+    porSesion.set(r.session_id, arr);
+  }
+  if (porSesion.size === 0) return "";
+
+  // Orden: por fecha de sesión descendente (sessionRows ya viene ordenado).
+  let acc = "";
+  let usadas = 0;
+  for (const s of sessionRows) {
+    if (usadas >= MAX_TRANSCRIPT_SESSIONS || acc.length >= TRANSCRIPT_TOTAL_CHARS) break;
+    const partes = porSesion.get(s.id);
+    if (!partes || partes.length === 0) continue;
+    let texto = partes.join("\n").trim();
+    if (!texto) continue;
+    if (texto.length > TRANSCRIPT_PER_SESSION_CHARS) {
+      texto = texto.slice(0, TRANSCRIPT_PER_SESSION_CHARS).trimEnd() + " …";
+    }
+    const titulo = (s.title ?? "").trim() || "Clase";
+    const header = `\n\n### ${titulo} — ${s.session_date} (lo que explicó el docente)\n`;
+    const block = header + texto;
+    if (acc.length + block.length > TRANSCRIPT_TOTAL_CHARS) {
+      acc += block.slice(0, TRANSCRIPT_TOTAL_CHARS - acc.length);
+      break;
+    }
+    acc += block;
+    usadas++;
   }
   return acc.trim();
 }
@@ -504,7 +581,21 @@ Deno.serve(async (req) => {
     // Extraer el TEXTO real de los archivos (inline, notebooks, y docx/pptx
     // desde Storage con cache-back) para que el tutor cite el contenido real,
     // no solo los títulos.
-    const courseMaterial = await buildCourseMaterial(contentRows, referencedKeys);
+    let courseMaterial = await buildCourseMaterial(contentRows, referencedKeys);
+
+    // Texto del docente de las transcripciones de clase (solo teacher_text).
+    // Se adjunta al material para que el tutor cite lo que el docente explicó
+    // en vivo. Va con su propio budget, así que ampliamos el tope del bloque.
+    const teacherTranscripts = await buildTeacherTranscripts(session.course_id);
+    if (teacherTranscripts) {
+      courseMaterial =
+        (courseMaterial ? courseMaterial + "\n\n" : "") +
+        "## Transcripciones de clase (voz del docente)\n" +
+        "Esto es lo que el DOCENTE explicó en clase (transcripción de la reunión, " +
+        "filtrada a sus intervenciones). Úsalo como material del curso y cita la clase " +
+        "y su fecha cuando lo uses.\n" +
+        teacherTranscripts;
+    }
 
     // Conciencia temporal: fecha/hora actual formateada en es-CO /
     // America/Bogota. Se inyecta en el placeholder {{current_datetime}} para
@@ -528,7 +619,9 @@ Deno.serve(async (req) => {
       courseDescription: course?.description ?? null,
       contentTopics,
       courseMaterial,
-      maxMaterialChars: MATERIAL_TOTAL_CHARS,
+      // El tope del bloque de material incluye el presupuesto de las
+      // transcripciones del docente, ya acotadas en buildTeacherTranscripts.
+      maxMaterialChars: MATERIAL_TOTAL_CHARS + TRANSCRIPT_TOTAL_CHARS + 500,
       currentDatetime,
     });
 

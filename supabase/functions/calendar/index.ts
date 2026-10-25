@@ -35,6 +35,11 @@ import {
   MS_TRANSCRIPT_SCOPE,
 } from "../_shared/calendar-microsoft.ts";
 import { vttToReadableText } from "../_shared/vtt-transcript.ts";
+import {
+  detectSpeakers,
+  filtrarTextoDocente,
+  preseleccionarDocente,
+} from "../_shared/transcript-speakers.ts";
 import { esOrigenPermitido } from "../_shared/origen-permitido.ts";
 
 type Provider = "google" | "microsoft";
@@ -51,8 +56,30 @@ interface BaseBody {
     | "list_events"
     | "link_events_to_sessions"
     | "fetch_transcript"
+    | "upload_transcript"
+    | "set_transcript_speakers"
     | "cron_sync_recordings";
   provider?: "google" | "microsoft";
+}
+/** Carga MANUAL de una transcripción: el docente baja el .vtt de Teams web y
+ *  lo sube. Escribe por el edge (service_role) y NO por RLS, para que el
+ *  contenido no se pueda reescribir por REST. Idempotente: external_transcript_id
+ *  = `upload:<sha256(vtt)>`, así subir el mismo archivo dos veces no duplica.
+ *  Contrato pensado también para un script con el JWT del docente. */
+interface UploadTranscriptBody extends BaseBody {
+  action: "upload_transcript";
+  sessionId: string;
+  vtt: string;
+  fileName?: string;
+  /** Opcional: hablantes que son el docente. Si no se mandan, se preseleccionan
+   *  por coincidencia con el full_name del que llama. Corregible después. */
+  teacherSpeakers?: string[];
+}
+/** Corrige qué hablantes del VTT son el docente y recalcula `teacher_text`. */
+interface SetTranscriptSpeakersBody extends BaseBody {
+  action: "set_transcript_speakers";
+  transcriptId: string;
+  teacherSpeakers: string[];
 }
 /** Trae (y guarda) las transcripciones de Teams de la reunión asociada a una
  *  sesión de clase. Solo Microsoft: la reunión tiene que haberse creado/
@@ -169,6 +196,10 @@ Deno.serve(async (req) => {
         return await handleLinkEventsToSessions(userId, body as LinkEventsBody, provider);
       case "fetch_transcript":
         return await handleFetchTranscript(userId, body as FetchTranscriptBody);
+      case "upload_transcript":
+        return await handleUploadTranscript(userId, body as UploadTranscriptBody);
+      case "set_transcript_speakers":
+        return await handleSetTranscriptSpeakers(userId, body as SetTranscriptSpeakersBody);
       default:
         return jsonError("unknown_action", 400);
     }
@@ -1715,4 +1746,167 @@ async function handleFetchTranscript(userId: string, body: FetchTranscriptBody) 
     .join("\n\n");
 
   return jsonOk({ saved, found: transcripts.length, text: combined, errors });
+}
+
+// ────────── Subida manual de .vtt + texto del docente ──────────
+
+const MAX_VTT_BYTES = 8 * 1024 * 1024; // 8 MB: una clase de 2 h ronda 1-2 MB.
+
+/** sha256 hex del contenido — id estable para idempotencia de la subida. */
+async function sha256Hex(s: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(s));
+  return Array.from(new Uint8Array(buf))
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+/** full_name del docente que llama (para preseleccionar sus intervenciones). */
+async function callerFullName(userId: string): Promise<string | null> {
+  const { data } = await adminClient
+    .from("profiles")
+    .select("full_name")
+    .eq("id", userId)
+    .maybeSingle();
+  return (data?.full_name ?? null) as string | null;
+}
+
+async function handleUploadTranscript(userId: string, body: UploadTranscriptBody) {
+  if (!body.sessionId) return jsonDomain("session_required");
+  const vtt = typeof body.vtt === "string" ? body.vtt : "";
+  if (!vtt.trim()) return jsonDomain("empty_vtt");
+  if (new TextEncoder().encode(vtt).length > MAX_VTT_BYTES) {
+    return jsonDomain("vtt_too_large");
+  }
+
+  // Sesión (saltando papelera) + su curso.
+  const { data: session } = await adminClient
+    .from("attendance_sessions")
+    .select("id, course_id, title, deleted_at")
+    .eq("id", body.sessionId)
+    .maybeSingle();
+  if (!session || session.deleted_at) return jsonDomain("session_not_found");
+
+  // Autorización: staff del curso.
+  if (!(await isStaffOfCourse(userId, session.course_id))) {
+    return jsonError("not_staff_of_course", 403);
+  }
+
+  // VTT válido: tiene que producir al menos una intervención legible.
+  const readable = vttToReadableText(vtt);
+  if (!readable.trim()) return jsonDomain("invalid_vtt");
+
+  const speakers = detectSpeakers(vtt);
+  // Hablantes del docente: los mandados por el caller (script), o la
+  // preselección por coincidencia con su full_name. Se intersecta con lo
+  // detectado para no guardar nombres que no están en el VTT.
+  const detectadosSet = new Set(speakers.map((s) => s.toLowerCase()));
+  const pedidos = Array.isArray(body.teacherSpeakers)
+    ? body.teacherSpeakers.filter((s) => typeof s === "string" && s.trim())
+    : null;
+  const teacherSpeakers = (
+    pedidos && pedidos.length > 0
+      ? pedidos.filter((s) => detectadosSet.has(s.toLowerCase()))
+      : preseleccionarDocente(speakers, await callerFullName(userId))
+  );
+  const teacherText = filtrarTextoDocente(vtt, teacherSpeakers);
+
+  const externalId = `upload:${await sha256Hex(vtt)}`;
+  const { data: saved, error: upErr } = await adminClient
+    .from("session_transcripts")
+    .upsert(
+      {
+        session_id: session.id,
+        provider: "teams",
+        source: "upload",
+        file_name: body.fileName ?? null,
+        external_meeting_id: null,
+        external_transcript_id: externalId,
+        transcript_created_at: new Date().toISOString(),
+        content_vtt: vtt,
+        content_text: readable,
+        speakers,
+        teacher_speakers: teacherSpeakers,
+        teacher_text: teacherText,
+        fetched_by: userId,
+        fetched_at: new Date().toISOString(),
+      },
+      { onConflict: "session_id,external_transcript_id" },
+    )
+    .select("id")
+    .maybeSingle();
+  if (upErr) return jsonError(`save_failed: ${upErr.message}`, 500);
+
+  await audit(
+    userId,
+    "calendar.transcript_uploaded",
+    "info",
+    {
+      session_id: session.id,
+      course_id: session.course_id,
+      file_name: body.fileName ?? null,
+      speakers_count: speakers.length,
+      teacher_speakers: teacherSpeakers,
+    },
+    session.title ?? null,
+  );
+
+  return jsonOk({
+    transcriptId: saved?.id ?? null,
+    speakers,
+    teacherSpeakers,
+    text: readable,
+    teacherText,
+  });
+}
+
+async function handleSetTranscriptSpeakers(
+  userId: string,
+  body: SetTranscriptSpeakersBody,
+) {
+  if (!body.transcriptId) return jsonDomain("transcript_required");
+  const teacherSpeakers = Array.isArray(body.teacherSpeakers)
+    ? body.teacherSpeakers.filter((s) => typeof s === "string" && s.trim())
+    : [];
+
+  // Transcripción + su sesión + curso (para autorizar y recalcular desde el VTT).
+  const { data: tr } = await adminClient
+    .from("session_transcripts")
+    .select("id, session_id, content_vtt, speakers")
+    .eq("id", body.transcriptId)
+    .maybeSingle();
+  if (!tr) return jsonDomain("transcript_not_found");
+
+  const { data: session } = await adminClient
+    .from("attendance_sessions")
+    .select("course_id, title, deleted_at")
+    .eq("id", tr.session_id)
+    .maybeSingle();
+  if (!session || session.deleted_at) return jsonDomain("session_not_found");
+  if (!(await isStaffOfCourse(userId, session.course_id))) {
+    return jsonError("not_staff_of_course", 403);
+  }
+
+  // Solo hablantes que existen en el VTT (defensivo).
+  const detectados = new Set(
+    (Array.isArray(tr.speakers) ? tr.speakers : detectSpeakers(tr.content_vtt ?? "")).map(
+      (s: string) => s.toLowerCase(),
+    ),
+  );
+  const filtrados = teacherSpeakers.filter((s) => detectados.has(s.toLowerCase()));
+  const teacherText = filtrarTextoDocente(tr.content_vtt ?? "", filtrados);
+
+  const { error: upErr } = await adminClient
+    .from("session_transcripts")
+    .update({ teacher_speakers: filtrados, teacher_text: teacherText })
+    .eq("id", tr.id);
+  if (upErr) return jsonError(`save_failed: ${upErr.message}`, 500);
+
+  await audit(userId, "calendar.transcript_speakers_set", "info", {
+    transcript_id: tr.id,
+    session_id: tr.session_id,
+    course_id: session.course_id,
+    teacher_speakers: filtrados,
+  }, session.title ?? null);
+
+  return jsonOk({ teacherSpeakers: filtrados, teacherText });
 }

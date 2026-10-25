@@ -1,13 +1,15 @@
 /**
- * SessionTranscriptDialog — trae y muestra la transcripción de Teams de una
- * sesión de clase. Se abre desde el menú de la sesión en
- * `app.teacher.attendance.tsx`.
+ * SessionTranscriptDialog — transcripciones de Teams de una sesión de clase.
+ * Se abre desde el menú de la sesión en `app.teacher.attendance.tsx`.
  *
- * Flujo (P9): al abrir, muestra la transcripción ya guardada si existe. El
- * botón primario «Traer transcripción» invoca el edge `calendar`
- * (acción fetch_transcript), con un estado intermedio mientras tanto. Los
- * errores de dominio vienen como código y se traducen a un mensaje con la
- * acción a seguir.
+ * Dos caminos para traer la transcripción:
+ *  - SUBIR el .vtt a mano (lo que Teams web descarga). Es el camino principal:
+ *    el automático depende de que TI apruebe la app de Graph.
+ *  - «Traer de Teams» (acción fetch_transcript del edge) cuando esté disponible.
+ *
+ * Además, por cada transcripción el docente marca cuáles hablantes son ÉL. Con
+ * eso se guarda aparte el «texto del docente», que es lo único que el Tutor IA
+ * puede leer (la transcripción completa tiene voces de estudiantes).
  */
 import { useEffect, useState } from "react";
 import { Link } from "@tanstack/react-router";
@@ -15,12 +17,13 @@ import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Spinner } from "@/components/ui/spinner";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { formatDateOnly } from "@/shared/lib/format";
-import { Captions, Copy, Check, CalendarClock, AlertTriangle } from "lucide-react";
+import { Captions, Copy, Check, CalendarClock, AlertTriangle, Upload } from "lucide-react";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const db = supabase as any;
@@ -37,57 +40,113 @@ interface Props {
   onClose: () => void;
 }
 
-/** Códigos que NO son fallo técnico: el edge los devuelve con ok:false y la UI
- *  los traduce. Para `needs_reconnect`/`not_microsoft_account`/`not_connected`
- *  mostramos además el enlace a Calendario. */
+interface TranscriptRow {
+  id: string;
+  source: string | null;
+  file_name: string | null;
+  content_text: string | null;
+  teacher_text: string | null;
+  speakers: string[] | null;
+  teacher_speakers: string[] | null;
+  transcript_created_at: string | null;
+}
+
 const RECONNECT_CODES = new Set(["needs_reconnect", "not_microsoft_account", "not_connected"]);
+const MAX_VTT_BYTES = 8 * 1024 * 1024;
 
 export function SessionTranscriptDialog({ session, onClose }: Props) {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false); // cargando lo ya guardado
-  const [fetching, setFetching] = useState(false); // trayendo de Teams
-  const [text, setText] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [fetching, setFetching] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [rows, setRows] = useState<TranscriptRow[]>([]);
+  // Selección editable de hablantes-docente por transcripción (lowercase match).
+  const [selection, setSelection] = useState<Record<string, string[]>>({});
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const open = session !== null;
   const hasTeams = /teams\.microsoft\.com\/l\/meetup-join/i.test(session?.meeting_url ?? "");
 
-  // Al abrir: traer la transcripción ya guardada (si la hay).
+  const load = async (sessionId: string) => {
+    setLoading(true);
+    try {
+      const { data, error } = await db
+        .from("session_transcripts")
+        .select(
+          "id, source, file_name, content_text, teacher_text, speakers, teacher_speakers, transcript_created_at",
+        )
+        .eq("session_id", sessionId)
+        .order("transcript_created_at", { ascending: true, nullsFirst: true });
+      if (error) {
+        toast.error(friendlyError(error, t("sessionTranscript.loadError")));
+        return;
+      }
+      const list = (data ?? []) as TranscriptRow[];
+      setRows(list);
+      const sel: Record<string, string[]> = {};
+      for (const r of list) sel[r.id] = r.teacher_speakers ?? [];
+      setSelection(sel);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!session) {
-      setText("");
+      setRows([]);
+      setSelection({});
       setErrorCode(null);
-      setCopied(false);
+      setCopiedId(null);
       return;
     }
     let cancelled = false;
-    setLoading(true);
     void (async () => {
-      try {
-        const { data, error } = await db
-          .from("session_transcripts")
-          .select("content_text, transcript_created_at")
-          .eq("session_id", session.id)
-          .order("transcript_created_at", { ascending: true, nullsFirst: true });
-        if (cancelled) return;
-        if (error) {
-          toast.error(friendlyError(error, t("sessionTranscript.loadError")));
-          return;
-        }
-        const combined = (data ?? [])
-          .map((r: { content_text: string | null }) => r.content_text ?? "")
-          .filter(Boolean)
-          .join("\n\n");
-        setText(combined);
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+      if (cancelled) return;
+      await load(session.id);
     })();
     return () => {
       cancelled = true;
     };
-  }, [session, t]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.id]);
+
+  const onPickFile = async (file: File | null) => {
+    if (!session || !file) return;
+    if (file.size > MAX_VTT_BYTES) {
+      toast.error(t("sessionTranscript.upload.tooLarge"));
+      return;
+    }
+    setUploading(true);
+    setErrorCode(null);
+    try {
+      const vtt = await file.text();
+      const { data, error } = await supabase.functions.invoke("calendar", {
+        body: {
+          action: "upload_transcript",
+          sessionId: session.id,
+          vtt,
+          fileName: file.name,
+        },
+      });
+      if (error) {
+        toast.error(friendlyError(error, t("sessionTranscript.upload.error")));
+        return;
+      }
+      const res = data as { ok?: boolean; error?: string };
+      if (!res?.ok) {
+        setErrorCode(res?.error ?? "unknown");
+        return;
+      }
+      toast.success(t("sessionTranscript.upload.ok"));
+      await load(session.id);
+    } catch (e) {
+      toast.error(friendlyError(e, t("sessionTranscript.upload.error")));
+    } finally {
+      setUploading(false);
+    }
+  };
 
   const fetchTranscript = async () => {
     if (!session) return;
@@ -98,21 +157,17 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
         body: { action: "fetch_transcript", provider: "microsoft", sessionId: session.id },
       });
       if (error) {
-        // Fallo técnico (no-2xx) — el cuerpo de dominio se pierde en invoke.
         toast.error(friendlyError(error, t("sessionTranscript.fetchError")));
         return;
       }
-      const res = data as { ok?: boolean; error?: string; text?: string; found?: number };
+      const res = data as { ok?: boolean; error?: string; found?: number };
       if (!res?.ok) {
         setErrorCode(res?.error ?? "unknown");
         return;
       }
-      setText(res.text ?? "");
-      if ((res.found ?? 0) === 0) {
-        setErrorCode("no_transcripts");
-      } else {
-        toast.success(t("sessionTranscript.fetchedOk"));
-      }
+      if ((res.found ?? 0) === 0) setErrorCode("no_transcripts");
+      else toast.success(t("sessionTranscript.fetchedOk"));
+      await load(session.id);
     } catch (e) {
       toast.error(friendlyError(e, t("sessionTranscript.fetchError")));
     } finally {
@@ -120,11 +175,52 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
     }
   };
 
-  const copy = async () => {
+  const toggleSpeaker = (rowId: string, speaker: string) => {
+    setSelection((prev) => {
+      const cur = prev[rowId] ?? [];
+      const has = cur.some((s) => s.toLowerCase() === speaker.toLowerCase());
+      return {
+        ...prev,
+        [rowId]: has
+          ? cur.filter((s) => s.toLowerCase() !== speaker.toLowerCase())
+          : [...cur, speaker],
+      };
+    });
+  };
+
+  const saveSpeakers = async (rowId: string) => {
+    setSavingId(rowId);
+    try {
+      const { data, error } = await supabase.functions.invoke("calendar", {
+        body: {
+          action: "set_transcript_speakers",
+          transcriptId: rowId,
+          teacherSpeakers: selection[rowId] ?? [],
+        },
+      });
+      if (error) {
+        toast.error(friendlyError(error, t("sessionTranscript.speakers.saveError")));
+        return;
+      }
+      const res = data as { ok?: boolean; error?: string; teacherText?: string };
+      if (!res?.ok) {
+        toast.error(t("sessionTranscript.speakers.saveError"));
+        return;
+      }
+      toast.success(t("sessionTranscript.speakers.saved"));
+      if (session) await load(session.id);
+    } catch (e) {
+      toast.error(friendlyError(e, t("sessionTranscript.speakers.saveError")));
+    } finally {
+      setSavingId(null);
+    }
+  };
+
+  const copy = async (rowId: string, text: string) => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedId(rowId);
+      setTimeout(() => setCopiedId((c) => (c === rowId ? null : c)), 2000);
     } catch {
       toast.error(t("sessionTranscript.copyError"));
     }
@@ -145,9 +241,46 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3">
-          {/* Sin reunión de Teams: explicar que primero hay que sincronizar. */}
-          {!hasTeams ? (
+        <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-4">
+          {/* Subir .vtt — camino principal. */}
+          <div className="rounded-md border p-3 space-y-2">
+            <p className="text-sm font-medium">{t("sessionTranscript.upload.title")}</p>
+            <p className="text-xs text-muted-foreground">{t("sessionTranscript.upload.hint")}</p>
+            <Button asChild disabled={uploading} aria-disabled={uploading}>
+              <label className={uploading ? "pointer-events-none opacity-60" : "cursor-pointer"}>
+                {uploading ? (
+                  <Spinner size="sm" className="mr-2" />
+                ) : (
+                  <Upload className="h-4 w-4 mr-2" />
+                )}
+                {uploading ? t("sessionTranscript.upload.uploading") : t("sessionTranscript.upload.button")}
+                <input
+                  type="file"
+                  accept=".vtt,text/vtt"
+                  className="sr-only"
+                  disabled={uploading}
+                  onChange={(e) => {
+                    void onPickFile(e.target.files?.[0] ?? null);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            </Button>
+          </div>
+
+          {/* Traer de Teams — secundario (depende de aprobación de TI). */}
+          {hasTeams && (
+            <div className="space-y-2">
+              <Button variant="outline" onClick={() => void fetchTranscript()} disabled={fetching}>
+                {fetching ? <Spinner size="sm" className="mr-2" /> : null}
+                {fetching ? t("sessionTranscript.fetching") : t("sessionTranscript.fetch")}
+              </Button>
+              {fetching && (
+                <p className="text-xs text-muted-foreground">{t("sessionTranscript.fetchingHint")}</p>
+              )}
+            </div>
+          )}
+          {!hasTeams && rows.length === 0 && (
             <Alert>
               <CalendarClock className="h-4 w-4" />
               <AlertDescription>
@@ -157,23 +290,6 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
                 </Link>
               </AlertDescription>
             </Alert>
-          ) : (
-            <>
-              <p className="text-sm text-muted-foreground">{t("sessionTranscript.intro")}</p>
-              <Button onClick={() => void fetchTranscript()} disabled={fetching}>
-                {fetching ? <Spinner size="sm" className="mr-2" /> : null}
-                {fetching
-                  ? t("sessionTranscript.fetching")
-                  : text
-                    ? t("sessionTranscript.refetch")
-                    : t("sessionTranscript.fetch")}
-              </Button>
-              {fetching && (
-                <p className="text-xs text-muted-foreground">
-                  {t("sessionTranscript.fetchingHint")}
-                </p>
-              )}
-            </>
           )}
 
           {/* Error de dominio traducido + acción. */}
@@ -193,33 +309,83 @@ export function SessionTranscriptDialog({ session, onClose }: Props) {
             </Alert>
           )}
 
-          {/* Transcripción guardada. */}
           {loading ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Spinner size="sm" /> {t("sessionTranscript.loading")}
             </div>
-          ) : text ? (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-muted-foreground">
-                  {t("sessionTranscript.transcriptLabel")}
-                </span>
-                <Button variant="outline" size="sm" onClick={() => void copy()}>
-                  {copied ? (
-                    <Check className="h-4 w-4 mr-1.5 text-success" />
-                  ) : (
-                    <Copy className="h-4 w-4 mr-1.5" />
-                  )}
-                  {copied ? t("sessionTranscript.copied") : t("common.copy")}
-                </Button>
-              </div>
-              <pre className="whitespace-pre-wrap text-sm bg-muted rounded-md p-3 font-sans">
-                {text}
-              </pre>
-            </div>
-          ) : hasTeams && !errorCode ? (
+          ) : rows.length === 0 ? (
             <p className="text-sm text-muted-foreground">{t("sessionTranscript.empty")}</p>
-          ) : null}
+          ) : (
+            rows.map((r) => {
+              const speakers = r.speakers ?? [];
+              const sel = selection[r.id] ?? [];
+              const dirty =
+                JSON.stringify([...sel].sort()) !==
+                JSON.stringify([...(r.teacher_speakers ?? [])].sort());
+              return (
+                <div key={r.id} className="rounded-md border p-3 space-y-3">
+                  <p className="text-xs font-medium text-muted-foreground">
+                    {r.file_name || t("sessionTranscript.transcriptLabel")}
+                  </p>
+
+                  {/* Selección de hablantes-docente. */}
+                  {speakers.length > 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-sm">{t("sessionTranscript.speakers.question")}</p>
+                      <div className="space-y-1.5">
+                        {speakers.map((sp) => {
+                          const checked = sel.some((s) => s.toLowerCase() === sp.toLowerCase());
+                          return (
+                            <label key={sp} className="flex items-center gap-2 text-sm cursor-pointer">
+                              <Checkbox
+                                checked={checked}
+                                onCheckedChange={() => toggleSpeaker(r.id, sp)}
+                              />
+                              <span>{sp}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <Button size="sm" disabled={!dirty || savingId === r.id} onClick={() => void saveSpeakers(r.id)}>
+                        {savingId === r.id ? <Spinner size="sm" className="mr-2" /> : null}
+                        {t("sessionTranscript.speakers.save")}
+                      </Button>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sessionTranscript.speakers.none")}
+                    </p>
+                  )}
+
+                  {/* Texto del docente (lo que lee el Tutor IA). */}
+                  {r.teacher_text?.trim() ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-muted-foreground">
+                          {t("sessionTranscript.teacherTextLabel")}
+                        </span>
+                        <Button variant="outline" size="sm" onClick={() => void copy(r.id, r.teacher_text ?? "")}>
+                          {copiedId === r.id ? (
+                            <Check className="h-4 w-4 mr-1.5 text-success" />
+                          ) : (
+                            <Copy className="h-4 w-4 mr-1.5" />
+                          )}
+                          {copiedId === r.id ? t("sessionTranscript.copied") : t("common.copy")}
+                        </Button>
+                      </div>
+                      <pre className="whitespace-pre-wrap text-sm bg-muted rounded-md p-3 font-sans max-h-48 overflow-y-auto">
+                        {r.teacher_text}
+                      </pre>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">
+                      {t("sessionTranscript.teacherTextEmpty")}
+                    </p>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
       </DialogContent>
     </Dialog>
