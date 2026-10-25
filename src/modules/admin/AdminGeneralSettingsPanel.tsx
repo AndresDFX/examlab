@@ -42,8 +42,13 @@ import {
   BellRing,
   TrendingDown,
   ListTodo,
+  Sparkles,
 } from "lucide-react";
 import { DEFAULT_RISK_THRESHOLDS } from "@/shared/lib/early-alert";
+import {
+  DEFAULT_TUTOR_DAILY_LIMIT,
+  MAX_TUTOR_DAILY_LIMIT,
+} from "../../../supabase/functions/tutor-chat/limite-diario.ts";
 import { friendlyError } from "@/shared/lib/db-errors";
 import i18n from "@/i18n";
 
@@ -89,6 +94,10 @@ interface AppSettings {
    *  por defecto. */
   session_pending_enabled: boolean;
   exam_autosave_mode: "al_cambiar_pregunta" | "continuo";
+  /** Asistente IA (Tutor IA): preguntas por día por estudiante y curso (día de
+   *  Bogotá). NULL en DB = default del código (25); acá se coalesce a número para
+   *  el Input controlado. */
+  tutor_daily_limit: number;
   updated_at: string;
 }
 
@@ -105,6 +114,7 @@ export function AdminGeneralSettingsPanel() {
   // en el UPDATE haría fallar el guardado de TODO el panel.
   const [hayColumnaPendientes, setHayColumnaPendientes] = useState(false);
   const [hayColumnaAutoguardado, setHayColumnaAutoguardado] = useState(false);
+  const [hayColumnaTutorLimite, setHayColumnaTutorLimite] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -125,6 +135,7 @@ export function AdminGeneralSettingsPanel() {
     if (data) {
       setHayColumnaPendientes("session_pending_enabled" in data);
       setHayColumnaAutoguardado("exam_autosave_mode" in data);
+      setHayColumnaTutorLimite("tutor_daily_limit" in data);
       // Coalesce de campos que pueden faltar si la migración aún no se publicó
       // (mantiene el Input controlado y no rompe el panel pre-Publish).
       const r = {
@@ -147,6 +158,7 @@ export function AdminGeneralSettingsPanel() {
           DEFAULT_RISK_THRESHOLDS.maxMissingActivities,
         session_pending_enabled: data.session_pending_enabled === true,
         exam_autosave_mode: data.exam_autosave_mode === "continuo" ? "continuo" : "al_cambiar_pregunta",
+        tutor_daily_limit: data.tutor_daily_limit ?? DEFAULT_TUTOR_DAILY_LIMIT,
       } as AppSettings;
       setRow(r);
       setDraft(r);
@@ -233,6 +245,19 @@ export function AdminGeneralSettingsPanel() {
       );
       return;
     }
+    if (
+      draft.tutor_daily_limit < 1 ||
+      draft.tutor_daily_limit > MAX_TUTOR_DAILY_LIMIT ||
+      !Number.isInteger(draft.tutor_daily_limit)
+    ) {
+      toast.error(
+        i18n.t("toast.modules_admin_AdminGeneralSettingsPanel.tutorDailyLimitOutOfRange", {
+          defaultValue: "Las preguntas por día al Asistente IA deben ser un entero entre 1 y {{max}}.",
+          max: MAX_TUTOR_DAILY_LIMIT,
+        }),
+      );
+      return;
+    }
     setSaving(true);
     try {
       const { error } = await db
@@ -263,6 +288,7 @@ export function AdminGeneralSettingsPanel() {
             ? { session_pending_enabled: draft.session_pending_enabled }
             : {}),
           ...(hayColumnaAutoguardado ? { exam_autosave_mode: draft.exam_autosave_mode } : {}),
+          ...(hayColumnaTutorLimite ? { tutor_daily_limit: draft.tutor_daily_limit } : {}),
           updated_by: user.id,
         })
         .eq("id", row.id);
@@ -778,6 +804,51 @@ export function AdminGeneralSettingsPanel() {
           </p>
         </CardContent>
       </Card>
+
+      {/* Asistente IA — límite diario de preguntas */}
+      {hayColumnaTutorLimite && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-indigo-500" />
+              {t("adminGeneralSettings.tutorLimitTitle", {
+                defaultValue: "Asistente IA",
+              })}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="max-w-xs">
+              <Label className="flex items-center gap-1.5">
+                {t("adminGeneralSettings.labelTutorDailyLimit", {
+                  defaultValue: "Preguntas por día al Asistente IA (por estudiante y curso)",
+                })}
+                <HelpHint>
+                  {t("adminGeneralSettings.labelTutorDailyLimitHint", {
+                    defaultValue:
+                      "Cuántas preguntas puede hacerle cada estudiante al Asistente IA por curso y por día. El conteo se reinicia a las 12:00 a. m. (hora Colombia). Por defecto 25. Rango 1–500.",
+                  })}
+                </HelpHint>
+              </Label>
+              <Input
+                type="number"
+                min={1}
+                max={MAX_TUTOR_DAILY_LIMIT}
+                value={draft.tutor_daily_limit}
+                onChange={(e) =>
+                  setDraft({ ...draft, tutor_daily_limit: Number(e.target.value) })
+                }
+              />
+              <p className="text-2xs text-muted-foreground mt-1">
+                {t("adminGeneralSettings.hintTutorDailyLimit", {
+                  defaultValue:
+                    "Por defecto {{def}} preguntas por día. Se reinicia a la medianoche de Colombia.",
+                  def: DEFAULT_TUTOR_DAILY_LIMIT,
+                })}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Save bar */}
       <div className="flex flex-wrap gap-2 justify-end">

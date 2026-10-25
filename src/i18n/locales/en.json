@@ -3095,7 +3095,8 @@
       "savedOk": "Settings saved",
       "dueReminderLeadOutOfRange": "The submission reminder must be between 1 and 168 hours before.",
       "earlyAlertAttendanceOutOfRange": "Minimum attendance must be between 0 and 100%.",
-      "earlyAlertCountsOutOfRange": "Tolerated activities (failed and missing) must be between 0 and 100."
+      "earlyAlertCountsOutOfRange": "Tolerated activities (failed and missing) must be between 0 and 100.",
+      "tutorDailyLimitOutOfRange": "Questions per day to the AI Assistant must be an integer between 1 and {{max}}."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Specify a model",
@@ -5418,6 +5419,10 @@
     "loadErrorFallback": "We couldn't load the parameters.",
     "earlyAlertTitle": "Early alert",
     "earlyAlertNote": "Two distinct reasons are required for a student to be at risk. Low average uses the course passing grade, not a separate threshold.",
+    "tutorLimitTitle": "AI Assistant",
+    "labelTutorDailyLimit": "Questions per day to the AI Assistant (per student and course)",
+    "labelTutorDailyLimitHint": "How many questions each student can ask the AI Assistant per course per day. The count resets at 12:00 a.m. (Colombia time). Default 25. Range 1–500.",
+    "hintTutorDailyLimit": "Default {{def}} questions per day. Resets at midnight Colombia time.",
     "labelMinAttendance": "Minimum attendance (%)",
     "labelMinAttendanceHint": "Below this percentage the attendance reason is flagged. Excused absences do not count and late arrivals count as attended.",
     "labelMaxFailed": "Failed activities tolerated",
@@ -8701,7 +8706,12 @@
     "emptyDescription": "I know this course's material. Ask me about concepts, exercises, or class questions — I'll guide you to reach the answer yourself.",
     "emptyDisclaimer": "I don't replace your teacher nor give exact solutions to assignments.",
     "roleYou": "You",
-    "roleTutor": "Tutor"
+    "roleTutor": "Tutor",
+    "remaining_one": "You have 1 question left today",
+    "remaining_other": "You have {{count}} questions left today",
+    "remainingFew_one": "You have 1 question left today",
+    "remainingFew_other": "You have {{count}} questions left today",
+    "limitReached": "You reached today's limit of {{limit}} questions in this course. It resets at 12:00 a.m."
   },
   "hc_routesAppStudentWorkshops": {
     "hiddenByStatus_one": "There is 1 more workshop hidden by the status filter.",

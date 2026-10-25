@@ -3095,7 +3095,8 @@
       "savedOk": "Parámetros guardados",
       "dueReminderLeadOutOfRange": "El recordatorio de entregas debe estar entre 1 y 168 horas antes.",
       "earlyAlertAttendanceOutOfRange": "La asistencia mínima debe estar entre 0 y 100 %.",
-      "earlyAlertCountsOutOfRange": "Las actividades toleradas (reprobadas y no entregadas) deben estar entre 0 y 100."
+      "earlyAlertCountsOutOfRange": "Las actividades toleradas (reprobadas y no entregadas) deben estar entre 0 y 100.",
+      "tutorDailyLimitOutOfRange": "Las preguntas por día al Asistente IA deben ser un entero entre 1 y {{max}}."
     },
     "modules_admin_AdminModelPanel": {
       "specifyModel": "Especifica un modelo",
@@ -5418,6 +5419,10 @@
     "loadErrorFallback": "No pudimos cargar los parámetros.",
     "earlyAlertTitle": "Alerta temprana",
     "earlyAlertNote": "Hacen falta dos motivos distintos para que un estudiante quede en riesgo. El promedio bajo usa la nota de aprobación del curso, no un umbral aparte.",
+    "tutorLimitTitle": "Asistente IA",
+    "labelTutorDailyLimit": "Preguntas por día al Asistente IA (por estudiante y curso)",
+    "labelTutorDailyLimitHint": "Cuántas preguntas puede hacerle cada estudiante al Asistente IA por curso y por día. El conteo se reinicia a las 12:00 a. m. (hora Colombia). Por defecto 25. Rango 1–500.",
+    "hintTutorDailyLimit": "Por defecto {{def}} preguntas por día. Se reinicia a la medianoche de Colombia.",
     "labelMinAttendance": "Asistencia mínima (%)",
     "labelMinAttendanceHint": "Por debajo de este porcentaje se marca el motivo de inasistencia. Las ausencias justificadas no cuentan y las llegadas tarde cuentan como asistencia.",
     "labelMaxFailed": "Actividades reprobadas toleradas",
@@ -8701,7 +8706,12 @@
     "emptyDescription": "Conozco el material de este curso. Pregúntame por conceptos, ejercicios, dudas de clase — te guío para que tú llegues a la respuesta.",
     "emptyDisclaimer": "No reemplazo a tu docente ni doy soluciones exactas a tareas.",
     "roleYou": "Tú",
-    "roleTutor": "Tutor"
+    "roleTutor": "Tutor",
+    "remaining_one": "Te queda 1 pregunta hoy",
+    "remaining_other": "Te quedan {{count}} preguntas hoy",
+    "remainingFew_one": "Te queda 1 pregunta hoy",
+    "remainingFew_other": "Te quedan {{count}} preguntas hoy",
+    "limitReached": "Llegaste al límite de {{limit}} preguntas de hoy en este curso. Se reinicia a las 12:00 a. m."
   },
   "hc_routesAppStudentWorkshops": {
     "hiddenByStatus_one": "Hay 1 taller más que no se muestra por el filtro de estado.",

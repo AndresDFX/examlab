@@ -22,6 +22,13 @@ import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { toast } from "sonner";
 import { Sparkles, Send, Trash2, Bot, User as UserIcon, AlertTriangle, FileText, X } from "lucide-react";
 import { ErrorState } from "@/components/ui/empty-state";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  DEFAULT_TUTOR_DAILY_LIMIT,
+  inicioDelDiaBogota,
+  resolverLimiteEfectivo,
+  restante,
+} from "../../supabase/functions/tutor-chat/limite-diario.ts";
 import { formatDateTime } from "@/shared/lib/format";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { extractEdgeError } from "@/shared/lib/edge-error";
@@ -66,6 +73,13 @@ function TutorChat() {
   const [retryNonce, setRetryNonce] = useState(0);
   const [sending, setSending] = useState(false);
   const [clearing, setClearing] = useState(false);
+  // Límite diario de preguntas (por estudiante y curso, día de Bogotá). El tope
+  // lo fija la institución (app_settings.tutor_daily_limit; NULL = default del
+  // código). `remaining` empieza en null (determinístico, sin leer nada en el
+  // initializer — hidratación #418) y se calcula post-montaje.
+  const [dailyLimit, setDailyLimit] = useState<number>(DEFAULT_TUTOR_DAILY_LIMIT);
+  const [remaining, setRemaining] = useState<number | null>(null);
+  const atLimit = remaining !== null && remaining <= 0;
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -95,24 +109,28 @@ function TutorChat() {
       setLoading(true);
       setLoadError(null);
       try {
-        const [{ data: c, error: cErr }, { data: s }, { data: contents }] = await Promise.all([
-          db.from("courses").select("id, name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
-          db
-            .from("tutor_chat_sessions")
-            .select("id")
-            .eq("user_id", user.id)
-            .eq("course_id", courseId)
-            .maybeSingle(),
-          // Contenidos del curso para el picker de # (solo done, no papelera).
-          db
-            .from("generated_contents")
-            .select("id, display_name, topic, files")
-            .eq("course_id", courseId)
-            .eq("status", "done")
-            .is("deleted_at", null)
-            .order("updated_at", { ascending: false })
-            .limit(30),
-        ]);
+        const [{ data: c, error: cErr }, { data: s }, { data: contents }, { data: settings }] =
+          await Promise.all([
+            db.from("courses").select("id, name").eq("id", courseId).is("deleted_at", null).maybeSingle(),
+            db
+              .from("tutor_chat_sessions")
+              .select("id")
+              .eq("user_id", user.id)
+              .eq("course_id", courseId)
+              .maybeSingle(),
+            // Contenidos del curso para el picker de # (solo done, no papelera).
+            db
+              .from("generated_contents")
+              .select("id, display_name, topic, files")
+              .eq("course_id", courseId)
+              .eq("status", "done")
+              .is("deleted_at", null)
+              .order("updated_at", { ascending: false })
+              .limit(30),
+            // Tope diario de preguntas de la institución (RLS deja al miembro
+            // del tenant leer su fila de app_settings).
+            db.from("app_settings").select("tutor_daily_limit").maybeSingle(),
+          ]);
         if (cancelled) return;
         if (cErr) {
           setLoadError(friendlyError(cErr, t("hc_routesAppStudentTutorCourseId.loadTutorError")));
@@ -137,16 +155,30 @@ function TutorChat() {
           }
         }
         setCourseFiles(files);
+        const limit = resolverLimiteEfectivo(
+          (settings as { tutor_daily_limit?: number | null } | null)?.tutor_daily_limit ?? null,
+        );
+        setDailyLimit(limit);
         const sid = (s as { id: string } | null)?.id ?? null;
         setSessionId(sid);
+        let loadedMsgs: Message[] = [];
         if (sid) {
           const { data: msgs } = await db
             .from("tutor_chat_messages")
             .select("id, session_id, role, content, created_at")
             .eq("session_id", sid)
             .order("created_at", { ascending: true });
-          if (!cancelled) setMessages((msgs ?? []) as Message[]);
+          if (cancelled) return;
+          loadedMsgs = (msgs ?? []) as Message[];
+          setMessages(loadedMsgs);
         }
+        // Preguntas usadas HOY (Bogotá) = mensajes del estudiante desde la
+        // medianoche de Bogotá. Se cuenta sobre los mensajes ya cargados.
+        const dayStart = inicioDelDiaBogota(new Date()).getTime();
+        const usedToday = loadedMsgs.filter(
+          (m) => m.role === "user" && new Date(m.created_at).getTime() >= dayStart,
+        ).length;
+        setRemaining(restante(limit, usedToday));
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e, t("hc_routesAppStudentTutorCourseId.loadTutorError")));
       } finally {
@@ -202,6 +234,11 @@ function TutorChat() {
       return;
     }
     setMessages([]);
+    // El conteo diario sale de los mensajes (no de un contador aparte), así que
+    // borrarlos hace que el servidor vuelva a contar 0 hoy → el restante real
+    // pasa a ser el tope. Es un hueco conocido y aceptado del diseño elegido
+    // (ver CHANGELOG); acá se refleja el estado REAL del servidor.
+    setRemaining(dailyLimit);
     toast.success(i18n.t("toast.routes_app_student_tutor_courseId.conversationCleared", { defaultValue: "Conversación limpiada" }));
   };
 
@@ -235,6 +272,7 @@ function TutorChat() {
     if (!user) return;
     const text = input.trim();
     if (!text) return;
+    if (atLimit) return;
 
     const sid = await ensureSession();
     if (!sid) return;
@@ -269,8 +307,26 @@ function TutorChat() {
         const real = await extractEdgeError(error, data);
         throw new Error(real || t("hc_routesAppStudentTutorCourseId.tutorQueryError"));
       }
+      // Tope diario alcanzado: el edge responde 200 con ok:false (no es una
+      // caída). No se procesó ni guardó la pregunta → se quita el optimista, se
+      // restaura el texto y se bloquea el envío hasta la medianoche de Bogotá.
+      if (data?.ok === false && data?.code === "daily_limit_reached") {
+        setMessages((prev) => prev.filter((m) => m.id !== optimisticUserMsg.id));
+        if (typeof data.limit === "number") setDailyLimit(data.limit);
+        setRemaining(0);
+        setInput(text);
+        toast.error(
+          t("hc_routesAppStudentTutorCourseId.limitReached", {
+            limit: typeof data.limit === "number" ? data.limit : dailyLimit,
+          }),
+        );
+        return;
+      }
       if (data?.error) throw new Error(data.error);
       await loadMessages(sid);
+      // Actualizar el restante con lo que devolvió el edge (ya contó esta).
+      if (typeof data?.limit === "number") setDailyLimit(data.limit);
+      if (typeof data?.remaining === "number") setRemaining(data.remaining);
       // Las referencias aplican al mensaje enviado; se limpian para el próximo.
       setReferenced([]);
     } catch (e) {
@@ -340,6 +396,22 @@ function TutorChat() {
         </div>
 
         <div className="border-t p-3 space-y-2">
+          {atLimit ? (
+            <Alert className="border-warning/50 text-warning-on-subtle [&>svg]:text-warning-on-subtle">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {t("hc_routesAppStudentTutorCourseId.limitReached", { limit: dailyLimit })}
+              </AlertDescription>
+            </Alert>
+          ) : remaining !== null && remaining <= 5 ? (
+            <p className="text-2xs font-medium text-warning-on-subtle">
+              {t("hc_routesAppStudentTutorCourseId.remainingFew", { count: remaining })}
+            </p>
+          ) : remaining !== null ? (
+            <p className="text-2xs text-muted-foreground">
+              {t("hc_routesAppStudentTutorCourseId.remaining", { count: remaining })}
+            </p>
+          ) : null}
           {referenced.length > 0 && (
             <div className="flex flex-wrap items-center gap-1">
               <span className="text-2xs text-muted-foreground mr-0.5">{t("hc_routesAppStudentTutorCourseId.referencedMaterial")}</span>
@@ -396,7 +468,7 @@ function TutorChat() {
               rows={3}
               className="resize-none text-sm"
               maxLength={4000}
-              disabled={sending || loading}
+              disabled={sending || loading || atLimit}
               onKeyDown={(e) => {
                 if (tagQuery && suggestions.length > 0) {
                   if (e.key === "ArrowDown") {
@@ -434,7 +506,7 @@ function TutorChat() {
             <Button
               size="sm"
               onClick={() => void sendMessage()}
-              disabled={sending || loading || !input.trim()}
+              disabled={sending || loading || !input.trim() || atLimit}
             >
               {sending ? (
                 <Spinner size="sm" className="mr-1" />

@@ -27,6 +27,12 @@ import {
 } from "./logistica.ts";
 import { resolveTutorSources, type TutorAiSourceRow } from "./tutor-sources.ts";
 import {
+  inicioDelDiaBogota,
+  proximaMedianocheBogota,
+  resolverLimiteEfectivo,
+  restante,
+} from "./limite-diario.ts";
+import {
   getActiveAiModel as resolveActiveModel,
   aiChatCompletionFailover,
 } from "../_shared/ai-model.ts";
@@ -900,6 +906,62 @@ Deno.serve(async (req) => {
       (course as { subject_id?: string | null } | null)?.subject_id ?? null;
     const periodId = (course as { period_id?: string | null } | null)?.period_id ?? null;
 
+    // ── Límite diario de preguntas (por estudiante y curso, día de Bogotá) ──
+    // Config de la institución en app_settings.tutor_daily_limit (NULL = default
+    // del código). Se verifica ANTES de llamar a la IA: alcanzado el tope la
+    // pregunta NO se procesa, NO se guarda y NO cuesta tokens. Error de dominio
+    // (200, ok:false) para que el cliente lo muestre sin tratarlo como caída.
+    // Aplica a TODOS los roles (docente probando incluido, y SuperAdmin): no se
+    // exime por rol — exceptuarlo costaría una consulta extra para un caso que
+    // casi nunca ocurre (un SuperAdmin no es dueño de sesiones de tutor).
+    // Límite conocido: dos envíos simultáneos pueden pasar la verificación a la
+    // vez (no hay lock); el overrun máximo es de 1 pregunta por carrera — aceptado.
+    const courseTenantId =
+      (course as { tenant_id?: string | null } | null)?.tenant_id ?? null;
+    let dailyLimit = resolverLimiteEfectivo(null);
+    if (courseTenantId) {
+      const { data: settings } = await admin
+        .from("app_settings")
+        .select("tutor_daily_limit")
+        .eq("tenant_id", courseTenantId)
+        .maybeSingle();
+      dailyLimit = resolverLimiteEfectivo(
+        (settings as { tutor_daily_limit?: number | null } | null)?.tutor_daily_limit ?? null,
+      );
+    }
+    const now = new Date();
+    const dayStartIso = inicioDelDiaBogota(now).toISOString();
+    // Sesiones del estudiante en ESTE curso: UNIQUE(user_id, course_id) → una,
+    // pero se consulta por (user, course) por robustez.
+    const { data: sessRows } = await admin
+      .from("tutor_chat_sessions")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("course_id", session.course_id);
+    const sessionIds = ((sessRows ?? []) as Array<{ id: string }>).map((s) => s.id);
+    let usedToday = 0;
+    if (sessionIds.length) {
+      const { count } = await admin
+        .from("tutor_chat_messages")
+        .select("id", { count: "exact", head: true })
+        .in("session_id", sessionIds)
+        .eq("role", "user")
+        .gte("created_at", dayStartIso);
+      usedToday = count ?? 0;
+    }
+    if (usedToday >= dailyLimit) {
+      return new Response(
+        JSON.stringify({
+          ok: false,
+          code: "daily_limit_reached",
+          limit: dailyLimit,
+          remaining: 0,
+          resets_at: proximaMedianocheBogota(now).toISOString(),
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
     // ── FUENTES del Tutor IA (Fase 1): resolver override del curso >
     // default de la asignatura > default del sistema. Sin filas → actual.
     let courseOverride: TutorAiSourceRow | null = null;
@@ -1088,6 +1150,10 @@ Deno.serve(async (req) => {
         ok: true,
         response: assistantContent,
         messageId: assistantMsg?.id ?? null,
+        limit: dailyLimit,
+        // Esta pregunta ya se contó (se acaba de guardar): usedToday + 1.
+        remaining: restante(dailyLimit, usedToday + 1),
+        resets_at: proximaMedianocheBogota(now).toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
