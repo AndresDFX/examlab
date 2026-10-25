@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_TUTOR_DAILY_LIMIT,
   MAX_TUTOR_DAILY_LIMIT,
+  fechaDiaBogota,
   inicioDelDiaBogota,
   proximaMedianocheBogota,
   resolverLimiteEfectivo,
@@ -28,6 +29,22 @@ describe("resolverLimiteEfectivo", () => {
     expect(resolverLimiteEfectivo(5.5)).toBe(DEFAULT_TUTOR_DAILY_LIMIT);
     expect(resolverLimiteEfectivo(MAX_TUTOR_DAILY_LIMIT + 1)).toBe(DEFAULT_TUTOR_DAILY_LIMIT);
     expect(resolverLimiteEfectivo(Number.NaN)).toBe(DEFAULT_TUTOR_DAILY_LIMIT);
+  });
+});
+
+describe("fechaDiaBogota", () => {
+  it("da la fecha de Bogotá como YYYY-MM-DD a media tarde", () => {
+    expect(fechaDiaBogota(new Date("2026-10-25T15:00:00.000Z"))).toBe("2026-10-25");
+  });
+
+  it("de madrugada UTC devuelve el día de Bogotá anterior", () => {
+    // 2026-10-25 03:00Z = 2026-10-24 22:00 en Bogotá.
+    expect(fechaDiaBogota(new Date("2026-10-25T03:00:00.000Z"))).toBe("2026-10-24");
+  });
+
+  it("coincide con la clave de día del contador (dia de inicioDelDiaBogota)", () => {
+    const now = new Date("2026-10-25T03:00:00.000Z");
+    expect(inicioDelDiaBogota(now).toISOString().slice(0, 10)).toBe(fechaDiaBogota(now));
   });
 });
 

@@ -25,7 +25,7 @@ import { ErrorState } from "@/components/ui/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   DEFAULT_TUTOR_DAILY_LIMIT,
-  inicioDelDiaBogota,
+  fechaDiaBogota,
   resolverLimiteEfectivo,
   restante,
 } from "../../supabase/functions/tutor-chat/limite-diario.ts";
@@ -161,7 +161,6 @@ function TutorChat() {
         setDailyLimit(limit);
         const sid = (s as { id: string } | null)?.id ?? null;
         setSessionId(sid);
-        let loadedMsgs: Message[] = [];
         if (sid) {
           const { data: msgs } = await db
             .from("tutor_chat_messages")
@@ -169,15 +168,20 @@ function TutorChat() {
             .eq("session_id", sid)
             .order("created_at", { ascending: true });
           if (cancelled) return;
-          loadedMsgs = (msgs ?? []) as Message[];
-          setMessages(loadedMsgs);
+          setMessages((msgs ?? []) as Message[]);
         }
-        // Preguntas usadas HOY (Bogotá) = mensajes del estudiante desde la
-        // medianoche de Bogotá. Se cuenta sobre los mensajes ya cargados.
-        const dayStart = inicioDelDiaBogota(new Date()).getTime();
-        const usedToday = loadedMsgs.filter(
-          (m) => m.role === "user" && new Date(m.created_at).getTime() >= dayStart,
-        ).length;
+        // Preguntas usadas HOY (Bogotá) desde el contador PERSISTENTE
+        // (tutor_uso_diario) — no de los mensajes, que se pueden limpiar. El
+        // estudiante solo lee su propia fila (RLS). Sin fila = 0 preguntas hoy.
+        const { data: uso } = await db
+          .from("tutor_uso_diario")
+          .select("preguntas")
+          .eq("user_id", user.id)
+          .eq("course_id", courseId)
+          .eq("dia", fechaDiaBogota(new Date()))
+          .maybeSingle();
+        if (cancelled) return;
+        const usedToday = (uso as { preguntas?: number } | null)?.preguntas ?? 0;
         setRemaining(restante(limit, usedToday));
       } catch (e) {
         if (!cancelled) setLoadError(friendlyError(e, t("hc_routesAppStudentTutorCourseId.loadTutorError")));
@@ -234,11 +238,9 @@ function TutorChat() {
       return;
     }
     setMessages([]);
-    // El conteo diario sale de los mensajes (no de un contador aparte), así que
-    // borrarlos hace que el servidor vuelva a contar 0 hoy → el restante real
-    // pasa a ser el tope. Es un hueco conocido y aceptado del diseño elegido
-    // (ver CHANGELOG); acá se refleja el estado REAL del servidor.
-    setRemaining(dailyLimit);
+    // El conteo diario vive en un contador PERSISTENTE (tutor_uso_diario), no en
+    // los mensajes: limpiar la conversación NO reinicia el límite. El restante se
+    // mantiene.
     toast.success(i18n.t("toast.routes_app_student_tutor_courseId.conversationCleared", { defaultValue: "Conversación limpiada" }));
   };
 

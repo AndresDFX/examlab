@@ -39,12 +39,11 @@ export function resolverLimiteEfectivo(
 }
 
 /**
- * Inicio del día calendario de Bogotá que contiene `now`, como instante UTC.
- * Colombia (America/Bogota) es UTC-5 fijo —sin horario de verano desde 1993—,
- * así que la medianoche local de un día `Y-M-D` es ese día a las 05:00Z. Se
- * obtiene la fecha local con Intl (robusto) y se ancla al offset fijo.
+ * Fecha calendario de Bogotá de `now` como "YYYY-MM-DD". Es la clave de día del
+ * contador `tutor_uso_diario.dia`; debe coincidir con el `(now() AT TIME ZONE
+ * 'America/Bogota')::date` que usan las funciones SQL del edge.
  */
-export function inicioDelDiaBogota(now: Date): Date {
+export function fechaDiaBogota(now: Date): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "America/Bogota",
     year: "numeric",
@@ -54,7 +53,16 @@ export function inicioDelDiaBogota(now: Date): Date {
   const y = parts.find((p) => p.type === "year")!.value;
   const m = parts.find((p) => p.type === "month")!.value;
   const d = parts.find((p) => p.type === "day")!.value;
-  return new Date(`${y}-${m}-${d}T05:00:00.000Z`);
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Inicio del día calendario de Bogotá que contiene `now`, como instante UTC.
+ * Colombia (America/Bogota) es UTC-5 fijo —sin horario de verano desde 1993—,
+ * así que la medianoche local de un día `Y-M-D` es ese día a las 05:00Z.
+ */
+export function inicioDelDiaBogota(now: Date): Date {
+  return new Date(`${fechaDiaBogota(now)}T05:00:00.000Z`);
 }
 
 /**

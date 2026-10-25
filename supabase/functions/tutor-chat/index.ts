@@ -27,7 +27,6 @@ import {
 } from "./logistica.ts";
 import { resolveTutorSources, type TutorAiSourceRow } from "./tutor-sources.ts";
 import {
-  inicioDelDiaBogota,
   proximaMedianocheBogota,
   resolverLimiteEfectivo,
   restante,
@@ -846,6 +845,12 @@ async function resolveTutorTemplate(
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  // Si se consumió una pregunta del cupo diario y la IA/el guardado fallan, hay
+  // que devolverla (no cobrar un error). Se setea tras consumir y se limpia al
+  // guardar; el catch la devuelve si quedó pendiente. Fuera del try porque el
+  // catch no ve el scope del bloque try.
+  let pendienteDevolver: { user: string; course: string } | null = null;
+
   try {
     // Auth: necesitamos validar que el usuario está logueado y la sesión es suya.
     const userClient = userClientFromRequest(req);
@@ -908,14 +913,17 @@ Deno.serve(async (req) => {
 
     // ── Límite diario de preguntas (por estudiante y curso, día de Bogotá) ──
     // Config de la institución en app_settings.tutor_daily_limit (NULL = default
-    // del código). Se verifica ANTES de llamar a la IA: alcanzado el tope la
-    // pregunta NO se procesa, NO se guarda y NO cuesta tokens. Error de dominio
-    // (200, ok:false) para que el cliente lo muestre sin tratarlo como caída.
-    // Aplica a TODOS los roles (docente probando incluido, y SuperAdmin): no se
-    // exime por rol — exceptuarlo costaría una consulta extra para un caso que
-    // casi nunca ocurre (un SuperAdmin no es dueño de sesiones de tutor).
-    // Límite conocido: dos envíos simultáneos pueden pasar la verificación a la
-    // vez (no hay lock); el overrun máximo es de 1 pregunta por carrera — aceptado.
+    // del código). El cupo se CONSUME de forma atómica ANTES de llamar a la IA
+    // (contador persistente `tutor_uso_diario` vía RPC SECURITY DEFINER): el
+    // upsert con incremento condicionado al límite cierra la carrera de dos
+    // envíos simultáneos. Alcanzado el tope la pregunta NO se procesa, NO se
+    // guarda y NO cuesta tokens → error de dominio (200, ok:false) para que el
+    // cliente lo muestre sin tratarlo como caída. Aplica a TODOS los roles
+    // (docente probando incluido, y SuperAdmin): no se exime por rol.
+    // Si la IA falla DESPUÉS de consumir, se devuelve la pregunta (decremento)
+    // en el catch — no se cobra un error. El contador es persistente, así que
+    // limpiar la conversación ya NO reinicia el conteo del día.
+    const now = new Date();
     const courseTenantId =
       (course as { tenant_id?: string | null } | null)?.tenant_id ?? null;
     let dailyLimit = resolverLimiteEfectivo(null);
@@ -929,27 +937,16 @@ Deno.serve(async (req) => {
         (settings as { tutor_daily_limit?: number | null } | null)?.tutor_daily_limit ?? null,
       );
     }
-    const now = new Date();
-    const dayStartIso = inicioDelDiaBogota(now).toISOString();
-    // Sesiones del estudiante en ESTE curso: UNIQUE(user_id, course_id) → una,
-    // pero se consulta por (user, course) por robustez.
-    const { data: sessRows } = await admin
-      .from("tutor_chat_sessions")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("course_id", session.course_id);
-    const sessionIds = ((sessRows ?? []) as Array<{ id: string }>).map((s) => s.id);
-    let usedToday = 0;
-    if (sessionIds.length) {
-      const { count } = await admin
-        .from("tutor_chat_messages")
-        .select("id", { count: "exact", head: true })
-        .in("session_id", sessionIds)
-        .eq("role", "user")
-        .gte("created_at", dayStartIso);
-      usedToday = count ?? 0;
-    }
-    if (usedToday >= dailyLimit) {
+    const { data: consumo, error: consumoErr } = await admin.rpc(
+      "tutor_consumir_pregunta",
+      { _user: userId, _course: session.course_id, _limite: dailyLimit },
+    );
+    if (consumoErr) throw consumoErr;
+    const consumoRow = (Array.isArray(consumo) ? consumo[0] : consumo) as
+      | { paso?: boolean; usadas?: number }
+      | null;
+    const usedToday = typeof consumoRow?.usadas === "number" ? consumoRow.usadas : dailyLimit;
+    if (!consumoRow?.paso) {
       return new Response(
         JSON.stringify({
           ok: false,
@@ -961,6 +958,10 @@ Deno.serve(async (req) => {
         { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
+    // Desde acá la pregunta YA está consumida: si algo falla antes de guardarla,
+    // hay que devolverla. Se marca el contexto pendiente (lo lee el catch) y se
+    // limpia cuando la entrega queda escrita.
+    pendienteDevolver = { user: userId, course: session.course_id };
 
     // ── FUENTES del Tutor IA (Fase 1): resolver override del curso >
     // default de la asignatura > default del sistema. Sin filas → actual.
@@ -1136,6 +1137,8 @@ Deno.serve(async (req) => {
       ])
       .select("id, role, created_at");
     if (insErr) throw insErr;
+    // La pregunta quedó guardada: el cupo consumido se da por bueno.
+    pendienteDevolver = null;
 
     // Bumpear updated_at de la sesión
     await admin
@@ -1151,13 +1154,25 @@ Deno.serve(async (req) => {
         response: assistantContent,
         messageId: assistantMsg?.id ?? null,
         limit: dailyLimit,
-        // Esta pregunta ya se contó (se acaba de guardar): usedToday + 1.
-        remaining: restante(dailyLimit, usedToday + 1),
+        // `usedToday` ya incluye esta pregunta (el consumo la incrementó).
+        remaining: restante(dailyLimit, usedToday),
         resets_at: proximaMedianocheBogota(now).toISOString(),
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e: unknown) {
+    // Si se había consumido una pregunta del cupo y no llegó a guardarse,
+    // devolverla (best-effort) para no cobrar un error de la IA / del guardado.
+    if (pendienteDevolver) {
+      try {
+        await admin.rpc("tutor_devolver_pregunta", {
+          _user: pendienteDevolver.user,
+          _course: pendienteDevolver.course,
+        });
+      } catch {
+        /* best-effort: el peor caso es cobrar 1 de más */
+      }
+    }
     const msg = e instanceof Error ? e.message : "Error interno";
     return new Response(JSON.stringify({ error: msg }), {
       status: 500,
