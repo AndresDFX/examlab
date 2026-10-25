@@ -72,3 +72,12 @@ describe("vttToReadableText", () => {
     expect(vttToReadableText("WEBVTT\n\n")).toBe("");
   });
 });
+
+describe("entidades HTML de Teams", () => {
+  it("decodifica acentos en el hablante y en el texto", () => {
+    const vtt = "WEBVTT\n\nx/1-0\n00:00:04.684 --> 00:00:08.964\n<v Julian Andres Casta&#241;o Espinosa>Tranquilo, sí la pone &amp; ya.</v>\n";
+    const [cue] = parseVtt(vtt);
+    expect(cue.speaker).toBe("Julian Andres Castaño Espinosa");
+    expect(cue.text).toBe("Tranquilo, sí la pone & ya.");
+  });
+});

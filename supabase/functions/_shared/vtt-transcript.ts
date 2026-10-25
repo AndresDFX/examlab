@@ -25,13 +25,27 @@ export interface TranscriptCue {
 /** Quita todas las etiquetas angulares: `<v Nombre>`, `</v>`, `<c.colorE5E5E5>`,
  *  timestamps inline `<00:00:01.000>`, etc. */
 function stripTags(s: string): string {
-  return s.replace(/<[^>]*>/g, "").replace(/\s+/g, " ").trim();
+  return decodeEntities(s.replace(/<[^>]*>/g, "")).replace(/\s+/g, " ").trim();
+}
+
+const ENTIDADES: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " " };
+
+/** Teams escribe los acentos como entidades (`Casta&#241;o`): sin decodificar,
+ *  el hablante no coincide con el nombre del docente y el texto sale con códigos. */
+function decodeEntities(s: string): string {
+  return s.replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (m, e: string) => {
+    if (e[0] === "#") {
+      const n = e[1] === "x" || e[1] === "X" ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10);
+      return Number.isFinite(n) ? String.fromCodePoint(n) : m;
+    }
+    return ENTIDADES[e.toLowerCase()] ?? m;
+  });
 }
 
 /** Extrae el nombre del hablante de la primera etiqueta `<v Nombre>`. */
 function extractSpeaker(raw: string): string | null {
   const m = raw.match(/<v\s+([^>]+?)>/i);
-  return m ? m[1].trim() : null;
+  return m ? decodeEntities(m[1]).trim() : null;
 }
 
 /** Parsea el VTT a una lista ordenada de cues ya limpios. */

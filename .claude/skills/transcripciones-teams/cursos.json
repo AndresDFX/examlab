@@ -1,0 +1,13 @@
+{
+  "_nota": "Un curso de ExamLab ↔ su reunión recurrente de Teams. `titulo` es una expresión regular sobre el título de la reunión en el calendario de Teams. Se actualiza CADA semestre.",
+  "docente_id": "0a26163e-1845-4cc6-9898-dc4c24e51a9a",
+  "cursos": [
+    { "codigo": "641A-2", "curso_id": "f23b6519-c8a9-4766-80f6-f56605310512", "titulo": "641A-2 - Base de Datos II" },
+    { "codigo": "6303C", "curso_id": "b5499e08-0d90-4d4e-a8cb-944d2ba05013", "titulo": "6303C - Arquitectura de Si" },
+    { "codigo": "341C-SEM", "curso_id": "f23b2c3f-4559-435f-a9ae-155a46d899f1", "titulo": "341C - Seminario de Sis" },
+    { "codigo": "341C-PROG", "curso_id": "44fc55a6-b610-4c5f-befa-f58bc307068f", "titulo": "341C - Programacion II" },
+    { "codigo": "LB141F", "curso_id": "98d592d6-6209-5033-aacb-c9de0d01373b", "titulo": "LB141F - Introducci" },
+    { "codigo": "SB141B", "curso_id": "f75be96a-65d5-56f9-aa41-63a3e2189a3c", "titulo": "SB141B - Introducci" },
+    { "codigo": "SB141C", "curso_id": "c3952827-9737-500b-8326-374a37f1981b", "titulo": "SB141C - Introducci" }
+  ]
+}
