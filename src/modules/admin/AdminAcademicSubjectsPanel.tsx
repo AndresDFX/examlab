@@ -50,7 +50,9 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { BookOpen, Plus, Pencil, Trash2, BookOpenCheck, FilePlus2, Copy } from "lucide-react";
+import { BookOpen, Plus, Pencil, Trash2, BookOpenCheck, FilePlus2, Copy, Bot, FolderOpen } from "lucide-react";
+import { TutorSourcesDialog } from "@/modules/tutor/TutorSourcesDialog";
+import { SubjectMaterialDialog } from "@/modules/tutor/SubjectMaterialDialog";
 import { useConfirm } from "@/shared/components/ConfirmDialog";
 import { friendlyError } from "@/shared/lib/db-errors";
 import { logEvent } from "@/shared/lib/audit";
@@ -167,6 +169,9 @@ export function AdminAcademicSubjectsPanel() {
   // Fila que se está eliminando — anti doble-submit + ítem del menú
   // deshabilitado mientras el DELETE vuela.
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // Fuentes del Tutor IA + material de la asignatura (Fase 1).
+  const [tutorSourcesFor, setTutorSourcesFor] = useState<Subject | null>(null);
+  const [materialFor, setMaterialFor] = useState<Subject | null>(null);
   // Guard "cambios sin guardar" para el dialog crear/editar asignatura (el
   // sílabo es mucha data: objetivos, contenidos, bibliografía, pesos…). El
   // form ya es UN objeto (`draft`), así que se pasa directo al hook.
@@ -602,6 +607,17 @@ export function AdminAcademicSubjectsPanel() {
                             { label: t("academic.subjects.actionEdit"), icon: Pencil, onClick: () => openEdit(r) },
                             { label: t("common.duplicate"), icon: Copy, onClick: () => duplicate(r) },
                             {
+                              label: t("tutorSources.actionSources"),
+                              icon: Bot,
+                              onClick: () => setTutorSourcesFor(r),
+                              separatorBefore: true,
+                            },
+                            {
+                              label: t("tutorSources.actionMaterial"),
+                              icon: FolderOpen,
+                              onClick: () => setMaterialFor(r),
+                            },
+                            {
                               label: t("academic.subjects.actionCreateCourse"),
                               icon: FilePlus2,
                               onClick: () =>
@@ -939,6 +955,23 @@ export function AdminAcademicSubjectsPanel() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {tutorSourcesFor && (
+        <TutorSourcesDialog
+          open={!!tutorSourcesFor}
+          onOpenChange={(v) => !v && setTutorSourcesFor(null)}
+          scope="subject"
+          scopeId={tutorSourcesFor.id}
+        />
+      )}
+      {materialFor && (
+        <SubjectMaterialDialog
+          open={!!materialFor}
+          onOpenChange={(v) => !v && setMaterialFor(null)}
+          subjectId={materialFor.id}
+          subjectName={materialFor.name}
+        />
+      )}
     </Card>
   );
 }

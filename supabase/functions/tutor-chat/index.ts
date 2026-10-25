@@ -19,6 +19,7 @@
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { textoUtil } from "../_shared/ai-content.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
+import { resolveTutorSources, type TutorAiSourceRow } from "./tutor-sources.ts";
 import {
   getActiveAiModel as resolveActiveModel,
   aiChatCompletionFailover,
@@ -300,12 +301,14 @@ async function buildCourseMaterial(
  * tabla no cambia — acá leemos con el admin client, que bypassa RLS, pero solo
  * tomamos `teacher_text`.
  */
-async function buildTeacherTranscripts(courseId: string): Promise<string> {
-  // Sesiones del curso (sin papelera), más recientes primero.
+async function buildTeacherTranscripts(courseIds: string[]): Promise<string> {
+  // `.in(col, [])` en PostgREST devuelve TODAS las filas — guard de longitud.
+  if (!courseIds.length) return "";
+  // Sesiones de los cursos (sin papelera), más recientes primero.
   const { data: sessions } = await admin
     .from("attendance_sessions")
     .select("id, title, session_date")
-    .eq("course_id", courseId)
+    .in("course_id", courseIds)
     .is("deleted_at", null)
     .order("session_date", { ascending: false })
     .limit(MAX_TRANSCRIPT_SESSIONS * 3);
@@ -361,6 +364,49 @@ async function buildTeacherTranscripts(courseId: string): Promise<string> {
     usadas++;
   }
   return acc.trim();
+}
+
+/**
+ * Material asignado a la ASIGNATURA (persiste entre semestres). Lee
+ * content_subject_assignments → generated_contents (done, sin papelera).
+ */
+async function fetchSubjectMaterialRows(subjectId: string): Promise<MaterialRow[]> {
+  const { data: asg } = await admin
+    .from("content_subject_assignments")
+    .select("content_id")
+    .eq("subject_id", subjectId);
+  const ids = ((asg ?? []) as Array<{ content_id: string }>).map((a) => a.content_id);
+  if (!ids.length) return [];
+  const { data: contents } = await admin
+    .from("generated_contents")
+    .select("id, topic, display_name, files")
+    .in("id", ids)
+    .eq("status", "done")
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: false })
+    .limit(30);
+  return (contents ?? []) as MaterialRow[];
+}
+
+/**
+ * Cursos HERMANOS: otros grupos de la MISMA asignatura y el MISMO periodo (sin
+ * papelera), excluyendo el curso actual. Semestres anteriores NO entran — por
+ * eso se exige igual period_id. Solo se usan sus transcripciones (teacher_text).
+ */
+async function fetchSiblingCourseIds(
+  subjectId: string,
+  periodId: string | null,
+  excludeCourseId: string,
+): Promise<string[]> {
+  if (!periodId) return [];
+  const { data } = await admin
+    .from("courses")
+    .select("id")
+    .eq("subject_id", subjectId)
+    .eq("period_id", periodId)
+    .is("deleted_at", null)
+    .neq("id", excludeCourseId);
+  return ((data ?? []) as Array<{ id: string }>).map((c) => c.id);
 }
 
 // ── AI gateway: reutiliza el patrón del edge function de grading ──
@@ -549,23 +595,60 @@ Deno.serve(async (req) => {
       content: m.content,
     }));
 
-    // Cargar contexto del curso
+    // Cargar contexto del curso (+ asignatura y periodo para las fuentes).
     const { data: course } = await admin
       .from("courses")
-      .select("name, description, tenant_id")
+      .select("name, description, tenant_id, subject_id, period_id")
       .eq("id", session.course_id)
       .maybeSingle();
+    const subjectId =
+      (course as { subject_id?: string | null } | null)?.subject_id ?? null;
+    const periodId = (course as { period_id?: string | null } | null)?.period_id ?? null;
 
-    const { data: contents } = await admin
-      .from("generated_contents")
-      .select("id, topic, display_name, files")
-      .eq("course_id", session.course_id)
-      .eq("status", "done")
-      .is("deleted_at", null)
-      .order("updated_at", { ascending: false })
-      .limit(30);
+    // ── FUENTES del Tutor IA (Fase 1): resolver override del curso >
+    // default de la asignatura > default del sistema. Sin filas → actual.
+    let courseOverride: TutorAiSourceRow | null = null;
+    let subjectDefault: TutorAiSourceRow | null = null;
+    const { data: srcRows } = await admin
+      .from("tutor_ai_sources")
+      .select(
+        "subject_id, course_id, src_subject_material, src_course_material, src_course_transcripts, src_sibling_transcripts",
+      )
+      .or(
+        subjectId
+          ? `course_id.eq.${session.course_id},subject_id.eq.${subjectId}`
+          : `course_id.eq.${session.course_id}`,
+      );
+    for (const r of (srcRows ?? []) as Array<TutorAiSourceRow & { course_id: string | null; subject_id: string | null }>) {
+      if (r.course_id === session.course_id) courseOverride = r;
+      else if (subjectId && r.subject_id === subjectId) subjectDefault = r;
+    }
+    const sources = resolveTutorSources(courseOverride, subjectDefault);
 
-    const contentRows = (contents ?? []) as MaterialRow[];
+    // Material del CURSO (contenidos del semestre).
+    const courseContentRows: MaterialRow[] = [];
+    if (sources.courseMaterial) {
+      const { data: contents } = await admin
+        .from("generated_contents")
+        .select("id, topic, display_name, files")
+        .eq("course_id", session.course_id)
+        .eq("status", "done")
+        .is("deleted_at", null)
+        .order("updated_at", { ascending: false })
+        .limit(30);
+      courseContentRows.push(...((contents ?? []) as MaterialRow[]));
+    }
+
+    // Material de la ASIGNATURA (persiste entre semestres).
+    const subjectContentRows: MaterialRow[] =
+      sources.subjectMaterial && subjectId ? await fetchSubjectMaterialRows(subjectId) : [];
+
+    // Dedup por id (un contenido puede estar en ambos): el del curso gana.
+    const seen = new Set(courseContentRows.map((r) => r.id));
+    const contentRows = [
+      ...courseContentRows,
+      ...subjectContentRows.filter((r) => !seen.has(r.id)),
+    ];
 
     const contentTopics = contentRows.map((c) => c.display_name || c.topic).filter(Boolean);
 
@@ -585,10 +668,15 @@ Deno.serve(async (req) => {
     // no solo los títulos.
     let courseMaterial = await buildCourseMaterial(contentRows, referencedKeys);
 
-    // Texto del docente de las transcripciones de clase (solo teacher_text).
-    // Se adjunta al material para que el tutor cite lo que el docente explicó
-    // en vivo. Va con su propio budget, así que ampliamos el tope del bloque.
-    const teacherTranscripts = await buildTeacherTranscripts(session.course_id);
+    // Transcripciones (solo voz del docente). Este curso, y opcionalmente otros
+    // grupos de la MISMA asignatura y periodo (nunca semestres anteriores).
+    const transcriptCourseIds: string[] = [];
+    if (sources.courseTranscripts) transcriptCourseIds.push(session.course_id);
+    if (sources.siblingTranscripts && subjectId) {
+      const siblings = await fetchSiblingCourseIds(subjectId, periodId, session.course_id);
+      transcriptCourseIds.push(...siblings);
+    }
+    const teacherTranscripts = await buildTeacherTranscripts(transcriptCourseIds);
     if (teacherTranscripts) {
       courseMaterial =
         (courseMaterial ? courseMaterial + "\n\n" : "") +

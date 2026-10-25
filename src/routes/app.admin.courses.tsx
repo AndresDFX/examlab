@@ -73,6 +73,7 @@ import {
   Award,
   RefreshCw,
   Stethoscope,
+  Bot,
   Play,
   CheckCircle2,
   Undo2,
@@ -81,6 +82,7 @@ import {
 import { CourseCertificateSettingsDialog } from "@/modules/certificates/CourseCertificateSettingsDialog";
 import { RuletaDialog } from "@/modules/ruleta/RuletaDialog";
 import { CourseDiagnosticDialog } from "@/modules/courses/CourseDiagnosticDialog";
+import { TutorSourcesDialog } from "@/modules/tutor/TutorSourcesDialog";
 import {
   Select,
   SelectContent,
@@ -250,6 +252,8 @@ export function AdminCourses() {
   // conversaciones abiertas y asistencia, con acciones de remediación
   // (re-encolar IA, cerrar conversación, navegar a calificar).
   const [diagnosticForCourse, setDiagnosticForCourse] = useState<Course | null>(null);
+  // Fuentes del Tutor IA (override por curso). Fase 1.
+  const [tutorSourcesForCourse, setTutorSourcesForCourse] = useState<Course | null>(null);
   // Editor de horarios — dialog independiente abierto desde el menú
   // de acciones de fila. Mantener fuera del editing principal evita
   // sobrecargar el dialog del form de curso.
@@ -2529,6 +2533,12 @@ export function AdminCourses() {
                           onClick: () => setDiagnosticForCourse(c),
                           separatorBefore: true,
                         },
+                        {
+                          label: t("tutorSources.actionSources"),
+                          icon: Bot,
+                          onClick: () => setTutorSourcesForCourse(c),
+                          hint: c.subject_id ? undefined : t("tutorSources.noSubjectHint"),
+                        },
                         // ── Transiciones de ciclo de vida ──
                         // Solo la transición relevante por estado se renderiza
                         // (RowActionsMenu filtra los items nullish). Gateamos
@@ -3527,6 +3537,15 @@ export function AdminCourses() {
           onOpenChange={(o) => !o && setDiagnosticForCourse(null)}
           courseId={diagnosticForCourse.id}
           courseName={diagnosticForCourse.name}
+        />
+      )}
+      {tutorSourcesForCourse && (
+        <TutorSourcesDialog
+          open={!!tutorSourcesForCourse}
+          onOpenChange={(o) => !o && setTutorSourcesForCourse(null)}
+          scope="course"
+          scopeId={tutorSourcesForCourse.id}
+          subjectId={tutorSourcesForCourse.subject_id}
         />
       )}
     </div>

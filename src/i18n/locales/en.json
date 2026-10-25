@@ -11588,5 +11588,34 @@
       "sinGrupoTitulo": "No group (can't submit)",
       "sinGrupoHint": "Without a group they can't submit. Drag them into a group; it can be a one-person group."
     }
+  },
+  "tutorSources": {
+    "title": "AI Tutor sources",
+    "descriptionSubject": "Set which sources the AI Tutor uses by default in courses of this subject. Each course can override it.",
+    "descriptionCourse": "Choose which sources the AI Tutor uses in this course. By default it inherits the subject's configuration.",
+    "overrideLabel": "Override for this course",
+    "overrideOn": "This course uses its own configuration.",
+    "inheritedFromSubject": "Inherited from the subject.",
+    "inheritedFromDefault": "Using the system defaults.",
+    "subjectMaterial": "Subject material",
+    "subjectMaterialHint": "Presentations and guides assigned to the subject (kept across terms).",
+    "courseMaterial": "Course's own material",
+    "courseMaterialHint": "Content uploaded to this course (this term).",
+    "courseTranscripts": "This course's transcripts",
+    "courseTranscriptsHint": "Teacher's explanations in this course's classes (teacher voice only).",
+    "siblingTranscripts": "Other groups' transcripts",
+    "siblingTranscriptsHint": "Teacher's explanations in other groups of the same subject and term. Never from previous terms.",
+    "backToSubject": "Back to the subject's settings",
+    "saved": "AI Tutor sources saved.",
+    "savedInherited": "This course will use the subject's sources again.",
+    "actionSources": "AI Tutor sources",
+    "actionMaterial": "Subject material",
+    "noSubjectHint": "This course has no subject: it inherits no material.",
+    "materialTitle": "Subject material",
+    "materialDescription": "Choose the content the AI Tutor will use in any course of “{{subject}}”.",
+    "materialEmpty": "No content available",
+    "materialEmptyHint": "Upload material to a course first so you can assign it to the subject.",
+    "materialSaved": "Subject material updated.",
+    "materialSelectedCount": "{{count}} content item(s) selected"
   }
 }

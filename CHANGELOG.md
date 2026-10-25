@@ -99,6 +99,24 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- **Fuentes del Tutor IA parametrizables (Fase 1, sin embeddings).** Ahora se elige QUÉ alimenta al
+  Tutor IA, con cuatro interruptores: material de la asignatura (on), material propio del curso (on),
+  transcripciones de este curso (on) y transcripciones de otros grupos de la MISMA asignatura y el
+  MISMO periodo (off; solo voz del docente, nunca de semestres anteriores). El **Admin** fija el
+  default por **asignatura** (panel académico → fila → «Fuentes del Tutor IA») y asigna material a la
+  asignatura para que persista entre semestres («Material de la asignatura»); el **docente** sobrescribe
+  en su **curso** (grid de cursos → «Fuentes del Tutor IA») o vuelve a lo heredado. Resolución efectiva:
+  override del curso > asignatura > default; sin configuración, comportamiento idéntico al actual. Un
+  curso nuevo de la asignatura hereda el material sin reasignarlo. Migración `20262880000000`
+  (defensiva, sin `NOTIFY pgrst`): tablas `tutor_ai_sources` (dos alcances en una, CHECK de exactamente
+  uno) y `content_subject_assignments`, ambas tenant-scoped con RLS por institución (Admin escribe la
+  de asignatura y el material; docente del curso o Admin el override; SuperAdmin todo; nunca `USING(true)`
+  ni `has_role` sin tenant). El edge `tutor-chat` resuelve la config y arma el contexto solo con las
+  fuentes encendidas (presupuesto por fuente; material referenciado con `#` sigue con prioridad). Helper
+  puro `resolveTutorSources` (`src/modules/tutor/tutor-sources.ts` + copia Deno, test). i18n es/en.
+  **Reporte UNIAJ:** de 10 cursos vigentes, solo 2 sin `subject_id` y ambos finalizados
+  («Seminario de Sistemas-341C», «Prueba mensaje») — ningún curso activo queda sin herencia. Fase 1
+  cambia qué entra, no cómo se busca (sin embeddings ni pgvector).
 - **Subir transcripciones de Teams a mano + usar lo que dijo el DOCENTE en el Tutor IA.** TI de la
   UNIAJC no aprobó la app de Graph, así que el camino automático (`fetch_transcript`) sigue bloqueado.
   Ahora el docente puede **subir el `.vtt`** que Teams web descarga, desde el mismo diálogo

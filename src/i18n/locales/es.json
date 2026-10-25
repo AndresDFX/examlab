@@ -11588,5 +11588,34 @@
       "sinGrupoTitulo": "Sin grupo (no pueden entregar)",
       "sinGrupoHint": "Sin grupo no pueden entregar. Arrástralos a un grupo; puede ser uno de una sola persona."
     }
+  },
+  "tutorSources": {
+    "title": "Fuentes del Tutor IA",
+    "descriptionSubject": "Define qué fuentes usa el Tutor IA por defecto en los cursos de esta asignatura. Cada curso puede sobrescribirlo.",
+    "descriptionCourse": "Elige qué fuentes usa el Tutor IA en este curso. Por defecto hereda lo configurado en la asignatura.",
+    "overrideLabel": "Sobrescribir para este curso",
+    "overrideOn": "Este curso usa su propia configuración.",
+    "inheritedFromSubject": "Heredado de la asignatura.",
+    "inheritedFromDefault": "Usando los valores por defecto del sistema.",
+    "subjectMaterial": "Material de la asignatura",
+    "subjectMaterialHint": "Presentaciones y guías asignadas a la asignatura (se conservan entre semestres).",
+    "courseMaterial": "Material propio del curso",
+    "courseMaterialHint": "Contenidos cargados en este curso (este semestre).",
+    "courseTranscripts": "Transcripciones de este curso",
+    "courseTranscriptsHint": "Explicaciones del docente en las clases de este curso (solo su voz).",
+    "siblingTranscripts": "Transcripciones de otros grupos",
+    "siblingTranscriptsHint": "Explicaciones del docente en otros grupos de la misma asignatura y el mismo periodo. Nunca de semestres anteriores.",
+    "backToSubject": "Volver a lo de la asignatura",
+    "saved": "Fuentes del Tutor IA guardadas.",
+    "savedInherited": "Este curso volverá a usar las fuentes de la asignatura.",
+    "actionSources": "Fuentes del Tutor IA",
+    "actionMaterial": "Material de la asignatura",
+    "noSubjectHint": "Este curso no tiene asignatura: no hereda material.",
+    "materialTitle": "Material de la asignatura",
+    "materialDescription": "Elige los contenidos que el Tutor IA usará en cualquier curso de «{{subject}}».",
+    "materialEmpty": "No hay contenidos disponibles",
+    "materialEmptyHint": "Carga material en algún curso primero para poder asignarlo a la asignatura.",
+    "materialSaved": "Material de la asignatura actualizado.",
+    "materialSelectedCount": "{{count}} contenido(s) seleccionado(s)"
   }
 }
