@@ -294,7 +294,7 @@ async function buildCourseMaterial(
  * Texto del DOCENTE de las transcripciones de las clases del curso. Lee SOLO
  * `teacher_text` (lo que dijo el docente) de session_transcripts, de las
  * sesiones del curso que NO están en papelera, priorizando las más recientes.
- * Devuelve bloques etiquetados con la sesión y su fecha, acotados por budget.
+ * Devuelve bloques SIN sesión ni fecha (el tutor sirve a cualquier semestre), acotados por budget.
  *
  * Privacidad: NUNCA `content_text` (tiene voces de estudiantes). La RLS de la
  * tabla no cambia — acá leemos con el admin client, que bypassa RLS, pero solo
@@ -348,8 +348,10 @@ async function buildTeacherTranscripts(courseId: string): Promise<string> {
     if (texto.length > TRANSCRIPT_PER_SESSION_CHARS) {
       texto = texto.slice(0, TRANSCRIPT_PER_SESSION_CHARS).trimEnd() + " …";
     }
-    const titulo = (s.title ?? "").trim() || "Clase";
-    const header = `\n\n### ${titulo} — ${s.session_date} (lo que explicó el docente)\n`;
+    // Sin título ni fecha de la sesión: el tutor sirve a cualquier versión del curso, y
+    // con ellos citaba «En la Sesión 6 … (2026-10-01)», que no le dice nada al
+    // estudiante de otro semestre.
+    const header = `\n\n### Explicación del docente en clase\n`;
     const block = header + texto;
     if (acc.length + block.length > TRANSCRIPT_TOTAL_CHARS) {
       acc += block.slice(0, TRANSCRIPT_TOTAL_CHARS - acc.length);
@@ -592,8 +594,8 @@ Deno.serve(async (req) => {
         (courseMaterial ? courseMaterial + "\n\n" : "") +
         "## Transcripciones de clase (voz del docente)\n" +
         "Esto es lo que el DOCENTE explicó en clase (transcripción de la reunión, " +
-        "filtrada a sus intervenciones). Úsalo como material del curso y cita la clase " +
-        "y su fecha cuando lo uses.\n" +
+        "filtrada a sus intervenciones). Úsalo como material del curso. NO cites sesiones, " +
+        "fechas ni semestres: si hace falta, di «como se explicó en clase».\n" +
         teacherTranscripts;
     }
 
