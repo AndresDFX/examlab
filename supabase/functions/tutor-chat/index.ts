@@ -19,6 +19,12 @@
 import { adminClient as admin, corsHeaders, userClientFromRequest } from "../_shared/admin.ts";
 import { textoUtil } from "../_shared/ai-content.ts";
 import { buildTutorSystemPrompt, truncateHistory, type ChatMessage } from "./tutor-prompt.ts";
+import {
+  construirBloqueLogistica,
+  entregaRealizada,
+  type ActividadLog,
+  type SesionLog,
+} from "./logistica.ts";
 import { resolveTutorSources, type TutorAiSourceRow } from "./tutor-sources.ts";
 import {
   getActiveAiModel as resolveActiveModel,
@@ -409,6 +415,295 @@ async function fetchSiblingCourseIds(
   return ((data ?? []) as Array<{ id: string }>).map((c) => c.id);
 }
 
+// ── LOGÍSTICA del curso (calendario, entregas, clases) ───────────────────
+// Fuente de verdad: lo PUBLICADO + asignado a ESTE estudiante + sin papelera,
+// del curso de la sesión. El edge usa el admin client (bypassa RLS), así que
+// filtra a mano a lo que el estudiante vería. Las transformaciones puras
+// (formato de fecha, estado de entrega, armado) viven en logistica.ts.
+
+/** Peso efectivo: vacío o ≤ 0 → 0 (igual que el acta y nota-relativa.ts). */
+function pesoEfectivoEdge(peso: number | string | null | undefined): number {
+  const n = Number(peso);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+/**
+ * Corte y peso de un taller/proyecto EN ESTE CURSO (espejo de `corteYPesoEnCurso`
+ * de src/modules/grading/nota-relativa.ts): manda la fila de unión con corte; si
+ * no, la de la actividad cuando es de este curso.
+ */
+function corteYPesoEnCursoEdge(
+  union: { cut_id?: string | null; weight?: number | null } | undefined,
+  propia: { course_id?: string | null; cut_id?: string | null; weight?: number | null },
+  courseId: string,
+): { cutId: string | null; weight: number } {
+  if (union?.cut_id) {
+    return { cutId: union.cut_id, weight: pesoEfectivoEdge(union.weight ?? propia.weight) };
+  }
+  if (propia.course_id === courseId && propia.cut_id) {
+    return { cutId: propia.cut_id, weight: pesoEfectivoEdge(propia.weight) };
+  }
+  return { cutId: null, weight: 0 };
+}
+
+const MAKEUP_LABEL: Record<string, string> = {
+  supletorio: "Supletorio",
+  recuperatorio: "Recuperatorio",
+};
+
+/**
+ * Arma el bloque de logística del curso para el estudiante `userId`. Devuelve ""
+ * si no hay nada que mostrar (o si el usuario no es estudiante del curso — queda
+ * vacío, no falla).
+ */
+async function buildCourseLogistics(courseId: string, userId: string): Promise<string> {
+  // Cortes del curso (nombre por id).
+  const { data: cutsData } = await admin
+    .from("grade_cuts")
+    .select("id, name")
+    .eq("course_id", courseId);
+  const cutName = new Map<string, string>(
+    ((cutsData ?? []) as Array<{ id: string; name: string }>).map((c) => [c.id, c.name]),
+  );
+
+  const actividades: ActividadLog[] = [];
+
+  // ── Exámenes (de este curso; asignados por exam_assignments) ──
+  const { data: examRows } = await admin
+    .from("exams")
+    .select(
+      "id, title, status, start_time, end_time, is_external, cut_id, weight, parent_exam_id, makeup_kind",
+    )
+    .eq("course_id", courseId)
+    .eq("status", "published")
+    .is("deleted_at", null);
+  const exams = (examRows ?? []) as Array<{
+    id: string;
+    title: string;
+    start_time: string | null;
+    end_time: string | null;
+    is_external: boolean | null;
+    cut_id: string | null;
+    weight: number | null;
+    parent_exam_id: string | null;
+    makeup_kind: string | null;
+  }>;
+  if (exams.length > 0) {
+    const examIds = exams.map((e) => e.id);
+    const { data: asg } = await admin
+      .from("exam_assignments")
+      .select("exam_id")
+      .eq("user_id", userId)
+      .in("exam_id", examIds);
+    const assigned = new Set(((asg ?? []) as Array<{ exam_id: string }>).map((a) => a.exam_id));
+    const visibles = exams.filter((e) => assigned.has(e.id));
+    const { data: subs } = visibles.length
+      ? await admin
+          .from("submissions")
+          .select("exam_id, status")
+          .eq("user_id", userId)
+          .in(
+            "exam_id",
+            visibles.map((e) => e.id),
+          )
+      : { data: [] };
+    const subByExam = new Map<string, string | null>();
+    for (const s of (subs ?? []) as Array<{ exam_id: string; status: string | null }>) {
+      if (entregaRealizada(s.status)) subByExam.set(s.exam_id, s.status ?? null);
+    }
+    for (const e of visibles) {
+      actividades.push({
+        tipo: "examen",
+        titulo: e.title,
+        inicioIso: e.start_time,
+        cierreIso: e.end_time,
+        corteNombre: e.cut_id ? (cutName.get(e.cut_id) ?? null) : null,
+        peso: pesoEfectivoEdge(e.weight),
+        externa: !!e.is_external,
+        entrego: subByExam.has(e.id),
+        esRecuperacion: !!e.parent_exam_id,
+        makeupLabel: e.parent_exam_id ? (MAKEUP_LABEL[e.makeup_kind ?? ""] ?? "Recuperación") : null,
+      });
+    }
+  }
+
+  // ── Talleres y Proyectos (M:N: por fila de unión Y por curso ancla) ──
+  await appendMnActividades(actividades, {
+    tipo: "taller",
+    courseId,
+    userId,
+    tabla: "workshops",
+    unionTabla: "workshop_courses",
+    asgTabla: "workshop_assignments",
+    subTabla: "workshop_submissions",
+    groupMembersTabla: "workshop_group_members",
+    fkCol: "workshop_id",
+    parentCol: "parent_workshop_id",
+    cutName,
+  });
+  await appendMnActividades(actividades, {
+    tipo: "proyecto",
+    courseId,
+    userId,
+    tabla: "projects",
+    unionTabla: "project_courses",
+    asgTabla: "project_assignments",
+    subTabla: "project_submissions",
+    groupMembersTabla: "project_group_members",
+    fkCol: "project_id",
+    parentCol: null,
+    cutName,
+  });
+
+  // ── Sesiones de clase (del curso, sin papelera) ──
+  const { data: sesData } = await admin
+    .from("attendance_sessions")
+    .select("title, session_date, start_time, session_type, recording_url, recording_video_id")
+    .eq("course_id", courseId)
+    .is("deleted_at", null);
+  const sesiones: SesionLog[] = ((sesData ?? []) as Array<{
+    title: string | null;
+    session_date: string;
+    start_time: string | null;
+    session_type: string | null;
+    recording_url: string | null;
+    recording_video_id: string | null;
+  }>).map((s) => ({
+    titulo: s.title,
+    fecha: s.session_date,
+    hora: s.start_time,
+    tipo: s.session_type,
+    tieneGrabacion: !!(s.recording_url || s.recording_video_id),
+  }));
+
+  return construirBloqueLogistica({ ahora: Date.now(), actividades, sesiones });
+}
+
+/** Talleres/Proyectos: carga por fila de unión + curso ancla, filtra a asignados. */
+async function appendMnActividades(
+  out: ActividadLog[],
+  cfg: {
+    tipo: "taller" | "proyecto";
+    courseId: string;
+    userId: string;
+    tabla: string;
+    unionTabla: string;
+    asgTabla: string;
+    subTabla: string;
+    groupMembersTabla: string;
+    fkCol: string;
+    parentCol: string | null;
+    cutName: Map<string, string>;
+  },
+): Promise<void> {
+  // Filas de unión de ESTE curso (corte/peso del curso).
+  const { data: unionRows } = await admin
+    .from(cfg.unionTabla)
+    .select(`${cfg.fkCol}, cut_id, weight`)
+    .eq("course_id", cfg.courseId);
+  const unionById = new Map<string, { cut_id: string | null; weight: number | null }>();
+  for (const r of (unionRows ?? []) as Array<Record<string, unknown>>) {
+    unionById.set(String(r[cfg.fkCol]), {
+      cut_id: (r.cut_id as string | null) ?? null,
+      weight: (r.weight as number | null) ?? null,
+    });
+  }
+
+  const selCols = cfg.parentCol
+    ? `id, title, status, due_date, is_external, course_id, cut_id, weight, ${cfg.parentCol}, makeup_kind`
+    : `id, title, status, due_date, is_external, course_id, cut_id, weight`;
+  // Ítems: los de la fila de unión + los que tienen a este curso como ancla.
+  const unionIds = [...unionById.keys()];
+  const { data: ancla } = await admin
+    .from(cfg.tabla)
+    .select(selCols)
+    .eq("course_id", cfg.courseId)
+    .eq("status", "published")
+    .is("deleted_at", null);
+  const { data: porUnion } = unionIds.length
+    ? await admin
+        .from(cfg.tabla)
+        .select(selCols)
+        .in("id", unionIds)
+        .eq("status", "published")
+        .is("deleted_at", null)
+    : { data: [] };
+  type Row = {
+    id: string;
+    title: string;
+    due_date: string | null;
+    is_external: boolean | null;
+    course_id: string | null;
+    cut_id: string | null;
+    weight: number | null;
+    [k: string]: unknown;
+  };
+  const byId = new Map<string, Row>();
+  for (const r of [...((ancla ?? []) as Row[]), ...((porUnion ?? []) as Row[])]) {
+    byId.set(r.id, r);
+  }
+  if (byId.size === 0) return;
+
+  const ids = [...byId.keys()];
+  // Asignación al estudiante.
+  const { data: asg } = await admin
+    .from(cfg.asgTabla)
+    .select(cfg.fkCol)
+    .eq("user_id", cfg.userId)
+    .in(cfg.fkCol, ids);
+  const assigned = new Set(
+    ((asg ?? []) as Array<Record<string, unknown>>).map((a) => String(a[cfg.fkCol])),
+  );
+  const visibles = ids.filter((id) => assigned.has(id));
+  if (visibles.length === 0) return;
+
+  // Entregas: individuales (user_id) + por grupo (group_id del estudiante).
+  const { data: gmem } = await admin
+    .from(cfg.groupMembersTabla)
+    .select("group_id")
+    .eq("user_id", cfg.userId);
+  const groupIds = ((gmem ?? []) as Array<{ group_id: string }>).map((g) => g.group_id);
+  const entregados = new Set<string>();
+  const { data: subsU } = await admin
+    .from(cfg.subTabla)
+    .select(`${cfg.fkCol}, status`)
+    .eq("user_id", cfg.userId)
+    .in(cfg.fkCol, visibles);
+  for (const s of (subsU ?? []) as Array<Record<string, unknown>>) {
+    if (entregaRealizada(s.status as string | null)) entregados.add(String(s[cfg.fkCol]));
+  }
+  if (groupIds.length) {
+    const { data: subsG } = await admin
+      .from(cfg.subTabla)
+      .select(`${cfg.fkCol}, status`)
+      .in("group_id", groupIds)
+      .in(cfg.fkCol, visibles);
+    for (const s of (subsG ?? []) as Array<Record<string, unknown>>) {
+      if (entregaRealizada(s.status as string | null)) entregados.add(String(s[cfg.fkCol]));
+    }
+  }
+
+  for (const id of visibles) {
+    const r = byId.get(id)!;
+    const { cutId, weight } = corteYPesoEnCursoEdge(unionById.get(id), r, cfg.courseId);
+    const parentId = cfg.parentCol ? (r[cfg.parentCol] as string | null) : null;
+    out.push({
+      tipo: cfg.tipo,
+      titulo: r.title,
+      inicioIso: null,
+      cierreIso: r.due_date,
+      corteNombre: cutId ? (cfg.cutName.get(cutId) ?? null) : null,
+      peso: weight,
+      externa: !!r.is_external,
+      entrego: entregados.has(id),
+      esRecuperacion: !!parentId,
+      makeupLabel: parentId
+        ? (MAKEUP_LABEL[(r.makeup_kind as string | null) ?? ""] ?? "Recuperación")
+        : null,
+    });
+  }
+}
+
 // ── AI gateway: reutiliza el patrón del edge function de grading ──
 // Multi-tenant: hint para resolver ai_model_settings por tenant.
 
@@ -687,6 +982,21 @@ Deno.serve(async (req) => {
         teacherTranscripts;
     }
 
+    // Logística del curso (calendario, entregas, clases). Va SIEMPRE y compacto
+    // (no hay clasificador de intención: el prompt decide qué usar). Es
+    // independiente de las fuentes del tutor — son fechas/entregas del propio
+    // estudiante, no material de estudio. Si el usuario no es estudiante del
+    // curso (docente probando), el bloque queda vacío y no se agrega.
+    let logistica = "";
+    try {
+      logistica = await buildCourseLogistics(session.course_id, userId);
+    } catch {
+      /* best-effort: un fallo de la logística no debe tumbar la conversación */
+    }
+    if (logistica) {
+      courseMaterial = (courseMaterial ? courseMaterial + "\n\n" : "") + logistica;
+    }
+
     // Conciencia temporal: fecha/hora actual formateada en es-CO /
     // America/Bogota. Se inyecta en el placeholder {{current_datetime}} para
     // que el tutor pueda responder "cuándo es el examen / cuántos días
@@ -711,7 +1021,8 @@ Deno.serve(async (req) => {
       courseMaterial,
       // El tope del bloque de material incluye el presupuesto de las
       // transcripciones del docente, ya acotadas en buildTeacherTranscripts.
-      maxMaterialChars: MATERIAL_TOTAL_CHARS + TRANSCRIPT_TOTAL_CHARS + 500,
+      // +2600 para el bloque de logística (ya acotado en MAX_CHARS_BLOQUE).
+      maxMaterialChars: MATERIAL_TOTAL_CHARS + TRANSCRIPT_TOTAL_CHARS + 2600 + 500,
       currentDatetime,
     });
 

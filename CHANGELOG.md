@@ -99,6 +99,21 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- **El Tutor IA ya conoce el calendario del curso (logística: fechas y entregas).** Ahora responde
+  «¿cuándo es el Parcial 2?», «¿hasta cuándo el taller?», «¿qué me falta entregar?» y «¿cuándo es la
+  próxima clase?». El edge `tutor-chat` arma un bloque compacto `## Calendario del curso` (tope 2.500
+  caracteres) y lo concatena al material del tutor, **siempre** (no hay clasificador de intención: el
+  prompt decide qué usar). La **fuente de verdad es lo PUBLICADO y asignado a ESE estudiante, sin
+  papelera, del curso de la sesión**: exámenes, talleres y proyectos con título, inicio/cierre en hora
+  de Colombia y con el día de la semana, corte y peso en el curso, si es externo (no se entrega en la
+  plataforma) y si el estudiante ya entregó o está pendiente (individual o por su grupo); recuperaciones
+  solo si le están asignadas; próximas clases y clases recientes con grabación (solo avisa que hay
+  grabación en Cursos/Asistencia, sin el enlace). Ventana de 21 días atrás a 90 adelante. No muestra
+  datos de otros estudiantes y, si lo que se pregunta no aparece, el tutor no lo inventa. Para un docente
+  probando el tutor, el bloque queda vacío sin fallar. Helpers puros en
+  `supabase/functions/tutor-chat/logistica.ts` con tests (`src/modules/tutor/logistica-tutor.test.ts`);
+  invariante byte-idéntico de la lista negra de «sin entregar» con `entrega-hecha.ts`. No toca el prompt
+  por defecto del tutor. Sin migración (solo lectura filtrada en el edge).
 - **Fuentes del Tutor IA parametrizables (Fase 1, sin embeddings).** Ahora se elige QUÉ alimenta al
   Tutor IA, con cuatro interruptores: material de la asignatura (on), material propio del curso (on),
   transcripciones de este curso (on) y transcripciones de otros grupos de la MISMA asignatura y el
