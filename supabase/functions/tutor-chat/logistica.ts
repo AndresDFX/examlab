@@ -167,6 +167,19 @@ function refActividad(a: ActividadLog): number | null {
   return Number.isFinite(i) ? i : null;
 }
 
+/** «es hoy», «es mañana», «en 11 días», «hace 3 días», entre el día (Bogotá) del
+ *  evento y hoy. Va calculado en el bloque: el modelo hace mal la resta de fechas
+ *  (dijo «mañana» para un parcial que faltaba 11 días). */
+export function relativoDias(iso: string | null | undefined, ahora: number): string {
+  const t = iso ? Date.parse(iso) : Number.NaN;
+  if (!Number.isFinite(t)) return "";
+  const d = Math.round((Date.parse(hoyBogotaISO(t)) - Date.parse(hoyBogotaISO(ahora))) / 86400000);
+  if (d === 0) return "es hoy";
+  if (d === 1) return "es mañana";
+  if (d === -1) return "fue ayer";
+  return d > 1 ? `en ${d} días` : `hace ${-d} días`;
+}
+
 function lineaActividad(a: ActividadLog, ahora: number): string {
   const base = a.esRecuperacion
     ? `${a.makeupLabel || "Recuperación"} de ${TIPO_LABEL[a.tipo].toLowerCase()}`
@@ -184,8 +197,9 @@ function lineaActividad(a: ActividadLog, ahora: number): string {
   const conPunto = (s: string) => (s.endsWith(".") ? s : s + ".");
   const abre = formatFechaHoraBogota(a.inicioIso);
   const cierra = formatFechaHoraBogota(a.cierreIso);
-  if (abre && a.tipo === "examen") partes.push(` Abre: ${conPunto(abre)}`);
-  if (cierra) partes.push(` ${a.tipo === "examen" ? "Cierra" : "Entrega hasta"}: ${conPunto(cierra)}`);
+  const rel = (iso: string | null | undefined) => { const r = relativoDias(iso, ahora); return r ? ` (${r})` : ""; };
+  if (abre && a.tipo === "examen") partes.push(` Abre: ${conPunto(abre + rel(a.inicioIso))}`);
+  if (cierra) partes.push(` ${a.tipo === "examen" ? "Cierra" : "Entrega hasta"}: ${conPunto(cierra + rel(a.cierreIso))}`);
   else if (!abre) partes.push(" Sin fecha definida todavía.");
   if (!a.externa) {
     // «Pendiente» solo si todavía se puede: una que ya cerró sin entrega le diría al

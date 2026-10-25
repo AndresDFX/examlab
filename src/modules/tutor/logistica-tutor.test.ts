@@ -8,6 +8,7 @@ import {
   formatFechaSesionBogota,
   hoyBogotaISO,
   construirBloqueLogistica,
+  relativoDias,
   type ActividadLog,
   type SesionLog,
 } from "../../../supabase/functions/tutor-chat/logistica.ts";
@@ -190,5 +191,23 @@ describe("construirBloqueLogistica", () => {
     const out = construirBloqueLogistica({ ahora: AHORA, actividades: [], sesiones });
     expect(out).toContain("Cursos o Asistencia");
     expect(out).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe("relativoDias (la resta de fechas no se le deja al modelo)", () => {
+  // 25 de octubre de 2026, 4:40 p. m. en Bogotá.
+  const ahora = Date.parse("2026-10-25T21:40:00Z");
+  it("cuenta por día de Bogotá, no por instante", () => {
+    // Parcial 2: jueves 5 de noviembre 6:30 p. m. Bogotá = 23:30 UTC.
+    expect(relativoDias("2026-11-05T23:30:00Z", ahora)).toBe("en 11 días");
+    // Cierra 8:00 p. m. Bogotá = 01:00 UTC del 6: sigue siendo el día 5.
+    expect(relativoDias("2026-11-06T01:00:00Z", ahora)).toBe("en 11 días");
+  });
+  it("hoy, mañana, ayer y pasado", () => {
+    expect(relativoDias("2026-10-26T04:59:00Z", ahora)).toBe("es hoy");
+    expect(relativoDias("2026-10-26T15:00:00Z", ahora)).toBe("es mañana");
+    expect(relativoDias("2026-10-24T15:00:00Z", ahora)).toBe("fue ayer");
+    expect(relativoDias("2026-10-11T04:59:00Z", ahora)).toBe("hace 15 días");
+    expect(relativoDias(null, ahora)).toBe("");
   });
 });
