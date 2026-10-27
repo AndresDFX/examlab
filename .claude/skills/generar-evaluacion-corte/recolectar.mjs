@@ -181,7 +181,16 @@ if (pizarras.length) {
       if (pg.text_content) p(recortar(pg.text_content, 6000));
       if (pg.code_source) p("```" + (pg.code_language ?? ""), recortar(pg.code_source, 4000), "```");
       if (pg.last_stdout) p("Salida:", "```", recortar(pg.last_stdout, 1500), "```");
-      if (pg.sql_setup || pg.sql_answer) p("```sql", recortar(`${pg.sql_setup ?? ""}\n${pg.sql_answer ?? ""}`, 4000), "```");
+      if (pg.sql_setup || pg.sql_answer) {
+        // sql_answer se guarda como el JSON de una respuesta bd_sql ({bdSql, sql, …}).
+        let sql = pg.sql_answer ?? "";
+        try {
+          sql = JSON.parse(sql).sql ?? sql;
+        } catch {
+          /* texto plano */
+        }
+        p("```sql", recortar(`${pg.sql_setup ?? ""}\n${sql}`, 6000), "```");
+      }
       if (pg.diagram_source) p("```mermaid", recortar(pg.diagram_source, 3000), "```");
       if (pg.console_transcript) p("Consola:", "```", recortar(String(pg.console_transcript), 2000), "```");
       p("");
