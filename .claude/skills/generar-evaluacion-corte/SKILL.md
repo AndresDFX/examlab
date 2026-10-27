@@ -73,6 +73,20 @@ dice: no se inventa.
 
 ## 4. Generar
 
+**Regla que manda sobre todas las demás (decisión del docente, 2026-10-26):** las preguntas
+SINTETIZAN lo que el docente EXPLICÓ. La fuente principal son las **transcripciones**; la
+pizarra y el material solo sirven para tomar el detalle exacto (nombres de tablas, datos, el
+código) de algo que **también se explicó en voz**. Si un concepto aparece en una pizarra o en
+el material pero no en ninguna transcripción de la ventana, **no se pregunta** (pasó: una
+pizarra traía `FOR UPDATE` y `COMMIT` dentro de un procedimiento, nunca explicados). Antes de
+crear, verificar cada concepto de cada pregunta con un `grep` en las transcripciones y listar en
+el plan los descartados. Sesión autónoma sin transcripción = no aporta temas, salvo que el
+docente diga lo contrario.
+
+**Enunciados aislados**: nunca «termine el procedimiento que quedó en la pizarra», «la misma
+tabla de la clase» ni «como vimos el lunes». Cada pregunta trae todo lo que necesita (tabla,
+datos, código) y se entiende sola; el vínculo con la clase va solo en el plan para el docente.
+
 - **Solo lo que la plataforma califica** (memoria `preguntas-solo-lo-evaluable`): `cerrada`,
   `cerrada_multi`, `abierta` con rúbrica, `codigo` con lenguaje y plantilla, `bd_sql` con
   `CREATE TABLE` en el esquema. Nada de «entregue un documento».
