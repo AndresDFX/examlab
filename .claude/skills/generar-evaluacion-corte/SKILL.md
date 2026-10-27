@@ -76,13 +76,33 @@ dice: no se inventa.
 - **Solo lo que la plataforma califica** (memoria `preguntas-solo-lo-evaluable`): `cerrada`,
   `cerrada_multi`, `abierta` con rúbrica, `codigo` con lenguaje y plantilla, `bd_sql` con
   `CREATE TABLE` en el esquema. Nada de «entregue un documento».
-- **Dificultad básica**: reconocer, explicar con sus palabras, completar o seguir un ejemplo
+- **Mezcla de tipos, SIEMPRE** (parcial y taller). Nunca una evaluación de un solo tipo. Mínimo
+  por evaluación de 7 a 12 preguntas:
+  - selección (`cerrada`) para los conceptos, con al menos una `cerrada_multi` (de opción
+    múltiple: obliga a saber cuáles son TODAS las correctas, no a descartar);
+  - al menos 2 `abierta` (explicar, comparar, analizar un escenario paso a paso);
+  - al menos 2 de práctica del tipo de la asignatura: `bd_sql` en bases de datos, `codigo` en
+    programación, `diagrama` en arquitectura/modelado;
+  - reparto del puntaje: la práctica pesa más (≈ 40-50 %), lo conceptual ≈ 20-30 % y lo abierto
+    el resto. Si el docente pide otra proporción, manda la suya.
+  En el plan del paso 3 se muestra el conteo por tipo para que el docente lo vea antes.
+- **Parcial frente a taller**: el parcial se arma con dificultad básica (lo que todo el curso
+  debe saber). El taller, salvo que el docente diga otra cosa, toma **las preguntas más
+  exigentes** de cada tipo sobre los mismos temas: escenarios con varias validaciones,
+  concurrencia, combinar dos conceptos, consultas con JOIN/agregación, analizar «qué pasa si…».
+  No repite preguntas del parcial: si coinciden en tema, cambia el escenario y los datos.
+- **Dificultad básica** (parcial, por defecto): reconocer, explicar con sus palabras, completar o seguir un ejemplo
   muy parecido al de clase. Los distractores son confusiones reales del tema, no trampas.
 - **Anclada**: cada pregunta lleva, solo en la propuesta para el docente (no en el enunciado),
   de qué clase y fuente sale. Reusar los ejemplos de la pizarra con otros datos.
 - Español de Colombia, de usted, enunciados autocontenidos (el estudiante no ve la pizarra).
-- `cerrada`: 4 opciones, una correcta en `correct_index`; revisar que la clave sea utilizable
-  (lo mismo que verifica `QuestionOptionsPreview`).
+- `cerrada`: 4 opciones, una correcta en `correct_index`; `cerrada_multi`: 5 opciones con
+  `correct_indices`. Revisar que la clave sea utilizable (lo mismo que verifica
+  `QuestionOptionsPreview`).
+- **Todo `bd_sql` se verifica antes de crearlo**: correr `setupSql` + una solución de
+  referencia en PGlite (`npm i @electric-sql/pglite` en el scratchpad, nunca en el repo) y
+  comprobar que da el resultado que dice la rúbrica, incluidos los casos que DEBEN fallar. La
+  rúbrica cita el resultado esperado con números.
 
 ## 5. Crear en la plataforma (en borrador)
 
