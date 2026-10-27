@@ -90,7 +90,13 @@ dice: no se inventa.
   debe saber). El taller, salvo que el docente diga otra cosa, toma **las preguntas más
   exigentes** de cada tipo sobre los mismos temas: escenarios con varias validaciones,
   concurrencia, combinar dos conceptos, consultas con JOIN/agregación, analizar «qué pasa si…».
-  No repite preguntas del parcial: si coinciden en tema, cambia el escenario y los datos.
+- **El parcial toma ≈ 50 % de sus preguntas del taller del mismo corte** (patrón del docente desde
+  el Corte 1). Se arma primero el taller; después el parcial copia TAL CUAL la mitad de sus
+  preguntas, una de cada tipo distinto (selección múltiple, selección, abierta, práctica) y
+  dejando fuera la más larga del taller para que el parcial quepa en su tiempo; la otra mitad
+  son preguntas nuevas de dificultad básica. En el plan del paso 3 se marca cuáles vienen del
+  taller. Si el taller ya existe, se parte de sus preguntas; si se genera solo el parcial,
+  avisar que no hay taller del que tomar.
 - **Dificultad básica** (parcial, por defecto): reconocer, explicar con sus palabras, completar o seguir un ejemplo
   muy parecido al de clase. Los distractores son confusiones reales del tema, no trampas.
 - **Anclada**: cada pregunta lleva, solo en la propuesta para el docente (no en el enunciado),
