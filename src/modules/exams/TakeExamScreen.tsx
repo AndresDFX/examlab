@@ -122,8 +122,10 @@ import {
   restoreQuestionIndex,
   respuestasAlReanudar,
   firmaDeRespuestas,
+  firmaDeContenido,
   debeSubirRespuestas,
   latidoEsRedundante,
+  retrasoDeEntregaAutomatica,
   MS_BLOQUEO_SESION,
   MS_ENTRE_LATIDOS,
 } from "@/modules/exams/exam-session";
@@ -337,6 +339,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   const [manualLeaveOpen, setManualLeaveOpen] = useState(false);
   const approvedNote = useApprovedExamNote(examId, user?.id);
   const submittedRef = useRef(false);
+  // Se acabó el tiempo: CONGELA las respuestas. La auto-entrega se dispersa con
+  // un retraso aleatorio (ver `handleTimeUp`) para no entregar 200 a la vez, y
+  // durante ese retraso `updateAnswer` ignora cambios — así el reparto no le da
+  // a nadie ni un segundo extra de edición.
+  const tiempoAgotadoRef = useRef(false);
+  const autoEntregaTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const sessionIdRef = useRef<string>("");
   const submissionIdRef = useRef<string | null>(null);
   // Copia local de las respuestas leída al cargar (ver `respuestasAlReanudar`).
@@ -378,10 +386,13 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // Cuándo se guardaron por última vez las respuestas EN LA BASE. Lo lee el
   // latido para no duplicar una escritura y para decidir la subida periódica.
   const ultimoGuardadoRef = useRef(0);
-  // Firma del contenido que tiene la base (lo último que escribió
-  // `saveAnswersNow`) y del último guardado, local o en la base. Con la primera
-  // el latido sabe si hay cambios sin subir; con la segunda la copia local no se
-  // re-sella cuando no cambió nada (ver `combinarCopiaConServidor`).
+  // `firmaEnServidorRef`: firma del CONTENIDO que la base ya tiene (respuestas +
+  // sesión + advertencias, SIN el índice de pregunta; ver `firmaDeContenido`).
+  // La usan DOS decisiones: (1) el latido, para saber si hay contenido sin subir;
+  // (2) el guardado, para SALTARSE la reescritura cuando el alumno solo navegó
+  // sin responder (el índice cambió pero el contenido no).
+  // `firmaGuardadaRef`: firma del último guardado local o en base, CON el índice
+  // (`firmaDeRespuestas`), para que la copia local no se re-selle sin cambios.
   const firmaEnServidorRef = useRef("");
   const firmaGuardadaRef = useRef("");
   // Ref para datos del examen necesarios en callbacks (evita closures stale).
@@ -443,7 +454,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // (useBlocker only intercepts router-level navigation from within the route subtree).
   useEffect(() => {
     if (!started) return;
-    const handler = () => setManualLeaveOpen(true);
+    // Con el tiempo agotado no hay examen del que salir: el diálogo cobraría una
+    // advertencia sobre una entrega que solo espera su turno (ver `handleTimeUp`).
+    const handler = () => {
+      if (tiempoAgotadoRef.current) return;
+      setManualLeaveOpen(true);
+    };
     window.addEventListener("examlab:navAttempt", handler);
     return () => window.removeEventListener("examlab:navAttempt", handler);
   }, [started]);
@@ -508,6 +524,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   }, [db, simulacro]);
 
   const updateAnswer = useCallback((questionId: string, value: any) => {
+    // Tiempo agotado: las respuestas quedan congeladas hasta la auto-entrega
+    // (que puede estar esperando su retraso de dispersión). Sin esto, el reparto
+    // del pico de cierre se traduciría en segundos de edición extra para algunos.
+    if (tiempoAgotadoRef.current) return;
     const next = { ...answersRef.current, [questionId]: value };
     answersRef.current = next;
     setAnswers(next);
@@ -872,10 +892,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           );
         }
         // Session lock via answers.__session_id + updated_at (no extra columns needed).
-        // `updated_at` lo mantiene fresco el latido de cada 5 s (y el autosave,
-        // cuando el alumno escribe). El latido manda SOLO esa columna: ver el
-        // efecto del heartbeat más abajo.
-        // If another device owns the session and updated_at is <10s old → block.
+        // `updated_at` lo mantiene fresco el latido (`MS_ENTRE_LATIDOS`) y cada
+        // guardado en la base. El latido manda SOLO esa columna: ver el efecto
+        // del heartbeat más abajo.
+        // Si otro dispositivo tiene la sesión y `updated_at` es más reciente que
+        // `MS_BLOQUEO_SESION` → bloquear.
         const existingAnswers = (resumeTarget.answers as Record<string, any>) ?? {};
         const storedSession = existingAnswers.__session_id as string | undefined;
         const updatedAt = new Date((resumeTarget as any).updated_at).getTime();
@@ -1081,6 +1102,11 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         setSubmissionStartedAt((data as any).started_at ?? new Date().toISOString());
         answersRef.current = initialAnswers;
         setAnswers(initialAnswers);
+        // El INSERT ya dejó este contenido (solo el `__session_id`) en la base.
+        // Sembrar la firma evita que la PRIMERA navegación sin responder dispare
+        // una reescritura redundante — justo en la ráfaga de arranque, cuando
+        // 200 alumnos entran en el mismo minuto.
+        firmaEnServidorRef.current = firmaDeContenido(initialAnswers);
         void logEvent({
           action: "exam_started",
           category: "exam",
@@ -1309,32 +1335,56 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     const currentWarnings = warningsRef.current;
     const firma = firmaDeRespuestas(currentAnswers);
     firmaGuardadaRef.current = firma;
+    const firmaContenido = firmaDeContenido(currentAnswers);
     if (isOnline()) {
-      // El error del UPDATE se ignoraba por completo: si el guardado
-      // fallaba (RLS, red, 5xx) el alumno seguía viendo "respuestas
-      // guardadas automáticamente" sin ninguna señal. Ahora lo reflejamos
-      // en un badge del header (`saveFailed`). NO tiramos el error: este
-      // helper lo llaman los flujos de ENTREGA y un throw acá abortaba la
-      // entrega entera (el respaldo local + el update de performSubmit son
-      // los que realmente cuentan).
-      try {
-        const { error } = await db
-          .from("submissions")
-          .update({ answers: currentAnswers, focus_warnings: currentWarnings })
-          .eq("id", submissionIdRef.current);
-        setSaveFailed(!!error);
-        // El latido mira estas marcas para no repetir una escritura que ya se
-        // hizo (ver `latidoEsRedundante`) y para saber si hay cambios sin subir.
-        // Solo cuentan si de verdad se guardó: si falló, `updated_at` no se
-        // movió y el latido TIENE que correr.
-        if (!error) {
-          ultimoGuardadoRef.current = Date.now();
-          firmaEnServidorRef.current = firma;
+      // ── "Dar siguiente sin haber cambiado nada" ya NO reescribe la fila ────
+      // Si lo ÚNICO que cambió desde el último guardado es el índice de la
+      // pregunta visible (el alumno navegó sin responder), la base ya tiene el
+      // contenido que importa, así que NO reescribimos la fila entera de
+      // `answers` (TOAST de ~6 KB): esa es la escritura que, con 120+ alumnos,
+      // saturaba la E/S de la instancia (la caída que reportó el dueño). El
+      // bloqueo de sesión lo mantiene fresco el latido (`updated_at`), y el
+      // índice del monitor se sincroniza en la próxima escritura de contenido.
+      // Firma vacía = nunca se escribió todavía → se escribe igual.
+      // En un examen SECUENCIAL el índice es una regla y no una comodidad: si la
+      // base no lo tuviera, pasar a otro dispositivo devolvería al alumno a una
+      // pregunta que ya dejó atrás. Ahí cada «Siguiente» escribe (son pocas: cada
+      // una pasa por el diálogo de confirmación).
+      const soloCambioElIndice =
+        examRef.current?.navigation_type !== "secuencial" &&
+        !!firmaEnServidorRef.current &&
+        firmaContenido === firmaEnServidorRef.current;
+      if (soloCambioElIndice) {
+        setSaveFailed(false);
+      } else {
+        // El error del UPDATE se ignoraba por completo: si el guardado
+        // fallaba (RLS, red, 5xx) el alumno seguía viendo "respuestas
+        // guardadas automáticamente" sin ninguna señal. Ahora lo reflejamos
+        // en un badge del header (`saveFailed`). NO tiramos el error: este
+        // helper lo llaman los flujos de ENTREGA y un throw acá abortaba la
+        // entrega entera (el respaldo local + el update de performSubmit son
+        // los que realmente cuentan).
+        try {
+          const { error } = await db
+            .from("submissions")
+            .update({ answers: currentAnswers, focus_warnings: currentWarnings })
+            .eq("id", submissionIdRef.current);
+          setSaveFailed(!!error);
+          // El latido mira estas marcas para no repetir una escritura que ya se
+          // hizo (ver `latidoEsRedundante`) y para saber si hay cambios sin subir.
+          // `firmaEnServidorRef` guarda la firma de CONTENIDO (sin el índice):
+          // es contra la que el latido y el guardado deciden si hay algo nuevo.
+          // Solo cuentan si de verdad se guardó: si falló, `updated_at` no se
+          // movió y el latido TIENE que correr.
+          if (!error) {
+            ultimoGuardadoRef.current = Date.now();
+            firmaEnServidorRef.current = firmaContenido;
+          }
+          if (error) console.error("[ExamLab] autosave failed:", error);
+        } catch (e) {
+          setSaveFailed(true);
+          console.error("[ExamLab] autosave threw:", e);
         }
-        if (error) console.error("[ExamLab] autosave failed:", error);
-      } catch (e) {
-        setSaveFailed(true);
-        console.error("[ExamLab] autosave threw:", e);
       }
     }
     try {
@@ -1688,7 +1738,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     setPreparingSubmit(true);
     setSubmitModal({ open: false, unansweredIndices: [] });
     try {
-      await saveAnswersNow();
+      // `performSubmit` persiste answersRef.current (+ advertencias) en el mismo
+      // UPDATE que marca `completado`; el `saveAnswersNow` que había acá era una
+      // SEGUNDA escritura de la fila entera, redundante. El guardado del camino
+      // de cancelar ya lo hizo `requestManualSubmit` antes de abrir el modal.
       await performSubmit(false);
     } catch (e) {
       toast.error(friendlyError(e));
@@ -1696,31 +1749,51 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       submitBusyRef.current = false;
       setPreparingSubmit(false);
     }
-  }, [performSubmit, saveAnswersNow]);
+  }, [performSubmit]);
 
   const cancelManualSubmitModal = useCallback(() => {
     setSubmitModal({ open: false, unansweredIndices: [] });
   }, []);
 
-  /** Tiempo global del examen agotado → guardar y entregar sin modal */
+  /** Tiempo global del examen agotado → entrega automática, DISPERSA en el
+   *  tiempo para no golpear la base con 200 entregas en el mismo segundo. */
   const handleTimeUp = useCallback(() => {
-    if (submittedRef.current) return;
-    void (async () => {
-      // El guardado previo va en su propio try: si falla, la ENTREGA debe
-      // ocurrir igual (antes un throw acá dejaba el examen sin entregar al
-      // vencerse el tiempo — el peor fallo silencioso posible).
-      try {
-        await saveAnswersNow();
-      } catch (e) {
-        console.error("[ExamLab] save before auto-submit failed:", e);
-      }
-      try {
-        await performSubmit(false);
-      } catch (e) {
+    if (submittedRef.current || tiempoAgotadoRef.current) return;
+    // Sin entrega no hay nada que entregar ni que congelar: el reloj corre también
+    // en «Antes de comenzar» y en la pantalla de bloqueo, y congelar ahí dejaba al
+    // alumno detrás de un «Entregando…» sin salida. Un ensayo no tiene entrega a
+    // propósito: a ese lo termina `performSubmit`.
+    if (!simulacro && !submissionIdRef.current) return;
+    // Congela las respuestas YA: el reparto de la auto-entrega (abajo) no puede
+    // convertirse en segundos de edición extra para quien le toque un retraso
+    // más largo. El feedback inmediato ("Entregando…") lo da `submitting`.
+    tiempoAgotadoRef.current = true;
+    setSubmitting(true);
+    // El diálogo de «salir del examen» cobra una advertencia: con el tiempo
+    // agotado ya no hay examen del que salir, así que no puede quedar abierto.
+    setManualLeaveOpen(false);
+    // Dispersión del "pico de cierre": todos los relojes llegan a cero a la vez.
+    // `performSubmit` YA persiste answersRef.current (con las advertencias), así
+    // que el `saveAnswersNow` previo era una SEGUNDA escritura de la fila entera
+    // — eliminado. El cron `close_expired_exam_attempts` (cada minuto) es el
+    // respaldo si el cliente nunca llega a entregar.
+    // En un ensayo no hay base que proteger: termina en el acto.
+    const retraso = simulacro ? 0 : retrasoDeEntregaAutomatica(Math.random());
+    autoEntregaTimerRef.current = setTimeout(() => {
+      void performSubmit(false).catch((e) => {
         toast.error(friendlyError(e));
-      }
-    })();
-  }, [saveAnswersNow, questions, performSubmit]);
+      });
+    }, retraso);
+  }, [performSubmit, simulacro]);
+
+  // Si el componente se desmonta durante la ventana de dispersión (el alumno se
+  // fue), el cron cierra el intento; acá solo cancelamos el timer pendiente.
+  useEffect(
+    () => () => {
+      if (autoEntregaTimerRef.current) clearTimeout(autoEntregaTimerRef.current);
+    },
+    [],
+  );
 
   const initialSeconds =
     exam?.schedule_type === "relativo"
@@ -1867,8 +1940,8 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // re-arma cuando cambian `answers`/`warnings`, así que un alumno INACTIVO
   // (leyendo una pregunta larga, pensando, una pregunta de código sin tocar)
   // dejaría de refrescar `submissions.updated_at`. El lock usa una ventana de
-  // 10s sobre updated_at, así que sin un heartbeat periódico otro dispositivo
-  // podría "robar" el intento tras >10s de inactividad.
+  // `MS_BLOQUEO_SESION` sobre updated_at, así que sin un heartbeat periódico otro
+  // dispositivo podría "robar" el intento tras esa inactividad.
   //
   // ── Por qué NO llama a `saveAnswersNow` ────────────────────────────────
   // Lo único que el lock necesita es que `updated_at` esté fresco, y eso lo
@@ -1888,18 +1961,22 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
   // quedó algo sin subir.
   useEffect(() => {
     if (!started) return;
-    const id = setInterval(() => {
-      if (submittedRef.current || isPaused || !submissionIdRef.current) return;
+    const latir = () => {
+      // Con el tiempo agotado la entrega ya lleva las respuestas: una subida
+      // periódica en la ventana de dispersión sería otra escritura de la fila
+      // entera en el peor momento, el pico de cierre.
+      if (submittedRef.current || tiempoAgotadoRef.current || isPaused || !submissionIdRef.current) return;
       // Si un guardado en la base acaba de refrescar `updated_at`, latir encima
       // no aporta nada y duplica la escritura sobre la tabla más caliente.
       if (latidoEsRedundante(Date.now() - ultimoGuardadoRef.current)) return;
       // Subida periódica: si la base no tiene lo último y el último guardado fue
       // hace más de un minuto, este tick lleva las respuestas en vez de solo
-      // `updated_at` (ver `MS_SUBIDA_PERIODICA`).
+      // `updated_at` (ver `MS_SUBIDA_PERIODICA`). Se compara por firma de
+      // CONTENIDO (sin el índice): navegar sin responder no dispara una subida.
       const actuales = { ...answersRef.current, __current_idx: currentIdxRef.current };
       if (
         debeSubirRespuestas(
-          firmaDeRespuestas(actuales),
+          firmaDeContenido(actuales),
           firmaEnServidorRef.current,
           Date.now() - ultimoGuardadoRef.current,
         )
@@ -1918,8 +1995,21 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
           // gobierna el autosave, que es el que sí tiene respuestas en juego.
           if (error) console.error("[ExamLab] heartbeat failed:", error);
         });
-    }, MS_ENTRE_LATIDOS);
-    return () => clearInterval(id);
+    };
+    // Desfase inicial ALEATORIO (0..MS_ENTRE_LATIDOS): si una clase entera abre
+    // el examen con la campana, sus latidos arrancarían alineados y pegarían a la
+    // base en el mismo instante en cada período. El PERÍODO se mantiene exacto
+    // (`MS_ENTRE_LATIDOS`) — no se toca el margen del bloqueo de sesión —; solo
+    // se separan las fases para repartir la carga.
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    const startId = setTimeout(() => {
+      latir();
+      intervalId = setInterval(latir, MS_ENTRE_LATIDOS);
+    }, Math.floor(Math.random() * MS_ENTRE_LATIDOS));
+    return () => {
+      clearTimeout(startId);
+      if (intervalId) clearInterval(intervalId);
+    };
   }, [started, isPaused, saveAnswersNow]);
 
   // Proctoring: focus tracking, contextmenu/key blocking, fullscreen enforcement
@@ -1943,6 +2033,10 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         void salirDelEnsayo();
         return;
       }
+      // Con el tiempo agotado la entrega está esperando su turno (ver
+      // `handleTimeUp`): se queda en la página, sin el diálogo que cobra una
+      // advertencia por salir. Irse ahora cancelaría la entrega pendiente.
+      if (tiempoAgotadoRef.current) return;
       setManualLeaveOpen(true);
     };
     window.addEventListener("popstate", onPopstate, true);
@@ -1969,7 +2063,9 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
      */
     const preguntaActual = () => questionsRef.current[currentIdxRef.current] ?? null;
     const recordWarning = (type: string) => {
-      if (submittedRef.current) return;
+      // Con el tiempo agotado el examen terminó: soltar la pantalla completa o
+      // cambiar de ventana mientras la entrega espera su turno no es una falta.
+      if (submittedRef.current || tiempoAgotadoRef.current) return;
       // Grace period de reanudación: si el estudiante todavía no ha
       // entrado a pantalla completa (resume tras eliminación de strike,
       // recarga, etc.), no sumamos strike. El overlay "Reanudar" bloquea
@@ -2062,7 +2158,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // patrones repetidos manualmente.
     let lastClipboardAt = 0;
     const recordCopyAlert = (eventType: "copiar" | "pegar" | "cortar") => {
-      if (submittedRef.current) return;
+      if (submittedRef.current || tiempoAgotadoRef.current) return;
       const now = Date.now();
       if (now - lastClipboardAt < 800) return;
       lastClipboardAt = now;
@@ -2171,7 +2267,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // que el evento sí se propaga.
     let lastScreenshotAt = 0;
     const recordScreenshotAttempt = () => {
-      if (submittedRef.current) return;
+      if (submittedRef.current || tiempoAgotadoRef.current) return;
       const now = Date.now();
       // El SO puede repetir la tecla: sin esto, un pantallazo sostenido sumaba
       // varios strikes de golpe.
@@ -2199,8 +2295,55 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
     // vea cuántas veces salió y volvió. Suma solo si el examen lo pide
     // (`reload_counts_as_warning`), y QUÉ se manda lo decide
     // `cuerpoAlSalirDeLaPagina`. Lo fija `salida-de-la-pagina.test.ts`.
+    //
+    // PATCH de último momento: `keepalive` lo deja salir aunque la pestaña ya se
+    // esté cerrando, que es justo cuando se usa.
+    const enviarAlSalir = (body: unknown) => {
+      fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
+        {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+            Authorization: `Bearer ${authTokenRef.current}`,
+            Prefer: "return=minimal",
+          },
+          body: JSON.stringify(body),
+          keepalive: true,
+        },
+      );
+    };
+    // Respaldo de la ventana de dispersión (ver `handleTimeUp`): si el alumno se
+    // va —cierra, recarga o manda la app al fondo— mientras su entrega espera el
+    // turno, sus respuestas quedan en la base y el cron `close_expired_exam_attempts`
+    // (con su minuto de gracia) cierra el intento con ellas y lo encola a
+    // calificación. Sin advertencia ni evento: el examen ya terminó. Una sola vez:
+    // `beforeunload`, `pagehide` y ocultarse llegan juntos al cerrar.
+    let respuestasYaDejadas = false;
+    const dejarRespuestasConTiempoAgotado = () => {
+      if (respuestasYaDejadas || submittedRef.current) return;
+      if (!submissionIdRef.current || !authTokenRef.current) return;
+      respuestasYaDejadas = true;
+      enviarAlSalir(
+        cuerpoAlSalirDeLaPagina({
+          answers: { ...answersRef.current, __warning_events: warningEventsRef.current },
+          warnings: warningsRef.current,
+          maxWarnings,
+          cuentaComoAdvertencia: false,
+          ahoraIso: new Date().toISOString(),
+          userId: user?.id ?? null,
+        }).body,
+      );
+    };
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
       if (submittedRef.current) return;
+      // Con el tiempo agotado la entrega solo espera su turno: irse ahora no es
+      // salirse del examen, así que ni se retiene al alumno ni se anota nada.
+      if (tiempoAgotadoRef.current) {
+        dejarRespuestasConTiempoAgotado();
+        return;
+      }
       e.preventDefault();
       e.returnValue = "";
       diferidos.marcarSalida();
@@ -2275,23 +2418,14 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         submittedRef.current = true;
         cerro = true;
       }
-      fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/rest/v1/submissions?id=eq.${submissionIdRef.current}`,
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-            apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
-            Authorization: `Bearer ${authTokenRef.current}`,
-            Prefer: "return=minimal",
-          },
-          body: JSON.stringify(salida.body),
-          keepalive: true,
-        },
-      );
+      enviarAlSalir(salida.body);
     };
-    // `pagehide` llega también donde `beforeunload` no (Safari, móvil).
-    const onPageHide = () => diferidos.marcarSalida();
+    // `pagehide` llega también donde `beforeunload` no (Safari, móvil): por eso
+    // también deja las respuestas si el tiempo ya se acabó.
+    const onPageHide = () => {
+      diferidos.marcarSalida();
+      if (tiempoAgotadoRef.current) dejarRespuestasConTiempoAgotado();
+    };
     const onFocus = () => diferidos.marcarRegreso();
 
     /**
@@ -2299,7 +2433,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
      * strike. Mismo camino de persistencia que `recordScreenshotAttempt`.
      */
     const registrarSenalBlanda = (type: string) => {
-      if (submittedRef.current) return;
+      if (submittedRef.current || tiempoAgotadoRef.current) return;
       if (!hasEverEnteredFullscreenRef.current) return;
       const now = Date.now();
       // Ventana propia: deduplica el ruido de un foco que parpadea sin poder
@@ -2468,7 +2602,7 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
         // estricto. A partir de aquí los strikes cuentan.
         hasEverEnteredFullscreenRef.current = true;
         setFsExited(false);
-      } else if (started && !submittedRef.current && requireFullscreen) {
+      } else if (started && !submittedRef.current && !tiempoAgotadoRef.current && requireFullscreen) {
         // Solo cuenta strike por salida de FS si la institución exige FS.
         // En modo depuración (toggle off) el FS no aplica.
         //
@@ -2508,6 +2642,12 @@ export function TakeExam({ examId, simulacro = false }: TakeExamProps) {
       registrarSenalBlanda("oculto_breve_movil");
     };
     const onVisibility = () => {
+      // Al fondo con el tiempo agotado: en un teléfono el temporizador de la
+      // entrega puede quedar congelado hasta que vuelva, si es que vuelve.
+      if (document.visibilityState === "hidden" && tiempoAgotadoRef.current) {
+        dejarRespuestasConTiempoAgotado();
+        return;
+      }
       if (document.visibilityState === "hidden") {
         if (salidaDePantallaCompletaCuentaComoStrike(entornoPuntero)) {
           // Computador: ocultarse ES cambiar de pestaña (con la espera mínima
@@ -3593,6 +3733,15 @@ ${t("hc_routesAppStudentTakeExamId.tryAnotherRunner")}`,
                 if (leavingExam) return;
                 setLeavingExam(true);
                 try {
+                  // Se acabó el tiempo con el diálogo abierto: no hay salida que
+                  // cobrar. Se entrega ya, sin esperar el turno de la dispersión,
+                  // y `performSubmit` lleva al alumno a donde corresponde.
+                  if (tiempoAgotadoRef.current) {
+                    if (autoEntregaTimerRef.current) clearTimeout(autoEntregaTimerRef.current);
+                    setManualLeaveOpen(false);
+                    await performSubmit(false);
+                    return;
+                  }
                   if (!submittedRef.current && submissionIdRef.current) {
                     const nw = warningsRef.current + 1;
                     warningsRef.current = nw;

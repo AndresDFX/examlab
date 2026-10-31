@@ -8600,7 +8600,7 @@
     "errorRunning": "Error running",
     "errorPrefix": "Error: {{msg}}",
     "examOpenOnAnotherDevice": "Exam open on another device",
-    "examOpenOnAnotherDeviceDesc": "This exam is already being taken from another device or tab. Close that session first. If you already closed it, wait a few seconds and try again.",
+    "examOpenOnAnotherDeviceDesc": "This exam is already being taken from another device or tab. Close that session first. If you already closed it, wait a minute and try again.",
     "backToMyExams": "Back to my exams",
     "beforeYouStart": "Before you start",
     "durationLabel": "Duration:",

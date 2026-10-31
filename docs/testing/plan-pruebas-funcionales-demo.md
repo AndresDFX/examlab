@@ -529,12 +529,12 @@ Cubre el ciclo completo del examen en el tenant **Demo Global Corp**: creación/
 | TK-03 | Gate: fuera de ventana | Examen con ventana pasada/futura | Abrir take | Toast "no está disponible ahora"; redirige |
 | TK-04 | Gate: no asignado | Examen no asignado al alumno | Abrir take | Toast "No estás asignado a este examen"; redirige |
 | TK-05 | Gate: intentos agotados | `max_attempts` alcanzado (intentos calificados) | Abrir take | Toast "Ya usaste tus N intentos" (o "Ya completaste"); redirige |
-| TK-06 | Timer cuenta atrás + tiempo agotado | Examen en curso con duración corta | Dejar correr el timer a 0 | Estado low-time visible; al llegar a 0 auto-guarda, hace merge de plantillas de código y entrega automáticamente (sin modal) |
+| TK-06 | Timer cuenta atrás + tiempo agotado | Examen en curso con duración corta | Dejar correr el timer a 0 | Estado low-time visible; al llegar a 0 las respuestas quedan congeladas y la entrega sale sola (sin modal) en los 8 s siguientes; en ese lapso soltar la pantalla completa o cambiar de pestaña NO suma advertencia |
 | TK-07 | Navegación secuencial | Examen navigation_type "secuencial" | "Siguiente" | "Anterior" siempre disabled; "Siguiente" abre modal de confirmación (no podrás regresar) cada vez; una sola pregunta visible |
 | TK-08 | Navegación libre | navigation_type "libre" | Navegar adelante/atrás | "Anterior" disabled solo en la primera; sin modal |
 | TK-09 | Mezcla determinística (shuffle) | Examen con `shuffle_enabled` | Recargar la página mid-examen | El orden de preguntas se mantiene estable entre recargas (seed por examen+alumno) y difiere entre alumnos |
-| TK-10 | Session lock (otro dispositivo) | Intento en_progreso reciente (<10s) en otro dispositivo/pestaña | Abrir el mismo examen en 2ª pestaña e "Iniciar" | La 2ª queda `blockedBySession` (mensaje de examen abierto en otro dispositivo); no puede tomar el control salvo tras >10s de inactividad |
-| TK-11 | Autosave + heartbeat | Examen en curso | Responder y esperar | Autosave debounce 1.5s + heartbeat 5s refrescan `updated_at` aunque no se escriba |
+| TK-10 | Session lock (otro dispositivo) | Intento en_progreso reciente (<45 s) en otro dispositivo/pestaña | Abrir el mismo examen en 2ª pestaña e "Iniciar" | La 2ª queda `blockedBySession` (mensaje «espera un minuto»); no puede tomar el control hasta 45 s sin latido del otro dispositivo |
+| TK-11 | Guardado + latido | Examen en curso | Responder, cambiar de pregunta y esperar | Se escribe en la base al cambiar de pregunta (si cambió una respuesta) y al entregar; el latido refresca `updated_at` cada 20 s aunque no se escriba; navegar sin responder no escribe (salvo en examen secuencial) |
 | TK-12 | Entregar con respuestas en blanco | Examen con preguntas sin responder | "Entregar" | Modal de confirmación tono warning listando preguntas en blanco; confirmar entrega igual; cancelar vuelve |
 | TK-13 | Reanudar entrega sin calificar | Entrega `completado` aún SIN nota | Volver a abrir el examen | Se reabre a `en_progreso`, limpia `submitted_at`, cancela jobs IA pendientes; toast informativo; conserva respuestas y última pregunta |
 | TK-14 | No reanudar sospechoso | Entrega marcada `sospechoso` | Abrir take | Cuenta como intento gastado; no reanudable (queda para revisión del docente) |
@@ -587,7 +587,7 @@ Cubre el ciclo completo del examen en el tenant **Demo Global Corp**: creación/
 | ID | Caso | Precondición | Pasos | Resultado esperado |
 |----|------|--------------|-------|--------------------|
 | MON-01 | Estado en vivo por estudiante | Examen con intentos en curso; docente en `/monitor/$examId` | Abrir monitor mientras un alumno toma | Tabla realtime con estado por alumno (StatusBadge en_progreso/completado/sospechoso); actualización por canal Supabase con debounce |
-| MON-02 | "Pregunta X de Y" en curso | Alumno tomando examen secuencial | Ver fila del alumno | Muestra la pregunta actual (leída de `answers.__current_idx`, persistida cada 1.5s) |
+| MON-02 | "Pregunta X de Y" en curso | Alumno tomando examen secuencial | Ver fila del alumno | Muestra la pregunta actual (leída de `answers.__current_idx`; en un examen secuencial se escribe en cada «Siguiente», en uno libre con la siguiente escritura de respuestas) |
 | MON-03 | Advertencias y eventos | Alumno con strikes | Abrir detalle de la submission | Badge `N/3` (destructive si >0); lista de eventos con `warningLabel` + timestamp es-CO + pregunta |
 | MON-04 | Pausar/Reanudar (individual) | Alumno en_progreso | Botón pausa/reanuda en su fila | Inserta en `exam_timer_controls`; el timer del alumno se pausa/reanuda por realtime; el estado de pausa se refleja en el monitor |
 | MON-05 | Añadir tiempo | Alumno en_progreso | Acción "añadir tiempo" | `extra_seconds` acumulados; el alumno ve "+N min extra"; en examen relativo extiende su deadline personal |

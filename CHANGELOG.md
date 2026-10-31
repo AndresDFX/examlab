@@ -51,7 +51,7 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 - **Papelera (soft-delete)**: lo que está en papelera (`deleted_at`) NO se muestra ni cuenta en NINGÚN flujo ni rol (query directa, embed+skip, count, RPC, realtime, edges). (`a4edf79`, mig `20260962`)
 - **La plantilla de una pregunta de código NUNCA se guarda como respuesta del alumno.** Una pregunta sin tocar se persiste **sin valor**. Existió un relleno (`mergeStarterCodeAnswers`) que la escribía «para que se detecte como respondida»; esa regla murió al unificarse el predicado en `src/modules/exams/answered.ts`, donde **plantilla intacta = NO respondida** — la regla que hace que el examen avise antes de entregar con el editor sin abrir. Reponerlo trae de vuelta dos cosas: la plantilla persistida a quien solo ABRIÓ el diálogo de entrega y canceló (corría ahí, no al entregar), y esa plantilla viajando a la IA como si fuera el código del alumno. El matiz que el docente sí necesita —cuántas quedaron con la plantilla sin modificar— lo da `contarPlantillaIntacta` en el `title` del monitor, **sin alterar el conteo de respondidas**.
 - **Cerrar o recargar el examen NO suma advertencia por defecto** (2026-10-08). El corte puede ser un cuelgue, un apagón o el internet, y antes sumaba una —y al tope cerraba el intento— sin dejar siquiera un evento que perdonar. Ahora se guardan las respuestas y queda el evento `salida_de_la_pagina` (`suma:false`); el monitor muestra cuántas veces salió y volvió, aparte de las advertencias. Lo que se manda al salir lo decide `cuerpoAlSalirDeLaPagina` (`proctoring.ts`, con tests). Quien lo quiera estricto lo enciende POR EXAMEN (`exams.reload_counts_as_warning`, mig `20262770000000`, apagado por defecto): ahí la salida suma con su evento (`suma:true`, se puede perdonar). Para que cerrar no se cobre por los eventos que el propio cierre dispara, los strikes de escritorio por `blur` / ocultarse / soltar pantalla completa se cobran **700 ms después** (`creaStrikesDiferidos`) y `beforeunload`/`pagehide` cancelan el pendiente; un gesto deja UN strike. Al agregar un evento nuevo al proctoring de escritorio que pueda dispararse al cerrar la página, pasarlo por `diferidos.diferir`, no por `recordWarning` directo. Y toda recarga que haga la propia app va por `recargarLaApp()` (`recarga-propia.ts`): esas no cuentan nunca.
-- **El examen escribe la entrega en la base al cambiar de pregunta y al entregar, no tras cada cambio** (mig `20262750000000`, 2026-10-06). Entre medio queda la copia local (`offline-sync.ts`), y al reanudar esa copia le gana al servidor si es de este intento, de la misma sesión y más nueva (`respuestasAlReanudar`, leída ANTES que el servidor). El modo anterior existe como opción por institución (`app_settings.exam_autosave_mode = 'continuo'`), no como defecto: con 60 alumnos a la vez tumbó la base. Al agregar una escritura periódica al examen, contarla por alumno y por segundo antes de mergear.
+- **El examen escribe la entrega en la base al cambiar de pregunta y al entregar, no tras cada cambio** (mig `20262750000000`, 2026-10-06). Entre medio queda la copia local (`offline-sync.ts`), y al reanudar esa copia le gana al servidor si es de este intento, de la misma sesión y más nueva (`respuestasAlReanudar`, leída ANTES que el servidor). El modo anterior existe como opción por institución (`app_settings.exam_autosave_mode = 'continuo'`), no como defecto: con 60 alumnos a la vez tumbó la base. Al agregar una escritura periódica al examen, contarla por alumno y por segundo antes de mergear. **Medido el 2026-10-30** con `scripts/exam-load-test.mjs` sobre producción: navegar sin cambiar contenido ya no escribe (la firma que decide ignora `__current_idx`); el latido pasó de 5 s a **20 s** y el bloqueo de sesión de 10 s a **45 s**, porque era ~35 de las ~44 escrituras por segundo con 200 alumnos; y la entrega automática se **dispersa 0–8 s** con las respuestas congeladas y el proctoring apagado (cabe en el minuto de gracia del cron, lo fija un test que lee la migración). Antes de cambiar el latido o el sondeo del reloj, o de agregar una escritura al examen, medir con ese script **fuera de clase**: las instancias chicas tienen un presupuesto de ráfaga de E/S, y lo que importa en un examen de 90 minutos es la línea base.
 - **Límite diario del Asistente IA: por estudiante y curso, día de Bogotá, con contador persistente** (migs `20262890000000` + `20262900000000`). El tope lo fija SOLO la institución (`app_settings.tutor_daily_limit`, NULL = default del código **25**, rango 1..500); no hay override por curso. El conteo NO sale de los mensajes (eran borrables): vive en `tutor_uso_diario(user_id, course_id, dia, tenant_id, preguntas)`, tenant-scoped, que el estudiante solo LEE por RLS y escribe el edge con service_role. El edge `tutor-chat` **consume el cupo ATÓMICAMENTE antes de llamar a la IA** (`tutor_consumir_pregunta`, SECURITY DEFINER: upsert + incremento condicionado `WHERE preguntas < limite`), lo que cierra la carrera de dos envíos; al tope responde `200 {ok:false, code:"daily_limit_reached", limit, resets_at}` sin procesar, guardar ni cobrar; si la IA/el guardado fallan después, **devuelve la pregunta** (`tutor_devolver_pregunta`). Ambas funciones revocadas de anon/authenticated (solo service_role). En éxito devuelve `remaining`/`limit`. **Limpiar la conversación NO reinicia el límite.** Aplica a TODOS los roles (SuperAdmin incluido). La lógica pura (`resolverLimiteEfectivo`, `fechaDiaBogota`, `inicioDelDiaBogota`, `proximaMedianocheBogota`, `restante`) vive en `supabase/functions/tutor-chat/limite-diario.ts` y la importan el edge, la pantalla del estudiante y los tests por ruta relativa.
 - **«Vencido» = pasó el plazo Y no entregó.** Pasar el plazo, solo, no vence nada. El predicado es `estaVencido` de **`src/modules/submissions/entrega-hecha.ts`**, que es además el dueño de la ÚNICA lista de «todavía no entregó» del proyecto (`ESTADOS_SIN_ENTREGAR`; `courses/diagnostic.ts` la importa y un test fija que `isSubmittedStatus` sea esa misma función). La lista es **negra, no blanca**: se enumera lo no entregado y cualquier otro estado cuenta como entrega hecha, porque los estados nuevos de estas tablas nacen del pipeline de calificación —aparecen DESPUÉS de entregar— y con lista blanca cada uno se cae al peor default. Así fue como `ai_revisado` dejó 37 entregas reales marcadas «Vencido» y fuera del filtro por defecto del alumno. En una tarjeta, «pasó el plazo» sigue siendo una variable APARTE cuando gobierna si la entrega continúa abierta.
 - **Escala de calificación**: se hereda de la asignatura/curso; la vista de calificaciones muestra SIEMPRE la escala del curso. La "Nota" usa `toScale(raw, max_score)`; el "Puntaje" se normaliza a `grade_scale_max` en PRESENTACIÓN (`rescaleScore`), sin tocar datos. NO normalizar `max_score` de items legacy por migración masiva (riesgo de re-interpretar notas bajas de items /100). Items nuevos default `max_score = grade_scale_max`.
@@ -100,6 +100,46 @@ Reglas que las tareas futuras NO deben contradecir sin acuerdo explícito:
 > (formato viejo `### AAAA-MM-DD`) se conservan tal cual.
 
 ## [Sin publicar]
+- **Concurrencia de exámenes: 100 a 200 alumnos a la vez, medido sobre la instancia de producción.**
+  Pedido: confirmar que la caída por el guardado cada segundo ya no ocurre y simular 100–200 usuarios
+  concurrentes sin cambiar la infraestructura, optimizando lo que haga falta.
+  - **Verificado**: las 7 instituciones guardan «al cambiar de pregunta»; ninguna en `continuo`.
+  - **Prueba de carga** `scripts/exam-load-test.mjs`:
+    - usa sesiones REALES de alumnos (la RLS cuesta lo que cuesta) sobre datos sintéticos en Demo
+      Global Corp, que se borran al terminar;
+    - la compuerta de seguridad se lee de la base: clases en curso o por empezar, exámenes reales
+      abiertos y sesiones de examen vivas;
+    - sube por escalones y aborta ante 5xx, PGRST003, 57014, más de 1 % de errores o p95 > 3 s;
+    - reproduce el arranque real (8 lecturas + la entrega), el latido, el sondeo del reloj (4 s al
+      final), el guardado (10 KB, el p90 medido) y el cierre.
+  - **Resultados con el latido de 5 s**: 100 y 150 alumnos sanos (p95 de 0,2 y 0,8 s); **200 colapsa**
+    (latidos de 26 s, guardados de hasta 42 s, sin errores: es cola). Con la clase entrando en 4 s, el
+    arranque de 100 se encola hasta 20 s; entrando en 30 s, sano.
+  - **Optimizaciones** en `TakeExamScreen` / `exam-session`:
+    1. navegar sin cambiar contenido no reescribe la fila (`firmaDeContenido`). Al reanudar, la copia
+       local aporta la pregunta donde estaba el alumno aunque no gane por respuestas, y en un examen
+       **secuencial** no se aplica, porque ahí el índice es una regla de navegación;
+    2. latido de 20 s y bloqueo de sesión de 45 s (el aviso al alumno dice «espera un minuto»);
+    3. la entrega automática se dispersa 0–8 s sin la escritura previa redundante, con las respuestas
+       congeladas y el proctoring apagado en esa ventana:
+       - irse en ese lapso (cerrar, recargar, `pagehide` o mandar la app al fondo) solo deja las
+         respuestas en la base;
+       - «Atrás» y el menú lateral no abren el diálogo de advertencia, y «Salir» entrega en el acto;
+       - sin entrega (antes de comenzar) no congela nada, y en un ensayo la espera es 0;
+    4. confirmar la entrega ya no escribe la fila dos veces;
+    5. desfase aleatorio en el arranque del latido. El del sondeo del reloj se descartó en la
+       revisión: con el tic de 2 s convertía los 4 s del final en ~6 s, justo donde un tiempo extra
+       tiene que llegar antes del cero.
+  - **Script**: corta en caliente ante el primer 5xx, `PGRST003` o `57014`. `setup` y `ampliar` no
+    crean nada con los avisos de bienvenida o de examen encendidos. Es la única excepción escrita a
+    la regla de «solo lectura» de `db-query.mjs`.
+  - **Con el latido de 20 s, 200 alumnos**: p95 de 7,6 s (antes 28,8). La última corrida empeoró aun
+    con menos carga: la instancia agotó su **presupuesto de ráfaga de E/S** (según la documentación de
+    Supabase, las instancias hasta 2XL vuelven a su línea base: Micro, 500 IOPS; Nano, 250).
+  - **Riesgo que queda**: 200 alumnos durante un examen completo dependen de la línea base de la
+    instancia, no de la ráfaga. Sin cambiar infraestructura, 150 es el número medido sano.
+  - Tests: `guardado-examen.test.ts` fija el cableado nuevo; `exam-session.test.ts`, los helpers puros.
+    Sin migración.
 - **Límite diario de preguntas al Asistente IA (Tutor IA), por estudiante y por curso.** Cada
   estudiante puede hacerle hasta N preguntas al Asistente IA por curso y por día calendario de
   **Bogotá** (se reinicia a las 12:00 a. m. hora Colombia). Lo configura **solo la institución**

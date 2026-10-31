@@ -8600,7 +8600,7 @@
     "errorRunning": "Error ejecutando",
     "errorPrefix": "Error: {{msg}}",
     "examOpenOnAnotherDevice": "Examen abierto en otro dispositivo",
-    "examOpenOnAnotherDeviceDesc": "Este examen ya está siendo presentado desde otro dispositivo o pestaña. Cierra esa sesión primero. Si ya la cerraste, espera unos segundos y vuelve a intentar.",
+    "examOpenOnAnotherDeviceDesc": "Este examen ya está siendo presentado desde otro dispositivo o pestaña. Cierra esa sesión primero. Si ya la cerraste, espera un minuto y vuelve a intentar.",
     "backToMyExams": "Volver a mis exámenes",
     "beforeYouStart": "Antes de comenzar",
     "durationLabel": "Duración:",

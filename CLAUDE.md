@@ -716,7 +716,7 @@ de ~1,4 que con la regla correcta son ~4,0.
 
 ### Session lock (sin migración DB)
 
-Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at`, que mantiene fresco el latido (`MS_ENTRE_LATIDOS`, solo toca `updated_at`). Ventana de expiración: 10s. No se necesitan columnas adicionales.
+Usa `answers.__session_id` (dentro del JSONB existente) + `updated_at`, que mantiene fresco el latido (`MS_ENTRE_LATIDOS`, 20 s, solo toca `updated_at`). Ventana de expiración: 45 s (`MS_BLOQUEO_SESION`). No se necesitan columnas adicionales. Eran 5 s y 10 s hasta el 2026-10-30: el latido es la escritura más frecuente del examen y, con 200 alumnos, la que tumbaba la instancia (ver «Prueba de carga» abajo). Cambiar a otro dispositivo espera hasta 45 s; un test exige que `MS_GUARDADO_RECIENTE + MS_ENTRE_LATIDOS` quede por debajo del bloqueo con margen.
 
 ```ts
 // localStorage key: examlab_exam_session_${examId}
@@ -760,6 +760,57 @@ de cada cambio (Configuración → General).
   docente ve las respuestas con ese retraso, y lo escrito en el último minuto se pierde si el
   dispositivo se apaga y el intento vence antes de volver a abrirlo. El reloj consulta las órdenes del
   docente cada 10 s, y cada 4 s en los dos últimos minutos (`msEntreSondeos`).
+- **Navegar sin cambiar nada no escribe** (2026-10-30). `saveAnswersNow` compara `firmaDeContenido`
+  (sin `__current_idx` ni `__saved_at`) contra `firmaEnServidorRef`; si solo cambió el índice, no
+  reescribe la fila. El «Pregunta X de Y» del monitor se actualiza con la siguiente escritura de
+  contenido. **Toda asignación de `firmaEnServidorRef` usa esa misma firma**, y lo fija
+  `guardado-examen.test.ts`: con la otra (`firmaDeRespuestas`, que incluye el índice) las firmas no
+  coincidirían nunca y el latido subiría la fila entera cada minuto. Dos cosas lo completan:
+  - **Al reanudar, la copia local aporta el índice aunque no gane por respuestas**
+    (`combinarCopiaConServidor`, con `usoLocal: false`, así que no sube nada ni avisa). Sin eso, recargar
+    devolvía al alumno a la última pregunta ESCRITA.
+  - **En un examen secuencial no se aplica.** Ahí el índice es una regla: si la base no lo tuviera, pasar
+    a otro dispositivo devolvería al alumno a una pregunta que ya dejó atrás.
+- **La entrega automática se dispersa** (`MS_DISPERSION_ENTREGA_AUTOMATICA`, 0 a 8 s), porque todos los
+  relojes llegan a cero en el mismo segundo. Al llegar a cero (`handleTimeUp` → `tiempoAgotadoRef`) las
+  respuestas se congelan y el proctoring se apaga hasta que la entrega sale: los cuatro registradores,
+  la salida de pantalla completa, «Atrás» (se queda en la página sin el diálogo), el diálogo de salida
+  (se cierra, y «Salir» entrega en el acto), el menú lateral y cerrar la pestaña.
+  - **Irse en esa ventana deja las respuestas en la base**, sin evento ni advertencia, y el cron cierra
+    el intento con ellas. Lo hace `dejarRespuestasConTiempoAgotado`, que corre en `beforeunload`, en
+    `pagehide` (Safari y los móviles no siempre disparan el primero) y al mandar la app al fondo.
+  - **Sin entrega no congela nada**: el reloj corre también en «Antes de comenzar».
+  - **En un ensayo la espera es 0.**
+  - **La ventana tiene que caber en el minuto de gracia de `close_expired_exam_attempts`**: un test lee
+    la última migración que define el cron.
+  - **El reloj no rearma `onTimeUp`**, así que un tiempo extra que llega DENTRO de la ventana no salva la
+    entrega: es lo mismo que pasaba antes de dispersar, cuando se entregaba en el segundo cero.
+  - Al agregar un registrador nuevo al proctoring, que también corte con `tiempoAgotadoRef`.
+
+### Prueba de carga de la toma de examen
+
+`scripts/exam-load-test.mjs` reproduce el patrón de peticiones de la pantalla con sesiones REALES de
+alumnos (con `service_role` la RLS no cuesta y la prueba miente), sobre datos sintéticos en Demo
+Global Corp: `setup` → `ampliar --exams 8` → `smoke` → `ramp` → `teardown`.
+
+**Es la única excepción a la regla de «solo lectura»** de `scripts/db-query.mjs`: escribe y borra con
+`service_role`, pero SOLO filas sintéticas marcadas `ZZZ-carga-sintetica` en Demo Global Corp (un
+curso, sus exámenes y cuentas `loadtest-*@examlab.test`). Además `setup` y `ampliar` se niegan a correr
+con los avisos de bienvenida o de examen encendidos, porque matricular y asignar mandarían correos que
+rebotan. Ante el primer 5xx, `PGRST003` o `57014` corta en caliente.
+
+- **Compuerta**: se lee de la base, no de un horario escrito a mano: clases en curso o por empezar en
+  una institución real, exámenes reales abiertos y sesiones de examen vivas. `run` y `ramp` la
+  revisan antes de cada escalón.
+- **Medido el 2026-10-30, con latido de 5 s**: 150 alumnos sanos (p95 de 0,8 s) y 200 colapsan. Con
+  latido de 20 s, 200 bajan de 28,8 s a 7,6 s de p95.
+- **La instancia tiene un presupuesto de ráfaga de E/S**: las instancias chicas de Supabase (hasta 2XL)
+  superan su línea base mientras les dura el presupuesto. Corridas seguidas lo agotan y la misma carga
+  empeora. Lo que vale para un examen de 90 minutos es la línea base, así que **no encadenes
+  escalones pesados**, y nunca en horario de clase: consumen el margen de la instancia de producción
+  para el resto del día.
+- **Antes de subir**, `teardown`: las pruebas de UI del despliegue corren contra Demo Global Corp, y
+  50 cuentas y 8 exámenes de más cambian sus pantallas.
 
 ### Proctoring — `recordWarning(type)`
 
@@ -2640,6 +2691,8 @@ Esto codifica los criterios que usamos para decidir qué comentarios escribir, q
 | `supabase/functions/_shared/adjuntos-zip.ts` (`capacidadDeAdjuntos`, `partesDeAdjuntos`) ↔ `supabase/functions/_shared/ai-model.ts` (`aiChatCompletionFailover`: una llamada de Claude en Bedrock con imágenes o archivos va a `bedrockAnthropicInvokeFetch`) ↔ `supabase/functions/_shared/bedrock-anthropic.ts` (las partes que traduce: `text`, `image_url` y `file` con data URL) | Que «Claude en Bedrock ve PDF» es cierto SOLO porque su llamada con adjuntos va por InvokeModel, y que las partes que arma `partesDeAdjuntos` son exactamente las que el traductor entiende. `modeloAceptaImagen` de `ai-vision.ts` sigue diciendo que Bedrock no ve imágenes a propósito: la lectura de grupos desde una imagen se sustituye a Gemini, camino probado que no se tocó | Si la llamada con adjuntos vuelve a Converse, ese traductor convierte el contenido en texto con `JSON.stringify`: el modelo recibe megas de base64 como si fueran la entrega. Y si se ofrece PDF a un proveedor cuyo camino no traduce `file`, cada entrega gasta una llamada que falla antes de recalificarse sin adjuntos. Lo fijan `src/modules/ai/bedrock-anthropic.test.ts` (lee `ai-model.ts` del disco) y `src/modules/projects/adjuntos-zip.test.ts` (las partes de `partesDeAdjuntos` pasan enteras por el traductor) |
 | `src/styles.css` (la regla `@media (pointer: coarse)`: qué alcanza y su `:not([role="switch"], [role="radio"], [role="checkbox"], [data-touch-compact])`) ↔ el `::after` de `checkbox.tsx`, `switch.tsx`, `radio-group.tsx`, `help-hint.tsx` y la X de `TagTextarea.tsx` ↔ `areaEfectiva` de `e2e/soporte/analizador-navegador.js` | Lo que la regla excluye tiene que traer su propia área táctil de 44 con un `::after` medido desde el borde de RELLENO, y el analizador de las pruebas de UI la mide igual (borde de relleno + los `inset` del pseudo-elemento) | Divergen → un control excluido sin `::after` queda chico en el teléfono y nadie lo ve, o el analizador da por bueno un área que el navegador no da (pasó: medía desde el borde de la caja y aceptaba 42 como 44) |
 | `src/modules/ai/fallo-reintentable.ts` (`PATRON_TRANSITORIO`) ↔ `supabase/functions/_shared/transient-errors.ts` (`TRANSIENT_ERROR_PATTERN`) | El regex de «error transitorio reintentable». El cliente lo usa para decidir si un fallo de generación SÍNCRONA se encola (fallback a `ai_generation_queue`); el worker, si re-encola pending vs failed final. Deno no importa de `src/`, así que el patrón se COPIA | Divergen → la UI encola un fallo que el worker marcaría failed (o al revés): un error de validación 400 queda dando vueltas en la cola, o un 429 genuino se pierde con un toast. Lo fija `src/modules/ai/fallo-reintentable.test.ts`, que IMPORTA `TRANSIENT_ERROR_PATTERN` del edge y compara `.source` |
+| `src/modules/exams/exam-session.ts` (`MS_DISPERSION_ENTREGA_AUTOMATICA`) ↔ la última migración que define `close_expired_exam_attempts` (su `now() - interval '1 minute'`) | La entrega automática dispersa tiene que caber en el minuto de gracia del cron que cierra los intentos vencidos. Lo fija `guardado-examen.test.ts`, que lee la migración del disco | Si el cron cierra primero, la entrega del alumno llega sobre un intento ya cerrado con lo que tenía la base, que puede estar un minuto atrasada |
+| `src/modules/exams/exam-session.ts` (`MS_BLOQUEO_SESION`, hoy 45 s) ↔ `examOpenOnAnotherDeviceDesc` en `es.json` y `en.json` («espera un minuto») | El texto le dice al alumno cuánto esperar para entrar desde otro dispositivo | Si el bloqueo crece y el texto no, el alumno reintenta antes de tiempo, vuelve a ver el bloqueo y cree que la plataforma falló |
 | `supabase/functions/_shared/origen-permitido.ts` (`ORIGENES_PERMITIDOS`, `ORIGEN_GENERAL`; lo usan `calendar` y `calendar-oauth-callback`) ↔ los dominios donde se publica el front (`wrangler.jsonc`, `src/modules/tenants/subdomain.ts`) | Cada dominio donde corre la app tiene que estar en la lista a la que vuelve el OAuth del calendario, y `ORIGEN_GENERAL` tiene que ser uno de ellos: es a donde el callback manda cualquier origen que no reconoce | Divergen → «Conectar cuenta» responde `origin_not_allowed`. Pasó: desde la mudanza a workers.dev (2026-08-21) hasta el 2026-10-25 no se pudo conectar ningún calendario en ninguna institución, sin que nadie lo notara. Lo fija `src/modules/calendar/origen-permitido.test.ts` |
 
 **Archivos donde no se debe explicar más de lo que ya está:**

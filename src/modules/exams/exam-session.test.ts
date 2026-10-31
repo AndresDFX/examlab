@@ -13,8 +13,11 @@ import {
   respuestasAlReanudar,
   combinarCopiaConServidor,
   firmaDeRespuestas,
+  firmaDeContenido,
   debeSubirRespuestas,
   MS_SUBIDA_PERIODICA,
+  MS_DISPERSION_ENTREGA_AUTOMATICA,
+  retrasoDeEntregaAutomatica,
   MODOS_GUARDADO_EXAMEN,
   applyExtraTime,
   computeExtraSeconds,
@@ -686,6 +689,27 @@ describe("combinarCopiaConServidor (reanudar y sincronizar)", () => {
     expect(r.answers.__warning_events).toEqual([]);
   });
 
+  it("sin respuestas nuevas, una copia más nueva aporta SOLO la pregunta donde estaba el alumno", () => {
+    // Navegar sin cambiar nada ya no escribe en la base: el índice del servidor
+    // puede estar atrasado, y sin esto reanudar devolvía a una pregunta anterior.
+    const conIndice = { ...servidor, __current_idx: 1 };
+    const r = combinarCopiaConServidor(
+      conIndice,
+      copia({ __session_id: "A", __saved_at: 200, q1: "viejo", __current_idx: 4, __warning_events: [] }),
+      "sub-1",
+    );
+    expect(r.usoLocal).toBe(false);
+    expect(r.answers.__current_idx).toBe(4);
+    expect(r.answers.q1).toBe("viejo");
+    expect(r.answers.__warning_events).toEqual([{ t: 1 }]);
+    expect(r.answers.__saved_at).toBe(100);
+    // Una copia de otra sesión o más vieja no lo aporta.
+    const otraSesion = copia({ __session_id: "B", __saved_at: 200, q1: "viejo", __current_idx: 4 });
+    expect(combinarCopiaConServidor(conIndice, otraSesion, "sub-1").answers.__current_idx).toBe(1);
+    const masVieja = copia({ __session_id: "A", __saved_at: 50, q1: "viejo", __current_idx: 4 });
+    expect(combinarCopiaConServidor(conIndice, masVieja, "sub-1").answers.__current_idx).toBe(1);
+  });
+
   it("no usa la copia si es más vieja o igual que el servidor", () => {
     expect(combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 100, q1: "x" }), "sub-1").usoLocal).toBe(false);
     expect(combinarCopiaConServidor(servidor, copia({ __session_id: "A", __saved_at: 50, q1: "x" }), "sub-1").usoLocal).toBe(false);
@@ -726,6 +750,70 @@ describe("firma y subida periódica", () => {
 
   it("la subida periódica es como mucho una por minuto: con 60 alumnos, una escritura por segundo", () => {
     expect(MS_SUBIDA_PERIODICA).toBeGreaterThanOrEqual(60_000);
+  });
+});
+
+// ─── firmaDeContenido: navegar sin responder NO cuenta como cambio ──────────
+//
+// Es el corazón del arreglo del "dar siguiente sin haber cambiado nada escribe
+// la fila entera": la firma que decide si se guarda EXCLUYE el índice de
+// pregunta, así que moverse entre preguntas no dispara una reescritura.
+describe("firmaDeContenido", () => {
+  it("ignora __saved_at Y __current_idx (lo que firmaDeRespuestas no hace con el índice)", () => {
+    const a = { q1: "a", __session_id: "s", __current_idx: 0, __saved_at: 1 };
+    const b = { q1: "a", __session_id: "s", __current_idx: 7, __saved_at: 999 };
+    // Mismo contenido, distinto índice y sello → MISMA firma de contenido.
+    expect(firmaDeContenido(a)).toBe(firmaDeContenido(b));
+    // …pero firmaDeRespuestas SÍ distingue el índice (lo usa la copia local).
+    expect(firmaDeRespuestas(a)).not.toBe(firmaDeRespuestas(b));
+  });
+
+  it("una respuesta distinta SÍ cambia la firma", () => {
+    expect(firmaDeContenido({ q1: "a" })).not.toBe(firmaDeContenido({ q1: "b" }));
+  });
+
+  it("cambiar de sesión (otro dispositivo toma el intento) cambia la firma", () => {
+    expect(firmaDeContenido({ __session_id: "A" })).not.toBe(
+      firmaDeContenido({ __session_id: "B" }),
+    );
+  });
+
+  it("una advertencia nueva cambia la firma (debe persistirse)", () => {
+    expect(firmaDeContenido({ q1: "a", __warning_events: [{ t: 1 }] })).not.toBe(
+      firmaDeContenido({ q1: "a", __warning_events: [{ t: 1 }, { t: 2 }] }),
+    );
+  });
+
+  it("el latido NO sube por un cambio de solo-índice (comparando firmas de contenido)", () => {
+    const servidor = firmaDeContenido({ q1: "a", __session_id: "s", __current_idx: 0 });
+    const trasNavegar = firmaDeContenido({ q1: "a", __session_id: "s", __current_idx: 5 });
+    expect(debeSubirRespuestas(trasNavegar, servidor, MS_SUBIDA_PERIODICA * 10)).toBe(false);
+  });
+});
+
+// ─── retrasoDeEntregaAutomatica: dispersión del pico de cierre ──────────────
+describe("retrasoDeEntregaAutomatica", () => {
+  it("rnd=0 → sin retraso (entrega inmediata)", () => {
+    expect(retrasoDeEntregaAutomatica(0)).toBe(0);
+  });
+
+  it("rnd cercano a 1 → casi toda la ventana", () => {
+    expect(retrasoDeEntregaAutomatica(0.999)).toBeLessThan(MS_DISPERSION_ENTREGA_AUTOMATICA);
+    expect(retrasoDeEntregaAutomatica(0.999)).toBeGreaterThan(MS_DISPERSION_ENTREGA_AUTOMATICA - 50);
+  });
+
+  it("acota valores fuera de rango (robustez ante un rnd raro)", () => {
+    expect(retrasoDeEntregaAutomatica(-1)).toBe(0);
+    expect(retrasoDeEntregaAutomatica(5)).toBe(MS_DISPERSION_ENTREGA_AUTOMATICA);
+    // @ts-expect-error prueba de robustez con valor no numérico
+    expect(retrasoDeEntregaAutomatica("x")).toBe(0);
+  });
+
+  it("la ventana es holgada pero por debajo del período del cron de respaldo (60 s)", () => {
+    // El cron close_expired_exam_attempts corre cada minuto; la dispersión debe
+    // terminar MUCHO antes para que el reparto no se solape con el respaldo.
+    expect(MS_DISPERSION_ENTREGA_AUTOMATICA).toBeGreaterThan(0);
+    expect(MS_DISPERSION_ENTREGA_AUTOMATICA).toBeLessThan(60_000);
   });
 });
 

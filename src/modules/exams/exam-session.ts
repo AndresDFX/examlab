@@ -75,6 +75,29 @@ export function firmaDeRespuestas(answers: Record<string, unknown>): string {
 }
 
 /**
+ * Firma del CONTENIDO que amerita una escritura en la base: las respuestas, la
+ * sesión (`__session_id`) y las advertencias (`__warning_events`). Excluye
+ * `__saved_at` (sello de tiempo) Y, a diferencia de `firmaDeRespuestas`, también
+ * `__current_idx` — la pregunta que el alumno está MIRANDO.
+ *
+ * ── Por qué el índice NO cuenta como contenido ─────────────────────────
+ * Navegar entre preguntas cambia el índice pero no lo que el alumno respondió.
+ * Reescribir la fila ENTERA de `answers` (TOAST de ~6 KB de mediana) solo para
+ * mover ese número es exactamente la escritura que, al "dar siguiente sin haber
+ * cambiado nada", saturaba la E/S de la instancia con 120+ alumnos a la vez. El
+ * índice es una comodidad del monitor del docente ("Pregunta X de Y"): viaja
+ * GRATIS cuando una escritura de contenido ocurre, pero no justifica una por sí
+ * solo. Si dos firmas de contenido coinciden, la base ya tiene lo que importa y
+ * el guardado se puede saltar; el bloqueo de sesión lo sostiene el latido
+ * (`updated_at`), no esta fila.
+ */
+export function firmaDeContenido(answers: Record<string, unknown>): string {
+  return JSON.stringify(answers, (k, v) =>
+    k === "__saved_at" || k === "__current_idx" ? undefined : v,
+  );
+}
+
+/**
  * Qué escribir al combinar la copia local del dispositivo con la entrega del
  * servidor. Es la regla ÚNICA para los dos momentos en que se combinan: al
  * reanudar el intento (qué mostrar) y al sincronizar la copia pendiente (qué
@@ -96,6 +119,12 @@ export function firmaDeRespuestas(answers: Record<string, unknown>): string {
  * el sello. Todos los metadatos del servidor se conservan: las advertencias los
  * registra el proctoring en el servidor al instante y el docente puede
  * perdonarlas, y el desglose de la nota no es del alumno.
+ *
+ * Cuando NO gana por respuestas pero es de este intento, de esta sesión y más
+ * nueva, igual aporta la pregunta visible (`__current_idx`): navegar sin cambiar
+ * nada ya no escribe en la base (`firmaDeContenido`), así que el índice del
+ * servidor puede estar atrasado y reanudar llevaría al alumno a una pregunta
+ * anterior. `usoLocal` sigue en false: no hay nada que subir ni que avisar.
  */
 export function combinarCopiaConServidor(
   servidor: Record<string, unknown>,
@@ -113,7 +142,11 @@ export function combinarCopiaConServidor(
   if (guardadoServidor > 0 && guardadoLocal > 0 && guardadoLocal <= guardadoServidor) return sinCambios;
   const respuestas = Object.keys(copia).filter((k) => !esMetadato(k));
   const distinta = respuestas.some((k) => JSON.stringify(copia[k]) !== JSON.stringify(servidor[k]));
-  if (!distinta) return sinCambios;
+  if (!distinta) {
+    return copia.__current_idx !== undefined && copia.__current_idx !== servidor.__current_idx
+      ? { answers: { ...servidor, __current_idx: copia.__current_idx }, usoLocal: false }
+      : sinCambios;
+  }
   const answers: Record<string, unknown> = { ...servidor };
   for (const k of respuestas) answers[k] = copia[k];
   if (copia.__current_idx !== undefined) answers.__current_idx = copia.__current_idx;
@@ -146,13 +179,50 @@ export function debeSubirRespuestas(
 // Latido del bloqueo de sesión
 // ─────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Ventana de DISPERSIÓN de la auto-entrega al vencerse el tiempo.
+ *
+ * Todos los relojes del examen llegan a cero en el MISMO segundo de pared
+ * (comparten `end_time`), así que sin esto 200 alumnos entregan a la vez: 200
+ * escrituras de la fila entera + 200 encolados de IA + notificaciones en uno o
+ * dos segundos — el "pico de cierre" que el dueño pidió aplanar. Cada cliente
+ * espera un retraso ALEATORIO dentro de esta ventana antes de entregar, con lo
+ * que el pico se reparte (con 8 s, ~25 entregas/s en vez de ~200 de golpe).
+ *
+ * Es seguro que la ventana sea holgada: `close_expired_exam_attempts` corre por
+ * cron cada minuto y cierra lo que haya quedado `en_progreso`, así que el retraso
+ * jamás deja una entrega sin registrar. Y las respuestas se CONGELAN al llegar a
+ * cero (ver `tiempoAgotadoRef` en la pantalla), de modo que el retraso no le da
+ * ni un segundo extra de edición a nadie.
+ */
+export const MS_DISPERSION_ENTREGA_AUTOMATICA = 8_000;
+
+/** Retraso aleatorio (ms) para dispersar la auto-entrega. `rnd` ∈ [0,1) — se
+ *  inyecta para poder testear sin `Math.random`. */
+export function retrasoDeEntregaAutomatica(rnd: number): number {
+  const acotado = Math.max(0, Math.min(1, Number(rnd) || 0));
+  return Math.floor(acotado * MS_DISPERSION_ENTREGA_AUTOMATICA);
+}
+
 /** Ventana del bloqueo: si `submissions.updated_at` tiene MENOS de esto, se
  *  considera que otro dispositivo sigue vivo en el intento y no se le puede
- *  robar. Está replicada en la pantalla de toma, que es quien la compara. */
-export const MS_BLOQUEO_SESION = 10_000;
+ *  robar. Está replicada en la pantalla de toma, que es quien la compara.
+ *  Pasar a otro dispositivo cuesta, como mucho, esperar esto. */
+export const MS_BLOQUEO_SESION = 45_000;
 
-/** Cada cuánto late la pantalla de examen para refrescar `updated_at`. */
-export const MS_ENTRE_LATIDOS = 5_000;
+/**
+ * Cada cuánto late la pantalla de examen para refrescar `updated_at`.
+ *
+ * 20 s y no 5 s, medido: el latido es la escritura MÁS frecuente del examen y lo
+ * que agota la instancia son las escrituras (su E/S). En la prueba de carga del
+ * 2026-10-30 (`scripts/exam-load-test.mjs`, instancia de producción) con latido
+ * de 5 s, 150 alumnos simultáneos daban p95 de 0,8 s y 200 colapsaban: latidos
+ * de 26 s y guardados de hasta 42 s. A 200 alumnos eran ~35 de las ~44 escrituras
+ * por segundo. Con 20 s son ~10. El costo es el bloqueo: `MS_BLOQUEO_SESION` tiene
+ * que crecer con el latido (ver `latidoEsRedundante`), así que pasar a otro
+ * dispositivo espera hasta 45 s en vez de 10.
+ */
+export const MS_ENTRE_LATIDOS = 20_000;
 
 /** Si un guardado en la base ocurrió hace menos de esto, el latido se SALTA. */
 export const MS_GUARDADO_RECIENTE = 3_000;
