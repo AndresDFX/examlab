@@ -208,21 +208,21 @@ export function retrasoDeEntregaAutomatica(rnd: number): number {
  *  considera que otro dispositivo sigue vivo en el intento y no se le puede
  *  robar. Está replicada en la pantalla de toma, que es quien la compara.
  *  Pasar a otro dispositivo cuesta, como mucho, esperar esto. */
-export const MS_BLOQUEO_SESION = 45_000;
+export const MS_BLOQUEO_SESION = 60_000;
 
 /**
  * Cada cuánto late la pantalla de examen para refrescar `updated_at`.
  *
- * 20 s y no 5 s, medido: el latido es la escritura MÁS frecuente del examen y lo
+ * 30 s y no 5 s, medido: el latido es la escritura MÁS frecuente del examen y lo
  * que agota la instancia son las escrituras (su E/S). En la prueba de carga del
  * 2026-10-30 (`scripts/exam-load-test.mjs`, instancia de producción) con latido
  * de 5 s, 150 alumnos simultáneos daban p95 de 0,8 s y 200 colapsaban: latidos
  * de 26 s y guardados de hasta 42 s. A 200 alumnos eran ~35 de las ~44 escrituras
- * por segundo. Con 20 s son ~10. El costo es el bloqueo: `MS_BLOQUEO_SESION` tiene
+ * por segundo. Con 20 s eran ~10 (p95 de 7,6 s con 200) y con 30 s son ~7. El costo es el bloqueo: `MS_BLOQUEO_SESION` tiene
  * que crecer con el latido (ver `latidoEsRedundante`), así que pasar a otro
- * dispositivo espera hasta 45 s en vez de 10.
+ * dispositivo espera hasta 60 s en vez de 10.
  */
-export const MS_ENTRE_LATIDOS = 20_000;
+export const MS_ENTRE_LATIDOS = 30_000;
 
 /** Si un guardado en la base ocurrió hace menos de esto, el latido se SALTA. */
 export const MS_GUARDADO_RECIENTE = 3_000;
